@@ -460,7 +460,7 @@ enum NotchAgentTests {
                                         input: Int = 100, output: Int = 20, cacheRead: Int = 0,
                                         cacheWrite: Int = 0, reasoning: Int = 0, cost: Double = 0.01,
                                         created: Int64 = 1_790_000_000_000, completed: Int64? = 1_790_000_005_000,
-                                        cwd: String = "/Users/me/code/app", finish: String? = nil,
+                                        cwd: String = "/Users/me/code/app", finish: String? = "tool-calls",
                                         error: [String: Any]? = nil) -> [String: Any] {
         var time: [String: Any] = ["created": NSNumber(value: created)]
         if let completed { time["completed"] = NSNumber(value: completed) }
@@ -477,12 +477,12 @@ enum NotchAgentTests {
 
     private static func opencodeParsing(_ suite: TestSuite) {
         let now = Date(timeIntervalSince1970: 1_790_000_010)
-        // A user prompt ends the previous turn and starts the next one, so the
-        // turn it closes reports as finished.
+        // A prompt only ever marks activity: it keeps a working turn going
+        // and opens one when none stands, but never ends or reopens anything.
         let user = AgentOpenCodeParser.entries(messageID: "u1", sessionID: "s", data: [
             "role": "user", "time": ["created": NSNumber(value: 1_790_000_000_000.0)]], directory: nil, now: now)
-        suite.expect(user.count == 2 && user[1] == .turnBegan(Date(timeIntervalSince1970: 1_790_000_000)),
-                     "a prompt opens a turn at its own time")
+        suite.expect(user == [.turnActive(Date(timeIntervalSince1970: 1_790_000_000))],
+                     "a prompt marks activity at its own time")
         // An assistant reply becomes usage with the store's token shape, priced
         // from the list when the family is known.
         let entries = AgentOpenCodeParser.entries(messageID: "m1", sessionID: "s9",
@@ -524,6 +524,9 @@ enum NotchAgentTests {
                      "a reasoning-only reply with no charge is kept, not omitted")
         // Terminal status follows the row: a final response ends the turn as
         // finished, an error ends it quietly, and a tool step stays active.
+        // An unknown finish keeps working like a tool step, a compaction
+        // reply never ends the turn it summarizes for, and a completed reply
+        // with no finish means the loop stopped after it.
         let final = AgentOpenCodeParser.entries(
             messageID: "m-stop", sessionID: "s",
             data: opencodeMessage(role: "assistant", finish: "stop"), directory: nil, now: now)
@@ -542,6 +545,33 @@ enum NotchAgentTests {
             data: opencodeMessage(role: "assistant", finish: "tool-calls"), directory: nil, now: now)
         suite.expect(stepping.last == .turnActive(Date(timeIntervalSince1970: 1_790_000_005)),
                      "an intermediate tool step keeps the turn working")
+        let unknown = AgentOpenCodeParser.entries(
+            messageID: "m-unknown", sessionID: "s",
+            data: opencodeMessage(role: "assistant", finish: "unknown"), directory: nil, now: now)
+        suite.expect(unknown.last == .turnActive(Date(timeIntervalSince1970: 1_790_000_005)),
+                     "an undecided finish keeps the turn working like a tool step")
+        var compacting = opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 60, output: 6,
+                                         cost: 0.3, finish: "stop")
+        compacting["mode"] = "compaction"
+        compacting["agent"] = "compaction"
+        compacting["summary"] = true
+        let compacted = AgentOpenCodeParser.entries(
+            messageID: "m-compact", sessionID: "s", data: compacting, directory: nil, now: now)
+        suite.expect(compacted.last == .turnActive(Date(timeIntervalSince1970: 1_790_000_005))
+                        && compacted.contains { if case .usage = $0 { return true }; return false },
+                     "a compaction reply counts its spend without ending the turn")
+        let quietStop = AgentOpenCodeParser.entries(
+            messageID: "m-quiet", sessionID: "s",
+            data: opencodeMessage(role: "assistant", finish: nil), directory: nil, now: now)
+        suite.expect(quietStop.last == .turnEnded(Date(timeIntervalSince1970: 1_790_000_005), completed: true, duration: nil),
+                     "a completed reply with no finish ends the turn")
+        suite.expect(AgentOpenCodeParser.isCompaction(compacting) && !AgentOpenCodeParser.isCompaction(["role": "assistant"])
+                        && AgentOpenCodeParser.finishKeepsWorking("tool-calls", completed: now)
+                        && AgentOpenCodeParser.finishKeepsWorking("unknown", completed: now)
+                        && AgentOpenCodeParser.finishKeepsWorking(nil, completed: nil)
+                        && !AgentOpenCodeParser.finishKeepsWorking(nil, completed: now)
+                        && !AgentOpenCodeParser.finishKeepsWorking("stop", completed: now),
+                     "compaction and undecided finishes stay working, completed silence ends")
         // Anything the list does not name shows what OpenCode recorded, even zero.
         let free = AgentOpenCodeParser.entries(messageID: "m2", sessionID: "s",
                                                data: opencodeMessage(role: "assistant",
@@ -599,6 +629,8 @@ enum NotchAgentTests {
                      "a finished OpenCode turn reports its spend and stops working")
         let nextUser = AgentOpenCodeParser.entries(messageID: "u2", sessionID: "s", data: [
             "role": "user", "time": ["created": NSNumber(value: 1_790_000_100_000.0)]], directory: nil, now: now)
+        suite.expect(nextUser == [.turnActive(Date(timeIntervalSince1970: 1_790_000_100))],
+                     "a prompt never reports a finish by itself")
         let done = store.apply(nextUser, file: file, provider: .opencode, tracksTurns: true,
                                modified: Date(timeIntervalSince1970: 1_790_000_100),
                                now: Date(timeIntervalSince1970: 1_790_000_100))
@@ -698,6 +730,27 @@ enum NotchAgentTests {
         return true
     }
 
+    /// Appends messages to a fixture database, returning false when any row
+    /// fails to insert.
+    private static func opencodeDatabaseAppend(home: URL, messages: [(id: String, session: String, created: Int64,
+                                                                      updated: Int64, data: [String: Any])]) -> Bool {
+        let url = AgentOpenCodeDatabase.databaseURL(home: home)
+        var db: OpaquePointer?
+        guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else { return false }
+        defer { sqlite3_close(db) }
+        func exec(_ sql: String) -> Bool { sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK }
+        for message in messages {
+            guard let json = try? JSONSerialization.data(withJSONObject: message.data),
+                  let text = String(data: json, encoding: .utf8) else { return false }
+            let safe = text.replacingOccurrences(of: "'", with: "''")
+            guard exec("INSERT INTO message(id, session_id, time_created, time_updated, data) VALUES" +
+                       "('\(message.id)', '\(message.session)', \(message.created), \(message.updated), '\(safe)')") else {
+                return false
+            }
+        }
+        return true
+    }
+
     /// Overlap rereads, replacement, removal, hierarchy and cancellation,
     /// through the real reader and store.
     private static func opencodeReader(_ suite: TestSuite, now: Date) {
@@ -713,6 +766,17 @@ enum NotchAgentTests {
             message["finish"] = finish
             return message
         }
+        func updateMessage(home: URL, id: String, updated: Int64, data: [String: Any]) -> Bool {
+            var db: OpaquePointer?
+            let url = AgentOpenCodeDatabase.databaseURL(home: home)
+            guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else { return false }
+            defer { sqlite3_close(db) }
+            guard let json = try? JSONSerialization.data(withJSONObject: data),
+                  let text = String(data: json, encoding: .utf8) else { return false }
+            let safe = text.replacingOccurrences(of: "'", with: "''")
+            let sql = "UPDATE message SET time_updated = \(updated), data = '\(safe)' WHERE id = '\(id)'"
+            return sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK
+        }
         let base: Int64 = 1_790_000_000_000
         guard opencodeDatabase(
             home: home, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
@@ -725,9 +789,9 @@ enum NotchAgentTests {
         var cursor = AgentOpenCodeCursor()
         let store = AgentUsageStore()
         store.reportsTransitions = true
-        func drain() -> [AgentUsageEvent] {
+        func drain() -> (events: [AgentUsageEvent], changed: Bool) {
             var events: [AgentUsageEvent] = []
-            _ = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { true }) { batch in
+            let read = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { true }) { batch in
                 let file = "opencode:\(batch.sessionID)"
                 let tracks = batch.sessionID == batch.rootSessionID
                 events += store.apply(batch.entries, file: file, provider: .opencode, tracksTurns: tracks,
@@ -735,15 +799,109 @@ enum NotchAgentTests {
                                       modified: now, now: now)
                 return true
             }
+            return (events, read.changed)
+        }
+        // A finished turn reports once; an unchanged poll hands over
+        // nothing at all, without decoding a single row.
+        let first = drain()
+        suite.expect(first.events.count == 1 && store.records.count == 1, "a finished turn reports once")
+        let cost = store.records.first?.cost
+        let second = drain()
+        suite.expect(second.events.isEmpty && !second.changed && store.records.count == 1
+                        && store.records.first?.cost == cost && store.live.isEmpty,
+                     "an unchanged poll replays neither rows nor notices")
+        // A prompt rewritten between steps keeps the working turn and its
+        // tokens; one rewritten after the final reply opens nothing.
+        let rewrites = FileManager.default.temporaryDirectory.appending(path: "vorss-rewrites-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: rewrites) }
+        guard opencodeDatabase(
+            home: rewrites, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
+                       (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
+                        data: assistantData(finish: "tool-calls", created: base + 5_000, updated: base + 8_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its rewrite database")
+            return
+        }
+        var rewriteCursor = AgentOpenCodeCursor()
+        let rewriteStore = AgentUsageStore()
+        rewriteStore.reportsTransitions = true
+        func rewriteDrain() -> [AgentUsageEvent] {
+            var events: [AgentUsageEvent] = []
+            _ = AgentOpenCodeReader.read(home: rewrites, cursor: &rewriteCursor, now: now,
+                                         shouldContinue: { true }) { batch in
+                events += rewriteStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                             provider: .opencode, tracksTurns: true, modified: now, now: now)
+                return true
+            }
             return events
         }
-        // A finished turn reports once; the overlap reread merges usage
-        // without reopening the turn or replaying the notice.
-        suite.expect(drain().count == 1 && store.records.count == 1, "a finished turn reports once")
-        let cost = store.records.first?.cost
-        suite.expect(drain().isEmpty && store.records.count == 1 && store.records.first?.cost == cost
-                        && store.live.isEmpty,
-                     "an overlap reread replays neither the notice nor the turn")
+        suite.expect(rewriteDrain().isEmpty && rewriteStore.live.count == 1, "a task in progress shows working")
+        let workingTokens = rewriteStore.live.first?.tokens.total
+        suite.expect(updateMessage(home: rewrites, id: "u1", updated: base + 20_000, data: userData(at: base)),
+                     "the fixture rewrites the prompt row")
+        suite.expect(rewriteDrain().isEmpty && rewriteStore.live.count == 1
+                        && rewriteStore.live.first?.tokens.total == workingTokens,
+                     "a prompt rewritten between steps keeps the turn and its tokens")
+        suite.expect(updateMessage(home: rewrites, id: "m1", updated: base + 30_000,
+                                    data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000)),
+                     "the fixture completes the reply")
+        let stopDrain = rewriteDrain()
+        suite.expect(stopDrain.count == 1 && rewriteStore.live.isEmpty, "the final reply finishes the turn")
+        suite.expect(updateMessage(home: rewrites, id: "u1", updated: base + 40_000, data: userData(at: base)),
+                     "the fixture rewrites the prompt after the final reply")
+        let afterFinal = rewriteDrain()
+        suite.expect(afterFinal.isEmpty && rewriteStore.live.isEmpty && rewriteStore.records.count == 1,
+                     "a prompt rewritten after the final reply opens no ghost turn")
+        // A compaction reply in the middle of a task counts its spend
+        // without ending the turn.
+        var compaction = opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 600, output: 20,
+                                         cost: 1.5, created: base + 50_000, completed: base + 55_000, finish: "stop")
+        compaction["mode"] = "compaction"
+        compaction["summary"] = true
+        suite.expect(updateMessage(home: rewrites, id: "m1", updated: base + 30_000,
+                                    data: assistantData(finish: "tool-calls", created: base + 5_000,
+                                                        updated: base + 8_000)),
+                     "the fixture returns the reply to a step")
+        _ = rewriteDrain()
+        guard opencodeDatabaseAppend(home: rewrites, messages: [
+            (id: "mc", session: "s", created: base + 50_000, updated: base + 55_000, data: compaction)]) else {
+            suite.expect(false, "the OpenCode fixture appends its compaction reply")
+            return
+        }
+        let compactionEvents = rewriteDrain()
+        suite.expect(compactionEvents.isEmpty && rewriteStore.live.count == 1 && rewriteStore.records.count == 2,
+                     "a compaction reply joins the working turn with no notice")
+        // A prompt after long silence quietly closes the stale turn and
+        // opens a fresh one, with no finished notice for the idle time.
+        let quietHome = FileManager.default.temporaryDirectory.appending(path: "vorss-quiet-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: quietHome) }
+        guard opencodeDatabase(
+            home: quietHome, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
+                       (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
+                        data: assistantData(finish: "tool-calls", created: base + 5_000, updated: base + 8_000)),
+                       (id: "u2", session: "s", created: base + 1_200_000, updated: base + 1_200_000,
+                        data: userData(at: base + 1_200_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its quiet database")
+            return
+        }
+        var quietCursor = AgentOpenCodeCursor()
+        let quietStore = AgentUsageStore()
+        quietStore.reportsTransitions = true
+        var quietEvents: [AgentUsageEvent] = []
+        _ = AgentOpenCodeReader.read(home: quietHome, cursor: &quietCursor, now: now, shouldContinue: { true }) { batch in
+            quietEvents += quietStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                            provider: .opencode, tracksTurns: true, modified: now, now: now)
+            return true
+        }
+        suite.expect(quietEvents.isEmpty && quietStore.live.count == 1,
+                     "a prompt after silence closes the stale turn quietly and opens a fresh one")
+        let phaseCost = store.records.first?.cost
+        let phaseSecond = drain()
+        suite.expect(phaseSecond.events.isEmpty && !phaseSecond.changed && store.records.count == 1
+                        && store.records.first?.cost == phaseCost && store.live.isEmpty,
+                     "an unchanged poll hands over nothing without decoding a row")
+        suite.expect(cursor.parents == ["s": ""], "parents are looked up for sessions with new rows")
         // A replaced file starts over: rows older than the old watermark are
         // read, and live turns from the old file are forgotten quietly.
         store.apply(AgentOpenCodeParser.entries(messageID: "u-live", sessionID: "s",
@@ -768,7 +926,9 @@ enum NotchAgentTests {
         for file in store.liveFiles(for: .opencode) { forgotten = store.forget(file: file) || forgotten }
         suite.expect(forgotten && store.live.isEmpty && store.records.count == 1,
                      "replacement drops the old file's live turns while its history stays")
-        // A stopped scan collects nothing while the database stands.
+        // A stopped scan collects nothing even while the database changed.
+        suite.expect(updateMessage(home: home, id: "u2", updated: older + 5_000, data: userData(at: older)),
+                     "the fixture touches the database")
         var deniedCount = 0
         _ = AgentOpenCodeReader.read(home: home, cursor: &cursor, now: now, shouldContinue: { false }) { _ in
             deniedCount += 1
@@ -1428,6 +1588,10 @@ enum NotchAgentTests {
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex]) == [limits, codex, trend],
                      "each agent gets its own limits card")
+        suite.expect(AgentProvider.opencode.reportsLimits == false
+                        && NotchAgentSupport.tiles(cards: [.limits], providers: [.claude, .codex, .opencode])
+                            == [limits, codex],
+                     "OpenCode reports no limits and earns no limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex]) == [resets, spend]
                         && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude]) == [spend],

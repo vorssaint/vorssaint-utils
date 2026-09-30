@@ -25,6 +25,10 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .opencode: return "terminal"
         }
     }
+
+    /// Whether the agent reports plan limits the island can show. OpenCode
+    /// keeps no limits on this Mac, so it never earns a limits card.
+    var reportsLimits: Bool { self != .opencode }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes

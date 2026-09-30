@@ -286,16 +286,17 @@ final class AgentUsageService: ObservableObject {
         return changed
     }
 
-    /// Reads what OpenCode wrote since the last look, a bounded page at a
-    /// time. True when that changed what is stored. Runs on `queue`.
+    /// Reads what OpenCode wrote since the last look. True when that changed
+    /// what is stored: rows already applied never decode again, so an
+    /// unchanged poll hands over nothing. Runs on `queue`.
     @discardableResult
     private func readOpenCode() -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled,
               enabled.contains(.opencode) else { return false }
         let now = Date()
         var changed = false
-        // Each page applies in log order while its rows are alive, so
-        // stopping the section ends the scan at the next page boundary.
+        // Each new or updated row applies in log order while it is alive,
+        // so stopping the section ends the scan at the next row.
         let read = AgentOpenCodeReader.read(home: home, cursor: &opencodeCursor, now: now,
                                             shouldContinue: { !cancellation.isCancelled }) { batch in
             guard !cancellation.isCancelled else { return false }
@@ -307,7 +308,6 @@ final class AgentUsageService: ObservableObject {
                                        parent: tracks ? nil : "opencode:\(root)",
                                        modified: now, now: now)
             finished.forEach(report)
-            changed = true
             return true
         }
         if read.reset {
@@ -317,7 +317,7 @@ final class AgentUsageService: ObservableObject {
                 if store.forget(file: file) { changed = true }
             }
         }
-        return changed
+        return changed || read.changed
     }
 
     /// Ends the Claude turns whose process is gone. True when one was showing.
