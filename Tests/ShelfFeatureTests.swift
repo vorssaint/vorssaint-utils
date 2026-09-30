@@ -299,6 +299,62 @@ enum ShelfFeatureTests {
                                          spacing: 10,
                                          inset: 4) == CGRect(x: 4, y: 200, width: 78, height: 88),
                "a single column puts every tile in its own row")
+
+        // Absolute frames in an AppKit document view mirror for nobody. The
+        // mirrored grid is measured in from the trailing edge of the content,
+        // so the width a short row cannot fill stays on the side the reader
+        // ends on — reversing the column index would leave it on the right.
+        let mirrorTile = CGSize(width: 78, height: 88)
+        suite.expect(ShelfTileLayout.tileFrame(index: 0, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276)
+                == CGRect(x: 194, y: 4, width: 78, height: 88),
+                     "the first mirrored tile sits one inset in from the trailing edge")
+        suite.expect(ShelfTileLayout.tileFrame(index: 3, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276)
+                == CGRect(x: 194, y: 102, width: 78, height: 88),
+                     "a mirrored row starts again at the trailing edge")
+        suite.expect(ShelfTileLayout.tileFrame(index: 2, columns: 3, tileSize: mirrorTile,
+                                               spacing: 10, inset: 4, mirroredIn: 276).minX == 18
+                && ShelfTileLayout.tileFrame(index: 2, columns: 3, tileSize: mirrorTile,
+                                             spacing: 10, inset: 4).minX == 180,
+                     "the leftover width of a mirrored grid falls on the leading side")
+        // A sideways strip wider than its viewport has to open at the end its
+        // flow starts from, but only when that end actually moved. A rebuild a
+        // tile started after a merge carries no memory of an earlier one, and
+        // must leave the scroll where the reader had it rather than yanking the
+        // strip to either end.
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: nil,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: nil) == false
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: nil,
+                                                  contentSize: CGSize(width: 300, height: 100),
+                                                  lastContentSize: nil) == false,
+                     "a rebuild with no memory of an earlier one leaves the scroll alone")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: false,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100))
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: true,
+                                                  contentSize: CGSize(width: 300, height: 100),
+                                                  lastContentSize: CGSize(width: 300, height: 100)),
+                     "a direction flip sends the strip to the end it now starts from")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: true,
+                                                   contentSize: CGSize(width: 400, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100))
+                && ShelfScrollStart.shouldRealign(rightToLeft: false, lastRightToLeft: false,
+                                                  contentSize: CGSize(width: 400, height: 100),
+                                                  lastContentSize: CGSize(width: 300, height: 100)) == false,
+                     "a resize moves the end only for a mirrored strip")
+        suite.expect(ShelfScrollStart.shouldRealign(rightToLeft: true, lastRightToLeft: true,
+                                                   contentSize: CGSize(width: 300, height: 100),
+                                                   lastContentSize: CGSize(width: 300, height: 100)) == false,
+                     "an ordinary rebuild leaves the strip where it was left")
+        suite.expect(ShelfScrollStart.origin(rightToLeft: true, documentWidth: 900, visibleWidth: 300) == 600
+                && ShelfScrollStart.origin(rightToLeft: false, documentWidth: 900, visibleWidth: 300) == 0
+                && ShelfScrollStart.origin(rightToLeft: true, documentWidth: 200, visibleWidth: 300) == 0,
+                     "a mirrored strip opens at its right end, and never past x = 0")
+        suite.expect(ShelfTileLayout.sidewaysTileFrame(index: 0, rows: 2, tileSize: mirrorTile,
+                                                       spacing: 10, inset: 4, mirroredIn: 276).minX == 194,
+                     "the island's sideways grid answers the same edge")
         suite.expect(ShelfTileLayout.rowCount(contentHeight: 140, tileHeight: 88, spacing: 10, inset: 4) == 1
                && ShelfTileLayout.rowCount(contentHeight: 194, tileHeight: 88, spacing: 10, inset: 4) == 2
                && ShelfTileLayout.rowCount(contentHeight: 0, tileHeight: 88, spacing: 10, inset: 4) == 1,
@@ -763,11 +819,35 @@ enum ShelfFeatureTests {
             suite.expect(slovakStrings.form(for: count) == wanted,
                    "a language that reads the whole number asks for the right form at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+        // Arabic reads the last two digits, and its middle slot holds the
+        // ordinary plural: three through ten of every hundred ask for it, so
+        // 103 and 110 do too, while 11 through 99 go back to the singular noun
+        // after the numeral. Two goes with them rather than with three, since
+        // the dual is a word of its own and never follows a numeral. Russian's
+        // rule would have read wrong from two to ten, and no rule at all read
+        // wrong from three to ten.
+        let arabicStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                               imageSingular: "one", imageFew: "few",
+                                               imagePlural: "many",
+                                               fileSingular: "one", fileFew: "few",
+                                               filePlural: "many",
+                                               noteSingular: "one", noteFew: "few",
+                                               notePlural: "many",
+                                               linkSingular: "one", linkFew: "few",
+                                               linkPlural: "many",
+                                               agreement: .byLastTwoDigits)
+        for (count, wanted) in [(0, ShelfTooltipStrings.Form.many), (1, .one), (2, .many), (3, .few),
+                                (10, .few), (11, .many), (25, .many), (99, .many), (100, .many),
+                                (101, .many), (103, .few), (110, .few), (111, .many)] {
+            suite.expect(arabicStrings.form(for: count) == wanted,
+                   "Arabic asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk, .ar]
                && AppLanguage.ru.countAgreement == .byLastDigits
                && AppLanguage.uk.countAgreement == .byLastDigits
-               && AppLanguage.sk.countAgreement == .byWholeNumber,
-               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
+               && AppLanguage.sk.countAgreement == .byWholeNumber
+               && AppLanguage.ar.countAgreement == .byLastTwoDigits,
+               "Russian, Slovak, Ukrainian and Arabic are the four languages of the sixteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

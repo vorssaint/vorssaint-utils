@@ -7,7 +7,7 @@ enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
-        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
+        (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK), (.ar, .ar),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
@@ -67,6 +67,23 @@ enum LocalizationTests {
         let diskEnglish = diskPickerText(.enUS)
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
+        suite.expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
+                     "Arabic is the only right-to-left interface language")
+        // Arabic makes a noun agree with the number in front of it in forms no
+        // single string can hold, so a count goes behind a label instead. What
+        // may still follow a bare number is a preposition or a unit
+        // abbreviation, which do not inflect. The shelf tooltip picks its own
+        // form through the count rule and is left out.
+        let agreeing = try! NSRegularExpression(pattern: "%(\\d+\\$)?l{0,2}d ([\\x{0600}-\\x{06FF}/]+)")
+        let invariant: Set<String> = ["من", "إلى", "د", "ث", "ي", "دورة/د", "إطار/ث"]
+        for (name, value) in fields(Strings.ar) where !name.hasPrefix("shelfTooltip") {
+            let range = NSRange(value.startIndex..., in: value)
+            for match in agreeing.matches(in: value, range: range) {
+                let word = Range(match.range(at: 2), in: value).map { String(value[$0]) } ?? ""
+                suite.expect(invariant.contains(word),
+                             "Arabic \(name) puts a bare number in front of “\(word)”")
+            }
+        }
         for (language, strings) in languages {
             suite.expect(strings.diskMenuBarStyleLabel != FeatureStrings.menuBarAppearance(language).label,
                          "disk picker label is distinct from usage display in \(language.rawValue)")

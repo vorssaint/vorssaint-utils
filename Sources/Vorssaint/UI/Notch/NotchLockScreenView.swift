@@ -227,6 +227,9 @@ struct NotchLockScreenPlayer: View {
             }
         }
         .frame(height: 46)
+        // Media glyphs never mirror, so the row around them keeps one
+        // orientation too, the way the island's own transport row does.
+        .unmirroredLayout()
     }
 
     private func button(_ symbol: String, size: CGFloat, title: String, command: NotchMusicService.Command,

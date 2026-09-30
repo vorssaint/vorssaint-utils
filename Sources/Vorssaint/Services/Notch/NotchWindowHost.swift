@@ -871,7 +871,16 @@ private final class NotchQuickAccessContainer: NSView {
         self.canvas = canvas
         let motion = NotchQuickAccessMotion()
         self.motion = motion
-        quickView = NSHostingView(rootView: content(motion, canvas.backdropPresentation))
+        // The bubbles are placed with `position` around the notch and joined to
+        // it by a drop shape, and the container hit-tests clicks and tracks
+        // hover against those same placements, which are screen coordinates
+        // and never mirror. Mirroring the root would draw the side bubbles on
+        // the opposite side of the notch, and where the two sides hold
+        // different numbers of them the extra ones would land where neither a
+        // click nor a hover reaches. These are screen sides, like the wheel's
+        // slices, so the root keeps one orientation.
+        quickView = NSHostingView(
+            rootView: AnyView(content(motion, canvas.backdropPresentation).unmirroredLayout()))
         quickView.sizingOptions = []
         quickView.wantsLayer = true
         quickView.isHidden = true
@@ -980,11 +989,11 @@ private final class NotchCanvas: NSView {
 
     init(content: AnyView, background: (NotchBackdropPresentation) -> AnyView, size: CGSize) {
         contentSize = size
-        backdrop = NotchHostingView(rootView: background(backdropPresentation))
+        backdrop = NotchHostingView(rootView: AnyView(background(backdropPresentation).appLayoutDirection()))
         backdrop.sizingOptions = []
         backdrop.wantsLayer = true
         backdrop.autoresizingMask = []
-        host = NotchHostingView(rootView: content)
+        host = NotchHostingView(rootView: AnyView(content.appLayoutDirection()))
         host.sizingOptions = []
         host.wantsLayer = true
         host.autoresizingMask = []

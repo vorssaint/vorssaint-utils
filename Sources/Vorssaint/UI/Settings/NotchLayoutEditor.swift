@@ -43,7 +43,11 @@ struct NotchLayoutEditor: View {
                     }
                     // Laid out at the island's real size and scaled down, so the
                     // silhouette, type and spacing keep the proportions on screen.
+                    // The canvas around it is pinned because its buttons are
+                    // placed with `position`; the preview is the island itself,
+                    // so it reads in the chosen language like the real one.
                     islandPreview
+                        .appLayoutDirection()
                         .background {
                             let shape = NotchShape.island(height: actualHeight, geometry: previewGeometry)
                             shape.fill(.black)
@@ -122,6 +126,11 @@ struct NotchLayoutEditor: View {
             }
             .frame(height: Self.canvasHeight)
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: configuration)
+            // The bubbles are placed with `position` around the island, the
+            // same way the real ones are, and left and right here name the
+            // sides they will appear on. A mirrored canvas would show a button
+            // set to the left on the right.
+            .unmirroredLayout()
             Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }

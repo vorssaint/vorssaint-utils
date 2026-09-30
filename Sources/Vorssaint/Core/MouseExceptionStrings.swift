@@ -49,6 +49,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -277,4 +278,18 @@ extension MouseExceptionStrings {
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
     )
+
+    static let ar = MouseExceptionStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        captionSmoothScroll: "تبقى عجلة التمرير بخطواتها العادية في هذه التطبيقات، وذلك للتطبيقات التي تفسّرها بطريقتها الخاصة مثل أدوات التصميم والرسم ثلاثي الأبعاد.",
+        captionLinearScroll: "تحتفظ العجلة بالإيقاع الذي يمنحه macOS داخل هذه التطبيقات، من أجل الألعاب وأدوات ثلاثية الأبعاد تحسب النقرات بنفسها.",
+        captionScrollDirection: "تحتفظ عجلة التمرير في هذه التطبيقات بالاتجاه الذي يمنحه macOS.",
+        captionNavigation: "تواصل الأزرار الجانبية أداء ما تفعله هذه التطبيقات بها أصلًا.",
+        captionButtonShortcuts: "تبقى أزرار الماوس الإضافية صامتة في هذه التطبيقات، وتصلها الضغطة بدلًا من ذلك.",
+        captionMiddleClick: "تبقى النقرة بثلاثة أصابع نقرة عادية في هذه التطبيقات.",
+        captionFocusFollowsMouse: "لا يغيّر تمرير المؤشر التركيز ولا يرفع نافذة في هذه التطبيقات.",
+        captionSuperKey: "ما دام أي من هذه التطبيقات مفتوحًا، ولو في الخلفية، يتوقف “المفتاح الخارق” مؤقتًا ويعمل المفتاح المختار بشكل طبيعي.",
+        pausedSuperKey: "متوقف مؤقتًا أثناء فتح تطبيق محدد")
 }

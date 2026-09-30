@@ -1294,5 +1294,35 @@ enum MixerFeatureTests {
         suite.expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
                "a single channel is copied to the right as well as the left")
 
+
+        // The rail's labels and glyphs name a screen direction, so a mirrored
+        // rail has to move the opposite way through the order to obey them.
+        suite.expect(MixerReorderDirection.offset(towardTrailingEdge: true, rightToLeft: false) == 1
+                     && MixerReorderDirection.offset(towardTrailingEdge: true, rightToLeft: true) == -1,
+                     "move right walks the order the way the rail is drawn")
+        // The insertion marker is placed with .trailing and mirrors on its own,
+        // so the drop side has to mirror with it or the two disagree.
+        suite.expect(MixerReorderDirection.dropsAfter(pointerBeyondMidpoint: true, sideways: true, rightToLeft: true) == false
+                     && MixerReorderDirection.dropsAfter(pointerBeyondMidpoint: false, sideways: true, rightToLeft: true) == true,
+                     "a mirrored rail drops after on the leading half")
+        suite.expect(MixerReorderDirection.dropsAfter(pointerBeyondMidpoint: true, sideways: false, rightToLeft: true) == true
+                     && MixerReorderDirection.dropsAfter(pointerBeyondMidpoint: true, sideways: true, rightToLeft: false) == true,
+                     "a vertical rail and an unmirrored one keep the side they had")
+
+        // The panel's own volume bar keeps mirroring, since a magnitude does run
+        // along the reading order. Its fill and knob flip with the row while the
+        // drag reports the x it was given, so the two only agree if a mirrored
+        // bar counts from its trailing edge. A pointer at either end asks for
+        // the value drawn under it, not the one at the far side.
+        let ends: [(CGFloat, Double, Double)] = [(0, 0, 1), (200, 1, 0)]
+        for (x, ltr, rtl) in ends {
+            suite.expectClose(MixerSliderTrack.fraction(at: x, width: 200, knobWidth: 24, rightToLeft: false),
+                              ltr, "left-to-right bar at x=\(Int(x))", tol: 0.001)
+            suite.expectClose(MixerSliderTrack.fraction(at: x, width: 200, knobWidth: 24, rightToLeft: true),
+                              rtl, "mirrored bar at x=\(Int(x))", tol: 0.001)
+        }
+        suite.expectClose(MixerSliderTrack.fraction(at: 100, width: 200, knobWidth: 24, rightToLeft: false),
+                          MixerSliderTrack.fraction(at: 100, width: 200, knobWidth: 24, rightToLeft: true),
+                          "the middle of the bar is the same fraction either way", tol: 0.001)
     }
 }

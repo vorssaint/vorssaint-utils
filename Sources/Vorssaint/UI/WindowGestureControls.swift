@@ -31,6 +31,13 @@ struct WindowEdgeSnapZonePicker: View {
                 RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.14))
             )
+            // A picture of the screen, not a row of text: each cell toggles the
+            // physical corner or edge it stands for, so the diagram keeps the
+            // screen's own order. Mirroring it would put the left-hand cells on
+            // the right while they still switched the left-hand zones, and a
+            // corner chosen here would disable snapping at the opposite one.
+            // The reset button beside it still follows the language.
+            .unmirroredLayout()
 
             Button {
                 disabledZonesStorage = ""

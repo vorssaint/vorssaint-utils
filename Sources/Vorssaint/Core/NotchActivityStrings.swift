@@ -482,6 +482,35 @@ extension FeatureStrings {
             lowBattery: "Низький заряд",
             keepAwakeActivity: "Показувати «Не давати Mac заснути» в закритому острівці",
             keepAwakeActivityHint: "Поточний сеанс з’являється біля камери із залишком часу або знаком ∞, якщо він не має завершення.")
+        case .ar: return NotchActivityStrings(
+            timer: "المؤقت",
+            timerDescription: "مؤقتات وساعة إيقاف وجلسات عمل مركّز في الجزيرة الديناميكية.",
+            pomodoro: "بومودورو",
+            stopwatch: "ساعة الإيقاف",
+            focus: "تركيز",
+            shortBreak: "استراحة قصيرة",
+            longBreak: "استراحة طويلة",
+            pomodoroHint: "ابدأ كل مرحلة عندما تكون مستعدًا. وتنتهي الدورة بعد آخر جلسة تركيز.",
+            totalSessions: "إجمالي الجلسات",
+            longBreakInterval: "الجلسات بين الاستراحات الطويلة",
+            sessionProgress: "الجلسة %d من %d",
+            pomodoroFinished: "اكتملت دورة بومودورو",
+            minutes: "الدقائق",
+            start: "بدء",
+            resume: "متابعة",
+            finished: "انتهى الوقت",
+            soundEnabled: "تشغيل صوت عند انتهاء الوقت",
+            camera: "مرآة الكاميرا",
+            cameraUnavailable: "تعذّر تشغيل الكاميرا. حاول فتحها مجددًا.",
+            cameraHint: "افتح مرآة مباشرة هنا. وتتوقف الكاميرا عند مغادرتك هذا العرض.",
+            startCamera: "فتح الكاميرا",
+            stopCamera: "إيقاف الكاميرا",
+            accessories: "تنبيهات الملحقات",
+            accessoryDescription: "يعرض الملحقات الموصولة وينبّه مرة واحدة عند انخفاض بطاريتها إلى 20%.",
+            connected: "موصول",
+            lowBattery: "بطارية منخفضة",
+            keepAwakeActivity: "إظهار “الإبقاء مستيقظًا” في الجزيرة المغلقة",
+            keepAwakeActivityHint: "تظهر الجلسة الجارية بجانب الكاميرا مع ما تبقّى من وقتها، أو ∞ إن كانت بلا نهاية.")
         }
     }
 }

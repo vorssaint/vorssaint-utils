@@ -138,6 +138,12 @@ struct RadialMenuVisualCanvas: View {
             .frame(width: geometry.size.width, height: geometry.size.height)
             .coordinateSpace(name: "RadialCanvas")
         }
+        // The same wheel as the live one, with the same offsets and wedge
+        // shape, and the drop slot picked from the pointer's direction. The
+        // live wheel is pinned, so this has to be too, or someone would put an
+        // action on one side here and find it on the other when the wheel
+        // opens. The header above still follows the language.
+        .unmirroredLayout()
     }
 
     // MARK: - Wheel Backplate
