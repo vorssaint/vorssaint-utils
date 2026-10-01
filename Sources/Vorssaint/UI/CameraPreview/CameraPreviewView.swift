@@ -31,8 +31,12 @@ struct CameraPreviewView: View {
         .animation(.easeInOut(duration: 0.15), value: hovering)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
+            // Blue while the optional microphone ring hears sound, so camera
+            // and microphone are checked in one glance.
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+                .strokeBorder(service.micPicksUpSound ? Color.blue : Color.white.opacity(0.14),
+                              lineWidth: service.micPicksUpSound ? 3 : 1)
+                .animation(.easeOut(duration: 0.15), value: service.micPicksUpSound)
         )
         // The surface is always black, so the controls (spinner, menu,
         // buttons) must draw for a dark background in either system look.
