@@ -267,8 +267,11 @@ struct NotchAudioControls: View {
 
     @ViewBuilder private var slider: some View {
         if let level {
+            // Under the song's position bar the volume draws as slim as that
+            // bar, keeping the full height to grab it by.
             NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
-                             label: FeatureStrings.notch(l10n.language).volume)
+                             label: FeatureStrings.notch(l10n.language).volume,
+                             trackThickness: style == .inline ? 8 : nil)
                 .frame(height: style == .card ? 28 : 24)
         } else {
             Text(l10n.s.mixerOutputUnavailable).font(.system(size: 10)).foregroundStyle(.secondary)

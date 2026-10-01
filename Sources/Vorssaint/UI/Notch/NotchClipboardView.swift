@@ -31,6 +31,16 @@ struct NotchClipboardView: View {
     /// Moving swaps neighbours in the list, which a search would misreport.
     private var canReorder: Bool { query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: query)
+    }
+
+    /// The island draws its text in white and never in the accent color, so a
+    /// match stands out by weight alone.
+    private func searchText(_ string: String, matching tokens: [String]) -> Text {
+        SearchHighlightText.text(string, tokens: tokens, fontSize: 12, highlightColor: nil)
+    }
+
     var body: some View {
         VStack(spacing: NotchLayout.rowSpacing) {
             HStack(spacing: 8) {
@@ -206,7 +216,8 @@ struct NotchClipboardView: View {
             highlightedID = NotchSupport.steppedItem(from: highlightedID, in: ids, backwards: keyCode == 126)
             return true
         case 36, 76:
-            guard let id = highlightedID, let entry = entries.first(where: { $0.id == id }) else { return false }
+            guard let id = NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
+                  let entry = entries.first(where: { $0.id == id }) else { return false }
             activate(entry)
             return true
         default:
@@ -254,7 +265,7 @@ struct NotchClipboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
             } else {
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                searchText("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)", matching: searchTokens)
                     .font(.system(size: 12))
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
@@ -269,15 +280,20 @@ struct NotchClipboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help(path)
             } else {
-                Label(entry.filePaths.count == 1
-                      ? (entry.fileNames.first ?? entry.preview)
-                      : String(format: text.fileCountFormat, entry.filePaths.count),
-                      systemImage: "folder")
-                    .font(.system(size: 12))
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .help(entry.filePaths.joined(separator: "\n"))
+                // A count of several files is no text the search reads.
+                Label {
+                    searchText(entry.filePaths.count == 1
+                                   ? (entry.fileNames.first ?? entry.preview)
+                                   : String(format: text.fileCountFormat, entry.filePaths.count),
+                               matching: entry.filePaths.count == 1 ? searchTokens : [])
+                } icon: {
+                    Image(systemName: "folder")
+                }
+                .font(.system(size: 12))
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .help(entry.filePaths.joined(separator: "\n"))
             }
         case .text:
             HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -285,7 +301,7 @@ struct NotchClipboardView: View {
                     ColorSwatch(color: color, size: 12)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 }
-                Text(entry.preview)
+                searchText(entry.preview, matching: searchTokens)
                     .font(.system(size: 12))
                     .lineLimit(3)
                     .multilineTextAlignment(.leading)

@@ -10,6 +10,8 @@ import SwiftUI
 struct NotchButtonStyle: ButtonStyle {
     var cornerRadius: CGFloat = 10
     var lifts = true
+    /// A light wash under the pointer.
+    var highlights = true
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -19,7 +21,7 @@ struct NotchButtonStyle: ButtonStyle {
         configuration.label
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.white.opacity(active ? 0.09 : 0))
+                    .fill(.white.opacity(active && highlights ? 0.09 : 0))
                     .allowsHitTesting(false)
             }
             .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
@@ -226,6 +228,7 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                     .contentShape(Rectangle())
                 }
                 .scrollIndicators(.never)
+                .notchScrollEdgeFade(.horizontal)
                 .onAppear {
                     if let targetColumn { proxy.scrollTo(targetColumn, anchor: .center) }
                 }
@@ -370,7 +373,8 @@ struct NotchSurfaceBackground: View {
                     .environment(\.appearsActive, true)
                     .materialActiveAppearance(.active)
                     .overlay {
-                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
+                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast,
+                                                             height: presentation.contourBottom),
                                        startPoint: .top, endPoint: .bottom)
                             .frame(height: presentation.contourBottom)
                             .frame(maxHeight: .infinity, alignment: .top)
@@ -390,13 +394,11 @@ struct NotchSurfaceBackground: View {
     /// The dimming over the glass, from the top of the island to its lip. Near
     /// a black strip the lip closes up, so the last frames of a collapse
     /// already match the resting island.
-    static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
-        (0...64).map { index in
-            let t = Double(index) / 64
-            return Gradient.Stop(
-                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
-                location: t)
-        }
+    /// The black holds over the whole page, and the lip opens in the margin
+    /// below it (NotchGlassLip), measured in points over an island `height` tall.
+    static func shade(openness: Double, contrast: ColorSchemeContrast, height: CGFloat) -> [Gradient.Stop] {
+        NotchGlassLip.stops(height: height, openness: openness, increasedContrast: contrast == .increased)
+            .map { Gradient.Stop(color: .black.opacity($0.opacity), location: $0.location) }
     }
 }
 
@@ -601,6 +603,8 @@ final class NotchMenuAnchor: NSObject {
         actions = items.map(\.action)
         let menu = NSMenu()
         menu.autoenablesItems = false
+        // The island is dark whatever the system is, so its menus are too.
+        menu.appearance = NSAppearance(named: .darkAqua)
         for (index, item) in items.enumerated() {
             guard !item.isSeparator else { menu.addItem(.separator()); continue }
             let entry = NSMenuItem(title: item.title, action: #selector(choose(_:)), keyEquivalent: "")
@@ -613,7 +617,15 @@ final class NotchMenuAnchor: NSObject {
             }
             menu.addItem(entry)
         }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: view)
+        // A menu whose top lands on the menu bar's edge opens scrolled past its
+        // first entry, so a button against the bar opens it a little below.
+        var location = NSPoint.zero
+        if let window = view.window, let screen = window.screen {
+            let bottom = window.convertPoint(toScreen: view.convert(location, to: nil)).y
+            let edge = screen.visibleFrame.maxY - 3
+            if bottom > edge { location.y -= bottom - edge }
+        }
+        menu.popUp(positioning: nil, at: location, in: view)
     }
 
     @objc private func choose(_ sender: NSMenuItem) {

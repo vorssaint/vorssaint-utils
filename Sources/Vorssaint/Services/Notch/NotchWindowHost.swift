@@ -1042,7 +1042,7 @@ private final class NotchCanvas: NSView {
         let increasedContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let color = (increasedContrast ? NSColor.white : outlineColor).withAlphaComponent(
             outlineEnabled ? (increasedContrast ? 0.85 : 0.65) : (increasedContrast ? 0.45 : 0)).cgColor
-        let lineWidth: CGFloat = outlineEnabled ? 2 : 0.5
+        let lineWidth: CGFloat = outlineEnabled ? NotchLayout.outlineWidth : 0.5
         let opacity: Float = outlineEnabled || contentSize.height > 64 ? 1 : 0
         guard edge.strokeColor != color || edge.lineWidth != lineWidth || edge.opacity != opacity else { return }
         CATransaction.begin()
@@ -1590,6 +1590,9 @@ final class NotchActivationButton: NSButton {
     var willPress: (() -> Void)?
     var activate: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    // With Keyboard navigation on, a click would focus the button, and macOS
+    // draws its focus ring around the camera it sits behind.
+    override var acceptsFirstResponder: Bool { false }
     override func mouseDown(with event: NSEvent) {
         willPress?()
         super.mouseDown(with: event)

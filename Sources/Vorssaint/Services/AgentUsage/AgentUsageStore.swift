@@ -10,6 +10,9 @@ import Foundation
 final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
+    /// The logs each response was read from: most in one, a resumed or
+    /// archived session's again in another.
+    private var sources: [[String]] = []
     private var index: [String: Int] = [:]
     private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
@@ -52,7 +55,8 @@ final class AgentUsageStore {
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
+                add(record, billable: billable, key: key, source: file, turn: tracksTurns ? file : parent,
+                    subagent: !tracksTurns)
             case .limits(let reading):
                 updateLimits(reading)
             case .plan(let plan, let date):
@@ -104,13 +108,15 @@ final class AgentUsageStore {
         return turns.removeValue(forKey: file) != nil
     }
 
-    /// `file` names the log whose turn the response counts toward. A
-    /// subagent's responses leave that turn's model and project alone.
-    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, turn file: String?,
-                     subagent: Bool) {
+    /// `source` is the log the response was read from; `file` names the log
+    /// whose turn it counts toward. A subagent's responses leave that turn's
+    /// model and project alone.
+    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, source: String,
+                     turn file: String?, subagent: Bool) {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
+            if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             guard merged != old.tokens else { return }
@@ -137,6 +143,7 @@ final class AgentUsageStore {
             index[key] = records.count
             records.append(record)
             billables.append(billable)
+            sources.append([source])
         }
         guard let file, var turn = turns[file] ?? waiting[file],
               record.date >= turn.started.addingTimeInterval(-1) else { return }
@@ -215,21 +222,97 @@ final class AgentUsageStore {
 
     var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
 
+    /// What is kept between launches: every counter the logs gave, and none
+    /// of their text.
+    struct Saved: Equatable {
+        struct Record: Equatable {
+            let key: String
+            let record: AgentUsageRecord
+            let billable: AgentBillable
+            let sources: [String]
+        }
+
+        var records: [Record] = []
+        var limits: [AgentLimits] = []
+        var codexPlan: String?
+        var codexPlanObserved = Date.distantPast
+        var turns: [AgentLiveSession] = []
+        var waiting: [AgentLiveSession] = []
+    }
+
+    var saved: Saved {
+        var keys = [String](repeating: "", count: records.count)
+        for (key, position) in index { keys[position] = key }
+        let kept = records.indices.map {
+            Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
+        }
+        return Saved(records: kept,
+                     limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
+                     codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
+                     turns: turns.values.sorted { $0.id < $1.id }, waiting: waiting.values.sorted { $0.id < $1.id })
+    }
+
+    convenience init(saved: Saved) {
+        self.init()
+        records = saved.records.map(\.record)
+        billables = saved.records.map(\.billable)
+        sources = saved.records.map(\.sources)
+        for (position, entry) in saved.records.enumerated() { index[entry.key] = position }
+        limits = Dictionary(saved.limits.map { ($0.provider, $0) }, uniquingKeysWith: { $1 })
+        codexPlan = saved.codexPlan
+        codexPlanObserved = saved.codexPlanObserved
+        turns = Dictionary(saved.turns.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        waiting = Dictionary(saved.waiting.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+    }
+
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        keepRecords { records[$0].date >= date }
+    }
+
+    /// Takes back what logs gone or rewritten since they were read gave, as
+    /// reading every log from its start would: a response only they held
+    /// goes, one another log also holds stays. Their turns end without a
+    /// notice.
+    func forget(files: Set<String>) {
+        for file in files { forget(file: file) }
+        var emptied = false
+        for position in sources.indices where sources[position].contains(where: files.contains) {
+            sources[position].removeAll(where: files.contains)
+            emptied = emptied || sources[position].isEmpty
+        }
+        if emptied { keepRecords { !sources[$0].isEmpty } }
+    }
+
+    /// The logs holding a response that one of `files` also holds.
+    func files(sharingWith files: Set<String>) -> Set<String> {
+        var sharing = Set<String>()
+        for list in sources where list.contains(where: files.contains) { sharing.formUnion(list) }
+        return sharing
+    }
+
+    /// Every log that gave a response or holds a turn.
+    var files: Set<String> {
+        Set(sources.joined()).union(turns.keys).union(waiting.keys)
+    }
+
+    private func keepRecords(where keep: (Int) -> Bool) {
         summary.invalidate()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
+        var keptSources: [[String]] = []
         var positions: [Int: Int] = [:]
-        for (offset, record) in records.enumerated() where record.date >= date {
+        for offset in records.indices where keep(offset) {
             positions[offset] = kept.count
-            kept.append(record)
+            kept.append(records[offset])
             keptBillables.append(billables[offset])
+            keptSources.append(sources[offset])
         }
         index = index.compactMapValues { positions[$0] }
         records = kept
         billables = keptBillables
+        sources = keptSources
     }
 }
 
@@ -318,6 +401,10 @@ final class AgentLogCursor {
     var discarding = false
     var state = AgentLogState()
     var modified = Date.distantPast
+    /// Set when the log turned out replaced, cut short or written again after
+    /// part of it was read. What its old contents gave is still counted, so
+    /// its progress is not saved: the next launch reads it as rewritten.
+    private(set) var restarted = false
 
     init(path: String, provider: AgentProvider) {
         self.path = path
@@ -326,6 +413,83 @@ final class AgentLogCursor {
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
         tracksTurns = provider == .claude ? parent == nil : !name.contains("_")
+    }
+
+    /// Where reading stopped, at a line boundary: a line still being written
+    /// is read again whole from the file.
+    struct Saved: Equatable {
+        let path: String
+        let provider: AgentProvider
+        let offset: UInt64
+        let identity: UInt64
+        let discarding: Bool
+        let modified: Date
+        let state: AgentLogState
+        /// Tells the log that was read from one rewritten in place, which
+        /// keeps its inode.
+        let fingerprint: UInt64
+    }
+
+    /// The fingerprint taken right after reading, so saved progress
+    /// describes the bytes as they were read, not as they are when saving.
+    private var fingerprinted: (offset: UInt64, identity: UInt64, value: UInt64)?
+
+    /// Where a resumed read picks up: the start of a line still being
+    /// written, or past a line too long to keep.
+    private var boundary: UInt64 { discarding ? offset : offset - UInt64(pending.count) }
+
+    /// Reads the log again from its start.
+    func startOver(identity: UInt64) {
+        if offset > 0 { restarted = true }
+        self.identity = identity
+        offset = 0
+        pending = Data()
+        discarding = false
+        state = AgentLogState()
+        fingerprinted = nil
+    }
+
+    func fingerprintRead() {
+        let end = boundary
+        if let taken = fingerprinted, taken.offset == end, taken.identity == identity { return }
+        fingerprinted = AgentLogReader.fingerprint(path, upTo: end).map { (end, identity, $0) }
+    }
+
+    /// False once the log no longer holds what was read: written again in
+    /// place, perhaps past where reading stopped, which its size and inode
+    /// alone do not show.
+    var holdsWhatWasRead: Bool {
+        guard let taken = fingerprinted, taken.identity == identity else { return true }
+        return AgentLogReader.fingerprint(path, upTo: taken.offset) == taken.value
+    }
+
+    var saved: Saved {
+        let end = boundary
+        let fingerprint: UInt64
+        if let taken = fingerprinted, taken.offset == end, taken.identity == identity {
+            fingerprint = taken.value
+        } else {
+            fingerprint = AgentLogReader.fingerprint(path, upTo: end) ?? 0
+            fingerprinted = (end, identity, fingerprint)
+        }
+        return Saved(path: path, provider: provider, offset: end, identity: identity, discarding: discarding,
+                     modified: modified, state: state, fingerprint: fingerprint)
+    }
+
+    /// Nil when the path no longer holds the log that was read up to the
+    /// saved offset: replaced by another file, or cut short and written
+    /// again in place.
+    convenience init?(saved: Saved) {
+        var info = stat()
+        guard stat(saved.path, &info) == 0, UInt64(info.st_ino) == saved.identity,
+              AgentLogReader.fingerprint(saved.path, upTo: saved.offset) == saved.fingerprint else { return nil }
+        self.init(path: saved.path, provider: saved.provider)
+        offset = saved.offset
+        identity = saved.identity
+        discarding = saved.discarding
+        modified = saved.modified
+        state = saved.state
+        fingerprinted = (saved.offset, saved.identity, saved.fingerprint)
     }
 
     /// Claude Code keeps a session's subagents in `<session>/subagents/`,
@@ -343,6 +507,35 @@ enum AgentLogReader {
     static let maximumLine = 32 << 20
 
     static func isLog(_ path: String) -> Bool { path.hasSuffix(".jsonl") }
+
+    /// A hash of the log's first and last few kilobytes before `offset`, and
+    /// of the offset itself. A log rewritten with a different start, or
+    /// different lines just before where reading stopped, no longer matches.
+    /// Nil when the file cannot be read that far.
+    static func fingerprint(_ path: String, upTo offset: UInt64) -> UInt64? {
+        // Without O_NONBLOCK a FIFO named like a log would block the open,
+        // and a stop waiting for the usage queue with it.
+        let descriptor = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK)
+        guard descriptor >= 0 else { return nil }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let span: UInt64 = 4096
+        // FNV-1a: stable across launches, unlike `Hasher`.
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        func mix(_ bytes: UnsafeRawBufferPointer) {
+            for byte in bytes { hash = (hash ^ UInt64(byte)) &* 0x100_0000_01B3 }
+        }
+        withUnsafeBytes(of: offset.littleEndian, mix)
+        var buffer = [UInt8](repeating: 0, count: Int(span))
+        for start in [0, offset - min(span, offset)] {
+            let length = Int(min(span, offset - start))
+            let read = buffer.withUnsafeMutableBytes { pread(descriptor, $0.baseAddress, length, off_t(start)) }
+            guard read == length else { return nil }
+            buffer.withUnsafeBytes { mix(UnsafeRawBufferPointer(rebasing: $0[..<length])) }
+        }
+        return hash
+    }
 
     /// Log files changed since `horizon`, newest last so live turns settle
     /// on the most recent state. Subagents come after every session, so the
@@ -375,13 +568,11 @@ enum AgentLogReader {
         let identity = UInt64(info.st_ino)
         cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                 + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
-        if identity != cursor.identity || size < cursor.offset {
-            cursor.identity = identity
-            cursor.offset = 0
-            cursor.pending = Data()
-            cursor.discarding = false
-            cursor.state = AgentLogState()
+        if identity != cursor.identity || size < cursor.offset
+            || (size > cursor.offset && !cursor.holdsWhatWasRead) {
+            cursor.startOver(identity: identity)
         }
+        defer { cursor.fingerprintRead() }
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }

@@ -414,7 +414,7 @@ extension NotchStrings {
         charging: "Nabíja sa",
         charged: "Úplne nabitá",
         lowBattery: "Nízky stav batérie",
-        controls: "Ovládacie prvky",
+        controls: "Ovládanie",
         system: "Systém",
         disabled: "Zapnite príslušnú funkciu, aby ste ju tu mohli používať.",
         files: "Súbory",
@@ -468,7 +468,7 @@ extension NotchStrings {
         quickAccessRight: "Vpravo",
         translucentBackground: "Priesvitné pozadie",
         translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
-        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto priesvitného pozadia."
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu."
     )
 
     static let de = NotchStrings(
@@ -1393,7 +1393,7 @@ extension NotchStrings {
         charging: "Заряджається",
         charged: "Повністю заряджено",
         lowBattery: "Низький заряд",
-        controls: "Елементи керування",
+        controls: "Керування",
         system: "Система",
         disabled: "Увімкніть відповідну функцію, щоб використовувати її тут.",
         files: "Файли",

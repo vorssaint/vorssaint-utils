@@ -22,6 +22,10 @@ struct ClipboardQuickPanelView: View {
         history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: history.quickQuery)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             toolbar
@@ -168,6 +172,7 @@ struct ClipboardQuickPanelView: View {
                 .padding(.vertical, 6)
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
                 QuickEntryRow(entry: entry,
+                              tokens: searchTokens,
                               shortcutIndex: shortcutIndex(for: entry),
                               isSelected: history.quickSelectionIsVisible
                                  && history.selectedQuickEntryID == entry.id,
@@ -284,6 +289,7 @@ private struct QuickPreviewPane: View {
 /// Value inputs let SwiftUI skip rows unaffected by selection or history changes.
 private struct QuickEntryRow: View, Equatable {
     let entry: ClipboardHistoryEntry
+    let tokens: [String]
     let shortcutIndex: Int?
     let isSelected: Bool
     let isBatchSelected: Bool
@@ -308,6 +314,7 @@ private struct QuickEntryRow: View, Equatable {
     // appearance, so it stays out of the comparison.
     static func == (lhs: QuickEntryRow, rhs: QuickEntryRow) -> Bool {
         lhs.entry == rhs.entry
+            && lhs.tokens == rhs.tokens
             && lhs.shortcutIndex == rhs.shortcutIndex
             && lhs.isSelected == rhs.isSelected
             && lhs.isBatchSelected == rhs.isBatchSelected
@@ -388,7 +395,7 @@ private struct QuickEntryRow: View, Equatable {
                 if let color = entry.color {
                     ColorSwatch(color: color, size: 14)
                 }
-                Text(entry.preview)
+                SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 12)
                     .font(.system(size: 12))
                     .lineLimit(2)
                     .truncationMode(.tail)
@@ -402,7 +409,8 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
+                                         tokens: tokens, fontSize: 11.5)
                     .font(.system(size: 11.5))
                     .foregroundStyle(.secondary)
             }
@@ -418,7 +426,7 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.fileNames.first ?? entry.preview)
+                        SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
                             .font(.system(size: 12))
                             .lineLimit(1)
                             .truncationMode(.middle)
@@ -433,12 +441,15 @@ private struct QuickEntryRow: View, Equatable {
                 .help(path)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(fileTitle(entry))
+                    // A count of several files is no text the search reads.
+                    SearchHighlightText.text(fileTitle(entry),
+                                             tokens: entry.filePaths.count == 1 ? tokens : [],
+                                             fontSize: 12)
                         .font(.system(size: 12))
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if entry.filePaths.count > 1 {
-                        Text(entry.preview)
+                        SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)

@@ -71,10 +71,18 @@ rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.
 # ordinary case, and prints an error over a successful uninstall.
 rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
 
-RULES="/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell"
-if ls $RULES >/dev/null 2>&1; then
+# The closed-lid rule under its current name and the two earlier ones, the
+# same files the app looks for. Each path is checked on its own. zsh passes an
+# unquoted string to a command as a single word, and one `ls` over all three
+# fails as soon as any of them is missing.
+RULES=(/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell)
+found_rules=()
+for rule in "${RULES[@]}"; do
+    [[ -e "$rule" ]] && found_rules+=("$rule")
+done
+if (( ${#found_rules} )); then
     echo "▸ Removing closed-lid sudoers rule (asks for your admin password)…"
-    osascript -e "do shell script \"rm -f $RULES\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
 fi
 
 # `--uninstall` restores sleep, but it runs before the app has an

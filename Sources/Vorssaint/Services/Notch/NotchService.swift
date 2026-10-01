@@ -122,18 +122,23 @@ final class NotchService: ObservableObject {
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
+    private var hoverExitMonitors: [Any] = []
     private var hoverWork: DispatchWorkItem?
     private var noticeWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
     private var musicDepartureWork: DispatchWorkItem?
     private var presentedMusic: NotchCompactMusicSnapshot?
     private var trackWork: DispatchWorkItem?
+    /// A new song with no strip song to keep in its place stays out of the
+    /// closed island until its notice, as scheduleTrackNotice() explains.
+    private var awaitsTrackNotice = false
     private var powerSource: CFRunLoopSource?
     private var powerSampler: PowerSampler?
     private var captureID: UUID?
     private var captureFallback: (() -> Void)?
     private var captureClose: (() -> Void)?
     private var captureHover: ((Bool) -> Void)?
+    private var captureClosesOnCollapse = false
     private var inside = false
     private var hoverEmphasized = false
     private var activitySelection = NotchActivitySelection()
@@ -152,6 +157,10 @@ final class NotchService: ObservableObject {
     private var pageLayers: [NotchModule: () -> Void] = [:]
     private var trackingMenu = false
     private var fileInteractionActive = false
+    /// A section's title follows the sections button unless the same action
+    /// floats beside the island. Read with the floating buttons rather than on
+    /// every layout pass, which would decode them each time.
+    private var headerShowsSectionsButton = false
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
@@ -233,7 +242,7 @@ final class NotchService: ObservableObject {
     /// A Mac without a battery has no charge to show, so a saved battery
     /// choice rests empty there; playing music still shows as before.
     var idleContent: NotchIdleContent {
-        let content = NotchSupport.visibleIdleContent(isPlaying: NotchMusicService.shared.playback?.isPlaying == true)
+        let content = NotchSupport.visibleIdleContent(isPlaying: !awaitsTrackNotice && NotchMusicService.shared.playback?.isPlaying == true)
         return content == .battery && !PowerSampler.hasInternalBattery ? .none : content
     }
 
@@ -268,7 +277,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivity: NotchCompactActivity? {
-        activitySelection.current(available: compactActivities)
+        // A new song waiting for its notice is not drawn yet.
+        activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
     }
 
     var compactActivities: [NotchCompactActivity] {
@@ -303,18 +313,32 @@ final class NotchService: ObservableObject {
     func selectCompactActivity(_ activity: NotchCompactActivity) {
         guard compactActivities.contains(activity) else { return }
         hoverWork?.cancel(); hoverWork = nil
-        mutatePresentation(transitionContent: .replace) {
-            objectWillChange.send()
+        switchCompactSelection {
             activitySelection.select(activity, available: compactActivities)
         }
+    }
+
+    /// The picker keeps its size whatever is chosen, so the choice moves inside
+    /// the surface, the highlight sliding and the strip changing in place,
+    /// instead of the whole content fading through the host.
+    private func switchCompactSelection(_ change: () -> Void) {
+        let animation: Animation? = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            ? nil : .smooth(duration: 0.26)
+        withAnimation(animation) {
+            objectWillChange.send()
+            change()
+        }
+        // A song chosen away is not music disappearing, which the host would
+        // fade out through the whole picker as another activity takes its place.
+        presentedMusic = nil
+        refreshPresentation()
     }
 
     func selectCompactCombination(_ combination: NotchActivityCombination) {
         let companions = compactCompanions(of: combination.primary)
         guard companions.contains(combination.companion) else { return }
         hoverWork?.cancel(); hoverWork = nil
-        mutatePresentation(transitionContent: .replace) {
-            objectWillChange.send()
+        switchCompactSelection {
             activitySelection.select(combination.primary, companion: combination.companion,
                                      available: compactActivities, companions: companions)
         }
@@ -370,7 +394,9 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
-        case .calendar: return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry))
+        case .calendar:
+            return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
+                                                    paired: companion != nil)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
@@ -390,7 +416,8 @@ final class NotchService: ObservableObject {
         guard let countdown = NotchCalendarService.shared.countdown else {
             return NotchGeometry.calendarWingRange.upperBound
         }
-        let provisional = geometry.compactCalendarGeometry(wing: NotchGeometry.calendarWingRange.lowerBound)
+        // Measured at the narrowest wing the strip may take.
+        let provisional = geometry.compactCalendarGeometry(wing: 0, paired: companion != nil)
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         if let companion {
             let sides = max(inset + calendarClockWidth, companionMarkWidth(companion, in: provisional))
@@ -505,12 +532,37 @@ final class NotchService: ObservableObject {
     /// The open island as Settings previews a section: at rest, with no
     /// detail, app panel, capture or media editor in front of the page.
     func previewSize(for module: NotchModule) -> CGSize {
-        pageSize(in: geometry, module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
+        pageSize(in: previewGeometry(for: module), module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
                  fileMediaHeight: nil, toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
     }
 
-    /// The tallest island a preview can show: a page that fills the budget.
-    var previewLargestSize: CGSize { geometry.expandedSize(module: .calendar) }
+    /// The island around a previewed section, whose title sits beside the
+    /// camera only where the island's would.
+    func previewGeometry(for module: NotchModule) -> NotchGeometry {
+        previewGeometry(for: module, sectionsButton: previewShowsSectionsButton)
+    }
+
+    private func previewGeometry(for module: NotchModule, sectionsButton: Bool) -> NotchGeometry {
+        var result = geometry
+        result.headerTitleWidth = NotchLayout.headerTitleWidth(module.title(L10n.shared.language), button: sectionsButton)
+        return result
+    }
+
+    /// Settings previews the island while it is off too, when the floating
+    /// buttons are not read for it, so a preview reads them as it draws.
+    private var previewShowsSectionsButton: Bool {
+        !NotchQuickAccessConfiguration.current().actions.contains(.explore)
+    }
+
+    /// The tallest island a preview can show: a page that fills the budget,
+    /// below the row the widest title may need.
+    var previewLargestSize: CGSize {
+        let sectionsButton = previewShowsSectionsButton
+        var tallest = geometry
+        tallest.headerTitleWidth = NotchModule.allCases
+            .map { previewGeometry(for: $0, sectionsButton: sectionsButton).headerTitleWidth }.max() ?? 0
+        return tallest.expandedSize(module: .calendar)
+    }
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
                           detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
@@ -549,7 +601,27 @@ final class NotchService: ObservableObject {
         // Capture editing has a full toolbar whose actions must stay reachable.
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
+        result.headerTitleWidth = headerTitleWidth
         return result
+    }
+    /// The open header's title and the button before it, as the header draws
+    /// them. Choosing a section shows only its search beside the camera, which
+    /// takes the room its side leaves.
+    private var headerTitleWidth: CGFloat {
+        guard !showingSections else { return 0 }
+        let detail = showingAppPanel || selectedMetric != nil
+        guard detail || modules.isEmpty else {
+            return NotchLayout.headerTitleWidth(selected.title(L10n.shared.language), button: headerShowsSectionsButton)
+        }
+        return NotchLayout.headerTitleWidth(detailTitle, font: NotchLayout.detailTitleFont, button: detail)
+    }
+    /// A detail's title, the app panel's, or the island's own with no sections.
+    var detailTitle: String {
+        if showingAppPanel { return "Vorssaint" }
+        let language = L10n.shared.language
+        guard let metric = selectedMetric else { return FeatureStrings.notch(language).title }
+        // The fan card opens Fan Control, so its page shares that title.
+        return metric == .fan ? FeatureStrings.fanControl(language).title : metric.title(L10n.shared.s)
     }
     var contentSize: CGSize { expandedGeometry.contentSize(for: expandedSize) }
     var usesGlassSurface: Bool {
@@ -567,7 +639,7 @@ final class NotchService: ObservableObject {
 
     var surfaceSize: CGSize {
         if let capsule = capsuleSurfaceSize { return capsule }
-        if fullscreenCompact { return geometry.restingSize(showsContent: false) }
+        if fullscreenCompact { return geometry.bareCutout }
         if captureControls != nil {
             if captureControlsCollapsed {
                 return CGSize(width: geometry.cameraWidth + 56, height: geometry.stripHeight)
@@ -843,6 +915,7 @@ final class NotchService: ObservableObject {
         presentedMusic = nil
         trackWork?.cancel(); trackWork = nil
         heldMusic = nil
+        awaitsTrackNotice = false
         subscriptions.removeAll()
         stopPower()
         NotchMusicService.shared.stop()
@@ -879,6 +952,7 @@ final class NotchService: ObservableObject {
         removeScreenEdgeClickMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
+        removeHoverExitMonitors()
         removePointerMonitors()
         releaseMonitor()
         musicTitleWork?.cancel(); musicTitleWork = nil
@@ -981,6 +1055,7 @@ final class NotchService: ObservableObject {
 
     func collapse() {
         guard captureControls == nil, !heldDrag else { return }
+        let closeCapture = detachCaptureIfClosingOnCollapse()
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         pinned = false
         hoverWork?.cancel(); hoverWork = nil
@@ -1001,6 +1076,7 @@ final class NotchService: ObservableObject {
         panel?.resignKey()
         removeEventMonitors()
         syncVisibleConsumers()
+        closeCapture?()
     }
 
     func toggle() { expanded ? collapse() : open() }
@@ -1019,7 +1095,7 @@ final class NotchService: ObservableObject {
     }
 
     func hover(_ entered: Bool) {
-        guard running, !suspended, !hiddenAtRestInFullscreen else { return }
+        guard running, !suspended, !hiddenAtRestInFullscreen else { removeHoverExitMonitors(); return }
         let point = NSEvent.mouseLocation
         let wasInside = inside
         let showedPicker = showsCompactActivityPicker
@@ -1027,6 +1103,7 @@ final class NotchService: ObservableObject {
             && windowHost?.isConcealedForMissionControl == false
             : windowHost?.containsHover(point) == true || pointerOverChildWindow(point)
         hoverState.update(pointerInside: inside)
+        syncHoverExitMonitoring(entered: entered, point: point)
         let emphasize = inside && !hiddenInFullscreen && !hiddenUntilHover && !expanded && !peeking && !dragPlaceholder
             && notice == nil && captureControls == nil
             && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -1095,6 +1172,36 @@ final class NotchService: ObservableObject {
             hoverWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + (expanded || noticeExpanded ? NotchQuickAccessLayout.hoverExitDelay : 0.12), execute: work)
         }
+    }
+
+    /// AppKit reports hover from the mouse moves it receives, and those can
+    /// stop while the pointer crosses the transparent margin around the
+    /// floating controls. One can even carry another window's coordinates.
+    /// An exit can then arrive with the pointer still in that margin and be
+    /// the last report. From such an exit until AppKit reports the pointer
+    /// again, every move is checked here, so leaving still closes the island.
+    /// A pointer at rest costs nothing.
+    private func syncHoverExitMonitoring(entered: Bool, point: CGPoint) {
+        let watching = !entered
+            && NotchSupport.closesOnPointerExit(expanded: expanded, peeking: peeking, openedByHover: openedByHover)
+            && captureControls == nil && !pinned && !heldDrag && !hiddenUntilHover && !keepsWorkingSurface
+            // Once watching, a pointer that leaves and slips back unreported is still seen.
+            && (!hoverExitMonitors.isEmpty || windowHost?.containsHover(point) == true)
+        guard watching else { removeHoverExitMonitors(); return }
+        guard hoverExitMonitors.isEmpty else { return }
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+            self?.hover(false)
+        }) { hoverExitMonitors.append(token) }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.hover(false)
+            return event
+        }) { hoverExitMonitors.append(token) }
+    }
+
+    private func removeHoverExitMonitors() {
+        hoverExitMonitors.forEach(NSEvent.removeMonitor)
+        hoverExitMonitors.removeAll()
     }
 
     /// A mirrored banner the pointer can hold: on screen and not covered.
@@ -1416,6 +1523,7 @@ final class NotchService: ObservableObject {
 
     func presentCaptureControls(_ options: ScreenCaptureSelectionOptions, cancel: @escaping () -> Void) {
         guard acceptsSystemFeedback else { cancel(); return }
+        let closeCapture = detachCaptureIfClosingOnCollapse()
         pinned = false
         captureControlsCancel = cancel
         captureControls = options
@@ -1451,6 +1559,7 @@ final class NotchService: ObservableObject {
         panel?.makeKey()
         installCaptureControlsClickThrough()
         syncVisibleConsumers()
+        closeCapture?()
     }
 
     func collapseCaptureControls() {
@@ -1638,7 +1747,7 @@ final class NotchService: ObservableObject {
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: geometry, size: surfaceSize).contains(point)
+            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
     }
@@ -1728,11 +1837,14 @@ final class NotchService: ObservableObject {
     private func scheduleTrackNotice() {
         trackWork?.cancel()
         if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+        // With no song on the strip, as after a long gap between songs, the
+        // new one waits too, so the notice is still where it first appears.
+        if heldMusic == nil { awaitsTrackNotice = true }
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.trackWork = nil
             // Released once the notice covers the strip, or when none can.
-            defer { if self.heldMusic != nil { self.heldMusic = nil } }
+            defer { self.releaseTrackHold() }
             // The open island already shows the song, or holds something else
             // the person is doing.
             guard !self.expanded, !self.peeking, !self.dragPlaceholder, self.captureControls == nil,
@@ -1743,6 +1855,24 @@ final class NotchService: ObservableObject {
         }
         trackWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+    }
+
+    /// The reading that ends the song names nothing, another player's song or
+    /// the next one paused. Held, the strip leaves as the song it showed, and
+    /// its hiding ends the hold.
+    private func holdEndingTrack() {
+        if heldMusic == nil, let presentedMusic { heldMusic = presentedMusic }
+    }
+
+    /// The closed island turns to the live song. A song that waited for its
+    /// notice appears now, unless a notice covers it, and the menu room is
+    /// read again for the strip it brings.
+    private func releaseTrackHold() {
+        if heldMusic != nil { heldMusic = nil }
+        guard awaitsTrackNotice else { return }
+        awaitsTrackNotice = false
+        syncMenuSpaceMonitoring()
+        if notice == nil { refreshPresentation() }
     }
 
     func showBrightness(_ level: Double) -> Bool {
@@ -1826,7 +1956,8 @@ final class NotchService: ObservableObject {
         !expanded && !dragPlaceholder && captureControls == nil
     }
 
-    func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat, fallback: @escaping () -> Void,
+    func presentCapture(id: UUID, content: AnyView, actions: AnyView? = nil, height: CGFloat,
+                        takeFocus: Bool, closeOnCollapse: Bool, fallback: @escaping () -> Void,
                         close: @escaping () -> Void, hover: @escaping (Bool) -> Void) -> Bool {
         guard acceptsSystemFeedback, NotchSupport.routes(.capture) else { return false }
         let keepOpen = expanded && pinned
@@ -1837,8 +1968,9 @@ final class NotchService: ObservableObject {
         captureFallback = fallback
         captureClose = close
         captureHover = hover
+        captureClosesOnCollapse = closeOnCollapse
         open(.captures, pinned: keepOpen,
-             takeFocus: UserDefaults.standard.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus), feedback: false)
+             takeFocus: takeFocus, feedback: false)
         captureHover?(inside)
         return true
     }
@@ -1873,6 +2005,17 @@ final class NotchService: ObservableObject {
         captureFallback = nil
         captureClose = nil
         captureHover = nil
+        captureClosesOnCollapse = false
+    }
+
+    /// Persistent captures must detach before their close callback runs so a
+    /// replaced island surface cannot be collapsed again by that callback.
+    /// Timed captures remain attached to their existing dismissal timer.
+    private func detachCaptureIfClosingOnCollapse() -> (() -> Void)? {
+        guard captureClosesOnCollapse else { return nil }
+        let close = captureClose
+        clearCapture()
+        return close
     }
 
     private func mutatePresentation(transitionContent: NotchContentTransition = .none, _ change: () -> Void) {
@@ -1940,6 +2083,9 @@ final class NotchService: ObservableObject {
         if hiddenUntilHover || (captureControls != nil && captureSelectionInProgress) {
             finishMusicDeparture()
             presentedMusic = nil
+            // Hiding the strip ends a hold, as rememberPresentedMusic does, so
+            // a song held as it ended never comes back over the next one.
+            if heldMusic != nil { heldMusic = nil }
             if hiddenUntilHover { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
@@ -1949,6 +2095,7 @@ final class NotchService: ObservableObject {
         guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
+            if heldMusic != nil { heldMusic = nil }
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
             removeScreenEdgeClickMonitors()
             return
@@ -1973,6 +2120,11 @@ final class NotchService: ObservableObject {
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                             usesGlass: !fullscreenCompact && usesGlassSurface)
+        // The selector lives in a separate full-screen panel. A floating
+        // capsule may sit below the display edge, so publish the island's
+        // actual bottom inset as the controls collapse or reopen.
+        captureControls?.onCaptureControlsSurfaceChange?(
+            geometry.screen, geometry.floatingDrop + size.height)
         // Closing can shrink the island away from a pointer that has not moved,
         // with no boundary crossing to report it. Only a pointer still over the
         // island may keep its next approach from opening it.
@@ -2483,7 +2635,9 @@ final class NotchService: ObservableObject {
         var next = baseGeometry(for: screen)
         let sameMenuBar = next.hasSameMenuBar(as: geometry)
         if sameMenuBar { next.compactSideRoom = geometry.compactSideRoom }
-        next.quickAccessBottomInset = NotchQuickAccessConfiguration.current().hasBottom ? NotchQuickAccessLayout.gutter : 0
+        let access = NotchQuickAccessConfiguration.current()
+        next.quickAccessBottomInset = access.hasBottom ? NotchQuickAccessLayout.gutter : 0
+        headerShowsSectionsButton = !access.actions.contains(.explore)
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         // A new camera or bar, such as a notch fit being adjusted, measures the
         // menus again at once rather than leaving the wings off until the timer.
@@ -2531,7 +2685,8 @@ final class NotchService: ObservableObject {
                              customWidth: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomWidth),
                              customHeight: UserDefaults.standard.double(forKey: DefaultsKey.notchCustomHeight),
                              cameraFit: NotchCameraFit.current(), silhouette: NotchSilhouette.current(),
-                             capsuleFit: NotchCapsuleFit.current())
+                             capsuleFit: NotchCapsuleFit.current(),
+                             outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled))
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
@@ -2766,11 +2921,12 @@ final class NotchService: ObservableObject {
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
                 let launcher = QuickLauncherService.shared
-                // The rail reads across its rows until it scrolls; the
-                // editing grid keeps its own rows.
+                // The rail reads across its rows until it scrolls, in the
+                // rows the open page leaves it below its header; the editing
+                // grid keeps its own rows.
                 let flow: QuickToolsSupport.GridFlow = launcher.isEditing
                     ? .rows(columns: NotchSupport.toolColumns)
-                    : self.geometry.toolFlow(count: launcher.visibleItems.count)
+                    : self.expandedGeometry.toolFlow(count: launcher.visibleItems.count)
                 return launcher.handlePanelKey(event, flow: flow)
             }
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53 {
@@ -2909,6 +3065,11 @@ final class NotchService: ObservableObject {
                     guard playback != nil else { return }
                     self?.rememberPresentedMusic(playback: playback, artwork: artwork, tint: tint)
                 }.store(in: &subscriptions)
+            // Received at once, before the reading that ends the song is
+            // published, so the strip leaves as its own song, cover included.
+            music.trackEnds
+                .sink { [weak self] in self?.holdEndingTrack() }
+                .store(in: &subscriptions)
             music.$playback.map { ($0 != nil, $0?.isPlaying == true) }
                 .removeDuplicates { $0 == $1 }.receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

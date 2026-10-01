@@ -243,6 +243,87 @@ enum NotchTests {
                      "without a camera the capture title and buttons take the top row, as the open header does")
     }
 
+    /// The camera sits between the open header's title and its actions only
+    /// where the whole title fits on its side. A longer title takes the full
+    /// row below the camera, as a narrow island's header does.
+    private static func headerTitleContracts(_ suite: TestSuite) {
+        func drawnWidth(_ title: String, _ font: NSFont) -> CGFloat {
+            let host = NSHostingView(rootView: Text(title).font(Font(font as CTFont)).fixedSize())
+            host.layoutSubtreeIfNeeded()
+            return host.fittingSize.width
+        }
+        for language in AppLanguage.allCases {
+            suite.expect(NotchModule.allCases.map { $0.title(language) }.allSatisfy {
+                drawnWidth($0, NotchLayout.headerTitleFont) <= NotchLayout.headerTitleWidth($0, button: false)
+            }, "the measured section titles cover the \(language.rawValue) titles as drawn")
+            suite.expect([FeatureStrings.fanControl(language).title, FeatureStrings.notch(language).title].allSatisfy {
+                drawnWidth($0, NotchLayout.detailTitleFont)
+                    <= NotchLayout.headerTitleWidth($0, font: NotchLayout.detailTitleFont, button: false)
+            }, "the measured detail titles cover the \(language.rawValue) titles as drawn")
+        }
+        let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
+        var geometries: [NotchGeometry] = []
+        for camera: CGFloat in [180, 185, 208, 210, 224, 240] {
+            for layout: NotchSize in [.compact, .spacious] {
+                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera, layout: layout))
+            }
+            for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
+                geometries.append(NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: camera,
+                                                layout: .custom, customWidth: width))
+            }
+        }
+        // Every language, with and without the sections button before the title.
+        let titleWidths = NotchModule.allCases.map { module in
+            AppLanguage.allCases.flatMap { language in
+                [false, true].map { NotchLayout.headerTitleWidth(module.title(language), button: $0) }
+            }
+        }
+        for geometry in geometries {
+            let side = (geometry.contentWidth - geometry.cameraWidth) / 2
+            let place = "beside a \(Int(geometry.cameraWidth))-point camera in a \(Int(geometry.expandedWidth))-point island"
+            for (module, widths) in zip(NotchModule.allCases, titleWidths) {
+                var beside = true, below = true, kept = true
+                for width in widths {
+                    var titled = geometry
+                    titled.headerTitleWidth = width
+                    if titled.headerCameraGap > 0 {
+                        beside = beside && width <= side && titled.headerTopInset == 0
+                    } else {
+                        below = below && titled.headerTopInset == titled.safeContentTop
+                            && titled.headerRowHeight == NotchLayout.headerHeight
+                    }
+                    if geometry.headerCameraGap > 0, width <= side {
+                        kept = kept && titled.headerCameraGap == geometry.headerCameraGap
+                            && titled.expandedSize(module: module) == geometry.expandedSize(module: module)
+                    }
+                }
+                suite.expect(beside, "every \(module.rawValue) title \(place) fits whole on its side")
+                suite.expect(below, "a \(module.rawValue) title too wide to sit \(place) takes the full row below it")
+                suite.expect(kept, "a \(module.rawValue) title that fits \(place) keeps the layout it had")
+            }
+        }
+        // The report: a 1710 by 1112 point display with a 208 by 37.5 point camera, in the compact preset.
+        let reported = NotchGeometry(screen: screen, safeAreaTop: 37.5, cameraWidth: 208)
+        func titled(_ module: NotchModule) -> NotchGeometry {
+            var result = reported
+            result.headerTitleWidth = NotchLayout.headerTitleWidth(module.title(.enUS), button: false)
+            return result
+        }
+        suite.expect(titled(.camera).headerCameraGap == 0 && titled(.camera).headerTopInset == reported.safeContentTop
+                     && titled(.controls).headerCameraGap == 208 && titled(.controls).headerTopInset == 0,
+                     "Camera mirror takes the row below a 208-point camera in the compact preset while Controls stays beside it")
+        for silhouette in NotchSilhouette.allCases {
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, silhouette: silhouette)
+            var titled = plain
+            titled.headerTitleWidth = 1000
+            suite.expect(titled.headerCameraGap == 0 && titled.headerTopInset == plain.headerTopInset
+                         && titled.headerRowHeight == plain.headerRowHeight
+                         && titled.quickAccessCenterY == plain.quickAccessCenterY
+                         && titled.expandedSize(module: .camera) == plain.expandedSize(module: .camera),
+                         "a long title leaves the \(silhouette.rawValue) header without a camera where it was")
+        }
+    }
+
     private static func noticeLayoutContracts(_ suite: TestSuite) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -626,6 +707,37 @@ enum NotchTests {
                "restoring a backup keeps the fit already set here")
     }
 
+    /// The outline is drawn inside the island's edge, so an island that only
+    /// covers a physical camera hides its line behind the housing.
+    private static func outlineRoomContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let room = NotchLayout.outlineWidth
+        let bare = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                 menuBarHeight: 33, compactSideRoom: 100)
+        let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                     menuBarHeight: 33, compactSideRoom: 100, outline: true)
+        suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
+               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
+               "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
+        suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
+                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
+               "every strip beside the camera keeps its line clear of the housing")
+        suite.expect(!outlined.hasSameMenuBar(as: bare), "turning the outline on measures the menus again for the wider island")
+        suite.expect(outlined.bareCutout == bare.restingSize(showsContent: false)
+               && bare.bareCutout == bare.restingSize(showsContent: false),
+               "full screen and the Lock Screen draw no outline, so their cutout keeps to the camera")
+        let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
+                                   cameraFit: NotchCameraFit(width: -3, height: -1), outline: true)
+        suite.expect(fitted.cameraWidth == 176 + room * 2 && fitted.cameraHeight == 31 + room,
+               "the outline's room adds to a notch fit")
+        for silhouette in [NotchSilhouette.notch, .capsule] {
+            let plain = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette)
+            let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
+                                          silhouette: silhouette, outline: true)
+            suite.expect(simulated == plain, "a cutout without a camera already shows its outline on the menu bar")
+        }
+    }
+
     private static func musicLabelContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
         for height: CGFloat in [16, 22, 24, 28, 30, 33, 37, 64] {
@@ -795,12 +907,28 @@ enum NotchTests {
         }
         suite.expect(stripIsBlack(islandHeight: previewStrip + 62) && stripIsBlack(islandHeight: 400),
                "the strip stays black at every island height, tall or at the preview's")
+        // Liquid Glass is clear, not blurred: the page keeps black over it and
+        // only the margin below the page opens into the lip.
+        for height: CGFloat in [96, 180, 210, 284, 400, 640] {
+            let stops = NotchGlassLip.stops(height: height, openness: 1, increasedContrast: false)
+            let pageEnd = Double((height - NotchLayout.bottomInset) / height)
+            suite.expect(stops.filter { $0.location <= pageEnd + 1e-9 }.allSatisfy { $0.opacity == 1 }
+                         && abs(stops.last!.opacity - (1 - NotchGlassLip.transparency)) < 1e-9
+                         && zip(stops, stops.dropFirst()).allSatisfy { $1.opacity <= $0.opacity + 1e-12 },
+                         "a \(Int(height))-point glass island keeps its page over black and opens only the margin below it")
+        }
+        suite.expect(NotchGlassLip.stops(height: 284, openness: 0, increasedContrast: false).allSatisfy { $0.opacity == 1 }
+                     && abs(NotchGlassLip.opacity(atDepth: 284, height: 284, openness: 1, increasedContrast: true)
+                            - (1 - NotchGlassLip.increasedContrastTransparency)) < 1e-9
+                     && NotchGlassLip.increasedContrastTransparency < NotchGlassLip.transparency,
+                     "a closing glass island is black throughout, and Increase Contrast keeps its lip darker")
 
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
+        headerTitleContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
@@ -808,6 +936,7 @@ enum NotchTests {
         menuBarHeightContracts(suite)
         physicalStripContracts(suite)
         cameraFitContracts(suite)
+        outlineRoomContracts(suite)
         musicLabelContracts(suite)
         NotchPanelTests.run { suite.expect($0, $1) }
         NotchHoverTests.run(suite)
@@ -1158,6 +1287,11 @@ enum NotchTests {
                && NotchSupport.adjacentModule(to: .camera, modules: [.files], backwards: true) == .files
                && NotchSupport.adjacentModule(to: nil, modules: [], backwards: false) == nil,
                "reverse cycling, removed selections and an empty gallery have safe destinations")
+        suite.expect(NotchSupport.clipboardPasteTarget(highlighted: nil, in: [1, 2, 3]) == 1
+                && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [1, 2, 3]) == 2
+                && NotchSupport.clipboardPasteTarget(highlighted: 9, in: [1, 2, 3]) == 1
+                && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [Int]()) == nil,
+               "Return pastes the highlighted or first visible clipboard entry, and nothing from an empty list")
         suite.expect(NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: false) == 1
                && NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: true) == 1
                && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: false) == 2
@@ -1475,11 +1609,14 @@ enum NotchTests {
                    "gallery Down follows the next visible row rather than the old sideways rail")
         }
         for size in [CGSize(width: 304, height: 534), CGSize(width: 424, height: 180),
-                     CGSize(width: 504, height: 264)] {
+                     CGSize(width: 504, height: 264), CGSize(width: 304, height: 144),
+                     CGSize(width: 424, height: 300)] {
             let preview = NotchLayout.cameraPreviewSize(in: size)
-            suite.expect(preview.width <= size.width && preview.height + 28 + NotchLayout.rowSpacing <= size.height
-                   && abs(preview.width / preview.height - 4.0 / 3.0) < 0.001,
-                   "camera preview preserves its aspect ratio and leaves the stop button inside the page")
+            let ratio = preview.width / preview.height
+            suite.expect(preview.width <= size.width && preview.height <= size.height
+                   && (preview.width == size.width || preview.height == size.height)
+                   && ratio > 4.0 / 3.0 - 0.001 && ratio < 16.0 / 9.0 + 0.001,
+                   "camera preview fills the page's width or height and crops no further than 16:9 or 4:3")
         }
         suite.expect(compact.contentSize(for: compact.sectionPickerSize(count: 0)).height == NotchLayout.emptyHeight
                && compact.contentSize(for: compact.sectionPickerSize(count: 1)).height == NotchLayout.sectionTileHeight,
@@ -2305,6 +2442,24 @@ enum NotchTests {
                      && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
                         .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
                      "the countdown wings fit the wider of the title and the clock, within the menus' room")
+        func menus(_ room: CGFloat) -> NotchGeometry {
+            NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: room)
+        }
+        let pair = physical.compactCalendarGeometry(wing: 66, paired: true)
+        suite.expect(pair.compactActivityWingWidth == 66 && !pair.compactActivityUsesFooter
+                     && physical.compactCalendarGeometry(wing: 30, paired: true).compactActivityWingWidth == 44,
+                     "paired, the event's clock and the other activity's mark set the wings, without a title's minimum")
+        suite.expect(menus(68).compactCalendarGeometry(wing: 66, paired: true).compactActivityWingWidth == 66
+                     && menus(68).compactCalendarGeometry(wing: 66).compactActivityUsesFooter
+                     && menus(60).compactCalendarGeometry(wing: 66, paired: true).compactActivityUsesFooter
+                     && menus(75).compactCalendarGeometry(wing: 80, paired: true).compactActivityWingWidth == 75,
+                     "a pair stays beside the camera where the menus leave it room and moves below a crowded notch otherwise")
+        // The service measures a pair in this geometry before it knows the wing.
+        let measuring = menus(50).compactCalendarGeometry(wing: 0, paired: true)
+        suite.expect(!measuring.compactActivityUsesFooter
+                     && measuring.compactActivityEdgeInset(boxHeight: 9, radius: 0)
+                        == pair.compactActivityEdgeInset(boxHeight: 9, radius: 0),
+                     "a pair is measured beside the camera wherever its narrowest wing fits, with the inset its wings keep")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         let midnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!

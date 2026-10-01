@@ -171,6 +171,12 @@ enum NotchGestureTests {
         let interaction = NotchGestureSupport.nativeInteraction(at: target)
         suite.expect(target === activation && !interaction.control && !interaction.scroll,
                "the transparent resting button remains clickable without blocking gestures")
+        // With Keyboard navigation on, a click or Tab would focus a plain button,
+        // and its focus ring would outline the camera the island hides behind.
+        let window = NSWindow(contentRect: surface.frame, styleMask: [.borderless], backing: .buffered, defer: true)
+        window.contentView = surface
+        suite.expect(!activation.acceptsFirstResponder && !activation.canBecomeKeyView,
+               "the transparent resting button never takes keyboard focus")
         var gesture = NotchGestureSupport()
         suite.expect(gesture.handle(x: 0, y: 40, timestamp: 1, began: true, ended: false,
                               momentum: false, precise: true, hasPhase: true,

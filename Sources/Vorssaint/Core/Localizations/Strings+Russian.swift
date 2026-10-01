@@ -595,6 +595,7 @@ extension Strings {
         mixerOutputFallback: "Используется выход по умолчанию, пока это устройство не вернётся.",
         mixerBypassedCaption: "Это приложение само управляет своим звуком.",
         mixerOutputTooltip: "Выбрать выход",
+        mixerAirPlayChooseSpeaker: "Выбрать динамик AirPlay…",
         mixerSystemOutputTitle: "Выход",
         mixerSystemOutputNoDevices: "Выходы не найдены",
         mixerSystemOutputTooltip: "Выбрать системный выход",

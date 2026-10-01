@@ -139,10 +139,13 @@ struct NotchLayoutEditor: View {
     /// display's menu bar.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
-        return NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
-                             cameraWidth: floats ? 0 : 210, layout: layout,
-                             menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
-                             customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        var result = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
+                                   cameraWidth: floats ? 0 : 210, layout: layout,
+                                   menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
+                                   customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        // The preview's header shows the title alone, with no sections button.
+        result.headerTitleWidth = NotchLayout.headerTitleWidth(text.controls, button: false)
+        return result
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }
@@ -264,7 +267,7 @@ struct NotchLayoutEditor: View {
         .overlay {
             VStack(spacing: NotchLayout.spacing) {
                 HStack(spacing: 0) {
-                    Text(text.controls).font(.system(size: 16, weight: .semibold)).lineLimit(1)
+                    Text(text.controls).font(Font(NotchLayout.headerTitleFont as CTFont)).lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if previewGeometry.headerCameraGap > 0 {
                         Color.clear.frame(width: previewGeometry.headerCameraGap)

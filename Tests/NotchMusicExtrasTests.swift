@@ -130,6 +130,50 @@ enum NotchMusicExtrasTests {
         suite.expect(decode()?.instrumental == true && decode()?.lines.isEmpty == true,
                "instrumental recordings cannot display stray synchronized text")
 
+        // A player that reports no album: the request leaves the field out, and
+        // the lyrics service answers with the first record it holds for that
+        // title, artist and length, so the reply names a release the track
+        // never mentioned.
+        let noAlbum = RadialNowPlayingSnapshot(title: "Evening Signal", artist: "Example Artist", album: nil,
+                                               artworkData: nil, appBundleIdentifier: nil, appPID: nil)
+        let noAlbumIdentity = NotchMusicIdentity(NotchPlayback(track: noAlbum, isPlaying: true, elapsed: 0, duration: 210,
+                                                               rate: 1, sampledAt: playback.sampledAt, canSeek: false))
+        let noAlbumQuery = URLComponents(url: NotchLyricsSupport.lookupURL(for: noAlbumIdentity)!, resolvingAgainstBaseURL: false)!
+        suite.expect(noAlbumQuery.queryItems?.first(where: { $0.name == "album_name" }) == nil,
+               "a recording the player reports without an album is still looked up, and names no release")
+        let oversized = NotchMusicIdentity(NotchPlayback(
+                track: RadialNowPlayingSnapshot(title: "Evening Signal", artist: "Example Artist",
+                                                album: String(repeating: "x", count: 1025),
+                                                artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+                isPlaying: true, elapsed: 0, duration: 210, rate: 1, sampledAt: playback.sampledAt, canSeek: false))
+        suite.expect(NotchLyricsSupport.lookupURL(for: oversized) == nil,
+               "an album the player does report is still refused past the 1024 byte query limit")
+        var noAlbumReply: [String: Any] = ["trackName": "Evening Signal", "artistName": "Example Artist",
+                                            "albumName": "Example Release", "duration": 210.0, "instrumental": false,
+                                            "plainLyrics": "First line",
+                                            "syncedLyrics": "[00:12.30]First line\n[00:16.10]Second line"]
+        func decodeNoAlbum() -> NotchLyrics? {
+            (try? JSONSerialization.data(withJSONObject: noAlbumReply))
+                .flatMap { NotchLyricsSupport.decode($0, for: noAlbumIdentity) }
+        }
+        suite.expect(decodeNoAlbum()?.lines.count == 2 && decodeNoAlbum()?.lines.first?.text == "First line",
+               "lyrics the lyrics service names a release for are kept when the player reports no album")
+        noAlbumReply["duration"] = 213.0
+        suite.expect(decodeNoAlbum() == nil,
+               "a recording the player reports without an album is still matched on its length")
+        noAlbumReply["duration"] = 210.0
+        noAlbumReply["trackName"] = "Evening Signal (Live)"
+        suite.expect(decodeNoAlbum() == nil,
+               "a recording the player reports without an album is still matched on its title")
+        var named = noAlbumReply
+        named["trackName"] = identity.title
+        named["artistName"] = identity.artist
+        named["albumName"] = "Concert Recording"
+        named["duration"] = 180.0
+        suite.expect((try? JSONSerialization.data(withJSONObject: named))
+               .flatMap { NotchLyricsSupport.decode($0, for: identity) } == nil,
+               "an album the player does report still has to name the same release")
+
         let request = UUID()
         var queue: [String: Any] = ["queueRequest": request.uuidString, "queueAvailable": true,
                                     "currentIdentifier": "current-item", "pid": Int32(42), "queueCanPlay": true,
@@ -141,6 +185,69 @@ enum NotchMusicExtrasTests {
         suite.expect(decodeQueue()?.items.count == 1 && decodeQueue()?.canPlay == false,
                "a cached queue preserves its songs but revokes actions when native routing becomes unavailable")
         playback.canSendCommandsDirectly = true
+        let cover = Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
+        queue["queueItems"] = [["id": "second-item", "offset": 2, "title": "Next known title",
+                                "artworkBase64": cover.base64EncodedString()]]
+        suite.expect(decodeQueue()?.items.first?.artwork == cover, "a queued song carries the cover its player gave")
+        for invalidCover in ["not base64", "", Data(count: NotchQueueSupport.maximumArtworkBytes + 1).base64EncodedString()] {
+            queue["queueItems"] = [["id": "second-item", "offset": 2, "title": "Next known title",
+                                    "artworkBase64": invalidCover]]
+            suite.expect(decodeQueue()?.items.map(\.title) == ["Next known title"] && decodeQueue()?.items.first?.artwork == nil,
+                   "a malformed or oversized cover leaves its song in the queue without a picture")
+        }
+        queue["queueItems"] = [["id": "second-item", "offset": 2, "title": "Next known title"]]
+        queue["currentArtworkBase64"] = cover.base64EncodedString()
+        suite.expect(decodeQueue()?.currentArtwork == cover, "a queue carries the playing song's cover for the next list")
+        queue["currentArtworkBase64"] = "not base64"
+        suite.expect(decodeQueue()?.items.count == 1 && decodeQueue()?.currentArtwork == nil,
+               "a malformed playing cover leaves the queue intact")
+        queue["currentArtworkBase64"] = nil
+        var moved = playback
+        moved.itemIdentifier = "second-item"
+        func awaits(_ reply: [String: Any], _ playback: NotchPlayback) -> Bool {
+            NotchQueueSupport.awaitsSongQueue(reply, requestID: request, playback: playback)
+        }
+        suite.expect(awaits(queue, moved) && !awaits(queue, playback),
+               "a queue anchored to the same player's previous song awaits the new song's queue")
+        var elsewhere = queue
+        elsewhere["pid"] = 43
+        var old = queue
+        old["queueRequest"] = UUID().uuidString
+        let unavailable: [String: Any] = ["queueRequest": request.uuidString, "queueAvailable": false]
+        suite.expect(!awaits(elsewhere, moved) && !awaits(old, moved) && !awaits(unavailable, moved),
+               "another player's, an old or an unavailable queue never holds the previous rows")
+        func coverQueue(pid: Int32 = 42, current: String = "current-item", currentCover: Data? = nil,
+                        _ rows: [(String, Data?)]) -> NotchQueueSnapshot {
+            NotchQueueSnapshot(requestID: request, currentIdentifier: current, pid: pid,
+                items: rows.enumerated().map { NotchQueueItem(id: $1.0, offset: $0 + 1, title: $1.0, artist: "",
+                                                              duration: 0, artwork: $1.1) },
+                canPlay: true, currentArtwork: currentCover)
+        }
+        var decodes = 0
+        var covers = NotchQueueCovers<Data>()
+        func show(_ queue: NotchQueueSnapshot?) { covers.update(queue) { decodes += 1; return $0 } }
+        let firstCover = Data([1]), secondCover = Data([2])
+        show(coverQueue([("a", firstCover), ("b", secondCover)]))
+        show(coverQueue([("b", nil), ("c", nil)]))
+        suite.expect(covers.images == ["b": secondCover] && decodes == 2,
+               "the plain list after a song change keeps the covers already shown")
+        show(coverQueue([("b", secondCover), ("c", firstCover)]))
+        suite.expect(covers.images == ["b": secondCover, "c": firstCover] && decodes == 3,
+               "an unchanged cover keeps its decoded image; only a new one is decoded")
+        show(nil)
+        suite.expect(covers.images.isEmpty, "a missing queue shows no covers")
+        show(coverQueue([("b", nil), ("c", nil)]))
+        suite.expect(covers.images == ["b": secondCover, "c": firstCover] && decodes == 3,
+               "a list shown again reuses its covers without decoding them")
+        let playingCover = Data([3])
+        show(coverQueue(current: "b", currentCover: playingCover, [("c", nil)]))
+        show(coverQueue(current: "a", [("b", nil), ("c", nil)]))
+        suite.expect(covers.images == ["b": playingCover, "c": firstCover] && decodes == 4,
+               "going back a song shows the cover it had while playing")
+        show(coverQueue(pid: 43, [("b", nil)]))
+        show(coverQueue([("b", nil)]))
+        suite.expect(covers.images.isEmpty,
+               "covers belong to one player's queue: another player's song never shows them")
         queue["queueRequest"] = UUID().uuidString
         suite.expect(decodeQueue() == nil, "an old queue request cannot overwrite a reopened surface")
         queue["queueRequest"] = request.uuidString

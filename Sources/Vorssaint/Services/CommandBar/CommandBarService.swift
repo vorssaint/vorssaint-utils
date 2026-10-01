@@ -157,6 +157,7 @@ final class CommandBarService: ObservableObject {
     private var windowEntries: [CommandBarEntry] = [] { didSet { foldedSections[.windows] = nil } }
     private var quitEntries: [CommandBarEntry] = [] { didSet { foldedSections[.quit] = nil } }
     private var uninstallEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallApps] = nil } }
+    private var uninstallableAppIDs: Set<String> = []
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
@@ -276,6 +277,7 @@ final class CommandBarService: ObservableObject {
             normalizedByID = [:]
             entriesByStableKey = [:]
             cachedApps = []
+            uninstallableAppIDs = []
             pendingAppShortcut.cancel()
             windowsLoadedAt = nil
             rows = []
@@ -1152,7 +1154,9 @@ final class CommandBarService: ObservableObject {
                                                   runningBundleIDs: bundleIDs,
                                                   runningPaths: paths,
                                                   bar: bar)
-        uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps, bar: bar)
+        uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps,
+                                                              uninstallable: uninstallableAppIDs,
+                                                              bar: bar)
         if index { indexEntries() }
     }
 
@@ -1805,7 +1809,7 @@ final class CommandBarService: ObservableObject {
                     self?.confirmForceQuit(running, name: app.name)
                 })
             }
-            if AppFeature.uninstaller.isAvailable, !app.isSystem {
+            if AppFeature.uninstaller.isAvailable, UninstallerSupport.selection(for: app.url) != nil {
                 actions.append(RowAction(id: "uninstallApp",
                                          title: String(format: bar.uninstallAppFormat, app.name),
                                          symbolName: "trash") { [weak self] in
@@ -2091,9 +2095,13 @@ final class CommandBarService: ObservableObject {
         KillProcessService.shared.killTree(process, force: false)
     }
 
+    /// The row is offered only for an app the shared checks accept, so the
+    /// one way `select` still says no is a removal already running. The page
+    /// opens on that removal instead of the bar closing on nothing.
     private func openUninstaller(for url: URL) {
         hide()
-        AppUninstaller.shared.select(appURL: url)
+        let uninstaller = AppUninstaller.shared
+        guard uninstaller.select(appURL: url) || uninstaller.isRemoving else { return }
         SettingsRouter.shared.page = .uninstaller
         appDelegate()?.openSettingsWindow()
     }
@@ -2558,15 +2566,22 @@ final class CommandBarService: ObservableObject {
     private func loadAppsIfNeeded(for id: UUID) {
         guard AppFeature.commandBar.isAvailable, !appsLoading else { return }
         appsLoading = true
+        let listsUninstallable = AppFeature.uninstaller.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
                 spotlightPaths: Self.spotlightApplicationPaths()))
+            // The uninstall browse offers only what the uninstaller will
+            // take, and its check reads the disk for every app.
+            let uninstallable = listsUninstallable
+                ? UninstallerSupport.acceptedApplicationIDs(apps) : []
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.appsLoading = false
                 guard AppFeature.commandBar.isAvailable else { return }
                 self.cachedApps = apps
+                self.uninstallableAppIDs = uninstallable
                 self.rebuildRunningEntries()
                 if let key = self.pendingAppShortcut.take(in: self.rowShortcuts,
                                                           isAvailable: AppFeature.commandBar.isAvailable) {

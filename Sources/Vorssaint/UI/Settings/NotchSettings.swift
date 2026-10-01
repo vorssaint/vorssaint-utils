@@ -85,6 +85,7 @@ struct NotchSettings: View {
     @State private var draggingModule: NotchModule?
     @State private var draggingControl: NotchControlItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
@@ -186,10 +187,11 @@ struct NotchSettings: View {
                     Text(text.sizeHint).font(.caption).foregroundStyle(.secondary)
                 }
                 // Liquid Glass takes the open island's background when it is
-                // on, so the switch would change nothing then.
+                // on and is already see-through, so the switch reads on and
+                // changes nothing then.
                 switchRow("drop.halffull", text.translucentBackground,
                           caption: liquidGlassIsOn ? text.translucentBackgroundGlassHint : text.translucentBackgroundHint,
-                          isOn: $translucentBackground)
+                          isOn: liquidGlassIsOn ? .constant(true) : $translucentBackground)
                     .disabled(liquidGlassIsOn)
             }
             // Only a display without a camera can float the island.
@@ -234,9 +236,12 @@ struct NotchSettings: View {
         }
     }
 
+    /// Whether the open island draws Liquid Glass, by the island's own rule.
+    /// Reduce Transparency keeps it black, so the switch then shows the saved
+    /// choice as it does with the glass off.
     private var liquidGlassIsOn: Bool {
 #if compiler(>=6.2)
-        if #available(macOS 26, *) { return liquidGlass }
+        if #available(macOS 26, *) { return liquidGlass && !reduceTransparency }
 #endif
         return false
     }
