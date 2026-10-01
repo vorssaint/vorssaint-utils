@@ -925,8 +925,8 @@ final class NotchService: ObservableObject {
         CameraPreviewService.shared.hideEmbedded()
         NotchAccessoryService.shared.suspend()
         servesPages = false
-        NotchDownloadService.shared.stop()
         // A page open in the menu panel keeps reading without the island.
+        if !PanelModuleDemand.shared.shows(.downloads) { NotchDownloadService.shared.stop() }
         if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
         NotchNotificationService.shared.stop()
         AgentUsageService.shared.pause()
@@ -1733,6 +1733,14 @@ final class NotchService: ObservableObject {
                 NotchCalendarService.shared.syncWithPreferences()
             } else {
                 NotchCalendarService.shared.stop()
+            }
+        case .downloads:
+            let downloads = NotchDownloadService.shared
+            if servesPages || PanelModuleDemand.shared.shows(.downloads) {
+                downloads.syncWithPreferences()
+            } else if !downloads.isChoosingFolder {
+                // A folder chooser begun in the panel outlives it and syncs as it closes.
+                downloads.stop()
             }
         case .timer:
             let timer = NotchTimerService.shared

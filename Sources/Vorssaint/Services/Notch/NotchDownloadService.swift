@@ -60,9 +60,8 @@ final class NotchDownloadService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        guard NotchSupport.isEnabled(), AppFeature.notchDownloads.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.notchDownloadsEnabled),
-              NotchSupport.modules().contains(.downloads) else { stop(); return }
+        guard NotchDownloadSupport.isEnabled(panelVisible: PanelModuleDemand.shared.shows(.downloads))
+        else { stop(); return }
         guard folder == nil else { return }
         guard let bookmark = UserDefaults.standard.data(forKey: DefaultsKey.notchDownloadsFolderBookmark) else {
             folderName = nil

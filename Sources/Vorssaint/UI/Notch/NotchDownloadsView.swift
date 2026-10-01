@@ -27,7 +27,11 @@ struct NotchDownloadsSettingsControls: View {
                 }
             }.controlSize(.small)
         }
-        .onChange(of: enabled) { NotchService.shared.syncWithPreferences() }
+        .onChange(of: enabled) {
+            NotchService.shared.syncWithPreferences()
+            // The island may be off while the menu panel shows the page.
+            downloads.syncWithPreferences()
+        }
     }
 }
 

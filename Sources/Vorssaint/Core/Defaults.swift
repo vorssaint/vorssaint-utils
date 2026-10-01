@@ -706,6 +706,7 @@ enum DefaultsKey {
     static let panelUtilityAgents = "panelUtilityAgents"
     static let panelUtilityCalendar = "panelUtilityCalendar"
     static let panelUtilityTimer = "panelUtilityTimer"
+    static let panelUtilityDownloads = "panelUtilityDownloads"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1726,6 +1727,7 @@ enum Defaults {
         DefaultsKey.panelUtilityAgents: true,
         DefaultsKey.panelUtilityCalendar: true,
         DefaultsKey.panelUtilityTimer: true,
+        DefaultsKey.panelUtilityDownloads: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager, agents, calendar, timer
+         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads
 
     var id: String { rawValue }
 
@@ -579,6 +579,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .agents: return .notchAgents
         case .calendar: return .notchCalendar
         case .timer: return .notchTimer
+        case .downloads: return .notchDownloads
         }
     }
 }
@@ -620,6 +621,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityAgents) private var showAgents = true
     @AppStorage(DefaultsKey.panelUtilityCalendar) private var showCalendar = true
     @AppStorage(DefaultsKey.panelUtilityTimer) private var showTimer = true
+    @AppStorage(DefaultsKey.panelUtilityDownloads) private var showDownloads = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -790,6 +792,7 @@ struct UtilitiesSection: View {
         case .agents: return showAgents
         case .calendar: return showCalendar
         case .timer: return showTimer
+        case .downloads: return showDownloads
         }
     }
 
@@ -1044,6 +1047,9 @@ struct UtilitiesSection: View {
             let timer = FeatureStrings.notchActivities(l10n.language)
             islandPageButton(.timer, caption: timer.pomodoro + " · " + timer.stopwatch,
                              visibility: $showTimer, editing: editing)
+        case .downloads:
+            islandPageButton(.downloads, caption: FeatureStrings.notchFiles(l10n.language).inProgress,
+                             visibility: $showDownloads, editing: editing)
         }
     }
 
@@ -1136,6 +1142,7 @@ struct UtilitiesSection: View {
         showAgents = true
         showCalendar = true
         showTimer = true
+        showDownloads = true
     }
 
     private func grantAccessibility() {

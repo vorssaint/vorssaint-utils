@@ -68,6 +68,7 @@ struct PanelIslandPageView: View {
         case .agents: NotchAgentsView(size: size)
         case .calendar: NotchCalendarView(size: size)
         case .timer: NotchTimerView(size: size)
+        case .downloads: NotchDownloadsView(size: size)
         default: EmptyView()
         }
     }

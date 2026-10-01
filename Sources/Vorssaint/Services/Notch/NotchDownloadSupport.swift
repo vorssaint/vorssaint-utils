@@ -96,6 +96,15 @@ struct NotchDownloadPublication {
 }
 
 enum NotchDownloadSupport {
+    /// The island watches the folder for its Downloads page; a visible menu
+    /// panel page watches it without the island.
+    static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        AppFeature.notchDownloads.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.notchDownloadsEnabled)
+            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
+                && NotchSupport.modules(in: defaults).contains(.downloads)))
+    }
+
     struct FolderSnapshot {
         let partials: [URL: NotchPartialDownload]
         let files: [NotchDownloadItem]

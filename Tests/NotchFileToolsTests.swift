@@ -23,11 +23,29 @@ enum NotchFileToolsTests {
         defaults.set(true, forKey: AppFeature.notch.availabilityKey)
         defaults.set(true, forKey: AppFeature.notchDownloads.availabilityKey)
         suite.expect(NotchSupport.routes(.download, in: defaults), "enabled downloads can present in the notch")
+        suite.expect(NotchDownloadSupport.isEnabled(in: defaults), "the island watches the folder for its page")
         defaults.set("downloads", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchSupport.routes(.download, in: defaults), "hidden downloads stop automatic presentation")
+        suite.expect(!NotchDownloadSupport.isEnabled(in: defaults)
+                        && NotchDownloadSupport.isEnabled(in: defaults, panelVisible: true),
+                     "a page hidden from the island still watches while the menu panel shows it")
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchDownloadSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchSupport.routes(.download, in: defaults),
+                     "the panel watches with the island off, without presenting arrivals in it")
+        defaults.set(false, forKey: DefaultsKey.notchDownloadsEnabled)
+        suite.expect(!NotchDownloadSupport.isEnabled(in: defaults, panelVisible: true),
+                     "downloads turned off are not watched for the panel either")
+        defaults.set(true, forKey: DefaultsKey.notchDownloadsEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         defaults.set(false, forKey: AppFeature.notchDownloads.availabilityKey)
         suite.expect(!NotchSupport.routes(.download, in: defaults), "uninstalled downloads cannot present")
+        suite.expect(!NotchDownloadSupport.isEnabled(in: defaults, panelVisible: true),
+                     "uninstalled downloads are not watched for the panel either")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityDownloads] as? Bool == true
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.panelUtilityDownloads),
+                     "the panel's downloads entry is shown by default and travels in backup")
 
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.notchFiles(language)
