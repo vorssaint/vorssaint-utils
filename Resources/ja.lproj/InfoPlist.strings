@@ -8,7 +8,7 @@
 "NSBluetoothAlwaysUsageDescription" = "Vorssaintは、接続済み周辺機器のバッテリー残量を読み取るためだけにBluetoothを使用します。データがMacの外に送信されることはありません。";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaintは音声入力または画面収録中のみマイクを使用します。音声入力はこのMac上で認識され、音声はサーバーに送信されません。";
+"NSMicrophoneUsageDescription" = "Vorssaintは、画面収録でマイクをオンにしたときだけ音声を収録します。一時リンクを作成しない限り、音声はMac上に保存されます。";
 "NSSpeechRecognitionUsageDescription" = "Vorssaintは音声入力が有効な間のみ、このMac上で音声を認識します。音声はサーバーに送信されません。";
 
 /* macOS Camera permission prompt. */

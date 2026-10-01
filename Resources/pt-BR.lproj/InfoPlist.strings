@@ -8,7 +8,7 @@
 "NSBluetoothAlwaysUsageDescription" = "O Vorssaint usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "O Vorssaint usa o microfone apenas durante o ditado ou uma gravação de tela. O ditado é reconhecido neste Mac; o áudio não é enviado a um servidor.";
+"NSMicrophoneUsageDescription" = "O Vorssaint grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário.";
 "NSSpeechRecognitionUsageDescription" = "O Vorssaint reconhece seu ditado neste Mac somente enquanto a digitação por voz está ativa. O áudio não é enviado a um servidor.";
 
 /* macOS Camera permission prompt. */

@@ -618,6 +618,15 @@ private struct FeatureHubRow: View {
 
     private func rowContent(showsChevron: Bool) -> some View {
         HStack(spacing: 12) {
+            if feature == .speechToText {
+                Image(systemName: feature.symbolName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 30, height: 30)
+                    .background(Color.accentColor.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .accessibilityHidden(true)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
@@ -732,9 +741,11 @@ struct PermissionsPortalSections: View {
     @State private var pollingDemandID = UUID()
 
     init(hub: FeatureHubStrings,
-         visiblePermissions: [AppPermission] = AppPermission.allCases) {
+         visiblePermissions: [AppPermission]? = nil) {
         self.hub = hub
-        self.visiblePermissions = visiblePermissions
+        self.visiblePermissions = (visiblePermissions ?? AppPermission.allCases).filter {
+            $0 != .speechRecognition || AppFeature.speechToText.isAvailable
+        }
     }
 
     var body: some View {

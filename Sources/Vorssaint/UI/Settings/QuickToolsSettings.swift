@@ -207,7 +207,7 @@ struct QuickToolsSettings: View {
                             .foregroundStyle(.orange)
                     }
                 } header: {
-                    Text(strings.title)
+                    Label(strings.title, systemImage: "mic.and.lines")
                 }
                 .settingsFormSectionAnchor(.speechToText)
             }

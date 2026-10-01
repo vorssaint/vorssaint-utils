@@ -7,10 +7,13 @@ import ApplicationServices
 import Combine
 import Speech
 
-/// Short, explicitly started dictation. Recognition is pinned to the device;
-/// no audio file or model is written or bundled.
 final class SpeechToTextService: ObservableObject {
     static let shared = SpeechToTextService()
+
+    // Keep short hesitations inside the same phrase while leaving a safety
+    // margin below the legacy recognizer's per-task duration limit.
+    private let pauseRotationDelay: TimeInterval = 1.8
+    private let safetyRotationDelay: TimeInterval = 50
 
     enum State: Equatable {
         case idle, requestingPermission, listening, finishing, unavailable, failed
@@ -21,12 +24,25 @@ final class SpeechToTextService: ObservableObject {
 
     private let hotkey = QuickToolHotkey(id: 19)
     private let audioEngine = AVAudioEngine()
+    private let audioRequestLock = NSLock()
     private var request: SFSpeechAudioBufferRecognitionRequest?
     private var task: SFSpeechRecognitionTask?
+    private var recognizer: SFSpeechRecognizer?
+    private var rotationTimer: Timer?
+    private var pauseWork: DispatchWorkItem?
+    private var pendingAudioBuffers: [AVAudioPCMBuffer] = []
+    private var segmentID = 0
+    private var rotatingSegment = false
+    private var latestHypothesis = ""
+    private var pasteQueue: [String] = []
+    private var pasteInProgress = false
     private var generation = UUID()
+    private var pushToTalkHeld = false
+    private var captureNeedsHold = false
 
     private init() {
-        hotkey.onPress = { [weak self] in self?.toggle() }
+        hotkey.onPress = { [weak self] in self?.beginPushToTalk() }
+        hotkey.onRelease = { [weak self] in self?.endPushToTalk() }
     }
 
     var statusMessage: String? {
@@ -68,8 +84,20 @@ final class SpeechToTextService: ObservableObject {
         }
     }
 
+    private func beginPushToTalk() {
+        guard state == .idle || state == .failed || state == .unavailable else { return }
+        pushToTalkHeld = true
+        start()
+    }
+
+    private func endPushToTalk() {
+        pushToTalkHeld = false
+        if state == .listening { finish() }
+    }
+
     func start() {
         guard AppFeature.speechToText.isAvailable else { return }
+        captureNeedsHold = pushToTalkHeld
         generation = UUID()
         let session = generation
         state = .requestingPermission
@@ -85,6 +113,10 @@ final class SpeechToTextService: ObservableObject {
                     self.fail()
                     return
                 }
+                guard !self.captureNeedsHold || self.pushToTalkHeld else {
+                    self.state = .idle
+                    return
+                }
                 self.beginRecognition(session: session)
             }
         }
@@ -93,9 +125,17 @@ final class SpeechToTextService: ObservableObject {
     func finish() {
         guard state == .listening else { return }
         state = .finishing
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        pauseWork?.cancel()
+        pauseWork = nil
         audioEngine.stop()
         audioEngine.inputNode.removeTap(onBus: 0)
-        request?.endAudio()
+        audioRequestLock.lock()
+        let activeRequest = request
+        request = nil
+        audioRequestLock.unlock()
+        activeRequest?.endAudio()
     }
 
     private func beginRecognition(session: UUID) {
@@ -107,10 +147,10 @@ final class SpeechToTextService: ObservableObject {
             return
         }
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = false
-        request.requiresOnDeviceRecognition = true
-        self.request = request
+        self.recognizer = recognizer
+        latestHypothesis = ""
+        pendingAudioBuffers.removeAll()
+        rotatingSegment = false
         let input = audioEngine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
@@ -118,8 +158,8 @@ final class SpeechToTextService: ObservableObject {
             return
         }
 
-        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak request] buffer, _ in
-            request?.append(buffer)
+        input.installTap(onBus: 0, bufferSize: 1_024, format: format) { [weak self] buffer, _ in
+            self?.appendAudio(buffer)
         }
         do {
             audioEngine.prepare()
@@ -132,61 +172,242 @@ final class SpeechToTextService: ObservableObject {
         }
 
         state = .listening
-        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+        QuickToolHUD.showListening(message: SpeechToTextStrings.localized(L10n.shared.language).listening)
+        startRecognitionSegment(session: session)
+    }
+
+    private func startRecognitionSegment(session: UUID, finishAfterStart: Bool = false) {
+        guard let recognizer,
+              state == .listening || state == .finishing else { return }
+        segmentID += 1
+        let id = segmentID
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.requiresOnDeviceRecognition = true
+        request.taskHint = .dictation
+        request.addsPunctuation = true
+        latestHypothesis = ""
+        rotatingSegment = false
+
+        let task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             DispatchQueue.main.async {
                 guard let self, self.generation == session else { return }
-                if error != nil {
-                    self.stopCapture()
-                    self.fail()
-                    return
-                }
-                guard let result, result.isFinal else { return }
-                self.stopCapture()
-                let transcript = result.bestTranscription.formattedString
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                self.insert(transcript)
+                self.handleRecognition(result: result, error: error,
+                                       segment: id, session: session)
             }
+        }
+        self.task = task
+
+        // If the previous task was being finalized, retain the audio captured
+        // during that short handoff and feed it into the next task in order.
+        audioRequestLock.lock()
+        let bufferedAudio = pendingAudioBuffers
+        pendingAudioBuffers.removeAll(keepingCapacity: true)
+        for buffer in bufferedAudio { request.append(buffer) }
+        self.request = request
+        audioRequestLock.unlock()
+
+        if finishAfterStart {
+            audioRequestLock.lock()
+            self.request = nil
+            audioRequestLock.unlock()
+            request.endAudio()
+        } else if state == .listening {
+            scheduleSafetyRotation(segment: id, session: session)
         }
     }
 
-    private func insert(_ transcript: String) {
+    private func appendAudio(_ buffer: AVAudioPCMBuffer) {
+        audioRequestLock.lock()
+        if let request {
+            request.append(buffer)
+        } else {
+            pendingAudioBuffers.append(buffer)
+        }
+        audioRequestLock.unlock()
+    }
+
+    private func scheduleSafetyRotation(segment: Int, session: UUID) {
+        rotationTimer?.invalidate()
+        rotationTimer = Timer.scheduledTimer(withTimeInterval: safetyRotationDelay, repeats: false) { [weak self] _ in
+            guard let self, self.segmentID == segment, self.generation == session else { return }
+            self.rotateRecognitionSegment()
+        }
+    }
+
+    private func schedulePauseRotation(segment: Int, session: UUID) {
+        pauseWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.segmentID == segment, self.generation == session else { return }
+            self.rotateRecognitionSegment()
+        }
+        pauseWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + pauseRotationDelay, execute: work)
+    }
+
+    private func rotateRecognitionSegment() {
+        guard state == .listening else { return }
+        audioRequestLock.lock()
+        guard let activeRequest = request else {
+            audioRequestLock.unlock()
+            return
+        }
+        request = nil
+        audioRequestLock.unlock()
+        rotatingSegment = true
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        pauseWork?.cancel()
+        pauseWork = nil
+        activeRequest.endAudio()
+    }
+
+    private func handleRecognition(result: SFSpeechRecognitionResult?,
+                                   error: Error?,
+                                   segment: Int,
+                                   session: UUID) {
+        guard segment == segmentID else { return }
+        if let result {
+            let hypothesis = result.bestTranscription.formattedString
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !result.isFinal {
+                if !hypothesis.isEmpty, hypothesis != latestHypothesis {
+                    latestHypothesis = hypothesis
+                    schedulePauseRotation(segment: segment, session: session)
+                }
+                return
+            }
+            if !hypothesis.isEmpty { latestHypothesis = hypothesis }
+        } else if error == nil {
+            return
+        }
+
+        // Ending one task is a normal boundary. Keep recording and replay any
+        // audio buffered while Speech finalized the previous segment.
+        guard state == .listening || state == .finishing else { return }
+        if error != nil, state == .listening, !rotatingSegment {
+            stopCapture()
+            fail()
+            return
+        }
+
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        pauseWork?.cancel()
+        pauseWork = nil
+        if !latestHypothesis.isEmpty { enqueueFinalChunk(latestHypothesis) }
+        task = nil
+        audioRequestLock.lock()
+        request = nil
+        audioRequestLock.unlock()
+        let hasBufferedAudio: Bool
+        audioRequestLock.lock()
+        hasBufferedAudio = !pendingAudioBuffers.isEmpty
+        audioRequestLock.unlock()
+
+        if state == .listening {
+            startRecognitionSegment(session: session)
+        } else if hasBufferedAudio {
+            startRecognitionSegment(session: session, finishAfterStart: true)
+        } else {
+            completeDictation()
+        }
+    }
+
+    private func completeDictation() {
+        stopCapture()
+        QuickToolHUD.hideListening()
+        state = .idle
+    }
+
+    private func enqueueFinalChunk(_ transcript: String) {
         guard !transcript.isEmpty else {
-            state = .idle
             return
         }
         guard AXIsProcessTrusted() else {
             Permissions.shared.requestAccessibility()
-            state = .failed
+            fail()
             return
         }
-        guard TransientPaste.shared.paste(transcript, didFail: { [weak self] in
-            self?.state = .failed
-        }) else {
-            state = .failed
-            return
+        pasteQueue.append(transcript + " ")
+        drainPasteQueue()
+    }
+
+    private func drainPasteQueue() {
+        guard !pasteInProgress, !pasteQueue.isEmpty else { return }
+        pasteInProgress = true
+        let text = pasteQueue.removeFirst()
+        let pasteSession = generation
+        let accepted = TransientPaste.shared.paste(
+            text,
+            didPostShortcut: { [weak self] in
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    self.pasteInProgress = false
+                    self.drainPasteQueue()
+                }
+            },
+            didFail: { [weak self] in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    self.pasteInProgress = false
+                    if self.generation == pasteSession {
+                        self.fail()
+                    } else {
+                        self.drainPasteQueue()
+                    }
+                }
+            })
+        if !accepted {
+            pasteInProgress = false
+            fail()
         }
-        state = .idle
     }
 
     private func stopCapture() {
+        rotationTimer?.invalidate()
+        rotationTimer = nil
+        pauseWork?.cancel()
+        pauseWork = nil
         if audioEngine.isRunning { audioEngine.stop() }
         audioEngine.inputNode.removeTap(onBus: 0)
+        audioRequestLock.lock()
         request = nil
+        pendingAudioBuffers.removeAll()
+        audioRequestLock.unlock()
         task = nil
+        recognizer = nil
     }
 
     private func fail() {
+        let activeTask = task
+        audioRequestLock.lock()
+        let activeRequest = request
+        request = nil
+        audioRequestLock.unlock()
         stopCapture()
+        activeRequest?.endAudio()
+        activeTask?.cancel()
+        pasteQueue.removeAll()
+        pasteInProgress = false
+        QuickToolHUD.hideListening()
         state = .failed
     }
 
     private func cancel() {
         generation = UUID()
+        pushToTalkHeld = false
+        captureNeedsHold = false
         let activeTask = task
+        audioRequestLock.lock()
         let activeRequest = request
+        request = nil
+        pendingAudioBuffers.removeAll()
+        audioRequestLock.unlock()
         stopCapture()
         activeRequest?.endAudio()
         activeTask?.cancel()
+        QuickToolHUD.hideListening()
         state = .idle
     }
 }
