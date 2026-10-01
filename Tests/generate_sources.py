@@ -50,6 +50,10 @@ def main():
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))
+    write("NotchModuleTitle.swift", "import Foundation\nextension NotchModule {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    func title(_ language: AppLanguage)",
+                        scope="extension NotchModule: PanelOrderItem {")
+          + "}\n")
     write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
           + "extension ScreenshotScrollingCaptureTests {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",
@@ -648,7 +652,7 @@ def main():
     write("NotchKeyMonitor.swift", "import Foundation\nextension NotchKeyMonitorTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func installEventMonitors()").replace("private func", "func", 1)
           + "}\n}\n")
-    write("NotchPresentationRefresh.swift", "import AppKit\nimport Foundation\nimport Combine\n"
+    write("NotchPresentationRefresh.swift", "import AppKit\nimport Foundation\nimport Combine\nimport SwiftUI\n"
           + "extension NotchPresentationRefreshContract {\nfinal class Service: State {\n"
           + "func hover(_ entered: Bool) {\nlet wasInside = inside\n"
           + "inside = windowHost?.containsHover(NSEvent.mouseLocation) == true\n"
@@ -668,6 +672,7 @@ def main():
           + declaration(notch, "    var expandedGeometry:").replace("var expandedGeometry", "override var expandedGeometry", 1)
           + declaration(notch, "    private func compactMusicTransition(").replace("private func", "func", 1)
           + declaration(notch, "    private func rememberPresentedMusic(").replace("private func", "func", 1)
+          + declaration(notch, "    private func switchCompactSelection(").replace("private func", "func", 1)
           + declaration(notch, "    func refreshPresentation(")
               .replace("NotchSupport.coversMenus()", "UserDefaults.standard.coversMenus")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)

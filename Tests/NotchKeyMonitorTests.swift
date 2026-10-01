@@ -55,8 +55,10 @@ enum NotchKeyMonitorTests {
     final class Launcher {
         var isEditing = false
         var visibleItems = [0, 1, 2]
+        var flows: [QuickToolsSupport.GridFlow] = []
         func handlePanelKey(_ event: NSEvent, flow: QuickToolsSupport.GridFlow) -> NSEvent? {
             NotchKeyMonitorTests.actions.append("tools")
+            flows.append(flow)
             return nil
         }
     }
@@ -75,6 +77,12 @@ enum NotchKeyMonitorTests {
         var showingSections = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
+        var headerTitleWidth: CGFloat = 0
+        var expandedGeometry: NotchGeometry {
+            var result = geometry
+            result.headerTitleWidth = headerTitleWidth
+            return result
+        }
         func collapse() { NotchKeyMonitorTests.actions.append("collapse") }
         func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
@@ -117,5 +125,24 @@ enum NotchKeyMonitorTests {
             suite.expect(NSEvent.handler?(escape) == nil && actions == [destination.action],
                          "Esc reaches the island from \(destination.name) once composition ends")
         }
+        // A title too long to sit beside the camera takes a row below it, so
+        // a custom island leaves the Tools rail fewer rows than the island
+        // without its page would. The arrows walk the rail the page draws.
+        let launcher = QuickLauncherService.shared
+        let items = launcher.visibleItems
+        defer { launcher.visibleItems = items; launcher.flows = [] }
+        launcher.visibleItems = Array(0..<12)
+        service.selected = .tools
+        service.showingSections = false
+        service.showingAppPanel = false
+        service.panel?.firstResponder = nil
+        service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 37.5,
+                                         cameraWidth: 208, layout: .custom, customWidth: 480, customHeight: 330)
+        service.headerTitleWidth = 200
+        launcher.flows = []
+        _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 125))
+        let drawn = service.expandedGeometry.toolFlow(count: 12)
+        suite.expect(launcher.flows == [drawn] && drawn != service.geometry.toolFlow(count: 12),
+                     "the Tools arrows follow the rail below a title that takes the row under the camera")
     }
 }

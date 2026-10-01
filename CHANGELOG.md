@@ -14,6 +14,10 @@ The recording editor can copy a recording as an animated GIF, and the camera mir
 - An event countdown paired with music or AI agents is only as wide as its clock and the other activity's mark need, like a timer's pair, so it leaves no extra black beside the camera. With Show over the menus off, the pair also stays beside the camera on a crowded menu bar whenever it fits.
 - The capsule grows around what it shows when the pointer reaches it, so a song's cover and sound bars no longer jump outward first.
 - In the open capsule, the header's buttons now sit as far from the top edge as the page does from the bottom, so the title no longer crowds the top.
+- With Liquid Glass on, the open island keeps its page over black, so text from a window behind it no longer reads through, and the glass shows along its lower edge. Menus opened from the island's buttons, such as ··· and the output device chooser, use the island's dark look.
+- On macOS 15 and later, a page taller than the island fades at the top and bottom where more follows, and rows that run past the side, such as recent captures and notifications, fade at that edge instead of ending in a hard line.
+- Choosing another activity in the closed island slides the highlight to it and changes the strip in place instead of fading the whole island. Play and pause change at once for players the island controls directly.
+- The Downloads page without a folder explains what it does and offers a Choose Folder… button, or a Downloads switch while Downloads is off, instead of a bare checkbox.
 
 ### Added
 - The recording editor's Copy button has a menu with Copy as GIF, which copies the edited recording as an animated GIF ready to paste. Copy and ⌘C still copy the video.
@@ -23,6 +27,7 @@ The recording editor can copy a recording as an animated GIF, and the camera mir
 - A Dynamic Island opened by hover now closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
 - On a Mac with a notch, the outline from Show outline no longer hides behind the camera while Dynamic Island is closed. The closed island reaches slightly past the notch to show it.
 - Dynamic Island's Combine menu names each pair in the order the island shows it, left to right, such as Music + Timer.
+- On a Mac with a notch, a Dynamic Island page title too long for the space beside the camera, such as Camera mirror on some displays, now moves to a row below the camera instead of being cut off. Titles that fit stay beside the camera.
 - While Dynamic Island or Show brightness when adjusting shows the brightness, the brightness keys ease the display to each new level as macOS does, instead of jumping to it. Display brightness shortcuts ease the same way.
 - After the Mac wakes from sleep, volume keys routed through Dynamic Island step from the level the output really plays, so external speakers no longer jump to a level far from the one the island showed.
 - Brightness and volume keys pressed with Option, Command or Control reach macOS again while Vorssaint handles those keys, so Option opens Displays or Sound settings. Option-Shift brightness keys take quarter steps and still follow the pointer to the right display.
