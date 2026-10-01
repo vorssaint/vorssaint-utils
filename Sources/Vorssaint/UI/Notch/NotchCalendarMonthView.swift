@@ -75,7 +75,7 @@ struct NotchCalendarMonthView: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 2) {
-                Text(date, format: .dateTime.day())
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: 11, weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
                     .frame(width: 24, height: 24)
@@ -166,7 +166,7 @@ struct NotchCalendarWeekStrip: View {
                 Text(weekdaySymbols[calendar.component(.weekday, from: date) - 1])
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.45))
-                Text(date, format: .dateTime.day())
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: 12, weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white)
                     .frame(width: 26, height: 26)
@@ -264,7 +264,7 @@ struct NotchCalendarMonthGrid: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 0) {
-                Text(date, format: .dateTime.day())
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: min(11, circle * 0.62), weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
                     .frame(width: circle, height: circle)
