@@ -687,6 +687,15 @@ final class CommandBarService: ObservableObject {
             show(promptingFor: key)
             return
         }
+        // An app already in front hides on its own combination, so one key
+        // brings it forward and puts it away. With the bar open, the key
+        // opens the app instead: the panel never takes focus, so the app
+        // underneath is still active.
+        if !isVisible, let app = installedApp(for: entry), let running = runningApplication(for: app),
+           running.isActive {
+            running.hide()
+            return
+        }
         if isVisible { hide() }
         finish(entry, value: nil)
     }
