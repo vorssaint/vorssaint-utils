@@ -602,6 +602,16 @@ enum NotchAgentTests {
         suite.expect(AgentOpenCodeDatabase.databaseURL(home: URL(fileURLWithPath: "/Users/me"))
                         == URL(fileURLWithPath: "/Users/me/.local/share/opencode/opencode.db"),
                      "the database lives where OpenCode keeps it")
+        suite.expect(AgentOpenCodeDatabase.databaseURL(home: URL(fileURLWithPath: "/Users/me"),
+                                                       environment: ["XDG_DATA_HOME": "/data"])
+                        == URL(fileURLWithPath: "/data/opencode/opencode.db")
+                        && AgentOpenCodeDatabase.databaseURL(home: URL(fileURLWithPath: "/Users/me"),
+                                                             environment: ["XDG_DATA_HOME": ""])
+                        == URL(fileURLWithPath: "/Users/me/.local/share/opencode/opencode.db")
+                        && AgentOpenCodeDatabase.databaseURL(home: URL(fileURLWithPath: "/Users/me"),
+                                                             environment: ["XDG_DATA_HOME": "relative"])
+                        == URL(fileURLWithPath: "/Users/me/.local/share/opencode/opencode.db"),
+                     "a relocated data directory moves the database, while empty and relative ones stay home")
         // Names read the way people say them, without the provider prefix.
         suite.expect(AgentPricing.displayName("acme/zeta-3-ultra-120b-a12b") == "Zeta 3 Ultra 120B A12B"
                         && AgentPricing.displayName("acme/spark-1.3-contributor-free") == "Spark 1.3 Contributor Free"

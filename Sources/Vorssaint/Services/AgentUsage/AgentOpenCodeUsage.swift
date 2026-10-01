@@ -5,11 +5,18 @@ import Foundation
 import SQLite3
 
 /// Where OpenCode keeps its sessions. The desktop app, the terminal UI and
-/// the IDE extension all write to the same SQLite database; the file-based
-/// JSON storage under `project/` is from older releases and is not read.
+/// the IDE extension all write to the same SQLite database, under the data
+/// directory OpenCode resolves the standard way, so a relocated
+/// `XDG_DATA_HOME` moves it there too; the file-based JSON storage under
+/// `project/` is from older releases and is not read.
 enum AgentOpenCodeDatabase {
-    static func databaseURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
-        home.appending(path: ".local/share/opencode/opencode.db", directoryHint: .notDirectory)
+    static func databaseURL(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                            environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        if let root = environment["XDG_DATA_HOME"], !root.isEmpty, root.hasPrefix("/") {
+            return URL(fileURLWithPath: root, isDirectory: true)
+                .appending(path: "opencode/opencode.db", directoryHint: .notDirectory)
+        }
+        return home.appending(path: ".local/share/opencode/opencode.db", directoryHint: .notDirectory)
     }
 
     static func exists(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
@@ -93,7 +100,7 @@ enum AgentOpenCodeParser {
         for candidate in [cwd, root, directory] {
             guard let path = candidate, !path.isEmpty else { continue }
             let name = AgentLogParser.projectName(path)
-            if !name.isEmpty { return name }
+            if !name.isEmpty, name != "/" { return name }
         }
         return ""
     }
@@ -269,6 +276,7 @@ enum AgentOpenCodeReader {
         cursor.ended = cursor.ended.filter { cursor.applied[$0.key] != nil }
         cursor.replied = cursor.replied.filter { $0.value >= horizon }
         cursor.active = cursor.active.filter { $0.value >= horizon }
+        cursor.open = cursor.open.filter { cursor.applied[$0] != nil }
         var db: OpaquePointer?
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
         guard sqlite3_open_v2(url.path, &db, flags, nil) == SQLITE_OK, let db else {
@@ -309,7 +317,8 @@ enum AgentOpenCodeReader {
                     shouldContinue: shouldContinue, receive: receive, maxRowid: &maxRowid)
                 complete = done.complete
                 changed = done.changed
-                if !complete { return finish(reset: reset, cursor: &cursor, url: url, changed: changed) }
+                if !complete { return finish(reset: reset, cursor: &cursor, url: url, changed: changed,
+                                             complete: false) }
             }
             if shouldContinue() {
                 let done = scan(db: db, sql: """
@@ -321,6 +330,8 @@ enum AgentOpenCodeReader {
                     shouldContinue: shouldContinue, receive: receive, maxRowid: &maxRowid)
                 complete = done.complete
                 changed = changed || done.changed
+            } else {
+                complete = false
             }
         }
         return finish(reset: reset, cursor: &cursor, url: url, changed: changed, complete: complete,
