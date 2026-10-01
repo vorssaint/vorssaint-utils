@@ -9,6 +9,8 @@ import Foundation
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
     case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch
+    /// Island pages that also work in the menu panel, each with a page of its own.
+    case agents, calendar, timer, downloads, notifications, nowPlaying
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -340,7 +342,15 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .wallpaper:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .wallpaper)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents: return FeatureSettingsDestination(.notch)
+        case .notch, .notchGestures, .notchAccessories: return FeatureSettingsDestination(.notch)
+        case .notchCalendar: return FeatureSettingsDestination(.calendar)
+        case .notchNotifications: return FeatureSettingsDestination(.notifications)
+        case .notchTimer: return FeatureSettingsDestination(.timer)
+        case .notchDownloads: return FeatureSettingsDestination(.downloads)
+        case .notchAgents: return FeatureSettingsDestination(.agents)
+        // The live equalizer draws in the island; lyrics and the queue follow the player.
+        case .notchLiveEqualizer: return FeatureSettingsDestination(.notch)
+        case .notchLyrics, .notchQueue: return FeatureSettingsDestination(.nowPlaying)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
@@ -394,10 +404,16 @@ enum FeatureVisibilitySupport {
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents]
+        case .notch: return [.notch, .notchGestures, .notchAccessories, .notchLiveEqualizer]
+        case .agents: return [.notchAgents]
+        case .calendar: return [.notchCalendar]
+        case .timer: return [.notchTimer]
+        case .downloads: return [.notchDownloads]
+        case .notifications: return [.notchNotifications]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
-        case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support:
+        // The player has no hub feature of its own; it is part of every island and panel.
+        case .general, .features, .shortcuts, .advanced, .about, .releaseNotes, .support, .nowPlaying:
             return []
         }
     }
@@ -414,5 +430,44 @@ enum FeatureVisibilitySupport {
     static func isPermissionNeeded(on page: SettingsPage,
                                    activeFeatures: [AppFeature]) -> Bool {
         features(for: page).contains(where: activeFeatures.contains)
+    }
+}
+
+extension NotchModule {
+    /// The Settings page of an island page that also works in the menu panel.
+    var ownSettingsPage: SettingsPage? {
+        switch self {
+        case .agents: return .agents
+        case .calendar: return .calendar
+        case .timer: return .timer
+        case .downloads: return .downloads
+        case .notifications: return .notifications
+        case .music: return .nowPlaying
+        default: return nil
+        }
+    }
+
+    /// The feature's own switch, on its page. Downloads keeps its switch
+    /// beside the folder it watches, and the player has none.
+    var enableKey: String? {
+        switch self {
+        case .agents: return DefaultsKey.notchAgentsEnabled
+        case .calendar: return DefaultsKey.notchCalendarEnabled
+        case .timer: return DefaultsKey.notchTimerEnabled
+        case .notifications: return DefaultsKey.notchNotificationsEnabled
+        default: return nil
+        }
+    }
+
+    /// Whether the menu panel lists the page, for pages that have one there.
+    var panelEntryKey: String {
+        switch self {
+        case .agents: return DefaultsKey.panelUtilityAgents
+        case .calendar: return DefaultsKey.panelUtilityCalendar
+        case .timer: return DefaultsKey.panelUtilityTimer
+        case .downloads: return DefaultsKey.panelUtilityDownloads
+        case .notifications: return DefaultsKey.panelUtilityNotifications
+        default: return DefaultsKey.panelUtilityMusic
+        }
     }
 }

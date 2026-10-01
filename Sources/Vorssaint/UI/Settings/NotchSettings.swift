@@ -261,10 +261,16 @@ struct NotchSettings: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     let module = selectedModule
-                    let available = module.isAvailable()
+                    let available = sectionAvailable(module)
+                    // A section turned off on its own page is turned back on there.
+                    let offOnItsPage = module.isAvailable() && !available
                     NotchSectionHeader(module: module, shown: isShown(module),
-                                       reason: available ? nil : moduleFeature(module).map(enableFeatureReason) ?? text.disabled) {
-                        SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: moduleFeature(module))
+                                       reason: available ? nil : offOnItsPage
+                                           ? editor.enableSetting(module.title(l10n.language))
+                                           : moduleFeature(module).map(enableFeatureReason) ?? text.disabled,
+                                       actionTitle: offOnItsPage ? l10n.s.menuSettings : nil) {
+                        if offOnItsPage { openOwnPage(module) }
+                        else { SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: moduleFeature(module)) }
                     }
                     if !wide { preview(width: detailWidth, limit: 280) }
                     if available, hasOptions(module) {
@@ -302,7 +308,7 @@ struct NotchSettings: View {
                 ScrollView {
                     VStack(spacing: 2) {
                         ForEach(orderedModules) { module in
-                            NotchSectionListRow(module: module, included: moduleBinding(module), available: module.isAvailable(),
+                            NotchSectionListRow(module: module, included: moduleBinding(module), available: sectionAvailable(module),
                                                 selected: selectedModule == module,
                                                 order: Binding(get: { orderedModules },
                                                                set: { order = $0.map(\.rawValue).joined(separator: ",") }),
@@ -324,7 +330,23 @@ struct NotchSettings: View {
     }
 
     private func isShown(_ module: NotchModule) -> Bool {
-        module.isAvailable() && moduleBinding(module).wrappedValue
+        sectionAvailable(module) && moduleBinding(module).wrappedValue
+    }
+
+    /// Installed, and for a feature with a page of its own, turned on there.
+    private func sectionAvailable(_ module: NotchModule) -> Bool {
+        module.isAvailable() && (module.enableKey.map { UserDefaults.standard.bool(forKey: $0) } ?? true)
+    }
+
+    private func openOwnPage(_ module: NotchModule) {
+        if let page = module.ownSettingsPage { router.request(FeatureSettingsDestination(page)) }
+    }
+
+    /// Options that apply wherever the feature shows live on its own page.
+    private func ownPageLink(_ module: NotchModule) -> some View {
+        Button { openOwnPage(module) } label: {
+            Label(l10n.s.menuSettings, systemImage: "gearshape")
+        }
     }
 
     /// The mixer, the system page and the tools arrange themselves in the island.
@@ -361,46 +383,29 @@ struct NotchSettings: View {
                       caption: activities.keepAwakeActivityHint, isOn: $keepAwakeActivity)
                 .disabled(!AppFeature.keepAwake.isAvailable)
         case .music:
+            // What the closed island shows stays here; the player's options are on its page.
             let music = FeatureStrings.notchMusicExtras(l10n.language)
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
-            switchRow("play.rectangle", music.includeOtherPlayers, isOn: $includeOtherPlayers)
-            switchRow("text.quote", music.enableLyrics, isOn: $lyricsEnabled)
-                .disabled(!AppFeature.notchLyrics.isAvailable)
-            if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
-                switchRow("globe", music.online, caption: music.onlineHint, isOn: $lyricsOnline)
-                    .padding(.leading, settingsRowTextInset)
-            }
-            switchRow("list.bullet", music.enableQueue, caption: music.queueDescription, isOn: $queueEnabled)
-                .disabled(!AppFeature.notchQueue.isAvailable)
             switchRow("waveform", music.liveEqualizer,
                       caption: NotchAudioLevelSupport.isSupported ? music.liveEqualizerHint : music.liveEqualizerUnavailable,
                       isOn: $liveEqualizer)
                 .disabled(!NotchAudioLevelSupport.isSupported || !AppFeature.notchLiveEqualizer.isAvailable)
+            ownPageLink(module)
         case .notifications:
+            // Only the island shows banners, so only it can put the system's away.
             let notifications = FeatureStrings.notchNotifications(l10n.language)
             switchRow("bell.slash", notifications.hideSystemBanner, caption: notifications.hideSystemBannerHint,
                       isOn: $dismissNativeNotifications)
-            if notificationsEnabled, !permissions.accessibility { PermissionRow(kind: .accessibility) }
-        case .downloads:
-            NotchDownloadsSettingsControls()
-                .toggleStyle(TrailingSwitchToggleStyle())
+            ownPageLink(module)
+        case .downloads, .timer, .agents:
+            ownPageLink(module)
         case .calendar:
+            // Titles in the closed island stay here; access and calendars are on its page.
             let calendar = FeatureStrings.notchCalendar(l10n.language)
-            Text(calendar.permission).font(.callout).foregroundStyle(.secondary)
-            if permissions.calendarAccess == .fullAccess {
-                Label(l10n.s.permissionGranted, systemImage: "checkmark.circle.fill").foregroundStyle(.green)
-            } else {
-                Button(calendar.allow, action: permissions.requestCalendar).disabled(permissions.requestingCalendar)
-                Button(calendar.settings, action: permissions.openCalendarSettings)
-            }
-            Divider()
             switchRow("calendar.badge.clock", calendar.countdown, caption: calendar.countdownHint,
                       isOn: $calendarCountdown)
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
-            if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
-        case .timer:
-            switchRow("speaker.wave.2", FeatureStrings.notchActivities(l10n.language).soundEnabled, isOn: $timerSoundEnabled)
-                .disabled(!AppFeature.notchTimer.isAvailable)
+            ownPageLink(module)
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
             if permissions.camera == .granted {
@@ -427,8 +432,6 @@ struct NotchSettings: View {
             }
         case .scratchpad:
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
-        case .agents:
-            NotchAgentsSettingsControls()
         case .mixer, .system, .tools:
             EmptyView()
         }
@@ -811,16 +814,12 @@ struct NotchSettings: View {
 
     private func moduleBinding(_ module: NotchModule) -> Binding<Bool> {
         Binding {
-            (module != .timer || timerEnabled) && (module != .camera || cameraEnabled)
-                && (module != .calendar || calendarEnabled) && (module != .notifications || notificationsEnabled)
-                && (module != .agents || agentsEnabled)
+            (module != .camera || cameraEnabled)
                 && !hidden.split(separator: ",").contains(Substring(module.rawValue))
         } set: { shown in
-            if module == .timer { timerEnabled = shown }
+            // A feature with a page of its own is turned on or off there; this
+            // only decides whether the island shows it.
             if module == .camera { cameraEnabled = shown }
-            if module == .calendar { calendarEnabled = shown }
-            if module == .notifications { notificationsEnabled = shown }
-            if module == .agents { agentsEnabled = shown }
             var values = Set(hidden.split(separator: ",").map(String.init))
             if shown { values.remove(module.rawValue) } else { values.insert(module.rawValue) }
             hidden = values.sorted().joined(separator: ",")

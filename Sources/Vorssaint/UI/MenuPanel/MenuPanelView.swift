@@ -731,7 +731,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
-        if islandPage != nil { return .notch }
+        if let islandPage { return islandPage.ownSettingsPage ?? .notch }
         return nil
     }
 

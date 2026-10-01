@@ -313,6 +313,8 @@ struct NotchSectionHeader: View {
     let shown: Bool
     /// Why an unavailable section cannot show.
     let reason: String?
+    /// Where the reason is resolved; Features unless the section's own page is.
+    var actionTitle: String? = nil
     let openFeatures: () -> Void
     @ObservedObject private var l10n = L10n.shared
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
@@ -332,7 +334,7 @@ struct NotchSectionHeader: View {
                             .font(.callout)
                             .foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
-                        Button(editor.openFeatures, action: openFeatures).controlSize(.small)
+                        Button(actionTitle ?? editor.openFeatures, action: openFeatures).controlSize(.small)
                     }
                     .padding(.top, 4)
                 }

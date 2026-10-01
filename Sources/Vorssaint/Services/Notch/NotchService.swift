@@ -1764,10 +1764,17 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// Opens the Dynamic Island settings on one section's options.
+    /// Opens the Dynamic Island settings on one section's options, or the
+    /// section's own page for a feature that also works in the menu panel.
     func openSettings(showing module: NotchModule) {
-        SettingsRouter.shared.notchModule = module
-        openSettings()
+        guard let page = module.ownSettingsPage else {
+            SettingsRouter.shared.notchModule = module
+            openSettings()
+            return
+        }
+        collapse()
+        SettingsRouter.shared.request(FeatureSettingsDestination(page))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     func perform(_ action: @escaping () -> Void) {
