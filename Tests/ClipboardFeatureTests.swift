@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
@@ -137,6 +138,30 @@ enum ClipboardFeatureTests {
                      "highlight ranges ignores empty/whitespace tokens")
         suite.expect(ClipboardHistorySearch.highlightRanges(in: "test", tokens: ["nomatch"]).isEmpty,
                      "highlight ranges returns empty when no tokens match")
+
+        // Only the matches change style, so the rest of a row keeps the font
+        // and color modifiers of its text.
+        typealias HighlightColor = AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute
+        typealias HighlightFont = AttributeScopes.SwiftUIAttributes.FontAttribute
+        let styled = SearchHighlightText.highlighted("Reunião com João", tokens: ["joao"], fontSize: 12)
+        let styledRuns = styled.runs.map { (String(styled[$0.range].characters), $0[HighlightColor.self], $0[HighlightFont.self]) }
+        suite.expect(styledRuns.count == 2
+                     && styledRuns[0].0 == "Reunião com " && styledRuns[0].1 == nil && styledRuns[0].2 == nil
+                     && styledRuns[1].0 == "João" && styledRuns[1].1 == Color.accentColor && styledRuns[1].2 != nil,
+                     "a highlighted row styles only its matches and leaves the rest to its text's modifiers")
+        let weightOnly = SearchHighlightText.highlighted("Reunião com João", tokens: ["joao"], fontSize: 12,
+                                                         highlightColor: nil)
+        suite.expect(weightOnly.runs.allSatisfy { $0[HighlightColor.self] == nil }
+                     && weightOnly.runs.filter { $0[HighlightFont.self] != nil }.count == 1,
+                     "without a highlight color a match keeps the text's color and changes only its weight")
+        let longPreview = String(repeating: "release notes ", count: 100)
+        let longStyled = SearchHighlightText.highlighted(longPreview, tokens: ["release"], fontSize: 12)
+        suite.expect(SearchHighlightText.excerpt(longPreview).count == SearchHighlightText.visibleCharacters + 1
+                     && SearchHighlightText.excerpt(longPreview).hasSuffix("…")
+                     && SearchHighlightText.excerpt("short") == "short"
+                     && longStyled.characters.count == SearchHighlightText.visibleCharacters + 1
+                     && longStyled.runs.filter { $0[HighlightFont.self] != nil }.count == 36,
+                     "a long preview is searched and styled only as far as a row can show")
 
         // MARK: Clipboard history color swatches
 

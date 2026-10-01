@@ -35,6 +35,12 @@ struct NotchClipboardView: View {
         ClipboardHistorySearch.searchTokens(for: query)
     }
 
+    /// The island draws its text in white and never in the accent color, so a
+    /// match stands out by weight alone.
+    private func searchText(_ string: String, matching tokens: [String]) -> Text {
+        SearchHighlightText.text(string, tokens: tokens, fontSize: 12, highlightColor: nil)
+    }
+
     var body: some View {
         VStack(spacing: NotchLayout.rowSpacing) {
             HStack(spacing: 8) {
@@ -251,23 +257,17 @@ struct NotchClipboardView: View {
     @ViewBuilder private func preview(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .image:
-            let imageLabel = "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)"
             if let name = entry.imageFile {
                 ClipboardThumbnailImage(source: .stored(name: name),
                                         aspectRatio: entry.imageAspectRatio,
-                                        failureText: imageLabel)
+                                        failureText: "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
-                    .help(imageLabel)
+                    .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
             } else {
-                if searchTokens.isEmpty {
-                    Text(imageLabel)
-                        .font(.system(size: 12))
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                } else {
-                    Text(SearchHighlightText.highlighted(imageLabel, tokens: searchTokens, fontSize: 12, baseColor: .secondary))
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
+                searchText("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)", matching: searchTokens)
+                    .font(.system(size: 12))
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         case .files:
             // One image file shows itself; anything else reads as its name
@@ -280,24 +280,18 @@ struct NotchClipboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 6))
                     .help(path)
             } else {
-                let title = entry.filePaths.count == 1
-                    ? (entry.fileNames.first ?? entry.preview)
-                    : String(format: text.fileCountFormat, entry.filePaths.count)
+                // A count of several files is no text the search reads.
                 Label {
-                    if searchTokens.isEmpty {
-                        Text(title)
-                            .font(.system(size: 12))
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                    } else {
-                        Text(SearchHighlightText.highlighted(title, tokens: searchTokens, fontSize: 12))
-                            .lineLimit(2)
-                            .truncationMode(.middle)
-                    }
+                    searchText(entry.filePaths.count == 1
+                                   ? (entry.fileNames.first ?? entry.preview)
+                                   : String(format: text.fileCountFormat, entry.filePaths.count),
+                               matching: entry.filePaths.count == 1 ? searchTokens : [])
                 } icon: {
                     Image(systemName: "folder")
-                        .font(.system(size: 12))
                 }
+                .font(.system(size: 12))
+                .lineLimit(2)
+                .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
                 .help(entry.filePaths.joined(separator: "\n"))
             }
@@ -307,16 +301,10 @@ struct NotchClipboardView: View {
                     ColorSwatch(color: color, size: 12)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 }
-                if searchTokens.isEmpty {
-                    Text(entry.preview)
-                        .font(.system(size: 12))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                } else {
-                    Text(SearchHighlightText.highlighted(entry.preview, tokens: searchTokens, fontSize: 12))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                }
+                searchText(entry.preview, matching: searchTokens)
+                    .font(.system(size: 12))
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }

@@ -249,6 +249,16 @@ MUTATIONS = [
      "            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel },\n",
      "            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel } primaryAction: { share(.saved()) },\n",
      "the island's link button opens the durations on a click"),
+    ("clipboard highlight searches the whole preview", "clipboard",
+     "Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift",
+     "        let visible = excerpt(string)\n",
+     "        let visible = string\n",
+     "a long preview is searched and styled only as far as a row can show"),
+    ("clipboard highlight restyles the whole row", "clipboard",
+     "Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift",
+     "        var attributed = AttributedString(visible)\n",
+     "        var attributed = AttributedString(visible)\n        attributed.foregroundColor = .primary\n",
+     "a highlighted row styles only its matches and leaves the rest to its text's modifiers"),
 ]
 
 

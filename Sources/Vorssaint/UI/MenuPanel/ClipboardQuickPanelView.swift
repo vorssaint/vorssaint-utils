@@ -395,16 +395,10 @@ private struct QuickEntryRow: View, Equatable {
                 if let color = entry.color {
                     ColorSwatch(color: color, size: 14)
                 }
-                if tokens.isEmpty {
-                    Text(entry.preview)
-                        .font(.system(size: 12))
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                } else {
-                    Text(SearchHighlightText.highlighted(entry.preview, tokens: tokens, fontSize: 12))
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                }
+                SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 12)
+                    .font(.system(size: 12))
+                    .lineLimit(2)
+                    .truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
@@ -415,14 +409,10 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
-                let imageLabel = "\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)"
-                if tokens.isEmpty {
-                    Text(imageLabel)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text(SearchHighlightText.highlighted(imageLabel, tokens: tokens, fontSize: 11.5, baseColor: .secondary))
-                }
+                SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
+                                         tokens: tokens, fontSize: 11.5)
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
@@ -436,17 +426,10 @@ private struct QuickEntryRow: View, Equatable {
                         .frame(maxWidth: 240, maxHeight: 120)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
-                        let name = entry.fileNames.first ?? entry.preview
-                        if tokens.isEmpty {
-                            Text(name)
-                                .font(.system(size: 12))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        } else {
-                            Text(SearchHighlightText.highlighted(name, tokens: tokens, fontSize: 12))
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
+                        SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                         if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
                             Text("\(text.imageEntryLabel) · \(dim)")
                                 .font(.system(size: 11.5))
@@ -458,29 +441,19 @@ private struct QuickEntryRow: View, Equatable {
                 .help(path)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    let title = fileTitle(entry)
-                    if tokens.isEmpty {
-                        Text(title)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    } else {
-                        Text(SearchHighlightText.highlighted(title, tokens: tokens, fontSize: 12))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
+                    // A count of several files is no text the search reads.
+                    SearchHighlightText.text(fileTitle(entry),
+                                             tokens: entry.filePaths.count == 1 ? tokens : [],
+                                             fontSize: 12)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                     if entry.filePaths.count > 1 {
-                        if tokens.isEmpty {
-                            Text(entry.preview)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        } else {
-                            Text(SearchHighlightText.highlighted(entry.preview, tokens: tokens, fontSize: 10, baseColor: .secondary))
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
+                        SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
