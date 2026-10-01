@@ -76,16 +76,18 @@ enum AgentLogParser {
 
     static func parseClaude(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         if contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
-        guard contains(line, #""type":"user""#) else { return [] }
+        let user = contains(line, #""type":"user""#)
+        guard user || contains(line, #""subtype":"local_command""#) else { return [] }
         // A local command prints its output without asking the model anything,
         // so the command line that opened a turn closes it again. Only the
         // person's own text counts: a tool result can quote the same words.
         if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std"),
-           let json = object(line), json["type"] as? String == "user", endsTurn(json) {
+           let json = object(line), endsTurn(json) {
             let open = state.turnOpen
             state.turnOpen = false
             return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
         }
+        guard user else { return [] }
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
         if state.turnOpen { return [.turnActive(nil)] }
@@ -146,9 +148,15 @@ enum AgentLogParser {
     }
 
     /// The interruption or local command output the person's message holds,
-    /// never text inside a tool result.
+    /// never text inside a tool result. Newer logs write command output on a
+    /// system line of its own.
     private static func endsTurn(_ json: [String: Any]) -> Bool {
-        let content = (json["message"] as? [String: Any])?["content"]
+        let content: Any?
+        switch json["type"] as? String {
+        case "user": content = (json["message"] as? [String: Any])?["content"]
+        case "system" where json["subtype"] as? String == "local_command": content = json["content"]
+        default: return false
+        }
         let texts: [String]
         if let text = content as? String {
             texts = [text]
