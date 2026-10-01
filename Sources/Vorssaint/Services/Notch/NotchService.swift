@@ -1000,6 +1000,14 @@ final class NotchService: ObservableObject {
         if opensActivity { open(module) } else { open() }
     }
 
+    /// Opens the Calendar page scrolled to the countdown's event.
+    func openCountdownEvent() {
+        let calendar = NotchCalendarService.shared
+        calendar.revealing = calendar.countdown?.event.id
+        openActivity(.calendar)
+        if !expanded || selected != .calendar { calendar.revealing = nil }
+    }
+
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }
@@ -2150,7 +2158,9 @@ final class NotchService: ObservableObject {
             }, activate: { [weak self] in
                 guard let self else { return }
                 if self.captureControls != nil { self.expandCaptureControls() }
-                else { self.toggle() }
+                else if !self.expanded, self.compactActivity == .calendar {
+                    self.openCountdownEvent()
+                } else { self.toggle() }
             })
         if panel?.isVisible != true { panel?.orderFrontRegardless() }
         let music = NotchMusicService.shared
