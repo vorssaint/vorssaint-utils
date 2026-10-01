@@ -16,6 +16,7 @@ struct MetricsTests {
             }),
             ("metrics", {
                 MetricsFeatureTests.run(suite)
+                DiskTemperatureLogicTests.run(suite)
                 ProcessNameContract.run(suite)
                 SystemMonitorCPUTests.run(suite)
             }),

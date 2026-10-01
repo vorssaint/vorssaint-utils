@@ -180,4 +180,15 @@ enum DiskSupport {
         }
         return nil
     }
+
+    /// Selects a disk for SMART temperature display based on priority:
+    /// 1. External disk with SMART temperature
+    /// 2. Any disk with SMART temperature
+    static func temperatureDisk(from reading: DiskReading?) -> DiskDeviceReading? {
+        guard let devices = reading?.devices, !devices.isEmpty else { return nil }
+        if let external = devices.first(where: { !$0.isInternal && $0.smart?.temperatureCelsius != nil }) {
+            return external
+        }
+        return devices.first(where: { $0.smart?.temperatureCelsius != nil })
+    }
 }
