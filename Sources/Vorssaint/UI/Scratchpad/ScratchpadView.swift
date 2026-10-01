@@ -160,6 +160,11 @@ struct ScratchpadView: View {
                     .font(.system(size: 11, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    // Handle selection here so the enclosing Button does not
+                    // wait for the title's double-click gesture to fail.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        service.selectPad(pad.id)
+                    })
                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                         service.selectPad(pad.id)
                         presentRename(pad)
@@ -348,6 +353,7 @@ struct ScratchpadView: View {
                     ScratchpadSupport.exportFileName(title: service.selectedPadName, date: Date()))
             }
             .disabled(isEmpty)
+            .opacity(isEmpty ? 0.5 : 1)
 
             Group {
                 footerButton(service.isPreviewing ? "pencil" : "eye",

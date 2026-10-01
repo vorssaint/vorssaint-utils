@@ -148,6 +148,18 @@ struct NotchScratchpadView: View {
                 markRow
             } else {
                 tabStrip
+                NotchIconButton(symbol: "pencil.line", title: text.renamePad) {
+                    guard let selectedPad else { return }
+                    presentRename(selectedPad)
+                }
+                .disabled(selectedPad == nil)
+                NotchIconButton(symbol: "square.and.arrow.down", title: text.exportAction) {
+                    if let window = service.presentationWindow {
+                        pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
+                                       from: window)
+                    }
+                }
+                .disabled(pad.text.isEmpty)
             }
             NotchIconButton(symbol: "textformat",
                             title: text.formatMarks,
@@ -155,18 +167,6 @@ struct NotchScratchpadView: View {
                 withAnimation(.easeOut(duration: 0.15)) { pad.toggleMarks() }
             }
             .disabled(pad.isPreviewing)
-            NotchIconButton(symbol: "pencil.line", title: text.renamePad) {
-                guard let selectedPad else { return }
-                presentRename(selectedPad)
-            }
-            .disabled(selectedPad == nil)
-            NotchIconButton(symbol: "square.and.arrow.down", title: text.exportAction) {
-                if let window = service.presentationWindow {
-                    pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
-                                   from: window)
-                }
-            }
-            .disabled(pad.text.isEmpty)
             NotchIconButton(symbol: "plus",
                             title: pad.canCreatePad
                                 ? text.newPad
@@ -220,6 +220,11 @@ struct NotchScratchpadView: View {
                 Text(entry.name)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(1)
+                    // Handle selection here so the enclosing Button does not
+                    // wait for the title's double-click gesture to fail.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        pad.selectPad(entry.id)
+                    })
                     .simultaneousGesture(TapGesture(count: 2).onEnded {
                         pad.selectPad(entry.id)
                         presentRename(entry)

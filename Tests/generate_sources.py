@@ -505,6 +505,15 @@ def main():
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
+    write("ScratchpadTabInteraction.swift", "import AppKit\nimport SwiftUI\n"
+          + "extension ScratchpadTabInteractionTests {\n"
+          + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchButtonStyle:")
+          + "}\nextension ScratchpadTabInteractionTests.Floating {\n"
+          + declaration("Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift", "    private func tabButton(")
+              .replace("private func", "func", 1)
+          + "}\nextension ScratchpadTabInteractionTests.Island {\n"
+          + declaration(scratchpad_view, "    private func tab(").replace("private func", "func", 1)
+          + "}\n")
     write("NotchCompact.swift", "import AppKit\nimport SwiftUI\nextension NotchCompactTests {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
