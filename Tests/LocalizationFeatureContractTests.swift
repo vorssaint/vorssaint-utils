@@ -64,8 +64,11 @@ enum LocalizationFeatureContractTests {
         }
         for (language, strings) in localizedStrings {
             let prefix = "localization \(language.rawValue)"
-            suite.expect(FeatureStrings.snippets(language).editorFormatCaption.contains("{{cursor}}"),
-                   "the snippet editor explains the cursor marker in \(language.rawValue)")
+            let snippetStrings = FeatureStrings.snippets(language)
+            suite.expect(snippetStrings.variablesHint.contains("{{cursor}}")
+                   && snippetStrings.variablesCaption.contains("{{cursor}}")
+                   && !snippetStrings.editorFormatCaption.contains("{{cursor}}"),
+                   "the snippet variable list includes the cursor marker in \(language.rawValue)")
             suite.expect(!strings.smoothScrollStepLabel.isEmpty
                    && !strings.smoothScrollResponseLabel.isEmpty
                    && !strings.smoothScrollCoastLabel.isEmpty

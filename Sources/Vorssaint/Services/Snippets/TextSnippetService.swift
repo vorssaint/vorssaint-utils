@@ -488,10 +488,28 @@ final class TextSnippetService {
                 post(event)
             }
         }
-        func postCaretRetreat() {
-            guard let caretRetreat else { return }
+        func postCaretRetreat(attempt: Int = 0) {
+            guard let caretRetreat, caretRetreat + trailingText.count > 0 else { return }
+            // Posted arrows can inherit physically held Shift or Option.
+            let held = CGEventSource.flagsState(.combinedSessionState)
+                .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+            if !held.isEmpty {
+                guard attempt < 100 else { NSSound.beep(); return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
+                    postCaretRetreat(attempt: attempt + 1)
+                }
+                return
+            }
+            if attempt > 0 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    postCaretRetreat()
+                }
+                return
+            }
+            let arrowFlags = GlobalShortcut(keyCode: Int64(kVK_LeftArrow),
+                                            modifiers: []).syntheticEventFlags
             for _ in 0..<(caretRetreat + trailingText.count) {
-                postKey(CGKeyCode(kVK_LeftArrow))
+                postKey(CGKeyCode(kVK_LeftArrow), flags: arrowFlags)
             }
         }
 
@@ -507,8 +525,9 @@ final class TextSnippetService {
                     guard let delay = TextSnippetSupport.pasteCaretRetreatDelay(
                         caretRetreat: caretRetreat
                     ) else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay,
-                                                  execute: postCaretRetreat)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        postCaretRetreat()
+                    }
                 },
                 didFail: {
                     if let failureKeyCode { postKey(failureKeyCode, flags: failureFlags) }
