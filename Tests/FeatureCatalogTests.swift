@@ -323,6 +323,27 @@ enum FeatureCatalogTests {
                      && MediaKeyPlayerSupport.scrubCommand(for: .previous, available: [.rewind, .resume]) == .rewind
                      && MediaKeyPlayerSupport.scrubCommand(for: .next, available: [.fastForward]) == nil,
                      "a held track key scans only when the player can resume after release")
+        do {
+            typealias Outcome = MediaKeyPlayerSupport.SendOutcome
+            let timedOut = Outcome(sendError: -1712, replyError: nil)
+            suite.expect(Outcome(sendError: nil, replyError: nil) == .delivered
+                         && Outcome(sendError: nil, replyError: 0) == .delivered
+                         && timedOut == .unanswered,
+                         "an answer without an error is delivery and a missed reply is not a refusal")
+            suite.expect(timedOut.mayHaveStarted && Outcome(sendError: nil, replyError: nil).mayHaveStarted,
+                         "a scan the player may still run keeps its resume, so the release ends it")
+            suite.expect(Outcome(sendError: nil, replyError: -1708) == .refused
+                         && Outcome(sendError: -10_000, replyError: nil) == .refused
+                         && Outcome(sendError: -1743, replyError: nil) == .refused
+                         && Outcome(sendError: -600, replyError: nil) == .refused
+                         && !Outcome(sendError: nil, replyError: -1708).mayHaveStarted,
+                         "a scan the player answered with an error, or that never left, keeps no resume")
+            suite.expect(Outcome(sendError: -1743, replyError: nil).needsRefresh
+                         && Outcome(sendError: nil, replyError: -1708).needsRefresh
+                         && !timedOut.needsRefresh
+                         && !Outcome(sendError: nil, replyError: nil).needsRefresh,
+                         "a refusal refreshes the players so revoked consent hands keys back, a busy player does not")
+        }
         suite.expect(mediaKey(0) == nil && mediaKey(1) == nil && mediaKey(7) == nil
                 && MediaKeyPlayerSupport.key(subtype: 99, data1: Int(UInt32(16) << 16 | 10 << 8)) == nil,
                "volume, mute and unrelated system events never go to the player")

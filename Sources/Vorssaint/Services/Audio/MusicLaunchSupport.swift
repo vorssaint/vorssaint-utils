@@ -138,6 +138,37 @@ enum MediaKeyPlayerSupport {
         return Key(command: command, code: code, phase: phase)
     }
 
+    /// What a routed Apple Event is known to have done. Only an answer is
+    /// proof either way: a busy player can miss the timeout and still run
+    /// the event once it gets to it.
+    enum SendOutcome: Equatable {
+        case delivered
+        /// No reply in time; the event may still have reached the player.
+        case unanswered
+        /// The player answered with an error, or the event never left.
+        case refused
+
+        /// errAETimeout is the only failure that may follow delivery. A
+        /// reply error counts as the player's answer, whichever way the
+        /// sender reports it.
+        init(sendError: Int?, replyError: Int?) {
+            switch sendError ?? replyError ?? 0 {
+            case 0: self = .delivered
+            case -1712: self = .unanswered
+            default: self = .refused
+            }
+        }
+
+        /// A scan that may have started keeps its resume, so the release
+        /// always ends it. Resuming a player that never scanned is harmless.
+        var mayHaveStarted: Bool { self != .refused }
+
+        /// A refusal, revoked consent among them, hands later keys back to
+        /// the system after a fresh snapshot. A timeout says the player is
+        /// busy, not that it stopped accepting events.
+        var needsRefresh: Bool { self == .refused }
+    }
+
     /// Whether macOS lets this app send Apple Events to the player.
     enum Access: Equatable { case granted, consent, denied }
 

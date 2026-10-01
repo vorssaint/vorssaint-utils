@@ -11,7 +11,7 @@ import CoreServices
 /// `MediaKeyPlayerSupport.route` decides. The tap callback only reads memory:
 /// the players, their consent and what is sounding are resolved off it and
 /// refreshed on launch, quit, activation, after every routed key and after a
-/// failed send, so a revoked consent hands the next key back to the system.
+/// refused send, so a revoked consent hands the next key back to the system.
 final class MediaKeyPlayerRouter {
     static let shared = MediaKeyPlayerRouter()
 
@@ -32,7 +32,7 @@ final class MediaKeyPlayerRouter {
         var scrubQueued = false
     }
     private var routedKeys: [UInt16: RoutedKey] = [:]
-    /// Only touched on sendQueue, after a scan was actually delivered.
+    /// Only touched on sendQueue, after a scan that may have started.
     private var activeScrubs: [UInt16: (pid: Int32, resume: NotchMusicAutomationCapabilities.Event)] = [:]
     private var consentRequestedPIDs = Set<Int32>()
     private var refreshGeneration = 0
@@ -162,7 +162,7 @@ final class MediaKeyPlayerRouter {
                 routedKeys[key.code] = routed
                 let pid = routed.pid
                 queuedWork.async(on: sendQueue) { [weak self] in
-                    guard Self.send(scan, to: pid) else { return }
+                    guard Self.send(scan, to: pid).mayHaveStarted else { return }
                     self?.activeScrubs[key.code] = (pid, resume)
                 }
             }
@@ -197,18 +197,15 @@ final class MediaKeyPlayerRouter {
 
     private func sendPlayback(_ command: NotchMusicAutomationCapabilities.Event, to pid: Int32) {
         queuedWork.async(on: sendQueue) { [weak self] in
-            let delivered = Self.send(command, to: pid)
-            DispatchQueue.main.async {
-                // A refusal, especially revoked consent, hands later keys
-                // back to the system after the next snapshot.
-                if !delivered { self?.refreshPlayers() }
-            }
+            guard Self.send(command, to: pid).needsRefresh else { return }
+            DispatchQueue.main.async { self?.refreshPlayers() }
         }
     }
 
     /// A scan is sticky in Music's scripting dictionary. Its resume is a
-    /// cleanup of work already delivered, not a new playback request. It runs
-    /// on the send queue after any pending scan, even if the router stopped.
+    /// cleanup of a scan that may have started, not a new playback request.
+    /// It runs on the send queue after any pending scan, even if the router
+    /// stopped.
     private func finishScrub(_ code: UInt16) {
         guard let active = activeScrubs.removeValue(forKey: code) else { return }
         _ = Self.send(active.resume, to: active.pid)
@@ -294,15 +291,20 @@ final class MediaKeyPlayerRouter {
         return loaded
     }
 
-    private static func send(_ command: NotchMusicAutomationCapabilities.Event, to pid: Int32) -> Bool {
+    private static func send(_ command: NotchMusicAutomationCapabilities.Event,
+                             to pid: Int32) -> MediaKeyPlayerSupport.SendOutcome {
         let event = NSAppleEventDescriptor(eventClass: command.eventClass, eventID: command.eventID,
                                            targetDescriptor: NSAppleEventDescriptor(processIdentifier: pid),
                                            returnID: AEReturnID(kAutoGenerateReturnID),
                                            transactionID: AETransactionID(kAnyTransactionID))
         // A playback action is never retried: a timeout may follow delivery.
-        guard let reply = try? event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 1)
-        else { return false }
-        return (reply.paramDescriptor(forKeyword: keyErrorNumber)?.int32Value ?? 0) == 0
+        do {
+            let reply = try event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 1)
+            return .init(sendError: nil,
+                         replyError: reply.paramDescriptor(forKeyword: keyErrorNumber).map { Int($0.int32Value) })
+        } catch {
+            return .init(sendError: (error as NSError).code, replyError: nil)
+        }
     }
 }
 
