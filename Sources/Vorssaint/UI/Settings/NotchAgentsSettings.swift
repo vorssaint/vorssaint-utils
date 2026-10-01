@@ -10,6 +10,7 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -44,6 +45,7 @@ struct NotchAgentsSettingsControls: View {
                 .fixedSize(horizontal: false, vertical: true)
             providerRow(.claude, isOn: $claude)
             providerRow(.codex, isOn: $codex)
+            providerRow(.copilot, isOn: $copilot)
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -84,7 +86,7 @@ struct NotchAgentsSettingsControls: View {
                 .padding(.leading, settingsRowTextInset)
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
-                                      provider: claude || !codex ? .claude : .codex)
+                                      provider: claude ? .claude : codex ? .codex : .copilot)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -139,7 +141,7 @@ struct NotchAgentsSettingsControls: View {
         .onChange(of: claude) { _, on in if on { findClaudeApp() } }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
+        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(copilot),
                        String(liveActivity), readout, limitDisplay]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
@@ -210,9 +212,9 @@ struct NotchAgentsSettingsControls: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            // One agent stays on; turning the section off stops both.
+            // One agent stays on; turning the section off stops all of them.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && !(claude && codex))
+                .disabled(isOn.wrappedValue && [claude, codex, copilot].filter { $0 }.count <= 1)
         }
     }
 
@@ -292,4 +294,3 @@ private struct NotchAgentStripSample: View {
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, now: now)
     }
 }
-

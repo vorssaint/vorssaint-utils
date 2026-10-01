@@ -4,7 +4,7 @@
 import Combine
 import Foundation
 
-/// Reads Claude Code and Codex usage from their local session logs while the
+/// Reads Claude Code, Codex and GitHub Copilot usage from their local session logs while the
 /// AI section is on, along with the plan limits the Claude app saves. The
 /// files are read where they are, incrementally, and nothing is copied,
 /// stored or sent: only counters stay in memory. The one request it makes
@@ -209,6 +209,9 @@ final class AgentUsageService: ObservableObject {
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
+            // Keep the page loading until history is complete. Publishing an
+            // empty summary also makes the cache track every historical
+            // record as a change instead of building once after this pass.
             let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
             for file in AgentLogReader.discover(roots, since: Date().addingTimeInterval(-Self.horizon)) {
                 // A stop while reading leaves the rest for the next start.
@@ -297,19 +300,25 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var changed = false
         let now = Date()
-        AgentLogReader.readAppended(cursor, shouldContinue: { !cancellation.isCancelled }) { line in
+        let consume: (Data) -> Void = { line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
             let entries: [AgentLogEntry]
             switch provider {
             case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+            case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
-            let finished = store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
-                                       parent: cursor.parent, modified: cursor.modified, now: now)
-            finished.forEach(report)
+            let finished = self.store.apply(entries, file: path, provider: provider, tracksTurns: cursor.tracksTurns,
+                                            parent: cursor.parent, modified: cursor.modified, now: now)
+            finished.forEach(self.report)
+        }
+        if provider == .copilot && cursor.offset == 0 {
+            AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
+        } else {
+            AgentLogReader.readAppended(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
         return changed
     }
@@ -334,8 +343,8 @@ final class AgentUsageService: ObservableObject {
                 if read(file.path, provider: file.provider) { changed = true }
             }
         } else {
-            for path in Set(paths) where AgentLogReader.isLog(path) {
-                guard let root = watchedRoots.first(where: { path.hasPrefix($0.url.path + "/") }) else { continue }
+            for path in Set(paths) {
+                guard let root = watchedRoots.first(where: { $0.accepts(path) }) else { continue }
                 if read(path, provider: root.provider) { changed = true }
             }
         }

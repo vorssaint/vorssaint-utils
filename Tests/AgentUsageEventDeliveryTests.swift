@@ -24,7 +24,7 @@ enum AgentUsageEventDeliveryTests {
         var running = true
         var session = 1
         var readerSession = 1
-        var providers: [AgentProvider] = [.claude, .codex]
+        var providers: [AgentProvider] = [.claude, .codex, .copilot]
         let events = Events()
     }
 
@@ -78,7 +78,7 @@ enum AgentUsageEventDeliveryTests {
         host.report(events[2])
         drain()
         suite.expect(host.events.values.isEmpty, "delivery still respects disabled providers")
-        host.providers = [.claude, .codex]
+        host.providers = [.claude, .codex, .copilot]
         NotchAgentSupport.minimum = 30
         host.report(finished)
         NotchAgentSupport.threshold = nil

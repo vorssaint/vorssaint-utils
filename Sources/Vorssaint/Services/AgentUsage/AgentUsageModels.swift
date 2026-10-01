@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex
+    case claude, codex, copilot
 
     var id: String { rawValue }
 
@@ -14,6 +14,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .claude: return "Claude"
         case .codex: return "Codex"
+        case .copilot: return "GitHub Copilot"
         }
     }
 
@@ -21,8 +22,12 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .claude: return "sparkle"
         case .codex: return "chevron.left.forwardslash.chevron.right"
+        case .copilot: return "infinity"
         }
     }
+
+    /// Whether the provider records a plan allowance in its local logs.
+    var reportsLimits: Bool { self != .copilot }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -63,12 +68,28 @@ struct AgentUsageRecord: Equatable {
     let model: String
     let project: String
     let session: String
+    /// Model requests represented by this record. Ordinary response records
+    /// hold one; cumulative checkpoints can represent several at once.
+    let requests: Int
     var tokens: AgentTokens
     /// What the response would cost at API list prices, in US dollars. Nil
     /// when the model has no known price.
     var cost: Double?
     /// What cache reads saved against paying the full input price.
     var savings: Double
+
+    init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double) {
+        self.provider = provider
+        self.date = date
+        self.model = model
+        self.project = project
+        self.session = session
+        self.requests = requests
+        self.tokens = tokens
+        self.cost = cost
+        self.savings = savings
+    }
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.

@@ -10,6 +10,7 @@ extension AgentProvider {
         switch self {
         case .claude: return Color(red: 0.85, green: 0.47, blue: 0.34)
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
+        case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         }
     }
 }
@@ -371,6 +372,7 @@ private extension AgentProvider {
         switch self {
         case .claude: return [AgentClaudeAppUsage.bundleIdentifier]
         case .codex: return AgentCodexServer.appIdentifiers
+        case .copilot: return ["com.github.githubapp"]
         }
     }
 
@@ -383,6 +385,7 @@ private extension AgentProvider {
         switch self {
         case .claude: return ["TrayIconTemplate"]
         case .codex: return ["chatgptTemplate"]
+        case .copilot: return []
         }
     }
 }
