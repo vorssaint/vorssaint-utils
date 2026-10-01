@@ -48,6 +48,7 @@ struct PanelIslandPageView: View {
             .frame(height: pageHeight)
             // Like the preview in Settings, the panel leaves the island's state and keys alone.
             .environment(\.notchSettingsPreview, true)
+            .environment(\.islandPageInPanel, true)
         }
         .onAppear { syncReader() }
         .onChange(of: isVisible) { _, _ in syncReader() }
@@ -58,7 +59,8 @@ struct PanelIslandPageView: View {
         switch module {
         case .agents: return 460
         case .timer: return 200
-        case .downloads, .music: return 300
+        case .downloads: return 300
+        case .music: return 340
         default: return 360
         }
     }
@@ -70,6 +72,7 @@ struct PanelIslandPageView: View {
         case .timer: NotchTimerView(size: size)
         case .downloads: NotchDownloadsView(size: size)
         case .notifications: NotchNotificationsView(size: size)
+        case .music: NotchMusicView(size: size, extrasHeight: size.height - NotchLayout.musicControlsRowHeight)
         default: EmptyView()
         }
     }

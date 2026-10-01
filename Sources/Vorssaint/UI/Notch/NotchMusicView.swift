@@ -16,6 +16,9 @@ struct NotchMusicView: View {
     private enum MusicExtra { case lyrics, queue }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchSettingsPreview) private var preview
+    @Environment(\.islandPageInPanel) private var inPanel
+    /// The island's page or the menu panel's reads lyrics and the queue; a preview does not.
+    private var readsExtras: Bool { !preview || inPanel }
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     /// The cover's own colour, used for its halo and for the moving parts that
     /// belong to this track. Neutral covers keep the panel white.
@@ -78,7 +81,7 @@ struct NotchMusicView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             // A preview in Settings leaves the island's size and extras alone.
-            guard !preview else { return }
+            guard readsExtras else { return }
             syncExtras()
             service.refreshAutomation()
         }
@@ -88,19 +91,23 @@ struct NotchMusicView: View {
         .onChange(of: lyricsEnabled) { syncExtras() }
         .onChange(of: queueEnabled) { syncExtras() }
         .onDisappear {
-            guard !preview else { return }
-            NotchService.shared.setMusicDetailsVisible(false)
-            NotchService.shared.setPageLayer(.music, close: nil)
+            guard readsExtras else { return }
+            if !preview {
+                NotchService.shared.setMusicDetailsVisible(false)
+                NotchService.shared.setPageLayer(.music, close: nil)
+            }
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
         }
     }
 
     private func syncExtras() {
-        guard !preview else { return }
-        NotchService.shared.setMusicDetailsVisible(openExtra != nil)
-        // Escape closes lyrics or the queue before the island.
-        NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
+        guard readsExtras else { return }
+        if !preview {
+            NotchService.shared.setMusicDetailsVisible(openExtra != nil)
+            // Escape closes lyrics or the queue before the island.
+            NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
+        }
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
         service.setQueueVisible(extra == .queue)
     }
@@ -141,9 +148,35 @@ struct NotchMusicView: View {
     /// line, then the timeline, before they would overflow a short island.
     private func player(_ playback: NotchPlayback, height: CGFloat) -> some View {
         let roomy = height >= 140
-        return HStack(spacing: roomy ? 20 : 16) {
-            Button { RadialNowPlayingApplication.open(playback.track) } label: {
-                NotchArtwork(image: service.artwork, size: height)
+        return Group {
+            // The menu panel is taller than it is wide: the cover sits above
+            // the details there, so neither crowds the other.
+            if inPanel {
+                VStack(spacing: 10) {
+                    cover(playback, size: min(132, max(0, height - 124)))
+                    details(playback, titleLines: 1, artist: true, timeline: true, roomy: false)
+                }
+                .frame(maxWidth: .infinity)
+            } else {
+                HStack(spacing: roomy ? 20 : 16) {
+                    cover(playback, size: height)
+                    ViewThatFits(in: .vertical) {
+                        if roomy { details(playback, titleLines: 2, artist: true, timeline: true, roomy: roomy) }
+                        details(playback, titleLines: 1, artist: true, timeline: true, roomy: roomy)
+                        details(playback, titleLines: 1, artist: false, timeline: true, roomy: roomy)
+                        details(playback, titleLines: 1, artist: false, timeline: false, roomy: roomy)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(height: height)
+        .modifier(NotchMusicSwipeFeedback())
+    }
+
+    private func cover(_ playback: NotchPlayback, size: CGFloat) -> some View {
+        Button { RadialNowPlayingApplication.open(playback.track) } label: {
+                NotchArtwork(image: service.artwork, size: size)
                     .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.94)
                     .shadow(color: halo.opacity(0.42), radius: 20, y: 7)
                     .shadow(color: halo.opacity(0.2), radius: 42, y: 14)
@@ -153,16 +186,6 @@ struct NotchMusicView: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 24))
             .help(text.mediaNowPlaying)
             .accessibilityLabel(text.mediaNowPlaying)
-            ViewThatFits(in: .vertical) {
-                if roomy { details(playback, titleLines: 2, artist: true, timeline: true, roomy: roomy) }
-                details(playback, titleLines: 1, artist: true, timeline: true, roomy: roomy)
-                details(playback, titleLines: 1, artist: false, timeline: true, roomy: roomy)
-                details(playback, titleLines: 1, artist: false, timeline: false, roomy: roomy)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        }
-        .frame(height: height)
-        .modifier(NotchMusicSwipeFeedback())
     }
 
     private func details(_ playback: NotchPlayback, titleLines: Int, artist: Bool, timeline: Bool, roomy: Bool) -> some View {

@@ -15,7 +15,8 @@ enum MenuPanelSectionGateContract {
                          "every \(rows) row keeps the \(section.rawValue) tab available, missing \(missing)")
         }
         expectGate(.controls, keeps: ControlPanelItem.allCases.map(\.feature), "control")
-        expectGate(.utilities, keeps: UtilityPanelItem.allCases.map(\.feature), "utility")
+        // The island's Music page has no hub feature of its own to gate.
+        expectGate(.utilities, keeps: UtilityPanelItem.allCases.compactMap(\.feature), "utility")
         expectGate(.toggles, keeps: QuickToggleAction.allCases.map(\.feature), "quick toggle")
     }
 }

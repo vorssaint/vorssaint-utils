@@ -598,6 +598,8 @@ def main():
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
+    # No menu panel shows the Music page here, so the island's own needs decide.
+    music_visibility = music_visibility.replace("PanelModuleDemand.shared.shows(.music)", "false")
     music_visibility = music_visibility.replace("calendar: hasCalendarActivity", "calendar: false")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
                                                 "playback?.isPlaying == true, in: ReviewDefaults.current)")
@@ -995,6 +997,9 @@ def main():
           + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
+          # No menu panel shows the page here, so the island's own rule applies.
+          + "var lyricsEnabled: Bool { NotchLyricsSupport.isEnabled() }\n"
+          + "var onlineEnabled: Bool { NotchLyricsSupport.onlineEnabled() }\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func hide()")
@@ -1014,6 +1019,8 @@ def main():
           + "let trackChanges = TrackChanges()\nlet trackEnds = TrackChanges()\nvar gapReading: Reading?\nvar gapWork: DispatchWorkItem?\nfunc updateQueue() {}\n"
           + "func updateAutomation(for playback: NotchPlayback?) {}\nfunc setQueueVisible(_ visible: Bool) { queueVisible = visible }\n"
           + "var queueVisible = true\nvar queueLoading = false\nvar queueActionPending = false\n"
+          # No menu panel shows the page here, so the island's own rule applies.
+          + "var queueEnabled: Bool { NotchQueueSupport.isEnabled() }\n"
           + "var commandFailed = false\nvar queueActionFailed = false\nvar commandPending = false\n"
           + "var canSeek: Bool { playback?.canSeek == true }\n"
           + "func beginAutomation(_ command: Command, playback: NotchPlayback) -> Bool { false }\nfunc cancelAutomationAction() {}\n"
@@ -1048,6 +1055,8 @@ def main():
           + "var queueActionFailed = false\nvar queueActionPending = false\nvar sendAllowed = true\n"
           + "var commands: [NotchPlaybackCommand] = []\n"
           + "func send(_ command: NotchPlaybackCommand) -> Bool { commands.append(command); return sendAllowed && command.message != nil }\n"
+          # No menu panel shows the page here, so the island's own rule applies.
+          + "var queueEnabled: Bool { NotchQueueSupport.isEnabled() }\n"
           + declaration(music, "    func playQueued(")
           + "}\n}\n")
     write("NotchMusicAutomationBodies.swift", "import Foundation\n\nextension NotchMusicAutomationFlowContract {\n"

@@ -282,6 +282,19 @@ private struct NotchSettingsPreviewKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+extension EnvironmentValues {
+    /// An island page shown in the menu panel. Like a preview it leaves the
+    /// island's state alone, but it is a working page and reads what it shows.
+    var islandPageInPanel: Bool {
+        get { self[IslandPageInPanelKey.self] }
+        set { self[IslandPageInPanelKey.self] = newValue }
+    }
+}
+
+private struct IslandPageInPanelKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
 /// The native host publishes the same path used by its animated mask. Keeping
 /// this in canvas coordinates avoids scaling the glass's corners independently.
 final class NotchBackdropPresentation: ObservableObject {

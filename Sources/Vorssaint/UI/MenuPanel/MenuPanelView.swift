@@ -550,13 +550,14 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads, notifications
+         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads, notifications, music
 
     var id: String { rawValue }
 
     /// The hub feature behind the tile; off in the hub removes it everywhere,
-    /// including the edit and hidden lists.
-    var feature: AppFeature {
+    /// including the edit and hidden lists. The island's Music page has no
+    /// feature of its own and is always there.
+    var feature: AppFeature? {
         switch self {
         case .quickLauncher: return .quickLauncher
         case .cleaner: return .cleaner
@@ -581,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .timer: return .notchTimer
         case .downloads: return .notchDownloads
         case .notifications: return .notchNotifications
+        case .music: return nil
         }
     }
 }
@@ -625,6 +627,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityDownloads) private var showDownloads = true
     /// Showing the entry keeps an inbox in the background, so it is opted into.
     @AppStorage(DefaultsKey.panelUtilityNotifications) private var showNotifications = false
+    @AppStorage(DefaultsKey.panelUtilityMusic) private var showMusic = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -771,7 +774,7 @@ struct UtilitiesSection: View {
     }
 
     private func items(editing: Bool) -> [UtilityPanelItem] {
-        orderedItems.filter { $0.feature.isAvailable && (editing || isVisible($0)) }
+        orderedItems.filter { ($0.feature?.isAvailable ?? true) && (editing || isVisible($0)) }
     }
 
     private func isVisible(_ item: UtilityPanelItem) -> Bool {
@@ -799,6 +802,7 @@ struct UtilitiesSection: View {
         case .timer: return showTimer
         case .downloads: return showDownloads
         case .notifications: return showNotifications
+        case .music: return showMusic
         }
     }
 
@@ -1059,6 +1063,9 @@ struct UtilitiesSection: View {
         case .notifications:
             islandPageButton(.notifications, caption: FeatureStrings.notchNotifications(l10n.language).title,
                              visibility: $showNotifications, editing: editing)
+        case .music:
+            islandPageButton(.music, caption: FeatureStrings.notch(l10n.language).music,
+                             visibility: $showMusic, editing: editing)
         }
     }
 
@@ -1153,6 +1160,7 @@ struct UtilitiesSection: View {
         showTimer = true
         showDownloads = true
         showNotifications = false
+        showMusic = true
     }
 
     private func grantAccessibility() {

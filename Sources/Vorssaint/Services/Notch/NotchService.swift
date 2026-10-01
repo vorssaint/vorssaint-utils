@@ -877,7 +877,7 @@ final class NotchService: ObservableObject {
 
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
-        NotchLyricsService.shared.stop()
+        if !PanelModuleDemand.shared.shows(.music) { NotchLyricsService.shared.stop() }
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop(keepingPanel: true)
         guard running else { return }
@@ -920,7 +920,7 @@ final class NotchService: ObservableObject {
         awaitsTrackNotice = false
         subscriptions.removeAll()
         stopPower()
-        NotchMusicService.shared.stop()
+        if !PanelModuleDemand.shared.shows(.music) { NotchMusicService.shared.stop() }
         NotchAudioLevelService.shared.stop()
         CameraPreviewService.shared.hideEmbedded()
         NotchAccessoryService.shared.suspend()
@@ -1735,6 +1735,15 @@ final class NotchService: ObservableObject {
                 NotchCalendarService.shared.syncWithPreferences()
             } else {
                 NotchCalendarService.shared.stop()
+            }
+        case .music:
+            if PanelModuleDemand.shared.shows(.music) {
+                NotchMusicService.shared.start()
+            } else if running, !suspended {
+                // The island decides again what it needs to watch.
+                syncVisibleConsumers()
+            } else {
+                NotchMusicService.shared.stop()
             }
         case .downloads:
             let downloads = NotchDownloadService.shared
@@ -3360,6 +3369,7 @@ final class NotchService: ObservableObject {
             CameraPreviewService.shared.hideEmbedded()
             // A copy on another display still shows the song playing.
             let copiesShowMusic = showsCopies && NotchSupport.watchesMusicActivity()
+                || PanelModuleDemand.shared.shows(.music)
             if copiesShowMusic { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
             releaseMonitor()
             return
@@ -3371,6 +3381,7 @@ final class NotchService: ObservableObject {
         let musicWanted = modules.contains(.music) && ((expanded && (selected == .music || (selected == .controls && NotchSupport.controls().contains(.music)))
             && !showingAppPanel && !showingSections)
             || (!hiddenUntilHover && (NotchSupport.watchesMusicActivity() || NotchSupport.routes(.track))))
+            || PanelModuleDemand.shared.shows(.music)
         if musicWanted { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel && !showingSections
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none

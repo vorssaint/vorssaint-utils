@@ -168,7 +168,7 @@ final class NotchLockScreenService {
 
     private func hide(unlocking: Bool, stopsSources: Bool) {
         if stopsSources, !scene.isEmpty {
-            NotchMusicService.shared.stop()
+            if !PanelModuleDemand.shared.shows(.music) { NotchMusicService.shared.stop() }
             if !PanelModuleDemand.shared.shows(.downloads) { NotchDownloadService.shared.stop() }
             if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
             AgentUsageService.shared.pause()
