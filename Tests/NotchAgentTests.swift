@@ -1015,6 +1015,31 @@ enum NotchAgentTests {
         suite.expect(NotchSupport.idleContent(in: defaults) == .agents, "the resting island can show AI limits")
         defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.idleContent(in: defaults) == .none, "resting AI limits leave with the page")
+        suite.expect(NotchAgentSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchAgentSupport.showsLiveActivity(in: defaults)
+                        && !NotchSupport.routes(.agents, in: defaults),
+                     "opening the main panel reads agents without enabling island activity or notices")
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchAgentSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchAgentSupport.isEnabled(in: defaults, panelVisible: false),
+                     "with the island off, only a visible agent panel keeps monitoring alive")
+        defaults.set(false, forKey: AppFeature.notchAgents.availabilityKey)
+        suite.expect(!NotchAgentSupport.isEnabled(in: defaults, panelVisible: true),
+                     "uninstalling agents stops monitoring even while their panel is open")
+        defaults.set(true, forKey: AppFeature.notchAgents.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        var changes: [NotchModule] = []
+        let demand = PanelModuleDemand { changes.append($0) }
+        let first = UUID(), second = UUID()
+        demand.setVisible(true, .agents, id: first)
+        demand.setVisible(true, .agents, id: second)
+        demand.setVisible(false, .agents, id: first)
+        suite.expect(demand.shows(.agents) && !demand.shows(.calendar) && changes == [.agents],
+                     "a page stays shown while any panel still shows it, and only its own service hears of it")
+        demand.setVisible(false, .agents, id: second)
+        demand.setVisible(false, .agents, id: second)
+        suite.expect(!demand.shows(.agents) && changes == [.agents, .agents],
+                     "the last panel to close releases the page once")
         suite.expect(NotchSupport.compactActivity(timer: false, downloads: true, agents: true, music: true) == .downloads
                         && NotchSupport.compactActivity(timer: false, downloads: false, agents: true, music: true) == .agents
                         && NotchCompactActivity.agents.module == .agents,
@@ -1037,7 +1062,8 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
-                    DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
+                    DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates,
+                    DefaultsKey.panelUtilityAgents]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,

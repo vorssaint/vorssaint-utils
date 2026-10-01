@@ -807,7 +807,7 @@ final class NotchService: ObservableObject {
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
-        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop(keepingPanel: true) }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -876,7 +876,7 @@ final class NotchService: ObservableObject {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
-        AgentUsageService.shared.stop()
+        AgentUsageService.shared.stop(keepingPanel: true)
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -1716,6 +1716,15 @@ final class NotchService: ObservableObject {
         collapse()
         SettingsRouter.shared.request(FeatureSettingsDestination(.notch))
         (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+    }
+
+    /// A page opened or closed in the menu panel. Open, its service reads for
+    /// the panel; closed, the service goes back to what the island needs.
+    func panelDemandChanged(_ module: NotchModule) {
+        switch module {
+        case .agents: AgentUsageService.shared.panelDemandChanged()
+        default: break
+        }
     }
 
     /// Opens the Dynamic Island settings on one section's options.
@@ -3358,4 +3367,9 @@ extension NSScreen {
     var notchDisplayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
     }
+}
+
+extension PanelModuleDemand {
+    /// The island owns the services of its pages, so it hears of every change.
+    static let shared = PanelModuleDemand { NotchService.shared.panelDemandChanged($0) }
 }

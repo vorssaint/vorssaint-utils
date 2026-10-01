@@ -59,10 +59,11 @@ enum NotchAgentSupport {
     /// A turn silent for this long is not shown as working.
     static let idleTurn: TimeInterval = 10 * 60
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchAgents.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
-            && NotchSupport.modules(in: defaults).contains(.agents)
+    static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        AppFeature.notchAgents.isAvailable(in: defaults)
+            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
+                && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
+                && NotchSupport.modules(in: defaults).contains(.agents)))
     }
 
     static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {

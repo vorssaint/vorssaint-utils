@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, agents
 
     var id: String { rawValue }
 
@@ -576,6 +576,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .agents: return .notchAgents
         }
     }
 }
@@ -594,6 +595,8 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
+    /// An island page shown in the panel, reading for as long as it is open.
+    @State private var islandPage: NotchModule?
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -612,6 +615,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityAgents) private var showAgents = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -670,6 +674,8 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showPortManagerPanel = false
                 }
+            } else if let islandPage {
+                PanelIslandPageView(module: islandPage) { self.islandPage = nil }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
@@ -711,6 +717,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
+        if islandPage != nil { return .notch }
         return nil
     }
 
@@ -720,13 +727,13 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel || islandPage != nil
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
     /// intentionally span interaction with apps and windows outside the panel.
     private var hostedUtilityKeepsPopoverOpen: Bool {
-        isHostingUtility && !showHomebrewPanel
+        isHostingUtility && !showHomebrewPanel && islandPage == nil
     }
 
     private var cleaningNeedsAccessibility: Bool {
@@ -776,6 +783,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .agents: return showAgents
         }
     }
 
@@ -1020,6 +1028,14 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .agents:
+            UtilityActionButton(title: FeatureStrings.notchAgents(l10n.language).title,
+                                caption: FeatureStrings.notchAgents(l10n.language).restingTitle,
+                                systemImage: "sparkles",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showAgents,
+                                action: { islandPage = .agents })
         }
     }
 
@@ -1097,6 +1113,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showAgents = true
     }
 
     private func grantAccessibility() {
