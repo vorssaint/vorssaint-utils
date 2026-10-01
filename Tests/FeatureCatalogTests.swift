@@ -383,6 +383,23 @@ enum FeatureCatalogTests {
                 && route([player(40, "com.example.player", launched: 100, commands: [.next, .previous])], command: .next)
                     == .player(40),
                "a player without playpause leaves the toggle with the system and still takes the track keys")
+        let trackOnlyPlayer = player(40, "com.example.player", launched: 100, commands: [.next, .previous])
+        suite.expect(route([trackOnlyPlayer, secondPlayer],
+                           sounding: [.init(pid: 40, bundleIdentifier: "com.example.player")], lastActive: 50) == .system
+                && route([trackOnlyPlayer, secondPlayer],
+                         sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")], lastActive: 50) == .system,
+               "a sounding player without playpause keeps the key with the system instead of starting another player")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.mediaKeys(language)
+            suite.expect(!strings.playerOnlyTitle.isEmpty && !strings.playerOnlyCaption.isEmpty
+                         && !strings.playerOnlyCaptionLegacy.isEmpty,
+                         "every language has playback key settings")
+            suite.expect(strings.caption(soundReported: true) == strings.playerOnlyCaption
+                         && strings.caption(soundReported: false) == strings.playerOnlyCaptionLegacy
+                         && strings.playerOnlyCaptionLegacy.count < strings.playerOnlyCaption.count,
+                         "before macOS 14.4 the caption leaves out deferring to another app's sound "
+                         + "(\(language.rawValue))")
+        }
         suite.expect(route([player(40, "com.example.player", launched: 100, access: .consent)]) == .askConsent(40)
                 && route([player(40, "com.example.player", launched: 100, access: .denied)]) == .system,
                "a player awaiting consent asks once and a refused or revoked consent hands the key back")

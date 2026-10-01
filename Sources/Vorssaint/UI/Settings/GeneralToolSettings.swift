@@ -286,6 +286,21 @@ private struct MusicBlockingSettings: View {
                         .padding(.leading, settingsRowTextInset)
                 }
             }
+            let mediaKeys = FeatureStrings.mediaKeys(l10n.language)
+            SettingsRow(symbol: "music.note", title: mediaKeys.playerOnlyTitle,
+                        caption: mediaKeys.caption(soundReported: MediaKeyAudioActivity.isSupported)) {
+                Toggle(mediaKeys.playerOnlyTitle, isOn: $mediaKeysPlayerOnly)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: mediaKeysPlayerOnly) { _, isEnabled in
+                        if isEnabled { permissions.requestAccessibility() }
+                        MediaKeyPlayerRouter.shared.syncWithPreferences()
+                    }
+            }
+            if mediaKeysPlayerOnly, !enabled, !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 

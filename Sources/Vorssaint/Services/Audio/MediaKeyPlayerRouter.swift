@@ -313,6 +313,11 @@ final class MediaKeyPlayerRouter {
 /// macOS 14.4, where processes are not reported, which leaves the keys with
 /// the player whenever one is open.
 final class MediaKeyAudioActivity {
+    static var isSupported: Bool {
+        if #available(macOS 14.4, *) { return true }
+        return false
+    }
+
     private let queue = DispatchQueue(label: "com.vorssaint.media-keys.audio", qos: .utility)
     private let lock = NSLock()
     private var current: [MediaKeyPlayerSupport.SoundingProcess] = []
