@@ -12,6 +12,8 @@ enum NotchCompactTests {
         static let shared = CameraPreviewService()
         @Published var isEmbeddedPresented = false
         var stops = 0
+        /// What the preview's stop button calls, as the island handed it over.
+        var previewStop: (() -> Void)?
         func showEmbedded() { isEmbeddedPresented = true }
         func hideEmbedded() {
             guard isEmbeddedPresented else { return }
@@ -22,7 +24,11 @@ enum NotchCompactTests {
     struct CameraPreviewView: View {
         let size: CGSize
         let showsCameraMenu: Bool
-        var body: some View { Color.black.frame(width: size.width, height: size.height) }
+        var onStop: (() -> Void)? = nil
+        var body: some View {
+            Color.black.frame(width: size.width, height: size.height)
+                .onAppear { CameraPreviewService.shared.previewStop = onStop }
+        }
     }
     final class NotchService: ObservableObject {
         var presentationWindow: NSWindow?
@@ -218,6 +224,7 @@ enum NotchCompactTests {
         let service = CameraPreviewService.shared
         service.isEmbeddedPresented = false
         service.stops = 0
+        service.previewStop = nil
         let host = NSHostingView(rootView: AnyView(VStack {
             NotchCameraView(size: CGSize(width: 424, height: 180))
         }))
@@ -232,12 +239,12 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 0,
                      "starting the embedded camera does not dismiss it when the start card disappears")
-        service.hideEmbedded()
+        service.previewStop?()
         settle(host)
         service.showEmbedded()
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 1,
-                     "the camera can be stopped and started again within the same page")
+                     "the stop button over the preview stops the camera, and it starts again within the same page")
         host.rootView = AnyView(EmptyView())
         settle(host)
         suite.expect(!service.isEmbeddedPresented && service.stops == 2,

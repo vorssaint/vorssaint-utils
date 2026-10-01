@@ -38,6 +38,41 @@ extension NotchPresentationRefreshContract {
             service.updateCaptureControlsClickThrough()
         }
 
+        // Both previews arrive through presentCapture, as the screenshot
+        // preview sends them, so whether one stays until dismissed comes
+        // from what it was presented with.
+        let persistent = Service()
+        var persistentCloseCount = 0
+        var persistentClosedAfterTakeover = false
+        let persistentShown = persistent.presentCapture(
+            id: UUID(), content: true, height: 120, takeFocus: false, closeOnCollapse: true,
+            fallback: {}, close: {
+                persistentCloseCount += 1
+                persistentClosedAfterTakeover = persistent.captureControls != nil
+                    && persistent.captureID == nil && persistent.captureContent == nil
+                    && persistent.captureClose == nil
+            }, hover: { _ in })
+        suite.expect(persistentShown && persistent.openedPages.map(\.module) == [.captures]
+                     && persistent.openedPages.last?.takeFocus == false,
+                     "a preview that stays until dismissed opens the captures page without the keyboard")
+        persistent.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(persistentCloseCount == 1 && persistentClosedAfterTakeover,
+                     "capture controls detach a persistent preview before closing it after island takeover")
+        persistent.endCaptureControls()
+
+        let timed = Service()
+        var timedCloseCount = 0
+        _ = timed.presentCapture(
+            id: UUID(), content: true, height: 120, takeFocus: true, closeOnCollapse: false,
+            fallback: {}, close: { timedCloseCount += 1 }, hover: { _ in })
+        suite.expect(timed.openedPages.last?.takeFocus == true,
+                     "a timed preview that prefers the keyboard asks the island for it")
+        timed.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(timedCloseCount == 0 && timed.captureID != nil && timed.captureContent == true,
+                     "capture controls leave a timed preview owned by its existing dismissal timer")
+        timed.endCaptureControls()
+        NSEvent.monitorRemovals = 0
+
         let idle = begin()
         for _ in 0..<8 {
             DispatchQueue.main.advance(0.5)

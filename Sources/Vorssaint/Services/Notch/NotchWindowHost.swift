@@ -1042,7 +1042,7 @@ private final class NotchCanvas: NSView {
         let increasedContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let color = (increasedContrast ? NSColor.white : outlineColor).withAlphaComponent(
             outlineEnabled ? (increasedContrast ? 0.85 : 0.65) : (increasedContrast ? 0.45 : 0)).cgColor
-        let lineWidth: CGFloat = outlineEnabled ? 2 : 0.5
+        let lineWidth: CGFloat = outlineEnabled ? NotchLayout.outlineWidth : 0.5
         let opacity: Float = outlineEnabled || contentSize.height > 64 ? 1 : 0
         guard edge.strokeColor != color || edge.lineWidth != lineWidth || edge.opacity != opacity else { return }
         CATransaction.begin()

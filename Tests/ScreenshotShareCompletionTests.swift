@@ -21,7 +21,12 @@ enum ScreenshotShareCompletionTests {
         var closed = false
         let model = Model()
         var dismissWork: DispatchWorkItem?
-        var autoDismissDuration: TimeInterval = 12
+        var baseDismissDuration: TimeInterval? = 12
+        var autoDismissDuration: TimeInterval? = 12
+        struct Animation {
+            static func spring(response: Double, dampingFraction: Double) -> Animation { Animation() }
+        }
+        func withAnimation(_ animation: Animation, _ body: () -> Void) { body() }
         var completion: (@MainActor (ScreenshotShareRecord?) -> Void)?
         var copies: [ScreenshotShareRecord] = []
         var copySucceeds = true

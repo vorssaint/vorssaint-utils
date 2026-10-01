@@ -157,6 +157,7 @@ enum NotchMusicHardeningTests {
         artworkInheritance(suite)
         trackChanges(suite)
         playbackGap(suite)
+        standInGap(suite)
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
         lyricLifecycle(suite)
@@ -329,6 +330,30 @@ enum NotchMusicHardeningTests {
         tracker.reset()
         suite.expect(!tracker.isNewSong(reading("Five"), first: false),
                      "after the reader stops, a player's first song is not a change")
+        let playing = reading("Song")
+        suite.expect(NotchTrackChange.isBetweenSongs(nil, after: playing)
+                     && NotchTrackChange.isBetweenSongs(reading("Other", player: "com.example.other", playing: false), after: playing)
+                     && NotchTrackChange.isBetweenSongs(reading("Next", playing: false), after: playing),
+                     "nothing playing, another player's paused song or the next song paused is a player between songs")
+        suite.expect(!NotchTrackChange.isBetweenSongs(reading("Song", playing: false), after: playing)
+                     && !NotchTrackChange.isBetweenSongs(reading("Song", artist: nil, playing: false), after: playing)
+                     && !NotchTrackChange.isBetweenSongs(reading("Next"), after: playing)
+                     && !NotchTrackChange.isBetweenSongs(reading("Other", player: "com.example.other"), after: playing)
+                     && !NotchTrackChange.isBetweenSongs(reading("Other", player: "com.example.other", playing: false),
+                                                         after: reading("Song", playing: false)),
+                     "a pause, a song that plays, or a change after a paused song is shown at once")
+        func listing(hasTrack: Bool) -> NotchPlaybackSource {
+            NotchPlaybackSource(pid: 42, bundleIdentifier: "com.example.player", isMusicApp: false,
+                                isPlaying: false, hasTrack: hasTrack)
+        }
+        suite.expect(!NotchTrackChange.isBetweenSongs(reading("Other", player: "com.example.other", playing: false),
+                                                      after: playing, sources: [listing(hasTrack: true)]),
+                     "a player paused while automatic playback moves to another player's paused song is a pause")
+        suite.expect(NotchTrackChange.isBetweenSongs(reading("Other", player: "com.example.other", playing: false),
+                                                     after: playing, sources: [listing(hasTrack: false)])
+                     && NotchTrackChange.isBetweenSongs(reading("Next", playing: false), after: playing,
+                                                        sources: [listing(hasTrack: true)]),
+                     "a stand-in for a player that lists no song, or that player's own next song paused, is still a gap")
         suite.expect(NotchEvent.track.priority == 0 && NotchEvent.track.duration == 3,
                      "a new song gives way to any other notice and leaves after three seconds")
     }
@@ -387,6 +412,68 @@ enum NotchMusicHardeningTests {
         Contract.DispatchQueue.main.drain()
         suite.expect(service.playback == nil && service.gapWork == nil,
                      "stopping during a gap ends it, and the held song cannot come back")
+    }
+
+    /// Between songs another player's paused song can stand in, or the next
+    /// song can be reported paused before it starts. The production reading
+    /// path keeps the song that played through both, as through an empty one.
+    private static func standInGap(_ suite: TestSuite) {
+        typealias Contract = NotchMusicCommandContract
+        Contract.DispatchQueue.main = Contract.Scheduler()
+        defer { Contract.DispatchQueue.main = Contract.Scheduler() }
+        let service = Contract.Service()
+        service.trackChanges.shown = { [unowned service] in service.playback }
+        service.trackEnds.shown = { [unowned service] in service.playback }
+        let player = NotchPlaybackSource(pid: 42, bundleIdentifier: "org.example.player", isMusicApp: true,
+                                         isPlaying: true, hasTrack: true)
+        let other = NotchPlaybackSource(pid: 202, bundleIdentifier: "test.music", isMusicApp: true,
+                                        isPlaying: false, hasTrack: true)
+        func reading(_ playback: NotchPlayback, sources: [NotchPlaybackSource] = [player, other]) -> Contract.Service.Reading {
+            Contract.Service.Reading(playback: playback, artwork: nil, tint: nil, sources: sources,
+                                     automatic: true, selectedPID: nil)
+        }
+        func paused(_ song: NotchPlayback) -> NotchPlayback {
+            NotchPlayback(track: song.track, isPlaying: false, elapsed: 0, duration: song.duration, rate: 0,
+                          sampledAt: song.sampledAt, canSeek: false, itemIdentifier: song.itemIdentifier)
+        }
+        let current = playback("current"), next = playback("next"), later = playback("later")
+        let standIn = paused(NotchPlayback(track: RadialNowPlayingSnapshot(title: "Elsewhere", artist: "Other", album: nil,
+                                                                           artworkData: nil, appBundleIdentifier: "test.music",
+                                                                           appPID: 202),
+                                           isPlaying: false, elapsed: 30, duration: 200, rate: 0,
+                                           sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false))
+        service.start()
+        service.receive(reading(current))
+        service.receive(reading(standIn, sources: [other]))
+        suite.expect(service.playback == current && service.sources == [player, other] && service.gapWork != nil,
+                     "another player's paused song standing in between songs keeps the song that played")
+        let listed = NotchPlaybackSource(pid: 42, bundleIdentifier: "org.example.player", isMusicApp: false,
+                                         isPlaying: false, hasTrack: true)
+        service.receive(reading(standIn, sources: [listed, other]))
+        suite.expect(service.playback == current && service.gapWork != nil,
+                     "a player that lists its next song again while it loads keeps the gap going")
+        service.receive(reading(next))
+        suite.expect(service.playback == next && service.gapWork == nil && service.trackChanges.announcedOver == [current],
+                     "the next song replaces it at once, announced while the song before is still shown")
+        service.receive(reading(paused(later)))
+        suite.expect(service.playback == next && service.gapWork != nil,
+                     "the next song reported paused before it starts keeps the song that played")
+        suite.expect(service.trackEnds.announcedOver.isEmpty, "a gap that ends in a new song ends nothing")
+        Contract.DispatchQueue.main.drain()
+        suite.expect(service.playback == paused(later) && service.gapWork == nil,
+                     "a song that stays paused is shown after the grace period")
+        suite.expect(service.trackEnds.announcedOver == [next],
+                     "the end of the song is announced while it is still shown")
+        service.receive(reading(later))
+        service.receive(reading(paused(later)))
+        suite.expect(service.playback == paused(later) && service.gapWork == nil && service.trackEnds.announcedOver == [next],
+                     "pausing the song that plays is shown at once, and ends nothing")
+        service.receive(reading(later))
+        service.receive(reading(standIn, sources: [listed, other]))
+        suite.expect(service.playback == standIn && service.gapWork == nil && service.sources == [listed, other],
+                     "a pause that hands automatic playback to another player's paused song is shown at once")
+        suite.expect(service.trackEnds.announcedOver == [next, later],
+                     "the strip leaves such a pause as its own song")
     }
 
     /// The adapter flags bytes equal to its previous reading as unchanged,

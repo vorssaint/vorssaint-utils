@@ -12,13 +12,9 @@ struct NotchCameraView: View {
     var body: some View {
         Group {
             if service.isEmbeddedPresented {
-                // The preview takes the height the island leaves beside its
-                // stop button and keeps the camera's own proportions.
-                VStack(spacing: NotchLayout.rowSpacing) {
-                    CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: true)
-                    Button(text.stopCamera, action: service.hideEmbedded)
-                        .buttonStyle(.bordered).controlSize(.small)
-                }
+                // The preview takes the whole page, with its stop button over the image.
+                CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: true,
+                                  onStop: service.hideEmbedded)
             } else {
                 HStack(spacing: 16) {
                     Image(systemName: "web.camera").font(.system(size: 30, weight: .light))

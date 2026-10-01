@@ -769,6 +769,120 @@ enum ScreenshotFeatureTests {
                 == [.none, .save, .save, .none, .edit]
                 && ScreenshotDefaultAction.allCases.allSatisfy { !$0.withoutCopy.copiesToClipboard },
                "turning automatic copy off drops only the copy half of the after-capture action")
+        suite.expect(ScreenshotSupport.confirmationPreviewDurations.contains(1)
+                && ScreenshotSupport.confirmationPreviewDurations.contains(
+                    ScreenshotSupport.defaultConfirmationPreviewDuration)
+                && ScreenshotSupport.confirmationPreviewDurations.contains(0)
+                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(2) == 2
+                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(99) == 3
+                && ScreenshotSupport.confirmationPreviewDismissInterval(2) == 2
+                && ScreenshotSupport.confirmationPreviewDismissInterval(0) == nil
+                && ScreenshotSupport.sharedPreviewDismissInterval(base: 3) == 30
+                && ScreenshotSupport.sharedPreviewDismissInterval(base: nil) == nil,
+               "confirmation previews support short, default, persistent, and share-result dismissal behavior")
+        let focusedTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, prefersFocus: true)
+        let quietTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, prefersFocus: false)
+        let persistentPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: nil, prefersFocus: true)
+        suite.expect(focusedTimedPolicy.takesFocus && !focusedTimedPolicy.closesOnCollapse
+                && !focusedTimedPolicy.showsDismissButton
+                && !quietTimedPolicy.takesFocus && !quietTimedPolicy.closesOnCollapse
+                && !quietTimedPolicy.showsDismissButton
+                && !persistentPolicy.takesFocus && persistentPolicy.closesOnCollapse
+                && persistentPolicy.showsDismissButton,
+               "preview presentation keeps timed focus behavior while persistent confirmations stay dismissible without taking focus")
+        let focusDefaultsDomain = "com.vorssaint.tests.screenshot-preview-focus.\(UUID().uuidString)"
+        let focusDefaults = UserDefaults(suiteName: focusDefaultsDomain)!
+        defer { focusDefaults.removePersistentDomain(forName: focusDefaultsDomain) }
+        focusDefaults.set(true, forKey: DefaultsKey.screenshotPreviewTakesFocus)
+        let preferredFocusPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, defaults: focusDefaults)
+        focusDefaults.set(false, forKey: DefaultsKey.screenshotPreviewTakesFocus)
+        let retainedFocusPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, defaults: focusDefaults)
+        suite.expect(preferredFocusPolicy.takesFocus && !retainedFocusPolicy.takesFocus,
+               "the screenshot preview focus preference controls timed confirmation focus")
+        suite.expect(ScreenshotSupport.shouldShowQuickPreview(defaultAction: .none,
+                                                              saved: false,
+                                                              copied: false,
+                                                              confirmationEnabled: false)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .edit,
+                                                              saved: false,
+                                                              copied: false,
+                                                              confirmationEnabled: true)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                             saved: false,
+                                                             copied: true,
+                                                             confirmationEnabled: true)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                              saved: false,
+                                                              copied: true,
+                                                              confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                             saved: false,
+                                                             copied: false,
+                                                             confirmationEnabled: false)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .save,
+                                                              saved: true,
+                                                              copied: false,
+                                                              confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                             saved: true,
+                                                             copied: false,
+                                                             confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                             saved: true,
+                                                             copied: true,
+                                                             confirmationEnabled: true)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                              saved: true,
+                                                              copied: true,
+                                                              confirmationEnabled: false),
+               "automatic actions honor confirmation preferences while failed or partial actions still expose recovery controls")
+        // The decision route makes after the action ran, read from settings.
+        let routeDefaultsDomain = "com.vorssaint.tests.screenshot-preview-route.\(UUID().uuidString)"
+        let routeDefaults = UserDefaults(suiteName: routeDefaultsDomain)!
+        defer { routeDefaults.removePersistentDomain(forName: routeDefaultsDomain) }
+        func routePreview(_ action: ScreenshotDefaultAction, saved: Bool = false,
+                          copied: Bool = false) -> ScreenshotSupport.QuickPreviewPresentation {
+            ScreenshotSupport.quickPreviewPresentation(defaultAction: action, saved: saved,
+                                                       copied: copied, defaults: routeDefaults)
+        }
+        let recovery = ScreenshotSupport.QuickPreviewPresentation.shown(
+            dismissInterval: ScreenshotSupport.recoveryPreviewDismissInterval)
+        routeDefaults.set(true, forKey: DefaultsKey.screenshotPreviewEnabled)
+        routeDefaults.set(10, forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.save, saved: true) == .shown(dismissInterval: 10)
+                && routePreview(.copy, copied: true) == .shown(dismissInterval: 10)
+                && routePreview(.none) == recovery && routePreview(.edit) == .hidden,
+               "a successful action confirms for the chosen duration and asking each time keeps the longer timer")
+        routeDefaults.set(0, forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.saveAndCopy, saved: true, copied: true) == .shown(dismissInterval: nil),
+               "until dismissed keeps a successful confirmation with no timer")
+        routeDefaults.set(false, forKey: DefaultsKey.screenshotPreviewEnabled)
+        suite.expect(routePreview(.save, saved: true) == .hidden
+                && routePreview(.saveAndCopy, saved: true, copied: true) == .hidden
+                && routePreview(.save) == recovery
+                && routePreview(.saveAndCopy, saved: true) == recovery
+                && routePreview(.copy) == recovery,
+               "with confirmations off a successful action shows nothing and a failed or partial one still shows the recovery preview")
+        routeDefaults.set(true, forKey: DefaultsKey.screenshotPreviewEnabled)
+        routeDefaults.set("soon", forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.save, saved: true) == .shown(
+                    dismissInterval: TimeInterval(ScreenshotSupport.defaultConfirmationPreviewDuration)),
+               "a stored duration that is not a number falls back to the default instead of staying until dismissed")
+        let screenshotRouteBody = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "    private func route(_ capture:").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        suite.expect(screenshotRouteBody.contains("guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(")
+                && screenshotRouteBody.contains("defaults: defaults)\n        else { return }\n        presentPreview(capture,")
+                && screenshotRouteBody.components(separatedBy: "presentPreview(").count == 2
+                && screenshotRouteBody.contains("dismissInterval: dismissInterval)"),
+               "route shows exactly the preview the shared decision asks for")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
@@ -1041,14 +1155,20 @@ enum ScreenshotFeatureTests {
         let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
         // The preference keys the panel only after it is on screen, and the
-        // line above the call is the preference check itself, so dropping the
-        // guard or keying before ordering front both go red.
+        // policy guard must stay immediately above the hand-off so an
+        // unconditional makeKey cannot slip past the behavior checks.
         let presentLines = presentBody.components(separatedBy: "\n")
         let orderFrontLine = presentLines.firstIndex { $0.contains("orderFrontRegardless()") } ?? -1
         let makeKeyLine = presentLines.firstIndex { $0.contains("makeKey") } ?? -1
         suite.expect(orderFrontLine >= 0 && makeKeyLine > orderFrontLine
-                && presentLines[makeKeyLine - 1].contains("screenshotPreviewTakesFocus"),
-               "presenting the screenshot preview takes key focus only behind the preference, once the panel is on screen")
+                && presentLines[makeKeyLine - 1].trimmingCharacters(in: .whitespaces)
+                    == "if presentationPolicy.takesFocus {",
+               "the screenshot preview takes key focus only behind the presentation policy, once the panel is on screen")
+        // The island reads the same policy: whether it takes the keyboard and
+        // whether a collapse closes the preview come from it, never a literal.
+        suite.expect(quickPreviewCode.contains("takeFocus: presentationPolicy.takesFocus,")
+                && quickPreviewCode.contains("closeOnCollapse: presentationPolicy.closesOnCollapse,"),
+               "the island preview takes the keyboard and closes on collapse exactly as the presentation policy says")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
         suite.expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,
@@ -2493,6 +2613,13 @@ enum ScreenshotFeatureTests {
                "screenshot preview placement preserves the existing automatic behavior by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == true,
                "the screenshot preview takes the keyboard as it appears by default, so its shortcuts work at once; leaving it is the opt-out")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewEnabled] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.screenshotPreviewDuration] as? Int
+                    == ScreenshotSupport.defaultConfirmationPreviewDuration,
+               "automatic screenshot confirmations stay enabled at the existing three-second duration by default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewDuration),
+               "screenshot confirmation preferences are included in settings backups")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String

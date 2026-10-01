@@ -409,8 +409,14 @@ final class ScreenshotService: ObservableObject {
         let consumedNumber: Int?
     }
 
-    /// A finished capture goes to the floating preview, or straight into the
-    /// editor when the after-capture action is Edit.
+    private struct AutomaticActionResult {
+        let performed: Set<ScreenshotQuickPreviewController.Action>
+        let saved: SaveOutcome?
+    }
+
+    /// A finished capture runs its configured after-capture action first, then
+    /// either stays quiet, shows a confirmation/recovery preview, or opens the
+    /// editor directly.
     ///
     /// The clipboard copy happens first and independently, so it also reaches
     /// the captures that open straight in the editor, where no preview button
@@ -419,33 +425,55 @@ final class ScreenshotService: ObservableObject {
         invalidateLatestCaptureUploads()
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
+        let defaults = UserDefaults.standard
         if ScreenshotSharingSupport.retainsLatestCapture() {
             ScreenshotLastCaptureStore.save(capture)
         }
-        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
+        if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
             autoCopy(capture)
         }
-        if ScreenshotDefaultAction.current == .edit {
+        let defaultAction = ScreenshotDefaultAction.current
+        if defaultAction == .edit {
             openEditor(with: capture)
             return
         }
-        presentPreview(capture, defaultAction: ScreenshotDefaultAction.current)
+        let result = runDefaultAction(defaultAction, capture: capture)
+        guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
+            defaultAction: defaultAction,
+            saved: result.saved != nil,
+            copied: result.performed.contains(.copy),
+            defaults: defaults)
+        else { return }
+        presentPreview(capture,
+                       defaultAction: defaultAction,
+                       initialSaved: result.saved,
+                       completedActions: result.performed,
+                       dismissInterval: dismissInterval)
     }
 
     /// A history item returns to the same floating preview without repeating
     /// automatic copy or save actions that already ran when it was captured.
     func restorePreview(_ capture: ScreenshotSelectionController.Capture) {
         preview?.close()
-        presentPreview(capture, defaultAction: .none)
+        presentPreview(capture,
+                       defaultAction: .none,
+                       initialSaved: nil,
+                       completedActions: [],
+                       dismissInterval: ScreenshotSupport.recoveryPreviewDismissInterval)
     }
 
     private func presentPreview(_ capture: ScreenshotSelectionController.Capture,
-                                defaultAction: ScreenshotDefaultAction) {
-        var saved: SaveOutcome?
+                                defaultAction: ScreenshotDefaultAction,
+                                initialSaved: SaveOutcome?,
+                                completedActions: Set<ScreenshotQuickPreviewController.Action>,
+                                dismissInterval: TimeInterval?) {
+        var saved = initialSaved
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
             strings: strings,
             defaultAction: defaultAction,
+            completedActions: completedActions,
+            dismissInterval: dismissInterval,
             action: { [weak self] action in
                 guard let self else { return [] }
                 switch action {
@@ -496,6 +524,31 @@ final class ScreenshotService: ObservableObject {
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
         controller.show()
+    }
+
+    private func runDefaultAction(_ defaultAction: ScreenshotDefaultAction,
+                                  capture: ScreenshotSelectionController.Capture)
+        -> AutomaticActionResult {
+        switch defaultAction {
+        case .none, .edit:
+            return AutomaticActionResult(performed: [], saved: nil)
+        case .copy:
+            return AutomaticActionResult(
+                performed: copyDirect(capture) ? [.copy] : [],
+                saved: nil)
+        case .save:
+            guard let outcome = saveDirect(capture) else {
+                return AutomaticActionResult(performed: [], saved: nil)
+            }
+            return AutomaticActionResult(performed: [.save], saved: outcome)
+        case .saveAndCopy:
+            guard let result = saveAndCopyDirect(capture) else {
+                return AutomaticActionResult(performed: [], saved: nil)
+            }
+            return AutomaticActionResult(
+                performed: result.copied ? [.save, .copy] : [.save],
+                saved: result.outcome)
+        }
     }
 
     func openEditor(with capture: ScreenshotSelectionController.Capture) {

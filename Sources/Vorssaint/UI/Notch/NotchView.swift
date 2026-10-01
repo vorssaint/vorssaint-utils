@@ -116,7 +116,10 @@ struct NotchView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                // A floating capsule lights up under the pointer. Beside a
+                // camera the wash would outline the housing, so the notch keeps
+                // its notices plain, as its other strips are.
+                .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false, highlights: floats))
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(notice.accessibilityText)
                 .accessibilityAddTraits(.isButton)
@@ -136,8 +139,13 @@ struct NotchView: View {
                 let layout = service.compactActivityPickerLayout
                 VStack(spacing: 0) {
                     let strip = service.compactStripSize(for: activity, companion: service.compactCompanion)
-                    activityStrip(activity, size: strip)
-                        .frame(width: strip.width, height: layout.headerHeight, alignment: .top)
+                    ZStack(alignment: .top) {
+                        activityStrip(activity, size: strip)
+                            .frame(width: strip.width, height: layout.headerHeight, alignment: .top)
+                            .id(NotchPickedStrip(activity: activity, companion: service.compactCompanion))
+                            .transition(.blurReplace)
+                    }
+                    .frame(height: layout.headerHeight, alignment: .top)
                     NotchActivityPicker(activities: service.compactActivities, selected: activity,
                                         combinations: service.compactActivityCombinations,
                                         combination: service.compactCompanion.map {
@@ -149,7 +157,10 @@ struct NotchView: View {
                         .padding(.vertical, NotchActivityPickerLayout.verticalInset)
                 }
             } else {
-                activityStrip(activity, size: service.surfaceSize)
+                // Hover grows the capsule around its strip, as it grows the
+                // notch around its wings. Drawn at the grown size, a song's
+                // cover and bars jumped out at once while the shape still grew.
+                activityStrip(activity, size: service.compactStripSize(for: activity, companion: service.compactCompanion))
             }
         } else if let departingMusic = service.departingMusic {
             Group {
@@ -212,6 +223,7 @@ struct NotchView: View {
                             .contentShape(Rectangle())
                     }
                     .scrollIndicators(.automatic)
+                    .notchScrollEdgeFade()
                 } else {
                     content
                 }
@@ -284,11 +296,6 @@ struct NotchView: View {
         return notice
     }
 
-    /// The fan card opens Fan Control, so its page shares that title.
-    private func detailTitle(_ metric: MetricDetailKind) -> String {
-        metric == .fan ? FeatureStrings.fanControl(l10n.language).title : metric.title(l10n.s)
-    }
-
     private var header: some View {
         HStack(spacing: service.expandedGeometry.headerCameraGap > 0 ? 0 : 6) {
             let quickActions = NotchQuickAccessConfiguration.current().actions
@@ -311,8 +318,8 @@ struct NotchView: View {
                     if showsDetail {
                         NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.goBack)
                     }
-                    Text(service.showingAppPanel ? "Vorssaint" : service.selectedMetric.map(detailTitle) ?? text.title)
-                        .font(.system(size: 15, weight: .semibold))
+                    Text(service.detailTitle)
+                        .font(Font(NotchLayout.detailTitleFont as CTFont))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -320,7 +327,7 @@ struct NotchView: View {
                         NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                     }
                     Text(service.selected.title(l10n.language))
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(Font(NotchLayout.headerTitleFont as CTFont))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -342,14 +349,7 @@ struct NotchView: View {
                 if service.selected == .captures, !showsDetail, !service.showingSections,
                    let actions = service.captureActions {
                     actions.fixedSize()
-                    Menu {
-                        Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
-                        Button(l10n.s.menuSettings, action: service.openSettings)
-                        Button(text.collapse, action: service.collapse)
-                    } label: { Image(systemName: "ellipsis") }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                    .accessibilityLabel(text.title)
+                    overflowMenu(items: overflowItems(tools: false, clear: false))
                 } else if service.expandedGeometry.headerCameraGap > 0 {
                     cameraHeaderActions
                 } else {
@@ -385,21 +385,46 @@ struct NotchView: View {
     private func cameraHeaderActions(compactUpdate: Bool) -> some View {
         HStack(spacing: 6) {
             NotchUpdateControl(action: service.showUpdate, compact: compactUpdate)
-            Menu {
-                if service.selected == .tools, !showsDetail, !service.showingSections, launcher.activeUtility == nil {
-                    Button(text.customizeTools) { launcher.isEditing.toggle() }
-                }
-                if showsCapturesClear { NotchClearCapturesButton(inMenu: true) }
-                Button(service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
-                Button(l10n.s.menuSettings, action: service.openSettings)
-                Button(text.collapse, action: service.collapse)
-            } label: {
-                Image(systemName: service.pinned ? "pin.fill" : "ellipsis")
-                    .frame(width: 28, height: 28)
-            }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .accessibilityLabel(text.title)
+            overflowMenu(items: overflowItems(
+                tools: service.selected == .tools && !showsDetail && !service.showingSections && launcher.activeUtility == nil,
+                clear: showsCapturesClear))
+        }
+    }
+
+    /// The header's overflow entries, each with the glyph its own button
+    /// wears when the pointer row shows them separately.
+    private func overflowItems(tools: Bool, clear: Bool) -> [NotchMenuItem] {
+        var items: [NotchMenuItem] = []
+        if tools {
+            items.append(NotchMenuItem(title: text.customizeTools, checked: launcher.isEditing,
+                                       symbol: "slider.horizontal.3") { launcher.isEditing.toggle() })
+        }
+        if clear {
+            // As the header draws, the pointer on its way to this menu included,
+            // and again when chosen: this view does not observe the history.
+            let empty = { RecentCapturesView.visible(RecentCaptureService.shared.entries).isEmpty }
+            items.append(NotchMenuItem(title: FeatureStrings.recentCaptures(l10n.language).clear, symbol: "trash",
+                                       enabled: !empty(), action: {
+                guard !empty() else { return }
+                RecentCapturesView.confirmClearAboveIsland()
+            }))
+        }
+        if !items.isEmpty { items.append(.separator) }
+        items.append(NotchMenuItem(title: service.pinned ? text.unpin : text.pin,
+                                   symbol: service.pinned ? "pin.slash" : "pin") { service.pinned.toggle() })
+        items.append(NotchMenuItem(title: l10n.s.menuSettings, symbol: "gearshape", action: service.openSettings))
+        items.append(NotchMenuItem(title: text.collapse, symbol: "chevron.up", action: service.collapse))
+        return items
+    }
+
+    /// A native menu drawn in the island's dark appearance, so it reads as part
+    /// of it, and each entry carries its glyph.
+    private func overflowMenu(items: [NotchMenuItem]) -> some View {
+        NotchMenuButton(title: text.title, items: items, cornerRadius: 8) {
+            Image(systemName: service.pinned ? "pin.fill" : "ellipsis")
+                .font(.system(size: 13, weight: .medium))
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -530,20 +555,13 @@ struct NotchView: View {
 
 /// Observes the history on its own, so a new capture does not redraw the island.
 private struct NotchClearCapturesButton: View {
-    var inMenu = false
     @ObservedObject private var history = RecentCaptureService.shared
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        let title = FeatureStrings.recentCaptures(l10n.language).clear
-        let empty = RecentCapturesView.visible(history.entries).isEmpty
-        if inMenu {
-            Button(title, role: .destructive, action: RecentCapturesView.confirmClearAboveIsland)
-                .disabled(empty)
-        } else {
-            NotchIconButton(symbol: "trash", title: title, action: RecentCapturesView.confirmClearAboveIsland)
-                .disabled(empty)
-        }
+        NotchIconButton(symbol: "trash", title: FeatureStrings.recentCaptures(l10n.language).clear,
+                        action: RecentCapturesView.confirmClearAboveIsland)
+            .disabled(RecentCapturesView.visible(history.entries).isEmpty)
     }
 }
 
@@ -685,7 +703,7 @@ extension NotchModule: PanelOrderItem {
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .controls: return FeatureStrings.notch(language).controls
-        case .mixer: return L10n.shared.s.mixerSection
+        case .mixer: return Strings.localized(language).mixerSection
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
         case .captures: return FeatureStrings.recentCaptures(language).title
@@ -712,8 +730,15 @@ private struct NotchPageClip: Shape {
     }
 }
 
+/// The strip the picker shows, a new one for each choice.
+private struct NotchPickedStrip: Hashable {
+    let activity: NotchCompactActivity
+    let companion: NotchCompactActivity?
+}
+
 /// Named choices appear below the camera, with the current activity highlighted.
 struct NotchActivityPicker: View {
+    @Namespace private var choice
     let activities: [NotchCompactActivity]
     let selected: NotchCompactActivity
     let combinations: [NotchActivityCombination]
@@ -763,8 +788,15 @@ struct NotchActivityPicker: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: NotchActivityPickerLayout.rowHeight)
                     .foregroundStyle(chosen ? Color.black : Color.white)
-                    .background(chosen ? Color.white : Color.white.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 8))
+                    .background {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.12))
+                            if chosen {
+                                RoundedRectangle(cornerRadius: 8).fill(Color.white)
+                                    .matchedGeometryEffect(id: "choice", in: choice)
+                            }
+                        }
+                    }
                     .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)

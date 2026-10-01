@@ -232,6 +232,102 @@ enum ScreenshotSupport {
         allowedDelays.contains(raw) ? raw : 0
     }
 
+    static let confirmationPreviewDurations = [1, 2, 3, 5, 10, 0]
+    static let defaultConfirmationPreviewDuration = 3
+    static let recoveryPreviewDismissInterval: TimeInterval = 12
+
+    struct ConfirmationPreviewPresentationPolicy: Equatable {
+        let takesFocus: Bool
+        let closesOnCollapse: Bool
+        let showsDismissButton: Bool
+    }
+
+    static func sanitizedConfirmationPreviewDuration(_ raw: Int) -> Int {
+        confirmationPreviewDurations.contains(raw) ? raw : defaultConfirmationPreviewDuration
+    }
+
+    static func confirmationPreviewDismissInterval(_ raw: Int) -> TimeInterval? {
+        let duration = sanitizedConfirmationPreviewDuration(raw)
+        return duration == 0 ? nil : TimeInterval(duration)
+    }
+
+    static func sharedPreviewDismissInterval(base: TimeInterval?) -> TimeInterval? {
+        base == nil ? nil : 30
+    }
+
+    static func confirmationPreviewPresentationPolicy(
+        dismissInterval: TimeInterval?,
+        prefersFocus: Bool
+    ) -> ConfirmationPreviewPresentationPolicy {
+        let persistent = dismissInterval == nil
+        return ConfirmationPreviewPresentationPolicy(
+            takesFocus: !persistent && prefersFocus,
+            closesOnCollapse: persistent,
+            showsDismissButton: persistent)
+    }
+
+    static func confirmationPreviewPresentationPolicy(
+        dismissInterval: TimeInterval?,
+        defaults: UserDefaults
+    ) -> ConfirmationPreviewPresentationPolicy {
+        confirmationPreviewPresentationPolicy(
+            dismissInterval: dismissInterval,
+            prefersFocus: defaults.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus))
+    }
+
+    static func automaticActionSucceeded(_ action: ScreenshotDefaultAction,
+                                         saved: Bool,
+                                         copied: Bool) -> Bool {
+        switch action {
+        case .none, .edit: return false
+        case .save: return saved
+        case .saveAndCopy: return saved && copied
+        case .copy: return copied
+        }
+    }
+
+    static func shouldShowQuickPreview(defaultAction: ScreenshotDefaultAction,
+                                       saved: Bool,
+                                       copied: Bool,
+                                       confirmationEnabled: Bool) -> Bool {
+        switch defaultAction {
+        case .none: return true
+        case .edit: return false
+        case .save, .saveAndCopy, .copy:
+            return confirmationEnabled
+                || !automaticActionSucceeded(defaultAction, saved: saved, copied: copied)
+        }
+    }
+
+    /// What a finished capture shows once its after-capture action ran.
+    enum QuickPreviewPresentation: Equatable {
+        case hidden
+        /// A nil interval keeps the preview until it is dismissed.
+        case shown(dismissInterval: TimeInterval?)
+    }
+
+    /// The whole decision `route` makes, read from the person's settings: a
+    /// successful action shows the confirmation for its chosen duration or
+    /// nothing at all, while a failed or partial action, or no action, gets
+    /// the recovery preview with its longer timer.
+    static func quickPreviewPresentation(defaultAction: ScreenshotDefaultAction,
+                                         saved: Bool,
+                                         copied: Bool,
+                                         defaults: UserDefaults) -> QuickPreviewPresentation {
+        guard shouldShowQuickPreview(
+            defaultAction: defaultAction, saved: saved, copied: copied,
+            confirmationEnabled: defaults.bool(forKey: DefaultsKey.screenshotPreviewEnabled))
+        else { return .hidden }
+        guard automaticActionSucceeded(defaultAction, saved: saved, copied: copied) else {
+            return .shown(dismissInterval: recoveryPreviewDismissInterval)
+        }
+        // A stored value that is not a number reads as the default duration,
+        // not as 0, which would keep every confirmation until dismissed.
+        let duration = (defaults.object(forKey: DefaultsKey.screenshotPreviewDuration) as? NSNumber)?
+            .intValue ?? defaultConfirmationPreviewDuration
+        return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
+    }
+
     /// Remaining stroke for the one-second countdown ring. Time drives the
     /// value directly so a delayed frame catches up instead of restarting the
     /// animation or leaving the ring frozen.

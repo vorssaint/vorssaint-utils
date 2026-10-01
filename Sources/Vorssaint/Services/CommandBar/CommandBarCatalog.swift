@@ -1085,19 +1085,23 @@ enum CommandBarCatalog {
         }
     }
 
-    /// One row per installed app, offered only inside the "Uninstall
-    /// Application" category browse - never in the flat search pool, since a
-    /// few hundred destructive rows have no business sitting in a list
-    /// someone might arrow through by accident. Selecting one opens the full
-    /// leftover-files review, the same as picking the app straight from
-    /// Finder does.
+    /// One row per installed app the uninstaller will take, offered only
+    /// inside the "Uninstall Application" category browse - never in the flat
+    /// search pool, since a few hundred destructive rows have no business
+    /// sitting in a list someone might arrow through by accident. Selecting
+    /// one opens the full leftover-files review, the same as picking the app
+    /// straight from Finder does. `uninstallable` holds the ids its own check
+    /// accepted during the background scan.
     static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 uninstallable: Set<String>,
                                  bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         else { return [] }
         let ownBundleID = Bundle.main.bundleIdentifier
-        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+        return apps.filter {
+            !$0.isSystem && $0.bundleID != ownBundleID && uninstallable.contains($0.id)
+        }.map { app in
             CommandBarEntry(
                 id: "uninstall.\(app.id)",
                 stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
@@ -1113,13 +1117,14 @@ enum CommandBarCatalog {
 
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, so uninstalling it never needs the bar's own picker first.
+    /// An app the uninstaller would refuse gets no row.
     static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
               urls.count == 1, let url = urls.first,
               url.pathExtension.lowercased() == "app",
               InstalledApps.isInApplicationsFolder(url),
-              !InstalledApps.isSystemApplication(at: url)
+              UninstallerSupport.selection(for: url) != nil
         else { return [] }
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         var name = FileManager.default.displayName(atPath: url.path)
