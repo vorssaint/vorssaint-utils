@@ -57,6 +57,8 @@ struct AgentPeriodUsage: Equatable {
     var byProvider: [AgentProvider: AgentTotals] = [:]
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
+    /// Skill starts, beside the tokens rather than part of them.
+    var skills: [AgentSkill: Int] = [:]
 
     /// Whether every response in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
@@ -174,6 +176,7 @@ enum AgentUsageSummary {
                         id: record.project, name: record.project, provider: nil, totals: AgentTotals())]
                         .totals.add(record)
                 }
+                periods[period, default: AgentPeriodUsage()].skills.merge(record.skills, uniquingKeysWith: +)
             }
         }
         for period in AgentPeriod.allCases {
@@ -393,6 +396,11 @@ final class AgentUsageSummaryCache {
             if !record.project.isEmpty {
                 projects[period, default: [:]][record.project, default: AgentShare(
                     id: record.project, name: record.project, provider: nil, totals: AgentTotals())].totals += delta
+            }
+            history!.periods[period]!.skills.merge(record.skills, uniquingKeysWith: +)
+            for (skill, calls) in previous?.skills ?? [:] {
+                history!.periods[period]!.skills[skill, default: 0] -= calls
+                if history!.periods[period]!.skills[skill] == 0 { history!.periods[period]!.skills[skill] = nil }
             }
         }
     }

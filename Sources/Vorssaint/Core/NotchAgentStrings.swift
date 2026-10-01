@@ -95,6 +95,16 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let tokensTitle: String
+    let tokenInput: String
+    let tokenCacheWrite: String
+    let tokenCacheRead: String
+    let tokenOutput: String
+    let reasoningFormat: String
+    let skillsTitle: String
+    let back: String
+    let skillsByYou: String
+    let skillsByAgent: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -109,6 +119,7 @@ struct NotchAgentStrings {
     func claudeLimitsStale(_ when: String) -> String { String(format: claudeLimitsStaleFormat, when) }
     func pricesFrom(_ day: String) -> String { String(format: pricesFromFormat, day) }
     func resetsExpiry(_ when: String) -> String { String(format: resetsExpiryFormat, when) }
+    func reasoning(_ count: String) -> String { String(format: reasoningFormat, count) }
 
     func period(_ period: AgentPeriod) -> String {
         switch period {
@@ -128,6 +139,8 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
+        case .tokens: return tokensTitle
+        case .skills: return skillsTitle
         }
     }
 
@@ -255,7 +268,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        tokensTitle: "Tokens",
+        tokenInput: "Input",
+        tokenCacheWrite: "Cache writes",
+        tokenCacheRead: "Cache reads",
+        tokenOutput: "Output",
+        reasoningFormat: "Includes %@ of reasoning",
+        skillsTitle: "Skills",
+        back: "Back",
+        skillsByYou: "Started by you",
+        skillsByAgent: "Called by the agent")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -348,7 +371,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        tokensTitle: "Токени",
+        tokenInput: "Вхід",
+        tokenCacheWrite: "Запис у кеш",
+        tokenCacheRead: "Читання з кешу",
+        tokenOutput: "Вихід",
+        reasoningFormat: "Включно з %@ міркувань",
+        skillsTitle: "Навички",
+        back: "Назад",
+        skillsByYou: "Запущено вами",
+        skillsByAgent: "Викликано агентом")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -441,7 +474,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        tokensTitle: "Tokens",
+        tokenInput: "Entrada",
+        tokenCacheWrite: "Gravações no cache",
+        tokenCacheRead: "Leituras do cache",
+        tokenOutput: "Saída",
+        reasoningFormat: "Inclui %@ de raciocínio",
+        skillsTitle: "Skills",
+        back: "Voltar",
+        skillsByYou: "Iniciadas por você",
+        skillsByAgent: "Chamadas pelo agente")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -534,7 +577,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        tokensTitle: "Tokens",
+        tokenInput: "Entrada",
+        tokenCacheWrite: "Escrituras en caché",
+        tokenCacheRead: "Lecturas de caché",
+        tokenOutput: "Salida",
+        reasoningFormat: "Incluye %@ de razonamiento",
+        skillsTitle: "Skills",
+        back: "Atrás",
+        skillsByYou: "Iniciadas por ti",
+        skillsByAgent: "Llamadas por el agente")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -627,7 +680,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        tokensTitle: "Tokeny",
+        tokenInput: "Vstup",
+        tokenCacheWrite: "Zápisy do cache",
+        tokenCacheRead: "Čítania z cache",
+        tokenOutput: "Výstup",
+        reasoningFormat: "Vrátane %@ uvažovania",
+        skillsTitle: "Skills",
+        back: "Späť",
+        skillsByYou: "Spustené vami",
+        skillsByAgent: "Volané agentom")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -720,7 +783,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        tokensTitle: "Tokens",
+        tokenInput: "Eingabe",
+        tokenCacheWrite: "Cache-Schreibvorgänge",
+        tokenCacheRead: "Cache-Lesevorgänge",
+        tokenOutput: "Ausgabe",
+        reasoningFormat: "Enthält %@ Reasoning",
+        skillsTitle: "Skills",
+        back: "Zurück",
+        skillsByYou: "Von dir gestartet",
+        skillsByAgent: "Vom Agenten aufgerufen")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -813,7 +886,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        tokensTitle: "Jetons",
+        tokenInput: "Entrée",
+        tokenCacheWrite: "Écritures en cache",
+        tokenCacheRead: "Lectures du cache",
+        tokenOutput: "Sortie",
+        reasoningFormat: "Dont %@ de raisonnement",
+        skillsTitle: "Skills",
+        back: "Retour",
+        skillsByYou: "Lancées par vous",
+        skillsByAgent: "Appelées par l’agent")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -906,7 +989,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        tokensTitle: "Token",
+        tokenInput: "Input",
+        tokenCacheWrite: "Scritture in cache",
+        tokenCacheRead: "Letture dalla cache",
+        tokenOutput: "Output",
+        reasoningFormat: "Include %@ di ragionamento",
+        skillsTitle: "Skill",
+        back: "Indietro",
+        skillsByYou: "Avviate da te",
+        skillsByAgent: "Chiamate dall’agente")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -999,7 +1092,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        tokensTitle: "Токены",
+        tokenInput: "Ввод",
+        tokenCacheWrite: "Запись в кэш",
+        tokenCacheRead: "Чтение из кэша",
+        tokenOutput: "Вывод",
+        reasoningFormat: "Включая %@ рассуждений",
+        skillsTitle: "Навыки",
+        back: "Назад",
+        skillsByYou: "Запущены вами",
+        skillsByAgent: "Вызваны агентом")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1092,7 +1195,17 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        tokensTitle: "Token’lar",
+        tokenInput: "Girdi",
+        tokenCacheWrite: "Önbellek yazmaları",
+        tokenCacheRead: "Önbellek okumaları",
+        tokenOutput: "Çıktı",
+        reasoningFormat: "%@ akıl yürütme dahil",
+        skillsTitle: "Beceriler",
+        back: "Geri",
+        skillsByYou: "Sizin başlattıklarınız",
+        skillsByAgent: "Ajanın çağırdıkları")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1185,7 +1298,17 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        tokensTitle: "トークン",
+        tokenInput: "入力",
+        tokenCacheWrite: "キャッシュ書き込み",
+        tokenCacheRead: "キャッシュ読み込み",
+        tokenOutput: "出力",
+        reasoningFormat: "うち推論 %@",
+        skillsTitle: "スキル",
+        back: "戻る",
+        skillsByYou: "自分で起動",
+        skillsByAgent: "エージェントが呼び出し")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1278,7 +1401,17 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        tokensTitle: "토큰",
+        tokenInput: "입력",
+        tokenCacheWrite: "캐시 쓰기",
+        tokenCacheRead: "캐시 읽기",
+        tokenOutput: "출력",
+        reasoningFormat: "추론 %@ 포함",
+        skillsTitle: "스킬",
+        back: "뒤로",
+        skillsByYou: "직접 시작",
+        skillsByAgent: "에이전트가 호출")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1371,7 +1504,17 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        tokensTitle: "令牌",
+        tokenInput: "输入",
+        tokenCacheWrite: "缓存写入",
+        tokenCacheRead: "缓存读取",
+        tokenOutput: "输出",
+        reasoningFormat: "含 %@ 推理",
+        skillsTitle: "技能",
+        back: "返回",
+        skillsByYou: "由你启动",
+        skillsByAgent: "由代理调用")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1464,7 +1607,17 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        tokensTitle: "Token",
+        tokenInput: "輸入",
+        tokenCacheWrite: "快取寫入",
+        tokenCacheRead: "快取讀取",
+        tokenOutput: "輸出",
+        reasoningFormat: "含 %@ 推理",
+        skillsTitle: "技能",
+        back: "返回",
+        skillsByYou: "由你啟動",
+        skillsByAgent: "由代理呼叫")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1557,5 +1710,15 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        tokensTitle: "Token",
+        tokenInput: "輸入",
+        tokenCacheWrite: "快取寫入",
+        tokenCacheRead: "快取讀取",
+        tokenOutput: "輸出",
+        reasoningFormat: "含 %@ 推理",
+        skillsTitle: "技能",
+        back: "返回",
+        skillsByYou: "由你啟動",
+        skillsByAgent: "由代理呼叫")
 }
