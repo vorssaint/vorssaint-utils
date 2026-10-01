@@ -170,7 +170,7 @@ final class NotchLockScreenService {
         if stopsSources, !scene.isEmpty {
             NotchMusicService.shared.stop()
             NotchDownloadService.shared.stop()
-            NotchCalendarService.shared.stop()
+            if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
             AgentUsageService.shared.pause()
         }
         playbackSubscription = nil

@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager, agents
+         commandBar, screenRecorder, portManager, agents, calendar
 
     var id: String { rawValue }
 
@@ -577,6 +577,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .commandBar: return .commandBar
         case .portManager: return .portManager
         case .agents: return .notchAgents
+        case .calendar: return .notchCalendar
         }
     }
 }
@@ -616,6 +617,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @AppStorage(DefaultsKey.panelUtilityAgents) private var showAgents = true
+    @AppStorage(DefaultsKey.panelUtilityCalendar) private var showCalendar = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -784,6 +786,7 @@ struct UtilitiesSection: View {
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
         case .agents: return showAgents
+        case .calendar: return showCalendar
         }
     }
 
@@ -1029,14 +1032,24 @@ struct UtilitiesSection: View {
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
         case .agents:
-            UtilityActionButton(title: FeatureStrings.notchAgents(l10n.language).title,
-                                caption: FeatureStrings.notchAgents(l10n.language).restingTitle,
-                                systemImage: "sparkles",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showAgents,
-                                action: { islandPage = .agents })
+            islandPageButton(.agents, caption: FeatureStrings.notchAgents(l10n.language).restingTitle,
+                             visibility: $showAgents, editing: editing)
+        case .calendar:
+            islandPageButton(.calendar, caption: FeatureStrings.notchCalendar(l10n.language).week,
+                             visibility: $showCalendar, editing: editing)
         }
+    }
+
+    /// Opens one of the island's pages here, with or without the island.
+    private func islandPageButton(_ module: NotchModule, caption: String, visibility: Binding<Bool>,
+                                  editing: Bool) -> some View {
+        UtilityActionButton(title: module.title(l10n.language),
+                            caption: caption,
+                            systemImage: module.symbol,
+                            isEditing: editing,
+                            showsDragHandle: true,
+                            visibility: visibility,
+                            action: { islandPage = module })
     }
 
     /// The row's key hint: only when the shortcut is actually REGISTERED,
@@ -1114,6 +1127,7 @@ struct UtilitiesSection: View {
         showCommandBar = true
         showPortManager = true
         showAgents = true
+        showCalendar = true
     }
 
     private func grantAccessibility() {

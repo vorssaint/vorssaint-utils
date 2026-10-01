@@ -105,11 +105,13 @@ enum NotchCalendarSupport {
         hasError || ![.fullAccess, .denied, .restricted].contains(status)
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults)
-            && AppFeature.notchCalendar.isAvailable(in: defaults)
+    /// The island reads for its Calendar page; a visible menu panel page
+    /// reads without it.
+    static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        AppFeature.notchCalendar.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchCalendarEnabled)
-            && NotchSupport.modules(in: defaults).contains(.calendar)
+            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
+                && NotchSupport.modules(in: defaults).contains(.calendar)))
     }
 
     static func showsCountdown(in defaults: UserDefaults = .standard) -> Bool {

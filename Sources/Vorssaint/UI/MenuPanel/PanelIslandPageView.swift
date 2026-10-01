@@ -46,6 +46,8 @@ struct PanelIslandPageView: View {
                 page(CGSize(width: proxy.size.width, height: pageHeight))
             }
             .frame(height: pageHeight)
+            // Like the preview in Settings, the panel leaves the island's state and keys alone.
+            .environment(\.notchSettingsPreview, true)
         }
         .onAppear { syncReader() }
         .onChange(of: isVisible) { _, _ in syncReader() }
@@ -64,6 +66,7 @@ struct PanelIslandPageView: View {
     @ViewBuilder private func page(_ size: CGSize) -> some View {
         switch module {
         case .agents: NotchAgentsView(size: size)
+        case .calendar: NotchCalendarView(size: size)
         default: EmptyView()
         }
     }

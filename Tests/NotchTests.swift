@@ -2303,6 +2303,22 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.notchCalendar.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
+        defaults.set("calendar", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchCalendarSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchCalendarSupport.showsCountdown(in: defaults),
+                     "a calendar open in the menu panel reads without the island, and leaves no titles in it")
+        defaults.set(false, forKey: DefaultsKey.notchCalendarEnabled)
+        suite.expect(!NotchCalendarSupport.isEnabled(in: defaults, panelVisible: true),
+                     "a calendar turned off does not read for the panel either")
+        defaults.set(true, forKey: DefaultsKey.notchCalendarEnabled)
+        defaults.set(false, forKey: AppFeature.notchCalendar.availabilityKey)
+        suite.expect(!NotchCalendarSupport.isEnabled(in: defaults, panelVisible: true),
+                     "a calendar removed from the hub does not read for the panel either")
+        defaults.set(true, forKey: AppFeature.notchCalendar.availabilityKey)
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityCalendar] as? Bool == true
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.panelUtilityCalendar),
+                     "the panel's calendar entry is shown by default and travels in backup")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
                                                                  DefaultsKey.notchCalendarTimeLeft,

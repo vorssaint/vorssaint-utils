@@ -247,7 +247,8 @@ struct NotchCalendarView: View {
                     Button(text.settings) { permissions.openCalendarSettings() }
                 } else {
                     Button(text.allow) {
-                        NotchService.shared.open(.calendar)
+                        // The island stays open under the prompt; elsewhere it is left alone.
+                        if !preview { NotchService.shared.open(.calendar) }
                         permissions.requestCalendar()
                     }
                     .disabled(permissions.requestingCalendar)

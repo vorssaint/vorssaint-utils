@@ -176,6 +176,8 @@ final class NotchService: ObservableObject {
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
     }
     private var running = false
+    /// The island is up and its pages' services follow its preferences.
+    private var servesPages = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
     @Published private(set) var hiddenInFullscreen = false {
@@ -818,6 +820,7 @@ final class NotchService: ObservableObject {
         // the lid is closed does not start and stop them all again.
         guard screenIndex(in: NSScreen.screens) != nil else { withdrawFromMissingScreen(); return }
         refreshModules()
+        servesPages = true
         NotchDownloadService.shared.syncWithPreferences()
         NotchCalendarService.shared.syncWithPreferences()
         NotchNotificationService.shared.syncWithPreferences()
@@ -921,8 +924,10 @@ final class NotchService: ObservableObject {
         NotchAudioLevelService.shared.stop()
         CameraPreviewService.shared.hideEmbedded()
         NotchAccessoryService.shared.suspend()
+        servesPages = false
         NotchDownloadService.shared.stop()
-        NotchCalendarService.shared.stop()
+        // A page open in the menu panel keeps reading without the island.
+        if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
         NotchNotificationService.shared.stop()
         AgentUsageService.shared.pause()
         settingsSignature = ""
@@ -1723,6 +1728,12 @@ final class NotchService: ObservableObject {
     func panelDemandChanged(_ module: NotchModule) {
         switch module {
         case .agents: AgentUsageService.shared.panelDemandChanged()
+        case .calendar:
+            if servesPages || PanelModuleDemand.shared.shows(.calendar) {
+                NotchCalendarService.shared.syncWithPreferences()
+            } else {
+                NotchCalendarService.shared.stop()
+            }
         default: break
         }
     }
