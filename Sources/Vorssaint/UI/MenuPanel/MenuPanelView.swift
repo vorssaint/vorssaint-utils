@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads
+         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads, notifications
 
     var id: String { rawValue }
 
@@ -580,6 +580,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .calendar: return .notchCalendar
         case .timer: return .notchTimer
         case .downloads: return .notchDownloads
+        case .notifications: return .notchNotifications
         }
     }
 }
@@ -622,6 +623,8 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCalendar) private var showCalendar = true
     @AppStorage(DefaultsKey.panelUtilityTimer) private var showTimer = true
     @AppStorage(DefaultsKey.panelUtilityDownloads) private var showDownloads = true
+    /// Showing the entry keeps an inbox in the background, so it is opted into.
+    @AppStorage(DefaultsKey.panelUtilityNotifications) private var showNotifications = false
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -700,6 +703,8 @@ struct UtilitiesSection: View {
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
         }
+        // The entry's inbox starts and ends with the entry itself.
+        .onChange(of: showNotifications) { NotchNotificationService.shared.syncWithPreferences() }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
             // tool off screen with it; a closed panel does not, and keeps it.
@@ -793,6 +798,7 @@ struct UtilitiesSection: View {
         case .calendar: return showCalendar
         case .timer: return showTimer
         case .downloads: return showDownloads
+        case .notifications: return showNotifications
         }
     }
 
@@ -1050,6 +1056,9 @@ struct UtilitiesSection: View {
         case .downloads:
             islandPageButton(.downloads, caption: FeatureStrings.notchFiles(l10n.language).inProgress,
                              visibility: $showDownloads, editing: editing)
+        case .notifications:
+            islandPageButton(.notifications, caption: FeatureStrings.notchNotifications(l10n.language).title,
+                             visibility: $showNotifications, editing: editing)
         }
     }
 
@@ -1143,6 +1152,7 @@ struct UtilitiesSection: View {
         showCalendar = true
         showTimer = true
         showDownloads = true
+        showNotifications = false
     }
 
     private func grantAccessibility() {

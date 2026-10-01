@@ -355,7 +355,8 @@ final class FeatureRuntime: ObservableObject {
         .notchLiveEqualizer: { NotchAudioLevelService.shared.syncWithPreferences() },
         .notchNotifications: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
-            else { NotchNotificationService.shared.stop() }
+            // The menu panel's inbox runs with or without the island.
+            NotchNotificationService.shared.syncWithPreferences()
         },
         .notchDownloads: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }

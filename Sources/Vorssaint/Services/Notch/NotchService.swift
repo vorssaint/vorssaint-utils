@@ -928,7 +928,9 @@ final class NotchService: ObservableObject {
         // A page open in the menu panel keeps reading without the island.
         if !PanelModuleDemand.shared.shows(.downloads) { NotchDownloadService.shared.stop() }
         if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
-        NotchNotificationService.shared.stop()
+        // The panel's own inbox ends its session on lock and sleep by itself.
+        if NotchNotificationSupport.readsForPanel() { NotchNotificationService.shared.syncWithPreferences() }
+        else { NotchNotificationService.shared.stop() }
         AgentUsageService.shared.pause()
         settingsSignature = ""
         expanded = false

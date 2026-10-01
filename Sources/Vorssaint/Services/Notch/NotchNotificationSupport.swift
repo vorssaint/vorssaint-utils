@@ -123,11 +123,24 @@ enum NotchNotificationSupport {
         return matches.count == 1 ? matches.first : nil
     }
 
+    /// The island mirrors banners and keeps them on its Notifications page.
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults)
             && AppFeature.notchNotifications.isAvailable(in: defaults)
             && defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled)
             && NotchSupport.modules(in: defaults).contains(.notifications)
+    }
+
+    /// The menu panel's entry, opted into on its own, keeps the same inbox
+    /// without the island; banners stay where the system puts them.
+    static func readsForPanel(in defaults: UserDefaults = .standard) -> Bool {
+        AppFeature.notchNotifications.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled)
+            && defaults.bool(forKey: DefaultsKey.panelUtilityNotifications)
+    }
+
+    static func reads(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) || readsForPanel(in: defaults)
     }
 
     static func content(from texts: [Text]) -> NotchNotificationContent? {

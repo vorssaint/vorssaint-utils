@@ -11,7 +11,7 @@ extension NotchNotificationReaderCore where Access == NotchNativeNotificationAcc
         let bundle = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")
         let closeTitle = bundle?.localizedString(forKey: "Close", value: "Close", table: "Localizable") ?? "Close"
         self.init(access: NotchNativeNotificationAccess(pid: pid),
-                  allowed: { !cancellation.isCancelled && NotchNotificationSupport.isEnabled() && AXIsProcessTrusted() },
+                  allowed: { !cancellation.isCancelled && NotchNotificationSupport.reads() && AXIsProcessTrusted() },
                   sourceApplicationName: { labels in
                       guard !labels.isEmpty else { return nil }
                       return NotchNotificationSources.source(for: labels)?.name
