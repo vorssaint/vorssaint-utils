@@ -262,9 +262,9 @@ enum AgentPricing {
 
     /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
     /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
-    /// model no list knows yet still reads well, including the many providers
-    /// OpenCode records ("nvidia/nemotron-3-super-120b-a12b" reads
-    /// "Nemotron 3 Super").
+    /// model no list knows yet still reads well, including the many
+    /// providers OpenCode records ("acme/zeta-3-ultra-120b-a12b" reads
+    /// "Zeta 3 Ultra 120B A12B").
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
@@ -295,11 +295,17 @@ enum AgentPricing {
         }
         // Any other family, as OpenCode's providers record them: drop a
         // snapshot date and title-case the rest, keeping version numbers.
+        // A leading letter and digit, like the o series, keeps the form it
+        // is written in.
         var parts = id.split(separator: "-").map(String.init)
         parts.removeAll { $0 == "latest" }
         parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
         guard !parts.isEmpty else { return id }
-        return parts.map { part in
+        return parts.enumerated().map { offset, part in
+            if offset == 0, part.count >= 2, part.first?.isLetter == true,
+               part.dropFirst().first?.isNumber == true {
+                return part
+            }
             // A version like "3.5", "120b" or "a12b" keeps its shape; words read.
             if part.first?.isNumber == true || part.count <= 2 { return part.uppercased() == part ? part : part.capitalized }
             return part.capitalized

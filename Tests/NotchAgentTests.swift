@@ -464,7 +464,7 @@ enum NotchAgentTests {
                                         error: [String: Any]? = nil) -> [String: Any] {
         var time: [String: Any] = ["created": NSNumber(value: created)]
         if let completed { time["completed"] = NSNumber(value: completed) }
-        var message: [String: Any] = ["role": role, "modelID": model, "providerID": "nvidia",
+        var message: [String: Any] = ["role": role, "modelID": model, "providerID": "acme",
                                       "path": ["cwd": cwd, "root": cwd],
                                       "cost": NSNumber(value: cost),
                                       "tokens": ["input": input, "output": output, "reasoning": reasoning,
@@ -516,7 +516,7 @@ enum NotchAgentTests {
                      "reasoning joins output in the total while staying visible on its own")
         let reasoningOnly = AgentOpenCodeParser.entries(
             messageID: "m-reason", sessionID: "s",
-            data: opencodeMessage(role: "assistant", model: "muse-spark-1.3-contributor-free",
+            data: opencodeMessage(role: "assistant", model: "acme/spark-1.3-contributor-free",
                                   input: 0, output: 0, reasoning: 9, cost: 0),
             directory: nil, now: now)
         let reasoningRecord = reasoningOnly.compactMap { if case .usage(_, let record, _) = $0 { return record }; return nil }.first
@@ -580,11 +580,11 @@ enum NotchAgentTests {
         // Anything the list does not name shows what OpenCode recorded, even zero.
         let free = AgentOpenCodeParser.entries(messageID: "m2", sessionID: "s",
                                                data: opencodeMessage(role: "assistant",
-                                                                     model: "muse-spark-1.3-contributor-free",
+                                                                     model: "acme/spark-1.3-contributor-free",
                                                                      input: 50, output: 10, cost: 0),
                                                directory: nil, now: now)
         let freeRecord = free.compactMap { if case .usage(_, let record, _) = $0 { return record }; return nil }.first
-        suite.expect(freeRecord?.cost == 0 && freeRecord?.model == "muse-spark-1.3-contributor-free",
+        suite.expect(freeRecord?.cost == 0 && freeRecord?.model == "acme/spark-1.3-contributor-free",
                      "an unlisted model shows the actual cost OpenCode recorded")
         // A placeholder without tokens is still work going on, without usage.
         let placeholder = AgentOpenCodeParser.entries(messageID: "m3", sessionID: "s", data: [
@@ -603,10 +603,13 @@ enum NotchAgentTests {
                         == URL(fileURLWithPath: "/Users/me/.local/share/opencode/opencode.db"),
                      "the database lives where OpenCode keeps it")
         // Names read the way people say them, without the provider prefix.
-        suite.expect(AgentPricing.displayName("nvidia/nemotron-3-super-120b-a12b") == "Nemotron 3 Super 120B A12B"
-                        && AgentPricing.displayName("muse-spark-1.3-contributor-free") == "Muse Spark 1.3 Contributor Free"
-                        && AgentPricing.displayName("moonshotai/kimi-k3") == "Kimi K3",
+        suite.expect(AgentPricing.displayName("acme/zeta-3-ultra-120b-a12b") == "Zeta 3 Ultra 120B A12B"
+                        && AgentPricing.displayName("acme/spark-1.3-contributor-free") == "Spark 1.3 Contributor Free"
+                        && AgentPricing.displayName("acme/kappa-k3") == "Kappa K3",
                      "OpenCode models read without their provider and snapshot dates")
+        suite.expect(AgentPricing.displayName("o3") == "o3" && AgentPricing.displayName("o3-pro") == "o3 Pro"
+                        && AgentPricing.displayName("o4-mini") == "o4 Mini",
+                     "a leading letter and digit keeps the form it is written in")
 
         // Turns flow through the store like the other agents'.
         let store = AgentUsageStore()
@@ -644,10 +647,10 @@ enum NotchAgentTests {
         // A newer price list reprices list-derived values while recorded
         // charges stay, and a model the list learns becomes priced.
         let listedBefore = store.records.first { $0.model == "gpt-6-sol" }?.cost
-        let freeBefore = store.records.first { $0.model == "muse-spark-1.3-contributor-free" }?.cost
+        let freeBefore = store.records.first { $0.model == "acme/spark-1.3-contributor-free" }?.cost
         store.reprice()
         suite.expect(store.records.first { $0.model == "gpt-6-sol" }?.cost == listedBefore
-                        && store.records.first { $0.model == "muse-spark-1.3-contributor-free" }?.cost == freeBefore,
+                        && store.records.first { $0.model == "acme/spark-1.3-contributor-free" }?.cost == freeBefore,
                      "repricing keeps list prices and recorded charges alike")
         // Growing tokens on an unlisted model keep the latest reported charge,
         // and a charge that arrives after the tokens counts on its own.
@@ -655,9 +658,9 @@ enum NotchAgentTests {
         let chargeFile = "opencode:charges"
         func chargeUsage(tokens: AgentTokens, cost: Double?) -> [AgentLogEntry] {
             let billable = AgentBillable(tokens: tokens, reportedCost: cost)
-            let priced = AgentPricing.cost(billable, model: "muse-spark-1.3-contributor-free")
+            let priced = AgentPricing.cost(billable, model: "acme/spark-1.3-contributor-free")
             return [.usage(key: "opencode:growing",
-                           record: AgentUsageRecord(provider: .opencode, date: now, model: "muse-spark-1.3-contributor-free",
+                           record: AgentUsageRecord(provider: .opencode, date: now, model: "acme/spark-1.3-contributor-free",
                                                     project: "app", session: "s", tokens: tokens,
                                                     cost: priced.cost ?? cost, savings: priced.savings),
                            billable: billable)]
@@ -703,7 +706,8 @@ enum NotchAgentTests {
     }
 
     /// A throwaway OpenCode database with just the tables the reader queries.
-    private static func opencodeDatabase(home: URL, sessions: [(id: String, parent: String?, directory: String)],
+    private static func opencodeDatabase(home: URL, sessions: [(id: String, parent: String?, directory: String,
+                                                                created: Int64)],
                                          messages: [(id: String, session: String, created: Int64,
                                                      updated: Int64, data: [String: Any])]) -> Bool {
         let dir = home.appending(path: ".local/share/opencode", directoryHint: .isDirectory)
@@ -713,13 +717,16 @@ enum NotchAgentTests {
         guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else { return false }
         defer { sqlite3_close(db) }
         func exec(_ sql: String) -> Bool { sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK }
-        guard exec("CREATE TABLE session(id TEXT PRIMARY KEY, parent_id TEXT, directory TEXT)") else { return false }
+        guard exec("CREATE TABLE session(id TEXT PRIMARY KEY, parent_id TEXT, directory TEXT, time_created INTEGER)") else {
+            return false
+        }
         guard exec("CREATE TABLE message(id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT)") else {
             return false
         }
         for session in sessions {
             let parent = session.parent.map { "'\($0)'" } ?? "NULL"
-            guard exec("INSERT INTO session(id, parent_id, directory) VALUES('\(session.id)', \(parent), '\(session.directory)')") else {
+            guard exec("INSERT INTO session(id, parent_id, directory, time_created)" +
+                       " VALUES('\(session.id)', \(parent), '\(session.directory)', \(session.created))") else {
                 return false
             }
         }
@@ -784,7 +791,7 @@ enum NotchAgentTests {
         }
         let base: Int64 = 1_790_000_000_000
         guard opencodeDatabase(
-            home: home, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            home: home, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
             messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
                        (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
                         data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000))]) else {
@@ -820,7 +827,7 @@ enum NotchAgentTests {
         let rewrites = FileManager.default.temporaryDirectory.appending(path: "vorss-rewrites-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: rewrites) }
         guard opencodeDatabase(
-            home: rewrites, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            home: rewrites, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
             messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
                        (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
                         data: assistantData(finish: "tool-calls", created: base + 5_000, updated: base + 8_000))]) else {
@@ -844,30 +851,16 @@ enum NotchAgentTests {
         let workingTokens = rewriteStore.live.first?.tokens.total
         suite.expect(updateMessage(home: rewrites, id: "u1", updated: base + 20_000, data: userData(at: base)),
                      "the fixture rewrites the prompt row")
-        suite.expect(rewriteDrain().isEmpty && rewriteStore.live.count == 1
+        let rewritten = rewriteDrain()
+        suite.expect(rewritten.isEmpty && rewriteStore.live.count == 1
                         && rewriteStore.live.first?.tokens.total == workingTokens,
-                     "a prompt rewritten between steps keeps the turn and its tokens")
-        suite.expect(updateMessage(home: rewrites, id: "m1", updated: base + 30_000,
-                                    data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000)),
-                     "the fixture completes the reply")
-        let stopDrain = rewriteDrain()
-        suite.expect(stopDrain.count == 1 && rewriteStore.live.isEmpty, "the final reply finishes the turn")
-        suite.expect(updateMessage(home: rewrites, id: "u1", updated: base + 40_000, data: userData(at: base)),
-                     "the fixture rewrites the prompt after the final reply")
-        let afterFinal = rewriteDrain()
-        suite.expect(afterFinal.isEmpty && rewriteStore.live.isEmpty && rewriteStore.records.count == 1,
-                     "a prompt rewritten after the final reply opens no ghost turn")
+                     "a prompt rewritten between steps hands over nothing and keeps the turn")
         // A compaction reply in the middle of a task counts its spend
         // without ending the turn.
         var compaction = opencodeMessage(role: "assistant", model: "gpt-6-sol", input: 600, output: 20,
                                          cost: 1.5, created: base + 50_000, completed: base + 55_000, finish: "stop")
         compaction["mode"] = "compaction"
         compaction["summary"] = true
-        suite.expect(updateMessage(home: rewrites, id: "m1", updated: base + 30_000,
-                                    data: assistantData(finish: "tool-calls", created: base + 5_000,
-                                                        updated: base + 8_000)),
-                     "the fixture returns the reply to a step")
-        _ = rewriteDrain()
         guard opencodeDatabaseAppend(home: rewrites, messages: [
             (id: "mc", session: "s", created: base + 50_000, updated: base + 55_000, data: compaction)]) else {
             suite.expect(false, "the OpenCode fixture appends its compaction reply")
@@ -876,12 +869,102 @@ enum NotchAgentTests {
         let compactionEvents = rewriteDrain()
         suite.expect(compactionEvents.isEmpty && rewriteStore.live.count == 1 && rewriteStore.records.count == 2,
                      "a compaction reply joins the working turn with no notice")
+        suite.expect(updateMessage(home: rewrites, id: "m1", updated: base + 30_000,
+                                    data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000)),
+                     "the fixture completes the reply")
+        let stopDrain = rewriteDrain()
+        suite.expect(stopDrain.count == 1 && rewriteStore.live.isEmpty, "the final reply finishes the turn")
+        suite.expect(updateMessage(home: rewrites, id: "u1", updated: base + 40_000, data: userData(at: base)),
+                     "the fixture rewrites the prompt after the final reply")
+        let afterFinal = rewriteDrain()
+        suite.expect(afterFinal.isEmpty && rewriteStore.live.isEmpty && rewriteStore.records.count == 2,
+                     "a prompt rewritten after the final reply opens no ghost turn")
+        // A prompt that arrives late with an older time than a reply the
+        // session already applied is a rewrite out of order, never a turn.
+        guard opencodeDatabaseAppend(home: rewrites, messages: [
+            (id: "u-old", session: "s", created: base - 100_000, updated: base + 60_000,
+             data: userData(at: base - 100_000))]) else {
+            suite.expect(false, "the OpenCode fixture inserts its late prompt")
+            return
+        }
+        let lateDrain = rewriteDrain()
+        suite.expect(lateDrain.isEmpty && rewriteStore.live.isEmpty && rewriteStore.records.count == 2,
+                     "a late prompt older than an applied reply never applies")
+        // A forked session copies its source under new ids while every copy
+        // keeps its old creation time, cost and tokens. None of it applies.
+        let forked = FileManager.default.temporaryDirectory.appending(path: "vorss-fork-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: forked) }
+        guard opencodeDatabase(
+            home: forked,
+            sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base),
+                       (id: "fk", parent: nil, directory: "/Users/me/code/app", created: base + 500_000)],
+            messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
+                       (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
+                        data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000)),
+                       (id: "fu", session: "fk", created: base, updated: base + 500_000, data: userData(at: base)),
+                       (id: "fm", session: "fk", created: base + 5_000, updated: base + 500_000,
+                        data: assistantData(finish: "stop", created: base + 5_000, updated: base + 500_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its fork database")
+            return
+        }
+        var forkCursor = AgentOpenCodeCursor()
+        let forkStore = AgentUsageStore()
+        forkStore.reportsTransitions = true
+        var forkEvents: [AgentUsageEvent] = []
+        _ = AgentOpenCodeReader.read(home: forked, cursor: &forkCursor, now: now, shouldContinue: { true }) { batch in
+            forkEvents += forkStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                          provider: .opencode, tracksTurns: true, modified: now, now: now)
+            return true
+        }
+        suite.expect(forkEvents.count == 1 && forkStore.records.count == 1 && forkStore.live.isEmpty,
+                     "copied rows never count twice and never replay a notice")
+        // A stopped scan resumes where it left off, without losing rows or
+        // replaying lifecycle transitions.
+        let resumed = FileManager.default.temporaryDirectory.appending(path: "vorss-resume-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: resumed) }
+        var pairs: [(id: String, session: String, created: Int64, updated: Int64, data: [String: Any])] = []
+        for step in 0..<40 {
+            let moment = base + Int64(step) * 10_000
+            pairs.append((id: "ru\(step)", session: "s", created: moment, updated: moment, data: userData(at: moment)))
+            pairs.append((id: "rm\(step)", session: "s", created: moment + 5_000, updated: moment + 8_000,
+                          data: assistantData(finish: "tool-calls", created: moment + 5_000, updated: moment + 8_000)))
+        }
+        guard opencodeDatabase(
+            home: resumed, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
+            messages: pairs) else {
+            suite.expect(false, "the OpenCode fixture creates its resume database")
+            return
+        }
+        var resumeCursor = AgentOpenCodeCursor()
+        let resumeStore = AgentUsageStore()
+        resumeStore.reportsTransitions = true
+        var resumeEvents = 0
+        var budget = 25
+        let stopped = AgentOpenCodeReader.read(home: resumed, cursor: &resumeCursor, now: now, shouldContinue: {
+            budget -= 1
+            return budget >= 0
+        }) { batch in
+            resumeEvents += resumeStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                              provider: .opencode, tracksTurns: true, modified: now, now: now).count
+            return true
+        }
+        suite.expect(!stopped.complete, "a stopped scan reports itself incomplete")
+        budget = 1_000_000
+        let resumedRead = AgentOpenCodeReader.read(home: resumed, cursor: &resumeCursor, now: now,
+                                                   shouldContinue: { true }) { batch in
+            resumeEvents += resumeStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                              provider: .opencode, tracksTurns: true, modified: now, now: now).count
+            return true
+        }
+        suite.expect(resumedRead.complete && resumeStore.records.count == 40 && resumeEvents == 0
+                        && resumeStore.live.count == 1,
+                     "a resumed scan loses no rows and replays no lifecycle")
         // A prompt after long silence quietly closes the stale turn and
         // opens a fresh one, with no finished notice for the idle time.
         let quietHome = FileManager.default.temporaryDirectory.appending(path: "vorss-quiet-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: quietHome) }
         guard opencodeDatabase(
-            home: quietHome, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app")],
+            home: quietHome, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
             messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
                        (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
                         data: assistantData(finish: "tool-calls", created: base + 5_000, updated: base + 8_000)),
@@ -915,7 +998,7 @@ enum NotchAgentTests {
         try? FileManager.default.removeItem(at: at)
         let older: Int64 = 1_785_000_000_000
         guard opencodeDatabase(
-            home: home, sessions: [(id: "s2", parent: nil, directory: "/Users/me/code/old")],
+            home: home, sessions: [(id: "s2", parent: nil, directory: "/Users/me/code/old", created: older)],
             messages: [(id: "u2", session: "s2", created: older, updated: older, data: userData(at: older))]) else {
             suite.expect(false, "the OpenCode fixture replaces its database")
             return
@@ -927,6 +1010,7 @@ enum NotchAgentTests {
         }
         suite.expect(replaced.reset && replacedSessions == ["s2"],
                      "a replaced database resets the watermark instead of staying stale")
+        suite.expect(cursor.parents == ["s2": ""], "replacement clears the old parent links")
         var forgotten = false
         for file in store.liveFiles(for: .opencode) { forgotten = store.forget(file: file) || forgotten }
         suite.expect(forgotten && store.live.isEmpty && store.records.count == 1,
@@ -951,8 +1035,8 @@ enum NotchAgentTests {
         // A subagent session joins its root turn through the reader.
         guard opencodeDatabase(
             home: home,
-            sessions: [(id: "r", parent: nil, directory: "/Users/me/code/app"),
-                       (id: "c", parent: "r", directory: "/Users/me/code/app")],
+            sessions: [(id: "r", parent: nil, directory: "/Users/me/code/app", created: base),
+                       (id: "c", parent: "r", directory: "/Users/me/code/app", created: base)],
             messages: [(id: "ru", session: "r", created: base, updated: base, data: userData(at: base)),
                        (id: "rm", session: "r", created: base + 1_000, updated: base + 2_000,
                         data: assistantData(finish: "tool-calls", created: base + 1_000, updated: base + 2_000)),

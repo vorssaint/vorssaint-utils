@@ -4,11 +4,12 @@
 import Combine
 import Foundation
 
-/// Reads Claude Code and Codex usage from their local session logs while the
-/// AI section is on, along with the plan limits the Claude app saves. The
-/// files are read where they are, incrementally, and nothing is copied,
-/// stored or sent: only counters stay in memory. The one request it makes
-/// fetches the public price list, when the person keeps prices up to date.
+/// Reads Claude Code and Codex usage from their local session logs, and
+/// OpenCode usage from its local database, while the AI section is on,
+/// along with the plan limits the Claude app saves. The files are read
+/// where they are, incrementally, and nothing is copied, stored or sent:
+/// only counters stay in memory. The one request it makes fetches the
+/// public price list, when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue only
 /// ever hand work to each other asynchronously.

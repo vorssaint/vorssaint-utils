@@ -86,7 +86,7 @@ struct NotchAgentsSettingsControls: View {
                 .padding(.leading, settingsRowTextInset)
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
-                                      provider: claude || !codex ? .claude : .codex)
+                                      provider: claude ? .claude : codex ? .codex : .opencode)
                     .padding(.leading, settingsRowTextInset)
             }
 

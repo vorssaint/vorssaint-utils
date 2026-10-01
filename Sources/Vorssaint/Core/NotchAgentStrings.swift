@@ -1004,7 +1004,7 @@ extension NotchAgentStrings {
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
         hubDescription: "Claude, Codex ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code, Codex ve OpenCode’in bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        settingsDescription: "Claude Code, Codex ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1189,8 +1189,8 @@ extension NotchAgentStrings {
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude, Codex, OpenCode의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code, Codex, OpenCode가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex 및 OpenCode의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex 및 OpenCode가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1216,7 +1216,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
         noActivity: "이 기간에는 기록이 없습니다",
-        empty: "아직 Claude Code, Codex, OpenCode 사용량이 없습니다. 셋 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
+        empty: "아직 Claude Code, Codex 및 OpenCode 사용량이 없습니다. 셋 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
         unpriced: "일부 모델은 가격을 알 수 없어 최소 금액으로 표시합니다.",
