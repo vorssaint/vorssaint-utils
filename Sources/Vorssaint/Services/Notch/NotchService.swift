@@ -161,6 +161,9 @@ final class NotchService: ObservableObject {
     /// floats beside the island. Read with the floating buttons rather than on
     /// every layout pass, which would decode them each time.
     private var headerShowsSectionsButton = false
+    private var showsApprovalRequest: Bool {
+        expanded && selected == .agents && ClaudeApprovalService.shared.pending != nil
+    }
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
@@ -173,6 +176,9 @@ final class NotchService: ObservableObject {
             || (expanded && !showingSections && selected == .files && fileInteractionActive)
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
             || (expanded && !showingSections && selected == .captures && captureContent != nil)
+            // A Claude Code request waits for its own buttons, not a click away,
+            // even while another section is shown: the closed island has no room for it.
+            || (expanded && ClaudeApprovalService.shared.pending != nil)
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
     }
     private var running = false
@@ -589,12 +595,14 @@ final class NotchService: ObservableObject {
     /// The AI page is as tall as the cards it shows; nil while the logs are
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
+        if let pending = ClaudeApprovalService.shared.pending { return NotchAgentSupport.approvalCardHeight(for: pending) }
         let usage = AgentUsageService.shared.snapshot
         guard usage.loaded else { return nil }
         let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width),
+            boardRows: usage.sessions.count)
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -809,6 +817,9 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        // Not paused with the island: a waiting session should not depend on
+        // the display being awake to get its terminal prompt back.
+        ClaudeApprovalService.shared.syncWithPreferences()
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -878,6 +889,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        ClaudeApprovalService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -1501,7 +1513,8 @@ final class NotchService: ObservableObject {
     /// button does, a page closes the layer it shows, and the island closes
     /// once nothing lies behind.
     private func stepBack() {
-        guard captureControls == nil, !heldDrag else { return }
+        // Escape is never a Deny.
+        guard captureControls == nil, !heldDrag, !showsApprovalRequest else { return }
         if showingAppPanel || selectedMetric != nil {
             if detailHasPage { goBack() } else { collapse() }
         } else if let close = pageLayers[selected] {
@@ -3159,6 +3172,15 @@ final class NotchService: ObservableObject {
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
+                }.store(in: &subscriptions)
+            // The panel never activates, so the terminal keeps the keyboard.
+            ClaudeApprovalService.shared.$pending.map { $0?.id }.removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] id in
+                    guard let self else { return }
+                    if id != nil { self.open(.agents, takeFocus: false) }
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {

@@ -151,6 +151,10 @@ struct NotchQuickAccessView: View {
                     Circle().strokeBorder(.white.opacity(selected || contrast == .increased ? 0.6 : 0.16), lineWidth: 0.75)
                         .allowsHitTesting(false)
                 }
+                .overlay(alignment: .topTrailing) {
+                    // A session waits on the AI page: a request, or a finished turn.
+                    if action == .module(.agents) { NotchAgentNeedsYouBadge(size: 8) }
+                }
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchQuickAccessLayout.diameter / 2))

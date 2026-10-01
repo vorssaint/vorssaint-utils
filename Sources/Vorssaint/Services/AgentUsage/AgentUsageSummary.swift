@@ -94,6 +94,8 @@ struct AgentUsageSnapshot: Equatable {
     var limits: [AgentProvider: AgentLimits] = [:]
     var plans: [AgentProvider: AgentPlan] = [:]
     var live: [AgentLiveSession] = []
+    /// Every session on the board, working or not.
+    var sessions: [AgentSessionRow] = []
     var claudeBlock: AgentBlock?
     /// The last half hour, scaled to an hour.
     var burnRate: [AgentProvider: AgentTotals] = [:]
@@ -208,6 +210,7 @@ enum AgentUsageSummary {
     static func movesWithClock(_ snapshot: AgentUsageSnapshot, now: Date,
                                calendar: Calendar = .autoupdatingCurrent) -> Bool {
         !snapshot.burnRate.isEmpty || snapshot.claudeBlock != nil || !calendar.isDate(snapshot.now, inSameDayAs: now)
+            || AgentSessionBoard.movesWithClock(snapshot.sessions, from: snapshot.now, to: now)
     }
 
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {

@@ -124,6 +124,9 @@ struct NotchSectionsView: View {
             .overlay {
                 shape.strokeBorder(.white.opacity(highlighted ? 0.55 : contrast == .increased ? 0.4 : 0.04), lineWidth: 1)
             }
+            .overlay(alignment: .topLeading) {
+                if module == .agents { NotchAgentNeedsYouBadge(size: 7).padding(8) }
+            }
             .overlay(alignment: .topTrailing) {
                 if current {
                     Image(systemName: "checkmark.circle.fill")
