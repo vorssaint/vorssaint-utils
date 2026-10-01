@@ -230,6 +230,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // narrow space some layouts put on that combination.
     static let commandBarDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                   modifiers: [.option])
+    // G for grid, on the same free control-option-command layer.
+    static let launchpadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_G),
+                                                 modifiers: [.control, .option, .command])
     // Next to the screenshot's 4, on the same free control-option-command
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
@@ -714,6 +717,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case scratchpad
     case snippetLibrary
     case commandBar
+    case launchpad
     case screenRecorder
     case displayBrightnessDecrease
     case displayBrightnessIncrease
@@ -748,6 +752,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
+        case .launchpad: return DefaultsKey.launchpadShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .displayBrightnessDecrease: return DefaultsKey.displayBrightnessDecreaseShortcut
         case .displayBrightnessIncrease: return DefaultsKey.displayBrightnessIncreaseShortcut
@@ -782,6 +787,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
+        case .launchpad: return .launchpadDefault
         case .screenRecorder: return .screenRecorderDefault
         case .displayBrightnessDecrease: return .displayBrightnessDecreaseDefault
         case .displayBrightnessIncrease: return .displayBrightnessIncreaseDefault
@@ -841,6 +847,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .launchpad: return FeatureStrings.launchpad(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .displayBrightnessDecrease:
             return FeatureStrings.brightness(L10n.shared.language).displayBrightnessDecrease
@@ -902,6 +909,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
+        case .launchpad: return [DefaultsKey.launchpadShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .displayBrightnessDecrease, .displayBrightnessIncrease:
             return [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayBrightnessShortcutsEnabled]
@@ -935,6 +943,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
+        case .launchpad: return .launchpad
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness

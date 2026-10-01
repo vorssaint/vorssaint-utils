@@ -539,6 +539,7 @@ struct SettingsView: View {
         case .notch: NotchSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
+        case .launchpad: LaunchpadSettings()
         case .energy: EnergySettings(focus: router.destination.sectionAnchor)
         case .monitor: MonitorSettings()
         case .mouse: MouseSettings()

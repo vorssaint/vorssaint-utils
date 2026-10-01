@@ -366,6 +366,11 @@ enum SettingsDirectory {
                                                  FeatureStrings.commandBar(language).searchPlaceholder,
                                                  FeatureStrings.commandBar(language).appCenterTitle,
                                                  FeatureStrings.commandBar(language).appAliasLabel]),
+                SettingsDirectoryItem(page: .launchpad,
+                                      title: FeatureStrings.launchpad(language).pageTitle,
+                                      icon: "square.grid.3x3.fill",
+                                      keywords: [FeatureStrings.launchpad(language).openButton,
+                                                 FeatureStrings.launchpad(language).searchPlaceholder]),
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),

@@ -284,6 +284,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift
+        Sources/Vorssaint/Services/Launchpad/LaunchpadAppSupport.swift
+        Sources/Vorssaint/Services/Launchpad/LaunchpadLayoutSupport.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
@@ -378,6 +380,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/Localizations/Strings+*.swift
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
+        Sources/Vorssaint/Core/LaunchpadStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
