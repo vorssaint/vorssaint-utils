@@ -328,10 +328,11 @@ struct NotchAgentHeatmap: View {
     }
 }
 
-/// Each agent's own mark, taken from its maker's app on this Mac: the
-/// monochrome image the app shows in the menu bar, or else the app's icon.
-/// None of that artwork ships with Vorssaint, so a Mac without the app
-/// keeps a symbol. Looked up once; the strip redraws every second.
+/// Each agent's own mark. Claude's is drawn from its vector. Codex's is
+/// taken from its maker's app on this Mac: the monochrome image the app
+/// shows in the menu bar, or else the app's icon; that artwork doesn't ship
+/// with Vorssaint, so a Mac without the app keeps a symbol. Looked up once;
+/// the strip redraws every second.
 enum AgentMarks {
     enum Mark {
         /// Drawn in the agent's color, like the symbol it replaces.
@@ -349,15 +350,12 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
-        for identifier in provider.appIdentifiers {
+        if provider == .claude { return AgentClaudeMark.image.map(Mark.template) }
+        for identifier in AgentCodexServer.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
-            if let bundle = Bundle(url: url) {
-                for name in provider.menuBarImageNames {
-                    if let image = bundle.image(forResource: name) {
-                        image.isTemplate = true
-                        return .template(image)
-                    }
-                }
+            if let image = Bundle(url: url)?.image(forResource: "chatgptTemplate") {
+                image.isTemplate = true
+                return .template(image)
             }
             return .icon(NSWorkspace.shared.icon(forFile: url.path))
         }
@@ -366,25 +364,9 @@ enum AgentMarks {
 }
 
 private extension AgentProvider {
-    /// The maker's desktop apps, the one that runs the agent first.
-    var appIdentifiers: [String] {
-        switch self {
-        case .claude: return [AgentClaudeAppUsage.bundleIdentifier]
-        case .codex: return AgentCodexServer.appIdentifiers
-        }
-    }
-
-    /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
+    /// The marks keep a margin, as the menu bar images do; the spark's thin
+    /// rays need more of the box than the knot to look the same size.
     var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
-
-    /// What those apps name the mark they show in the menu bar.
-    var menuBarImageNames: [String] {
-        switch self {
-        case .claude: return ["TrayIconTemplate"]
-        case .codex: return ["chatgptTemplate"]
-        }
-    }
 }
 
 /// An agent's mark at the size of the symbol it stands in for.
