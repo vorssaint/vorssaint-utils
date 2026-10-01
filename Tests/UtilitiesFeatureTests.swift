@@ -838,7 +838,7 @@ enum UtilitiesFeatureTests {
                "six distinct radial profile presets")
         suite.expect(RadialMenuProfilePreset.general.makeItems().count == 6
                 && RadialMenuProfilePreset.media.makeItems().count == 4
-                && RadialMenuProfilePreset.tools.makeItems().count == 6
+                && RadialMenuProfilePreset.tools.makeItems().count == 7
                 && RadialMenuProfilePreset.windowLayout.makeItems().count == 5
                 && RadialMenuProfilePreset.quickToggles.makeItems().count == 5
                 && RadialMenuProfilePreset.blank.makeItems().isEmpty,

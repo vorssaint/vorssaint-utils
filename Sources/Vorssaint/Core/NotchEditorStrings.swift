@@ -65,6 +65,7 @@ struct NotchEditorStrings {
     let downloadsSummary: String
     let scratchpadSummary: String
     let agentsSummary: String
+    let fastReaderSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -88,6 +89,7 @@ struct NotchEditorStrings {
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
+        case .fastReader: return fastReaderSummary
         }
     }
 }
@@ -156,7 +158,8 @@ extension FeatureStrings {
             cameraSummary: "A mirror to check yourself before a call.",
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
-            agentsSummary: "Claude Code and Codex usage, limits and costs."
+            agentsSummary: "Claude Code and Codex usage, limits and costs.",
+            fastReaderSummary: "A selection, played back one word at a time."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -219,7 +222,8 @@ extension FeatureStrings {
             cameraSummary: "Um espelho para se ver antes de uma chamada.",
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
-            agentsSummary: "Uso, limites e custos do Claude Code e do Codex."
+            agentsSummary: "Uso, limites e custos do Claude Code e do Codex.",
+            fastReaderSummary: "Uma seleção exibida palavra por palavra."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -282,7 +286,8 @@ extension FeatureStrings {
             cameraSummary: "Un espejo para verte antes de una llamada.",
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
-            agentsSummary: "Uso, límites y costes de Claude Code y Codex."
+            agentsSummary: "Uso, límites y costes de Claude Code y Codex.",
+            fastReaderSummary: "Una selección, mostrada palabra por palabra."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -345,7 +350,8 @@ extension FeatureStrings {
             cameraSummary: "Zrkadlo, v ktorom sa pred hovorom skontrolujete.",
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
-            agentsSummary: "Využitie, limity a náklady Claude Code a Codexu."
+            agentsSummary: "Využitie, limity a náklady Claude Code a Codexu.",
+            fastReaderSummary: "Označený text, zobrazovaný slovo po slove."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -408,7 +414,8 @@ extension FeatureStrings {
             cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
-            agentsSummary: "Nutzung, Limits und Kosten von Claude Code und Codex."
+            agentsSummary: "Nutzung, Limits und Kosten von Claude Code und Codex.",
+            fastReaderSummary: "Eine Auswahl, Wort für Wort abgespielt."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -471,7 +478,8 @@ extension FeatureStrings {
             cameraSummary: "Un miroir pour vous voir avant un appel.",
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
-            agentsSummary: "Utilisation, limites et coûts de Claude Code et Codex."
+            agentsSummary: "Utilisation, limites et coûts de Claude Code et Codex.",
+            fastReaderSummary: "Une sélection, affichée mot par mot."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -534,7 +542,8 @@ extension FeatureStrings {
             cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
-            agentsSummary: "Uso, limiti e costi di Claude Code e Codex."
+            agentsSummary: "Uso, limiti e costi di Claude Code e Codex.",
+            fastReaderSummary: "Una selezione, mostrata una parola alla volta."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -597,7 +606,8 @@ extension FeatureStrings {
             cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
-            agentsSummary: "Использование, лимиты и стоимость Claude Code и Codex."
+            agentsSummary: "Использование, лимиты и стоимость Claude Code и Codex.",
+            fastReaderSummary: "Выделенный текст, слово за словом."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -660,7 +670,8 @@ extension FeatureStrings {
             cameraSummary: "Aramadan önce kendinize bakmak için bir ayna.",
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
-            agentsSummary: "Claude Code ve Codex kullanımı, sınırları ve maliyetleri."
+            agentsSummary: "Claude Code ve Codex kullanımı, sınırları ve maliyetleri.",
+            fastReaderSummary: "Seçili metin, kelime kelime oynatılır."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -723,7 +734,8 @@ extension FeatureStrings {
             cameraSummary: "通話前に身だしなみを確認できるミラー。",
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
-            agentsSummary: "Claude CodeとCodexの使用量、上限、コスト。"
+            agentsSummary: "Claude CodeとCodexの使用量、上限、コスト。",
+            fastReaderSummary: "選択したテキストを1語ずつ表示。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -786,7 +798,8 @@ extension FeatureStrings {
             cameraSummary: "통화 전에 모습을 확인하는 거울.",
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
-            agentsSummary: "Claude Code와 Codex의 사용량, 한도, 비용."
+            agentsSummary: "Claude Code와 Codex의 사용량, 한도, 비용.",
+            fastReaderSummary: "선택한 텍스트를 한 단어씩 보여 줍니다."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -849,7 +862,8 @@ extension FeatureStrings {
             cameraSummary: "通话前照一照的镜子。",
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限额和费用。"
+            agentsSummary: "Claude Code 和 Codex 的用量、限额和费用。",
+            fastReaderSummary: "逐词播放所选文本。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -912,7 +926,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
+            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。",
+            fastReaderSummary: "逐字詞播放所選文字。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -975,7 +990,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
+            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。",
+            fastReaderSummary: "逐個字詞播放所選文字。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1038,7 +1054,8 @@ extension FeatureStrings {
             cameraSummary: "Дзеркало, щоб перевірити себе перед викликом.",
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
-            agentsSummary: "Використання Claude Code і Codex, ліміти й витрати."
+            agentsSummary: "Використання Claude Code і Codex, ліміти й витрати.",
+            fastReaderSummary: "Виділений текст, слово за словом."
         )
         }
     }

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import IOKit.ps
 import SwiftUI
@@ -1388,6 +1389,27 @@ final class NotchService: ObservableObject {
         return true
     }
 
+    /// The reader's keys on its island page. The floating window installs a
+    /// monitor on its own panel, which never sees an event delivered to the
+    /// island, so the same keys have to be answered again here rather than
+    /// being inherited.
+    private func handleFastReaderKey(_ event: NSEvent) -> Bool {
+        guard selected == .fastReader, !showingAppPanel, !showingSections, selectedMetric == nil,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        else { return false }
+        let session = FastReaderSession.shared
+        guard !session.chunks.isEmpty else { return false }
+        switch Int(event.keyCode) {
+        case kVK_Space: session.toggle()
+        case kVK_LeftArrow: session.stepBackward()
+        case kVK_RightArrow: session.stepForward()
+        case kVK_UpArrow: FastReaderService.shared.nudgeSpeed(by: FastReaderEngine.wordsPerMinuteStep)
+        case kVK_DownArrow: FastReaderService.shared.nudgeSpeed(by: -FastReaderEngine.wordsPerMinuteStep)
+        default: return false
+        }
+        return true
+    }
+
     func activateQuickAction(_ action: NotchQuickAction) {
         guard NotchSupport.isEnabled(), action.isAvailable() else { return }
         switch action {
@@ -1409,6 +1431,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
+            case .fastReader: openFastReader()
             case .volume, .brightness: select(.controls)
             }
         }
@@ -1432,6 +1455,15 @@ final class NotchService: ObservableObject {
            selectedMetric == nil, panel?.isKeyWindow == true { collapse() }
         else { open(.scratchpad) }
         return true
+    }
+
+    /// The reader lives in the island when its page is on, and falls back to
+    /// the floating window otherwise, the same way the pad does. Opening the
+    /// page does not begin a reading: the text comes from a selection, so the
+    /// page shows whatever the session is already holding.
+    func openFastReader() {
+        if modules.contains(.fastReader) { open(.fastReader) }
+        else { perform { FastReaderService.shared.openWithCurrentSelection() } }
     }
 
     func openAppPanel(toggle: Bool = false) {
@@ -2912,6 +2944,7 @@ final class NotchService: ObservableObject {
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
+                if self.handleFastReaderKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
                 let launcher = QuickLauncherService.shared

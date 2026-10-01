@@ -7,7 +7,8 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad,
+         fastReader, agents
     var id: String { rawValue }
 
     var symbol: String {
@@ -29,6 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return "square.grid.2x2"
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
+        case .fastReader: return "text.line.first.and.arrowtriangle.forward"
         }
     }
 
@@ -50,6 +52,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .downloads: return "d"
         case .scratchpad: return "p"
         case .agents: return "g"
+        // E for reader. R belongs to the timer, and files, captures and
+        // the camera already hold F, S and W.
+        case .fastReader: return "e"
         }
     }
 
@@ -72,6 +77,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
+        case .fastReader: return AppFeature.fastReader.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower, .fanControl].contains { (feature: AppFeature) in
@@ -956,8 +962,9 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
-    static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
+    case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad,
+         fastReader
+    static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad,fastReader"
     var id: String { rawValue }
 
     var symbol: String {
@@ -974,6 +981,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
         case .scratchpad: return "note.text"
+        case .fastReader: return NotchModule.fastReader.symbol
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
@@ -990,6 +998,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .recording: return .feature(.screenRecorder)
         case .commandBar: return .feature(.commandBar)
         case .scratchpad: return .feature(.scratchpad)
+        case .fastReader: return .feature(.fastReader)
         case .panel: return .none
         case .mixer: return .page(.mixer, feature: .mixer)
         case .speedTest: return .page(.system, feature: .monitorNetwork)
@@ -1011,6 +1020,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .speedTest: return AppFeature.monitorNetwork.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.system)
         case .commandBar: return AppFeature.commandBar.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
+        case .fastReader: return AppFeature.fastReader.isAvailable(in: defaults)
         case .panel: return true
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
@@ -2046,7 +2056,8 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad,
+                 .fastReader:
                 contentHeight = budget
             }
         }

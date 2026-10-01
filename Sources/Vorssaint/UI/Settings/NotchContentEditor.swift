@@ -186,6 +186,14 @@ struct NotchPagePreview: View {
             } else {
                 NotchEmptyView(symbol: "sparkles", message: FeatureStrings.notchEditor(l10n.language).agentsSummary)
             }
+        case .fastReader:
+            // Nothing selected yet, the page has no words to show.
+            if FastReaderSession.shared.chunks.isEmpty {
+                NotchEmptyView(symbol: NotchModule.fastReader.symbol,
+                               message: FeatureStrings.notchEditor(l10n.language).fastReaderSummary)
+            } else {
+                NotchFastReaderView()
+            }
         }
     }
 
@@ -380,6 +388,7 @@ extension NotchModule {
         case .downloads: return .blue
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .fastReader: return Color(red: 0.55, green: 0.36, blue: 0.96)
         }
     }
 

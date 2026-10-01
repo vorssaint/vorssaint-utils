@@ -355,6 +355,23 @@ enum LocalizationFeatureContractTests {
                 suite.expect(!value.isEmpty && !value.contains("%"), "\(prefix) renders format strings")
             }
         }
+        // Fast Reader's own set, checked the way every other feature's is.
+        // Mirror covers all of its fields at once, so a field added later
+        // cannot slip past the rule by not being named here.
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.fastReader(language)
+            let prefix = "fast reader (\(language.rawValue))"
+            let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
+            suite.expect(values.count == 29, "\(prefix) exposes every string field")
+            suite.expect(values.allSatisfy { !$0.contains("\u{2014}") },
+                         "\(prefix) avoids em-dashes")
+            suite.expect(values.allSatisfy { !$0.contains("...") },
+                         "\(prefix) uses the ellipsis character, never three periods")
+            suite.expect(values.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
+                         "\(prefix) leaves no field blank")
+            expectFormat(strings.progressFormat, ["d", "d"], "\(prefix) progress format")
+            expectFormat(strings.truncatedFormat, ["d"], "\(prefix) truncated format")
+        }
         let infoPlist = NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any]
         let bundleLocalizations = infoPlist?["CFBundleLocalizations"] as? [String] ?? []
         suite.expect(bundleLocalizations.contains("tr"), "Info.plist declares Turkish as a bundle localization")

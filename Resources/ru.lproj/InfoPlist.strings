@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете. Очистка также ищет забытые снимки экрана, если вы сохраняете их сюда.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint упорядочивает подтверждённые загрузки WhatsApp в папке назначения, которую вы явно выбираете. Очистка также ищет забытые снимки экрана, если вы сохраняете их сюда.";
 "NSCalendarsFullAccessUsageDescription" = "Показывает предстоящие встречи в верхней части экрана. События календаря остаются на этом Mac.";
+
+/* Services menu title for Fast Reader. */
+"NSServices.FastReader.MenuItem" = "Читать в режиме быстрого чтения";

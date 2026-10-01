@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint usporadúva potvrdené stiahnuté súbory z WhatsAppu do cieľového priečinka, ktorý výslovne vyberiete. Čistenie tiež hľadá zabudnuté snímky obrazovky, ak ich sem ukladáte.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint usporadúva potvrdené stiahnuté súbory z WhatsAppu do cieľového priečinka, ktorý výslovne vyberiete. Čistenie tiež hľadá zabudnuté snímky obrazovky, ak ich sem ukladáte.";
 "NSCalendarsFullAccessUsageDescription" = "Zobrazte svoje nadchádzajúce udalosti v hornej časti obrazovky. Udalosti kalendára ostávajú na tomto Macu.";
+
+/* Services menu title for Fast Reader. */
+"NSServices.FastReader.MenuItem" = "Čítať pomocou Rýchleho čítania";

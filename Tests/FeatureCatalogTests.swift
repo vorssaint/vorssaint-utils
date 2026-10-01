@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 74, "feature catalog has 74 features")
+        suite.expect(AppFeature.allCases.count == 75, "feature catalog has 75 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "fastReader", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -749,6 +749,13 @@ enum FeatureCatalogTests {
                "Bluetooth on sleep is an energy feature that costs nothing at rest")
         suite.expect((AppFeature.availabilityDefaults[AppFeature.bluetoothSleep.availabilityKey] as? Bool) == true,
                "Bluetooth on sleep ships installed, switched off, so its section is findable")
+        suite.expect(AppFeature.fastReader.group == .tools
+                && AppFeature.fastReader.enabledKeys == [DefaultsKey.fastReaderEnabled]
+                && AppFeature.fastReader.permissions == [.accessibility]
+                && !AppFeature.fastReader.symbolName.isEmpty,
+               "Fast Reader lives in Tools, gates its shortcut on Accessibility, and ships a symbol")
+        suite.expect(!AppFeature.fastReader.installedByDefault,
+               "Fast Reader is opt-in, so an update does not grow the panel or Settings on its own")
         suite.expect(AppFeature.bluetoothSleep.settingsDestination
                 == FeatureSettingsDestination(.energy, sectionAnchor: .bluetoothSleep)
                 && AppFeature.bluetoothSleep.settingsDestination.hasValidSectionAnchor

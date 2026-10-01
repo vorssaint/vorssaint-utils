@@ -429,7 +429,7 @@ struct NotchSettings: View {
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         case .agents:
             NotchAgentsSettingsControls()
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .fastReader:
             EmptyView()
         }
     }
@@ -692,6 +692,7 @@ struct NotchSettings: View {
         case .downloads: return .notchDownloads
         case .scratchpad: return .scratchpad
         case .agents: return .notchAgents
+        case .fastReader: return .fastReader
         }
     }
 

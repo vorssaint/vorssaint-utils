@@ -572,6 +572,15 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
+    static let fastReaderEnabled = "fastReaderEnabled"
+    static let fastReaderShortcutEnabled = "fastReaderShortcutEnabled"
+    static let fastReaderShortcut = "fastReaderShortcut"
+    static let fastReaderWordsPerMinute = "fastReaderWordsPerMinute"   // FastReaderEngine.wordsPerMinuteRange
+    static let fastReaderChunkSize = "fastReaderChunkSize"             // FastReaderEngine.chunkSizeRange
+    static let fastReaderFocusPoint = "fastReaderFocusPoint"
+    static let fastReaderPunctuationPause = "fastReaderPunctuationPause"
+    static let fastReaderLongWordScaling = "fastReaderLongWordScaling"
+    static let fastReaderSurface = "fastReaderSurface"                 // floating | notch
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
@@ -614,6 +623,7 @@ enum DefaultsKey {
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
     static let panelUtilityCameraPreview = "panelUtilityCameraPreview"
     static let panelUtilityScratchpad = "panelUtilityScratchpad"
+    static let panelUtilityFastReader = "panelUtilityFastReader"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
     // Mode chooser visibility for dedicated capture shortcuts.
@@ -1674,6 +1684,15 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
+        DefaultsKey.fastReaderEnabled: true,
+        DefaultsKey.fastReaderShortcutEnabled: false,
+        DefaultsKey.fastReaderShortcut: GlobalShortcut.fastReaderDefault.storageValue,
+        DefaultsKey.fastReaderWordsPerMinute: 200,
+        DefaultsKey.fastReaderChunkSize: 1,
+        DefaultsKey.fastReaderFocusPoint: true,
+        DefaultsKey.fastReaderPunctuationPause: true,
+        DefaultsKey.fastReaderLongWordScaling: true,
+        DefaultsKey.fastReaderSurface: "floating",
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,
@@ -1702,6 +1721,7 @@ enum Defaults {
         DefaultsKey.panelUtilityScreenOCR: true,
         DefaultsKey.panelUtilityCameraPreview: true,
         DefaultsKey.panelUtilityScratchpad: true,
+        DefaultsKey.panelUtilityFastReader: true,
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
         DefaultsKey.recorderShortcutEnabled: false,

@@ -13,7 +13,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
     // (a case added later joins a saved order at the end).
     case keepAwake, cleaner, toggles, micMute, screenOCR, colorPicker, clipboard, windowLayout,
          cleaning, homebrew, media, urlCleaner, uninstaller, screenshot, screenRecorder,
-         cameraPreview, scratchpad
+         cameraPreview, scratchpad, fastReader
 
     var id: String { rawValue }
 
@@ -38,6 +38,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
         case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .fastReader: return .fastReader
         }
     }
 }
@@ -307,6 +308,14 @@ final class QuickLauncherService: ObservableObject {
             hide()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 ScratchpadService.shared.show()
+            }
+        case .fastReader:
+            // The panel has to be gone before the selection is read:
+            // while it is up, the frontmost application is us, and
+            // Accessibility would answer with nothing selected.
+            hide()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                FastReaderService.shared.openWithCurrentSelection()
             }
         case .clipboard:
             hide()

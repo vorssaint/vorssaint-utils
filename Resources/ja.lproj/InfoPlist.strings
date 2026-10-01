@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 "NSRemovableVolumesUsageDescription" = "Vorssaintは、確認済みのWhatsAppダウンロードを、明示的に選択した保存先フォルダに整理します。スクリーンショットをここに保存している場合、クリーンアップは忘れられたスクリーンショットも探します。";
 "NSCalendarsFullAccessUsageDescription" = "画面上部に今後の予定を表示します。カレンダーの予定がこのMacの外に送信されることはありません。";
+
+/* Services menu title for Fast Reader. */
+"NSServices.FastReader.MenuItem" = "高速リーダーで読む";
