@@ -153,6 +153,7 @@ enum NotchMusicHardeningTests {
 
     static func run(_ suite: TestSuite) {
         sourcePriority(suite)
+        audioOnlySources(suite)
         sourceSwitching(suite)
         sourceRestore(suite)
         sourcePreference(suite)
@@ -170,6 +171,66 @@ enum NotchMusicHardeningTests {
         pendingCommands(suite)
         controlLifecycle(suite)
         NotchMusicAutomationTests.run(suite)
+    }
+
+    private static func audioOnlySources(_ suite: TestSuite) {
+        let output = NotchPlaybackSource(pid: 77, bundleIdentifier: "test.output", isMusicApp: false,
+            isPlaying: true, hasTrack: false, displayName: "Output App", isAudioOnly: true)
+        var musicOutput = output
+        musicOutput = NotchPlaybackSource(pid: 78, bundleIdentifier: "test.music-output", isMusicApp: true,
+            isPlaying: true, hasTrack: false, displayName: "Music Output", isAudioOnly: true)
+        suite.expect(NotchAudioSourceSupport.eligible([output, musicOutput], includeOtherPlayers: false) == [musicOutput],
+                     "music-only mode does not automatically discover unrelated output apps")
+        suite.expect(NotchAudioSourceSupport.eligible([output, musicOutput], includeOtherPlayers: true) == [output, musicOutput],
+                     "other-player mode includes apps that publish no track")
+        let audio = NotchAudioSourceSupport.playback(for: output)
+        suite.expect(audio.isAudioOnly && audio.track.title == "Output App" && audio.track.appPID == 77,
+                     "an output-only presentation identifies its app rather than inventing a track")
+        suite.expect(!audio.hasPosition && audio.duration == 0 && audio.commandContext == nil
+                     && !audio.canSeek && !audio.canSendCommandsDirectly && audio.track.artist == nil,
+                     "output activity supplies no seek, transport, lyrics or artist metadata")
+        var paused = playback("paused")
+        paused = NotchPlayback(track: paused.track, isPlaying: false, elapsed: 0, duration: 180,
+                               rate: 0, sampledAt: Date(), canSeek: false)
+        func fallback(_ metadata: NotchPlayback?, explicit: Bool = false,
+                      selected: NotchPlaybackSource.Selection? = nil) -> NotchPlaybackSource? {
+            NotchAudioSourceSupport.fallback(in: [output, musicOutput], metadata: metadata,
+                explicitMetadataSelection: explicit, selectedAudio: selected, previousPID: 78)
+        }
+        suite.expect(fallback(nil) == musicOutput && fallback(paused) == musicOutput,
+                     "an active output fills absent or paused metadata and keeps its existing source")
+        suite.expect(fallback(playback("live")) == nil, "playing track metadata retains its own source and controls")
+        suite.expect(fallback(paused, explicit: true) == nil, "an explicit paused media selection is preserved")
+        suite.expect(fallback(playback("live"), selected: output.selection) == output,
+                     "explicit output selection identifies that app while another media app plays")
+        var helper = NotchPlaybackSource(pid: 99, bundleIdentifier: "test.helper", isMusicApp: false,
+            isPlaying: true, hasTrack: true, applicationBundleIdentifier: output.bundleIdentifier)
+        helper.displayName = "Output App"
+        suite.expect(NotchAudioSourceSupport.merged(metadata: [helper], audio: [output, musicOutput]) == [helper, musicOutput],
+                     "a browser helper keeps its command identity without duplicating the parent app")
+        suite.expect(NotchPlaybackSource.decode([helper.reply]) == [helper],
+                     "the adapter preserves a helper's validated parent identity")
+
+        let service = NotchMusicCommandContract.Service()
+        service.start()
+        service.audioSources = [output]
+        let reading = NotchMusicCommandContract.Service.Reading(playback: nil, artwork: nil, tint: nil,
+            sources: [], automatic: true, selectedPID: nil)
+        service.apply(reading)
+        suite.expect(service.playback?.isAudioOnly == true && service.sources == [output],
+                     "the production reading pipeline displays an app without Now Playing")
+        suite.expect(!service.send(.toggle) && !service.send(.next),
+                     "no media command can be sent using an output-only app's identity")
+        service.selectSource(output.selection)
+        suite.expect(!service.sourceIsAutomatic && service.selectedSourcePID == output.pid,
+                     "an output-only source can be selected without manufacturing an adapter session")
+        service.selectSource(nil)
+        suite.expect(service.sourceIsAutomatic, "Automatic releases the output-only selection")
+        service.audioSources = []
+        service.apply(reading)
+        suite.expect(service.playback == nil && service.sources.isEmpty,
+                     "output disappearance clears its presentation without retaining a fictitious track")
+        service.stop()
     }
 
     private static func sourceSwitching(_ suite: TestSuite) {
@@ -598,6 +659,10 @@ enum NotchMusicHardeningTests {
         suite.expect(choose([idleBrowser, paused]) == paused, "reopening the music surface can still reach paused music")
         suite.expect(choose([browser, paused, other], previous: 10) == other,
                "playing music still outranks a playing browser and a paused music app")
+        suite.expect(choose([music, browser], previous: 10, system: 20, includeOtherPlayers: true) == browser,
+               "a playing current browser session takes priority over stale music metadata")
+        suite.expect(choose([music, browser], previous: 20, system: 10, includeOtherPlayers: true) == music,
+               "the current music session keeps priority while another app is also playing")
         // A music app open but stopped, a video playing in the browser: the
         // island used to go blank, since paused music outranked everything.
         suite.expect(choose([paused, browser], previous: nil, system: 20, includeOtherPlayers: true) == browser,

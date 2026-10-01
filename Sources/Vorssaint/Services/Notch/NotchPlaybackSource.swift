@@ -17,6 +17,9 @@ struct NotchPlaybackSource: Equatable {
     let isPlaying: Bool
     let hasTrack: Bool
     var displayName: String? = nil
+    /// Local Core Audio observation, not an adapter-provided media session.
+    var isAudioOnly = false
+    var applicationBundleIdentifier: String? = nil
 
     var selection: Selection { Selection(pid: pid, bundleIdentifier: bundleIdentifier) }
 
@@ -30,6 +33,7 @@ struct NotchPlaybackSource: Equatable {
         var value: [String: Any] = ["pid": pid, "bundleIdentifier": bundleIdentifier, "isMusicApp": isMusicApp,
                                    "isPlaying": isPlaying, "hasTrack": hasTrack]
         value["displayName"] = displayName
+        value["applicationBundleIdentifier"] = applicationBundleIdentifier
         return value
     }
 
@@ -53,7 +57,9 @@ struct NotchPlaybackSource: Equatable {
                   !sources.contains(where: { $0.pid == pid }) else { continue }
             let name = (entry["displayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
             sources.append(Self(pid: pid, bundleIdentifier: bundle, isMusicApp: music, isPlaying: playing, hasTrack: track,
-                                displayName: name.flatMap { !$0.isEmpty && $0.utf8.count <= 256 ? $0 : nil }))
+                                displayName: name.flatMap { !$0.isEmpty && $0.utf8.count <= 256 ? $0 : nil },
+                                applicationBundleIdentifier: (entry["applicationBundleIdentifier"] as? String)
+                                    .flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }))
         }
         return sources.sorted { $0.pid < $1.pid }
     }
@@ -68,6 +74,10 @@ struct NotchPlaybackSource: Equatable {
         // source is playing. Without a track, the automatic order fills in.
         if let selection, let chosen = available.first(where: { $0.selection == selection }) { return chosen }
         let music = available.filter(\.isMusicApp)
+        // When another app owns the current media session, follow its playing
+        // metadata instead of letting an older playing music source take over.
+        if let current = available.first(where: { $0.pid == systemPID && $0.isPlaying
+            && ($0.isMusicApp || includeOtherPlayers) }) { return current }
         // In the opt-in mode, other apps still need system ownership or an
         // existing follow relationship before automatic selection.
         let other = includeOtherPlayers ? available.filter {

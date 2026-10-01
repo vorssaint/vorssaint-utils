@@ -44,6 +44,8 @@ struct NotchPlayback: Equatable {
     /// Nil when the player's commands could not be read.
     var canSkipNext: Bool? = nil
     var canSkipPrevious: Bool? = nil
+    /// Output activity identifies an app, but does not supply a track or controls.
+    var isAudioOnly = false
 
     func position(at date: Date) -> TimeInterval {
         min(duration, max(0, elapsed + (isPlaying ? max(0, date.timeIntervalSince(sampledAt)) * rate : 0)))
@@ -214,5 +216,44 @@ struct NotchTrackChange {
     private static func cleaned(_ text: String?) -> String? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return text
+    }
+}
+
+
+/// Resolves output-only apps without claiming track metadata or command support.
+enum NotchAudioSourceSupport {
+    static func eligible(_ sources: [NotchPlaybackSource], includeOtherPlayers: Bool) -> [NotchPlaybackSource] {
+        sources.filter { $0.pid > 0 && $0.isAudioOnly && $0.isPlaying
+            && NotchPlaybackCommand.validIdentifier($0.bundleIdentifier)
+            && (includeOtherPlayers || $0.isMusicApp) }
+    }
+
+    static func fallback(in sources: [NotchPlaybackSource], metadata: NotchPlayback?,
+                         explicitMetadataSelection: Bool, selectedAudio: NotchPlaybackSource.Selection?,
+                         previousPID: Int32?) -> NotchPlaybackSource? {
+        if let selectedAudio {
+            guard let selected = sources.first(where: { $0.selection == selectedAudio }) else { return nil }
+            if metadata?.track.appBundleIdentifier == selected.bundleIdentifier { return nil }
+            return selected
+        }
+        guard !explicitMetadataSelection, metadata?.isPlaying != true else { return nil }
+        return sources.first { $0.pid == previousPID } ?? sources.sorted { $0.pid < $1.pid }.first
+    }
+
+    static func playback(for source: NotchPlaybackSource, now: Date = Date()) -> NotchPlayback {
+        let track = RadialNowPlayingSnapshot(title: source.displayName ?? source.bundleIdentifier,
+            artist: nil, album: nil, artworkData: nil, appBundleIdentifier: source.bundleIdentifier, appPID: source.pid)
+        return NotchPlayback(track: track, isPlaying: true, elapsed: 0, duration: 0, rate: 1, sampledAt: now,
+                             canSeek: false, hasPosition: false, isAudioOnly: true)
+    }
+
+    static func merged(metadata: [NotchPlaybackSource], audio: [NotchPlaybackSource]) -> [NotchPlaybackSource] {
+        // A browser's media session can belong to a helper; use that exact PID
+        // for commands rather than adding its parent as a second selectable row.
+        let extra = audio.filter { source in !metadata.contains {
+            $0.pid == source.pid || $0.bundleIdentifier == source.bundleIdentifier
+                || $0.applicationBundleIdentifier == source.bundleIdentifier
+        } }
+        return Array((metadata + extra).prefix(16))
     }
 }

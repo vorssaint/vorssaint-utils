@@ -69,6 +69,10 @@ final class NotchMusicService: ObservableObject {
     /// The adapter keeps an explicit choice only while it runs, and it stops
     /// on lock, sleep or when the page closes. Tied to a process, so it is
     /// never saved across launches of the app.
+    private let audioSourceReader = NotchAudioSourceReader()
+    private var audioSources: [NotchPlaybackSource] = []
+    private var selectedAudioSource: NotchPlaybackSource.Selection?
+    private var adapterReading: Reading?
     private var chosenSource: NotchPlaybackSource.Selection?
     private var restoringSource = false
     private var artworkCache = NotchArtworkCache<(image: NSImage, tint: NotchArtworkTint?)>()
@@ -108,6 +112,15 @@ final class NotchMusicService: ObservableObject {
         wantsPlayback = true
         awaitingPlayback = true
         restartCount = 0
+        audioSourceReader.start { [weak self] sources in
+            guard let self, self.wantsPlayback else { return }
+            self.audioSources = NotchAudioSourceSupport.eligible(sources, includeOtherPlayers: self.includeOtherPlayers)
+            if let selected = self.selectedAudioSource, !self.audioSources.contains(where: { $0.selection == selected }) {
+                self.selectedAudioSource = nil
+            }
+            self.applyPresentation(self.adapterReading ?? Reading(playback: nil, artwork: nil, tint: nil,
+                sources: [], automatic: true, selectedPID: nil))
+        }
         launch()
     }
 
@@ -257,6 +270,19 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func apply(_ reading: Reading) {
+        adapterReading = reading
+        applyPresentation(reading)
+    }
+
+    private func applyPresentation(_ reading: Reading) {
+        let fallback = NotchAudioSourceSupport.fallback(in: audioSources, metadata: reading.playback,
+            explicitMetadataSelection: chosenSource != nil || reading.automatic == false,
+            selectedAudio: selectedAudioSource, previousPID: playback?.track.appPID)
+        let reading = Reading(playback: fallback.map { NotchAudioSourceSupport.playback(for: $0) } ?? reading.playback,
+            artwork: fallback == nil ? reading.artwork : fallback.flatMap { NSRunningApplication(processIdentifier: $0.pid)?.icon }, tint: fallback == nil ? reading.tint : nil,
+            sources: NotchAudioSourceSupport.merged(metadata: reading.sources, audio: audioSources),
+            automatic: selectedAudioSource == nil ? reading.automatic : false,
+            selectedPID: selectedAudioSource?.pid ?? reading.selectedPID)
         let first = awaitingPlayback
         if trackChange.isNewSong(reading.playback, first: first) { trackChanges.send() }
         else if !first, let current = playback, NotchTrackChange.isBetweenSongs(reading.playback, after: current) {
@@ -269,7 +295,7 @@ final class NotchMusicService: ObservableObject {
         selectedSourcePID = reading.selectedPID
         awaitingPlayback = false
         updateAutomation(for: reading.playback)
-        NotchLyricsService.shared.playbackChanged(reading.playback)
+        NotchLyricsService.shared.playbackChanged(reading.playback?.isAudioOnly == true ? nil : reading.playback)
         updateQueue()
     }
 
@@ -334,6 +360,10 @@ final class NotchMusicService: ObservableObject {
 
     func stop() {
         wantsPlayback = false
+        audioSourceReader.stop()
+        audioSources = []
+        selectedAudioSource = nil
+        adapterReading = nil
         awaitingPlayback = false
         restartWork?.cancel()
         restartWork = nil
@@ -374,6 +404,7 @@ final class NotchMusicService: ObservableObject {
         process = nil
         input = nil
         output = nil
+        adapterReading = nil
         playback = nil
         sources = []
         sourceIsAutomatic = true
@@ -381,6 +412,12 @@ final class NotchMusicService: ObservableObject {
         artwork = nil
         artworkTint = nil
         commandFailed = false
+        // Output-only sources remain available even if the metadata adapter
+        // exits and exhausts its restart budget.
+        if wantsPlayback, !audioSources.isEmpty {
+            applyPresentation(Reading(playback: nil, artwork: nil, tint: nil,
+                                      sources: [], automatic: true, selectedPID: nil))
+        }
     }
 
     typealias Command = NotchPlaybackCommand
@@ -391,8 +428,29 @@ final class NotchMusicService: ObservableObject {
         // choice stays in effect while the automatic player fills its gap.
         if selection == nil ? sourceIsAutomatic
             : !sourceIsAutomatic && selectedSourcePID == selection?.pid { return }
+        if let selection, audioSources.contains(where: { $0.selection == selection }),
+           sources.contains(where: { $0.selection == selection && $0.isAudioOnly }) {
+            _ = send(.source(nil))
+            chosenSource = nil
+            selectedAudioSource = selection
+            cancelAutomationAction()
+            setQueueVisible(false)
+            endPlaybackGap()
+            applyPresentation(adapterReading ?? Reading(playback: nil, artwork: nil, tint: nil,
+                sources: [], automatic: true, selectedPID: nil))
+            return
+        }
+        // Automatic still works for output-only apps if the adapter is unavailable.
+        if selection == nil, selectedAudioSource != nil {
+            selectedAudioSource = nil
+            _ = send(.source(nil))
+            applyPresentation(adapterReading ?? Reading(playback: nil, artwork: nil, tint: nil,
+                sources: [], automatic: true, selectedPID: nil))
+            return
+        }
         guard selection == nil || sources.contains(where: { $0.selection == selection }),
               send(.source(selection)) else { return }
+        selectedAudioSource = nil
         chosenSource = selection
         cancelAutomationAction()
         setQueueVisible(false)
@@ -408,7 +466,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     func setQueueVisible(_ visible: Bool) {
-        queueVisible = visible && NotchQueueSupport.isEnabled() && playback != nil
+        queueVisible = visible && NotchQueueSupport.isEnabled() && playback != nil && playback?.isAudioOnly != true
         guard queueVisible else {
             commandWriter.setQueueRequest(nil)
             if queueRequest != nil { send(.queueStop) }
@@ -574,7 +632,7 @@ final class NotchMusicService: ObservableObject {
 
     private func updateAutomation(for playback: NotchPlayback?) {
         if let action = automationAction, action.playback.commandContext != playback?.commandContext { cancelAutomationAction() }
-        guard let playback, !playback.canSendCommandsDirectly, let target = NotchMusicAutomation.Target(playback) else {
+        guard let playback, !playback.isAudioOnly, !playback.canSendCommandsDirectly, let target = NotchMusicAutomation.Target(playback) else {
             automationDiscovery.cancel()
             automationConsentCancellation.cancel()
             automationTarget = nil
