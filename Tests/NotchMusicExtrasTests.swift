@@ -213,6 +213,27 @@ enum NotchMusicExtrasTests {
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
                "hidden music does not retain an optional lyrics or queue subscription")
+        suite.expect(NotchLyricsSupport.onlineEnabled(in: defaults, panelVisible: true)
+                        && NotchQueueSupport.isEnabled(in: defaults, panelVisible: true),
+                     "the menu panel's Music page keeps lyrics, their online choice and the queue without the island")
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        suite.expect(NotchLyricsSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchLyricsSupport.isEnabled(in: defaults),
+                     "with the island off, only the panel's page reads lyrics")
+        defaults.set(false, forKey: DefaultsKey.notchLyricsOnline)
+        suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults, panelVisible: true),
+                     "the panel never looks lyrics up online without the separate choice")
+        defaults.set(false, forKey: AppFeature.notchLyrics.availabilityKey)
+        defaults.set(false, forKey: AppFeature.notchQueue.availabilityKey)
+        suite.expect(!NotchLyricsSupport.isEnabled(in: defaults, panelVisible: true)
+                        && !NotchQueueSupport.isEnabled(in: defaults, panelVisible: true),
+                     "feature removal stops lyrics and the queue in the panel too")
+        defaults.set(true, forKey: AppFeature.notchLyrics.availabilityKey)
+        defaults.set(true, forKey: AppFeature.notchQueue.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityMusic] as? Bool == true
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.panelUtilityMusic),
+                     "the panel's music entry is shown by default and travels in backup")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLyricsEnabled, DefaultsKey.notchLyricsOnline,
                                                                  DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),

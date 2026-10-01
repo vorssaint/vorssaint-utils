@@ -14,6 +14,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
+    @AppStorage(DefaultsKey.notchAgentsMenuBarActivity) private var menuBarActivity = false
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
@@ -75,7 +76,8 @@ struct NotchAgentsSettingsControls: View {
             Divider()
             Text(text.liveTitle).font(.subheadline.weight(.medium))
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
-            if liveActivity {
+            switchRow("menubar.rectangle", l10n.s.monitorMenuBarSection, isOn: $menuBarActivity)
+            if liveActivity || menuBarActivity {
                 SettingsMenuRow(symbol: "camera.metering.center.weighted", title: text.readout, selection: $readout) {
                     ForEach(NotchAgentReadout.allCases) { option in
                         Text(text.readout(option)).tag(option.rawValue)
@@ -142,6 +144,10 @@ struct NotchAgentsSettingsControls: View {
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
                        String(liveActivity), readout, limitDisplay]) { _, _ in
             NotchService.shared.syncWithPreferences()
+        }
+        .onChange(of: menuBarActivity) { _, _ in
+            AgentUsageService.shared.panelDemandChanged()
+            AgentMenuBarReading.shared.syncWithPreferences()
         }
     }
 

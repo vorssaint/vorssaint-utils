@@ -46,6 +46,15 @@ final class AgentUsageService: ObservableObject {
 
     // Main thread.
     private var running = false
+    /// A visible panel can borrow the reader while the island is suspended.
+    private var islandPaused = false
+    /// The menu panel's page, or the running agent in the menu bar, reads without the island.
+    private var panelShows: Bool {
+        PanelModuleDemand.shared.shows(.agents) || NotchAgentSupport.showsMenuBarActivity()
+    }
+    private var panelNeedsUsage: Bool {
+        panelShows && AppFeature.notchAgents.isAvailable
+    }
     /// Reading waits while the island is away; what was read stays.
     private var paused = false
     private var session = 0
@@ -85,12 +94,23 @@ final class AgentUsageService: ObservableObject {
 
     private init() {}
 
+    /// Both presentations use this reader; closing either must leave the other running.
+    func panelDemandChanged() {
+        syncUsage()
+    }
+
     func syncWithPreferences() {
-        guard NotchAgentSupport.isEnabled() else { stop(); return }
+        islandPaused = false
+        syncUsage()
+    }
+
+    private func syncUsage() {
+        guard NotchAgentSupport.isEnabled(panelVisible: panelShows) else { stop(); return }
         let wanted = NotchAgentSupport.providers()
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading.
         if running, wanted != providers { stop() }
+        if islandPaused, !panelNeedsUsage { pause(); return }
         if !running {
             running = true
             session += 1
@@ -107,7 +127,8 @@ final class AgentUsageService: ObservableObject {
     /// the Mac locked, and keeps what was read: reading every log again on the
     /// way back costs far more than the pause saves.
     func pause() {
-        guard running, !paused else { return }
+        islandPaused = true
+        guard running, !paused, !panelNeedsUsage else { return }
         paused = true
         timer?.invalidate()
         timer = nil
@@ -132,7 +153,8 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    func stop() {
+    func stop(keepingPanel: Bool = false) {
+        if keepingPanel, panelNeedsUsage { syncUsage(); return }
         guard running else { return }
         running = false
         paused = false

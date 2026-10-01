@@ -398,8 +398,13 @@ final class NotchMusicService: ObservableObject {
         NotchLyricsService.shared.playbackChanged(nil)
     }
 
+    /// The queue serves the island's Music page and the same page in the menu panel.
+    private var queueEnabled: Bool {
+        NotchQueueSupport.isEnabled(panelVisible: PanelModuleDemand.shared.shows(.music))
+    }
+
     func setQueueVisible(_ visible: Bool) {
-        queueVisible = visible && NotchQueueSupport.isEnabled() && playback != nil
+        queueVisible = visible && queueEnabled && playback != nil
         guard queueVisible else {
             commandWriter.setQueueRequest(nil)
             if queueRequest != nil { send(.queueStop) }
@@ -416,11 +421,11 @@ final class NotchMusicService: ObservableObject {
     }
 
     func syncQueuePreference() {
-        if !NotchQueueSupport.isEnabled() { setQueueVisible(false) }
+        if !queueEnabled { setQueueVisible(false) }
     }
 
     func refreshQueue() {
-        guard queueVisible, NotchQueueSupport.isEnabled(), playback != nil else { return }
+        guard queueVisible, queueEnabled, playback != nil else { return }
         let request = UUID()
         queueRequest = request
         commandWriter.setQueueRequest(request)
@@ -433,7 +438,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     func playQueued(_ item: NotchQueueItem) {
-        guard queueVisible, NotchQueueSupport.isEnabled(), let request = queueRequest, let upcoming,
+        guard queueVisible, queueEnabled, let request = queueRequest, let upcoming,
               let playback, upcoming.currentIdentifier == playback.itemIdentifier,
               upcoming.pid == playback.track.appPID, upcoming.canPlay,
               upcoming.items.contains(item), !queueActionPending else { return }
@@ -445,7 +450,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func receiveQueue(_ reply: [String: Any]) {
-        guard let request = queueRequest, NotchQueueSupport.isEnabled() else { return }
+        guard let request = queueRequest, queueEnabled else { return }
         if reply["queueAction"] as? String == request.uuidString {
             queueActionPending = false
             queueActionFailed = reply["queueActionOK"] as? Bool != true
@@ -457,7 +462,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func updateQueue() {
-        guard let request = queueRequest, let playback, let queueReply, NotchQueueSupport.isEnabled() else {
+        guard let request = queueRequest, let playback, let queueReply, queueEnabled else {
             upcoming = nil
             return
         }
@@ -485,7 +490,7 @@ final class NotchMusicService: ObservableObject {
     @discardableResult
     func send(_ command: Command, context: NotchPlaybackContext?) -> Bool {
         switch command {
-        case .queue, .queuePlay: guard queueVisible, NotchQueueSupport.isEnabled() else { return false }
+        case .queue, .queuePlay: guard queueVisible, queueEnabled else { return false }
         default: break
         }
         switch command {

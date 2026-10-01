@@ -1902,6 +1902,29 @@ enum FeatureCatalogTests {
             let gate = FeatureVisibilitySupport.features(for: destination.page)
             return gate.isEmpty || gate.contains(feature)
         }, "every feature destination is either always visible or gated by that feature")
+        let ownPages: [(NotchModule, SettingsPage, AppFeature?)] = [
+            (.agents, .agents, .notchAgents), (.calendar, .calendar, .notchCalendar), (.timer, .timer, .notchTimer),
+            (.downloads, .downloads, .notchDownloads), (.notifications, .notifications, .notchNotifications),
+            (.music, .nowPlaying, nil),
+        ]
+        suite.expect(ownPages.allSatisfy { module, page, feature in
+            module.ownSettingsPage == page
+                && feature.map { $0.settingsDestination == FeatureSettingsDestination(page)
+                    && FeatureVisibilitySupport.features(for: page) == [$0] } ?? true
+        } && NotchModule.allCases.filter { $0.ownSettingsPage != nil }.count == ownPages.count,
+                     "each island page that works in the menu panel has a page of its own, gated by its feature")
+        suite.expect(pageVisible(.nowPlaying, available: []),
+                     "the player's page stays, like the player itself, with every hub feature off")
+        suite.expect(ownPages.allSatisfy { module, _, feature in
+            feature.map { !FeatureVisibilitySupport.features(for: .notch).contains($0) } ?? true
+                && Defaults.registeredDefaults[module.panelEntryKey] is Bool
+                && SettingsBackupSupport.exportKeys().contains(module.panelEntryKey)
+                && (module.enableKey.map { Defaults.registeredDefaults[$0] is Bool } ?? true)
+        }, "the island's page no longer owns them, and their panel and enable switches are real, backed-up settings")
+        suite.expect(AppFeature.notchLyrics.settingsDestination == FeatureSettingsDestination(.nowPlaying)
+                        && AppFeature.notchQueue.settingsDestination == FeatureSettingsDestination(.nowPlaying)
+                        && AppFeature.notchLiveEqualizer.settingsDestination == FeatureSettingsDestination(.notch),
+                     "lyrics and the queue follow the player, while the equalizer drawn in the island stays with it")
         suite.expect(AppFeature.allCases.allSatisfy { $0.settingsDestination.hasValidSectionAnchor },
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))

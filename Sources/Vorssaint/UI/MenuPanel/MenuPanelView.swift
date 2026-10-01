@@ -550,13 +550,14 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, agents, calendar, timer, downloads, notifications, music
 
     var id: String { rawValue }
 
     /// The hub feature behind the tile; off in the hub removes it everywhere,
-    /// including the edit and hidden lists.
-    var feature: AppFeature {
+    /// including the edit and hidden lists. The island's Music page has no
+    /// feature of its own and is always there.
+    var feature: AppFeature? {
         switch self {
         case .quickLauncher: return .quickLauncher
         case .cleaner: return .cleaner
@@ -576,6 +577,12 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .agents: return .notchAgents
+        case .calendar: return .notchCalendar
+        case .timer: return .notchTimer
+        case .downloads: return .notchDownloads
+        case .notifications: return .notchNotifications
+        case .music: return nil
         }
     }
 }
@@ -594,6 +601,8 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
+    /// An island page shown in the panel, reading for as long as it is open.
+    @State private var islandPage: NotchModule?
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -612,6 +621,13 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityAgents) private var showAgents = true
+    @AppStorage(DefaultsKey.panelUtilityCalendar) private var showCalendar = true
+    @AppStorage(DefaultsKey.panelUtilityTimer) private var showTimer = true
+    @AppStorage(DefaultsKey.panelUtilityDownloads) private var showDownloads = true
+    /// Showing the entry keeps an inbox in the background, so it is opted into.
+    @AppStorage(DefaultsKey.panelUtilityNotifications) private var showNotifications = false
+    @AppStorage(DefaultsKey.panelUtilityMusic) private var showMusic = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -670,6 +686,8 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showPortManagerPanel = false
                 }
+            } else if let islandPage {
+                PanelIslandPageView(module: islandPage) { self.islandPage = nil }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
@@ -688,6 +706,8 @@ struct UtilitiesSection: View {
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
         }
+        // The entry's inbox starts and ends with the entry itself.
+        .onChange(of: showNotifications) { NotchNotificationService.shared.syncWithPreferences() }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
             // tool off screen with it; a closed panel does not, and keeps it.
@@ -711,6 +731,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
+        if let islandPage { return islandPage.ownSettingsPage ?? .notch }
         return nil
     }
 
@@ -720,13 +741,13 @@ struct UtilitiesSection: View {
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
-            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
+            || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel || islandPage != nil
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
     /// intentionally span interaction with apps and windows outside the panel.
     private var hostedUtilityKeepsPopoverOpen: Bool {
-        isHostingUtility && !showHomebrewPanel
+        isHostingUtility && !showHomebrewPanel && islandPage == nil
     }
 
     private var cleaningNeedsAccessibility: Bool {
@@ -753,7 +774,7 @@ struct UtilitiesSection: View {
     }
 
     private func items(editing: Bool) -> [UtilityPanelItem] {
-        orderedItems.filter { $0.feature.isAvailable && (editing || isVisible($0)) }
+        orderedItems.filter { ($0.feature?.isAvailable ?? true) && (editing || isVisible($0)) }
     }
 
     private func isVisible(_ item: UtilityPanelItem) -> Bool {
@@ -776,6 +797,12 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .agents: return showAgents
+        case .calendar: return showCalendar
+        case .timer: return showTimer
+        case .downloads: return showDownloads
+        case .notifications: return showNotifications
+        case .music: return showMusic
         }
     }
 
@@ -1020,7 +1047,38 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .agents:
+            islandPageButton(.agents, caption: FeatureStrings.notchAgents(l10n.language).restingTitle,
+                             visibility: $showAgents, editing: editing)
+        case .calendar:
+            islandPageButton(.calendar, caption: FeatureStrings.notchCalendar(l10n.language).week,
+                             visibility: $showCalendar, editing: editing)
+        case .timer:
+            let timer = FeatureStrings.notchActivities(l10n.language)
+            islandPageButton(.timer, caption: timer.pomodoro + " · " + timer.stopwatch,
+                             visibility: $showTimer, editing: editing)
+        case .downloads:
+            islandPageButton(.downloads, caption: FeatureStrings.notchFiles(l10n.language).inProgress,
+                             visibility: $showDownloads, editing: editing)
+        case .notifications:
+            islandPageButton(.notifications, caption: FeatureStrings.notchNotifications(l10n.language).title,
+                             visibility: $showNotifications, editing: editing)
+        case .music:
+            islandPageButton(.music, caption: FeatureStrings.notch(l10n.language).music,
+                             visibility: $showMusic, editing: editing)
         }
+    }
+
+    /// Opens one of the island's pages here, with or without the island.
+    private func islandPageButton(_ module: NotchModule, caption: String, visibility: Binding<Bool>,
+                                  editing: Bool) -> some View {
+        UtilityActionButton(title: module.title(l10n.language),
+                            caption: caption,
+                            systemImage: module.symbol,
+                            isEditing: editing,
+                            showsDragHandle: true,
+                            visibility: visibility,
+                            action: { islandPage = module })
     }
 
     /// The row's key hint: only when the shortcut is actually REGISTERED,
@@ -1097,6 +1155,12 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showAgents = true
+        showCalendar = true
+        showTimer = true
+        showDownloads = true
+        showNotifications = false
+        showMusic = true
     }
 
     private func grantAccessibility() {

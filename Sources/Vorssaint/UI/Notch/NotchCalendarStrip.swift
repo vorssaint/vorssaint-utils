@@ -95,7 +95,7 @@ struct NotchCalendarStrip: View {
                     Self.clock(remaining, ongoing: countdown.ongoing)
                     Text(NotchCalendarSupport.timeText(countdown, locale: l10n.language.formattingLocale()))
                         .font(.system(size: 11, weight: .medium)).monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(Color.notchInk.opacity(0.55))
                         .fixedSize()
                 }
                 Self.clock(remaining, ongoing: countdown.ongoing)
@@ -153,7 +153,7 @@ struct NotchCalendarStrip: View {
     private static func dot(_ event: NotchCalendarEvent) -> some View {
         Circle().fill(event.color.color).frame(width: NotchCalendarSupport.stripDotWidth,
                                                height: NotchCalendarSupport.stripDotWidth)
-            .overlay { Circle().strokeBorder(.white.opacity(0.5), lineWidth: 0.5) }
+            .overlay { Circle().strokeBorder(Color.notchInk.opacity(0.5), lineWidth: 0.5) }
             .accessibilityHidden(true)
     }
 
@@ -163,7 +163,7 @@ struct NotchCalendarStrip: View {
         Text(remaining)
             .font(.system(size: 13, weight: .medium)).monospacedDigit()
             .lineLimit(1).minimumScaleFactor(0.8)
-            .foregroundStyle(ongoing ? Color.mint : Color.white)
+            .foregroundStyle(ongoing ? Color.mint : Color.notchInk)
             .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
     }
 }

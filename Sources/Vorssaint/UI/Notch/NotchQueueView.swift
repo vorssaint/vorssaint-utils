@@ -58,6 +58,6 @@ struct NotchQueueView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.notchInk.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
     }
 }

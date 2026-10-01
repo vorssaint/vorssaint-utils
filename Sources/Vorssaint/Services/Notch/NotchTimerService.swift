@@ -13,7 +13,17 @@ final class NotchTimerService: ObservableObject {
     private var completionTask: Task<Void, Never>?
     private var suspended = true
     private let alert = NotchTimerAlert()
+    /// A timer started from the menu panel keeps going after the panel
+    /// closes, with or without the island, until it is cancelled.
+    private var panelOwnsSession = false
     private init() {}
+
+    /// The panel shows the page, or runs a timer started there.
+    var panelHolds: Bool {
+        PanelModuleDemand.shared.shows(.timer) || (panelOwnsSession && session.hasSession)
+    }
+
+    var isEnabled: Bool { NotchTimerSupport.isEnabled(panelHolds: panelHolds) }
 
     var now: TimeInterval {
         let parts = origin.duration(to: .now).components
@@ -21,7 +31,7 @@ final class NotchTimerService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        guard NotchTimerSupport.isEnabled() else { stop(); return }
+        guard isEnabled else { stop(); return }
         suspended = false
         finishIfDue()
         if session.completed { alert.start(enabled: NotchTimerSupport.isSoundEnabled()) }
@@ -29,15 +39,16 @@ final class NotchTimerService: ObservableObject {
     }
 
     func start(mode: NotchTimerMode, minutes: Int) {
-        guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard !suspended, isEnabled else { return }
         guard !session.hasSession else { return }
         alert.stop()
+        panelOwnsSession = PanelModuleDemand.shared.shows(.timer)
         session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
         scheduleCompletion()
     }
 
     func pauseOrResume() {
-        guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard !suspended, isEnabled else { return }
         finishIfDue()
         if session.isRunning { session.pause(at: now) }
         else if session.isPaused { session.resume(at: now) }
@@ -45,7 +56,7 @@ final class NotchTimerService: ObservableObject {
     }
 
     func startNext() {
-        guard !suspended, NotchTimerSupport.isEnabled() else { return }
+        guard !suspended, isEnabled else { return }
         guard session.canStartNext else { return }
         alert.stop()
         session.startNext(at: now)
@@ -56,6 +67,21 @@ final class NotchTimerService: ObservableObject {
         alert.stop()
         completionTask?.cancel(); completionTask = nil
         session.cancel()
+        // Nothing is left for the panel to keep going.
+        if panelOwnsSession {
+            panelOwnsSession = false
+            NotchService.shared.panelDemandChanged(.timer)
+        }
+    }
+
+    /// The island stepped away; a timer the panel holds keeps going.
+    func islandSuspended() {
+        if !panelHolds { suspend() }
+    }
+
+    /// The island stopped; a timer the panel holds keeps going.
+    func islandStopped() {
+        if !panelHolds { stop() }
     }
 
     func suspend() {
@@ -83,7 +109,7 @@ final class NotchTimerService: ObservableObject {
         completionTask = Task { @MainActor [weak self] in
             do { try await Task.sleep(for: .seconds(remaining), clock: .continuous) }
             catch { return }
-            guard let self, !Task.isCancelled, !self.suspended, NotchTimerSupport.isEnabled() else { return }
+            guard let self, !Task.isCancelled, !self.suspended, self.isEnabled else { return }
             self.completionTask = nil
             self.finishIfDue()
         }

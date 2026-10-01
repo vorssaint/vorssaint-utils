@@ -105,14 +105,15 @@ enum NotchLyricsSupport {
     static let maximumBytes = 128 * 1024
     static let maximumLines = 2000
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
-            && NotchSupport.modules(in: defaults).contains(.music)
+    /// Lyrics follow the island's Music page, or the same page in the menu panel.
+    static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        AppFeature.notchLyrics.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
+            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
+                && NotchSupport.modules(in: defaults).contains(.music)))
     }
 
-    static func onlineEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
+    static func onlineEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        isEnabled(in: defaults, panelVisible: panelVisible) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
     }
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {

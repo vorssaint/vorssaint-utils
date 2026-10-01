@@ -7,6 +7,8 @@ import Combine
 
 /// Keeps only notifications received during this unlocked, opted-in session.
 /// Native banners are preserved; no notification databases or message stores are read.
+/// The island ends the session as it steps away; for the menu panel alone,
+/// locking or sleeping the Mac ends it here.
 final class NotchNotificationService: ObservableObject {
     static let shared = NotchNotificationService()
     @Published private var inbox = NotchNotificationInbox()
@@ -22,6 +24,10 @@ final class NotchNotificationService: ObservableObject {
     private var application: AXUIElement?
     private var pid: pid_t?
     private var workspaceObservers: [NSObjectProtocol] = []
+    private var sessionObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    /// Locked or asleep: nothing is read until the Mac is back in use.
+    private var locked = false
+    private var asleep = false
     private var reader: NotchNotificationReader?
     private var cancellation = DispatchWorkItem {}
     private var pendingScan: DispatchWorkItem?
@@ -40,8 +46,9 @@ final class NotchNotificationService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        guard NotchNotificationSupport.isEnabled(), Permissions.shared.accessibility else { stop(); return }
+        guard NotchNotificationSupport.reads(), Permissions.shared.accessibility else { stop(); return }
         running = true
+        observeSession()
         placeNative()
         if workspaceObservers.isEmpty {
             for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
@@ -53,9 +60,29 @@ final class NotchNotificationService: ObservableObject {
         attach()
     }
 
+    private func observeSession() {
+        guard sessionObservers.isEmpty else { return }
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        let changes: [(NotificationCenter, Notification.Name, (NotchNotificationService) -> Void)] = [
+            (workspace, NSWorkspace.willSleepNotification, { $0.asleep = true }),
+            (workspace, NSWorkspace.didWakeNotification, { $0.asleep = false }),
+            (distributed, Notification.Name("com.apple.screenIsLocked"), { $0.locked = true }),
+            (distributed, Notification.Name("com.apple.screenIsUnlocked"), { $0.locked = false })]
+        for (center, name, change) in changes {
+            let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self else { return }
+                change(self)
+                // Stepping away ends the session: what was received is forgotten.
+                if self.locked || self.asleep { self.detach() } else { self.attach() }
+            }
+            sessionObservers.append((center, observer))
+        }
+    }
+
     private func attach() {
-        guard running else { return }
-        guard NotchNotificationSupport.isEnabled(), Permissions.shared.accessibility else { stop(); return }
+        guard running, !locked, !asleep else { return }
+        guard NotchNotificationSupport.reads(), Permissions.shared.accessibility else { stop(); return }
         let nextPID = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.notificationcenterui")
             .first?.processIdentifier
         guard nextPID != pid || observer == nil else { return }
@@ -214,7 +241,7 @@ final class NotchNotificationService: ObservableObject {
     }
 
     func open(_ id: UUID, completion: @escaping (NotchNotificationReader.ActionResult) -> Void) {
-        guard openingID == nil, monitoring, NotchNotificationSupport.isEnabled(),
+        guard openingID == nil, monitoring, NotchNotificationSupport.reads(),
               items.contains(where: { $0.id == id }), let reader else { completion(.unavailable); return }
         openingID = id
         unavailableID = nil
@@ -269,8 +296,12 @@ final class NotchNotificationService: ObservableObject {
 
     func stop() {
         running = false
+        locked = false
+        asleep = false
         detach()
         workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
         workspaceObservers.removeAll()
+        sessionObservers.forEach { $0.0.removeObserver($0.1) }
+        sessionObservers.removeAll()
     }
 }

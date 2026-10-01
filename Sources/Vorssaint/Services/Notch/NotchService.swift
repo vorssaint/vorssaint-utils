@@ -176,6 +176,8 @@ final class NotchService: ObservableObject {
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
     }
     private var running = false
+    /// The island is up and its pages' services follow its preferences.
+    private var servesPages = false
     private var session = NotchSessionState()
     private var suspended: Bool { !session.canPresent }
     @Published private(set) var hiddenInFullscreen = false {
@@ -800,17 +802,17 @@ final class NotchService: ObservableObject {
             running = true
             installObservers()
         }
-        if !NotchTimerSupport.isEnabled() { NotchTimerService.shared.stop() }
+        if !NotchTimerService.shared.isEnabled { NotchTimerService.shared.stop() }
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
-        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop(keepingPanel: true) }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
-            else { NotchTimerService.shared.suspend() }
+            else { NotchTimerService.shared.islandSuspended() }
             NotchLockScreenService.shared.sync(session)
             return
         }
@@ -818,6 +820,7 @@ final class NotchService: ObservableObject {
         // the lid is closed does not start and stop them all again.
         guard screenIndex(in: NSScreen.screens) != nil else { withdrawFromMissingScreen(); return }
         refreshModules()
+        servesPages = true
         NotchDownloadService.shared.syncWithPreferences()
         NotchCalendarService.shared.syncWithPreferences()
         NotchNotificationService.shared.syncWithPreferences()
@@ -874,12 +877,12 @@ final class NotchService: ObservableObject {
 
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
-        NotchLyricsService.shared.stop()
+        if !PanelModuleDemand.shared.shows(.music) { NotchLyricsService.shared.stop() }
         NotchFileToolsService.shared.stop()
-        AgentUsageService.shared.stop()
+        AgentUsageService.shared.stop(keepingPanel: true)
         guard running else { return }
         running = false
-        NotchTimerService.shared.stop()
+        NotchTimerService.shared.islandStopped()
         NotchAccessoryService.shared.stop()
         let cancelCapture = captureControlsCancel
         endCaptureControls()
@@ -917,13 +920,17 @@ final class NotchService: ObservableObject {
         awaitsTrackNotice = false
         subscriptions.removeAll()
         stopPower()
-        NotchMusicService.shared.stop()
+        if !PanelModuleDemand.shared.shows(.music) { NotchMusicService.shared.stop() }
         NotchAudioLevelService.shared.stop()
         CameraPreviewService.shared.hideEmbedded()
         NotchAccessoryService.shared.suspend()
-        NotchDownloadService.shared.stop()
-        NotchCalendarService.shared.stop()
-        NotchNotificationService.shared.stop()
+        servesPages = false
+        // A page open in the menu panel keeps reading without the island.
+        if !PanelModuleDemand.shared.shows(.downloads) { NotchDownloadService.shared.stop() }
+        if !PanelModuleDemand.shared.shows(.calendar) { NotchCalendarService.shared.stop() }
+        // The panel's own inbox ends its session on lock and sleep by itself.
+        if NotchNotificationSupport.readsForPanel() { NotchNotificationService.shared.syncWithPreferences() }
+        else { NotchNotificationService.shared.stop() }
         AgentUsageService.shared.pause()
         settingsSignature = ""
         expanded = false
@@ -1718,10 +1725,56 @@ final class NotchService: ObservableObject {
         (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
-    /// Opens the Dynamic Island settings on one section's options.
+    /// A page opened or closed in the menu panel. Open, its service reads for
+    /// the panel; closed, the service goes back to what the island needs.
+    func panelDemandChanged(_ module: NotchModule) {
+        switch module {
+        case .agents: AgentUsageService.shared.panelDemandChanged()
+        case .calendar:
+            if servesPages || PanelModuleDemand.shared.shows(.calendar) {
+                NotchCalendarService.shared.syncWithPreferences()
+            } else {
+                NotchCalendarService.shared.stop()
+            }
+        case .music:
+            if PanelModuleDemand.shared.shows(.music) {
+                NotchMusicService.shared.start()
+            } else if running, !suspended {
+                // The island decides again what it needs to watch.
+                syncVisibleConsumers()
+            } else {
+                NotchMusicService.shared.stop()
+            }
+        case .downloads:
+            let downloads = NotchDownloadService.shared
+            if servesPages || PanelModuleDemand.shared.shows(.downloads) {
+                downloads.syncWithPreferences()
+            } else if !downloads.isChoosingFolder {
+                // A folder chooser begun in the panel outlives it and syncs as it closes.
+                downloads.stop()
+            }
+        case .timer:
+            let timer = NotchTimerService.shared
+            if timer.panelHolds || (running && (servesPages || session.canRunTimer)) {
+                timer.syncWithPreferences()
+            } else {
+                timer.suspend()
+            }
+        default: break
+        }
+    }
+
+    /// Opens the Dynamic Island settings on one section's options, or the
+    /// section's own page for a feature that also works in the menu panel.
     func openSettings(showing module: NotchModule) {
-        SettingsRouter.shared.notchModule = module
-        openSettings()
+        guard let page = module.ownSettingsPage else {
+            SettingsRouter.shared.notchModule = module
+            openSettings()
+            return
+        }
+        collapse()
+        SettingsRouter.shared.request(FeatureSettingsDestination(page))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     func perform(_ action: @escaping () -> Void) {
@@ -2613,7 +2666,7 @@ final class NotchService: ObservableObject {
         let fallback = captureFallback
         clearCapture()
         tearDownPresentation()
-        NotchTimerService.shared.suspend()
+        NotchTimerService.shared.islandSuspended()
         // The keys go back to the system while nothing can show them.
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
@@ -2868,7 +2921,7 @@ final class NotchService: ObservableObject {
         // already suspended by the display.
         guard timerCouldRun != session.canRunTimer, !session.canPresent else { return }
         if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
-        else { NotchTimerService.shared.suspend() }
+        else { NotchTimerService.shared.islandSuspended() }
     }
 
     private func installEventMonitors() {
@@ -3188,35 +3241,9 @@ final class NotchService: ObservableObject {
     }
 
     private func showAgentEvent(_ event: AgentUsageEvent) {
-        let text = FeatureStrings.notchAgents(L10n.shared.language)
-        let locale = L10n.shared.language.formattingLocale()
-        let remaining = NotchAgentSupport.limitDisplay() == .remaining
-        func window(_ window: AgentLimitWindow) -> String {
-            switch window.kind {
-            case .session: return text.session
-            case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
-            case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
-                ?? text.readoutLimit
-            }
-        }
-        switch event {
-        case .finished(let provider, let duration, let cost, _, _):
-            show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
-                             detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
-                                .filter { !$0.isEmpty }.joined(separator: " · "),
-                             symbol: provider.symbol, agent: provider))
-        case .limitWarning(let provider, let limit):
-            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
-                             symbol: "exclamationmark.triangle.fill", agent: provider))
-        case .limitReset(let provider, let limit):
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider))
-        case .budgetReached(let spent, _):
-            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
-                             symbol: "dollarsign.circle.fill"))
-        }
+        let summary = NotchAgentSupport.summary(of: event, language: L10n.shared.language)
+        show(NotchNotice(event: .agents, title: summary.title, detail: summary.detail,
+                         symbol: summary.symbol, agent: summary.provider))
     }
 
     func showCurrentVolume() {
@@ -3323,6 +3350,7 @@ final class NotchService: ObservableObject {
             CameraPreviewService.shared.hideEmbedded()
             // A copy on another display still shows the song playing.
             let copiesShowMusic = showsCopies && NotchSupport.watchesMusicActivity()
+                || PanelModuleDemand.shared.shows(.music)
             if copiesShowMusic { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
             releaseMonitor()
             return
@@ -3334,6 +3362,7 @@ final class NotchService: ObservableObject {
         let musicWanted = modules.contains(.music) && ((expanded && (selected == .music || (selected == .controls && NotchSupport.controls().contains(.music)))
             && !showingAppPanel && !showingSections)
             || (!hiddenUntilHover && (NotchSupport.watchesMusicActivity() || NotchSupport.routes(.track))))
+            || PanelModuleDemand.shared.shows(.music)
         if musicWanted { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel && !showingSections
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none
@@ -3358,4 +3387,9 @@ extension NSScreen {
     var notchDisplayID: CGDirectDisplayID {
         (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value ?? 0
     }
+}
+
+extension PanelModuleDemand {
+    /// The island owns the services of its pages, so it hears of every change.
+    static let shared = PanelModuleDemand { NotchService.shared.panelDemandChanged($0) }
 }

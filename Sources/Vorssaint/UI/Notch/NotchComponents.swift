@@ -21,7 +21,7 @@ struct NotchButtonStyle: ButtonStyle {
         configuration.label
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.white.opacity(active && highlights ? 0.09 : 0))
+                    .fill(Color.notchInk.opacity(active && highlights ? 0.09 : 0))
                     .allowsHitTesting(false)
             }
             .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
@@ -45,7 +45,7 @@ struct NotchLiveEqualizerBars: View {
     var bars = 4
     var barWidth: CGFloat = 2.5
     var height: CGFloat = 14
-    var tint: Color = .white
+    var tint: Color = Color.notchInk
     @ObservedObject private var audio = NotchAudioLevelService.shared
 
     var body: some View {
@@ -59,13 +59,13 @@ struct NotchLiveEqualizerBars: View {
 struct NotchMeter: View {
     let value: Double
     var height: CGFloat = 5
-    var tint: Color = .white
+    var tint: Color = Color.notchInk
 
     var body: some View {
         let fraction = value.isFinite ? min(1, max(0, value)) : 0
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule(style: .continuous).fill(.white.opacity(0.14))
+                Capsule(style: .continuous).fill(Color.notchInk.opacity(0.14))
                 Capsule(style: .continuous)
                     .fill(tint.opacity(0.9))
                     .frame(width: max(fraction > 0 ? height : 0, proxy.size.width * fraction))
@@ -104,11 +104,11 @@ struct NotchIconButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(selected ? .white : .white.opacity(0.55))
+                .foregroundStyle(selected ? Color.notchInk : Color.notchInk.opacity(0.55))
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: symbol)
                 .frame(width: 28, height: 28)
-                .background(.white.opacity(selected ? 0.12 : 0),
+                .background(Color.notchInk.opacity(selected ? 0.12 : 0),
                             in: RoundedRectangle(cornerRadius: 9, style: .continuous))
                 .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
@@ -142,9 +142,9 @@ struct NotchEmptyView: View {
     private var glyph: some View {
         Image(systemName: symbol)
             .font(.system(size: 26, weight: .light))
-            .foregroundStyle(.white.opacity(0.65))
+            .foregroundStyle(Color.notchInk.opacity(0.65))
             .frame(width: 56, height: 56)
-            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.notchInk.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .accessibilityHidden(true)
     }
 
@@ -279,6 +279,19 @@ extension EnvironmentValues {
 }
 
 private struct NotchSettingsPreviewKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// An island page shown in the menu panel. Like a preview it leaves the
+    /// island's state alone, but it is a working page and reads what it shows.
+    var islandPageInPanel: Bool {
+        get { self[IslandPageInPanelKey.self] }
+        set { self[IslandPageInPanelKey.self] = newValue }
+    }
+}
+
+private struct IslandPageInPanelKey: EnvironmentKey {
     static let defaultValue = false
 }
 
@@ -500,26 +513,26 @@ struct NotchControlSurface: ViewModifier {
         Group {
             if glassSurface {
                 content
-                    .background(.white.opacity(selected ? 0.11 : 0.045), in: shape)
+                    .background(Color.notchInk.opacity(selected ? 0.11 : 0.045), in: shape)
                     .overlay {
-                        shape.strokeBorder(.white.opacity(selected ? 0.16 : 0.065), lineWidth: 0.5)
+                        shape.strokeBorder(Color.notchInk.opacity(selected ? 0.16 : 0.065), lineWidth: 0.5)
                             .allowsHitTesting(false)
                     }
             } else {
 #if compiler(>=6.2)
                 if #available(macOS 26, *), glass, !reduceTransparency {
-                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                    content.background(Color.notchInk.opacity(selected ? 0.12 : 0.065), in: shape)
                         .glassEffect(.regular.interactive(interactive), in: shape)
                 } else {
-                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                    content.background(Color.notchInk.opacity(selected ? 0.12 : 0.065), in: shape)
                 }
 #else
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                content.background(Color.notchInk.opacity(selected ? 0.12 : 0.065), in: shape)
 #endif
             }
         }
         .overlay {
-            shape.strokeBorder(.white.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 0.75)
+            shape.strokeBorder(Color.notchInk.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 0.75)
                 .allowsHitTesting(false)
         }
     }

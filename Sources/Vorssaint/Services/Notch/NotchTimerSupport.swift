@@ -175,10 +175,12 @@ enum NotchTimerSupport {
         defaults.object(forKey: DefaultsKey.notchTimerSoundEnabled) as? Bool ?? true
     }
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchTimer.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
-            && NotchSupport.modules(in: defaults).contains(.timer)
+    /// The island keeps time for its Timer page; the menu panel keeps time
+    /// while it shows the page or runs a timer started there.
+    static func isEnabled(in defaults: UserDefaults = .standard, panelHolds: Bool = false) -> Bool {
+        AppFeature.notchTimer.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchTimerEnabled)
+            && (panelHolds || (NotchSupport.isEnabled(in: defaults)
+                && NotchSupport.modules(in: defaults).contains(.timer)))
     }
 
     /// The modes read as three words in a row, the current one underlined,

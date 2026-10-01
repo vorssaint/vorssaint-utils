@@ -27,7 +27,11 @@ struct NotchDownloadsSettingsControls: View {
                 }
             }.controlSize(.small)
         }
-        .onChange(of: enabled) { NotchService.shared.syncWithPreferences() }
+        .onChange(of: enabled) {
+            NotchService.shared.syncWithPreferences()
+            // The island may be off while the menu panel shows the page.
+            downloads.syncWithPreferences()
+        }
     }
 }
 
@@ -62,9 +66,9 @@ private struct NotchDownloadsSetupView: View {
     private var glyph: some View {
         Image(systemName: downloads.folderUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
             .font(.system(size: 26, weight: .light))
-            .foregroundStyle(.white.opacity(0.65))
+            .foregroundStyle(Color.notchInk.opacity(0.65))
             .frame(width: 56, height: 56)
-            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(Color.notchInk.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .accessibilityHidden(true)
     }
 
@@ -74,7 +78,7 @@ private struct NotchDownloadsSetupView: View {
         Text(downloads.folderUnavailable ? text.folderUnavailable
              : offersSwitchOnly ? text.downloadsTitle : enabled ? text.downloadsHint : text.downloadsDescription)
             .font(.system(size: 12))
-            .foregroundStyle(downloads.folderUnavailable ? Color.orange : .white.opacity(0.65))
+            .foregroundStyle(downloads.folderUnavailable ? Color.orange : Color.notchInk.opacity(0.65))
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -101,7 +105,7 @@ private struct NotchDownloadsSetupView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.horizontal, 14)
                     .frame(height: 28)
-                    .background(.white.opacity(0.14), in: Capsule())
+                    .background(Color.notchInk.opacity(0.14), in: Capsule())
                     .contentShape(Capsule())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14))
@@ -109,7 +113,7 @@ private struct NotchDownloadsSetupView: View {
                 Button(action: downloads.forgetFolder) {
                     Text(text.clearFolder)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(Color.notchInk.opacity(0.7))
                         .padding(.horizontal, 10)
                         .frame(height: 28)
                         .contentShape(Capsule())
@@ -171,7 +175,7 @@ struct NotchDownloadsView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Image(systemName: item.completed ? "checkmark.circle.fill" : "arrow.down.circle")
-                    .foregroundStyle(item.completed ? .green : .white)
+                    .foregroundStyle(item.completed ? .green : Color.notchInk)
                 Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if item.completed {
@@ -209,7 +213,7 @@ struct NotchDownloadsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.notchInk.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .clipped()
         .accessibilityElement(children: .contain)
     }

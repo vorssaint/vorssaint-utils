@@ -22,11 +22,20 @@ final class NotchLyricsService: ObservableObject {
 
     private init() {}
 
+    /// Lyrics serve the island's Music page and the same page in the menu panel.
+    private var lyricsEnabled: Bool {
+        NotchLyricsSupport.isEnabled(panelVisible: PanelModuleDemand.shared.shows(.music))
+    }
+
+    private var onlineEnabled: Bool {
+        NotchLyricsSupport.onlineEnabled(panelVisible: PanelModuleDemand.shared.shows(.music))
+    }
+
     func update(playback: NotchPlayback?, visible: Bool) {
-        guard NotchLyricsSupport.isEnabled() else { stop(); return }
+        guard lyricsEnabled else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         let wanted = visible && next != nil
-        let online = NotchLyricsSupport.onlineEnabled()
+        let online = onlineEnabled
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }
         cancel()
@@ -42,7 +51,7 @@ final class NotchLyricsService: ObservableObject {
     /// Called for actual adapter metadata, including an explicit empty snapshot.
     /// A hidden view supplies no such evidence and must not discard an import.
     func playbackChanged(_ playback: NotchPlayback?) {
-        guard NotchLyricsSupport.isEnabled() else { stop(); return }
+        guard lyricsEnabled else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         guard next != track else { return }
         let wasVisible = visible
@@ -54,7 +63,7 @@ final class NotchLyricsService: ObservableObject {
     }
 
     func retry() {
-        guard visible, NotchLyricsSupport.onlineEnabled(), let track else { return }
+        guard visible, onlineEnabled, let track else { return }
         cancel()
         load(track)
     }
@@ -65,7 +74,7 @@ final class NotchLyricsService: ObservableObject {
     func hide() {
         cancel()
         visible = false
-        if !NotchLyricsSupport.isEnabled() { memory.clear() }
+        if !lyricsEnabled { memory.clear() }
         state = lyrics == nil ? .idle : .ready
     }
 
@@ -93,7 +102,7 @@ final class NotchLyricsService: ObservableObject {
             let lyrics = data.flatMap { NotchLyricsSupport.decode($0, for: track) }
             DispatchQueue.main.async {
                 guard let self, self.visible, self.generation == requested, self.track == track,
-                      NotchLyricsSupport.onlineEnabled() else { return }
+                      self.onlineEnabled else { return }
                 self.session = nil
                 guard self.memory.replace(lyrics, for: track) else { return }
                 self.state = lyrics != nil ? .ready : failed ? .failed : .unavailable
@@ -102,7 +111,7 @@ final class NotchLyricsService: ObservableObject {
     }
 
     func importLyrics() {
-        guard visible, NotchLyricsSupport.isEnabled(), let track, importPanel == nil,
+        guard visible, lyricsEnabled, let track, importPanel == nil,
               let parent = NotchService.shared.presentationWindow,
               canReturnToLyrics(parent, track: track) else { return }
         let panel = NSOpenPanel()
@@ -150,7 +159,7 @@ final class NotchLyricsService: ObservableObject {
                 let imported = lines
                 DispatchQueue.main.async {
                     guard self.generation == importedGeneration, self.track == track, self.visible,
-                          NotchLyricsSupport.isEnabled() else { return }
+                          self.lyricsEnabled else { return }
                     guard self.memory.replace(imported.isEmpty ? nil : NotchLyrics(lines: imported, plain: "", instrumental: false),
                                               for: track) else { return }
                     self.state = imported.isEmpty ? .failed : .ready
@@ -166,7 +175,7 @@ final class NotchLyricsService: ObservableObject {
 
     private func canReturnToLyrics(_ window: NSWindow, track expected: NotchMusicIdentity) -> Bool {
         let notch = NotchService.shared
-        return visible && track == expected && NotchLyricsSupport.isEnabled()
+        return visible && track == expected && lyricsEnabled
             && notch.acceptsUserInteraction && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .music && !notch.showingAppPanel
             && notch.selectedMetric == nil && notch.captureControls == nil

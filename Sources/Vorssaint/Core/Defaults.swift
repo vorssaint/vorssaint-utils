@@ -703,6 +703,12 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityAgents = "panelUtilityAgents"
+    static let panelUtilityCalendar = "panelUtilityCalendar"
+    static let panelUtilityTimer = "panelUtilityTimer"
+    static let panelUtilityDownloads = "panelUtilityDownloads"
+    static let panelUtilityNotifications = "panelUtilityNotifications"
+    static let panelUtilityMusic = "panelUtilityMusic"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -828,6 +834,7 @@ enum DefaultsKey {
     static let notchAgentsPeriod = "notchAgentsPeriod"
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
+    static let notchAgentsMenuBarActivity = "notchAgentsMenuBarActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
     static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
@@ -1376,6 +1383,7 @@ enum Defaults {
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLiveActivity: true,
+        DefaultsKey.notchAgentsMenuBarActivity: false,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
         DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
@@ -1720,6 +1728,12 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityAgents: true,
+        DefaultsKey.panelUtilityCalendar: true,
+        DefaultsKey.panelUtilityTimer: true,
+        DefaultsKey.panelUtilityDownloads: true,
+        DefaultsKey.panelUtilityNotifications: false,
+        DefaultsKey.panelUtilityMusic: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

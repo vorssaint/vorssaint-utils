@@ -31,7 +31,7 @@ struct NotchCalendarView: View {
                                 ScrollView { monthView(now: context.date) }
                                     .scrollIndicators(.automatic)
                                     .frame(width: 196)
-                                Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
+                                Rectangle().fill(Color.notchInk.opacity(0.12)).frame(width: 1)
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 12) {
                                     agendaHeader
@@ -226,10 +226,10 @@ struct NotchCalendarView: View {
         HStack(spacing: 12) {
             Image(systemName: "calendar.badge.checkmark")
                 .font(.system(size: 26, weight: .light))
-                .foregroundStyle(.white.opacity(0.45))
+                .foregroundStyle(Color.notchInk.opacity(0.45))
                 .accessibilityHidden(true)
             Text(selectedDay == nil ? text.empty : text.emptyDay)
-                .font(.system(size: 12)).foregroundStyle(.white.opacity(0.65))
+                .font(.system(size: 12)).foregroundStyle(Color.notchInk.opacity(0.65))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 12)
@@ -240,14 +240,15 @@ struct NotchCalendarView: View {
             Image(systemName: "calendar.badge.clock").font(.system(size: 28))
             Text(permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted
                  ? text.denied : text.permission)
-                .font(.callout).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
+                .font(.callout).foregroundStyle(Color.notchInk.opacity(0.7)).multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 if permissions.calendarAccess == .denied || permissions.calendarAccess == .restricted {
                     Button(text.settings) { permissions.openCalendarSettings() }
                 } else {
                     Button(text.allow) {
-                        NotchService.shared.open(.calendar)
+                        // The island stays open under the prompt; elsewhere it is left alone.
+                        if !preview { NotchService.shared.open(.calendar) }
                         permissions.requestCalendar()
                     }
                     .disabled(permissions.requestingCalendar)
@@ -284,14 +285,14 @@ private struct NotchCalendarDayLabel: View {
     var body: some View {
         HStack(spacing: 5) {
             if Calendar.current.isDate(day, inSameDayAs: now) {
-                Text(text.today).foregroundStyle(.white)
+                Text(text.today).foregroundStyle(Color.notchInk)
             } else {
                 Text(day, format: .dateTime.weekday(.abbreviated))
             }
             Text(day, format: .dateTime.day().month(.abbreviated))
         }
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(.white.opacity(0.5))
+        .foregroundStyle(Color.notchInk.opacity(0.5))
         .lineLimit(1)
     }
 }
@@ -324,12 +325,12 @@ private struct NotchCalendarEventRow: View {
             if ongoing || isNext {
                 Text(ongoing ? text.ongoing : text.next)
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+                    .foregroundStyle(ongoing ? .mint : Color.notchInk.opacity(0.7))
                     .lineLimit(1)
             }
             Text(event.title.isEmpty ? text.untitled : event.title)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
+                .foregroundStyle(Color.notchInk.opacity(ended ? 0.65 : 1))
                 .fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 Group {
@@ -352,12 +353,12 @@ private struct NotchCalendarEventRow: View {
                 }
             }
             .font(.system(size: 11)).monospacedDigit()
-            .foregroundStyle(.white.opacity(0.75))
+            .foregroundStyle(Color.notchInk.opacity(0.75))
             Text(event.calendar)
-                .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
+                .font(.system(size: 10)).foregroundStyle(Color.notchInk.opacity(0.5)).lineLimit(1)
             if !event.location.isEmpty {
                 Label(event.location, systemImage: "mappin")
-                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    .font(.system(size: 10)).foregroundStyle(Color.notchInk.opacity(0.6)).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -373,7 +374,7 @@ private struct NotchCalendarEventRow: View {
                     in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(.white.opacity(contrast == .increased ? 0.5 : ongoing ? 0.16 : 0.05), lineWidth: 0.75)
+                .strokeBorder(Color.notchInk.opacity(contrast == .increased ? 0.5 : ongoing ? 0.16 : 0.05), lineWidth: 0.75)
         }
         .clipped()
     }

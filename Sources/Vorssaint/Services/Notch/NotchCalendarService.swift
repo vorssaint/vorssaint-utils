@@ -70,6 +70,10 @@ final class NotchCalendarService: NSObject, ObservableObject {
 
     private override init() { super.init() }
 
+    private var isEnabled: Bool {
+        NotchCalendarSupport.isEnabled(panelVisible: PanelModuleDemand.shared.shows(.calendar))
+    }
+
     /// Every event calendar on this Mac, for the Settings list. Works while
     /// the island's reader is stopped, since the list is edited from Settings.
     func calendarChoices() async -> [NotchCalendarChoice] {
@@ -101,7 +105,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
     }
 
     func syncWithPreferences() {
-        guard NotchCalendarSupport.isEnabled() else { stop(); return }
+        guard isEnabled else { stop(); return }
         let countdownEnabled = NotchCalendarSupport.showsCountdown()
         let timeLeftEnabled = NotchCalendarSupport.showsTimeLeft()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
@@ -142,7 +146,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         task?.cancel()
         refreshTimer?.invalidate(); refreshTimer = nil
         generation = UUID()
-        guard NotchCalendarSupport.isEnabled(), let reader else { stop(); return }
+        guard isEnabled, let reader else { stop(); return }
         guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
             events = []; countdown = nil; loading = false
             return
@@ -161,7 +165,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
             let currentResult = needsCurrentRead
                 ? await reader.read(interval: currentInterval, excluded: excluded) : result
             guard !Task.isCancelled, let self, self.generation == requested,
-                  NotchCalendarSupport.isEnabled() else { return }
+                  self.isEnabled else { return }
             let now = Date()
             guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
                 self.events = []; self.countdown = nil; self.loading = false; self.task = nil

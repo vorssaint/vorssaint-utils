@@ -22,10 +22,11 @@ struct NotchQueueSnapshot: Equatable {
 enum NotchQueueSupport {
     static let maximumItems = NotchQueueSelection.maximumItems
 
-    static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchQueue.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchQueueEnabled)
-            && NotchSupport.modules(in: defaults).contains(.music)
+    /// The queue follows the island's Music page, or the same page in the menu panel.
+    static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
+        AppFeature.notchQueue.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchQueueEnabled)
+            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
+                && NotchSupport.modules(in: defaults).contains(.music)))
     }
 
     static func decode(_ object: [String: Any], requestID: UUID, playback: NotchPlayback) -> NotchQueueSnapshot? {

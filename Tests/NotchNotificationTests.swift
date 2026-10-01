@@ -150,6 +150,21 @@ enum NotchNotificationTests {
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchNotificationSupport.isEnabled(in: defaults), "the master switch gates mirroring")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityNotifications] as? Bool == false
+                        && !NotchNotificationSupport.reads(in: defaults),
+                     "the menu panel keeps no inbox until its entry is opted into")
+        defaults.set(true, forKey: DefaultsKey.panelUtilityNotifications)
+        suite.expect(NotchNotificationSupport.reads(in: defaults) && !NotchSupport.routes(.systemNotification, in: defaults)
+                        && !NotchNotificationSupport.dismissesNative(in: defaults),
+                     "the panel's inbox reads without the island, and never shows or closes banners itself")
+        defaults.set(false, forKey: DefaultsKey.notchNotificationsEnabled)
+        suite.expect(!NotchNotificationSupport.reads(in: defaults), "notifications turned off stop the panel's inbox too")
+        defaults.set(true, forKey: DefaultsKey.notchNotificationsEnabled)
+        defaults.set(false, forKey: AppFeature.notchNotifications.availabilityKey)
+        suite.expect(!NotchNotificationSupport.reads(in: defaults), "the hub gates the panel's inbox too")
+        defaults.set(true, forKey: AppFeature.notchNotifications.availabilityKey)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.panelUtilityNotifications),
+                     "the panel's notifications opt-in travels in backup")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchNotificationsEnabled,
                                                                  AppFeature.notchNotifications.availabilityKey, DefaultsKey.notchDismissNativeNotifications]),
                "notification preferences are included in settings backup")

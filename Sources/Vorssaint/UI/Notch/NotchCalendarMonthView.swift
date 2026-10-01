@@ -24,7 +24,7 @@ struct NotchCalendarMonthView: View {
                     Text(month, format: .dateTime.month(.wide))
                         .font(.system(size: 16, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
                     Text(month, format: .dateTime.year())
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                        .font(.system(size: 11)).foregroundStyle(Color.notchInk.opacity(0.45))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 NotchIconButton(symbol: "chevron.left", title: text.previousMonth) { move(-1) }
@@ -35,7 +35,7 @@ struct NotchCalendarMonthView: View {
                     let index = (Calendar.current.firstWeekday - 1 + column) % 7
                     Text(weekdaySymbols[index])
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Color.notchInk.opacity(0.45))
                         .frame(maxWidth: .infinity).frame(height: 18)
                         .accessibilityHidden(true)
                 }
@@ -55,7 +55,7 @@ struct NotchCalendarMonthView: View {
                 NotchIconButton(symbol: "arrow.up.forward.app", title: text.openCalendar, action: open)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.notchInk)
     }
 
     private var weekdaySymbols: [String] {
@@ -75,13 +75,13 @@ struct NotchCalendarMonthView: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 2) {
-                Text(date, format: .dateTime.day())
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: 11, weight: isToday || selected ? .bold : .medium))
-                    .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
+                    .foregroundStyle(selected && !isToday ? Color.notchInkInverse : (isToday ? Color(white: 1) : Color.notchInk.opacity(inMonth ? 1 : 0.4)))
                     .frame(width: 24, height: 24)
-                    .background(isToday ? accent : selected ? .white : .clear, in: Circle())
+                    .background(isToday ? accent : selected ? Color.notchInk : .clear, in: Circle())
                     .overlay {
-                        Circle().strokeBorder(.white.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
+                        Circle().strokeBorder(Color.notchInk.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
                     }
                 HStack(spacing: 2) {
                     ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
@@ -141,7 +141,7 @@ struct NotchCalendarWeekStrip: View {
             }
         }
         .frame(height: Self.height)
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.notchInk)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(focus, format: .dateTime.month(.wide).year()))
     }
@@ -165,14 +165,14 @@ struct NotchCalendarWeekStrip: View {
             VStack(spacing: 2) {
                 Text(weekdaySymbols[calendar.component(.weekday, from: date) - 1])
                     .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.45))
-                Text(date, format: .dateTime.day())
+                    .foregroundStyle(Color.notchInk.opacity(0.45))
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: 12, weight: isToday || selected ? .bold : .medium))
-                    .foregroundStyle(selected && !isToday ? .black : .white)
+                    .foregroundStyle(selected && !isToday ? Color.notchInkInverse : isToday ? Color(white: 1) : Color.notchInk)
                     .frame(width: 26, height: 26)
-                    .background(isToday ? accent : selected ? .white : .clear, in: Circle())
+                    .background(isToday ? accent : selected ? Color.notchInk : .clear, in: Circle())
                     .overlay {
-                        Circle().strokeBorder(.white.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
+                        Circle().strokeBorder(Color.notchInk.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
                     }
                 HStack(spacing: 2) {
                     ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
@@ -234,7 +234,7 @@ struct NotchCalendarMonthGrid: View {
                     let index = (Calendar.current.firstWeekday - 1 + column) % 7
                     Text(weekdaySymbols[index])
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(Color.notchInk.opacity(0.45))
                         .frame(maxWidth: .infinity).frame(height: NotchLayout.calendarMonthWeekdayHeight)
                         .accessibilityHidden(true)
                 }
@@ -243,7 +243,7 @@ struct NotchCalendarMonthGrid: View {
                 }
             }
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(Color.notchInk)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
@@ -264,13 +264,13 @@ struct NotchCalendarMonthGrid: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 0) {
-                Text(date, format: .dateTime.day())
+                Text(Calendar.current.component(.day, from: date), format: .number)
                     .font(.system(size: min(11, circle * 0.62), weight: isToday || selected ? .bold : .medium))
-                    .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
+                    .foregroundStyle(selected && !isToday ? Color.notchInkInverse : (isToday ? Color(white: 1) : Color.notchInk.opacity(inMonth ? 1 : 0.4)))
                     .frame(width: circle, height: circle)
-                    .background(isToday ? accent : selected ? .white : .clear, in: Circle())
+                    .background(isToday ? accent : selected ? Color.notchInk : .clear, in: Circle())
                     .overlay {
-                        Circle().strokeBorder(.white.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
+                        Circle().strokeBorder(Color.notchInk.opacity(selected && isToday ? 0.8 : 0), lineWidth: 1.5)
                     }
                 HStack(spacing: 2) {
                     ForEach(Array(colors.enumerated()), id: \.offset) { _, color in
