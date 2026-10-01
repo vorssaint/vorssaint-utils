@@ -31,6 +31,11 @@ struct NotchAgentStrings {
     let savedFormat: String
     let planMultipleFormat: String
     let idle: String
+    let stateWorking: String
+    let stateWaiting: String
+    let stateApproval: String
+    let stateDone: String
+    let stateFailed: String
     let noActivity: String
     let empty: String
     let loading: String
@@ -120,6 +125,16 @@ struct NotchAgentStrings {
         }
     }
 
+    func state(_ state: AgentSessionState) -> String {
+        switch state {
+        case .working: return stateWorking
+        case .waiting: return stateWaiting
+        case .needsApproval: return stateApproval
+        case .done: return stateDone
+        case .failed: return stateFailed
+        }
+    }
+
     func card(_ card: NotchAgentCard) -> String {
         switch card {
         case .limits: return limitsCard
@@ -202,6 +217,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ saved by the cache",
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
+        stateWorking: "Working",
+        stateWaiting: "Waiting for you",
+        stateApproval: "Needs approval",
+        stateDone: "Done",
+        stateFailed: "Error",
         noActivity: "Nothing in this period",
         empty: "No usage from Claude Code, Codex or OpenCode yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
@@ -297,6 +317,11 @@ extension NotchAgentStrings {
         savedFormat: "Заощаджено кешем: %@",
         planMultipleFormat: "%1$@ від ціни %2$@",
         idle: "Неактивно",
+        stateWorking: "Працює",
+        stateWaiting: "Чекає на вас",
+        stateApproval: "Потрібен дозвіл",
+        stateDone: "Готово",
+        stateFailed: "Помилка",
         noActivity: "За цей період нічого немає",
         empty: "Claude Code, Codex або OpenCode ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
@@ -392,6 +417,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ economizados pelo cache",
         planMultipleFormat: "%1$@ o preço do %2$@",
         idle: "Parado",
+        stateWorking: "Trabalhando",
+        stateWaiting: "Aguardando você",
+        stateApproval: "Precisa de aprovação",
+        stateDone: "Concluído",
+        stateFailed: "Erro",
         noActivity: "Nada neste período",
         empty: "Ainda não há uso do Claude Code, do Codex nem do OpenCode. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
@@ -487,6 +517,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ ahorrados por la caché",
         planMultipleFormat: "%1$@ el precio de %2$@",
         idle: "Inactivo",
+        stateWorking: "Trabajando",
+        stateWaiting: "Esperándote",
+        stateApproval: "Requiere aprobación",
+        stateDone: "Listo",
+        stateFailed: "Error",
         noActivity: "Nada en este periodo",
         empty: "Aún no hay uso de Claude Code, Codex ni de OpenCode. Aparece aquí en cuanto cualquiera de los tres trabaje en este Mac.",
         loading: "Leyendo el uso…",
@@ -582,6 +617,11 @@ extension NotchAgentStrings {
         savedFormat: "Vyrovnávacia pamäť ušetrila %@",
         planMultipleFormat: "%1$@ ceny %2$@",
         idle: "Nečinné",
+        stateWorking: "Pracuje",
+        stateWaiting: "Čaká na vás",
+        stateApproval: "Vyžaduje schválenie",
+        stateDone: "Hotovo",
+        stateFailed: "Chyba",
         noActivity: "V tomto období nič",
         empty: "Zatiaľ žiadne využitie z Claude Code, Codexu ani OpenCode. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
@@ -677,6 +717,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ durch den Cache gespart",
         planMultipleFormat: "%1$@ so viel wie %2$@",
         idle: "Inaktiv",
+        stateWorking: "Arbeitet",
+        stateWaiting: "Wartet auf dich",
+        stateApproval: "Freigabe nötig",
+        stateDone: "Fertig",
+        stateFailed: "Fehler",
         noActivity: "Nichts in diesem Zeitraum",
         empty: "Noch keine Nutzung von Claude Code, Codex oder OpenCode. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
@@ -772,6 +817,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ économisés grâce au cache",
         planMultipleFormat: "%1$@ le prix de %2$@",
         idle: "Inactif",
+        stateWorking: "En cours",
+        stateWaiting: "Vous attend",
+        stateApproval: "Approbation requise",
+        stateDone: "Terminé",
+        stateFailed: "Erreur",
         noActivity: "Rien sur cette période",
         empty: "Aucun usage de Claude Code, Codex ou d’OpenCode pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
@@ -867,6 +917,11 @@ extension NotchAgentStrings {
         savedFormat: "%@ risparmiati grazie alla cache",
         planMultipleFormat: "%1$@ il prezzo di %2$@",
         idle: "Inattivo",
+        stateWorking: "Al lavoro",
+        stateWaiting: "Ti aspetta",
+        stateApproval: "Serve approvazione",
+        stateDone: "Fatto",
+        stateFailed: "Errore",
         noActivity: "Niente in questo periodo",
         empty: "Ancora nessun utilizzo di Claude Code, Codex o OpenCode. Compare qui appena uno dei tre lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
@@ -962,6 +1017,11 @@ extension NotchAgentStrings {
         savedFormat: "Кэш сэкономил %@",
         planMultipleFormat: "%1$@ от цены %2$@",
         idle: "Простой",
+        stateWorking: "Работает",
+        stateWaiting: "Ждёт вас",
+        stateApproval: "Нужно разрешение",
+        stateDone: "Готово",
+        stateFailed: "Ошибка",
         noActivity: "За этот период ничего нет",
         empty: "Пока нет данных об использовании Claude Code, Codex или OpenCode. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
@@ -1057,6 +1117,11 @@ extension NotchAgentStrings {
         savedFormat: "Önbellek %@ tasarruf sağladı",
         planMultipleFormat: "%2$@ fiyatının %1$@",
         idle: "Boşta",
+        stateWorking: "Çalışıyor",
+        stateWaiting: "Sizi bekliyor",
+        stateApproval: "Onay gerekiyor",
+        stateDone: "Bitti",
+        stateFailed: "Hata",
         noActivity: "Bu dönemde bir şey yok",
         empty: "Henüz Claude Code, Codex veya OpenCode kullanımı yok. Üçünden biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
@@ -1152,6 +1217,11 @@ extension NotchAgentStrings {
         savedFormat: "キャッシュで%@節約",
         planMultipleFormat: "%2$@の料金の%1$@",
         idle: "待機中",
+        stateWorking: "作業中",
+        stateWaiting: "入力待ち",
+        stateApproval: "承認が必要",
+        stateDone: "完了",
+        stateFailed: "エラー",
         noActivity: "この期間の記録はありません",
         empty: "Claude Code、Codex、OpenCodeの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
@@ -1247,6 +1317,11 @@ extension NotchAgentStrings {
         savedFormat: "캐시로 %@ 절약",
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
+        stateWorking: "작업 중",
+        stateWaiting: "입력 대기",
+        stateApproval: "승인 필요",
+        stateDone: "완료",
+        stateFailed: "오류",
         noActivity: "이 기간에는 기록이 없습니다",
         empty: "아직 Claude Code, Codex, OpenCode 사용량이 없습니다. 셋 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
@@ -1342,6 +1417,11 @@ extension NotchAgentStrings {
         savedFormat: "缓存节省 %@",
         planMultipleFormat: "%2$@ 价格的 %1$@",
         idle: "空闲",
+        stateWorking: "工作中",
+        stateWaiting: "等你回复",
+        stateApproval: "需要批准",
+        stateDone: "完成",
+        stateFailed: "错误",
         noActivity: "此期间没有记录",
         empty: "还没有 Claude Code、Codex 或 OpenCode 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
@@ -1437,6 +1517,11 @@ extension NotchAgentStrings {
         savedFormat: "快取省下 %@",
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
+        stateWorking: "工作中",
+        stateWaiting: "等你回覆",
+        stateApproval: "需要核准",
+        stateDone: "完成",
+        stateFailed: "錯誤",
         noActivity: "此期間沒有紀錄",
         empty: "目前還沒有 Claude Code、Codex 或 OpenCode 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
@@ -1532,6 +1617,11 @@ extension NotchAgentStrings {
         savedFormat: "快取節省 %@",
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
+        stateWorking: "工作中",
+        stateWaiting: "等你回覆",
+        stateApproval: "需要批准",
+        stateDone: "完成",
+        stateFailed: "錯誤",
         noActivity: "此期間沒有記錄",
         empty: "目前還沒有 Claude Code、Codex 或 OpenCode 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",

@@ -7,6 +7,7 @@ import SwiftUI
 struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var approvals = ClaudeApprovalService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
@@ -34,7 +35,12 @@ struct NotchAgentsView: View {
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded {
+            if let request = approvals.pending {
+                NotchAgentApprovalCard(request: request)
+                    // A new request starts with no choices made.
+                    .id(request.id)
+                    .frame(height: min(size.height, NotchAgentSupport.approvalCardHeight(for: request)))
+            } else if !usage.snapshot.loaded {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -47,7 +53,7 @@ struct NotchAgentsView: View {
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
+                    if NotchAgentSupport.contentHeight(rows, boardRows: usage.snapshot.sessions.count) > size.height + 0.5 {
                         ScrollView { grid(rows, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
@@ -67,7 +73,7 @@ struct NotchAgentsView: View {
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
                 }
-                .frame(height: NotchAgentSupport.height(of: row))
+                .frame(height: NotchAgentSupport.height(of: row, boardRows: usage.snapshot.sessions.count))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -85,7 +91,7 @@ struct NotchAgentsView: View {
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
         case .live:
-            NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+            NotchAgentLiveCard(snapshot: snapshot, providers: providers, approval: approvals.pending, text: text)
         case .trend:
             NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .models:
@@ -456,62 +462,87 @@ private struct NotchAgentSpendCard: View {
 private struct NotchAgentLiveCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
+    let approval: ClaudeApprovalRequest?
     let text: NotchAgentStrings
     @Environment(\.locale) private var locale
 
     var body: some View {
-        let live = snapshot.live.filter { providers.contains($0.provider) }
+        let sessions = snapshot.sessions.filter { providers.contains($0.provider) }
         NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 7) {
-                NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
-                                     tint: live.first?.provider.tint ?? .secondary) {
-                    HStack(spacing: 4) {
-                        if live.count > 2 { NotchAgentChip(text: "+\(live.count - 2)") }
-                        if let first = live.first { NotchAgentPulse(tint: first.provider.tint, size: 5) }
-                    }
-                }
-                if live.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(providers) { idleRow($0) }
-                    }
-                } else {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(live.prefix(2)) { row($0, now: context.date) }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                let rows = AgentSessionBoard.sorted(sessions, now: context.date, approval: approval)
+                let needsYou = AgentSessionBoard.needsYou(rows, now: context.date, approval: approval)
+                let working = rows.first { $0.activity == .working }
+                VStack(alignment: .leading, spacing: 7) {
+                    NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
+                                         tint: working?.provider.tint ?? .secondary) {
+                        HStack(spacing: 4) {
+                            if needsYou > 0 { NotchAgentChip(text: "\(needsYou)", tint: .orange) }
+                            if let working { NotchAgentPulse(tint: working.provider.tint, size: 5) }
                         }
+                    }
+                    if rows.isEmpty {
+                        VStack(alignment: .leading, spacing: 5) {
+                            ForEach(providers) { idleRow($0) }
+                        }
+                    } else if rows.count > NotchAgentSupport.boardMaxRows {
+                        ScrollView { list(rows, now: context.date) }
+                            .scrollIndicators(.automatic)
+                    } else {
+                        list(rows, now: context.date)
                     }
                 }
             }
         }
     }
 
-    private func row(_ session: AgentLiveSession, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 4) {
-                NotchAgentGlyph(provider: session.provider, size: 9)
-                Text(session.project.isEmpty ? session.provider.displayName : session.project)
-                    .font(.system(size: 11, weight: .semibold))
+    private func list(_ rows: [AgentSessionRow], now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(rows) { row($0, now: now) }
+        }
+    }
+
+    private func row(_ session: AgentSessionRow, now: Date) -> some View {
+        let state = AgentSessionBoard.state(session, now: now, approval: approval)
+        let title = session.name ?? (session.project.isEmpty ? session.provider.displayName : session.project)
+        let detail = [AgentPricing.displayName(session.model), session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+        return HStack(spacing: 4) {
+            NotchAgentGlyph(provider: session.provider, size: 9, working: state == .working)
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .layoutPriority(1)
+            if !detail.isEmpty {
+                Text(detail)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                Spacer(minLength: 4)
-                Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
-                    .font(.system(size: 11, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(session.provider.tint)
             }
-            // Tokens the agent wrote, as its own window counts them; every
-            // call also reads the whole context again, which the tooltip and
-            // the cost include.
-            Text([AgentPricing.displayName(session.model),
-                  session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
-                  session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
-                    .filter { !$0.isEmpty }.joined(separator: " · "))
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            NotchAgentChip(text: text.state(state), tint: tint(state, provider: session.provider))
+            Text(state == .working ? AgentFormat.clock(now.timeIntervalSince(session.started))
+                    : session.since.formatted(.relative(presentation: .named, unitsStyle: .abbreviated).locale(locale)))
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(state == .working ? session.provider.tint : .secondary)
                 .lineLimit(1)
         }
-        .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
-              + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
+        .frame(height: NotchAgentSupport.boardRowHeight - 4)
+        .help([title, session.project, text.state(state), text.tokens(AgentFormat.tokens(session.tokens.total)),
+               text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0))]
+                .filter { !$0.isEmpty }.joined(separator: " · "))
+    }
+
+    private func tint(_ state: AgentSessionState, provider: AgentProvider) -> Color {
+        switch state {
+        case .needsApproval: return .orange
+        case .failed: return .red
+        case .done: return .green
+        case .working: return provider.tint
+        case .waiting: return .white
+        }
     }
 
     private func idleRow(_ provider: AgentProvider) -> some View {
@@ -880,19 +911,24 @@ private struct NotchAgentResetsCard: View {
 
     private func pill(_ title: String, symbol: String? = nil, prominent: Bool = true,
                       action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                if let symbol { Image(systemName: symbol).imageScale(.small) }
-                // A narrow island shrinks a long label before cutting it.
-                Text(title).lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(prominent ? AnyShapeStyle(tint) : AnyShapeStyle(.white.opacity(0.85)))
-            .padding(.horizontal, 9)
-            .frame(height: 20)
-            .background(prominent ? tint.opacity(0.2) : .white.opacity(0.1), in: Capsule(style: .continuous))
-            .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+        notchAgentPill(title, symbol: symbol, prominent: prominent, tint: tint, action: action)
     }
+}
+
+func notchAgentPill(_ title: String, symbol: String? = nil, prominent: Bool = true, tint: Color,
+                    action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        HStack(spacing: 3) {
+            if let symbol { Image(systemName: symbol).imageScale(.small) }
+            // A narrow island shrinks a long label before cutting it.
+            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .font(.system(size: 10.5, weight: .semibold))
+        .foregroundStyle(prominent ? AnyShapeStyle(tint) : AnyShapeStyle(.white.opacity(0.85)))
+        .padding(.horizontal, 9)
+        .frame(height: 20)
+        .background(prominent ? tint.opacity(0.2) : .white.opacity(0.1), in: Capsule(style: .continuous))
+        .contentShape(Capsule(style: .continuous))
+    }
+    .buttonStyle(NotchButtonStyle(cornerRadius: 10))
 }

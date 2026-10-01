@@ -223,6 +223,17 @@ enum NotchAgentSupport {
     // MARK: Layout
 
     static let spacing: CGFloat = 10
+    /// A request shows alone, so the page is only as tall as its card. The
+    /// layout clamps it to the island and the card's middle scrolls.
+    static func approvalCardHeight(for request: ClaudeApprovalRequest) -> CGFloat {
+        switch request.kind {
+        case .tool: return 96
+        case .plan: return 240
+        // Per question: its text and the Other row, then a two-line row per option.
+        case .questions(let questions):
+            return min(300, 72 + questions.reduce(0) { $0 + 48 + 38 * CGFloat($1.options.count) })
+        }
+    }
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
     /// Below this width every card takes a row of its own.
@@ -261,13 +272,24 @@ enum NotchAgentSupport {
         return rows
     }
 
-    static func height(of row: [NotchAgentTile]) -> CGFloat {
-        row.contains { $0.card.fullWidth } ? chartHeight : cardHeight
+    /// One session line on the Now card, with the space below it.
+    static let boardRowHeight: CGFloat = 24
+    /// The card scrolls past this many sessions.
+    static let boardMaxRows = 4
+    /// The card's padding, header and the space under it.
+    static let boardChrome: CGFloat = 44
+
+    /// The Now card grows with its sessions, up to `boardMaxRows`.
+    static func height(of row: [NotchAgentTile], boardRows: Int = 0) -> CGFloat {
+        if row.contains(where: { $0.card.fullWidth }) { return chartHeight }
+        guard row.contains(where: { $0.card == .live }) else { return cardHeight }
+        let shown = CGFloat(min(boardMaxRows, boardRows))
+        return max(cardHeight, shown * boardRowHeight - 4 + boardChrome)
     }
 
-    static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
+    static func contentHeight(_ rows: [[NotchAgentTile]], boardRows: Int = 0) -> CGFloat {
         guard !rows.isEmpty else { return 0 }
-        return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return rows.map { height(of: $0, boardRows: boardRows) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
 }
 

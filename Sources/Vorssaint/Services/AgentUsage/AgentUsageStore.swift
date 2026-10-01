@@ -23,6 +23,10 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// Turns that ended a short while ago, by log file, for the board.
+    private(set) var recent: [String: AgentEndedTurn] = [:]
+    /// The Claude session records last read.
+    var processes = AgentSessionRegistry()
     /// Claude turns whose process was seen running, by log file.
     private var registered: Set<String> = []
     /// Turns whose last step ended expecting more, by log file, with when.
@@ -42,10 +46,16 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
+    func sessions(now: Date) -> [AgentSessionRow] {
+        AgentSessionBoard.rows(turns: turns, waiting: waiting, recent: recent, registry: processes, now: now)
+    }
+
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
-        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+        var snapshot = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                                        providers: providers, now: now, calendar: calendar)
+        snapshot.sessions = sessions(now: now).filter { providers.contains($0.provider) }
+        return snapshot
     }
 
     /// Applies one file's entries and returns the turns they finished.
@@ -75,6 +85,7 @@ final class AgentUsageStore {
                 // the second reading skips as repeats.
                 if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
                 waiting[file] = nil
+                recent[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
@@ -82,6 +93,7 @@ final class AgentUsageStore {
                 guard tracksTurns else { continue }
                 settled[file] = nil
                 let moment = date ?? modified
+                recent[file] = nil
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
@@ -94,14 +106,17 @@ final class AgentUsageStore {
                 turn.lastActivity = max(turn.lastActivity, date)
                 turns[file] = turn
                 settled[file] = date
-            case .turnEnded(let date, let completed, let duration):
+            case .turnEnded(let date, let completed, let duration, let failed):
                 guard tracksTurns else { continue }
                 settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
-                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
+                guard let turn = turns.removeValue(forKey: file) ?? quiet else { continue }
                 let end = date ?? modified
-                guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
+                if now.timeIntervalSince(end) < AgentSessionBoard.codexWindow {
+                    recent[file] = AgentEndedTurn(turn: turn, ended: end, failed: failed)
+                }
+                guard completed, reportsTransitions, now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
@@ -119,6 +134,7 @@ final class AgentUsageStore {
     func forget(file: String) -> Bool {
         waiting[file] = nil
         settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
+        recent = recent.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
         var removed = turns.removeValue(forKey: file) != nil
         for key in turns.keys where key.hasPrefix(file + "#") {
             turns.removeValue(forKey: key)
@@ -267,6 +283,7 @@ final class AgentUsageStore {
             waiting[file] = turn
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
+        recent = recent.filter { now.timeIntervalSince($0.value.ended) < AgentSessionBoard.codexWindow }
     }
 
     /// A turn whose last step ended expecting more, with nothing after it
@@ -448,6 +465,8 @@ struct AgentSessionRegistry: Equatable {
     var complete = true
     /// A sessions folder could be listed, so this Claude Code keeps records.
     var listed = false
+    /// Running sessions by session id.
+    var records: [String: AgentSessionRecord] = [:]
 
     /// `folders` are the `sessions` folders beside each Claude log root.
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
@@ -465,7 +484,15 @@ struct AgentSessionRegistry: Equatable {
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
                 if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
-                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+                guard isRunning(Int32(clamping: pid)) else {
+                    registry.ended.insert(session)
+                    continue
+                }
+                registry.running.insert(session)
+                registry.records[session] = AgentSessionRecord(
+                    pid: Int32(clamping: pid), session: session, cwd: json["cwd"] as? String ?? "",
+                    name: json["name"] as? String ?? "", status: (json["status"] as? String).flatMap(AgentSessionStatus.init),
+                    started: AgentLogParser.seconds(json["startedAt"]), statusChanged: AgentLogParser.seconds(json["statusUpdatedAt"]))
             }
         }
         // A session resumed by a new process after an old one was killed.

@@ -421,3 +421,30 @@ struct NotchAgentMark: View {
         }
     }
 }
+
+/// The AI page's needs-you count: a dot for one, the number for more.
+/// Observes the services itself so only the badge redraws.
+struct NotchAgentNeedsYouBadge: View {
+    var size: CGFloat = 8
+    @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var approvals = ClaudeApprovalService.shared
+
+    var body: some View {
+        let count = AgentSessionBoard.needsYou(usage.snapshot.sessions, now: Date(), approval: approvals.pending)
+        Group {
+            if count == 1 {
+                Circle().fill(.orange).frame(width: size, height: size)
+            } else if count > 1 {
+                Text("\(count)")
+                    .font(.system(size: 8, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 3)
+                    .frame(minWidth: size + 4, minHeight: size + 3)
+                    .background(.orange, in: Capsule())
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityValue("\(count)")
+    }
+}

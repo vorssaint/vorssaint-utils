@@ -18,7 +18,8 @@ enum AgentLogEntry: Equatable {
     /// A step ended expecting the agent to go on; unless work follows soon,
     /// the agent stopped there and its turn is over.
     case turnSettled(Date)
-    case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    /// `failed` marks an error written in place of a reply, not an interruption.
+    case turnEnded(Date?, completed: Bool, duration: TimeInterval?, failed: Bool = false)
     case reset(Date)
 }
 
@@ -105,10 +106,11 @@ enum AgentLogParser {
     static func parseClaude(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         if contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
         guard contains(line, #""type":"user""#) else { return [] }
-        // A local command prints its output without asking the model anything,
-        // so the command line that opened a turn closes it again. Only the
-        // person's own text counts: a tool result can quote the same words.
-        if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std"),
+        // A local command like /clear runs without asking the model anything:
+        // it closes an open turn and never opens one. Only the person's own
+        // text counts: a tool result can quote the same words.
+        if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std")
+            || contains(line, "<command-name>"),
            let json = object(line), json["type"] as? String == "user", endsTurn(json) {
             let open = state.turnOpen
             state.turnOpen = false
@@ -163,7 +165,7 @@ enum AgentLogParser {
             // An error written in place of a reply, like a spent limit, stops
             // the turn without finishing it.
             let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
-            if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
+            if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil, failed: failed)) }
             state.turnOpen = false
         default:
             if !state.turnOpen { entries.append(.turnBegan(date)) }
@@ -187,6 +189,7 @@ enum AgentLogParser {
         }
         return texts.contains {
             $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
+                || $0.hasPrefix("<command-name>")
         }
     }
 

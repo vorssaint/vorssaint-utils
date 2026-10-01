@@ -355,13 +355,17 @@ final class AgentUsageService: ObservableObject {
         return changed
     }
 
-    /// Ends the Claude turns whose process is gone. True when one was showing.
+    /// Reads the Claude session records for the board and ends the turns
+    /// whose process is gone. True when a record changed or a turn was showing.
     @discardableResult
     private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
-        guard store.showsClaudeTurn else { return false }
+        guard enabled.contains(.claude) else { return false }
         let folders = roots.filter { $0.provider == .claude }
             .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
-        return store.closeEndedTurns(AgentSessionRegistry.read(folders), atLaunch: atLaunch)
+        let registry = AgentSessionRegistry.read(folders)
+        let changed = registry != store.processes
+        store.processes = registry
+        return store.closeEndedTurns(registry, atLaunch: atLaunch) || changed
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -485,6 +489,7 @@ final class AgentUsageService: ObservableObject {
     private struct Inputs: Equatable {
         let records: Int
         let turns: [String: AgentLiveSession]
+        let sessions: [AgentSessionRow]
         let limits: [AgentProvider: AgentLimits]
         let codexPlan: String?
         let claudePlan: AgentPlan?
@@ -494,7 +499,7 @@ final class AgentUsageService: ObservableObject {
 
     /// Runs on `queue`.
     private var inputs: Inputs {
-        Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
+        Inputs(records: store.records.count, turns: store.turns, sessions: store.sessions(now: Date()), limits: store.limits, codexPlan: store.codexPlan,
                claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
     }
 
