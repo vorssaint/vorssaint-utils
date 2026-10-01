@@ -1590,6 +1590,9 @@ final class NotchActivationButton: NSButton {
     var willPress: (() -> Void)?
     var activate: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    // With Keyboard navigation on, a click would focus the button, and macOS
+    // draws its focus ring around the camera it sits behind.
+    override var acceptsFirstResponder: Bool { false }
     override func mouseDown(with event: NSEvent) {
         willPress?()
         super.mouseDown(with: event)
