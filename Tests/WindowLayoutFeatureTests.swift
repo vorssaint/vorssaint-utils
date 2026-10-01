@@ -507,6 +507,60 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
                == CGRect(x: 10, y: 10, width: 80, height: 80),
                "an oversized screen gap keeps 80pt of layout space instead of inverting the frame")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 0)
+               == visibleFrame,
+               "green-button maximize keeps the visible frame when Screen gap is off")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(visibleFrame: visibleFrame, screenGap: 32)
+               == CGRect(x: 32, y: 72, width: 1376, height: 796),
+               "green-button maximize applies the shared Screen gap on all four edges")
+        suite.expect(WindowMaximizerSupport.maximizeTarget(
+            visibleFrame: CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
+               == CGRect(x: 10, y: 10, width: 80, height: 80),
+               "green-button maximize shares the oversized-gap safe minimum")
+
+        var maximizeState = WindowMaximizerFrameState<String>()
+        let initial = maximizeState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        suite.expect(maximizeState.complete(initial, success: true)
+                && maximizeState.original == "O" && maximizeState.maximized == "M0",
+               "a successful first maximize remembers the original and effective target")
+        let gapAttempt = maximizeState.beginMaximize(current: "M0", target: "M32", isClose: ==)
+        suite.expect(maximizeState.original == "O" && maximizeState.maximized == "M32",
+               "a live gap change keeps the pre-maximize restore frame")
+        suite.expect(maximizeState.complete(gapAttempt, success: false)
+                && maximizeState.original == "O" && maximizeState.maximized == "M0",
+               "an asynchronous gap-change failure rolls both state values back")
+        let gapRetry = maximizeState.beginMaximize(current: "M0", target: "M32", isClose: ==)
+        _ = maximizeState.complete(gapRetry, success: true)
+        let restoreOriginal = maximizeState.original
+        let restoreAttempt = maximizeState.beginRestore()
+        suite.expect(restoreOriginal == "O" && maximizeState.complete(restoreAttempt, success: true)
+                && maximizeState.isEmpty,
+               "a successful gap-change maximize still restores the original frame")
+
+        var manualState = WindowMaximizerFrameState<String>()
+        let manualInitial = manualState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        _ = manualState.complete(manualInitial, success: true)
+        let manualAttempt = manualState.beginMaximize(current: "X", target: "M0", isClose: ==)
+        _ = manualState.complete(manualAttempt, success: true)
+        suite.expect(manualState.original == "X",
+               "a deliberate move away from the last effective target becomes the restore frame")
+        let restoreManual = manualState.beginRestore()
+        suite.expect(manualState.original == "X" && manualState.complete(restoreManual, success: true),
+               "a manually moved window restores to its deliberate frame")
+
+        var rejectedState = WindowMaximizerFrameState<String>()
+        let rejectedInitial = rejectedState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        suite.expect(rejectedState.complete(rejectedInitial, success: false) && rejectedState.isEmpty,
+               "a synchronous initial rejection leaves no false maximize state")
+        let staleAttempt = rejectedState.beginMaximize(current: "O", target: "M0", isClose: ==)
+        let newerAttempt = rejectedState.beginMaximize(current: "X", target: "M32", isClose: ==)
+        _ = rejectedState.complete(newerAttempt, success: true)
+        suite.expect(!rejectedState.complete(staleAttempt, success: false)
+                && rejectedState.original == "X" && rejectedState.maximized == "M32",
+               "a stale failure cannot roll back a newer successful attempt")
+        rejectedState.reset()
+        suite.expect(!rejectedState.complete(newerAttempt, success: false) && rejectedState.isEmpty,
+               "a completion arriving after stop/reset cannot resurrect frame state")
         let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
             (.topLeftSixth,
              CGRect(x: 0, y: 470, width: 480, height: 430),

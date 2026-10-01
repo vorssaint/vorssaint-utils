@@ -17,7 +17,7 @@ final class WindowMaximizer: ObservableObject {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var pendingClick: ClickTarget?
-    private var originalFrames: [CGWindowID: AXFrame] = [:]
+    private var frameStates: [CGWindowID: WindowMaximizerFrameState<AXFrame>] = [:]
     private var frameAnimations: [CGWindowID: Timer] = [:]
     private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
 
@@ -54,7 +54,7 @@ final class WindowMaximizer: ObservableObject {
         frameAnimations.removeAll()
         for suspension in assistiveModeSuspensions.values { suspension.resume() }
         assistiveModeSuspensions.removeAll()
-        originalFrames.removeAll()
+        frameStates.removeAll()
         isRunning = false
     }
 
@@ -173,21 +173,44 @@ final class WindowMaximizer: ObservableObject {
               let screen = bestScreen(for: current)
         else { return false }
 
-        let maximized = axFrame(fromAppKit: screen.visibleFrame)
+        let maximizedFrame = WindowMaximizerSupport.maximizeTarget(
+            visibleFrame: screen.visibleFrame,
+            screenGap: UserDefaults.standard.integer(forKey: DefaultsKey.windowLayoutScreenGap)
+        )
+        let maximized = axFrame(fromAppKit: maximizedFrame)
+        var state = frameStates[target.windowID] ?? WindowMaximizerFrameState()
         if current.isClose(to: maximized, tolerance: frameTolerance),
-           let original = originalFrames[target.windowID],
+           let original = state.original,
            original.size.width > 80,
            original.size.height > 80 {
-            return changeFrame(to: original, of: target) { [weak self] success in
-                if success { self?.originalFrames.removeValue(forKey: target.windowID) }
+            let attempt = state.beginRestore()
+            frameStates[target.windowID] = state
+            let started = changeFrame(to: original, of: target) { [weak self] success in
+                self?.completeFrameAttempt(attempt, windowID: target.windowID, success: success)
             }
+            if !started { completeFrameAttempt(attempt, windowID: target.windowID, success: false) }
+            return started
         } else {
-            originalFrames[target.windowID] = current
-            if changeFrame(to: maximized, of: target, completion: { _ in }) {
-                return true
+            let attempt = state.beginMaximize(current: current, target: maximized) {
+                $0.isClose(to: $1, tolerance: frameTolerance)
             }
-            originalFrames.removeValue(forKey: target.windowID)
-            return false
+            frameStates[target.windowID] = state
+            let started = changeFrame(to: maximized, of: target) { [weak self] success in
+                self?.completeFrameAttempt(attempt, windowID: target.windowID, success: success)
+            }
+            if !started { completeFrameAttempt(attempt, windowID: target.windowID, success: false) }
+            return started
+        }
+    }
+
+    private func completeFrameAttempt(_ attempt: WindowMaximizerFrameState<AXFrame>.Attempt,
+                                      windowID: CGWindowID,
+                                      success: Bool) {
+        guard var state = frameStates[windowID], state.complete(attempt, success: success) else { return }
+        if state.isEmpty {
+            frameStates.removeValue(forKey: windowID)
+        } else {
+            frameStates[windowID] = state
         }
     }
 
