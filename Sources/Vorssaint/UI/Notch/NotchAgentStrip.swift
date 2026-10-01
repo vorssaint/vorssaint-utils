@@ -14,6 +14,8 @@ struct NotchAgentStrip: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitLength) private var limitLength = false
 
     private var live: [AgentLiveSession] { usage.snapshot.live }
     private var working: [AgentProvider] {
@@ -87,7 +89,9 @@ struct NotchAgentStrip: View {
 
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed,
+                                       showsLimitLength: limitLength, locale: l10n.language.formattingLocale(), now: now)
     }
 }
 
@@ -108,12 +112,14 @@ struct NotchAgentReadoutTimeline<Content: View>: View {
     }
 }
 
-/// The resting island's wings: the allowance closest to running out, as a
-/// ring and a number, or today's API value when no allowance is known.
+/// The resting island's wings: the chosen allowance, by default the one
+/// closest to running out, as a ring and a number, or today's API value when
+/// no allowance is known.
 struct NotchAgentRestingWing: View {
     let leading: Bool
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -123,22 +129,16 @@ struct NotchAgentRestingWing: View {
 
     @ViewBuilder private func content(now: Date) -> some View {
         let snapshot = usage.snapshot
-        let candidates = snapshot.limits.compactMap { provider, limits in
-            AgentLimitSupport.binding(limits, now: now).map { (provider: provider, window: $0) }
-        }
-        let focus = candidates.max {
-            $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
-                : $0.provider.rawValue > $1.provider.rawValue
-        }
+        let limit = NotchAgentSupport.restingLimit(snapshot, focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
         let used = display == NotchAgentLimitDisplay.used.rawValue
-        if let focus {
-            let tint = agentLimitTint(focus.provider, usedFraction: focus.window.usedFraction)
+        if let limit {
+            let tint = agentLimitTint(limit.provider, usedFraction: limit.window.usedFraction)
             if leading {
-                NotchAgentRing(value: used ? focus.window.usedFraction : focus.window.remainingFraction,
+                NotchAgentRing(value: used ? limit.window.usedFraction : limit.window.remainingFraction,
                                tint: tint, lineWidth: 2)
                     .frame(width: 11, height: 11)
             } else {
-                Text(AgentFormat.percent(used ? focus.window.usedFraction : focus.window.remainingFraction))
+                Text(AgentFormat.percent(used ? limit.window.usedFraction : limit.window.remainingFraction))
                     .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
                     .lineLimit(1)
