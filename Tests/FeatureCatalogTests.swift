@@ -871,9 +871,9 @@ enum FeatureCatalogTests {
         suite.expect(Set(FeaturePreset.windows.features.flatMap(\.onboardingPermissions))
                 == [.accessibility, .screenRecording],
                "the windows first-run choice explains exactly its two broad permissions")
-        suite.expect(AppFeature.musicBlock.permissions == [.accessibility]
+        suite.expect(AppFeature.musicBlock.permissions == [.accessibility, .automationPlayback]
                 && AppFeature.musicBlock.onboardingPermissions.isEmpty,
-               "music launch blocking declares its required Accessibility access contextually")
+               "music launch blocking and its playback keys declare their access contextually")
         suite.expect(AppFeature.screenshot.permissions == [.screenRecording]
                 && AppFeature.screenshot.onboardingPermissions == [.screenRecording],
                "screenshots only need the screen recording grant")
@@ -1499,6 +1499,26 @@ enum FeatureCatalogTests {
                 && activeSet(.accessibility, available: [.musicBlock], on: [DefaultsKey.mediaKeysPlayerOnly])
                     == [.musicBlock],
                "sending playback keys to the player counts as the media keys feature using accessibility")
+        suite.expect(activeSet(.automationPlayback, available: [.musicBlock], on: [DefaultsKey.mediaKeysPlayerOnly])
+                    == [.musicBlock]
+                && activeSet(.automationPlayback, available: [.musicBlock],
+                             on: [DefaultsKey.musicBlockEnabled, DefaultsKey.mediaKeysPlayerOnly]) == [.musicBlock]
+                && activeSet(.automationPlayback, available: [], on: [DefaultsKey.mediaKeysPlayerOnly]).isEmpty,
+               "sending playback keys to the player controls it through the playback automation grant")
+        suite.expect(activeSet(.automationPlayback, available: [.musicBlock], on: [DefaultsKey.musicBlockEnabled])
+                    .isEmpty
+                && activeSet(.automationPlayback, available: [.musicBlock]).isEmpty,
+               "blocking the music app alone never sends it playback events")
+        suite.expect(activeSet(.automationPlayback, available: [.notch, .musicBlock],
+                               on: [DefaultsKey.notchEnabled, DefaultsKey.mediaKeysPlayerOnly])
+                    == [.notch, .musicBlock],
+               "the island and the playback keys share the playback automation row")
+        for language in AppLanguage.allCases {
+            let explanation = FeatureStrings.notchMusicExtras(language).automationExplanation
+            // The keys' half names the prompt macOS shows after a key press.
+            suite.expect(explanation.contains("Dynamic Island") && explanation.contains("macOS"),
+                         "the playback automation row covers the island and the playback keys (\(language.rawValue))")
+        }
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         suite.expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])

@@ -379,7 +379,9 @@ extension AppFeature {
         case .appUpdates: return [.notifications, .appManagement]
         case .diskImageInstaller: return [.appManagement]
         case .mixer: return [.audioCapture, .accessibility]
-        case .musicBlock: return [.accessibility]
+        // Playback keys sent to the player go through the same per-app
+        // Automation grant the island's music controls use.
+        case .musicBlock: return [.accessibility, .automationPlayback]
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
@@ -510,6 +512,8 @@ extension AppFeature {
             switch (feature, permission) {
             case (.notch, .automationPlayback):
                 return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
+            case (.musicBlock, .automationPlayback):
+                return boolFor(DefaultsKey.mediaKeysPlayerOnly)
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
             case (.notchWatch, .screenRecording):
