@@ -319,7 +319,7 @@ extension NotchAgentStrings {
         remaining: "Залишок",
         used: "Використано",
         limitFocus: "Який ліміт показувати",
-        mostUsed: "Найбільше використано",
+        mostUsed: "Найбільш використаний",
         liveTitle: "Поки агент працює",
         liveActivity: "Показувати в закритому Dynamic Island",
         readout: "Поруч із камерою",
