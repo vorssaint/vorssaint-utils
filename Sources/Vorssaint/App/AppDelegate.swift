@@ -580,9 +580,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverDriftObservers: [NSObjectProtocol] = []
     private var popoverPositioningPanel: NSPanel?
 
-    /// How long a captured click still counts as "where the icon is".
-    private static let statusClickFreshness: TimeInterval = 0.5
-
     /// The spot an open panel holds: the horizontal middle and the top edge it
     /// must keep across content resizes, plus the screen the menu bar icon was
     /// on. The screen travels with the anchor instead of being read back from
@@ -623,7 +620,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         guard let event = NSApp.currentEvent,
               Self.statusClickEventTypes.contains(event.type),
-              (0...Self.statusClickFreshness).contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
+              (0...StatusItemAnchorSupport.statusClickFreshness)
+                .contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
         else {
             lastStatusClick = nil
             return
@@ -633,7 +631,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private var freshStatusClick: NSPoint? {
         guard let click = lastStatusClick,
-              (0...Self.statusClickFreshness).contains(Date().timeIntervalSince(click.at)) else { return nil }
+              (0...StatusItemAnchorSupport.statusClickFreshness)
+                .contains(Date().timeIntervalSince(click.at)) else { return nil }
         return click.point
     }
 

@@ -161,6 +161,7 @@ enum StatusItemGestureAdapterTests {
         testDisabledTapRecovery(suite)
         testWindowOwnershipAndTopEdge(suite)
         testControllerActivation(suite)
+        testClickFreshnessBoundary(suite)
     }
 
     private static func testPermissionUI(_ suite: TestSuite) {
@@ -565,7 +566,8 @@ extension StatusItemGestureAdapterTests {
         suite.expect(controller.leftClicks == 2 && host.results == [.quick(.keepAwake)],
                      "repeated accessibility activation after a hold ignores the old mouse-up and opens normally")
         for event in [nil, NSEvent(type: .keyDown, timestamp: 402),
-                      NSEvent(timestamp: 401.49), NSEvent(timestamp: 403),
+                      NSEvent(timestamp: 402 - StatusItemAnchorSupport.statusClickFreshness - 0.01),
+                      NSEvent(timestamp: 403),
                       NSEvent(type: .rightMouseUp, timestamp: 400)] {
             NSApp.currentEvent = event
             let before = controller.leftClicks
@@ -591,6 +593,35 @@ extension StatusItemGestureAdapterTests {
         ProcessInfo.processInfo.systemUptime = 402.1
         controller.clicked()
         suite.expect(controller.leftClicks == before + 2, "unknown left geometry still falls back to the panel")
+        NSApp.currentEvent = nil
+    }
+
+    /// The freshness window is shared with the panel's anchor capture and is
+    /// inclusive at its edge: inside it, a release a hold already handled
+    /// stays the duplicate it is; just past it the activation opens the panel
+    /// like any other click.
+    private static func testClickFreshnessBoundary(_ suite: TestSuite) {
+        let freshness = StatusItemAnchorSupport.statusClickFreshness
+        for (age, opens) in [(freshness - 0.01, false), (freshness, false), (freshness + 0.01, true)] {
+            let controller = ControllerHost()
+            let host = Host()
+            host.settings = .init(hold: .keepAwake)
+            controller.gestureHandler = host
+            NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
+            NSEvent.pressedMouseButtons = 1
+            host.observe(NSEvent(type: .leftMouseDown, timestamp: 499.4))
+            NSEvent.pressedMouseButtons = 0
+            ProcessInfo.processInfo.systemUptime = 500
+            host.timer?.fire()
+            suite.expect(host.results == [.quick(.keepAwake)],
+                         "the hold runs before the freshness boundary is judged")
+            ProcessInfo.processInfo.systemUptime = 500 + age
+            NSApp.currentEvent = NSEvent(timestamp: 500)
+            controller.clicked()
+            suite.expect(controller.leftClicks == (opens ? 1 : 0)
+                         && host.results == [.quick(.keepAwake)],
+                         "a handled release at age \(age) \(opens ? "opens" : "stays handled")")
+        }
         NSApp.currentEvent = nil
     }
 
