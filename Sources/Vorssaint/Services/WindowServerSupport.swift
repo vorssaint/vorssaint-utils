@@ -118,12 +118,52 @@ enum WindowServerSupport {
         return nil
     }
 
+    /// A revealed fullscreen title bar can be a short, separate layer-zero
+    /// window of the same app. Look through aligned strips, but stop at layered
+    /// menus, off-axis popups, and other processes (including our own).
+    static func fullscreenCloseCandidate(in windows: [[String: Any]],
+                                         at point: CGPoint,
+                                         ownProcessID: pid_t,
+                                         verticalClearance: CGFloat = 0,
+                                         stripTopClearance: CGFloat = 0) -> TrafficLightCandidate? {
+        var stripPID: pid_t?
+        var strips: [CGRect] = []
+        for window in windows {
+            guard let bounds = bounds(from: window), bounds.contains(point),
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0 else { continue }
+            guard let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  layer == 0,
+                  let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  pid != ownProcessID,
+                  stripPID == nil || stripPID == pid else { return nil }
+            if bounds.height < 80 {
+                stripPID = pid
+                strips.append(bounds)
+                continue
+            }
+            guard bounds.width >= 80,
+                  strips.allSatisfy({ abs($0.minX - bounds.minX) <= 6
+                      // A camera-inset fullscreen window can start below its
+                      // own detached titlebar. A menu below the window top
+                      // gets only the smaller menu-bar allowance.
+                      && $0.minY - bounds.minY >= -stripTopClearance - 6
+                      && $0.minY - bounds.minY <= verticalClearance + 6
+                      && $0.width >= bounds.width * 0.8 }),
+                  let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  contains(point, inTrafficLightAreaOf: bounds, button: .close,
+                           verticalClearance: verticalClearance) else { return nil }
+            return TrafficLightCandidate(pid: pid, windowID: CGWindowID(number))
+        }
+        return nil
+    }
+
     static func contains(_ point: CGPoint,
                          inTrafficLightAreaOf bounds: CGRect,
-                         button: TrafficLightButton) -> Bool {
+                         button: TrafficLightButton,
+                         verticalClearance: CGFloat = 0) -> Bool {
         let dx = point.x - bounds.minX
         let dy = point.y - bounds.minY
-        guard dy >= -6, dy <= 46 else { return false }
+        guard dy >= -6, dy <= 46 + verticalClearance else { return false }
 
         switch button {
         case .close:

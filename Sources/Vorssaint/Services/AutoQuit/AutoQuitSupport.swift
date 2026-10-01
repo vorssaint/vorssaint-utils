@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import ApplicationServices
+import CoreGraphics
 import Foundation
 
 enum AutoQuitWindowEvent: Equatable {
@@ -71,6 +72,23 @@ enum AutoQuitSupport {
     /// retry firing for as long as the app runs.
     static func isWindowNotificationRegistered(_ result: AXError) -> Bool {
         result == .success || result == .notificationAlreadyRegistered
+    }
+
+    /// `cannotComplete` is ambiguous: the target app can time out after it has
+    /// already begun closing and opened a save dialog. Replaying the native
+    /// release then starts a second close, so only definite failures fall back.
+    static func shouldConsumeFullscreenCloseAction(_ result: AXError) -> Bool {
+        result == .success || result == .cannotComplete
+    }
+
+    /// A cheap gate before copying the WindowServer list. Fullscreen windows
+    /// on camera-housing displays can begin below the safe area; revealed title
+    /// bars can also sit below the menu bar. The window and AX checks follow.
+    static func mayContainFullscreenClose(_ point: CGPoint, display: CGRect,
+                                          topClearance: CGFloat) -> Bool {
+        point.x >= display.minX - 6 && point.x <= display.minX + 52
+            && point.y >= display.minY - 6
+            && point.y <= display.minY + 46 + topClearance
     }
 
     static func shouldQuitAfterWindowCheck(hadWindows: Bool,
