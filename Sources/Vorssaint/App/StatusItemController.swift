@@ -429,7 +429,11 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        guard let event = NSApp.currentEvent else { onLeftClick?(); return }
+        // Accessibility activation has no mouse event of its own. currentEvent
+        // can still be a release already handled by a previous hold.
+        guard let event = NSApp.currentEvent,
+              (0...0.5).contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
+        else { onLeftClick?(); return }
         if event.type == .rightMouseUp {
             cancelGesture()
             onRightClick?(statusItem.button)

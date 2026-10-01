@@ -37,9 +37,46 @@ enum StatusItemGestureAdapterTests {
         var systemUptime: TimeInterval = 0
     }
 
+    struct Window { var windowNumber = 42 }
+    struct Button { var window: Window? = Window() }
+    struct Item {
+        var isVisible = true
+        var button: Button? = Button()
+    }
+    enum NSWindow {
+        static var receivingWindowNumber = 42
+        static func windowNumber(at point: NSPoint, belowWindowWithWindowNumber: Int) -> Int {
+            receivingWindowNumber
+        }
+    }
+    enum NSApp { static var currentEvent: NSEvent? }
+
+    final class Tap {
+        var enabled = true
+        var valid = true
+        var enables = 0
+    }
+    static func CFMachPortInvalidate(_ tap: Tap) { tap.valid = false }
+
     final class Owner {
+        var statusItem: Item? = Item()
         var onDelayedLeftClick: ((NSPoint) -> Void)?
         var onQuickAction: ((StatusItemQuickAction) -> Void)?
+    }
+
+    class ControllerFixture: NSObject {
+        var gestureHandler: Host?
+        var statusItem = Item()
+        var leftClicks = 0
+        var rightClicks = 0
+        var onLeftClick: (() -> Void)?
+        var onRightClick: ((Button?) -> Void)?
+        override init() {
+            super.init()
+            onLeftClick = { [weak self] in self?.leftClicks += 1 }
+            onRightClick = { [weak self] _ in self?.rightClicks += 1 }
+        }
+        func cancelGesture() { gestureHandler?.cancel() }
     }
 
     class Fixture {
@@ -51,11 +88,15 @@ enum StatusItemGestureAdapterTests {
         var generation = 0
         var observedLeftDown: TimeInterval?
         var handledLeftRelease: TimeInterval?
-        var middleTap: Bool?
+        var middleTap: Tap?
+        var middleRunLoopSource: CFRunLoopSource?
         var accessibilityObserver: AnyCancellable?
         var frame: CGRect? = CGRect(x: 105, y: 288, width: 30, height: 24)
         var installations = 0
-        var removals = 0
+        var installAttempts = 0
+        var failsInstallation = false
+        var taps: [Tap] = []
+        var removals: Int { taps.filter { !$0.valid }.count }
         var results: [StatusItemGesture.Result] = []
 
         init() {
@@ -66,10 +107,13 @@ enum StatusItemGestureAdapterTests {
         deinit { timer?.invalidate() }
         func mainButtonFrame() -> NSRect? { frame }
         func log(_ message: String) {}
-        func installMiddleTap() { middleTap = true; installations += 1 }
-        func tearDownMiddleTap() {
-            if middleTap != nil { removals += 1 }
-            middleTap = nil
+        func installMiddleTap() {
+            installAttempts += 1
+            guard !failsInstallation else { return }
+            let tap = Tap()
+            taps.append(tap)
+            middleTap = tap
+            installations += 1
         }
     }
 
@@ -103,6 +147,9 @@ enum StatusItemGestureAdapterTests {
             NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
             Permissions.shared.accessibility = false
             Permissions.shared.requests = 0
+            NSWindow.receivingWindowNumber = 42
+            NSApp.currentEvent = nil
+            ProcessInfo.processInfo.systemUptime = 0
         }
         testMissingDown(suite)
         testMiddleRelease(suite)
@@ -110,6 +157,10 @@ enum StatusItemGestureAdapterTests {
         testMiddleOnly(suite)
         testPermissionChanges(suite)
         testPermissionUI(suite)
+        testHoldDuringMiddleSync(suite)
+        testDisabledTapRecovery(suite)
+        testWindowOwnershipAndTopEdge(suite)
+        testControllerActivation(suite)
     }
 
     private static func testPermissionUI(_ suite: TestSuite) {
@@ -271,9 +322,10 @@ enum StatusItemGestureAdapterTests {
         suite.expect(host.results == [.quick(.keepAwake)], "bypassing left clicks preserves middle-click actions")
     }
 
-    private static func middleEvent(_ type: CGEventType, x positionX: CGFloat, button: Int64 = 2) -> CGEvent {
+    private static func middleEvent(_ type: CGEventType, x positionX: CGFloat,
+                                    y positionY: CGFloat = 500, button: Int64 = 2) -> CGEvent {
         let event = CGEvent(mouseEventSource: nil, mouseType: type,
-                            mouseCursorPosition: CGPoint(x: positionX, y: 500), mouseButton: .center)!
+                            mouseCursorPosition: CGPoint(x: positionX, y: positionY), mouseButton: .center)!
         event.setIntegerValueField(.mouseEventButtonNumber, value: button)
         return event
     }
@@ -302,6 +354,249 @@ enum StatusItemGestureAdapterTests {
                      "losing the icon frame before release also cancels the press")
     }
 
+}
+
+extension StatusItemGestureAdapterTests {
+    private static func testHoldDuringMiddleSync(_ suite: TestSuite) {
+        let point = CGPoint(x: 120, y: 300)
+        Permissions.shared.accessibility = false
+        for duration in [0.1, 1.0] {
+            for actionAtPress in [false, true] {
+                let host = Host()
+                NSEvent.mouseLocation = point
+                NSEvent.pressedMouseButtons = 1
+                host.observe(NSEvent(type: .leftMouseDown, timestamp: 300))
+                if actionAtPress { _ = host.buttonClick(NSEvent(timestamp: 300)) }
+                let watch = host.timer
+                host.sync(settings: host.settings)
+                host.sync(settings: host.settings)
+                suite.expect(host.gesture.watchesForRelease && host.timer === watch,
+                             "denied middle permission and unrelated sync preserve a left press and its watcher")
+                NSEvent.pressedMouseButtons = 0
+                ProcessInfo.processInfo.systemUptime = 300 + duration
+                host.timer?.fire()
+                if !actionAtPress { _ = host.buttonClick(NSEvent(timestamp: 300 + duration)) }
+                let expected: StatusItemGesture.Result = duration < 0.5 ? .single(point) : .quick(.screenshot)
+                suite.expect(host.results == [expected] && host.timer == nil,
+                             "a left press overlapping denied middle sync produces exactly one outcome")
+            }
+        }
+        let revoked = Host()
+        Permissions.shared.accessibility = true
+        revoked.syncMiddleTap()
+        NSEvent.pressedMouseButtons = 1
+        revoked.observe(NSEvent(type: .leftMouseDown, timestamp: 310))
+        ProcessInfo.processInfo.systemUptime = 310.6
+        revoked.timer?.fire()
+        suite.expect(revoked.gesture.phaseName == "held", "the watcher crosses the hold threshold before revocation")
+        revoked.syncMiddleTap(accessibilityGranted: false)
+        suite.expect(revoked.middleTap == nil && revoked.gesture.watchesForRelease,
+                     "removing a middle tap does not cancel a left hold")
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 311
+        revoked.timer?.fire()
+        suite.expect(revoked.results == [.quick(.screenshot)], "a left hold survives middle tap removal")
+
+        let outside = Host()
+        NSEvent.pressedMouseButtons = 1
+        outside.observe(NSEvent(type: .leftMouseDown, timestamp: 320))
+        outside.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 500))
+        suite.expect(outside.gesture.watchesForRelease, "unrelated session-wide middle input preserves a left hold")
+        outside.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(outside.gesture.watchesForRelease,
+                     "an unmatched middle release on the icon also preserves a left hold")
+        outside.sync(settings: .init(middle: .keepAwake, hold: .soundMute))
+        suite.expect(!outside.gesture.isActive && outside.timer == nil,
+                     "an actual assignment change still cancels a left press")
+        NSEvent.pressedMouseButtons = 0
+    }
+
+    private static func testDisabledTapRecovery(_ suite: TestSuite) {
+        Permissions.shared.accessibility = true
+        Permissions.shared.requests = 0
+        for type in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+            let host = Host()
+            host.syncMiddleTap()
+            let tap = host.middleTap!
+            host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+            tap.enabled = false
+            // Disabled notifications carry no useful mouse button field.
+            host.handleMiddleTap(type: type, event: middleEvent(.otherMouseUp, x: 120, button: 0))
+            suite.expect(tap.enabled && tap.enables == 1 && !host.gesture.isActive,
+                         "a disabled notification re-arms the tap and drops its pre-gap middle press")
+            host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+            suite.expect(host.results.isEmpty, "a post-gap release cannot replay the old middle press")
+            host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+            host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+            suite.expect(host.results == [.quick(.keepAwake)], "a fresh middle pair works after tap recovery")
+
+            NSEvent.pressedMouseButtons = 1
+            host.observe(NSEvent(type: .leftMouseDown, timestamp: 330))
+            ProcessInfo.processInfo.systemUptime = 330.6
+            host.timer?.fire()
+            tap.enabled = false
+            host.handleMiddleTap(type: type, event: middleEvent(.otherMouseUp, x: 120))
+            suite.expect(host.gesture.watchesForRelease && host.timer?.isValid == true,
+                         "tap recovery leaves a left hold and its watcher intact")
+            NSEvent.pressedMouseButtons = 0
+            ProcessInfo.processInfo.systemUptime = 331
+            host.timer?.fire()
+            suite.expect(host.results == [.quick(.keepAwake), .quick(.screenshot)],
+                         "the left hold still fires once after tap recovery")
+        }
+        let host = Host()
+        host.syncMiddleTap()
+        let old = host.middleTap!
+        host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+        old.enabled = false
+        // A revoke/regrant between polls can leave the published grant unchanged.
+        host.sync(settings: host.settings)
+        suite.expect(!old.valid && host.middleTap !== old && host.installations == 2
+                     && host.removals == 1 && !host.gesture.isActive,
+                     "unchanged settings rebuild a tap the system disabled without a published grant change")
+        host.sync(settings: host.settings)
+        suite.expect(host.installations == 2, "sync never duplicates an enabled tap")
+        host.tearDownMiddleTap()
+        host.failsInstallation = true
+        host.sync(settings: host.settings)
+        suite.expect(host.middleTap == nil, "failed tap creation stays passive")
+        host.failsInstallation = false
+        host.sync(settings: host.settings)
+        suite.expect(host.installations == 3 && host.installAttempts == 4,
+                     "a later unchanged sync retries a failed installation")
+
+        Permissions.shared.accessibility = false
+        let denied = Host()
+        denied.installMiddleTap()
+        let deniedTap = denied.middleTap!
+        deniedTap.enabled = false
+        denied.handleMiddleTap(type: .tapDisabledByUserInput, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(!deniedTap.enabled && deniedTap.enables == 0,
+                     "a disabled notification never re-arms a revoked grant")
+        denied.syncMiddleTap()
+        suite.expect(denied.middleTap == nil && !deniedTap.valid, "passive sync removes a revoked disabled tap")
+        Permissions.shared.accessibility = true
+        let off = Host()
+        off.installMiddleTap()
+        let offTap = off.middleTap!
+        off.settings = .init(hold: .screenshot)
+        offTap.enabled = false
+        off.handleMiddleTap(type: .tapDisabledByTimeout, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(offTap.enables == 0, "a disabled notification never restores an unassigned middle tap")
+        off.syncMiddleTap()
+        suite.expect(off.middleTap == nil && Permissions.shared.requests == 0,
+                     "tap recovery and teardown never prompt for permission")
+    }
+
+    private static func testWindowOwnershipAndTopEdge(_ suite: TestSuite) {
+        NSWindow.receivingWindowNumber = 42
+        let top = CGPoint(x: 120, y: 312)
+        let host = Host()
+        host.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: top.x, y: 488))
+        host.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: top.x, y: 488))
+        suite.expect(host.results == [.quick(.keepAwake)], "middle-click accepts the exact top row of the icon")
+        NSEvent.mouseLocation = top
+        NSEvent.pressedMouseButtons = 1
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 340))
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 341
+        host.timer?.fire()
+        suite.expect(host.results == [.quick(.keepAwake), .quick(.screenshot)],
+                     "a monitored left hold starting on the top row works with release-time button actions")
+        NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
+        for number in [0, 99] {
+            NSWindow.receivingWindowNumber = number
+            let stranger = Host()
+            stranger.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+            stranger.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+            suite.expect(stranger.results.isEmpty && !stranger.gesture.isActive,
+                         "a matching stale frame never claims another or unknown window")
+        }
+        NSWindow.receivingWindowNumber = 42
+        for invalid in 0..<4 {
+            let missing = Host()
+            switch invalid {
+            case 0: missing.owner?.statusItem = nil
+            case 1: missing.owner?.statusItem?.isVisible = false
+            case 2: missing.owner?.statusItem?.button?.window = nil
+            default: missing.owner?.statusItem?.button?.window?.windowNumber = 0
+            }
+            missing.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+            missing.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+            suite.expect(missing.results.isEmpty, "missing, hidden or unplaced status windows fail closed")
+        }
+        let changed = Host()
+        changed.handleMiddleTap(type: .otherMouseDown, event: middleEvent(.otherMouseDown, x: 120))
+        NSWindow.receivingWindowNumber = 99
+        changed.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        NSWindow.receivingWindowNumber = 42
+        changed.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(changed.results.isEmpty && !changed.gesture.isActive,
+                     "ownership lost at release cannot be completed by a later inside release")
+        NSEvent.pressedMouseButtons = 1
+        changed.observe(NSEvent(type: .leftMouseDown, timestamp: 350))
+        NSWindow.receivingWindowNumber = 99
+        changed.handleMiddleTap(type: .otherMouseUp, event: middleEvent(.otherMouseUp, x: 120))
+        suite.expect(changed.gesture.watchesForRelease, "rejected middle ownership does not cancel a left hold")
+        changed.cancel()
+        NSEvent.pressedMouseButtons = 0
+        NSWindow.receivingWindowNumber = 42
+    }
+
+    private static func testControllerActivation(_ suite: TestSuite) {
+        let controller = ControllerHost()
+        let host = Host()
+        host.settings = .init(hold: .keepAwake)
+        controller.gestureHandler = host
+        NSEvent.mouseLocation = CGPoint(x: 120, y: 300)
+        NSEvent.pressedMouseButtons = 1
+        host.observe(NSEvent(type: .leftMouseDown, timestamp: 400))
+        NSEvent.pressedMouseButtons = 0
+        ProcessInfo.processInfo.systemUptime = 401
+        NSApp.currentEvent = NSEvent(timestamp: 401)
+        controller.clicked()
+        suite.expect(host.results == [.quick(.keepAwake)], "controller dispatch completes a physical hold once")
+        controller.clicked()
+        suite.expect(host.results == [.quick(.keepAwake)] && controller.leftClicks == 0,
+                     "a fresh already handled physical release stays deduplicated")
+        ProcessInfo.processInfo.systemUptime = 402
+        controller.clicked()
+        controller.clicked()
+        suite.expect(controller.leftClicks == 2 && host.results == [.quick(.keepAwake)],
+                     "repeated accessibility activation after a hold ignores the old mouse-up and opens normally")
+        for event in [nil, NSEvent(type: .keyDown, timestamp: 402),
+                      NSEvent(timestamp: 401.49), NSEvent(timestamp: 403),
+                      NSEvent(type: .rightMouseUp, timestamp: 400)] {
+            NSApp.currentEvent = event
+            let before = controller.leftClicks
+            controller.clicked()
+            suite.expect(controller.leftClicks == before + 1,
+                         "missing, keyboard, stale and future events remain plain accessibility activation")
+        }
+        NSApp.currentEvent = NSEvent(type: .rightMouseUp, timestamp: 402)
+        controller.clicked()
+        suite.expect(controller.rightClicks == 1, "a fresh physical right click still opens the context menu")
+        NSApp.currentEvent = NSEvent(timestamp: 402)
+        controller.clicked()
+        suite.expect(host.results == [.quick(.keepAwake), .single(CGPoint(x: 120, y: 300))],
+                     "a fresh newer physical release is not blocked by accessibility fallback")
+        host.settings = .init(middle: .keepAwake)
+        NSApp.currentEvent = NSEvent(timestamp: 402)
+        let before = controller.leftClicks
+        controller.clicked()
+        suite.expect(controller.leftClicks == before + 1, "middle-only controller actions bypass the left gesture")
+        host.frame = nil
+        host.settings = .init(hold: .keepAwake)
+        NSApp.currentEvent = NSEvent(timestamp: 402.1)
+        ProcessInfo.processInfo.systemUptime = 402.1
+        controller.clicked()
+        suite.expect(controller.leftClicks == before + 2, "unknown left geometry still falls back to the panel")
+        NSApp.currentEvent = nil
+    }
+
+}
+
+extension StatusItemGestureAdapterTests {
     private static func testPermissionChanges(_ suite: TestSuite) {
         Permissions.shared.accessibility = false
         Permissions.shared.requests = 0
@@ -350,5 +645,14 @@ enum StatusItemGestureAdapterTests {
         suite.expect(alreadyGranted.middleTap != nil && alreadyGranted.installations == 3
                      && Permissions.shared.requests == 0,
                      "unchanged settings still retry a missing tap silently when permission is available")
+    }
+}
+
+// OS-boundary overloads only. Production recovery methods compile unchanged.
+extension CGEvent {
+    static func tapIsEnabled(tap: StatusItemGestureAdapterTests.Tap) -> Bool { tap.enabled }
+    static func tapEnable(tap: StatusItemGestureAdapterTests.Tap, enable: Bool) {
+        tap.enabled = enable
+        if enable { tap.enables += 1 }
     }
 }

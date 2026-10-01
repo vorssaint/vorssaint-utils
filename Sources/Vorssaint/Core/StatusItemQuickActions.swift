@@ -99,7 +99,10 @@ struct StatusItemGesture {
     /// instead of losing it.
     static func claims(_ point: CGPoint, frame: CGRect?, inset: CGFloat = 0) -> Bool {
         guard let frame, frame.width > 0, frame.height > 0 else { return false }
-        return frame.insetBy(dx: -inset, dy: -inset).contains(point)
+        let hitFrame = frame.insetBy(dx: -inset, dy: -inset)
+        // The screen's top row reports maxY, which CGRect.contains excludes.
+        return point.x >= hitFrame.minX && point.x < hitFrame.maxX
+            && point.y >= hitFrame.minY && point.y <= hitFrame.maxY
     }
 
     enum Result: Equatable {
@@ -194,7 +197,7 @@ struct StatusItemGesture {
                            tolerance: CGFloat = Settings.dragTolerance) -> [Result] {
         guard case .middlePressed = phase,
               insideDragTolerance(point, tolerance: tolerance) else {
-            cancel()
+            cancelMiddle()
             return []
         }
         phase = .idle
@@ -218,6 +221,11 @@ struct StatusItemGesture {
             break
         }
         return []
+    }
+
+    /// Losing the middle tap or its hit target must not discard a left hold.
+    mutating func cancelMiddle() {
+        if case .middlePressed = phase { phase = .idle }
     }
 
     mutating func cancel() {

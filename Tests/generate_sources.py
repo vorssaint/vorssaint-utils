@@ -70,11 +70,16 @@ def main():
           + "".join(declaration(gesture_handler, prefix).replace("    private ", "    ", 1)
                     for prefix in [
                         "    private func watchAccessibility(", "    private func syncMiddleTap(",
-                        "    private func handleMiddleTap(", "    func sync(", "    func cancel(",
+                        "    private func handleMiddleTap(", "    private func tearDownMiddleTap(",
+                        "    private func isMainButtonWindow(",
+                        "    func sync(", "    func cancel(",
                         "    func buttonClick(", "    private var dragMargin:",
                         "    private func screenPoint(", "    private func point(",
                         "    private func observe(", "    private func emit(",
                         "    private func schedule(", "    private func observeRelease("])
+          + "}\nfinal class ControllerHost: ControllerFixture {\n"
+          + declaration("Sources/Vorssaint/App/StatusItemController.swift", "    @objc private func clicked(")
+            .replace("@objc private ", "")
           + "}\n"
           + "final class SettingsHost: SettingsFixture {\n"
           + declaration("Sources/Vorssaint/UI/Settings/GeneralSettings.swift",

@@ -10,11 +10,9 @@ import os.log
 /// preserves AppKit's own button tracking, Command-drag and every other
 /// status item.
 ///
-/// Geometry is derived from the button's on-screen frame rather than from
-/// window identity, so a changed status-bar window on a future macOS cannot
-/// silently swallow clicks. Every entry point reports whether it consumed the
-/// event; a caller that gets `false` must run the original single-click path,
-/// because a click the gesture layer cannot reason about must never be lost.
+/// Left clicks use the button's frame, with the original click path as a
+/// fallback when that frame cannot be trusted. The session-wide middle tap
+/// also checks window identity, so a stale frame cannot claim another icon.
 final class StatusItemGestureHandler {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                    category: "statusgesture")
@@ -79,19 +77,23 @@ final class StatusItemGestureHandler {
             return
         }
         guard accessibilityGranted else {
-            cancel()
             tearDownMiddleTap()
             // Launch, settings sync and grant changes are passive. Only the
             // middle-click picker (or an explicit permission button) asks.
             return
+        }
+        // A revoke/regrant between permission polls can leave the published
+        // grant unchanged while the system has disabled the old tap.
+        if let middleTap, !CGEvent.tapIsEnabled(tap: middleTap) {
+            tearDownMiddleTap()
         }
         guard middleTap == nil else { return }
         installMiddleTap()
     }
 
     private func installMiddleTap() {
-        // A listen-only tap observes without ever holding an event back, so it
-        // cannot make another app's click late and needs no timeout recovery.
+        // A listen-only tap never holds another app's event back, but the
+        // system can still disable it; handleMiddleTap re-arms it.
         let mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
             | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
         guard let tap = CGEvent.tapCreate(
@@ -122,6 +124,7 @@ final class StatusItemGestureHandler {
     }
 
     private func tearDownMiddleTap() {
+        gesture.cancelMiddle()
         if let middleTap {
             CGEvent.tapEnable(tap: middleTap, enable: false)
             CFMachPortInvalidate(middleTap)
@@ -137,6 +140,16 @@ final class StatusItemGestureHandler {
     /// left of the primary display); AppKit screens put the origin at its
     /// bottom left. One flip maps between them for every display.
     private func handleMiddleTap(type: CGEventType, event: CGEvent) {
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            gesture.cancelMiddle() // An observation gap breaks the down/up pair.
+            if settings.needsAccessibility, AXIsProcessTrusted(), let middleTap {
+                CGEvent.tapEnable(tap: middleTap, enable: true)
+            } else {
+                // Do not invalidate the port from its own callback stack.
+                DispatchQueue.main.async { [weak self] in self?.syncMiddleTap() }
+            }
+            return
+        }
         guard type == .otherMouseDown || type == .otherMouseUp,
               event.getIntegerValueField(.mouseEventButtonNumber) == 2 else { return }
         let primaryHeight = NSScreen.screens.first { $0.frame.origin == .zero }?.frame.height
@@ -144,8 +157,9 @@ final class StatusItemGestureHandler {
         let appKitPoint = StatusItemGesture.appKitPoint(displayPoint: event.location,
                                                         primaryHeight: primaryHeight)
         let frame = mainButtonFrame()
-        guard StatusItemGesture.claims(appKitPoint, frame: frame) else {
-            cancel()
+        guard StatusItemGesture.claims(appKitPoint, frame: frame),
+              isMainButtonWindow(at: appKitPoint) else {
+            gesture.cancelMiddle()
             return
         }
         if type == .otherMouseDown {
@@ -154,6 +168,14 @@ final class StatusItemGestureHandler {
             emit(gesture.middleUp(at: appKitPoint, settings: settings, tolerance: dragMargin))
         }
         schedule()
+    }
+
+    /// A reported frame can remain at the item's old slot after a move.
+    /// Ask the window server who would receive this click before claiming it.
+    private func isMainButtonWindow(at point: NSPoint) -> Bool {
+        guard let item = owner?.statusItem, item.isVisible,
+              let number = item.button?.window?.windowNumber, number > 0 else { return false }
+        return NSWindow.windowNumber(at: point, belowWindowWithWindowNumber: 0) == number
     }
 
     private func log(_ message: String) {

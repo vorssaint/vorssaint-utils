@@ -135,6 +135,14 @@ enum StatusItemGestureTests {
                      && !StatusItemGesture.claims(middle, frame: .zero),
                      "an unknown or empty frame claims nothing, so the normal click still runs")
 
+        let top = CGPoint(x: frame.midX, y: frame.maxY)
+        suite.expect(StatusItemGesture.claims(top, frame: frame),
+                     "the exact top edge remains a usable menu-bar hit target")
+        suite.expect(!StatusItemGesture.claims(CGPoint(x: top.x, y: top.y + 0.01), frame: frame)
+                     && !StatusItemGesture.claims(CGPoint(x: frame.minX - 0.01, y: top.y), frame: frame)
+                     && !StatusItemGesture.claims(CGPoint(x: frame.maxX, y: top.y), frame: frame),
+                     "including the top edge does not claim points above or neighboring horizontal slots")
+
         // Display coordinates are top-left; AppKit screens are bottom-left.
         let flipped = StatusItemGesture.appKitPoint(displayPoint: CGPoint(x: 1112, y: 20),
                                                     primaryHeight: 1169)
