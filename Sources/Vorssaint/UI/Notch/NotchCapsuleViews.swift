@@ -306,10 +306,14 @@ struct NotchCapsuleTimerStrip: View {
 /// The working agents' marks, side by side, each in a frame wider than it.
 private struct NotchCapsuleAgentMarks: View {
     let providers: [AgentProvider]
+    @ObservedObject private var waitWatcher = AgentWaitWatcher.shared
 
     var body: some View {
         HStack(spacing: 1) {
-            ForEach(providers) { NotchAgentGlyph(provider: $0, size: CapsuleLayout.agentMarkSize(working: providers.count)) }
+            ForEach(providers) {
+                NotchAgentGlyph(provider: $0, size: CapsuleLayout.agentMarkSize(working: providers.count),
+                                waiting: $0 == .claude && !waitWatcher.waiting.isEmpty)
+            }
         }
     }
 }

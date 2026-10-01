@@ -144,12 +144,22 @@ struct NotchAgentGlyph: View {
     let provider: AgentProvider
     var size: CGFloat = 13
     var working = true
+    /// A session for this provider is blocked waiting on a reply, not just
+    /// still working.
+    var waiting = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         NotchAgentGlyphBridge(provider: provider, size: size, animates: working && !reduceMotion)
             // Room for the widest mark, the Claude one, drawn past its size.
             .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
+            .overlay(alignment: .topTrailing) {
+                if waiting {
+                    Circle()
+                        .fill(.yellow)
+                        .frame(width: max(4, size * 0.32), height: max(4, size * 0.32))
+                }
+            }
             .accessibilityHidden(true)
             .allowsHitTesting(false)
     }

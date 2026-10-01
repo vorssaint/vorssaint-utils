@@ -112,6 +112,7 @@ struct NotchCompanionMark: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
+    @ObservedObject private var waitWatcher = AgentWaitWatcher.shared
 
     var body: some View {
         switch companion {
@@ -120,7 +121,10 @@ struct NotchCompanionMark: View {
         case .agents:
             let working = Self.working
             HStack(spacing: 1) {
-                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry)) }
+                ForEach(working) {
+                    NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry),
+                                    waiting: $0 == .claude && !waitWatcher.waiting.isEmpty)
+                }
             }
         case .calendar:
             if let countdown = calendar.countdown {

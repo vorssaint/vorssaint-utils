@@ -23,3 +23,4 @@ AGENTS.md
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+.vscode/
