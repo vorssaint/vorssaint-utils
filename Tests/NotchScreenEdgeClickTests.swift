@@ -47,6 +47,7 @@ enum NotchScreenEdgeClickTests {
         var screenEdgeClickMonitors: [Any] = []
         var screenEdgePressArea: CGRect?
         var hoverWork: DispatchWorkItem?
+        var hoverEmphasisWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var openings = 0
     }
@@ -86,10 +87,14 @@ enum NotchScreenEdgeClickTests {
                 service.keepsWorkingSurface = false
                 suite.expect(service.openings == 0, "transparent corners and an active menu or modal preserve their own interactions")
                 let pendingHover = DispatchWorkItem {}
+                let pendingPulse = DispatchWorkItem {}
                 service.hoverWork = pendingHover
+                service.hoverEmphasisWork = pendingPulse
                 send(.leftMouseDown, top)
                 suite.expect(service.openings == 0 && pendingHover.isCancelled && service.hoverState.suppressed,
                        "pressing the edge cancels hover and waits for release")
+                suite.expect(pendingPulse.isCancelled && service.hoverEmphasisWork == nil,
+                       "a quick edge press also cancels the pending pulse, so the pressed area stays put until release")
                 send(.leftMouseUp, CGPoint(x: top.x, y: top.y - 0.5))
                 suite.expect(service.openings == 1 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                        "a menu-bar click opens exactly once on either display, then removes both monitors")

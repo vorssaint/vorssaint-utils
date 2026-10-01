@@ -449,6 +449,14 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         quickAccessContainer?.hoverChanged = handler
     }
 
+    /// Builds the hover tracking areas again in place. AppKit can miss an
+    /// exit on a fast pass and keep counting the pointer as inside, which
+    /// would leave the next entry unreported.
+    func resetHoverTracking() {
+        canvas.resetHoverTracking()
+        quickAccessContainer?.resetHoverTracking()
+    }
+
     func containsHover(_ screenPoint: CGPoint) -> Bool {
         guard isPresented, !concealedForMissionControl else { return false }
         // Hover follows the destination bounds, not a transient mask edge.
@@ -916,6 +924,14 @@ private final class NotchQuickAccessContainer: NSView {
         hoverTrackingAreas.forEach(addTrackingArea)
     }
 
+    func resetHoverTracking() {
+        hoverTrackingAreas.forEach(removeTrackingArea)
+        hoverTrackingAreas = hoverTrackingAreas.map {
+            NSTrackingArea(rect: $0.rect, options: $0.options, owner: self, userInfo: nil)
+        }
+        hoverTrackingAreas.forEach(addTrackingArea)
+    }
+
     override func mouseEntered(with event: NSEvent) {
         if hoverTrackingAreas.contains(where: { event.trackingArea === $0 }) { hoverChanged?(true) }
         else { super.mouseEntered(with: event) }
@@ -1225,6 +1241,14 @@ private final class NotchCanvas: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard containsVisiblePoint(convert(point, from: superview)) else { return nil }
         return super.hitTest(point)
+    }
+
+    func resetHoverTracking() {
+        guard let area = hoverTrackingArea else { return }
+        removeTrackingArea(area)
+        let fresh = NSTrackingArea(rect: area.rect, options: area.options, owner: self, userInfo: nil)
+        hoverTrackingArea = fresh
+        addTrackingArea(fresh)
     }
 
     override func mouseEntered(with event: NSEvent) {

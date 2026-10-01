@@ -1293,6 +1293,9 @@ enum NotchSupport {
 
     static let toolColumns = 5
     static let defaultHoverDelay = 0.25
+    /// The closed island waits this long before growing under the pointer,
+    /// so passing straight over it does not make it twitch.
+    static let hoverEmphasisDelay: TimeInterval = 0.05
     static let hoverDelayRange = 0.10...1.0
 
     static func sanitizedHoverDelay(_ value: TimeInterval) -> TimeInterval {
