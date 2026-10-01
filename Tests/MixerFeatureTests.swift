@@ -592,6 +592,11 @@ enum MixerFeatureTests {
                "a volume changed since the app lowered it is left alone")
         suite.expect(!MixerRoutingSupport.shouldRestoreOutputVolume(appliedVolume: 0.25, currentVolume: nil),
                "a volume that cannot be read is left alone")
+        suite.expect(MixerRoutingSupport.mutesOutput(atVolume: 0), "a level of zero mutes the output")
+        suite.expect(MixerRoutingSupport.mutesOutput(atVolume: 0.004),
+               "a level the percent labels show as 0% mutes the output")
+        suite.expect(!MixerRoutingSupport.mutesOutput(atVolume: 0.005) && !MixerRoutingSupport.mutesOutput(atVolume: 1),
+               "a level the percent labels show as 1% or more keeps the output audible")
         suite.expect(!MixerRoutingSupport.isHiddenFromMixer(
                     persistenceID: "com.apple.finder",
                     hiddenIDs: MixerRoutingSupport.hiddenRowIDs(hiddenApps: [:], showFinder: true)),
