@@ -15,7 +15,7 @@ enum Notifier {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "notifications")
 
-    static func requestPermission() {
+    static func requestPermission(completion: ((Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, error in
             // A denied prompt is the user's call; a request that ERRORS means
             // notifications silently cannot work at all — leave a trace so
@@ -25,11 +25,21 @@ enum Notifier {
             } else if !granted {
                 log.notice("notification authorization not granted")
             }
+            completion?(granted && error == nil)
         }
     }
 
     static func post(title: String, body: String) {
-        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:], completion: nil)
+    }
+
+    /// Reports whether an authorized notification center accepted the request.
+    /// A caller with one-shot state can retry after a pending permission prompt
+    /// instead of treating a dropped pre-authorization post as delivered.
+    static func postIfAuthorized(title: String,
+                                 body: String,
+                                 completion: @escaping (Bool) -> Void) {
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:], completion: completion)
     }
 
     static func postWhatsAppOrganization(title: String,
@@ -47,7 +57,8 @@ enum Notifier {
         ])
         post(title: title, body: body,
              categoryIdentifier: whatsAppOrganizerCategoryIdentifier,
-             userInfo: [whatsAppOrganizerTransactionKey: transactionID.uuidString])
+             userInfo: [whatsAppOrganizerTransactionKey: transactionID.uuidString],
+             completion: nil)
     }
 
     static func whatsAppOrganizerTransactionID(from response: UNNotificationResponse) -> UUID? {
@@ -60,12 +71,14 @@ enum Notifier {
     private static func post(title: String,
                              body: String,
                              categoryIdentifier: String?,
-                             userInfo: [AnyHashable: Any]) {
+                             userInfo: [AnyHashable: Any],
+                             completion: ((Bool) -> Void)?) {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized
                 || settings.authorizationStatus == .provisional else {
                 log.notice("notification dropped: authorization status \(settings.authorizationStatus.rawValue)")
+                DispatchQueue.main.async { completion?(false) }
                 return
             }
             let content = UNMutableNotificationContent()
@@ -78,6 +91,7 @@ enum Notifier {
                 if let error {
                     log.error("notification delivery failed: \(error.localizedDescription, privacy: .public)")
                 }
+                DispatchQueue.main.async { completion?(error == nil) }
             }
         }
     }

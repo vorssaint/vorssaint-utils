@@ -455,11 +455,13 @@ enum DefaultsKey {
     static let monitorAlertMemory = "monitorAlertMemory"
     static let monitorAlertDisk = "monitorAlertDisk"
     static let monitorAlertBattery = "monitorAlertBattery"
+    static let monitorAlertHighCharge = "monitorAlertHighCharge"
     static let monitorAlertCPUThreshold = "monitorAlertCPUThreshold"
     static let monitorAlertCPUTemperatureThreshold = "monitorAlertCPUTemperatureThreshold"
     static let monitorAlertBatteryTemperatureThreshold = "monitorAlertBatteryTemperatureThreshold"
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
+    static let monitorAlertHighChargePercent = "monitorAlertHighChargePercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
     // Menu panel layout — the order the major sections appear in and which are
     // collapsed, both comma-joined section ids (see PanelSectionID). Absent keys
@@ -1587,11 +1589,13 @@ enum Defaults {
         DefaultsKey.monitorAlertMemory: false,
         DefaultsKey.monitorAlertDisk: false,
         DefaultsKey.monitorAlertBattery: false,
+        DefaultsKey.monitorAlertHighCharge: false,
         DefaultsKey.monitorAlertCPUThreshold: 90,
         DefaultsKey.monitorAlertCPUTemperatureThreshold: 90,
         DefaultsKey.monitorAlertBatteryTemperatureThreshold: 40,
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
+        DefaultsKey.monitorAlertHighChargePercent: 80,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,
         DefaultsKey.mediaVideoStart: 0.0,
@@ -2392,6 +2396,14 @@ enum Defaults {
 
     static func sanitizedPercent(_ value: Int, fallback: Int, range: ClosedRange<Int>) -> Int {
         range.contains(value) ? value : fallback
+    }
+
+    /// Imported or command-line values can sit between the five-point choices
+    /// the UI offers. Keep valid values usable by rounding to the nearest step;
+    /// corrupt out-of-range values return to the documented default.
+    static func sanitizedHighChargePercent(_ value: Int) -> Int {
+        guard (60...100).contains(value) else { return 80 }
+        return min(100, max(60, ((value + 2) / 5) * 5))
     }
 
     static func sanitizedBundleIdentifierList(_ bundleIDs: [String]) -> [String] {

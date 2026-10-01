@@ -1365,6 +1365,8 @@ enum FeatureCatalogTests {
                "a CPU temperature alert marks the CPU monitor as notifying")
         suite.expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertBatteryTemperature]) == [.monitorPower],
                "a battery temperature alert marks the power monitor as notifying")
+        suite.expect(activeSet(.notifications, on: [DefaultsKey.monitorAlertHighCharge]) == [.monitorPower],
+               "a high-charge reminder marks the power monitor as notifying")
         suite.expect(activeSet(.notifications,
                          available: Set(AppFeature.allCases).subtracting([.monitorCPU]),
                          on: [DefaultsKey.monitorAlertCPU]) == [],
@@ -1444,6 +1446,12 @@ enum FeatureCatalogTests {
                                                       $0 == DefaultsKey.monitorAlertBatteryTemperature
                                                   }),
                "a battery temperature alert stays disarmed without the power metric")
+        suite.expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
+                                                 boolFor: { $0 == DefaultsKey.monitorAlertHighCharge }),
+               "a high-charge reminder arms the alert service")
+        suite.expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorPower },
+                                                  boolFor: { $0 == DefaultsKey.monitorAlertHighCharge }),
+               "a high-charge reminder stays disarmed without the power metric")
         suite.expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { $0 != .monitorDisk },
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")

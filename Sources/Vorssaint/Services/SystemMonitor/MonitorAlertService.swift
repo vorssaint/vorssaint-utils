@@ -13,6 +13,7 @@ final class MonitorAlertService {
     private var cpuUsageGate = SustainedAlertGate()
     private var cpuTemperatureGate = SustainedAlertGate()
     private var batteryTemperatureGate = SustainedAlertGate()
+    private let highChargeDelivery = HighChargeReminderDeliveryController()
     private var lastSent: [MonitorAlertKind: Date] = [:]
 
     private init() {}
@@ -58,6 +59,7 @@ final class MonitorAlertService {
         cpuUsageGate.reset()
         cpuTemperatureGate.reset()
         batteryTemperatureGate.reset()
+        highChargeDelivery.reset()
     }
 
     private func evaluate(_ snapshot: SystemSnapshot) {
@@ -66,6 +68,7 @@ final class MonitorAlertService {
             cpuUsageGate.reset()
             cpuTemperatureGate.reset()
             batteryTemperatureGate.reset()
+            highChargeDelivery.reset()
             return
         }
         let strings = FeatureStrings.monitorAlerts(L10n.shared.language)
@@ -109,6 +112,24 @@ final class MonitorAlertService {
            let battery = lowBattery(from: snapshot, defaults: defaults) {
             let body = String(format: strings.batteryBodyFormat, battery)
             send(.battery, title: strings.batteryTitle, body: body)
+        }
+
+        let highChargeEnabled = alertOn(DefaultsKey.monitorAlertHighCharge, .monitorPower)
+        let highChargeThreshold = Defaults.sanitizedHighChargePercent(
+            defaults.integer(forKey: DefaultsKey.monitorAlertHighChargePercent)
+        )
+        let power = snapshot.power
+        highChargeDelivery.evaluate(
+            enabled: highChargeEnabled,
+            charge: power?.chargePercent,
+            hasBattery: power?.hasBattery ?? false,
+            externalConnected: power?.externalConnected ?? false,
+            threshold: highChargeThreshold
+        ) { charge, completion in
+            let content = HighChargeReminderContent.real(strings: strings, charge: charge)
+            // Session re-arm is the complete repeat policy for this reminder;
+            // the generic time cooldown must not suppress a new session.
+            Notifier.postIfAuthorized(title: content.title, body: content.body, completion: completion)
         }
     }
 
@@ -189,6 +210,15 @@ final class MonitorAlertService {
     private static func formattedTemperature(_ celsius: Double, defaults: UserDefaults) -> String {
         let unit = TemperatureUnit(rawValue: defaults.string(forKey: DefaultsKey.temperatureUnit) ?? "") ?? .celsius
         return MetricFormat.temperature(celsius, unit: unit)
+    }
+
+    static func sendHighChargeTest() {
+        let strings = FeatureStrings.monitorAlerts(L10n.shared.language)
+        let content = HighChargeReminderContent.test(strings: strings)
+        Notifier.requestPermission { granted in
+            guard granted else { return }
+            Notifier.post(title: content.title, body: content.body)
+        }
     }
 
     private func send(_ kind: MonitorAlertKind, title: String, body: String) {
