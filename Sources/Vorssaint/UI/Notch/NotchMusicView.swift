@@ -19,7 +19,7 @@ struct NotchMusicView: View {
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     /// The cover's own colour, used for its halo and for the moving parts that
     /// belong to this track. Neutral covers keep the panel white.
-    private var accent: Color { service.artworkTint?.color ?? .white }
+    private var accent: Color { service.artworkTint?.color ?? Color.notchInk }
     private var halo: Color { service.artworkTint?.color ?? .clear }
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
@@ -109,9 +109,9 @@ struct NotchMusicView: View {
         HStack(spacing: 20) {
             Image(systemName: "music.note")
                 .font(.system(size: 30, weight: .light))
-                .foregroundStyle(.white.opacity(0.75))
+                .foregroundStyle(Color.notchInk.opacity(0.75))
                 .frame(width: 76, height: 76)
-                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .background(Color.notchInk.opacity(0.06), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 if !service.sources.isEmpty || !service.sourceIsAutomatic {
                     sourcePicker(nil)
@@ -131,7 +131,7 @@ struct NotchMusicView: View {
         Button { extra = extra == target ? nil : target } label: {
             Label(title, systemImage: symbol)
                 .font(.caption.weight(.medium)).padding(.horizontal, 10).padding(.vertical, 7)
-                .background(.white.opacity(extra == target ? 0.14 : 0.05), in: Capsule())
+                .background(Color.notchInk.opacity(extra == target ? 0.14 : 0.05), in: Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 16))
         .accessibilityAddTraits(extra == target ? [.isSelected] : [])
@@ -294,11 +294,11 @@ private struct NotchMusicTransport: View {
         } label: {
             Image(systemName: showsPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: compact ? 14 : 17, weight: .semibold))
-                .foregroundStyle(.black)
+                .foregroundStyle(Color.notchInkInverse)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: showsPlaying)
                 .frame(width: height, height: height)
-                .background(.white, in: Circle())
+                .background(Color.notchInk, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: height / 2))
@@ -325,7 +325,7 @@ private struct NotchMusicTransport: View {
         Button { service.send(command, context: playback.commandContext) } label: {
             Image(systemName: symbol)
                 .font(.system(size: compact ? 15 : 18, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
+                .foregroundStyle(Color.notchInk.opacity(0.85))
                 .frame(width: compact ? 28 : 32, height: height - 8)
                 .contentShape(RoundedRectangle(cornerRadius: 10))
         }
@@ -339,7 +339,7 @@ private struct NotchMusicTransport: View {
 struct NotchMusicTimeline: View {
     let playback: NotchPlayback
     @ObservedObject var service: NotchMusicService
-    var tint: Color = .white
+    var tint: Color = Color.notchInk
     @ObservedObject private var l10n = L10n.shared
     @State private var scrubPosition: Double?
     @State private var scrubTrack: RadialNowPlayingSnapshot?

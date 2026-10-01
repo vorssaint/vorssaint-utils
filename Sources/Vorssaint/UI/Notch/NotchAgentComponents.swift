@@ -57,7 +57,7 @@ struct NotchAgentCardHeader<Accessory: View>: View {
             }
             Text(title)
                 .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(Color.notchInk.opacity(0.9))
                 .lineLimit(1)
             Spacer(minLength: 4)
             accessory
@@ -77,7 +77,7 @@ extension NotchAgentCardHeader where Accessory == EmptyView {
 struct NotchAgentMeter: View {
     let value: Double
     var pace: Double?
-    var tint: Color = .white
+    var tint: Color = Color.notchInk
     var height: CGFloat = 5
     var dimmed = false
 
@@ -85,13 +85,13 @@ struct NotchAgentMeter: View {
         let fraction = value.isFinite ? min(1, max(0, value)) : 0
         GeometryReader { proxy in
             ZStack(alignment: .leading) {
-                Capsule(style: .continuous).fill(.white.opacity(0.13))
+                Capsule(style: .continuous).fill(Color.notchInk.opacity(0.13))
                 Capsule(style: .continuous)
                     .fill(tint.opacity(dimmed ? 0.45 : 0.92))
                     .frame(width: max(fraction > 0 ? height : 0, proxy.size.width * fraction))
                 if let pace, pace.isFinite, pace > 0.02, pace < 0.98 {
                     RoundedRectangle(cornerRadius: 0.75)
-                        .fill(.white.opacity(0.85))
+                        .fill(Color.notchInk.opacity(0.85))
                         .frame(width: 1.5, height: height + 5)
                         .offset(x: proxy.size.width * pace - 0.75)
                 }
@@ -106,13 +106,13 @@ struct NotchAgentMeter: View {
 /// A small ring for the closed island, filled by what is left.
 struct NotchAgentRing: View {
     let value: Double
-    var tint: Color = .white
+    var tint: Color = Color.notchInk
     var lineWidth: CGFloat = 2.5
 
     var body: some View {
         let fraction = value.isFinite ? min(1, max(0, value)) : 0
         ZStack {
-            Circle().stroke(.white.opacity(0.18), lineWidth: lineWidth)
+            Circle().stroke(Color.notchInk.opacity(0.18), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
@@ -219,7 +219,7 @@ struct NotchAgentBars: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         if total <= 0 {
-                            Capsule().fill(.white.opacity(0.1)).frame(height: 2)
+                            Capsule().fill(Color.notchInk.opacity(0.1)).frame(height: 2)
                         } else {
                             VStack(spacing: 0) {
                                 ForEach(providers.indices.reversed(), id: \.self) { slot in
@@ -274,11 +274,11 @@ struct NotchAgentHeatmap: View {
                             if let day = week[row] {
                                 let value = day.total.weight(byCost: byCost)
                                 RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
-                                    .fill(.white.opacity(opacity(value, levels: levels)))
+                                    .fill(Color.notchInk.opacity(opacity(value, levels: levels)))
                                     .overlay {
                                         if hovered == day.start || calendar.isDateInToday(day.start) {
                                             RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
-                                                .strokeBorder(.white.opacity(hovered == day.start ? 0.9 : 0.45), lineWidth: 1)
+                                                .strokeBorder(Color.notchInk.opacity(hovered == day.start ? 0.9 : 0.45), lineWidth: 1)
                                         }
                                     }
                                     .frame(width: cell, height: cell)

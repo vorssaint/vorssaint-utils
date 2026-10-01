@@ -111,7 +111,7 @@ struct NotchTimerView: View {
                     Text(title(for: candidate))
                         .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
                         .lineLimit(1)
-                        .foregroundStyle(selected ? .white : .white.opacity(0.5))
+                        .foregroundStyle(selected ? Color.notchInk : Color.notchInk.opacity(0.5))
                         .padding(.horizontal, NotchTimerSupport.ModePicker.labelPadding)
                         .frame(height: NotchTimerSupport.ModePicker.height)
                         .overlay(alignment: .bottom) {
@@ -285,9 +285,9 @@ struct NotchTimerView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 23, weight: .semibold))
-                .foregroundStyle(primary ? .orange : .white)
+                .foregroundStyle(primary ? .orange : Color.notchInk)
                 .frame(width: 52, height: 52)
-                .background(primary ? Color.orange.opacity(0.28) : Color.white.opacity(0.18), in: Circle())
+                .background(primary ? Color.orange.opacity(0.28) : Color.notchInk.opacity(0.18), in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 26))

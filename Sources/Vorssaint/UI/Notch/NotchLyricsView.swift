@@ -67,7 +67,7 @@ struct NotchLyricsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.notchInk.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
         .onChange(of: online) { update() }
     }
 
@@ -106,7 +106,7 @@ struct NotchLyricsView: View {
                         ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
                             Text(line.text.isEmpty ? "♪" : line.text)
                                 .font(.system(size: index == active ? 18 : 15, weight: .semibold))
-                                .foregroundStyle(.white.opacity(index == active ? 1 : 0.4))
+                                .foregroundStyle(Color.notchInk.opacity(index == active ? 1 : 0.4))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .id(index)
