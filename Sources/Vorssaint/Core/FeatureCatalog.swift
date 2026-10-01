@@ -31,7 +31,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents
+         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchAgentApprovals
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
@@ -115,7 +115,7 @@ extension AppFeature {
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents:
+             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchAgentApprovals:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
@@ -188,6 +188,7 @@ extension AppFeature {
         case .notchNotifications: return "bell"
         case .notchCalendar: return "calendar"
         case .notchAgents: return "sparkles"
+        case .notchAgentApprovals: return "checkmark.shield"
         case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
@@ -259,6 +260,7 @@ extension AppFeature {
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
         case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notchAgentApprovals: return [DefaultsKey.notchAgentApprovalsEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
@@ -325,6 +327,9 @@ extension AppFeature {
         // Session logs and the saved limits sit in the home folder, outside
         // every protected location, and no sign-in or keychain item is used.
         case .notchAgents: return []
+        // A hook in Claude Code's own settings file and a socket in the app's
+        // container; neither is behind a macOS permission.
+        case .notchAgentApprovals: return []
         // The bars read the player's own audio output, which macOS gates
         // behind the same permission the mixer and the recorder ask for.
         case .notchLiveEqualizer: return [.audioCapture]
@@ -463,7 +468,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchAgentApprovals:
             return false
         }
     }

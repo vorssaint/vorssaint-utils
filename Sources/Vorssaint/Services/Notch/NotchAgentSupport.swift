@@ -223,6 +223,17 @@ enum NotchAgentSupport {
     // MARK: Layout
 
     static let spacing: CGFloat = 10
+    /// A request shows alone, so the page is only as tall as its card. The
+    /// layout clamps it to the island and the card's middle scrolls.
+    static func approvalCardHeight(for request: ClaudeApprovalRequest) -> CGFloat {
+        switch request.kind {
+        case .tool: return 96
+        case .plan: return 240
+        // Per question: its text and the Other row, then a two-line row per option.
+        case .questions(let questions):
+            return min(300, 72 + questions.reduce(0) { $0 + 48 + 38 * CGFloat($1.options.count) })
+        }
+    }
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
     /// Below this width every card takes a row of its own.

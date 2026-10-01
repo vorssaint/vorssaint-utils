@@ -87,6 +87,7 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
+            ("claude-approvals", { ClaudeApprovalTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)

@@ -151,6 +151,12 @@ struct NotchQuickAccessView: View {
                     Circle().strokeBorder(.white.opacity(selected || contrast == .increased ? 0.6 : 0.16), lineWidth: 0.75)
                         .allowsHitTesting(false)
                 }
+                .overlay(alignment: .topTrailing) {
+                    // A Claude Code request is waiting on the AI page.
+                    if action == .module(.agents), ClaudeApprovalService.shared.pending != nil {
+                        Circle().fill(.orange).frame(width: 8, height: 8).allowsHitTesting(false)
+                    }
+                }
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchQuickAccessLayout.diameter / 2))

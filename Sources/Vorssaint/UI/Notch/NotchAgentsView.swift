@@ -7,6 +7,7 @@ import SwiftUI
 struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var approvals = ClaudeApprovalService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
@@ -34,7 +35,12 @@ struct NotchAgentsView: View {
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded {
+            if let request = approvals.pending {
+                NotchAgentApprovalCard(request: request)
+                    // A new request starts with no choices made.
+                    .id(request.id)
+                    .frame(height: min(size.height, NotchAgentSupport.approvalCardHeight(for: request)))
+            } else if !usage.snapshot.loaded {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -880,19 +886,24 @@ private struct NotchAgentResetsCard: View {
 
     private func pill(_ title: String, symbol: String? = nil, prominent: Bool = true,
                       action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 3) {
-                if let symbol { Image(systemName: symbol).imageScale(.small) }
-                // A narrow island shrinks a long label before cutting it.
-                Text(title).lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .font(.system(size: 10.5, weight: .semibold))
-            .foregroundStyle(prominent ? AnyShapeStyle(tint) : AnyShapeStyle(.white.opacity(0.85)))
-            .padding(.horizontal, 9)
-            .frame(height: 20)
-            .background(prominent ? tint.opacity(0.2) : .white.opacity(0.1), in: Capsule(style: .continuous))
-            .contentShape(Capsule(style: .continuous))
-        }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+        notchAgentPill(title, symbol: symbol, prominent: prominent, tint: tint, action: action)
     }
+}
+
+func notchAgentPill(_ title: String, symbol: String? = nil, prominent: Bool = true, tint: Color,
+                    action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        HStack(spacing: 3) {
+            if let symbol { Image(systemName: symbol).imageScale(.small) }
+            // A narrow island shrinks a long label before cutting it.
+            Text(title).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .font(.system(size: 10.5, weight: .semibold))
+        .foregroundStyle(prominent ? AnyShapeStyle(tint) : AnyShapeStyle(.white.opacity(0.85)))
+        .padding(.horizontal, 9)
+        .frame(height: 20)
+        .background(prominent ? tint.opacity(0.2) : .white.opacity(0.1), in: Capsule(style: .continuous))
+        .contentShape(Capsule(style: .continuous))
+    }
+    .buttonStyle(NotchButtonStyle(cornerRadius: 10))
 }

@@ -90,6 +90,7 @@ enum NotchDestinationContract {
         var pageLayers: [NotchModule: () -> Void] = [:]
         var captureControls: AnyObject?
         var heldDrag = false
+        var showsApprovalRequest = false
         var presentationSyncs = 0
         var presentationTearDowns = 0
         var captureControlsCancel: (() -> Void)?
@@ -211,6 +212,12 @@ enum NotchDestinationContract {
                      "Escape steps back from a detail opened on its page, as the Back button does")
         metric.stepBack()
         suite.expect(!metric.expanded, "Escape closes the island once nothing lies behind the page")
+
+        let approval = Service()
+        approval.open(.agents)
+        approval.showsApprovalRequest = true
+        approval.stepBack()
+        suite.expect(approval.expanded, "Escape never answers or hides a Claude Code request")
 
         let panel = Service()
         panel.open(.music)
