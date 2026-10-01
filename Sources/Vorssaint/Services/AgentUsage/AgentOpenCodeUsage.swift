@@ -285,6 +285,13 @@ enum AgentOpenCodeReader {
         defer { sqlite3_close(db) }
         // A busy writer never blocks a reader long; the next poll retries.
         sqlite3_busy_timeout(db, 500)
+        if !reset, cursor.maxRowid > 0, let tableMax = tableMaxRowid(db: db), tableMax < cursor.maxRowid {
+            // Same file, smaller table: restored or rebuilt in place under
+            // the old watermark, so start over instead of staying stale.
+            cursor = AgentOpenCodeCursor()
+            cursor.identity = identity
+            reset = true
+        }
         var changed = false
         var maxRowid = cursor.maxRowid
         var complete = false
@@ -304,19 +311,23 @@ enum AgentOpenCodeReader {
             changed = done.changed
         } else {
             // Later polls touch only what changed: rows past the watermark
-            // in log order, then replies still in progress by id.
+            // in log order, then replies still in progress by id, in small
+            // enough groups for the database's bound variable limit.
             let open = cursor.open.sorted()
-            if !open.isEmpty, shouldContinue() {
-                let marks = open.map { _ in "?" }.joined(separator: ",")
+            var offset = 0
+            while offset < open.count, shouldContinue() {
+                let group = Array(open[offset..<min(open.count, offset + 200)])
+                offset += group.count
+                let marks = group.map { _ in "?" }.joined(separator: ",")
                 let done = scan(db: db, sql: """
                     SELECT m.rowid, m.id, m.session_id, m.time_created, m.time_updated, m.data,
                            s.directory, s.time_created, s.parent_id
                     FROM message m LEFT JOIN session s ON s.id = m.session_id
                     WHERE m.id IN (\(marks)) ORDER BY m.time_created ASC, m.id ASC
-                    """, bind: open, cursor: &cursor, now: now, horizon: horizon,
+                    """, bind: group, cursor: &cursor, now: now, horizon: horizon,
                     shouldContinue: shouldContinue, receive: receive, maxRowid: &maxRowid)
                 complete = done.complete
-                changed = done.changed
+                changed = changed || done.changed
                 if !complete { return finish(reset: reset, cursor: &cursor, url: url, changed: changed,
                                              complete: false) }
             }
@@ -369,9 +380,17 @@ enum AgentOpenCodeReader {
         }
         var checks = 0
         var changed = false
-        while sqlite3_step(query) == SQLITE_ROW {
+        var drained = false
+        while true {
+            let step = sqlite3_step(query)
+            if step != SQLITE_ROW {
+                // Only a clean run to the end advances anything: any other
+                // outcome leaves the watermark where the applied rows are.
+                drained = step == SQLITE_DONE
+                break
+            }
             checks += 1
-            if checks % 32 == 0, !shouldContinue() { return (false, changed) }
+            if checks % 32 == 0, !shouldContinue() { break }
             guard let rowid = columnInt64(query, 0), let messageID = text(query, 1),
                   let sessionID = text(query, 2) else { continue }
             let created = columnInt64(query, 3) ?? 0
@@ -418,12 +437,12 @@ enum AgentOpenCodeReader {
             let batch = Batch(sessionID: sessionID,
                               rootSessionID: root(of: sessionID, parents: &cursor.parents, db: db),
                               entries: gated.entries)
-            guard receive(batch) else { return (false, changed) }
+            guard receive(batch) else { break }
             noteApplied(messageID: messageID, sessionID: sessionID, created: created, updated: updated,
                         isUser: isUser, terminal: gated.terminal, entries: gated.entries, cursor: &cursor)
             changed = true
         }
-        return (checks % 32 != 0 || shouldContinue(), changed)
+        return (drained && shouldContinue(), changed)
     }
 
     /// A forked copy is born long before its own session. No genuine row
@@ -431,6 +450,15 @@ enum AgentOpenCodeReader {
     /// thousands of live rows, the earliest message follows its session by
     /// milliseconds.
     private static let forkTolerance: Int64 = 60_000
+
+    /// The highest rowid the table holds right now, without reading any
+    /// payload. Missing when the table cannot be asked.
+    private static func tableMaxRowid(db: OpaquePointer) -> Int64? {
+        guard let query = prepare(db, sql: "SELECT MAX(m.rowid) FROM message m") else { return nil }
+        defer { sqlite3_finalize(query) }
+        guard sqlite3_step(query) == SQLITE_ROW, sqlite3_column_type(query, 0) != SQLITE_NULL else { return nil }
+        return sqlite3_column_int64(query, 0)
+    }
 
     private static func columnInt64(_ statement: OpaquePointer, _ column: Int32) -> Int64? {
         guard sqlite3_column_type(statement, column) != SQLITE_NULL else { return nil }

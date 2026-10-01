@@ -1042,6 +1042,101 @@ enum NotchAgentTests {
             return true
         }
         suite.expect(removed.reset && removedCount == 0, "a removed database resets and reads nothing")
+        // A table rebuilt smaller under the same file starts over too,
+        // instead of hiding every row below the old watermark.
+        let shrunk = FileManager.default.temporaryDirectory.appending(path: "vorss-shrunk-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: shrunk) }
+        guard opencodeDatabase(
+            home: shrunk, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
+            messages: [(id: "u1", session: "s", created: base, updated: base, data: userData(at: base)),
+                       (id: "m1", session: "s", created: base + 5_000, updated: base + 8_000,
+                        data: assistantData(finish: "stop", created: base + 5_000, updated: base + 8_000))]) else {
+            suite.expect(false, "the OpenCode fixture creates its shrink database")
+            return
+        }
+        var shrinkCursor = AgentOpenCodeCursor()
+        let shrinkStore = AgentUsageStore()
+        shrinkStore.reportsTransitions = true
+        func shrinkDrain() -> [AgentUsageEvent] {
+            var events: [AgentUsageEvent] = []
+            _ = AgentOpenCodeReader.read(home: shrunk, cursor: &shrinkCursor, now: now,
+                                         shouldContinue: { true }) { batch in
+                events += shrinkStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                            provider: .opencode, tracksTurns: true, modified: now, now: now)
+                return true
+            }
+            return events
+        }
+        suite.expect(shrinkDrain().count == 1, "the shrink database reads its finished turn")
+        var shrinkDB: OpaquePointer?
+        let shrinkURL = AgentOpenCodeDatabase.databaseURL(home: shrunk)
+        guard sqlite3_open(shrinkURL.path, &shrinkDB) == SQLITE_OK, let shrinkDB else {
+            suite.expect(false, "the OpenCode fixture reopens its shrink database")
+            return
+        }
+        let shrunkOK = sqlite3_exec(shrinkDB, "DELETE FROM message", nil, nil, nil) == SQLITE_OK
+            && sqlite3_exec(shrinkDB, "INSERT INTO message(id, session_id, time_created, time_updated, data)" +
+                            " VALUES('u9', 's', \(base + 900_000), \(base + 900_000)," +
+                            " '{\"role\":\"user\",\"time\":{\"created\":\(base + 900_000)}}')", nil, nil, nil) == SQLITE_OK
+        sqlite3_close(shrinkDB)
+        suite.expect(shrunkOK, "the fixture rebuilds its table smaller in place")
+        var shrinkReset = false
+        _ = AgentOpenCodeReader.read(home: shrunk, cursor: &shrinkCursor, now: now, shouldContinue: { true }) { batch in
+            shrinkReset = true
+            _ = shrinkStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                  provider: .opencode, tracksTurns: true, modified: now, now: now)
+            return true
+        }
+        // The shrunk read resets the watermark; whether the service drops
+        // the old live turns is its own quiet handling, pinned above.
+        suite.expect(shrinkReset && shrinkCursor.maxRowid == 1 && shrinkStore.live.count == 1,
+                     "a smaller table restarts the watermark and reads its rows")
+        // Hundreds of open replies are rechecked in bounded groups without
+        // losing any of them.
+        let crowded = FileManager.default.temporaryDirectory.appending(path: "vorss-crowded-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: crowded) }
+        var crowdedMessages: [(id: String, session: String, created: Int64, updated: Int64, data: [String: Any])] = []
+        for step in 0..<210 {
+            let moment = base + Int64(step) * 1_000
+            crowdedMessages.append((id: "w\(step)", session: "s", created: moment, updated: moment, data: [
+                "role": "assistant", "modelID": "gpt-6-sol", "path": ["cwd": "/Users/me/code/app"],
+                "cost": NSNumber(value: 0),
+                "tokens": ["input": 0, "output": 0, "reasoning": 0, "cache": ["read": 0, "write": 0]],
+                "time": ["created": NSNumber(value: Double(moment))]]))
+        }
+        guard opencodeDatabase(
+            home: crowded, sessions: [(id: "s", parent: nil, directory: "/Users/me/code/app", created: base)],
+            messages: crowdedMessages) else {
+            suite.expect(false, "the OpenCode fixture creates its crowded database")
+            return
+        }
+        var crowdedCursor = AgentOpenCodeCursor()
+        let crowdedStore = AgentUsageStore()
+        crowdedStore.reportsTransitions = true
+        var crowdedBatches = 0
+        _ = AgentOpenCodeReader.read(home: crowded, cursor: &crowdedCursor, now: now,
+                                     shouldContinue: { true }) { batch in
+            crowdedBatches += 1
+            _ = crowdedStore.apply(batch.entries, file: "opencode:\(batch.sessionID)",
+                                   provider: .opencode, tracksTurns: true, modified: now, now: now)
+            return true
+        }
+        suite.expect(crowdedBatches == 210 && crowdedStore.live.count == 1 && crowdedStore.records.isEmpty,
+                     "every open reply applies through grouped rechecks")
+        suite.expect(updateMessage(home: crowded, id: "w0", updated: base + 1_000_000, data: [
+            "role": "assistant", "modelID": "gpt-6-sol", "path": ["cwd": "/Users/me/code/app"],
+            "cost": NSNumber(value: 0),
+            "tokens": ["input": 0, "output": 0, "reasoning": 0, "cache": ["read": 0, "write": 0]],
+            "time": ["created": NSNumber(value: Double(base)), "completed": NSNumber(value: Double(base + 1_000_000))]]),
+                     "the fixture touches one crowded row")
+        var regrouped = 0
+        let regroup = AgentOpenCodeReader.read(home: crowded, cursor: &crowdedCursor, now: now,
+                                               shouldContinue: { true }) { _ in
+            regrouped += 1
+            return true
+        }
+        suite.expect(regroup.complete && regrouped >= 1 && crowdedStore.live.count == 1,
+                     "a touched open row is found again across the groups")
         // A subagent session joins its root turn through the reader.
         guard opencodeDatabase(
             home: home,
