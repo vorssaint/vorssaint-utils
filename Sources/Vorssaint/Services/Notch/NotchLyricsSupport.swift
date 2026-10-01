@@ -116,15 +116,17 @@ enum NotchLyricsSupport {
     }
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {
+        let album = catalogAlbum(track.album)
         guard [track.title, track.artist].allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }),
+              album.isEmpty || album.utf8.count <= 1024,
               track.duration.isFinite, (1...3600).contains(track.duration) else { return nil }
         var url = URLComponents(string: "https://lrclib.net/api/get")!
-        // The release only separates two recordings of one song, and a single
-        // has none: the request leaves the field out rather than sending an
-        // album the database has no record of.
+        // The release only separates two recordings of one song, and a player
+        // that reports none has nothing to send: the request leaves the field
+        // out rather than naming a release the service has no record of. A
+        // reported album stays inside the same byte bound as the other fields.
         var items = [URLQueryItem(name: "track_name", value: track.title),
                      URLQueryItem(name: "artist_name", value: track.artist)]
-        let album = catalogAlbum(track.album)
         if !album.isEmpty { items.append(URLQueryItem(name: "album_name", value: album)) }
         items.append(URLQueryItem(name: "duration", value: String(track.duration)))
         url.queryItems = items
@@ -159,12 +161,14 @@ enum NotchLyricsSupport {
         return trimmed
     }
 
-    /// A release neither side names is silence, not disagreement: a single
-    /// reaches the database without an album and comes back without one. An
-    /// album both sides do carry still has to be the same release.
+    /// A player that reports no album cannot disagree about one: the request
+    /// leaves the field out and the service answers with the first record it
+    /// holds for that title, artist and length, so the reply names a release
+    /// the track never mentioned. A release both sides do carry still has to
+    /// be the same one.
     private static func albumMatches(_ value: String?, _ expected: String) -> Bool {
-        guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return true }
-        return equal(catalogAlbum(value), catalogAlbum(expected))
+        guard !expected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return true }
+        return equal(value.map(catalogAlbum), catalogAlbum(expected))
     }
 
     private static func equal(_ value: String?, _ expected: String) -> Bool {
