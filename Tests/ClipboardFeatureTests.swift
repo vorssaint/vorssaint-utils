@@ -777,10 +777,12 @@ enum ClipboardFeatureTests {
                     "org.nspasteboard.ConcealedType",
                     "the secret mark keeps the exact name the apps that write it use")
 
-        // MARK: Multi-line pasteboard text
+        // MARK: Separated link copies
 
-        // Issue #2411: copying links from several selected tabs puts one URL
-        // per line, and reading that as a single URL merges and re-encodes it.
+        // Issue #2411: links copied together arrive as one block, not one
+        // link — a line break from several selected tabs, a tab between the
+        // cells of a spreadsheet row — and reading that as a single URL
+        // merges and re-encodes it.
         let multiLineLinks = "https://a.example/x?q=1\nhttps://b.example/y?q=2"
         expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: nil,
                                                                  plainText: multiLineLinks) ?? "",
