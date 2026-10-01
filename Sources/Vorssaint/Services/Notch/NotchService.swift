@@ -3241,35 +3241,9 @@ final class NotchService: ObservableObject {
     }
 
     private func showAgentEvent(_ event: AgentUsageEvent) {
-        let text = FeatureStrings.notchAgents(L10n.shared.language)
-        let locale = L10n.shared.language.formattingLocale()
-        let remaining = NotchAgentSupport.limitDisplay() == .remaining
-        func window(_ window: AgentLimitWindow) -> String {
-            switch window.kind {
-            case .session: return text.session
-            case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
-            case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
-                ?? text.readoutLimit
-            }
-        }
-        switch event {
-        case .finished(let provider, let duration, let cost, _, _):
-            show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
-                             detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
-                                .filter { !$0.isEmpty }.joined(separator: " · "),
-                             symbol: provider.symbol, agent: provider))
-        case .limitWarning(let provider, let limit):
-            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
-                             symbol: "exclamationmark.triangle.fill", agent: provider))
-        case .limitReset(let provider, let limit):
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider))
-        case .budgetReached(let spent, _):
-            show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
-                             symbol: "dollarsign.circle.fill"))
-        }
+        let summary = NotchAgentSupport.summary(of: event, language: L10n.shared.language)
+        show(NotchNotice(event: .agents, title: summary.title, detail: summary.detail,
+                         symbol: summary.symbol, agent: summary.provider))
     }
 
     func showCurrentVolume() {

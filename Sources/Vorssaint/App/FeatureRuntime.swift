@@ -368,7 +368,9 @@ final class FeatureRuntime: ObservableObject {
         },
         .notchAgents: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
-            else { AgentUsageService.shared.stop() }
+            // The menu bar's running agent reads with or without the island.
+            AgentUsageService.shared.panelDemandChanged()
+            AgentMenuBarReading.shared.syncWithPreferences()
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },

@@ -48,7 +48,10 @@ final class AgentUsageService: ObservableObject {
     private var running = false
     /// A visible panel can borrow the reader while the island is suspended.
     private var islandPaused = false
-    private var panelShows: Bool { PanelModuleDemand.shared.shows(.agents) }
+    /// The menu panel's page, or the running agent in the menu bar, reads without the island.
+    private var panelShows: Bool {
+        PanelModuleDemand.shared.shows(.agents) || NotchAgentSupport.showsMenuBarActivity()
+    }
     private var panelNeedsUsage: Bool {
         panelShows && AppFeature.notchAgents.isAvailable
     }

@@ -59,11 +59,25 @@ enum NotchAgentSupport {
     /// A turn silent for this long is not shown as working.
     static let idleTurn: TimeInterval = 10 * 60
 
+    /// The island reads for its AI Agents page; the menu panel's page and the
+    /// menu bar's running agent read without it. All follow the feature's switch.
     static func isEnabled(in defaults: UserDefaults = .standard, panelVisible: Bool = false) -> Bool {
-        AppFeature.notchAgents.isAvailable(in: defaults)
-            && (panelVisible || (NotchSupport.isEnabled(in: defaults)
-                && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
-                && NotchSupport.modules(in: defaults).contains(.agents)))
+        isShownInIsland(in: defaults) || ((panelVisible || showsMenuBarActivity(in: defaults))
+            && AppFeature.notchAgents.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
+    }
+
+    /// The island itself shows the agents: their page, resting reading and strip.
+    static func isShownInIsland(in defaults: UserDefaults = .standard) -> Bool {
+        NotchSupport.isEnabled(in: defaults) && AppFeature.notchAgents.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
+            && NotchSupport.modules(in: defaults).contains(.agents)
+    }
+
+    /// A working agent's mark and reading in a menu bar item of their own,
+    /// for people who keep the island off. Off until chosen.
+    static func showsMenuBarActivity(in defaults: UserDefaults = .standard) -> Bool {
+        AppFeature.notchAgents.isAvailable(in: defaults) && defaults.bool(forKey: DefaultsKey.notchAgentsEnabled)
+            && defaults.bool(forKey: DefaultsKey.notchAgentsMenuBarActivity)
     }
 
     static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
@@ -103,7 +117,7 @@ enum NotchAgentSupport {
     }
 
     static func showsLiveActivity(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && (defaults.object(forKey: DefaultsKey.notchAgentsLiveActivity) as? Bool ?? true)
+        isShownInIsland(in: defaults) && (defaults.object(forKey: DefaultsKey.notchAgentsLiveActivity) as? Bool ?? true)
     }
 
     static func readout(in defaults: UserDefaults = .standard) -> NotchAgentReadout {
@@ -163,6 +177,56 @@ enum NotchAgentSupport {
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
                   let window = AgentLimitSupport.binding(snapshot.limits[provider], now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
+        }
+    }
+
+    /// What the island's notice, and the menu bar's tooltip, say about an agent event.
+    static func summary(of event: AgentUsageEvent, language: AppLanguage, in defaults: UserDefaults = .standard)
+        -> (title: String, detail: String, symbol: String, provider: AgentProvider?) {
+        let text = FeatureStrings.notchAgents(language)
+        let locale = language.formattingLocale()
+        let remaining = limitDisplay(in: defaults) == .remaining
+        func window(_ window: AgentLimitWindow) -> String {
+            switch window.kind {
+            case .session: return text.session
+            case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+            case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
+                ?? text.readoutLimit
+            }
+        }
+        switch event {
+        case .finished(let provider, let duration, let cost, _, _):
+            let parts = [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
+            return (text.finished(provider.displayName), parts.filter { !$0.isEmpty }.joined(separator: " · "),
+                    provider.symbol, provider)
+        case .limitWarning(let provider, let limit):
+            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
+            return ("\(provider.displayName) · \(window(limit))", remaining ? text.left(share) : text.usedShare(share),
+                    "exclamationmark.triangle.fill", provider)
+        case .limitReset(let provider, let limit):
+            return ("\(provider.displayName) · \(window(limit))", text.limitRenewed, "arrow.clockwise", provider)
+        case .budgetReached(let spent, _):
+            return (text.budgetTitle, AgentFormat.cost(spent), "dollarsign.circle.fill", nil)
+        }
+    }
+
+    /// The menu bar's few characters for an event, beside the agent's mark: a
+    /// symbol and its figures, such as a finished task's time and tokens.
+    static func menuBarSummary(of event: AgentUsageEvent, in defaults: UserDefaults = .standard)
+        -> (symbol: String, text: String, provider: AgentProvider?) {
+        switch event {
+        case .finished(let provider, let duration, _, let tokens, _):
+            return ("checkmark.circle.fill",
+                    [AgentFormat.clock(duration), tokens > 0 ? AgentFormat.tokens(tokens) : ""]
+                        .filter { !$0.isEmpty }.joined(separator: " · "), provider)
+        case .limitWarning(let provider, let limit):
+            return ("exclamationmark.triangle.fill",
+                    AgentFormat.percent(limitDisplay(in: defaults) == .remaining ? limit.remainingFraction : limit.usedFraction),
+                    provider)
+        case .limitReset(let provider, _):
+            return ("arrow.clockwise", "", provider)
+        case .budgetReached(let spent, _):
+            return ("dollarsign.circle.fill", AgentFormat.cost(spent), nil)
         }
     }
 

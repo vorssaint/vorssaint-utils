@@ -725,7 +725,7 @@ struct NotchSettings: View {
         }
     }
 
-    private var offersAgentsResting: Bool { agentsEnabled && NotchAgentSupport.isEnabled() }
+    private var offersAgentsResting: Bool { agentsEnabled && NotchAgentSupport.isShownInIsland() }
 
     /// What the closed island rests with. A saved AI reading waits, unchanged,
     /// while its section is off, and the island rests empty meanwhile. So does

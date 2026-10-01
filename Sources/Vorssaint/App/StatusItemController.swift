@@ -166,6 +166,7 @@ final class StatusItemController {
     }
 
     private func bind() {
+        AgentMenuBarReading.shared.changed = { [weak self] crossfade in self?.agentReadingChanged(crossfade: crossfade) }
         KeepAwakeManager.shared.$isActive
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -277,6 +278,25 @@ final class StatusItemController {
 
     /// Keeps the background sampler in step with the menu bar settings: it runs
     /// continuously only while at least one metric is pinned to the menu bar.
+    /// The agent's part comes and goes, or turns into a notice: the item eases
+    /// through the change instead of snapping. Each second's tick redraws only.
+    private func agentReadingChanged(crossfade: Bool) {
+        guard crossfade, let button, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            refresh()
+            return
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.12
+            button.animator().alphaValue = 0.3
+        }, completionHandler: { [weak self] in
+            self?.refresh()
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.22
+                button.animator().alphaValue = 1
+            }
+        })
+    }
+
     private func syncMonitorMode() {
         let defaults = UserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
@@ -465,6 +485,13 @@ final class StatusItemController {
             title.append(NSAttributedString(string: countdown))
             includesCountdown = true
         }
+        // A working agent's mark and reading, like the closed island's, for
+        // people who keep the island off. One line, as the countdown is.
+        if let agent = AgentMenuBarReading.shared.title() {
+            if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
+            title.append(agent)
+            includesCountdown = true
+        }
         if separateMetrics {
             refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
         } else {
@@ -558,8 +585,10 @@ final class StatusItemController {
         } else {
             toolTip = strings.statusIdleTooltip
         }
-        if button.toolTip != toolTip {
-            button.toolTip = toolTip
+        // An agent's notice reads in full under the pointer.
+        let fullToolTip = AgentMenuBarReading.shared.toolTip.map { "\($0)\n\(toolTip)" } ?? toolTip
+        if button.toolTip != fullToolTip {
+            button.toolTip = fullToolTip
         }
 
         // The icon decision depends on the title just written (the glyph may

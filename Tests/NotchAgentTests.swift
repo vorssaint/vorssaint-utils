@@ -1015,10 +1015,36 @@ enum NotchAgentTests {
         suite.expect(NotchSupport.idleContent(in: defaults) == .agents, "the resting island can show AI limits")
         defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.idleContent(in: defaults) == .none, "resting AI limits leave with the page")
+        suite.expect(!NotchAgentSupport.isEnabled(in: defaults, panelVisible: true),
+                     "AI agents turned off on their page are not read for the panel either")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set("agents", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(NotchAgentSupport.isEnabled(in: defaults, panelVisible: true)
                         && !NotchAgentSupport.showsLiveActivity(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
                      "opening the main panel reads agents without enabling island activity or notices")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchAgentsMenuBarActivity] as? Bool == false
+                        && !NotchAgentSupport.showsMenuBarActivity(in: defaults),
+                     "the running agent stays out of the menu bar until chosen")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsMenuBarActivity)
+        suite.expect(NotchAgentSupport.showsMenuBarActivity(in: defaults) && NotchAgentSupport.isEnabled(in: defaults)
+                        && !NotchAgentSupport.showsLiveActivity(in: defaults)
+                        && NotchSupport.idleContent(in: defaults) == .none,
+                     "the menu bar's running agent reads without putting agents back in a hidden island")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        suite.expect(!NotchAgentSupport.showsMenuBarActivity(in: defaults) && !NotchAgentSupport.isEnabled(in: defaults),
+                     "turning AI agents off clears the menu bar too")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsMenuBarActivity)
+        let finished = NotchAgentSupport.menuBarSummary(
+            of: .finished(provider: .codex, duration: 69, cost: 0.07, tokens: 52_000, project: "app"), in: defaults)
+        suite.expect(finished.symbol == "checkmark.circle.fill" && finished.provider == .codex
+                        && finished.text.hasPrefix("1:09 · ") && !finished.text.contains("Codex")
+                        && !finished.text.contains("$"),
+                     "a finished task says only its time and tokens in the menu bar, beside a check")
+        suite.expect(NotchAgentSupport.menuBarSummary(
+            of: .finished(provider: .claude, duration: 5, cost: 0, tokens: 0, project: ""), in: defaults).text == "0:05",
+                     "a task without tokens shows its time alone")
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchAgentSupport.isEnabled(in: defaults, panelVisible: true)
                         && !NotchAgentSupport.isEnabled(in: defaults, panelVisible: false),
@@ -1028,6 +1054,7 @@ enum NotchAgentTests {
                      "uninstalling agents stops monitoring even while their panel is open")
         defaults.set(true, forKey: AppFeature.notchAgents.availabilityKey)
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         var changes: [NotchModule] = []
         let demand = PanelModuleDemand { changes.append($0) }
         let first = UUID(), second = UUID()
@@ -1063,7 +1090,7 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates,
-                    DefaultsKey.panelUtilityAgents]
+                    DefaultsKey.panelUtilityAgents, DefaultsKey.notchAgentsMenuBarActivity]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,

@@ -72,6 +72,7 @@ struct IslandFeatureSettings: View {
         // The panel's services run without the island, so they hear of it here too.
         NotchService.shared.panelDemandChanged(module)
         if module == .notifications { NotchNotificationService.shared.syncWithPreferences() }
+        if module == .agents { AgentMenuBarReading.shared.syncWithPreferences() }
     }
 }
 

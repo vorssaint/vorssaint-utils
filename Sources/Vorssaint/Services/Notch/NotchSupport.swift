@@ -1439,7 +1439,7 @@ enum NotchSupport {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
         if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }
         if choice == .music, !modules(in: defaults).contains(.music) { return .none }
-        if choice == .agents, !NotchAgentSupport.isEnabled(in: defaults) { return .none }
+        if choice == .agents, !NotchAgentSupport.isShownInIsland(in: defaults) { return .none }
         return choice
     }
 
