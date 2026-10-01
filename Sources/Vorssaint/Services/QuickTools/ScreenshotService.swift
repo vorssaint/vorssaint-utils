@@ -19,8 +19,11 @@ final class ScreenshotService: ObservableObject {
 
     @Published private(set) var uploadShortcutRegistrationFailed = false
     private let uploadHotkey = QuickToolHotkey(id: 61)
-    private var uploadingLatestCapture = false
+    private var uploadingCaptureID: UUID?
     private var latestCaptureID = UUID()
+    /// Set once the latest capture went through an editor or was discarded:
+    /// the stored original is then no longer what the person kept.
+    private var latestCaptureWithheld = false
     private var linkCopyRetry = ScreenshotLinkCopyRetry()
 
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
@@ -152,6 +155,16 @@ final class ScreenshotService: ObservableObject {
             shortcut: GlobalShortcut.saved(for: DefaultsKey.screenshotUploadShortcut,
                                            fallback: .screenshotUploadDefault),
             storageKey: DefaultsKey.screenshotUploadShortcut)
+        syncLatestCapture(with: defaults)
+    }
+
+    /// A capture no shortcut needs is not kept, and an upload still pending
+    /// when its shortcut or temporary links were turned off revokes its link
+    /// when it arrives instead of copying it.
+    private func syncLatestCapture(with defaults: UserDefaults) {
+        if !ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults) {
+            invalidateLatestCaptureUploads()
+        }
         if !ScreenshotSharingSupport.retainsLatestCapture(in: defaults) {
             ScreenshotLastCaptureStore.clear()
         }
@@ -422,13 +435,10 @@ final class ScreenshotService: ObservableObject {
     /// the captures that open straight in the editor, where no preview button
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
-        invalidateLatestCaptureUploads()
+        beginLatestCapture(capture)
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard
-        if ScreenshotSharingSupport.retainsLatestCapture() {
-            ScreenshotLastCaptureStore.save(capture)
-        }
         if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
             autoCopy(capture)
         }
@@ -448,7 +458,26 @@ final class ScreenshotService: ObservableObject {
                        defaultAction: defaultAction,
                        initialSaved: result.saved,
                        completedActions: result.performed,
-                       dismissInterval: dismissInterval)
+                       dismissInterval: dismissInterval,
+                       latestCapture: latestCaptureID)
+    }
+
+    /// Thrown away, the latest capture is no longer one the upload shortcut
+    /// may publish. A capture reopened from history makes no such claim.
+    private func discardLatestCapture(_ latestCapture: UUID?) {
+        guard let latestCapture, latestCapture == latestCaptureID else { return }
+        latestCaptureWithheld = true
+    }
+
+    /// A new capture becomes the latest one: a pending shortcut upload of the
+    /// one before loses its claim, and the new one is kept, untouched so far,
+    /// for the shortcuts that reopen or upload it.
+    private func beginLatestCapture(_ capture: ScreenshotSelectionController.Capture) {
+        invalidateLatestCaptureUploads()
+        latestCaptureWithheld = false
+        if ScreenshotSharingSupport.retainsLatestCapture() {
+            ScreenshotLastCaptureStore.save(capture)
+        }
     }
 
     /// A history item returns to the same floating preview without repeating
@@ -459,14 +488,16 @@ final class ScreenshotService: ObservableObject {
                        defaultAction: .none,
                        initialSaved: nil,
                        completedActions: [],
-                       dismissInterval: ScreenshotSupport.recoveryPreviewDismissInterval)
+                       dismissInterval: ScreenshotSupport.recoveryPreviewDismissInterval,
+                       latestCapture: nil)
     }
 
     private func presentPreview(_ capture: ScreenshotSelectionController.Capture,
                                 defaultAction: ScreenshotDefaultAction,
                                 initialSaved: SaveOutcome?,
                                 completedActions: Set<ScreenshotQuickPreviewController.Action>,
-                                dismissInterval: TimeInterval?) {
+                                dismissInterval: TimeInterval?,
+                                latestCapture: UUID?) {
         var saved = initialSaved
         let controller = ScreenshotQuickPreviewController(
             capture: capture,
@@ -506,6 +537,7 @@ final class ScreenshotService: ObservableObject {
                             Self.rewindNumberSequence(toReuse: consumed)
                         }
                     }
+                    self.discardLatestCapture(latestCapture)
                     return [.discard]
                 }
             },
@@ -553,6 +585,10 @@ final class ScreenshotService: ObservableObject {
 
     func openEditor(with capture: ScreenshotSelectionController.Capture) {
         WindowActivationPolicy.retain()
+        // Any editor may be showing the latest capture, and what it exports
+        // is no longer the stored original, so the shortcut keeps that
+        // original back until a newer capture arrives.
+        latestCaptureWithheld = true
         let editor = ScreenshotEditorController(capture: capture)
         editors.append(editor)
         editor.show()
@@ -566,11 +602,11 @@ final class ScreenshotService: ObservableObject {
             preview.shareLink()
             return
         }
-        guard editors.isEmpty else {
+        guard editors.isEmpty, !latestCaptureWithheld else {
             NSSound.beep()
             return
         }
-        guard !uploadingLatestCapture else { return }
+        guard uploadingCaptureID != latestCaptureID else { return }
         if let record = linkCopyRetry.record(for: latestCaptureID,
                                              availableRecords: ScreenshotShareService.shared.records) {
             copyUploadedLink(record, captureID: latestCaptureID)
@@ -581,10 +617,10 @@ final class ScreenshotService: ObservableObject {
             return
         }
         let captureID = latestCaptureID
-        uploadingLatestCapture = true
+        uploadingCaptureID = captureID
         QuickToolHUD.show(icon: "link", message: strings.sharingHUD)
         shareDirect(capture, duration: .saved()) { [weak self] record in
-            self?.uploadingLatestCapture = false
+            if self?.uploadingCaptureID == captureID { self?.uploadingCaptureID = nil }
             guard let record else { return }
             guard let self,
                   self.latestCaptureID == captureID else {

@@ -881,7 +881,7 @@ enum ScreenshotFeatureTests {
         suite.expect(screenshotRouteBody.contains("guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(")
                 && screenshotRouteBody.contains("defaults: defaults)\n        else { return }\n        presentPreview(capture,")
                 && screenshotRouteBody.components(separatedBy: "presentPreview(").count == 2
-                && screenshotRouteBody.contains("dismissInterval: dismissInterval)"),
+                && screenshotRouteBody.contains("dismissInterval: dismissInterval,"),
                "route shows exactly the preview the shared decision asks for")
 
         // A gesture that ends with more than one release, like a drag made
@@ -1109,21 +1109,44 @@ enum ScreenshotFeatureTests {
         suite.expect(captureSelectionSource.contains("private var pointerIsInside = false")
                 && !captureSelectionSource.contains("|| bounds.contains(hoverPoint)"),
                "the capture loupe draws on only the display that owns the current pointer")
-        // Teardown shares the invalidation a new capture uses, so a pending
-        // shortcut upload revokes its link and a copy retry is dropped once
-        // the feature is off.
-        let screenshotServiceSource = (try? String(
+        // The uploader tests run what these call. Here the calls themselves
+        // are checked with comments removed: a new capture starts the latest
+        // capture first, teardown invalidates pending uploads, and only a
+        // preview made from that new capture can withhold it on discard.
+        let screenshotServiceCode = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
-            encoding: .utf8)) ?? ""
-        let teardownBody = screenshotServiceSource
-            .components(separatedBy: "    private func teardownSurfaces() {").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
-        let routeBody = screenshotServiceSource
-            .components(separatedBy: "    private func route(_ capture:").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
-        suite.expect(teardownBody.contains("invalidateLatestCaptureUploads()")
-                && routeBody.contains("invalidateLatestCaptureUploads()"),
-               "turning screenshots off invalidates pending shortcut uploads like a new capture does")
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        func serviceBody(_ start: String) -> String {
+            screenshotServiceCode.components(separatedBy: start).dropFirst().first?
+                .components(separatedBy: "\n    }\n").first ?? ""
+        }
+        let routeStatements = serviceBody("    private func route(_ capture:")
+            .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        suite.expect(serviceBody("    private func teardownSurfaces() {").contains("invalidateLatestCaptureUploads()")
+                && routeStatements.dropFirst().first == "beginLatestCapture(capture)",
+               "turning screenshots off invalidates pending shortcut uploads, and every capture starts as the latest one")
+        suite.expect(serviceBody("    func syncWithPreferences() {")
+                    .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),"),
+               "the upload shortcut is registered only while it and temporary links are both on")
+        suite.expect(serviceBody("    private func route(_ capture:").contains("latestCapture: latestCaptureID)")
+                && serviceBody("    func restorePreview(").contains("latestCapture: nil)")
+                && screenshotServiceCode.contains("self.discardLatestCapture(latestCapture)\n                    return [.discard]"),
+               "discarding the preview of the latest capture withholds it, while a preview reopened from history does not")
+        // In the island the menu arrow is hidden, so a click there must open
+        // the durations rather than publish at once.
+        let shareMenuCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "@ViewBuilder private var shareMenu: some View {")
+            .dropFirst().first?.components(separatedBy: "private var shareDurations").first ?? ""
+        let embeddedShareMenu = shareMenuCode.components(separatedBy: "} else {").first ?? ""
+        let floatingShareMenu = shareMenuCode.components(separatedBy: "} else {").dropFirst().first ?? ""
+        suite.expect(embeddedShareMenu.contains("Menu { shareDurations } label: { shareMenuLabel },")
+                && !embeddedShareMenu.contains("primaryAction")
+                && floatingShareMenu.contains("primaryAction: {\n                share(.saved())"),
+               "the island's link button opens the durations on a click, while the floating preview keeps its split button")
         let captureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift",
             encoding: .utf8)) ?? ""

@@ -2852,7 +2852,7 @@ extension ScreenshotFeatureStrings {
         sharingHUD: "正在建立連結…",
         sharedHUD: "已複製連結",
         shareFailedHUD: "無法建立連結",
-        linkCopyFailedHUD: "連結已建立，但複製失敗。請從設定中的暫時連結複製。",
+        linkCopyFailedHUD: "連結已建立，但複製失敗。請從設定中的臨時連結複製。",
         sharedLinksTitle: "已分享的連結",
         sharedLinksEmpty: "沒有有效連結",
         expiresLabel: "到期時間",

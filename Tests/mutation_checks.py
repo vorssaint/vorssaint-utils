@@ -211,6 +211,16 @@ MUTATIONS = [
      "confirmationEnabled: defaults.bool(forKey: DefaultsKey.screenshotPreviewEnabled))",
      "confirmationEnabled: true)",
      "with confirmations off a successful action shows nothing"),
+    ("upload shortcut publishes an edited capture's original", "screenshots",
+     "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+     "        latestCaptureWithheld = true\n        let editor = ScreenshotEditorController(capture: capture)",
+     "        let editor = ScreenshotEditorController(capture: capture)",
+     "a capture that went through an editor is not published"),
+    ("island link click publishes at once", "screenshots",
+     "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
+     "            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel },\n",
+     "            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel } primaryAction: { share(.saved()) },\n",
+     "the island's link button opens the durations on a click"),
 ]
 
 

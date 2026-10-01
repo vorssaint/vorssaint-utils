@@ -904,9 +904,12 @@ def main():
           + "extension ScreenshotShareCompletionTests {\n@MainActor final class Uploader: UploadState {\n"
           + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
                     .replace("uploadShortcutEnabled()", "uploadShortcutEnabled(in: defaults)")
+                    .replace("retainsLatestCapture()", "retainsLatestCapture(in: defaults)")
                     for prefix in ["    private func uploadLastCapture()", "    private func copyUploadedLink(",
                                    "    func openEditor(with", "    func editorDidClose(",
-                                   "    private func invalidateLatestCaptureUploads()"])
+                                   "    private func invalidateLatestCaptureUploads()",
+                                   "    private func beginLatestCapture(", "    private func discardLatestCapture(",
+                                   "    private func syncLatestCapture("])
           + "}\n}\n")
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"

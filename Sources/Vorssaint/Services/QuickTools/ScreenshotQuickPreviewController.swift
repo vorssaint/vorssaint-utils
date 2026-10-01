@@ -766,35 +766,44 @@ private struct ScreenshotQuickPreviewView: View {
 
     @ViewBuilder private var shareMenu: some View {
         if embedded {
-            shareMenuContent.menuStyle(.borderlessButton).menuIndicator(.hidden)
+            // The island hides the menu arrow, so a primary action would leave
+            // the durations behind a press and hold that nothing hints at. A
+            // click there opens the durations, as it always has.
+            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel },
+                            help: strings.shareSectionTitle)
+                .menuStyle(.borderlessButton).menuIndicator(.hidden)
                 .frame(width: 28, height: 28)
         } else {
-            shareMenuContent.menuStyle(.button).buttonStyle(.bordered).controlSize(.small)
+            shareMenuChrome(Menu { shareDurations } label: { shareMenuLabel } primaryAction: {
+                share(.saved())
+            }, help: "\(strings.shareSectionTitle) · \(ScreenshotShareDuration.saved().title(strings))")
+                .menuStyle(.button).buttonStyle(.bordered).controlSize(.small)
         }
     }
 
-    private var shareMenuContent: some View {
-        Menu {
-            ForEach(ScreenshotShareDuration.allCases) { duration in
-                Button(duration.title(strings)) { share(duration) }
-            }
-        } label: {
-            Group {
-                if model.sharing {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "link")
-                }
-            }
-            .frame(width: embedded ? 28 : 22, height: embedded ? 28 : 18)
-        } primaryAction: {
-            share(.saved())
+    private var shareDurations: some View {
+        ForEach(ScreenshotShareDuration.allCases) { duration in
+            Button(duration.title(strings)) { share(duration) }
         }
-        .disabled(model.sharing)
-        .screenshotSafeHelp(model.sharing ? strings.sharingHUD
-            : "\(strings.shareSectionTitle) · \(ScreenshotShareDuration.saved().title(strings))")
-        .accessibilityLabel(strings.shareSectionTitle)
+    }
+
+    private var shareMenuLabel: some View {
+        Group {
+            if model.sharing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Image(systemName: "link")
+            }
+        }
+        .frame(width: embedded ? 28 : 22, height: embedded ? 28 : 18)
+    }
+
+    private func shareMenuChrome(_ menu: some View, help: String) -> some View {
+        menu
+            .disabled(model.sharing)
+            .screenshotSafeHelp(model.sharing ? strings.sharingHUD : help)
+            .accessibilityLabel(strings.shareSectionTitle)
     }
 
     private func actionButton(symbol: String,
