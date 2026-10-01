@@ -3195,7 +3195,6 @@ final class NotchService: ObservableObject {
     private func showAgentEvent(_ event: AgentUsageEvent) {
         let text = FeatureStrings.notchAgents(L10n.shared.language)
         let locale = L10n.shared.language.formattingLocale()
-        let remaining = NotchAgentSupport.limitDisplay() == .remaining
         func window(_ window: AgentLimitWindow) -> String {
             switch window.kind {
             case .session: return text.session
@@ -3211,9 +3210,9 @@ final class NotchService: ObservableObject {
                                 .filter { !$0.isEmpty }.joined(separator: " · "),
                              symbol: provider.symbol, agent: provider))
         case .limitWarning(let provider, let limit):
-            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
+                             detail: NotchAgentSupport.limitShare(limit, display: NotchAgentSupport.limitDisplay(),
+                                                                  text: text),
                              symbol: "exclamationmark.triangle.fill", agent: provider))
         case .limitReset(let provider, let limit):
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",

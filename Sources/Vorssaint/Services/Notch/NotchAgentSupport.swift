@@ -165,6 +165,14 @@ enum NotchAgentSupport {
         }
     }
 
+    /// A limit's share on the island's card. It names which share it is:
+    /// a bare 99% left reads as 99% spent.
+    static func limitShare(_ window: AgentLimitWindow, display: NotchAgentLimitDisplay,
+                           text: NotchAgentStrings) -> String {
+        display == .remaining ? text.left(AgentFormat.percent(window.remainingFraction))
+            : text.usedShare(AgentFormat.percent(window.usedFraction))
+    }
+
     /// Every digit takes the same width, so a reading's shape, not its value,
     /// sets the strip's width: "12:34" and "59:59" match, "1:00:00" is wider.
     static func readingShape(_ reading: String) -> String {
