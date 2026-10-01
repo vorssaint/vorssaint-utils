@@ -67,6 +67,7 @@ struct PanelIslandPageView: View {
         switch module {
         case .agents: NotchAgentsView(size: size)
         case .calendar: NotchCalendarView(size: size)
+        case .timer: NotchTimerView(size: size)
         default: EmptyView()
         }
     }

@@ -37,6 +37,8 @@ enum NotchDestinationContract {
         var suspensions = 0
         func syncWithPreferences() { running = true; syncs += 1 }
         func suspend() { running = false; suspensions += 1 }
+        /// No menu panel holds a timer here, so the island's own rule applies.
+        func islandSuspended() { suspend() }
     }
     enum NotchTimerService { static var shared = Timer() }
     enum PreciseVolumeRollerService {

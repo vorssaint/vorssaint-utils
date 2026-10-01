@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager, agents, calendar
+         commandBar, screenRecorder, portManager, agents, calendar, timer
 
     var id: String { rawValue }
 
@@ -578,6 +578,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .portManager: return .portManager
         case .agents: return .notchAgents
         case .calendar: return .notchCalendar
+        case .timer: return .notchTimer
         }
     }
 }
@@ -618,6 +619,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @AppStorage(DefaultsKey.panelUtilityAgents) private var showAgents = true
     @AppStorage(DefaultsKey.panelUtilityCalendar) private var showCalendar = true
+    @AppStorage(DefaultsKey.panelUtilityTimer) private var showTimer = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -787,6 +789,7 @@ struct UtilitiesSection: View {
         case .portManager: return showPortManager
         case .agents: return showAgents
         case .calendar: return showCalendar
+        case .timer: return showTimer
         }
     }
 
@@ -1037,6 +1040,10 @@ struct UtilitiesSection: View {
         case .calendar:
             islandPageButton(.calendar, caption: FeatureStrings.notchCalendar(l10n.language).week,
                              visibility: $showCalendar, editing: editing)
+        case .timer:
+            let timer = FeatureStrings.notchActivities(l10n.language)
+            islandPageButton(.timer, caption: timer.pomodoro + " · " + timer.stopwatch,
+                             visibility: $showTimer, editing: editing)
         }
     }
 
@@ -1128,6 +1135,7 @@ struct UtilitiesSection: View {
         showPortManager = true
         showAgents = true
         showCalendar = true
+        showTimer = true
     }
 
     private func grantAccessibility() {

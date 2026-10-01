@@ -802,7 +802,7 @@ final class NotchService: ObservableObject {
             running = true
             installObservers()
         }
-        if !NotchTimerSupport.isEnabled() { NotchTimerService.shared.stop() }
+        if !NotchTimerService.shared.isEnabled { NotchTimerService.shared.stop() }
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
@@ -812,7 +812,7 @@ final class NotchService: ObservableObject {
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop(keepingPanel: true) }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
-            else { NotchTimerService.shared.suspend() }
+            else { NotchTimerService.shared.islandSuspended() }
             NotchLockScreenService.shared.sync(session)
             return
         }
@@ -882,7 +882,7 @@ final class NotchService: ObservableObject {
         AgentUsageService.shared.stop(keepingPanel: true)
         guard running else { return }
         running = false
-        NotchTimerService.shared.stop()
+        NotchTimerService.shared.islandStopped()
         NotchAccessoryService.shared.stop()
         let cancelCapture = captureControlsCancel
         endCaptureControls()
@@ -1733,6 +1733,13 @@ final class NotchService: ObservableObject {
                 NotchCalendarService.shared.syncWithPreferences()
             } else {
                 NotchCalendarService.shared.stop()
+            }
+        case .timer:
+            let timer = NotchTimerService.shared
+            if timer.panelHolds || (running && (servesPages || session.canRunTimer)) {
+                timer.syncWithPreferences()
+            } else {
+                timer.suspend()
             }
         default: break
         }
@@ -2633,7 +2640,7 @@ final class NotchService: ObservableObject {
         let fallback = captureFallback
         clearCapture()
         tearDownPresentation()
-        NotchTimerService.shared.suspend()
+        NotchTimerService.shared.islandSuspended()
         // The keys go back to the system while nothing can show them.
         if AppFeature.mixer.isAvailable { PreciseVolumeRollerService.shared.syncWithPreferences() }
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
@@ -2888,7 +2895,7 @@ final class NotchService: ObservableObject {
         // already suspended by the display.
         guard timerCouldRun != session.canRunTimer, !session.canPresent else { return }
         if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
-        else { NotchTimerService.shared.suspend() }
+        else { NotchTimerService.shared.islandSuspended() }
     }
 
     private func installEventMonitors() {

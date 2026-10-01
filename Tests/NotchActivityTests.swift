@@ -897,6 +897,19 @@ enum NotchActivityTests {
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)
                && !NotchAccessorySupport.isEnabled(in: defaults), "the notch master switch gates all activities")
+        suite.expect(NotchTimerSupport.isEnabled(in: defaults, panelHolds: true),
+                     "a timer the menu panel holds keeps time with the island off")
+        defaults.set(false, forKey: DefaultsKey.notchTimerEnabled)
+        suite.expect(!NotchTimerSupport.isEnabled(in: defaults, panelHolds: true),
+                     "a timer turned off does not run for the panel either")
+        defaults.set(true, forKey: DefaultsKey.notchTimerEnabled)
+        defaults.set(false, forKey: AppFeature.notchTimer.availabilityKey)
+        suite.expect(!NotchTimerSupport.isEnabled(in: defaults, panelHolds: true),
+                     "a timer removed from the hub does not run for the panel either")
+        defaults.set(true, forKey: AppFeature.notchTimer.availabilityKey)
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityTimer] as? Bool == true
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.panelUtilityTimer),
+                     "the panel's timer entry is shown by default and travels in backup")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: Set(preferenceKeys + [
             AppFeature.notchTimer.availabilityKey, AppFeature.notchAccessories.availabilityKey])),
                "activity preferences and feature availability round-trip through settings backup")
