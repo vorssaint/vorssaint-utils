@@ -790,6 +790,21 @@ enum ClipboardFeatureTests {
                                                                  plainText: "\nhttps://a.example/path\n") ?? "",
                     "https://a.example/path",
                     "clipboard history still trims a single URL wrapped in surrounding newlines")
+        // A spreadsheet row arrives tab-separated rather than one URL per
+        // line, and `url` escapes a tab the same way it escapes a break.
+        let tabSeparatedLinks = "https://a.example/x?q=1\thttps://b.example/y?q=2"
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: nil,
+                                                                plainText: tabSeparatedLinks) ?? "",
+                    tabSeparatedLinks,
+                    "clipboard history keeps a tab-separated copy of links as copied instead of collapsing it into one percent-encoded URL")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: "https://a.example/x?q=1",
+                                                                plainText: multiLineLinks) ?? "",
+                    multiLineLinks,
+                    "clipboard history keeps every link in a multi-line copy when the first link also arrives as the web URL type instead of replacing the text with just that one link")
+        expectEqual(ClipboardHistoryPasteboardText.preferredText(webURLString: nil,
+                                                                plainText: "  https://a.example/path  ") ?? "",
+                    "https://a.example/path",
+                    "clipboard history still accepts a single URL surrounded by blank spaces")
 
         ClipboardHistoryWriteTests.run(suite)
         ClipboardHistoryImageEditorTests.run(suite)
