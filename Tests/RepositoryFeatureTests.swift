@@ -315,7 +315,7 @@ enum RepositoryFeatureTests {
         // A link with nothing to remove must come back identical, or the
         // clipboard poll replaces the user's copy with a different, wrong one
         // and the UI calls it a clean.
-        let nothingToRemove = "https://www.google.com/url?q=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1%26utm_source%3Dnews&sa=U"
+        let nothingToRemove = "https://example.com/url?q=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1%26utm_source%3Dnews&sa=U"
         suite.expect(URLCleaning.clean(nothingToRemove)?.url == nothingToRemove
                && URLCleaning.outcome(for: URLCleaning.clean(nothingToRemove), input: nothingToRemove) == .unchanged,
                "a link with no tracked parameter is returned byte for byte and reads as unchanged")
@@ -330,7 +330,7 @@ enum RepositoryFeatureTests {
             suite.expect(URLCleaning.clean(untouched)?.url == untouched,
                    "a link with no tracked parameter is never re-encoded, reordered or normalised: \(untouched)")
         }
-        expectEqual(URLCleaning.clean("https://example.com/?flag&utm_source=news&id=1")?.url ?? "",
+        expectEqual(URLCleaning.clean("https://example.com/?flag&utm_medium&utm_source=news&id=1")?.url ?? "",
                     "https://example.com/?flag&id=1",
                     "a pair with no equals sign is judged by its whole text and a valueless tracker still goes")
         expectEqual(URLCleaning.clean("https://example.com/?%75tm_source=news&id=1")?.url ?? "",

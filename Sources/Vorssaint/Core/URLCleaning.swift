@@ -29,9 +29,9 @@ enum URLCleaning {
         "spotify.com": ["si"],
         // Reddit's share sheet routes through branch.io, whose deep link fields
         // start with a literal `$`. Links often carry them percent-encoded as
-        // `%24…`, but only the decoded spelling is listed: names arrive here
-        // from `URLComponents.queryItems`, which has already decoded them.
-        // ClearURLs lists both because it matches the raw query with regex.
+        // `%24…`, but only the decoded spelling is listed: `decodedName` decodes
+        // the name half of each pair before the rules see it. ClearURLs lists
+        // both because it matches the raw query with regex.
         "reddit.com": [
             "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
             "_branch_match_id", "$deep_link", "$3p", "$original_url",
@@ -245,9 +245,12 @@ enum URLCleaning {
 
     /// The name half of one percent-encoded `name=value` pair, decoded so a
     /// tracker a link spells as `%75tm_source` or `%24deep_link` is still the
-    /// name the rules list. A pair carries no `=` when it is a bare flag, and
-    /// a broken escape cannot be decoded at all; both fall back to the raw
-    /// text, which then simply matches nothing.
+    /// name the rules list. A pair carrying no `=` is a bare flag, so the
+    /// whole pair is its name and is matched like any other: a lone
+    /// `utm_source` goes, which is what the link dropping the pair meant. Only
+    /// an escape that will not decode at all falls back to the raw text, and
+    /// even that is matched as written — `utm_%ff` still answers to the
+    /// `utm_` prefix.
     private static func decodedName(ofEncodedPair pair: Substring) -> String {
         let raw = String(pair.prefix { $0 != "=" })
         guard raw.contains("%") else { return raw }
