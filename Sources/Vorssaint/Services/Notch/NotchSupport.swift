@@ -960,6 +960,18 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
     static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
+    /// The section a shortcut tile only jumps to, so a section already pinned
+    /// around the island does not show up again as a tile. The music card,
+    /// volume, brightness, the timer's clock and the next appointment show
+    /// live state here that a pinned icon does not, so they always stay.
+    var module: NotchModule? {
+        switch self {
+        case .mixer: return .mixer
+        case .scratchpad: return .scratchpad
+        default: return nil
+        }
+    }
+
     var symbol: String {
         switch self {
         case .volume: return "speaker.wave.2.fill"
@@ -1455,14 +1467,62 @@ enum NotchSupport {
         return choice == .music && !showsMusicActivity(isPlaying: isPlaying, in: defaults) ? .none : choice
     }
 
+    /// What the visible buttons around the island already open, so Controls
+    /// leaves out the tile that opens the same thing. Cards that work in
+    /// place (playback, volume, brightness) always stay.
+    struct Pinned: Equatable {
+        var modules: Set<NotchModule> = []
+        var controls: Set<NotchControlItem> = []
+
+        func contains(_ item: NotchControlItem) -> Bool {
+            guard ![.music, .volume, .brightness, .timer, .calendar].contains(item) else { return false }
+            return controls.contains(item) || item.module.map(modules.contains) ?? false
+        }
+    }
+
+    // Only the decode is cached, keyed on the saved layout bytes;
+    // visibility and routing are read fresh so preference changes apply.
+    private static var pinnedCache: (layout: Data, actions: [NotchQuickAction])?
+
+    static func pinned(in defaults: UserDefaults = .standard) -> Pinned {
+        guard defaults.object(forKey: DefaultsKey.notchHidePinned) as? Bool ?? true else { return Pinned() }
+        let layout = defaults.data(forKey: DefaultsKey.notchQuickAccessLayout)
+        let actions: [NotchQuickAction]
+        if let layout, let cache = pinnedCache, cache.layout == layout {
+            actions = cache.actions
+        } else {
+            actions = NotchQuickAccessConfiguration.stored(in: defaults).actions
+            if let layout { pinnedCache = (layout, actions) }
+        }
+        var pinned = Pinned()
+        for action in actions where action.isAvailable(in: defaults) {
+            switch action {
+            // Without routing the Scratchpad section is not the floating pad the tile opens.
+            case .module(let module) where module != .scratchpad || routesScratchpad(in: defaults):
+                pinned.modules.insert(module)
+            case .control(let item):
+                pinned.controls.insert(item)
+                if let module = item.module { pinned.modules.insert(module) }
+            default: break
+            }
+        }
+        return pinned
+    }
+
+    static func isPinned(_ item: NotchControlItem, in defaults: UserDefaults = .standard) -> Bool {
+        pinned(in: defaults).contains(item)
+    }
+
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {
         let hidden = Set((defaults.string(forKey: DefaultsKey.notchHiddenControls) ?? NotchControlItem.defaultHidden)
             .split(separator: ",").map(String.init))
         let stored = (defaults.string(forKey: DefaultsKey.notchControlOrder) ?? "")
             .split(separator: ",").compactMap { NotchControlItem(rawValue: String($0)) }
+        let pinned = pinned(in: defaults)
         var seen = Set<NotchControlItem>()
-        return (stored + NotchControlItem.allCases).filter {
-            seen.insert($0).inserted && !hidden.contains($0.rawValue) && $0.isAvailable(in: defaults)
+        return (stored + NotchControlItem.allCases).filter { item in
+            seen.insert(item).inserted && !hidden.contains(item.rawValue) && item.isAvailable(in: defaults)
+                && !pinned.contains(item)
         }
     }
 
