@@ -3,30 +3,6 @@
 
 import AppKit
 
-/// How a sampled color lands on the clipboard.
-enum ColorCopyFormat: String, CaseIterable, Identifiable {
-    case hex
-    case rgb
-    case hsl
-    case swiftui
-
-    var id: String { rawValue }
-
-    /// Short technical label; intentionally not localized.
-    var label: String {
-        switch self {
-        case .hex: return "HEX"
-        case .rgb: return "RGB"
-        case .hsl: return "HSL"
-        case .swiftui: return "SwiftUI"
-        }
-    }
-
-    static func sanitized(_ raw: String) -> ColorCopyFormat {
-        ColorCopyFormat(rawValue: raw) ?? .hex
-    }
-}
-
 enum QuickToolsSupport {
     static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
         guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
@@ -42,65 +18,6 @@ enum QuickToolsSupport {
         return NSColor(colorSpace: bitmap.colorSpace,
                        components: components,
                        count: components.count)
-    }
-
-    /// Formats sRGB components (0...1) in the chosen copy format. Components
-    /// out of range are clamped so extended-gamut samples never produce
-    /// invalid strings. `bareHex` drops the leading # (issue #168: some design
-    /// tools reject pasted values that carry it); it only affects `.hex`.
-    static func colorString(red: Double,
-                            green: Double,
-                            blue: Double,
-                            format: ColorCopyFormat,
-                            bareHex: Bool = false) -> String {
-        let r = min(max(red, 0), 1)
-        let g = min(max(green, 0), 1)
-        let b = min(max(blue, 0), 1)
-        switch format {
-        case .hex:
-            return String(format: bareHex ? "%02X%02X%02X" : "#%02X%02X%02X",
-                          Int((r * 255).rounded()),
-                          Int((g * 255).rounded()),
-                          Int((b * 255).rounded()))
-        case .rgb:
-            return String(format: "rgb(%d, %d, %d)",
-                          Int((r * 255).rounded()),
-                          Int((g * 255).rounded()),
-                          Int((b * 255).rounded()))
-        case .hsl:
-            let (h, s, l) = hsl(red: r, green: g, blue: b)
-            return String(format: "hsl(%d, %d%%, %d%%)",
-                          Int(h.rounded()),
-                          Int((s * 100).rounded()),
-                          Int((l * 100).rounded()))
-        case .swiftui:
-            // Source code, not prose: a comma here would paste something that
-            // does not compile, whatever region the reader is in.
-            return String(format: "Color(red: %.3f, green: %.3f, blue: %.3f)",
-                          locale: Locale(identifier: "en_US_POSIX"), r, g, b)
-        }
-    }
-
-    static func hsl(red: Double, green: Double, blue: Double) -> (hue: Double, saturation: Double, lightness: Double) {
-        let maxComponent = max(red, green, blue)
-        let minComponent = min(red, green, blue)
-        let delta = maxComponent - minComponent
-        let lightness = (maxComponent + minComponent) / 2
-
-        guard delta > 0.000001 else { return (0, 0, lightness) }
-
-        let saturation = delta / (1 - abs(2 * lightness - 1))
-        var hue: Double
-        if maxComponent == red {
-            hue = ((green - blue) / delta).truncatingRemainder(dividingBy: 6)
-        } else if maxComponent == green {
-            hue = (blue - red) / delta + 2
-        } else {
-            hue = (red - green) / delta + 4
-        }
-        hue *= 60
-        if hue < 0 { hue += 360 }
-        return (hue, min(max(saturation, 0), 1), lightness)
     }
 
     // MARK: - Quick launcher

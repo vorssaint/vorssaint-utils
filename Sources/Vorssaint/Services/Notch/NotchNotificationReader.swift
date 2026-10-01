@@ -15,7 +15,14 @@ extension NotchNotificationReaderCore where Access == NotchNativeNotificationAcc
                   sourceApplicationName: { labels in
                       guard !labels.isEmpty else { return nil }
                       return NotchNotificationSources.source(for: labels)?.name
-                  }, allowsNativeClose: { NotchNotificationSupport.dismissesNative() }, nativeCloseTitle: closeTitle)
+                  }, allowsNativeClose: { NotchNotificationSupport.dismissesNative() }, nativeCloseTitle: closeTitle,
+                  displays: {
+                      var count: UInt32 = 0
+                      guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+                      var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+                      guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
+                      return displays.prefix(Int(count)).map(CGDisplayBounds)
+                  })
     }
 }
 
@@ -101,6 +108,27 @@ struct NotchNativeNotificationAccess: NotchNotificationAccess {
         return actions
     }
 
+    /// Global screen coordinates with the origin at the top left, the same
+    /// space as the display bounds the core compares against. Nil once the
+    /// window is gone or when it has no position to move.
+    func frame(_ element: AXUIElement) throws -> CGRect? {
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        var result: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &result)
+        if [.invalidUIElement, .noValue, .attributeUnsupported].contains(error) { return nil }
+        guard error == .success, let position = result, let size = try value(element, kAXSizeAttribute) else {
+            throw Failure.unavailable
+        }
+        guard CFGetTypeID(position) == AXValueGetTypeID(), CFGetTypeID(size) == AXValueGetTypeID() else {
+            throw Failure.unavailable
+        }
+        var origin = CGPoint.zero
+        var extent = CGSize.zero
+        guard AXValueGetValue(unsafeBitCast(position, to: AXValue.self), .cgPoint, &origin),
+              AXValueGetValue(unsafeBitCast(size, to: AXValue.self), .cgSize, &extent) else { throw Failure.unavailable }
+        return CGRect(origin: origin, size: extent)
+    }
+
     func press(_ element: AXUIElement) -> Bool {
         perform(kAXPressAction, on: element)
     }
@@ -108,6 +136,13 @@ struct NotchNativeNotificationAccess: NotchNotificationAccess {
     func perform(_ action: String, on element: AXUIElement) -> Bool {
         AXUIElementSetMessagingTimeout(element, 0.1)
         return AXUIElementPerformAction(element, action as CFString) == .success
+    }
+
+    func move(_ element: AXUIElement, to origin: CGPoint) -> Bool {
+        AXUIElementSetMessagingTimeout(element, 0.1)
+        var origin = origin
+        guard let value = AXValueCreate(.cgPoint, &origin) else { return false }
+        return AXUIElementSetAttributeValue(element, kAXPositionAttribute as CFString, value) == .success
     }
 
     func same(_ lhs: AXUIElement, _ rhs: AXUIElement) -> Bool { CFEqual(lhs, rhs) }

@@ -10,6 +10,7 @@ struct CommandBarEntry: Identifiable {
         case appIcon(path: String)
         case clipboardImage(name: String)
         case filePath(String)
+        case color(ColorValue)
     }
 
     /// Why Return will not do the main thing yet. The row says so in one
@@ -103,6 +104,11 @@ struct CommandBarEntry: Identifiable {
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
                         takesArgument: takesArgument, revealPath: revealPath,
                         uninstallAppURL: uninstallAppURL, run: run)
+    }
+
+    var isColor: Bool {
+        if case .color = icon { return true }
+        return false
     }
 
     /// Glyph rows get a tinted plate behind the icon; real app, file and
@@ -529,13 +535,16 @@ enum CommandBarCatalog {
             numericRange: 0...100,
             run: { value in
                 guard let value else { return }
-                let applied = AppVolumeMixer.setSystemOutputVolume(Double(value) / 100)
-                if applied {
-                    QuickToolHUD.show(icon: "speaker.wave.2",
-                                      message: "\(FeatureStrings.commandBar(L10n.shared.language).volumeTitle) \(value)%")
-                } else {
+                let level = Double(value) / 100
+                guard AppVolumeMixer.setSystemOutputVolume(level) else {
                     NSSound.beep()
+                    return
                 }
+                // Dynamic Island shows the level itself, and a floating copy
+                // would sit right below it.
+                if NotchSupport.routes(.volume), NotchService.shared.showVolume(level) { return }
+                QuickToolHUD.show(icon: "speaker.wave.2",
+                                  message: "\(FeatureStrings.commandBar(L10n.shared.language).volumeTitle) \(value)%")
             }))
         }
 
@@ -1076,19 +1085,23 @@ enum CommandBarCatalog {
         }
     }
 
-    /// One row per installed app, offered only inside the "Uninstall
-    /// Application" category browse - never in the flat search pool, since a
-    /// few hundred destructive rows have no business sitting in a list
-    /// someone might arrow through by accident. Selecting one opens the full
-    /// leftover-files review, the same as picking the app straight from
-    /// Finder does.
+    /// One row per installed app the uninstaller will take, offered only
+    /// inside the "Uninstall Application" category browse - never in the flat
+    /// search pool, since a few hundred destructive rows have no business
+    /// sitting in a list someone might arrow through by accident. Selecting
+    /// one opens the full leftover-files review, the same as picking the app
+    /// straight from Finder does. `uninstallable` holds the ids its own check
+    /// accepted during the background scan.
     static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 uninstallable: Set<String>,
                                  bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         else { return [] }
         let ownBundleID = Bundle.main.bundleIdentifier
-        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+        return apps.filter {
+            !$0.isSystem && $0.bundleID != ownBundleID && uninstallable.contains($0.id)
+        }.map { app in
             CommandBarEntry(
                 id: "uninstall.\(app.id)",
                 stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
@@ -1104,13 +1117,14 @@ enum CommandBarCatalog {
 
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, so uninstalling it never needs the bar's own picker first.
+    /// An app the uninstaller would refuse gets no row.
     static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
               urls.count == 1, let url = urls.first,
               url.pathExtension.lowercased() == "app",
               InstalledApps.isInApplicationsFolder(url),
-              !InstalledApps.isSystemApplication(at: url)
+              UninstallerSupport.selection(for: url) != nil
         else { return [] }
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         var name = FileManager.default.displayName(atPath: url.path)
@@ -1610,6 +1624,27 @@ enum CommandBarCatalog {
                 isAnswer: true,
                 countsUsage: false,
                 run: { _ in copyAnswer(converted.formatted) })
+        }
+        if let converted = CommandBarColors.convert(query) {
+            return CommandBarEntry(
+                id: "color.result",
+                title: converted.formatted,
+                subtitle: bar.copyHint,
+                icon: .color(converted.color),
+                isAnswer: true,
+                countsUsage: false,
+                run: { _ in copyAnswer(converted.formatted) })
+        }
+        if let color = ColorValue(text: query) {
+            let value = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            return CommandBarEntry(
+                id: "color.preview",
+                title: value,
+                subtitle: bar.copyHint,
+                icon: .color(color),
+                isAnswer: true,
+                countsUsage: false,
+                run: { _ in copyAnswer(value) })
         }
         // Dates last: a sum and a conversion are stricter, and "3" alone must
         // never become a date.

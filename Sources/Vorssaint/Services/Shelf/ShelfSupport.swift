@@ -25,6 +25,48 @@ enum ShelfSelectionSupport {
     }
 }
 
+/// Tracks the shelf shortcut's asynchronous Finder selection read. Every press
+/// takes a new ticket, and a later press, clearing the Shelf or turning it off
+/// retires the older one, so a slow Finder or a permission prompt answering late
+/// can neither add a stale selection nor toggle the Shelf after the fact.
+struct ShelfShortcutSelectionRequests {
+    enum Outcome: Equatable {
+        case discard
+        case toggle
+        case add([URL])
+    }
+
+    private var lastTicket: UInt64 = 0
+    private var pendingTicket: UInt64?
+
+    var hasPending: Bool { pendingTicket != nil }
+
+    mutating func begin() -> UInt64 {
+        lastTicket &+= 1
+        pendingTicket = lastTicket
+        return lastTicket
+    }
+
+    mutating func invalidate() {
+        pendingTicket = nil
+    }
+
+    /// Settles a reply once. `stillAllowed` is the feature state rechecked when
+    /// the reply arrives, not the state from when the shortcut was pressed.
+    /// Files the shelf already holds are left out, so pressing the shortcut
+    /// again on the same selection toggles the shelf instead of shelving the
+    /// same files twice. Finder stays in front while the shelf is up, so that
+    /// second press is the ordinary way to close it.
+    mutating func resolve(_ ticket: UInt64, urls: [URL], stillAllowed: Bool,
+                          shelvedPaths: Set<String> = []) -> Outcome {
+        guard ticket == pendingTicket else { return .discard }
+        pendingTicket = nil
+        guard stillAllowed else { return .discard }
+        let fresh = urls.filter { !shelvedPaths.contains($0.standardizedFileURL.path) }
+        return fresh.isEmpty ? .toggle : .add(fresh)
+    }
+}
+
 /// A Shelf item reduced to what revealing needs: identity and nesting. A pure
 /// stand-in for the service's item tree, like ShelfEdgeScreen is for NSScreen,
 /// so the rules below stay in the unit harness.
@@ -149,15 +191,20 @@ enum ShelfInteractionSupport {
     /// or resizing a window. The drag pasteboard retains the previous drag's
     /// items indefinitely, so retained content alone proves nothing: only a
     /// change-count bump during the current gesture makes it current. Dock
-    /// stacks are the one source that can publish the contents before the
-    /// mouse-down, hence the Dock escape. Either way the pasteboard must hold
-    /// something the Shelf can keep; the check stays lazy because most dragged
-    /// events resolve on the cheap change count alone.
-    static func isContentDrag(baselineChangeCount: Int,
+    /// stacks can publish the contents before the mouse-down is seen, so a
+    /// gesture in the Dock counts from the end of the previous gesture
+    /// instead. It still needs a bump, so holding or dragging a Dock icon over
+    /// content an earlier drag left behind is not a content drag (#2212).
+    /// Either way the pasteboard must hold something the Shelf can keep; the
+    /// check stays lazy because most dragged events resolve on the cheap
+    /// change count alone.
+    static func isContentDrag(gestureChangeCount: Int,
+                              restingChangeCount: Int,
                               changeCount: Int,
                               beganInDock: Bool,
                               hasDroppableContent: () -> Bool) -> Bool {
-        guard changeCount != baselineChangeCount || beganInDock else { return false }
+        let baseline = beganInDock ? restingChangeCount : gestureChangeCount
+        guard changeCount != baseline else { return false }
         return hasDroppableContent()
     }
 

@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "オフにすると、すべてのデスクトップのウインドウを表示します。別のデスクトップのウインドウを選ぶと、そのデスクトップに移動します。",
         dockPreviewBackgroundOpacity: "パネルの背景",
         dockPreviewBackgroundOpacityCaption: "下げると、パネルの後ろにあるものがより見えるようになります。",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glassがオンのため、パネルの透明度は「システム設定」>「外観」で設定されます。",
         dockPreviewOpenDelay: "表示までの待ち時間",
         dockPreviewOpenDelayCaption: "ポインタをアイコンに置いてからパネルが開くまでの時間です。",
         dockPreviewQuitAppOnClose: "× ボタンでアプリを終了",
@@ -1077,7 +1078,12 @@ extension Strings {
         smoothScrollCoastLabel: "慣性",
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
+        linearScrollName: "リニアスクロール",
+        linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
+        linearScrollLinesLabel: "1目盛りあたりの行数",
         shelfClearOnClose: "閉じるときに項目を消去",
-        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。"
+        shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
+        shelfShortcutFinderSelection: "ショートカットで Finder の選択項目を追加",
+        shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。"
     )
 }

@@ -31,6 +31,95 @@ struct NotchDownloadsSettingsControls: View {
     }
 }
 
+/// Before a folder is chosen the page says what it will do and offers the one
+/// step that starts it, in the same voice as the island's other empty pages.
+private struct NotchDownloadsSetupView: View {
+    @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
+    private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
+
+    var body: some View {
+        ViewThatFits(in: .vertical) {
+            VStack(spacing: 12) {
+                glyph
+                copy.multilineTextAlignment(.center)
+                actions
+            }
+            HStack(spacing: 16) {
+                glyph
+                VStack(alignment: .leading, spacing: 10) {
+                    copy.multilineTextAlignment(.leading)
+                    actions
+                }
+            }
+        }
+        .frame(maxWidth: 360)
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var glyph: some View {
+        Image(systemName: downloads.folderUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
+            .font(.system(size: 26, weight: .light))
+            .foregroundStyle(.white.opacity(0.65))
+            .frame(width: 56, height: 56)
+            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .accessibilityHidden(true)
+    }
+
+    private var copy: some View {
+        // Off, the page says what Downloads does beside its switch; on, which
+        // folder to choose.
+        Text(downloads.folderUnavailable ? text.folderUnavailable
+             : offersSwitchOnly ? text.downloadsTitle : enabled ? text.downloadsHint : text.downloadsDescription)
+            .font(.system(size: 12))
+            .foregroundStyle(downloads.folderUnavailable ? Color.orange : .white.opacity(0.65))
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Off on a Mac without the feature: there is no folder to choose and
+    /// nothing to switch, so the page only names itself.
+    private var offersSwitchOnly: Bool { !enabled && !AppFeature.notchDownloads.isAvailable }
+
+    @ViewBuilder private var actions: some View {
+        if offersSwitchOnly {
+            EmptyView()
+        } else if !enabled {
+            Toggle(text.downloadsTitle, isOn: $enabled)
+                .toggleStyle(.switch)
+                .onChange(of: enabled) { NotchService.shared.syncWithPreferences() }
+        } else {
+            chooseActions
+        }
+    }
+
+    private var chooseActions: some View {
+        HStack(spacing: 8) {
+            Button(action: downloads.chooseFolder) {
+                Text(text.chooseFolder)
+                    .font(.system(size: 12, weight: .semibold))
+                    .padding(.horizontal, 14)
+                    .frame(height: 28)
+                    .background(.white.opacity(0.14), in: Capsule())
+                    .contentShape(Capsule())
+            }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+            if downloads.folderUnavailable {
+                Button(action: downloads.forgetFolder) {
+                    Text(text.clearFolder)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .padding(.horizontal, 10)
+                        .frame(height: 28)
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+            }
+        }
+    }
+}
+
 struct NotchDownloadsView: View {
     let size: CGSize
     @ObservedObject private var downloads = NotchDownloadService.shared
@@ -42,7 +131,7 @@ struct NotchDownloadsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NotchLayout.rowSpacing) {
             if !enabled || downloads.folderName == nil || downloads.folderUnavailable {
-                NotchDownloadsSettingsControls()
+                NotchDownloadsSetupView()
             } else {
                 HStack {
                     Label(downloads.folderName ?? text.downloadsTitle, systemImage: "folder")
@@ -128,10 +217,12 @@ struct NotchDownloadsView: View {
 
 struct NotchDownloadStrip: View {
     @ObservedObject var service: NotchService
+    /// Another display's strip, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
 
-    private var geometry: NotchGeometry { service.compactActivityGeometry }
+    private var geometry: NotchGeometry { displayGeometry ?? service.compactActivityGeometry }
     /// The arrow keeps the shared gap from the top and bottom edges too.
     private var iconSize: CGFloat {
         min(17, geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2)
@@ -142,7 +233,7 @@ struct NotchDownloadStrip: View {
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
-        Button { service.open(.downloads) } label: {
+        Button { service.openActivity(.downloads) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 6) {
                     if geometry.compactActivityWingWidth >= 40 {

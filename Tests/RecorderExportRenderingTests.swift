@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AVFoundation
+import AppKit
 import CoreImage
 import Foundation
 import ImageIO
@@ -182,13 +183,92 @@ enum RecorderExportRenderingTests {
             let pitch = Double(crossings) * 48_000 / Double(max(1, tone.count))
             suite.expectClose(pitch, 880, "speech pitch is preserved at \(speed)x", tol: 70)
         }
+        let gifFolder = folder.appendingPathComponent("gif-phase-source")
+        try FileManager.default.createDirectory(at: gifFolder, withIntermediateDirectories: true)
+        let gifTake = RecorderTakeStore.Take(id: UUID(), folder: gifFolder)
+        try await writePhaseVideo(to: gifTake.videoURL)
         let gifURL = folder.appendingPathComponent("speed.gif")
-        let gifFailure = await RecorderExporter().export(take: take,
-            document: RecorderEditDocument(exportSpeed: 2), output: .gif, to: gifURL, progress: { _ in })
-        suite.expect(gifFailure == nil, "GIF uses the retimed composition")
+        let gifDocument = RecorderEditDocument(trimStart: 0.5, trimEnd: 1.5, exportSpeed: 2)
+        let gifFailure = await RecorderExporter().export(take: gifTake,
+            document: gifDocument, output: .gif, to: gifURL, progress: { _ in })
+        suite.expect(gifFailure == nil, "GIF uses the current trim and retimed composition")
         if let source = CGImageSourceCreateWithURL(gifURL as CFURL, nil) {
-            suite.expect(CGImageSourceGetCount(source) == 12, "two source seconds at 2x produce twelve GIF frames")
+            suite.expect(CGImageSourceGetCount(source) == 6,
+                         "one trimmed source second at 2x produces six GIF frames")
+            let colours = (0..<CGImageSourceGetCount(source)).compactMap {
+                CGImageSourceCreateImageAtIndex(source, $0, nil).map(meanRGB)
+            }
+            suite.expect(colours.count == 6,
+                         "every encoded animation frame decodes")
+            suite.expect(colours.first.map { $0.green > $0.red * 2 && $0.green > $0.blue * 2 }
+                    == true,
+                         "the current trim begins in the green source phase")
+            suite.expect(colours.last.map { $0.blue > $0.red * 2 && $0.blue > $0.green * 2 }
+                    == true,
+                         "the current trim ends in the blue source phase")
+            suite.expect(colours.allSatisfy {
+                ($0.green > $0.red * 2 && $0.green > $0.blue * 2)
+                    || ($0.blue > $0.red * 2 && $0.blue > $0.green * 2)
+            }, "trimmed GIF excludes the red opening and white closing phases")
         } else { suite.expect(false, "exported GIF decodes") }
+        let pasteboard = NSPasteboard.withUniqueName()
+        pasteboard.clearContents()
+        pasteboard.setString("keep me", forType: .string)
+        suite.expect(RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard),
+                     "the production GIF publishes to a private pasteboard")
+        let nativeGIFType = NSPasteboard.PasteboardType("com.compuserve.gif")
+        suite.expect(RecorderGIFClipboard.pasteboardType == nativeGIFType,
+                     "the clipboard helper declares the native GIF pasteboard type")
+        if let copied = pasteboard.data(forType: nativeGIFType),
+           let source = CGImageSourceCreateWithData(copied as CFData, nil) {
+            suite.expect(copied == (try? Data(contentsOf: gifURL)),
+                         "copy publishes the encoded GIF bytes rather than a flattened image")
+            suite.expect(CGImageSourceGetCount(source) == 6,
+                         "the copied GIF keeps every animation frame")
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as NSDictionary?
+            let gif = properties?[kCGImagePropertyGIFDictionary] as? NSDictionary
+            let delay = gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber
+            // GIF stores delays in centiseconds, so ImageIO quantizes 1/12 s
+            // to 8 cs while retaining the exporter-selected cadence.
+            suite.expectClose(delay?.doubleValue ?? -1, 0.08,
+                              "the copied GIF keeps its animation timing", tol: 0.0001)
+        } else {
+            suite.expect(false, "copied GIF data decodes from its native pasteboard type")
+        }
+        let invalidURL = folder.appendingPathComponent("not-a-gif.gif")
+        try Data("not a gif".utf8).write(to: invalidURL)
+        pasteboard.clearContents()
+        pasteboard.setString("keep me", forType: .string)
+        suite.expect(!RecorderGIFClipboard.publish(fileURL: invalidURL, to: pasteboard)
+                && pasteboard.string(forType: .string) == "keep me",
+                     "invalid GIF preparation leaves the existing clipboard untouched")
+        if let artifactPath = ProcessInfo.processInfo.environment["VORSSAINT_RECORDER_FIXTURE_DIR"] {
+            let artifactDirectory = URL(fileURLWithPath: artifactPath, isDirectory: true)
+            try FileManager.default.createDirectory(at: artifactDirectory,
+                                                    withIntermediateDirectories: true)
+            let sourceCopy = artifactDirectory.appendingPathComponent("source-two-seconds.mov")
+            let gifCopy = artifactDirectory.appendingPathComponent("trimmed-half-second.gif")
+            try? FileManager.default.removeItem(at: sourceCopy)
+            try? FileManager.default.removeItem(at: gifCopy)
+            try FileManager.default.copyItem(at: gifTake.videoURL, to: sourceCopy)
+            try FileManager.default.copyItem(at: gifURL, to: gifCopy)
+        }
+        // Esc while the GIF is still taking frames: the saved GIF stays and
+        // nothing hidden is left beside it.
+        let cancelFolder = folder.appendingPathComponent("cancelled-gif")
+        try FileManager.default.createDirectory(at: cancelFolder, withIntermediateDirectories: true)
+        let savedGIF = cancelFolder.appendingPathComponent("saved.gif")
+        let previousGIF = Data("previous gif".utf8)
+        try previousGIF.write(to: savedGIF)
+        let gifExporter = RecorderExporter()
+        let gifCancel = await gifExporter.export(take: take, document: RecorderEditDocument(),
+                                                 output: .gif, to: savedGIF,
+                                                 progress: { _ in gifExporter.cancel() })
+        suite.expect(gifCancel == .cancelled && (try? Data(contentsOf: savedGIF)) == previousGIF,
+                     "cancelled GIF export preserves the existing destination")
+        let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: cancelFolder.path)) ?? []
+        suite.expect(leftovers == ["saved.gif"],
+                     "cancelled GIF export leaves nothing beside the destination \(leftovers)")
         let destination = folder.appendingPathComponent("preserved.mp4")
         let original = Data("previous export".utf8)
         try original.write(to: destination)
@@ -230,9 +310,73 @@ enum RecorderExportRenderingTests {
                        bounds: CGRect(x: 0, y: 0, width: 128, height: 128),
                        format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
         let samples = (32..<96).flatMap { y in
-            (32..<96).map { x in Double(bytes[(y * 128 + x) * 4]) }
+            (32..<96).map { x in
+                let offset = (y * 128 + x) * 4
+                return Double(bytes[offset])
+            }
         }
         let mean = samples.reduce(0, +) / Double(samples.count)
         return sqrt(samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(samples.count))
+    }
+
+    private static func writePhaseVideo(to url: URL) async throws {
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 128, AVVideoHeightKey: 128,
+        ])
+        let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: 128, kCVPixelBufferHeightKey as String: 128,
+            ])
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        for frame in 0..<120 {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 1_000_000) }
+            var maybe: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, adapter.pixelBufferPool!, &maybe)
+            guard let pixel = maybe else { throw FixtureFailure.writeFailed }
+            CVPixelBufferLockBaseAddress(pixel, [])
+            let pointer = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
+            let stride = CVPixelBufferGetBytesPerRow(pixel)
+            for y in 0..<128 { for x in 0..<128 {
+                let value: UInt8 = ((x / 4 + y / 4) % 2 == 0) ? 0 : 255
+                let offset = y * stride + x * 4
+                switch frame / 30 {
+                case 0: pointer[offset] = 0; pointer[offset + 1] = 0; pointer[offset + 2] = value
+                case 1: pointer[offset] = 0; pointer[offset + 1] = value; pointer[offset + 2] = 0
+                case 2: pointer[offset] = value; pointer[offset + 1] = 0; pointer[offset + 2] = 0
+                default:
+                    pointer[offset] = value; pointer[offset + 1] = value; pointer[offset + 2] = value
+                }
+                pointer[offset + 3] = 255
+            } }
+            CVPixelBufferUnlockBaseAddress(pixel, [])
+            guard adapter.append(pixel,
+                                 withPresentationTime: CMTime(value: Int64(frame), timescale: 60))
+            else { throw FixtureFailure.writeFailed }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else { throw FixtureFailure.writeFailed }
+    }
+
+    private static func meanRGB(of image: CGImage) -> (red: Double, green: Double, blue: Double) {
+        let context = CIContext()
+        var bytes = [UInt8](repeating: 0, count: 128 * 128 * 4)
+        context.render(CIImage(cgImage: image), toBitmap: &bytes, rowBytes: 128 * 4,
+                       bounds: CGRect(x: 0, y: 0, width: 128, height: 128),
+                       format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        var red = 0.0
+        var green = 0.0
+        var blue = 0.0
+        for offset in stride(from: 0, to: bytes.count, by: 4) {
+            red += Double(bytes[offset])
+            green += Double(bytes[offset + 1])
+            blue += Double(bytes[offset + 2])
+        }
+        let count = Double(128 * 128)
+        return (red / count, green / count, blue / count)
     }
 }

@@ -87,6 +87,7 @@ final class NotchAccessoryService: NSObject {
     @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.active, NotchAccessorySupport.isEnabled(), device.isConnected(),
+                  NotchAccessorySupport.announcesConnection(majorClass: UInt32(device.deviceClassMajor)),
                   let id = device.addressString, self.connectionState.connected(id) else { return }
             self.observeDisconnect(device)
             guard let name = device.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return }

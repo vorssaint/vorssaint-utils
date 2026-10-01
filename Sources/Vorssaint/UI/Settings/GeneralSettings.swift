@@ -279,9 +279,12 @@ private struct DiagonalHalf: Shape {
 
 /// The idle menu bar glyph, tinted white for dark surfaces.
 struct MenuBarGlyph: View {
+    /// Observed so the previews follow a newly chosen symbol right away.
+    @AppStorage(DefaultsKey.menuBarIconSymbol) private var symbolName = ""
+
     var body: some View {
         Group {
-            if let image = BlackHoleGlyph.image(active: false) {
+            if let image = BlackHoleGlyph.mark(symbolName: Defaults.sanitizedMenuBarIconSymbol(symbolName)) {
                 Image(nsImage: image)
                     .renderingMode(.template)
                     .resizable()

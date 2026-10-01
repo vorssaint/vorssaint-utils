@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "Se disattivato, mostra le finestre di tutte le scrivanie. Scegliendo una finestra su un’altra scrivania, passi a quella scrivania.",
         dockPreviewBackgroundOpacity: "Sfondo del pannello",
         dockPreviewBackgroundOpacityCaption: "Abbassalo per vedere di più di ciò che sta dietro al pannello.",
+        dockPreviewBackgroundOpacityGlassCaption: "Con Liquid Glass attivo, la trasparenza del pannello si imposta in Impostazioni di Sistema > Aspetto.",
         dockPreviewOpenDelay: "Ritardo di apertura",
         dockPreviewOpenDelayCaption: "Quanto a lungo il puntatore deve restare su un’icona prima che il pannello si apra.",
         dockPreviewQuitAppOnClose: "Chiudi l’app con il pulsante ×",
@@ -1077,7 +1078,12 @@ extension Strings {
         smoothScrollCoastLabel: "Inerzia",
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+        linearScrollName: "Scorrimento lineare",
+        linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
+        linearScrollLinesLabel: "Righe per scatto",
         shelfClearOnClose: "Svuota alla chiusura",
-        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano."
+        shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano.",
+        shelfShortcutFinderSelection: "Aggiungi la selezione del Finder con la scorciatoia",
+        shelfShortcutFinderSelectionCaption: "Con il Finder in primo piano, la scorciatoia apre il ripiano con i file selezionati già dentro. Senza selezione si apre come sempre."
     )
 }

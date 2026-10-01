@@ -25,7 +25,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.**
 
-- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optional dismissal of the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
+- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optionally hiding the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
 - **Scroll direction inverter**, which flips the mouse wheel.
 - **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.

@@ -210,7 +210,8 @@ struct NotchClipboardView: View {
             highlightedID = NotchSupport.steppedItem(from: highlightedID, in: ids, backwards: keyCode == 126)
             return true
         case 36, 76:
-            guard let id = highlightedID, let entry = entries.first(where: { $0.id == id }) else { return false }
+            guard let id = NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
+                  let entry = entries.first(where: { $0.id == id }) else { return false }
             activate(entry)
             return true
         default:
@@ -303,7 +304,7 @@ struct NotchClipboardView: View {
         case .text:
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 if let color = entry.color {
-                    ClipboardColorSwatch(color: color, size: 12)
+                    ColorSwatch(color: color, size: 12)
                         .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                 }
                 if searchTokens.isEmpty {

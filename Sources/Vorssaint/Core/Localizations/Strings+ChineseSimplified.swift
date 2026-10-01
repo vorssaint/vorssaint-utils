@@ -246,6 +246,7 @@ extension Strings {
         dockPreviewCurrentSpaceOnlyCaption: "关闭时显示所有桌面的窗口。选择其他桌面上的窗口时，会切换到该桌面。",
         dockPreviewBackgroundOpacity: "面板背景",
         dockPreviewBackgroundOpacityCaption: "调低后可以看到更多面板后面的内容。",
+        dockPreviewBackgroundOpacityGlassCaption: "Liquid Glass 已开启，面板的透明度由“系统设置”>“外观”决定。",
         dockPreviewOpenDelay: "打开延迟",
         dockPreviewOpenDelayCaption: "指针停在图标上多久之后才打开面板。",
         dockPreviewQuitAppOnClose: "使用 × 按钮退出 App",
@@ -1077,7 +1078,12 @@ extension Strings {
         smoothScrollCoastLabel: "惯性",
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
+        linearScrollName: "线性滚动",
+        linearScrollCaption: "无论转动多快，鼠标滚轮每一格都滚动相同的距离。触控板不受影响。",
+        linearScrollLinesLabel: "每格行数",
         shelfClearOnClose: "关闭时清空",
-        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。"
+        shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。",
+        shelfShortcutFinderSelection: "使用快捷键添加访达中的所选项",
+        shelfShortcutFinderSelectionCaption: "访达位于前台时，快捷键会打开暂存架并放入所选文件。未选择任何内容时照常打开。"
     )
 }

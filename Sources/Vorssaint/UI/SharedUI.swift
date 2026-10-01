@@ -68,6 +68,9 @@ struct FullDiskAccessNote: View {
             .controlSize(.small)
             .font(compact ? .system(size: 10.5) : nil)
         }
+        // Take the width the host offers, so the card lines up with the cards
+        // around it instead of shrinking to its longest line.
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(compact ? 9 : 11)
         .background(
             RoundedRectangle(cornerRadius: compact ? 8 : 9, style: .continuous)
@@ -133,7 +136,10 @@ struct UninstallFailureNote: View {
 /// `opacity` fades the material itself, for the one panel that lets the user
 /// choose how much of the screen shows through. Reduce transparency wins over
 /// it: the whole point of that setting is that panels stop being see-through,
-/// so a stored preference must not quietly undo it.
+/// so a stored preference must not quietly undo it. Liquid Glass does not take
+/// it either. The glass gets its transparency from the system's own Liquid
+/// Glass setting and has no fade of its own, so the slider that feeds
+/// `opacity` is turned off while `drawsLiquidGlass` holds.
 struct HUDBackdrop: View {
     enum Contrast {
         case standard
@@ -165,9 +171,19 @@ struct HUDBackdrop: View {
         return Self.plateOpacity(dark: colorScheme == .dark)
     }
 
+    /// Whether the backdrop is drawn as Liquid Glass instead of the classic
+    /// material. Settings asks too, to know when `opacity` has nothing to fade.
+    static func drawsLiquidGlass(enabled: Bool, reduceTransparency: Bool) -> Bool {
+#if compiler(>=6.2)
+        if #available(macOS 26.0, *) { return enabled && !reduceTransparency }
+#endif
+        return false
+    }
+
     var body: some View {
 #if compiler(>=6.2)
-        if #available(macOS 26.0, *), liquidGlassEnabled, !reduceTransparency {
+        if #available(macOS 26.0, *),
+           Self.drawsLiquidGlass(enabled: liquidGlassEnabled, reduceTransparency: reduceTransparency) {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(Color.clear)
                 .glassEffect(.regular, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))

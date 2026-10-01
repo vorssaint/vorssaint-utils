@@ -57,7 +57,7 @@ struct NotchIslandPreview: View {
     }
 
     private func stage(in stageSize: CGSize) -> some View {
-        let geometry = notch.geometry
+        let geometry = notch.previewGeometry(for: module)
         let size = notch.previewSize(for: module)
         let scale = Self.scale(in: stageSize)
         return ZStack(alignment: .top) {
@@ -110,7 +110,7 @@ struct NotchIslandPreview: View {
         .padding(.bottom, NotchLayout.bottomInset)
         .frame(width: size.width, height: size.height, alignment: .top)
         .background {
-            NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height)).fill(.black)
+            NotchShape.island(height: size.height, geometry: geometry).fill(.black)
         }
         .foregroundStyle(.white)
         .tint(.white)
@@ -134,7 +134,7 @@ struct NotchIslandPreview: View {
                         .frame(width: 28, height: 28)
                 }
                 Text(module.title(l10n.language))
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(Font(NotchLayout.headerTitleFont as CTFont))
                     .lineLimit(1)
             }
             .frame(width: half, alignment: .leading)
@@ -142,12 +142,13 @@ struct NotchIslandPreview: View {
             if geometry.headerCameraGap > 0 {
                 Color.clear.frame(width: geometry.headerCameraGap)
             }
+            // In a row of its own the title takes the width the actions leave.
             Image(systemName: "ellipsis")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: 28, height: 28)
                 .frame(width: half, alignment: .trailing)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: half == nil ? nil : .infinity, alignment: .trailing)
         }
         .frame(height: geometry.headerRowHeight)
     }
@@ -208,6 +209,7 @@ struct NotchPagePreview: View {
 private struct NotchScratchpadStill: View {
     @ObservedObject private var pad = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
 
     var body: some View {
         let text = FeatureStrings.scratchpad(l10n.language)
@@ -224,7 +226,7 @@ private struct NotchScratchpadStill: View {
                                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
                 Spacer(minLength: 0)
-                ForEach(["plus", "eye", "doc.on.doc", "ellipsis"], id: \.self) { symbol in
+                ForEach(["textformat", "plus", "eye", "doc.on.doc", "ellipsis"], id: \.self) { symbol in
                     Image(systemName: symbol)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.55))
@@ -232,7 +234,7 @@ private struct NotchScratchpadStill: View {
                 }
             }
             Text(pad.text.isEmpty ? text.placeholder : pad.text)
-                .font(.system(size: PlainTextEditor.fontSize))
+                .font(.system(size: ScratchpadSupport.sanitizedTextSize(storedTextSize)))
                 .foregroundStyle(.white.opacity(pad.text.isEmpty ? 0.35 : 0.9))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(10)
