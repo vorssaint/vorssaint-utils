@@ -408,9 +408,7 @@ final class ScreenshotSelectionController {
             case kVK_Escape:
                 self.finish(.cancelled)
             case kVK_Return, kVK_ANSI_KeypadEnter:
-                if self.acceptsWindowClick {
-                    self.captureFullDisplayUnderMouse()
-                }
+                self.confirmSelectionWithKeyboard()
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -579,6 +577,19 @@ final class ScreenshotSelectionController {
     }
 
     // MARK: - Confirmations (called by the views)
+
+    private func confirmSelectionWithKeyboard() {
+        if isPickingColor {
+            guard acceptsCaptureInput, !panels.contains(where: { $0.overlayView.isDragging }),
+                  let panel = panelUnderMouse() else { return }
+            let location = currentPointerLocation ?? NSEvent.mouseLocation
+            let point = CGPoint(x: location.x - panel.screenFrame.minX,
+                                y: panel.screenFrame.maxY - location.y)
+            confirmColor(at: point, on: panel)
+        } else if acceptsWindowClick {
+            captureFullDisplayUnderMouse()
+        }
+    }
 
     /// The surfaces stop answering the pointer the instant a picture starts
     /// being taken. They are either about to leave the screen or already gone,
