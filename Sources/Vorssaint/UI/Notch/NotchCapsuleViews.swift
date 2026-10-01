@@ -70,6 +70,7 @@ struct NotchCapsuleNoticeView: View {
     let geometry: NotchGeometry
     let size: CGSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchLevelPercent) private var levelPercent = true
 
     private var tint: Color {
         switch notice.event {
@@ -112,11 +113,13 @@ struct NotchCapsuleNoticeView: View {
             NotchMeter(value: level, height: CapsuleLayout.meterHeight, tint: tint)
                 .frame(width: CapsuleLayout.meterWidth)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
-            Text(notice.detail)
-                .font(Font(CapsuleLayout.levelFont as CTFont))
-                .lineLimit(1)
-                .contentTransition(.numericText())
-                .frame(width: CapsuleLayout.levelReadingWidth(notice.detail), alignment: .trailing)
+            if NotchSupport.showsLevelValue(for: notice.event, percentEnabled: levelPercent) {
+                Text(notice.detail)
+                    .font(Font(CapsuleLayout.levelFont as CTFont))
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
+                    .frame(width: CapsuleLayout.levelReadingWidth(notice.detail), alignment: .trailing)
+            }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
         .transaction { $0.disablesAnimations = false }

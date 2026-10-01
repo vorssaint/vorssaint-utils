@@ -212,6 +212,10 @@ enum NotchCapsuleTests {
         suite.expect(abs(visible(volume) - (Layout.noticeContent(title: "Volume", detail: "60%", level: true)
                                             + Layout.endPadding * 2)) < 1,
                      "a level notice is as wide as its mark, meter and reading, with no band of empty black")
+        let barOnly = Layout.noticeContent(title: "Volume", detail: "60%", level: true, showsReading: false)
+        suite.expect(barOnly == Layout.symbolWidth + Layout.spacing + Layout.meterWidth
+                     && barOnly < Layout.noticeContent(title: "Volume", detail: "60%", level: true),
+                     "a level notice without its reading ends at the meter and gets narrower")
         for value in 0...100 {
             let other = Layout.surface(content: Layout.noticeContent(title: "Volume", detail: "\(value)%", level: true),
                                        maximum: Layout.Maximum.notice, geometry: geometry)

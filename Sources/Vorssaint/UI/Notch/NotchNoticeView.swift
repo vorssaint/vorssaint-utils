@@ -8,6 +8,7 @@ struct NotchNoticeView: View {
     let notice: NotchNotice
     let geometry: NotchGeometry
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchLevelPercent) private var levelPercent = true
 
     private var wingWidth: CGFloat { geometry.noticeWingWidth(preferred: notice.preferredWingWidth) }
     private var inset: CGFloat { min(16, wingWidth / 6) }
@@ -64,12 +65,14 @@ struct NotchNoticeView: View {
                     }
                 }
                 .frame(width: 18)
-                Text(notice.level == nil ? notice.title : notice.detail)
-                    .font(.system(size: 11, weight: .medium))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .truncationMode(notice.event == .track ? .tail : .middle)
-                    .contentTransition(.numericText())
+                if notice.level == nil || NotchSupport.showsLevelValue(for: notice.event, percentEnabled: levelPercent) {
+                    Text(notice.level == nil ? notice.title : notice.detail)
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .truncationMode(notice.event == .track ? .tail : .middle)
+                        .contentTransition(.numericText())
+                }
             }
             .frame(maxWidth: .infinity, alignment: notice.readsFromEnds ? .leading : .trailing)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
@@ -110,6 +113,7 @@ private struct NotchTrackArtwork: View {
 /// Level feedback occupies the header while the current page stays usable.
 struct NotchExpandedLevelView: View {
     let notice: NotchNotice
+    @AppStorage(DefaultsKey.notchLevelPercent) private var levelPercent = true
 
     var body: some View {
         HStack(spacing: 8) {
@@ -117,9 +121,11 @@ struct NotchExpandedLevelView: View {
                 .frame(width: 18)
             NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
                 .frame(maxWidth: 96)
-            Text(notice.detail)
-                .monospacedDigit()
-                .fixedSize()
+            if NotchSupport.showsLevelValue(for: notice.event, percentEnabled: levelPercent) {
+                Text(notice.detail)
+                    .monospacedDigit()
+                    .fixedSize()
+            }
         }
         .font(.system(size: 11, weight: .medium))
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -7,6 +7,26 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    private static func levelReadingContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-level-reading"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLevelPercent] as? Bool == true,
+                     "level notices keep their percentage unless the user turns it off")
+        suite.expect([NotchEvent.volume, .brightness, .keyboardLight, .accessory].allSatisfy {
+            NotchSupport.showsLevelValue(for: $0, in: defaults)
+        }, "an untouched setup shows every level reading")
+        defaults.set(false, forKey: DefaultsKey.notchLevelPercent)
+        suite.expect([NotchEvent.volume, .brightness, .keyboardLight].allSatisfy {
+            !NotchSupport.showsLevelValue(for: $0, in: defaults)
+        }, "volume, brightness and keyboard light can show only their bar")
+        suite.expect(NotchSupport.showsLevelValue(for: .accessory, in: defaults),
+                     "an accessory's battery keeps its reading")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLevelPercent),
+                     "the percentage choice travels in settings backup")
+    }
+
     private static func railContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-fan-only"
         let defaults = UserDefaults(suiteName: domain)!
@@ -887,6 +907,7 @@ enum NotchTests {
     }
 
     static func run(_ suite: TestSuite) {
+        levelReadingContracts(suite)
         let previewStrip: CGFloat = 37
         suite.expect(NotchTranslucentTint.opacity(atDepth: previewStrip, stripHeight: previewStrip,
                                                   openness: 1, increasedContrast: false) == 1

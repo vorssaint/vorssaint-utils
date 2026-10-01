@@ -766,9 +766,13 @@ enum NotchCapsuleLayout {
     }
 
     /// The row a notice reads in: its mark, its title and its detail, or a
-    /// level's mark, meter and reading.
-    static func noticeContent(title: String, detail: String, level: Bool) -> CGFloat {
-        if level { return symbolWidth + spacing + meterWidth + spacing + levelReadingWidth(detail) }
+    /// level's mark, meter and reading. Without the reading, the level row
+    /// ends at its meter.
+    static func noticeContent(title: String, detail: String, level: Bool, showsReading: Bool = true) -> CGFloat {
+        if level {
+            let meterRow = symbolWidth + spacing + meterWidth
+            return showsReading ? meterRow + spacing + levelReadingWidth(detail) : meterRow
+        }
         let detailWidth = width(detail, font: detailFont)
         return symbolWidth + spacing + width(title, font: titleFont) + (detailWidth > 0 ? groupSpacing + detailWidth : 0)
     }
@@ -1448,6 +1452,16 @@ enum NotchSupport {
         if choice == .music, !modules(in: defaults).contains(.music) { return .none }
         if choice == .agents, !NotchAgentSupport.isEnabled(in: defaults) { return .none }
         return choice
+    }
+
+    /// Volume, brightness and keyboard light can show only their bar; other
+    /// level notices, such as an accessory's battery, keep their reading.
+    static func showsLevelValue(for event: NotchEvent, percentEnabled: Bool) -> Bool {
+        percentEnabled || ![.volume, .brightness, .keyboardLight].contains(event)
+    }
+
+    static func showsLevelValue(for event: NotchEvent, in defaults: UserDefaults = .standard) -> Bool {
+        showsLevelValue(for: event, percentEnabled: defaults.object(forKey: DefaultsKey.notchLevelPercent) as? Bool ?? true)
     }
 
     static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {

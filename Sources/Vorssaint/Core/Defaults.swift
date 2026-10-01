@@ -860,6 +860,7 @@ enum DefaultsKey {
     static let notchVolume = "notchVolume"
     static let notchMicrophone = "notchMicrophone"
     static let notchBrightness = "notchBrightness"
+    static let notchLevelPercent = "notchLevelPercent" // volume, brightness and keyboard light notices print their level beside the bar
     static let notchBattery = "notchBattery"
     static let notchClipboard = "notchClipboard"
     static let notchClipboardWindow = "notchClipboardWindow"
@@ -1408,6 +1409,7 @@ enum Defaults {
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchMicrophone: true,
         DefaultsKey.notchBrightness: true,
+        DefaultsKey.notchLevelPercent: true,
         DefaultsKey.notchBattery: true,
         DefaultsKey.notchClipboard: true,
         DefaultsKey.notchClipboardWindow: true,
