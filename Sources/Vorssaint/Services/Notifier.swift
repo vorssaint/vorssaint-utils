@@ -12,6 +12,16 @@ enum Notifier {
         "com.vorssaint.notification.whatsapp-organizer.transaction"
     private static let whatsAppOrganizerCategoryIdentifier =
         "com.vorssaint.notification.whatsapp-organizer"
+    static let breakCategoryIdentifier = "breakReminder"
+    static let breakPromptKey = "breakPromptID"
+    static let breakDoneAction = "breakReminder.done"
+    static let breakSnoozeAction = "breakReminder.snooze"
+
+    /// Latest localized titles; registerCategories rebuilds both categories from them.
+    static var whatsAppUndoTitle = "Undo"
+    static var breakDoneTitle = "Done"
+    static var breakSnoozeTitle = "Snooze 5 min"
+
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "notifications")
 
@@ -29,22 +39,40 @@ enum Notifier {
     }
 
     static func post(title: String, body: String) {
-        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:], identifier: nil)
+    }
+
+    /// The one place categories are registered: the call replaces every category.
+    static func registerCategories() {
+        let undo = UNNotificationAction(identifier: whatsAppOrganizerUndoActionIdentifier,
+                                        title: whatsAppUndoTitle, options: [.foreground])
+        let done = UNNotificationAction(identifier: breakDoneAction, title: breakDoneTitle, options: [])
+        let snooze = UNNotificationAction(identifier: breakSnoozeAction, title: breakSnoozeTitle, options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: whatsAppOrganizerCategoryIdentifier,
+                                   actions: [undo], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: breakCategoryIdentifier,
+                                   actions: [done, snooze], intentIdentifiers: [], options: [.customDismissAction]),
+        ])
+    }
+
+    static func postBreak(title: String, body: String, promptID: UUID) {
+        post(title: title, body: body, categoryIdentifier: breakCategoryIdentifier,
+             userInfo: [breakPromptKey: promptID.uuidString], identifier: promptID.uuidString)
+    }
+
+    static func removeBreak(promptID: UUID) {
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: [promptID.uuidString])
+        center.removePendingNotificationRequests(withIdentifiers: [promptID.uuidString])
     }
 
     static func postWhatsAppOrganization(title: String,
                                          body: String,
                                          undoTitle: String,
                                          transactionID: UUID) {
-        let center = UNUserNotificationCenter.current()
-        let undo = UNNotificationAction(
-            identifier: whatsAppOrganizerUndoActionIdentifier,
-            title: undoTitle,
-            options: [.foreground])
-        center.setNotificationCategories([
-            UNNotificationCategory(identifier: whatsAppOrganizerCategoryIdentifier,
-                                   actions: [undo], intentIdentifiers: [], options: []),
-        ])
+        whatsAppUndoTitle = undoTitle
+        registerCategories()
         post(title: title, body: body,
              categoryIdentifier: whatsAppOrganizerCategoryIdentifier,
              userInfo: [whatsAppOrganizerTransactionKey: transactionID.uuidString])
@@ -60,7 +88,8 @@ enum Notifier {
     private static func post(title: String,
                              body: String,
                              categoryIdentifier: String?,
-                             userInfo: [AnyHashable: Any]) {
+                             userInfo: [AnyHashable: Any],
+                             identifier: String? = nil) {
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized
@@ -73,7 +102,7 @@ enum Notifier {
             content.body = body
             if let categoryIdentifier { content.categoryIdentifier = categoryIdentifier }
             content.userInfo = userInfo
-            let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+            let request = UNNotificationRequest(identifier: identifier ?? UUID().uuidString, content: content, trigger: nil)
             center.add(request) { error in
                 if let error {
                     log.error("notification delivery failed: \(error.localizedDescription, privacy: .public)")

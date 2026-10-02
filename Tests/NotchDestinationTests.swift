@@ -59,7 +59,7 @@ enum NotchDestinationContract {
 
     class State {
         var acceptsUserInteraction = true
-        func collapse() { expanded = false }
+        func collapse(user: Bool = false) { expanded = false }
         var hiddenInFullscreen = false
         var running = true
         var session = NotchSessionState()

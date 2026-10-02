@@ -74,6 +74,11 @@ enum NotchMusicVisibilityTests {
         var captureControlsCancel: (() -> Void)?
         var captureClose: (() -> Void)?
         var captureClosesOnCollapse = false
+        var captureID: UUID?
+        var captureRoute: NotchEvent = .capture
+        var captureOwnsPin = false
+        var captureCollapsed: (() -> Void)?
+        var captureDisplaced: (() -> Void)?
         var notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
@@ -117,6 +122,7 @@ enum NotchMusicVisibilityTests {
         func refreshPresentation() {}
         func removeEventMonitors() {}
         func clearCapture() {
+            captureID = nil
             captureClose = nil
             captureClosesOnCollapse = false
         }

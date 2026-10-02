@@ -307,6 +307,7 @@ final class FeatureRuntime: ObservableObject {
             AudioPriorityService.shared.syncWithPreferences()
         },
         .micMute: { MicMuteService.shared.syncWithPreferences() },
+        .breakReminders: { BreakReminderService.shared.syncWithPreferences() },
         .musicBlock: { MusicLaunchBlocker.shared.syncWithPreferences() },
         .keepAwake: {
             KeepAwakeManager.shared.syncWithFeatures()

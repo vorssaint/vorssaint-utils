@@ -389,6 +389,13 @@ enum SettingsDirectory {
                                        icon: "camera.viewfinder",
                                        featureKeywords: SettingsSearchSupport
                                         .screenCaptureFeatureKeywords(s, language: language)),
+                SettingsDirectoryItem(page: .breakReminders,
+                                      title: FeatureStrings.breakReminders(language).featureTitle,
+                                      icon: AppFeature.breakReminders.symbolName,
+                                      keywords: [FeatureStrings.breakReminders(language).eyesSection,
+                                                 FeatureStrings.breakReminders(language).movementSection,
+                                                 FeatureStrings.breakReminders(language).workingHours,
+                                                 FeatureStrings.breakReminders(language).activities]),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,

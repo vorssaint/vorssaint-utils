@@ -413,7 +413,7 @@ struct NotchView: View {
         items.append(NotchMenuItem(title: service.pinned ? text.unpin : text.pin,
                                    symbol: service.pinned ? "pin.slash" : "pin") { service.pinned.toggle() })
         items.append(NotchMenuItem(title: l10n.s.menuSettings, symbol: "gearshape", action: service.openSettings))
-        items.append(NotchMenuItem(title: text.collapse, symbol: "chevron.up", action: service.collapse))
+        items.append(NotchMenuItem(title: text.collapse, symbol: "chevron.up", action: { service.collapse(user: true) }))
         return items
     }
 
@@ -457,7 +457,7 @@ struct NotchView: View {
             if !quickActions.contains(.settings) {
                 NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
             }
-            NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
+            NotchIconButton(symbol: "chevron.up", title: text.collapse, action: { service.collapse(user: true) })
         }
         .opacity(revealed ? 1 : 0)
         .overlay(alignment: .trailing) {

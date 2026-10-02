@@ -492,6 +492,25 @@ enum CommandBarCatalog {
             }
         }
 
+        if AppFeature.breakReminders.isAvailable {
+            let breaks = FeatureStrings.breakReminders(language)
+            let service = BreakReminderService.shared
+            let rows: [(String, String, String, () -> Void)] = [
+                ("action.breaks.pauseHour", breaks.pauseHour, "pause", { service.pause(for: 3600) }),
+                ("action.breaks.pauseTomorrow", breaks.pauseTomorrow, "moon.zzz", { service.pauseUntilTomorrow() }),
+                ("action.breaks.resume", breaks.resume, "play", { service.resume() }),
+            ]
+            for (id, label, symbol, action) in rows {
+                entries.append(CommandBarEntry(
+                    id: id,
+                    title: "\(breaks.pauseMenu): \(label)",
+                    subtitle: area(.breakReminders),
+                    keywords: breaks.featureTitle,
+                    icon: .symbol(symbol),
+                    run: { _ in action() }))
+            }
+        }
+
         if AppFeature.micMute.isAvailable {
             let muted = MicMuteService.shared.isMuted
             entries.append(CommandBarEntry(

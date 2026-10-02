@@ -45,6 +45,32 @@ enum DefaultsKey {
     static let keepAwakeShortcut = "keepAwakeShortcut"    // GlobalShortcut storage value
     static let keepAwakeIconTint = "keepAwakeIconTint"    // KeepAwakeIconTint.rawValue
     static let keepAwakeActiveIcon = "keepAwakeActiveIcon" // KeepAwakeActiveIcon.rawValue
+    static let breakRemindersEyesEnabled = "breakRemindersEyesEnabled"
+    static let breakRemindersEyesIntervalMinutes = "breakRemindersEyesIntervalMinutes"
+    static let breakRemindersEyesBreakSeconds = "breakRemindersEyesBreakSeconds"
+    static let breakRemindersEyesDeliveryStyle = "breakRemindersEyesDeliveryStyle"   // DeliveryStyle.rawValue
+    static let breakRemindersEyesActivities = "breakRemindersEyesActivities"         // JSON [BreakActivity]; "" = seed defaults
+    static let breakRemindersEyesRotationIndex = "breakRemindersEyesRotationIndex"
+    static let breakRemindersMovementEnabled = "breakRemindersMovementEnabled"
+    static let breakRemindersMovementIntervalMinutes = "breakRemindersMovementIntervalMinutes"
+    static let breakRemindersMovementBreakSeconds = "breakRemindersMovementBreakSeconds"
+    static let breakRemindersMovementDeliveryStyle = "breakRemindersMovementDeliveryStyle"
+    static let breakRemindersMovementActivities = "breakRemindersMovementActivities"
+    static let breakRemindersMovementRotationIndex = "breakRemindersMovementRotationIndex"
+    static let breakRemindersEscalateAfterSeconds = "breakRemindersEscalateAfterSeconds"
+    static let breakRemindersWorkingHoursEnabled = "breakRemindersWorkingHoursEnabled"
+    static let breakRemindersWorkingDays = "breakRemindersWorkingDays"               // bit n = weekday n+1
+    static let breakRemindersWorkingStartMinutes = "breakRemindersWorkingStartMinutes"
+    static let breakRemindersWorkingEndMinutes = "breakRemindersWorkingEndMinutes"
+    static let breakRemindersHoldForMic = "breakRemindersHoldForMic"
+    static let breakRemindersHoldForCamera = "breakRemindersHoldForCamera"
+    static let breakRemindersHoldForFullscreen = "breakRemindersHoldForFullscreen"
+    static let breakRemindersResetWhenAway = "breakRemindersResetWhenAway"
+    static let breakRemindersBreathingGuide = "breakRemindersBreathingGuide"
+    static let breakRemindersStartSound = "breakRemindersStartSound"   // alert sound file name; "" = none
+    static let breakRemindersEndSound = "breakRemindersEndSound"       // alert sound file name; "" = none
+    static let breakRemindersPausedUntil = "breakRemindersPausedUntil"               // timeIntervalSince1970; 0 = none
+    static let notchBreakReminders = "notchBreakReminders"
     static let showCountdown = "showCountdownInMenuBar"
     static let statusItemPlacementGeneration = "statusItemPlacementGeneration"
     static let hasOnboarded = "hasOnboarded"
@@ -1139,6 +1165,32 @@ enum Defaults {
         DefaultsKey.keepAwakeShortcut: "control+option+command:40",
         DefaultsKey.keepAwakeIconTint: KeepAwakeIconTint.orange.rawValue,
         DefaultsKey.keepAwakeActiveIcon: KeepAwakeActiveIcon.vorssaint.rawValue,
+        DefaultsKey.breakRemindersEyesEnabled: true,
+        DefaultsKey.breakRemindersEyesIntervalMinutes: 20,
+        DefaultsKey.breakRemindersEyesBreakSeconds: 20,
+        DefaultsKey.breakRemindersEyesDeliveryStyle: "notification",
+        DefaultsKey.breakRemindersEyesActivities: "",
+        DefaultsKey.breakRemindersEyesRotationIndex: 0,
+        DefaultsKey.breakRemindersMovementEnabled: true,
+        DefaultsKey.breakRemindersMovementIntervalMinutes: 50,
+        DefaultsKey.breakRemindersMovementBreakSeconds: 120,
+        DefaultsKey.breakRemindersMovementDeliveryStyle: "escalating",
+        DefaultsKey.breakRemindersMovementActivities: "",
+        DefaultsKey.breakRemindersMovementRotationIndex: 0,
+        DefaultsKey.breakRemindersEscalateAfterSeconds: 120,
+        DefaultsKey.breakRemindersWorkingHoursEnabled: false,
+        DefaultsKey.breakRemindersWorkingDays: 0b0111110,
+        DefaultsKey.breakRemindersWorkingStartMinutes: 540,
+        DefaultsKey.breakRemindersWorkingEndMinutes: 1080,
+        DefaultsKey.breakRemindersHoldForMic: true,
+        DefaultsKey.breakRemindersHoldForCamera: true,
+        DefaultsKey.breakRemindersHoldForFullscreen: true,
+        DefaultsKey.breakRemindersResetWhenAway: true,
+        DefaultsKey.breakRemindersBreathingGuide: false,
+        DefaultsKey.breakRemindersStartSound: "Tink",
+        DefaultsKey.breakRemindersEndSound: "Glass",
+        DefaultsKey.breakRemindersPausedUntil: 0.0,
+        DefaultsKey.notchBreakReminders: true,
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.scrollInverterHorizontalEnabled: false,

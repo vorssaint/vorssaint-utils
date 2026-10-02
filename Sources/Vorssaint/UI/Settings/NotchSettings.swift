@@ -75,6 +75,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = false
     @AppStorage(DefaultsKey.notchHidesMenuBarIcon) private var hidesMenuBarIcon = false
     @AppStorage(DefaultsKey.notchKeepAwakeActivity) private var keepAwakeActivity = false
+    @AppStorage(DefaultsKey.notchBreakReminders) private var breakReminders = true
     @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
@@ -92,7 +93,7 @@ struct NotchSettings: View {
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(keepAwakeActivity)]
+         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(keepAwakeActivity), String(breakReminders)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -466,7 +467,7 @@ struct NotchSettings: View {
                 let musicAvailable = NotchSupport.modules().contains(.music)
                 let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable,
                                  batteryAvailable || !hasBattery, accessoriesAvailable, clipboardAvailable, capturesAvailable,
-                                 musicAvailable].allSatisfy { $0 }
+                                 musicAvailable, AppFeature.breakReminders.isAvailable].allSatisfy { $0 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
                     toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: volumeAvailable,
                                reason: enableFeatureReason(.mixer), reservesReason: reserves,
@@ -511,6 +512,11 @@ struct NotchSettings: View {
                                    if AppFeature.screenshot.isAvailable { showModule(.captures) }
                                    else { showFeature(.screenshot) }
                                })
+                    toggleCard(FeatureStrings.breakReminders(l10n.language).notchToggle,
+                               symbol: AppFeature.breakReminders.symbolName, value: $breakReminders,
+                               available: AppFeature.breakReminders.isAvailable,
+                               reason: enableFeatureReason(.breakReminders), reservesReason: reserves,
+                               unavailableAction: { showFeature(.breakReminders) })
                     toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
                                reason: editor.showPage(text.music), reservesReason: reserves,
                                unavailableAction: { showModule(.music) })

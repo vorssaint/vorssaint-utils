@@ -111,6 +111,10 @@ enum SettingsBackupSupport {
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
         DefaultsKey.appUpdatesLastCheck,
+        // A pause and the rotation position are this Mac's running state.
+        DefaultsKey.breakRemindersPausedUntil,
+        DefaultsKey.breakRemindersEyesRotationIndex,
+        DefaultsKey.breakRemindersMovementRotationIndex,
         DefaultsKey.appUpdatesLastCount,
         DefaultsKey.appUpdatesNotifiedIDs,
         DefaultsKey.cleanerLastAutoFreed,
