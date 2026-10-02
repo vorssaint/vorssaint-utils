@@ -19,6 +19,7 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnitRaw = "bits"
     @State private var draggingBlock: Block?
     @State private var appRows: [ProcessUsage] = []
     @State private var appRowsLoading = false
@@ -188,6 +189,7 @@ struct NetworkSection: View {
                                label: l10n.s.networkUpload,
                                value: monitor.snapshot.netUpBytesPerSec,
                                color: PanelMetricColor.green(for: colorScheme))
+                    speedUnitToggle
                 }
                 if showGraph, monitor.snapshot.netDownHistory.count >= 2 {
                     graph
@@ -196,13 +198,37 @@ struct NetworkSection: View {
         }
     }
 
+    private var speedInBits: Bool { speedUnitRaw != "bytes" }
+
+    /// Flips every live network speed (panel, menu bar, island) between
+    /// bits and bytes per second. The label shows the unit in use.
+    private var speedUnitToggle: some View {
+        Button {
+            speedUnitRaw = speedInBits ? "bytes" : "bits"
+        } label: {
+            Text(speedInBits ? "bit/s" : "B/s")
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .frame(height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(0.10))
+                )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(speedInBits ? "bit/s → B/s" : "B/s → bit/s")
+        .accessibilityLabel(speedInBits ? "bit/s" : "B/s")
+    }
+
     private func rateColumn(icon: String, label: String, value: Double?, color: Color) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(color)
             VStack(alignment: .leading, spacing: 1) {
-                Text(value.map { MetricFormat.bytesPerSec($0) } ?? l10n.s.networkMeasuring)
+                Text(value.map { MetricFormat.networkRate($0, inBits: speedInBits) } ?? l10n.s.networkMeasuring)
                     .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -366,7 +392,7 @@ struct NetworkSection: View {
     private func networkValue(_ row: ProcessUsage) -> String {
         let down = row.networkDownBytesPerSec ?? 0
         let up = row.networkUpBytesPerSec ?? 0
-        return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+        return "↓\(MetricFormat.networkRateCompact(down, inBits: speedInBits)) ↑\(MetricFormat.networkRateCompact(up, inBits: speedInBits))"
     }
 }
 

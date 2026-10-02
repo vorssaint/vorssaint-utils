@@ -52,8 +52,8 @@ struct NotchSystemView: View {
         }
         if AppFeature.monitorNetwork.isAvailable {
             cards.append(Card(kind: .network, title: l10n.s.networkSection, symbol: "network",
-                              value: snapshot.netDownBytesPerSec.map { "↓ " + MetricFormat.bytesPerSec($0) },
-                              detail: snapshot.netUpBytesPerSec.map { "↑ " + MetricFormat.bytesPerSec($0) }))
+                              value: snapshot.netDownBytesPerSec.map { "↓ " + MetricFormat.networkRate($0) },
+                              detail: snapshot.netUpBytesPerSec.map { "↑ " + MetricFormat.networkRate($0) }))
         }
         if AppFeature.monitorDisk.isAvailable {
             let disk = snapshot.disk?.devices.first(where: { $0.mountPath == "/" })

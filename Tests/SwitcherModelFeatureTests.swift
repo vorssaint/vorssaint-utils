@@ -2847,6 +2847,8 @@ enum SwitcherModelFeatureTests {
                "separate menu bar metric items are opt-in")
         suite.expect(registeredDefaults[DefaultsKey.menuBarNetworkUploadFirst] as? Bool == false,
                "network menu bar upload-first layout is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.networkSpeedUnit] as? String == "bits",
+               "network speeds default to bits per second")
         suite.expect(registeredDefaults[DefaultsKey.menuBarLabelStyle] as? String == "compact",
                "menu bar label style defaults to compact")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMemoryStyle] as? String == "percent",

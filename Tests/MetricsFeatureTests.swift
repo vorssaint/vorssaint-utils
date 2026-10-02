@@ -58,6 +58,28 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytesPerSecCompact(1023.6 * 1024), "1.0M", "compact promotes rounded megabyte edge")
         expectEqual(MetricFormat.bytesPerSecCompact(9.96 * 1024 * 1024), "10M", "compact drops redundant decimal at 10M")
 
+        expectEqual(MetricFormat.bitsPerSec(0), "0 bps", "bit rate zero")
+        expectEqual(MetricFormat.bitsPerSec(100), "800 bps", "bit rate sub-kilobit")
+        expectEqual(MetricFormat.bitsPerSec(1_500), "12 Kbps", "bit rate 12 Kbps")
+        expectEqual(MetricFormat.bitsPerSec(1_200_000), "9.6 Mbps", "bit rate 9.6 Mbps")
+        expectEqual(MetricFormat.bitsPerSec(125_000_000), "1.0 Gbps", "bit rate gigabit")
+
+        expectEqual(MetricFormat.networkRate(1_500, inBits: true), "12 Kbps", "network rate in bits")
+        expectEqual(MetricFormat.networkRate(1_500 * 1024, inBits: false), "1.5 MB/s", "network rate in bytes")
+        expectEqual(MetricFormat.networkRateCompact(40_000, inBits: true), "320Kb", "compact network rate in bits")
+        expectEqual(MetricFormat.networkRateCompact(320 * 1024, inBits: false), "320K", "compact network rate in bytes")
+
+        expectEqual(MetricFormat.bitsPerSecCompact(0), "0b", "bits zero")
+        expectEqual(MetricFormat.bitsPerSecCompact(.nan), "0b", "bits non-finite")
+        expectEqual(MetricFormat.bitsPerSecCompact(100), "800b", "bits sub-kilobit")
+        expectEqual(MetricFormat.bitsPerSecCompact(124.9), "999b", "bits keeps 999b")
+        expectEqual(MetricFormat.bitsPerSecCompact(124.95), "1.0Kb", "bits promotes rounded kilobit edge")
+        expectEqual(MetricFormat.bitsPerSecCompact(40_000), "320Kb", "bits 320Kb")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_200_000), "9.6Mb", "bits 9.6Mb")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_245_000), "10Mb", "bits drops redundant decimal at 10Mb")
+        expectEqual(MetricFormat.bitsPerSecCompact(124_950), "1.0Mb", "bits promotes rounded megabit edge")
+        expectEqual(MetricFormat.bitsPerSecCompact(1_000_000_000), "8.0Gb", "bits gigabit")
+
         // MARK: Disk helpers
 
         suite.expect(DiskSupport.nvmeBytes(low: 2, high: nil) == 1_024_000,
