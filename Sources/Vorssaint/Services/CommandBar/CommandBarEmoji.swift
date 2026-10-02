@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import SwiftUI
 
 /// The emoji the command bar can type at the cursor, and the words that find
 /// them. Pure Foundation, so the set and its names are pinned by the tests.
@@ -197,5 +198,104 @@ enum CommandBarEmoji {
             .filter { !$0.isEmpty && !$0.hasPrefix("ZERO WIDTH") }
         guard !names.isEmpty else { return nil }
         return names.joined(separator: " ").lowercased()
+    }
+}
+
+/// One tile of the emoji grid, as big as the person wants their emoji.
+/// Raw values are the stored preference, so they never change.
+enum CommandBarEmojiTileSize: String, CaseIterable, Identifiable {
+    case small
+    case medium
+    case large
+
+    var id: String { rawValue }
+
+    /// The glyph size inside a tile. The medium step matches the feel of the
+    /// launchers people know.
+    var glyphSize: CGFloat {
+        switch self {
+        case .small: return 20
+        case .medium: return 28
+        case .large: return 38
+        }
+    }
+
+    /// The tile's own width, glyph plus caption plus breathing room. The grid
+    /// derives its cell size from this, so a chip never splits mid-render.
+    var tileSize: CGFloat {
+        switch self {
+        case .small: return 70
+        case .medium: return 92
+        case .large: return 122
+        }
+    }
+
+    /// How a stored preference reads back. Anything unknown is the default,
+    /// because a tile size is a look and a wrong spelling must not blank it.
+    static func resolved(raw: String?) -> CommandBarEmojiTileSize {
+        CommandBarEmojiTileSize(rawValue: raw ?? "") ?? .medium
+    }
+
+    /// Columns the viewport can hold after the grid's side insets. The width
+    /// is the scroll view's offered width, including any legacy scroller inset.
+    static func columns(availableWidth: CGFloat,
+                        tileSize: CommandBarEmojiTileSize,
+                        horizontalPadding: CGFloat = 32,
+                        spacing: CGFloat = 6) -> Int {
+        let contentWidth = max(0, availableWidth - horizontalPadding)
+        return max(1, Int((contentWidth + spacing) / (tileSize.tileSize + spacing)))
+    }
+
+    /// Ideal grid height, including inter-row spacing and its vertical inset.
+    /// The view caps this at the list ceiling and lets the rest scroll.
+    static func contentHeight(itemCount: Int,
+                              columns: Int,
+                              tileHeight: CGFloat,
+                              rowSpacing: CGFloat = 8,
+                              verticalPadding: CGFloat = 16,
+                              headerHeight: CGFloat = 0) -> CGFloat {
+        guard itemCount > 0, columns > 0 else { return 0 }
+        let rows = (itemCount + columns - 1) / columns
+        return CGFloat(rows) * tileHeight
+            + CGFloat(max(0, rows - 1)) * rowSpacing
+            + verticalPadding
+            + headerHeight
+    }
+
+    /// Where one grid step lands, pure so the tests can pin it. Rows sit in
+    /// reading order; `columns` is what the view reports. A walk off the top
+    /// or the bottom stops at the edge, and a vertical move into a last row
+    /// that ends early holds the column instead of sliding to its end.
+    static func gridTarget(from at: Int, dx: Int, dy: Int, columns: Int, count: Int) -> Int {
+        guard columns > 0, count > 0 else { return at }
+        let row = at / columns
+        let column = at % columns
+        if dx == 0, dy != 0 {
+            let targetRow = row + dy
+            guard targetRow >= 0 else { return 0 }
+            let targetLength = min(columns, count - targetRow * columns)
+            guard targetLength > 0 else { return count - 1 }
+            return targetRow * columns + min(column, targetLength - 1)
+        }
+        if dy == 0, dx != 0 {
+            let nextColumn = column + dx
+            // A row that ends early reports its own extent, not the column
+            // count: a step past its end holds where it is instead of naming
+            // a tile the grid never laid out.
+            guard nextColumn >= 0,
+                  nextColumn < min(columns, count - row * columns) else { return at }
+            return row * columns + nextColumn
+        }
+        // Both axes at once never happens from a keyboard: one press, one
+        // axis. The clamped arithmetic keeps even that honest.
+        return max(0, min(count - 1, at + dx + dy * columns))
+    }
+}
+
+/// A modified horizontal arrow belongs to the field/category chips, not the
+/// grid; only an unmodified arrow walks a tile.
+enum CommandBarEmojiGridNavigation {
+    static func consumesHorizontalArrow(gridIsNavigable: Bool, modifiersPresent: Bool) -> Bool {
+        gridIsNavigable && !modifiersPresent
     }
 }

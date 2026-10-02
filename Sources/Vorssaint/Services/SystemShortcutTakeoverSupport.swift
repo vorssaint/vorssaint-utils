@@ -111,4 +111,12 @@ extension SystemShortcutTakeoverSupport {
         if takenOver, current == shortcut { return .save(clearTakeOver: false) }
         return .offer
     }
+
+    /// Whether the emoji key may arm given what macOS answers and what the
+    /// person already agreed to. The recorder asks with an offer; this is the
+    /// same rule applied where no offer can be shown, so a restored state
+    /// never registers beside the system picker.
+    static func emojiShortcutMayArm(conflictsWithMacOS: Bool, takenOver: Bool) -> Bool {
+        !conflictsWithMacOS || takenOver
+    }
 }
