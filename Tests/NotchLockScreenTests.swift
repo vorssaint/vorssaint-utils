@@ -86,7 +86,7 @@ enum NotchLockScreenTests {
         if let row = Layout.rowFrame(in: measured), let player = Layout.playerFrame(in: measured) {
             suite.expect(measured.maxY - row.maxY >= 236 + 12 && measured.maxY - row.maxY <= 236 + 30,
                          "the activities read as a line just under the clock")
-            suite.expect(player.minY - measured.minY >= 218 + 24, "the player clears the name, picture, password field and hint")
+            suite.expect(player.minY - measured.minY >= Layout.loginClearance, "the player clears the name, picture, password field and hint")
             suite.expect(player.maxY < row.minY && player.height >= 400,
                          "the player has the room between the line and the login controls")
             suite.expect(Layout.paneWidth < Layout.playerWidth, "the pane leaves room around it for the cover's glow")
