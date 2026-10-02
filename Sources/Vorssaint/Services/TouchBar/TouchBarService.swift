@@ -15,11 +15,19 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
 
+    private weak var keepAwakeButton: NSButton?
     private weak var micMuteButton: NSButton?
     private var cancellables = Set<AnyCancellable>()
 
     private override init() {
         super.init()
+
+        KeepAwakeManager.shared.$isActive
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.updateKeepAwakeButton()
+            }
+            .store(in: &cancellables)
 
         MicMuteService.shared.$isMuted
             .receive(on: DispatchQueue.main)
@@ -82,6 +90,8 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         )
         button.imagePosition = .imageOnly
         button.isBordered = false
+
+        keepAwakeButton = button
         item.view = button
         return item
     }
@@ -125,13 +135,16 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         ) ?? NSImage()
     }
 
+    private func updateKeepAwakeButton() {
+        keepAwakeButton?.image = keepAwakeImage()
+    }
+
     private func updateMicMuteButton() {
         micMuteButton?.image = micMuteImage()
     }
 
     @objc private func toggleKeepAwake(_ sender: NSButton) {
         KeepAwakeManager.shared.toggle()
-        sender.image = keepAwakeImage()
     }
 
     @objc private func toggleMicMute(_ sender: NSButton) {
