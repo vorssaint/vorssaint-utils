@@ -273,6 +273,7 @@ struct NotchLockScreenActivities: View {
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitAgent) private var limitAgent = NotchAgentLimitAgent.working.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -351,7 +352,8 @@ struct NotchLockScreenActivities: View {
             let working = AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
             let reading = NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                                          display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
-                                                         focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: date)
+                                                         focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed,
+                                       agent: NotchAgentLimitAgent(rawValue: limitAgent) ?? .working, now: date)
             // The agents and their reading only: a project's name stays off
             // a screen anyone can walk up to.
             HStack(spacing: 7) {

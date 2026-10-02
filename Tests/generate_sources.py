@@ -796,6 +796,7 @@ def main():
                     + "@State var limitThreshold = NotchAgentSupport.defaultLimitThreshold\n"
                     + "@State var dailyBudget = 0.0\n"
                     + "@State var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue\n"
+                    + "@State var limitAgent = NotchAgentLimitAgent.working.rawValue\n"
                     + "var text: NotchAgentStrings { FeatureStrings.notchAgents(language) }\n"
                     + "var locale: Locale { language.formattingLocale() }\n"
                     + "var body: some View {\nGroup {\n"
@@ -806,7 +807,8 @@ def main():
                         ("FinishAfter", '                SettingsMenuRow(symbol: "timer"', True),
                         ("LimitAt", '                SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent"', True),
                         ("Budget", '            SettingsMenuRow(symbol: "dollarsign.circle"', False),
-                        ("LimitFocus", '            SettingsMenuRow(symbol: "rectangle.topthird.inset.filled"', False)])
+                        ("LimitFocus", '            SettingsMenuRow(symbol: "rectangle.topthird.inset.filled"', False),
+                        ("LimitAgent", '            SettingsMenuRow(symbol: "person.crop.circle"', False)])
           + "}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"

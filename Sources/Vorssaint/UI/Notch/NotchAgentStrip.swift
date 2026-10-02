@@ -15,6 +15,7 @@ struct NotchAgentStrip: View {
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitAgent) private var limitAgent = NotchAgentLimitAgent.working.rawValue
 
     private var live: [AgentLiveSession] { usage.snapshot.live }
     private var working: [AgentProvider] {
@@ -89,7 +90,8 @@ struct NotchAgentStrip: View {
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                        display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
-                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
+                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed,
+                                       agent: NotchAgentLimitAgent(rawValue: limitAgent) ?? .working, now: now)
     }
 }
 
@@ -118,6 +120,7 @@ struct NotchAgentRestingWing: View {
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitAgent) private var limitAgent = NotchAgentLimitAgent.working.rawValue
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -127,7 +130,8 @@ struct NotchAgentRestingWing: View {
 
     @ViewBuilder private func content(now: Date) -> some View {
         let snapshot = usage.snapshot
-        let limit = NotchAgentSupport.restingLimit(snapshot, focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
+        let limit = NotchAgentSupport.restingLimit(snapshot, focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed,
+                                       agent: NotchAgentLimitAgent(rawValue: limitAgent) ?? .working, now: now)
         let used = display == NotchAgentLimitDisplay.used.rawValue
         if let limit {
             let tint = agentLimitTint(limit.provider, usedFraction: limit.window.usedFraction)

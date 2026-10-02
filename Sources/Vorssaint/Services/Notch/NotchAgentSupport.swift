@@ -49,6 +49,16 @@ enum NotchAgentLimitFocus: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Whose allowance the closed island shows: the agent that is working, or
+/// one the person pinned.
+enum NotchAgentLimitAgent: String, CaseIterable, Identifiable {
+    case working, claude, codex
+    var id: String { rawValue }
+
+    /// The pinned account; nil while the island follows the working agent.
+    var provider: AgentProvider? { AgentProvider(rawValue: rawValue) }
+}
+
 struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
@@ -115,6 +125,10 @@ enum NotchAgentSupport {
         NotchAgentLimitFocus(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? "") ?? .mostUsed
     }
 
+    static func limitAgent(in defaults: UserDefaults = .standard) -> NotchAgentLimitAgent {
+        NotchAgentLimitAgent(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitAgent) ?? "") ?? .working
+    }
+
     /// The allowance the closed island shows: the window the person chose,
     /// or the one closest to running out while the account reports no such
     /// window. A model's own allowance is never the chosen one.
@@ -134,13 +148,15 @@ enum NotchAgentSupport {
         return limits?.windows.first { $0.kind == kind && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
     }
 
-    /// The resting island's allowance across every account: the most spent
-    /// of the chosen windows, or of each account's most used window while no
+    /// The resting island's allowance across every account, or of the pinned
+    /// one: the most spent of the chosen windows, or of each account's most used window while no
     /// account reports the chosen one.
     static func restingLimit(_ snapshot: AgentUsageSnapshot, focus: NotchAgentLimitFocus,
+                             agent: NotchAgentLimitAgent = .working,
                              now: Date) -> (provider: AgentProvider, window: AgentLimitWindow)? {
         func mostSpent(_ pick: (AgentLimits) -> AgentLimitWindow?) -> (provider: AgentProvider, window: AgentLimitWindow)? {
-            snapshot.limits.compactMap { provider, limits in pick(limits).map { (provider: provider, window: $0) } }.max {
+            // A pinned agent is the only account read; otherwise they compete.
+            snapshot.limits.filter { agent.provider == nil || $0.key == agent.provider }.compactMap { provider, limits in pick(limits).map { (provider: provider, window: $0) } }.max {
                 $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
                     : $0.provider.rawValue > $1.provider.rawValue
             }
@@ -195,7 +211,7 @@ enum NotchAgentSupport {
     /// the person chose, or the time elapsed while that one is unknown.
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
                              display: NotchAgentLimitDisplay, focus: NotchAgentLimitFocus = .mostUsed,
-                             now: Date) -> String {
+                             agent: NotchAgentLimitAgent = .working, now: Date) -> String {
         let live = snapshot.live
         func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
         switch readout {
@@ -208,7 +224,9 @@ enum NotchAgentSupport {
         case .cost:
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
-            guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
+            let provider = agent.provider
+                ?? AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } })
+            guard let provider,
                   let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }

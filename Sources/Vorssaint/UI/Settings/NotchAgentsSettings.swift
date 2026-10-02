@@ -15,6 +15,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitAgent) private var limitAgent = NotchAgentLimitAgent.working.rawValue
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
@@ -81,6 +82,11 @@ struct NotchAgentsSettingsControls: View {
                     Text(text.limitFocus(focus)).tag(focus.rawValue)
                 }
             }
+            SettingsMenuRow(symbol: "person.crop.circle", title: text.limitAgent, selection: $limitAgent) {
+                ForEach(NotchAgentLimitAgent.allCases) { agent in
+                    Text(text.limitAgent(agent)).tag(agent.rawValue)
+                }
+            }
 
             Divider()
             Text(text.liveTitle).font(.subheadline.weight(.medium))
@@ -95,6 +101,7 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
+                                      agent: NotchAgentLimitAgent(rawValue: limitAgent) ?? .working,
                                       provider: claude ? .claude : (codex ? .codex : .opencode))
                     .padding(.leading, settingsRowTextInset)
             }
@@ -267,6 +274,7 @@ private struct NotchAgentStripSample: View {
     let readout: NotchAgentReadout
     let display: NotchAgentLimitDisplay
     let focus: NotchAgentLimitFocus
+    let agent: NotchAgentLimitAgent
     let provider: AgentProvider
     @ObservedObject private var usage = AgentUsageService.shared
     private static let camera: CGFloat = 64
@@ -301,7 +309,7 @@ private struct NotchAgentStripSample: View {
                                               tokens: AgentTokens(input: 1_180_000, cacheWrite: 0, cacheRead: 0, output: 20_000),
                                               cost: 4.56)]
         }
-        return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
+        return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, agent: agent, now: now)
     }
 }
 

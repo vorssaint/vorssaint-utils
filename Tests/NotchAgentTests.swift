@@ -2022,6 +2022,28 @@ enum NotchAgentTests {
                         && NotchAgentSupport.restingLimit(resting, focus: .mostUsed, now: now)
                             .map { $0.provider == .claude && $0.window.usedPercent == 95 } == true,
                      "the resting island falls back to the most used window only when no account reports the chosen one")
+        // Codex works and has the higher allowance: a pinned agent still decides what the island reads.
+        let codexBusy = snapshot([session(.codex, startedAgo: 60)], limits: [.claude: both, .codex: codexWeek])
+        suite.expect(NotchAgentSupport.stripReading(codexBusy, readout: .limit, display: .used, focus: .weekly, now: now)
+                        == AgentFormat.percent(0.70)
+                        && NotchAgentSupport.stripReading(codexBusy, readout: .limit, display: .used, focus: .weekly,
+                                                          agent: .claude, now: now) == AgentFormat.percent(0.79)
+                        && NotchAgentSupport.stripReading(codexBusy, readout: .limit, display: .used, focus: .weekly,
+                                                          agent: .codex, now: now) == AgentFormat.percent(0.70),
+                     "the closed island follows the working agent unless one is pinned, and a pinned one shows its own limit")
+        suite.expect(NotchAgentSupport.stripReading(snapshot([session(.codex, startedAgo: 754)], limits: [:]), readout: .limit,
+                                                    display: .used, agent: .claude, now: now) == "12:34",
+                     "a pinned agent with no known limit falls back to the time")
+        suite.expect(NotchAgentSupport.restingLimit(resting, focus: .mostUsed, agent: .codex, now: now)
+                        .map { $0.provider == .codex && $0.window.usedPercent == 70 } == true
+                        && NotchAgentSupport.restingLimit(resting, focus: .mostUsed, agent: .claude, now: now)
+                            .map { $0.provider == .claude && $0.window.usedPercent == 95 } == true
+                        && NotchAgentSupport.restingLimit(resting, focus: .mostUsed, now: now)
+                            .map { $0.provider == .claude } == true,
+                     "the resting island reads only the pinned account, and every account while none is pinned")
+        suite.expect(NotchAgentLimitAgent.allCases.compactMap(\.provider) == [.claude, .codex]
+                        && NotchAgentLimitAgent.working.provider == nil,
+                     "Claude and Codex can be pinned, and the working agent is the default")
         let expiredAt = now.addingTimeInterval(86_401)
         suite.expect(NotchAgentSupport.stripReading(limited, readout: .limit, display: .remaining, now: expiredAt)
                         == AgentFormat.percent(1),
@@ -2350,6 +2372,10 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .weekly, "the chosen limit is kept")
+        defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitAgent)
+        suite.expect(NotchAgentSupport.limitAgent(in: defaults) == .working, "an unknown agent choice follows the working agent")
+        defaults.set(NotchAgentLimitAgent.codex.rawValue, forKey: DefaultsKey.notchAgentsLimitAgent)
+        suite.expect(NotchAgentSupport.limitAgent(in: defaults) == .codex, "the pinned agent is kept")
         defaults.set(false, forKey: DefaultsKey.notchAgentsFinishAlert)
         defaults.set(95.0, forKey: DefaultsKey.notchAgentsLimitThreshold)
         defaults.set(-4.0, forKey: DefaultsKey.notchAgentsDailyBudget)
@@ -2360,7 +2386,8 @@ enum NotchAgentTests {
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
-                    DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
+                    DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLimitAgent,
+                    DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)

@@ -367,6 +367,7 @@ struct NotchCapsuleAgentStrip: View {
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitAgent) private var limitAgent = NotchAgentLimitAgent.working.rawValue
 
     private var working: [AgentProvider] {
         AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
@@ -400,7 +401,8 @@ struct NotchCapsuleAgentStrip: View {
     private func reading(at now: Date) -> String {
         NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                        display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
-                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
+                                       focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed,
+                                       agent: NotchAgentLimitAgent(rawValue: limitAgent) ?? .working, now: now)
     }
 }
 

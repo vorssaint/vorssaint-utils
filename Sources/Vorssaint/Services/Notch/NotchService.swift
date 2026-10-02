@@ -498,7 +498,7 @@ final class NotchService: ObservableObject {
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
         let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
-            display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
+            display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), agent: NotchAgentSupport.limitAgent(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width
@@ -736,7 +736,7 @@ final class NotchService: ObservableObject {
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
-                                                         focus: NotchAgentSupport.limitFocus(), now: Date())
+                                                         focus: NotchAgentSupport.limitFocus(), agent: NotchAgentSupport.limitAgent(), now: Date())
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
