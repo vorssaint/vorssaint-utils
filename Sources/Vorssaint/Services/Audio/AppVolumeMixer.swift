@@ -40,6 +40,9 @@ struct MixerApp: Identifiable, Equatable {
     /// absence doesn't read as a bug (issue #177), but never tapped — no
     /// slider, no routing, volume pinned at unity.
     var isBypassed: Bool = false
+    /// Zoom or a DAW the user chose to run through the mixer anyway
+    /// (issue #390): adjustable like any app, with a way back to bypass.
+    var isBypassOverridden: Bool = false
     var selectedOutputDeviceUID: String?
     var effectiveOutputDeviceUID: String?
     var outputDeviceUnavailable: Bool
@@ -1131,6 +1134,8 @@ final class AppVolumeMixer: ObservableObject {
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
         let hiddenRowIDs: Set<String>
+        /// Persistence ids of bypassed apps the user still wants tapped.
+        let controlledBypassIDs: Set<String>
         let ownPid: pid_t
     }
 
@@ -1178,6 +1183,7 @@ final class AppVolumeMixer: ObservableObject {
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
                 showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
+            controlledBypassIDs: savedControlledBypassApps(),
             ownPid: ProcessInfo.processInfo.processIdentifier)
 
         halQueue.async { [weak self] in
@@ -1353,7 +1359,11 @@ final class AppVolumeMixer: ObservableObject {
             // plays untouched, never silently attenuated (issue #300).
             if MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
                                                      hiddenIDs: request.hiddenRowIDs) { continue }
-            let isBypassed = bypassed.contains(owner)
+            let isBypassOverridden = MixerRoutingSupport.isBypassOverridden(
+                managesOwnAudio: bypassed.contains(owner),
+                persistenceID: identity.persistenceID,
+                controlledIDs: request.controlledBypassIDs)
+            let isBypassed = bypassed.contains(owner) && !isBypassOverridden
             let route = isBypassed ? nil : storedRoute(for: identity,
                                                        saved: savedOutputs,
                                                        session: request.sessionRoutes)
@@ -1364,6 +1374,7 @@ final class AppVolumeMixer: ObservableObject {
                                  audioObjects: objects.sorted(),
                                  isPlaying: playing.contains(owner),
                                  isBypassed: isBypassed,
+                                 isBypassOverridden: isBypassOverridden,
                                  selectedOutputDeviceUID: route,
                                  effectiveOutputDeviceUID: isBypassed ? nil : MixerRoutingSupport.effectiveDeviceUID(
                                     selectedUID: route,
@@ -1729,6 +1740,26 @@ final class AppVolumeMixer: ObservableObject {
         }
         publishHiddenApps()
         refreshApps()
+    }
+
+    /// Runs an app that manages its own audio through the mixer anyway, or
+    /// hands it back to the system path (issue #390). Off by default because
+    /// tapping Zoom could hang joining a call; the user opts in per app.
+    func setMixerControl(_ enabled: Bool, for app: MixerApp) {
+        guard let id = app.persistenceID else { return }
+        var controlled = savedControlledBypassApps()
+        if enabled { controlled.insert(id) } else { controlled.remove(id) }
+        if controlled.isEmpty {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.mixerControlledBypassApps)
+        } else {
+            UserDefaults.standard.set(controlled.sorted(), forKey: DefaultsKey.mixerControlledBypassApps)
+        }
+        refreshApps()
+    }
+
+    private func savedControlledBypassApps() -> Set<String> {
+        MixerRoutingSupport.sanitizedAppIDs(
+            UserDefaults.standard.array(forKey: DefaultsKey.mixerControlledBypassApps) ?? [])
     }
 
     private func savedHiddenApps() -> [String: String] {
