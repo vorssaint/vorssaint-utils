@@ -95,8 +95,12 @@ final class NotchCalendarService: NSObject, ObservableObject {
     }
 
     func showMonth(_ month: Date?) {
+        if let month, let visibleMonth,
+           Calendar.current.isDate(month, equalTo: visibleMonth, toGranularity: .month) { return }
+        if month == nil && visibleMonth == nil { return }
         visibleMonth = month
-        events = []
+        // Keep the already loaded dots and cards visible while the carousel
+        // reads its next neighborhood. Permission and exclusion changes still clear them.
         refresh()
     }
 
@@ -149,7 +153,7 @@ final class NotchCalendarService: NSObject, ObservableObject {
         }
         let requested = generation
         let now = Date()
-        let interval = NotchCalendarSupport.readInterval(month: visibleMonth, now: now)
+        let interval = NotchCalendarSupport.carouselReadInterval(month: visibleMonth, now: now)
         let currentInterval = NotchCalendarSupport.readInterval(month: nil, now: now)
         let needsCurrentRead = NotchCalendarSupport.needsCurrentRead(
             visible: interval, current: currentInterval,
@@ -167,7 +171,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
                 self.events = []; self.countdown = nil; self.loading = false; self.task = nil
                 return
             }
-            self.events = NotchCalendarSupport.ordered(result)
+            let ordered = NotchCalendarSupport.ordered(result)
+            if self.events != ordered { self.events = ordered }
             let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
             self.updateChosenCountdowns(currentEvents, now: now)
             self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
