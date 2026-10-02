@@ -396,6 +396,8 @@ extension Strings {
         homebrewNoPackages: "Aucun paquet trouvé",
         homebrewDependencies: "Dépendances",
         homebrewGroupDependencies: "Regrouper les dépendances",
+        homebrewOrphans: "Plus nécessaires",
+        homebrewOrphansNote: "Installés comme dépendances, mais plus aucun paquet installé n’en a besoin.",
         homebrewNoSelection: "Sélectionnez un paquet installé ou recherchez-en un nouveau.",
         homebrewDetailsTitle: "Détails du paquet",
         homebrewInstall: "Installer",

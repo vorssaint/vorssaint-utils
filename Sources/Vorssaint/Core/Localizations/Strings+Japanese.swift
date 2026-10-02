@@ -396,6 +396,8 @@ extension Strings {
         homebrewNoPackages: "パッケージが見つかりません",
         homebrewDependencies: "依存関係",
         homebrewGroupDependencies: "依存関係をグループ化",
+        homebrewOrphans: "不要になったもの",
+        homebrewOrphansNote: "依存関係としてインストールされましたが、今はどのインストール済みパッケージも必要としていません。",
         homebrewNoSelection: "インストール済みパッケージを選択するか、新しいものを検索してください。",
         homebrewDetailsTitle: "パッケージ詳細",
         homebrewInstall: "インストール",

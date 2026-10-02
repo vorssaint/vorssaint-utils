@@ -382,6 +382,8 @@ extension Strings {
         homebrewNoPackages: "Пакети не знайдені",
         homebrewDependencies: "Залежності",
         homebrewGroupDependencies: "Групувати залежності",
+        homebrewOrphans: "Більше не потрібні",
+        homebrewOrphansNote: "Встановлені як залежності, але жоден встановлений пакет їх більше не потребує.",
         homebrewNoSelection: "Виберіть встановлений пакет або знайдіть новий.",
         homebrewDetailsTitle: "Деталі пакета",
         homebrewInstall: "Встановити",

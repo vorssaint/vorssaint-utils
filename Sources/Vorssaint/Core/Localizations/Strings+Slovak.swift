@@ -396,6 +396,8 @@ extension Strings {
         homebrewNoPackages: "Nenašli sa žiadne balíky",
         homebrewDependencies: "Závislosti",
         homebrewGroupDependencies: "Zoskupiť závislosti",
+        homebrewOrphans: "Už nepotrebné",
+        homebrewOrphansNote: "Nainštalované ako závislosti, ale žiadny nainštalovaný balík ich už nepotrebuje.",
         homebrewNoSelection: "Vyberte nainštalovaný balík alebo vyhľadajte nový.",
         homebrewDetailsTitle: "Detaily balíka",
         homebrewInstall: "Inštalovať",

@@ -397,6 +397,8 @@ extension Strings {
         homebrewNoPackages: "找不到套件",
         homebrewDependencies: "相依套件",
         homebrewGroupDependencies: "將相依套件分組",
+        homebrewOrphans: "不再需要",
+        homebrewOrphansNote: "以相依套件安裝，但目前已安裝的套件都不再需要它們。",
         homebrewNoSelection: "選擇一個已安裝的套件，或搜尋新的套件。",
         homebrewDetailsTitle: "套件詳細資訊",
         homebrewInstall: "安裝",
