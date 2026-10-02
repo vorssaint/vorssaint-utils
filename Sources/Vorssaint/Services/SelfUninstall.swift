@@ -141,6 +141,7 @@ enum SelfUninstall {
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
         CleaningModeManager.shared.deactivateForSystemTeardown()
+        MediaKeyPlayerRouter.shared.stop()
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()

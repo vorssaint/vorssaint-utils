@@ -302,6 +302,152 @@ enum FeatureCatalogTests {
         let unrelatedSystemEvent = CleaningSystemKeyEvent.decode(subtype: 99, data1: 0)
         suite.expect(unrelatedSystemEvent == nil, "unrelated system-defined events do not count as unlock keys")
 
+        // MARK: Media keys to the music player
+
+        func mediaKey(_ code: UInt16, state: Int = 10, repeatFlag: Bool = false) -> MediaKeyPlayerSupport.Key? {
+            MediaKeyPlayerSupport.key(subtype: MusicLaunchSupport.auxiliaryControlButtonsSubtype,
+                                      data1: Int((UInt32(code) << 16) | (UInt32(state) << 8) | (repeatFlag ? 1 : 0)))
+        }
+        suite.expect(mediaKey(16)?.command == .toggle && mediaKey(17)?.command == .next
+                && mediaKey(19)?.command == .next && mediaKey(18)?.command == .previous
+                && mediaKey(20)?.command == .previous,
+               "play/pause, next/fast-forward and previous/rewind map to the player's commands")
+        suite.expect(mediaKey(16)?.phase == .down && mediaKey(16, repeatFlag: true)?.phase == .repeatDown
+                && mediaKey(16, state: 11)?.phase == .up,
+               "media keys tell a press, its repeats and its release apart")
+        suite.expect(MediaKeyPlayerSupport.playbackCommand(for: .previous, available: [.back, .previous]) == .back
+                     && MediaKeyPlayerSupport.playbackCommand(for: .previous, available: [.previous]) == .previous
+                     && MediaKeyPlayerSupport.playbackCommand(for: .next, available: [.next]) == .next,
+                     "previous prefers the dictionary's restart-current-track command when available")
+        suite.expect(MediaKeyPlayerSupport.scrubCommand(for: .next, available: [.fastForward, .resume]) == .fastForward
+                     && MediaKeyPlayerSupport.scrubCommand(for: .previous, available: [.rewind, .resume]) == .rewind
+                     && MediaKeyPlayerSupport.scrubCommand(for: .next, available: [.fastForward]) == nil,
+                     "a held track key scans only when the player can resume after release")
+        do {
+            typealias Outcome = MediaKeyPlayerSupport.SendOutcome
+            let timedOut = Outcome(sendError: -1712, replyError: nil)
+            suite.expect(Outcome(sendError: nil, replyError: nil) == .delivered
+                         && Outcome(sendError: nil, replyError: 0) == .delivered
+                         && timedOut == .unanswered,
+                         "an answer without an error is delivery and a missed reply is not a refusal")
+            suite.expect(timedOut.mayHaveStarted && Outcome(sendError: nil, replyError: nil).mayHaveStarted,
+                         "a scan the player may still run keeps its resume, so the release ends it")
+            suite.expect(Outcome(sendError: nil, replyError: -1708) == .refused
+                         && Outcome(sendError: -10_000, replyError: nil) == .refused
+                         && Outcome(sendError: -1743, replyError: nil) == .refused
+                         && Outcome(sendError: -600, replyError: nil) == .refused
+                         && !Outcome(sendError: nil, replyError: -1708).mayHaveStarted,
+                         "a scan the player answered with an error, or that never left, keeps no resume")
+            suite.expect(Outcome(sendError: -1743, replyError: nil).needsRefresh
+                         && Outcome(sendError: nil, replyError: -1708).needsRefresh
+                         && !timedOut.needsRefresh
+                         && !Outcome(sendError: nil, replyError: nil).needsRefresh,
+                         "a refusal refreshes the players so revoked consent hands keys back, a busy player does not")
+        }
+        suite.expect(mediaKey(0) == nil && mediaKey(1) == nil && mediaKey(7) == nil
+                && MediaKeyPlayerSupport.key(subtype: 99, data1: Int(UInt32(16) << 16 | 10 << 8)) == nil,
+               "volume, mute and unrelated system events never go to the player")
+        func player(_ pid: Int32, _ bundle: String, launched: TimeInterval,
+                    commands: Set<MediaKeyPlayerSupport.Command> = [.toggle, .next, .previous],
+                    access: MediaKeyPlayerSupport.Access = .granted) -> MediaKeyPlayerSupport.Player {
+            MediaKeyPlayerSupport.Player(pid: pid, bundleIdentifier: bundle,
+                                         launched: Date(timeIntervalSince1970: launched),
+                                         commands: commands, access: access)
+        }
+        let firstPlayer = player(40, "com.example.player", launched: 100)
+        let secondPlayer = player(50, "com.example.other-player", launched: 200)
+        func route(_ players: [MediaKeyPlayerSupport.Player],
+                   command: MediaKeyPlayerSupport.Command = .toggle,
+                   sounding: [MediaKeyPlayerSupport.SoundingProcess] = [],
+                   lastActive: Int32? = nil) -> MediaKeyPlayerSupport.Route {
+            MediaKeyPlayerSupport.route(command, players: players, sounding: sounding,
+                                        lastActivePID: lastActive, ownPID: 1)
+        }
+        suite.expect(route([firstPlayer, secondPlayer], lastActive: 40) == .player(40)
+                && route([firstPlayer, secondPlayer]) == .player(50)
+                && route([]) == .system,
+               "with nothing sounding the player last brought forward wins, then the one launched last")
+        suite.expect(route([player(40, "com.example.player", launched: 100, commands: [.back])],
+                           command: .previous) == .player(40),
+                     "a player with back track but no previous track can still handle the previous key")
+        suite.expect(route([firstPlayer, secondPlayer],
+                           sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")],
+                           lastActive: 50) == .player(40),
+               "the player that is sounding, through a helper process too, takes the key before the one brought forward")
+        suite.expect(route([firstPlayer], sounding: [.init(pid: 700, bundleIdentifier: "com.example.browser.audio")])
+                    == .system
+                && route([firstPlayer], command: .next, sounding: [.init(pid: 701, bundleIdentifier: nil)]) == .system
+                && route([firstPlayer], sounding: [.init(pid: 1, bundleIdentifier: "own")]) == .player(40),
+               "sound from another app keeps the key with the system while the player is silent, but not this app's own")
+        suite.expect(route([player(40, "com.example.player", launched: 100, commands: [.next, .previous])]) == .system
+                && route([player(40, "com.example.player", launched: 100, commands: [.next, .previous])], command: .next)
+                    == .player(40),
+               "a player without playpause leaves the toggle with the system and still takes the track keys")
+        let trackOnlyPlayer = player(40, "com.example.player", launched: 100, commands: [.next, .previous])
+        suite.expect(route([trackOnlyPlayer, secondPlayer],
+                           sounding: [.init(pid: 40, bundleIdentifier: "com.example.player")], lastActive: 50) == .system
+                && route([trackOnlyPlayer, secondPlayer],
+                         sounding: [.init(pid: 900, bundleIdentifier: "com.example.player.helper")], lastActive: 50) == .system,
+               "a sounding player without playpause keeps the key with the system instead of starting another player")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.mediaKeys(language)
+            suite.expect(!strings.playerOnlyTitle.isEmpty && !strings.playerOnlyCaption.isEmpty
+                         && !strings.playerOnlyCaptionLegacy.isEmpty,
+                         "every language has playback key settings")
+            suite.expect(strings.caption(soundReported: true) == strings.playerOnlyCaption
+                         && strings.caption(soundReported: false) == strings.playerOnlyCaptionLegacy
+                         && strings.playerOnlyCaptionLegacy.count < strings.playerOnlyCaption.count,
+                         "before macOS 14.4 the caption leaves out deferring to another app's sound "
+                         + "(\(language.rawValue))")
+        }
+        suite.expect(route([player(40, "com.example.player", launched: 100, access: .consent)]) == .askConsent(40)
+                && route([player(40, "com.example.player", launched: 100, access: .denied)]) == .system,
+               "a player awaiting consent asks once and a refused or revoked consent hands the key back")
+        do {
+            let gate = MediaKeyPlayerSupport.Gate()
+            let sendQueue = DispatchQueue(label: "test.media-keys.send")
+            let consentQueue = DispatchQueue(label: "test.media-keys.consent")
+            var sent = 0
+            var prompted = 0
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 0, "a closed gate queues nothing before the router starts")
+
+            gate.open()
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 1, "a running router sends the queued command")
+
+            sendQueue.suspend()
+            consentQueue.suspend()
+            gate.async(on: sendQueue) { sent += 1 }
+            gate.async(on: consentQueue) { prompted += 1 }
+            gate.close()
+            sendQueue.resume()
+            consentQueue.resume()
+            sendQueue.sync {}
+            consentQueue.sync {}
+            suite.expect(sent == 1 && prompted == 0,
+                         "stopping drops a send and a consent prompt that were still queued")
+
+            sendQueue.suspend()
+            gate.async(on: sendQueue) { sent += 1 }
+            gate.close()
+            gate.open()
+            sendQueue.resume()
+            sendQueue.sync {}
+            gate.async(on: sendQueue) { sent += 1 }
+            sendQueue.sync {}
+            suite.expect(sent == 2 && gate.ticket() != nil,
+                         "restarting does not revive work queued before the stop but lets new keys through")
+
+            gate.close()
+            gate.async(on: consentQueue) { prompted += 1 }
+            consentQueue.sync {}
+            suite.expect(prompted == 0 && gate.ticket() == nil,
+                         "nothing new is queued once the router has stopped")
+        }
+
         // MARK: Music launch blocker
 
         func musicKeyData(keyCode: Int, state: Int = 10, repeatFlag: Bool = false) -> Int {
@@ -685,9 +831,9 @@ enum FeatureCatalogTests {
         suite.expect(Set(FeaturePreset.windows.features.flatMap(\.onboardingPermissions))
                 == [.accessibility, .screenRecording],
                "the windows first-run choice explains exactly its two broad permissions")
-        suite.expect(AppFeature.musicBlock.permissions == [.accessibility]
+        suite.expect(AppFeature.musicBlock.permissions == [.accessibility, .automationPlayback]
                 && AppFeature.musicBlock.onboardingPermissions.isEmpty,
-               "music launch blocking declares its required Accessibility access contextually")
+               "music launch blocking and its playback keys declare their access contextually")
         suite.expect(AppFeature.screenshot.permissions == [.screenRecording]
                 && AppFeature.screenshot.onboardingPermissions == [.screenRecording],
                "screenshots only need the screen recording grant")
@@ -1307,6 +1453,30 @@ enum FeatureCatalogTests {
                 && activeSet(.accessibility, available: [.musicBlock]).isEmpty
                 && activeSet(.accessibility, available: [], on: [DefaultsKey.musicBlockEnabled]).isEmpty,
                "music blocking requires access only while both enabled and installed")
+        suite.expect(AppFeature.musicBlock.enabledKeys == [DefaultsKey.musicBlockEnabled, DefaultsKey.mediaKeysPlayerOnly]
+                && activeSet(.accessibility, available: [.musicBlock], on: [DefaultsKey.mediaKeysPlayerOnly])
+                    == [.musicBlock],
+               "sending playback keys to the player counts as the media keys feature using accessibility")
+        suite.expect(activeSet(.automationPlayback, available: [.musicBlock], on: [DefaultsKey.mediaKeysPlayerOnly])
+                    == [.musicBlock]
+                && activeSet(.automationPlayback, available: [.musicBlock],
+                             on: [DefaultsKey.musicBlockEnabled, DefaultsKey.mediaKeysPlayerOnly]) == [.musicBlock]
+                && activeSet(.automationPlayback, available: [], on: [DefaultsKey.mediaKeysPlayerOnly]).isEmpty,
+               "sending playback keys to the player controls it through the playback automation grant")
+        suite.expect(activeSet(.automationPlayback, available: [.musicBlock], on: [DefaultsKey.musicBlockEnabled])
+                    .isEmpty
+                && activeSet(.automationPlayback, available: [.musicBlock]).isEmpty,
+               "blocking the music app alone never sends it playback events")
+        suite.expect(activeSet(.automationPlayback, available: [.notch, .musicBlock],
+                               on: [DefaultsKey.notchEnabled, DefaultsKey.mediaKeysPlayerOnly])
+                    == [.notch, .musicBlock],
+               "the island and the playback keys share the playback automation row")
+        for language in AppLanguage.allCases {
+            let explanation = FeatureStrings.notchMusicExtras(language).automationExplanation
+            // The keys' half names the prompt macOS shows after a key press.
+            suite.expect(explanation.contains("Dynamic Island") && explanation.contains("macOS"),
+                         "the playback automation row covers the island and the playback keys (\(language.rawValue))")
+        }
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderRenameEnabled]).contains(.finderRename),
                "the enabled Finder rename shortcut uses accessibility")
         suite.expect(!activeSet(.accessibility, available: [], on: [DefaultsKey.scrollInverterEnabled])

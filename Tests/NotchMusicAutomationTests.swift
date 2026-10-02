@@ -79,6 +79,10 @@ enum NotchMusicAutomationTests {
       <command name="playpause" code="ABCDtogl"/>
       <command name="next track" code="EFGHnext"/>
       <command name="previous track" code="IJKLprev"/>
+      <command name="back track" code="MNOPback"/>
+      <command name="fast forward" code="QRSTfast"/>
+      <command name="rewind" code="UVWXrwnd"/>
+      <command name="resume" code="YZabresu"/>
       <class name="application" code="capp"><property name="player position" code="time" type="real"/></class>
     </suite></dictionary>
     """
@@ -104,6 +108,11 @@ enum NotchMusicAutomationTests {
                "event codes come from the installed dictionary instead of a product-specific table")
         suite.expect(result?.canToggle == true && result?.position?.code == 0x74696D65,
                "declared playback controls and a writable application position are discoverable")
+        suite.expect(result?.commands["back track"]?.eventID == 0x6261636B
+                     && result?.commands["fast forward"]?.eventID == 0x66617374
+                     && result?.commands["rewind"]?.eventID == 0x72776E64
+                     && result?.commands["resume"]?.eventID == 0x72657375,
+                     "the player's declared back and scan commands are available for routed media keys")
         let required = dictionary.replacingOccurrences(of: "<command name=\"next track\" code=\"EFGHnext\"/>",
             with: "<command name=\"next track\" code=\"EFGHnext\"><direct-parameter type=\"file\"/></command>")
         suite.expect(parse(required)?.commands["next track"] == nil, "commands requiring an argument cannot receive an incomplete playback action")

@@ -65,7 +65,10 @@ private final class MusicDictionaryReader: NSObject, XMLParserDelegate {
     private var command: (name: String, event: NotchMusicAutomationCapabilities.Event, valid: Bool)?
     private var seenCommands = Set<String>()
     private var seenPosition = false
-    private let names: Set<String> = ["playpause", "play", "pause", "next track", "previous track"]
+    private let names: Set<String> = [
+        "playpause", "play", "pause", "next track", "previous track",
+        "back track", "fast forward", "rewind", "resume",
+    ]
 
     private func code(_ value: String?) -> UInt32? {
         guard let value, value.utf8.count == 4,

@@ -233,6 +233,7 @@ private struct MusicBlockingSettings: View {
     @AppStorage(DefaultsKey.musicBlockEnabled) private var enabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var replacementPath = ""
     @AppStorage(DefaultsKey.musicBlockPlayReplacement) private var playReplacement = true
+    @AppStorage(DefaultsKey.mediaKeysPlayerOnly) private var mediaKeysPlayerOnly = false
 
     var body: some View {
         SettingsCard(title: l10n.s.musicBlockSection) {
@@ -285,6 +286,21 @@ private struct MusicBlockingSettings: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, settingsRowTextInset)
                 }
+            }
+            let mediaKeys = FeatureStrings.mediaKeys(l10n.language)
+            SettingsRow(symbol: "music.note", title: mediaKeys.playerOnlyTitle,
+                        caption: mediaKeys.caption(soundReported: MediaKeyAudioActivity.isSupported)) {
+                Toggle(mediaKeys.playerOnlyTitle, isOn: $mediaKeysPlayerOnly)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: mediaKeysPlayerOnly) { _, isEnabled in
+                        if isEnabled { permissions.requestAccessibility() }
+                        MediaKeyPlayerRouter.shared.syncWithPreferences()
+                    }
+            }
+            if mediaKeysPlayerOnly, !enabled, !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
             }
         }
     }
