@@ -424,6 +424,7 @@ enum DefaultsKey {
     static let monitorGraphDisk = "monitorGraphDisk"
     static let monitorGraphPower = "monitorGraphPower"
     static let monitorGraphBattery = "monitorGraphBattery"
+    static let monitorGraphScale = "monitorGraphScale"
     // System monitor — per-item visibility inside each panel section.
     static let monitorSysTemps = "monitorSysTemps"
     static let monitorSysCPU = "monitorSysCPU"
@@ -1557,6 +1558,7 @@ enum Defaults {
         DefaultsKey.monitorGraphDisk: true,
         DefaultsKey.monitorGraphPower: true,
         DefaultsKey.monitorGraphBattery: true,
+        DefaultsKey.monitorGraphScale: true,
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysCPU: true,

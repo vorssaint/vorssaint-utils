@@ -19,6 +19,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
+    @AppStorage(DefaultsKey.monitorGraphScale) private var graphScale = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorMemoryMetric) private var memoryMetric = "used"
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
@@ -207,6 +208,9 @@ struct MonitorSettings: View {
             Text(l10n.s.monitorPanelConfigHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            SettingsRow(symbol: "arrow.up.to.line", title: GraphScaleStrings.localized(l10n.language).title) {
+                Toggle(GraphScaleStrings.localized(l10n.language).title, isOn: $graphScale).labelsHidden()
+            }
         }
     }
 
