@@ -96,6 +96,14 @@ enum CommandBarPreferences {
     static let emojiBrowserRowID = "emoji.browse"
     static let killProcessBrowserRowID = "kill.browse"
 
+    /// The rows that open another category. They are the app's own actions,
+    /// but they carry the prefix of what they open, because that is where
+    /// they lead, so `source(ofRowID:)` files them under it and the Actions
+    /// list has to name them rather than read them off the prefix.
+    static let actionBrowseRowIDs: Set<String> = [
+        emojiBrowserRowID, killProcessBrowserRowID, "uninstall.browse", "uninstall.finder",
+    ]
+
     // MARK: - Sources
 
     static func disabledSources(from raw: String) -> Set<CommandBarSource> {
@@ -137,6 +145,13 @@ enum CommandBarPreferences {
             if let prefix = source.idPrefix, id.hasPrefix(prefix) { return source }
         }
         return .actions
+    }
+
+    /// Whether the Actions browse list shows this row: everything with no
+    /// prefix of its own, plus the rows whose only way into another category
+    /// is that category's name.
+    static func isActionRow(_ id: String) -> Bool {
+        source(ofRowID: id) == .actions || actionBrowseRowIDs.contains(id)
     }
 
     /// What a kind of row is worth before a single letter of it is read.
