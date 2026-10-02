@@ -76,6 +76,8 @@ enum NotchMusicVisibilityTests {
         var captureClosesOnCollapse = false
         var notice: NotchNotice?
         var noticeExpanded = false
+        var calendarHeadsUp = false
+        var calendarHeadsUpSize = CGSize.zero
         var noticeWork: DispatchWorkItem?
         var dragPlaceholder = false
         var hasTimerActivity = false
@@ -93,6 +95,7 @@ enum NotchMusicVisibilityTests {
         func watchStripWing(in geometry: NotchGeometry) -> CGFloat { watchStripWing }
         var calendarStripWing: CGFloat = 120
         func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { calendarStripWing }
+        var calendarStackMarks: CGFloat = 0
         var keepAwakeStripWing: CGFloat = 44
         func keepAwakeStripWing(in geometry: NotchGeometry) -> CGFloat { keepAwakeStripWing }
         var notchNeedsMonitor = false

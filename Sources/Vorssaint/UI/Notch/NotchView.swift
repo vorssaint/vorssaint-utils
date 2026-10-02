@@ -81,6 +81,15 @@ struct NotchView: View {
             }
         } else if service.expanded {
             expanded
+        } else if service.calendarHeadsUp, let stack = NotchCalendarService.shared.stack {
+            // A row opens the whole Calendar page; Join opens the call.
+            NotchCalendarUpNext(stack: stack, text: FeatureStrings.notchCalendar(L10n.shared.language),
+                                limit: NotchCalendarUpNextLayout.headsUpRows) { _ in service.open(.calendar) }
+                .padding(.horizontal, NotchLayout.horizontalInset)
+                .padding(.top, service.geometry.safeContentTop)
+                .padding(.bottom, NotchLayout.bottomInset)
+                .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+                .transition(.opacity)
         } else if service.dragPlaceholder {
             Label(text.dropHint, systemImage: "tray.and.arrow.down")
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)

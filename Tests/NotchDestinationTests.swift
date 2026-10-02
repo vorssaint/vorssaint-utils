@@ -81,6 +81,8 @@ enum NotchDestinationContract {
         var inside = false
         var notice: NotchNotice?
         var noticeExpanded = false
+        var calendarHeadsUp = false
+        var calendarHeadsUpSize = CGSize.zero
         var noticeWork: DispatchWorkItem?
         var compactActivity: NotchCompactActivity?
         var hoverState = NotchHoverState()
@@ -167,6 +169,11 @@ enum NotchDestinationContract {
         service.open(.system, metric: .fan)
         suite.expect(service.modules.contains(.system) && service.selectedMetric == .fan,
                "a separately installed fan feature exposes System and retains its direct detail")
+        service.collapse()
+        service.calendarHeadsUp = true
+        service.open(.calendar)
+        suite.expect(service.expanded && !service.calendarHeadsUp,
+                     "opening the island from the calendar heads-up card replaces the card with the page")
 
         QuickLauncherService.shared = QuickLauncherContract.Launcher()
         let launcher = QuickLauncherService.shared

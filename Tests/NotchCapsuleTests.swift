@@ -239,7 +239,7 @@ enum NotchCapsuleTests {
                      "the cover is a circle concentric with the capsule's round end, an even gap inside it")
         let eventAndMusic = Layout.calendarPairSurface(companion: .music, workingAgents: 0, downloadPercent: false,
                                                        geometry: geometry, language: .enUS)
-        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth
+        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth()
             + Layout.endPadding
         suite.expect(abs(visible(eventAndMusic) - max(visible(geometry.restingSize(showsContent: false)),
                                                       eventAndMusicContent)) < 1,

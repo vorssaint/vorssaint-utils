@@ -123,9 +123,10 @@ struct NotchCompanionMark: View {
                 ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry)) }
             }
         case .calendar:
-            if let countdown = calendar.countdown {
+            if let stack = calendar.stack {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    NotchCalendarStrip.clockMark(countdown, remaining: NotchCalendarSupport.countdownText(
+                    let countdown = stack.shown(at: context.date)
+                    NotchCalendarStrip.clockMark(stack, countdown, remaining: NotchCalendarSupport.countdownText(
                         until: countdown.target, now: context.date))
                 }
             }

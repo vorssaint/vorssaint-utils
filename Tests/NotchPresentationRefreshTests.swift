@@ -182,6 +182,8 @@ enum NotchPresentationRefreshContract {
         var departingMusic: NotchCompactMusicSnapshot?
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
+        var calendarHeadsUp = false
+        var calendarHeadsUpSize = CGSize.zero
         var notice: Bool?
         var captureControls: CaptureOptions?
         var captureControlsCollapsed = false, captureSelectionInProgress = false

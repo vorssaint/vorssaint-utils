@@ -75,6 +75,8 @@ enum NotchHoverTests {
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
         var noticeExpanded = false
+        var calendarHeadsUp = false
+        var calendarHeadsUpSize = CGSize.zero
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
