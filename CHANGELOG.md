@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipboard searches highlight what they matched, and screenshots gain a Full screen button, an optional confirmation preview and a shortcut that uploads the latest capture as a temporary link. Dynamic Island shows song covers in Up next and keeps the playing song while a web player loads the next one, and its AI Agents page adds OpenCode and picks up where the last launch stopped instead of reading every log again. Volume and mute keys follow what the output really does after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
+On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipboard searches highlight what they matched, and screenshots gain a Full screen button, an optional confirmation preview and a shortcut that uploads the latest capture as a temporary link. Dynamic Island gains Watch, a page that reads any part of a window and speaks up when it changes, finishes or shows what you are waiting for, and its AI Agents page adds OpenCode and picks up where the last launch stopped instead of reading every log again. Volume and mute keys follow what the output really does after the Mac wakes, and brightness and volume keys pressed with Option, Command or Control reach macOS again.
 
 ### Dynamic Island
+- Watch is a new page that turns any part of any window into a live activity. Choose Area lets you drag over a progress bar, a build status or a score, or click a window to take all of it, and the closed island shows what the area reads. Tell me picks when it speaks up, such as when the area changes, stops changing, shows a text you type or reaches a number you type. The area is read on the Mac with Screen Recording, and nothing leaves it. Settings → Dynamic Island → Content → Watch.
 - The camera mirror fills the island's page instead of showing a small preview in the middle, and Stop camera sits over the image beside the camera picker.
 - An event countdown paired with music or AI agents is only as wide as its clock and the other activity's mark need, like a timer's pair, so it leaves no extra black beside the camera. With Show over the menus off, the pair also stays beside the camera on a crowded menu bar whenever it fits.
 - The capsule grows around what it shows when the pointer reaches it, so a song's cover and sound bars no longer jump outward first.
@@ -42,6 +43,7 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - When Dynamic Island opens on a click, a click at the top edge of the screen while the island grows under the pointer now opens it instead of doing nothing.
 - With Keyboard navigation on in System Settings, clicking Dynamic Island no longer leaves a focus ring around the camera.
 - The AI Agents page shows the 5-hour session renewing five hours after its first request, as the provider's usage page does, instead of up to an hour later.
+- The AI Agents page shows the Codex limit of Business accounts, which report their own allowance in place of the usual session and weekly windows, instead of no limit or an old reading.
 - On a Mac with a notch, the outline from Show outline no longer hides behind the camera while Dynamic Island is closed. The closed island reaches slightly past the notch to show it.
 - Dynamic Island's Combine menu names each pair in the order the island shows it, left to right, such as Music + Timer.
 - On a Mac with a notch, a Dynamic Island page title too long for the space beside the camera, such as Camera mirror on some displays, now moves to a row below the camera instead of being cut off. Titles that fit stay beside the camera.
@@ -53,7 +55,7 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - The Uninstaller's app pickers and the Command Bar's Uninstall Application list offer only apps it can remove, so Apple's App Store apps, iPhone and iPad apps and linked apps no longer lead back to an empty drop zone. A refused app or a link dragged from a browser springs back from the drop zone instead.
 
 ### Contributors
-Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @mikeknight85, @niukanen1, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @thitiwats and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
+Thanks to @69grcv8vfm-sys, @AlirezaBs, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @dc0dr, @dreammissnot, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @gorillasuti, @ilim-cell, @iltonandrew, @itsalexcoman, @LeChaEgg, @mikeknight85, @niukanen1, @Qarru, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @thitiwats and @yuzu-octopus. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
 
 ## [3.4.1-beta.1] - 2026-09-29
 

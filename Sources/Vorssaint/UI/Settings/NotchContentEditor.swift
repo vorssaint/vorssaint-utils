@@ -186,6 +186,8 @@ struct NotchPagePreview: View {
             } else {
                 NotchEmptyView(symbol: "sparkles", message: FeatureStrings.notchEditor(l10n.language).agentsSummary)
             }
+        // The live area belongs to the island; the preview explains it instead.
+        case .watch: NotchWatchView(size: size)
         }
     }
 
@@ -380,6 +382,7 @@ extension NotchModule {
         case .downloads: return .blue
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .watch: return .purple
         }
     }
 
