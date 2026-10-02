@@ -6,7 +6,7 @@ import Foundation
 
 enum FocusFollowsMouseSupport {
     static let defaultDelayMilliseconds = 250
-    static let delayRange = 100...1_000
+    static let delayRange = 100...3_000
 
     static func sanitizedDelay(_ milliseconds: Int) -> Int {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)

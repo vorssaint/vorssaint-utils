@@ -951,9 +951,13 @@ enum PointerInputFeatureTests {
 
         suite.expect(FocusFollowsMouseSupport.sanitizedDelay(0)
                 == FocusFollowsMouseSupport.delayRange.lowerBound
-                && FocusFollowsMouseSupport.sanitizedDelay(2_000)
+                && FocusFollowsMouseSupport.sanitizedDelay(4_000)
                 == FocusFollowsMouseSupport.delayRange.upperBound,
                "focus follows mouse clamps a damaged delay preference")
+        for delay in [100, 250, 1_000, 2_000, 2_500, 3_000] {
+            suite.expect(FocusFollowsMouseSupport.sanitizedDelay(delay) == delay,
+                   "focus follows mouse preserves a supported delay of \(delay) ms")
+        }
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: nil, targetAppIsFrontmost: true),
                "hover leaves the active app alone when its focused window cannot be read")
@@ -998,6 +1002,15 @@ enum PointerInputFeatureTests {
         focusFollowsMouseState.reset()
         suite.expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
+        var longDelayFocusState = FocusFollowsMouseState()
+        longDelayFocusState.recordMovement(to: CGPoint(x: 40, y: 70), at: 20)
+        suite.expect(longDelayFocusState.nextEvaluation(at: 21, delayMilliseconds: 3_000) == nil
+                && longDelayFocusState.nextEvaluation(at: 22.99, delayMilliseconds: 3_000) == nil
+                && longDelayFocusState.hasPendingEvaluation,
+               "a three-second focus delay does not activate the window early")
+        suite.expect(longDelayFocusState.nextEvaluation(at: 23, delayMilliseconds: 3_000)?.point
+                == CGPoint(x: 40, y: 70),
+               "a three-second focus delay evaluates the window once the full delay passes")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
