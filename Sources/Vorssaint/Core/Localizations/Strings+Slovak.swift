@@ -794,7 +794,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Batéria príslušenstva",
         peripheralBatteryNoDevices: "Nenašli sa žiadne zariadenia",
         monitorGraphsSection: "Grafy",
-        monitorGraphsCaption: "Vyberte, ktoré metriky majú zobrazovať graf v čase.",
 
         updateBannerTitle: "Dostupná aktualizácia",
         updateBannerAction: "Aktualizovať",

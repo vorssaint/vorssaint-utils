@@ -768,7 +768,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Акумулятор аксесуарів",
         peripheralBatteryNoDevices: "Пристрої не знайдені",
         monitorGraphsSection: "Графіки",
-        monitorGraphsCaption: "Виберіть, для яких метрик показувати графік у часі.",
         updateBannerTitle: "Доступне оновлення",
         updateBannerAction: "Оновити",
         obStepMenuBarTitle: "Метрики на смузі меню",
