@@ -34,7 +34,8 @@ enum AgentClaudeAppUsage {
 
     private static let windows: [(key: String, kind: AgentLimitWindow.Kind, minutes: Int, scope: String?)] = [
         ("fh", .session, 300, nil), ("sd", .weekly, 10_080, nil),
-        ("so", .weekly, 10_080, "Opus"), ("sn", .weekly, 10_080, "Sonnet")]
+        ("so", .weekly, 10_080, "Opus"), ("sn", .weekly, 10_080, "Sonnet"),
+        ("sf", .weekly, 10_080, "Fable")]
 
     /// Readings oldest first; nil for a file this reader does not know.
     static func samples(from data: Data) -> [Sample]? {
