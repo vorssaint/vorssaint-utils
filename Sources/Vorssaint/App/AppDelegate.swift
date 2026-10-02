@@ -446,7 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // out, so the panel keeps the inset content there.
         popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
-        let host = NSHostingController(rootView: MenuPanelView())
+        let host = TouchBarHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         AppAppearanceController.shared.follow(panel: popover)
@@ -1016,6 +1016,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
             window.contentView?.layoutSubtreeIfNeeded()
+            window.touchBar = TouchBarService.shared.touchBar
             window.makeKey()
             popoverIsClosing = false
             popoverCloseIsAppRequested = false

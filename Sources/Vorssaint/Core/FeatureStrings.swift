@@ -104,6 +104,14 @@ enum FeatureStrings {
         }
     }
 
+
+    static func touchBar(_ language: AppLanguage) -> TouchBarFeatureStrings {
+        switch language {
+        case .enUS: return .enUS
+        default: return .enUS
+        }
+    }
+
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }

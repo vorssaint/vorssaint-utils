@@ -324,6 +324,7 @@ extension AppFeature {
         case .shelf: return FeatureSettingsDestination(.shelf)
         case .urlCleaner: return FeatureSettingsDestination(.urlCleaner)
         case .diskImageInstaller: return FeatureSettingsDestination(.features)
+        case .touchBar: return FeatureSettingsDestination(.features)
 
         case .mixer:
             return FeatureSettingsDestination(.general, sectionAnchor: .mixer)
