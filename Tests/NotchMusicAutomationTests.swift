@@ -17,6 +17,16 @@ enum NotchMusicAutomationFlowContract {
         static var prompts: [String] = []
         static func consentToAutomate(bundleID: String) -> Bool { prompts.append(bundleID); return true }
     }
+    final class NotchSpotifyPlayback {
+        var playback: NotchPlayback?
+        var valid = true
+        var validations = 0
+        var refreshes = 0
+        func validate(_ context: NotchPlaybackContext, completion: @escaping (Bool) -> Void) {
+            validations += 1; completion(valid && context == playback?.commandContext)
+        }
+        func refresh() { refreshes += 1 }
+    }
     enum NotchMusicAutomation {
         enum Access { case granted, consent, denied, unavailable }
         struct Target: Equatable {
@@ -95,6 +105,7 @@ enum NotchMusicAutomationTests {
         descriptors(suite)
         lifecycle(suite)
         refresh(suite)
+        spotifyCommands(suite)
     }
 
     private static func parsing(_ suite: TestSuite) {
@@ -136,6 +147,54 @@ enum NotchMusicAutomationTests {
                "entity expansion and oversized dictionaries are rejected without external reads")
         suite.expect(parse("<dictionary><suite><command name='playpause' code='bad'/></suite></dictionary>") == nil,
                "invalid native event identifiers never reach the sender")
+    }
+
+    private static func spotifyCommands(_ suite: TestSuite) {
+        typealias Context = NotchMusicAutomationFlowContract
+        typealias Automation = Context.NotchMusicAutomation
+        Context.reset()
+        defer { Context.reset() }
+        let capabilities = NotchMusicAutomationCapabilities.parse(Data(dictionary.utf8))!
+        let service = Context.Service()
+        let native = playback()
+        let track = RadialNowPlayingSnapshot(title: "Spotify song", artist: "Artist", album: "Album", artworkData: nil,
+                                            appBundleIdentifier: "com.spotify.client", appPID: 42)
+        let current = NotchPlayback(track: track, isPlaying: true, elapsed: 12, duration: 180, rate: 1,
+                                   sampledAt: Date(), canSeek: false, itemIdentifier: "spotify:track:A",
+                                   commandContext: native.commandContext)
+        service.playback = current
+        service.automationAvailability = .init(target: .init(pid: 42, bundleIdentifier: "com.spotify.client"),
+                                               capabilities: capabilities, access: .granted)
+        suite.expect(!service.canPerform(.next) && !service.canSeek,
+                     "Spotify cannot act on native metadata before its authoritative reader supplies a recording")
+        suite.expect(service.showsSeekControl,
+                     "a transient Spotify validation gap retains the timeline layout while seeking is disabled")
+        service.playback?.commandContext = nil
+        suite.expect(!service.canSeek && service.showsSeekControl,
+                     "missing Spotify command context disables interaction without replacing the slider")
+        service.playback = current
+        let reader = Context.NotchSpotifyPlayback()
+        reader.playback = current
+        service.spotify = reader
+        reader.playback = nil
+        suite.expect(service.playbackControlsBusy && service.showsSeekControl && !service.canPerform(.next) && !service.canSeek,
+                     "refreshing Spotify retains the control presentation but cannot send commands or seek")
+        reader.playback = current
+        service.commandPending = true
+        suite.expect(service.playbackControlsBusy && !service.canPerform(.next),
+                     "a pending skip preserves button appearance without admitting a duplicate command")
+        service.commandPending = false
+        suite.expect(!service.playbackControlsBusy, "a fresh idle reader ends the temporary busy appearance")
+        suite.expect(service.beginAutomation(.next, playback: current) && service.validationRequests.isEmpty,
+                     "Spotify commands validate against the selected Spotify recording rather than stale MediaRemote metadata")
+        service.queue.drain(); Context.DispatchQueue.main.drain()
+        suite.expect(Automation.deliveries.count == 1 && reader.validations == 1 && reader.refreshes == 1 && !service.commandPending,
+                     "a valid Spotify skip delivers once and immediately refreshes the preview")
+        reader.valid = false
+        _ = service.beginAutomation(.previous, playback: current)
+        service.queue.drain(); Context.DispatchQueue.main.drain()
+        suite.expect(Automation.deliveries.count == 1 && service.commandFailed && !service.commandPending,
+                     "Spotify advancing before a command blocks delivery and releases its pending button state")
     }
 
     private static func descriptors(_ suite: TestSuite) {

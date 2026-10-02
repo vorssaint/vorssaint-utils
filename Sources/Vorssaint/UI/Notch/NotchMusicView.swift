@@ -301,7 +301,7 @@ private struct NotchMusicTransport: View {
                 .background(.white, in: Circle())
                 .contentShape(Circle())
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: height / 2))
+        .buttonStyle(NotchButtonStyle(cornerRadius: height / 2, dimsWhenDisabled: !service.playbackControlsBusy))
         // A second tap before the player answers asks for the state after it,
         // so only the player reaching what was asked ends the early word.
         .onChange(of: playback.isPlaying) { if playback.isPlaying == requestedPlaying { requestedPlaying = nil } }
@@ -329,7 +329,7 @@ private struct NotchMusicTransport: View {
                 .frame(width: compact ? 28 : 32, height: height - 8)
                 .contentShape(RoundedRectangle(cornerRadius: 10))
         }
-        .buttonStyle(NotchButtonStyle())
+        .buttonStyle(NotchButtonStyle(dimsWhenDisabled: !service.playbackControlsBusy))
         .disabled(!service.canPerform(command))
         .accessibilityLabel(title)
         .help(title)
@@ -351,7 +351,7 @@ struct NotchMusicTimeline: View {
             TimelineView(.animation(minimumInterval: 1, paused: !playback.isPlaying)) { context in
                 let position = scrubPosition ?? playback.position(at: context.date)
                 VStack(spacing: 3) {
-                    if service.canSeek {
+                    if service.showsSeekControl {
                         NotchLevelSlider(
                             value: Binding(get: { position }, set: {
                                 if scrubTrack == nil {
@@ -363,6 +363,7 @@ struct NotchMusicTimeline: View {
                             label: FeatureStrings.notch(l10n.language).playbackPosition,
                             range: 0...playback.duration,
                             tint: tint,
+                            dimsWhenDisabled: !service.playbackControlsBusy,
                             valueLabel: timestamp(position),
                             onEditingChanged: { editing in
                                 if editing {
@@ -373,7 +374,7 @@ struct NotchMusicTimeline: View {
                                 }
                             })
                             .frame(height: 10)
-                            .disabled(service.commandPending)
+                            .disabled(service.commandPending || !service.canSeek)
                     } else {
                         NotchMeter(value: position / playback.duration, height: 6, tint: tint)
                     }

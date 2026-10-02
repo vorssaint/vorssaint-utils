@@ -138,6 +138,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
 - **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent.
+  Spotify uses this permission to keep its track, play/pause state and timeline synchronized and to send controls directly to its running process. While Spotify is the selected music source, the app reads its current track and position once a second and on playback notifications. Album covers are fetched from Spotify's reported `i.scdn.co` image URL, without cookies or a disk cache. These reads and downloads stop when the music reader stops or another source is selected. No Spotify login or Web API token is required.
 
 **If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
