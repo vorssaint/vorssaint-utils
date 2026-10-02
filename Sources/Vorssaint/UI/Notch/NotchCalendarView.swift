@@ -28,8 +28,7 @@ struct NotchCalendarView: View {
                     Group {
                         if showsMonth {
                             HStack(alignment: .top, spacing: 16) {
-                                ScrollView { monthView(now: context.date) }
-                                    .scrollIndicators(.automatic)
+                                monthView(now: context.date)
                                     .frame(width: 196)
                                 Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
                                     .accessibilityHidden(true)
@@ -95,28 +94,22 @@ struct NotchCalendarView: View {
             today(now: now)
         } open: {
             openCalendar()
-        }
+        } browse: { prefetch($0) } settled: { browse($0) }
+        .padding(.bottom, 12)
+        .frame(maxHeight: .infinity)
     }
 
     private func weekStrip(now: Date) -> some View {
         NotchCalendarWeekStrip(width: size.width, focus: focus, selectedDay: selectedDay, now: now,
-                               events: calendar.events, text: text, select: select) { offset in
-            guard let date = Calendar.current.date(byAdding: .day, value: offset * 7, to: focus) else { return }
-            selectedDay = Calendar.current.startOfDay(for: date)
-            focus = date
-        } today: {
-            today(now: now)
-        } week: {
+                               events: calendar.events, text: text, select: select, move: moveWeek,
+                               today: { today(now: now) }, week: {
             selectedDay = nil
             focus = now
-        } month: {
-            showingMonth = true
-        } open: {
-            openCalendar()
-        }
+        }, month: { showingMonth = true }, open: { openCalendar() }, browse: browse)
     }
 
-    /// Picking a day, or Today, lands back on the strip with that day.
+    /// The fixed header surrounds a rolling date document. Alignment helps
+    /// only when native momentum finishes very close to a month boundary.
     private func monthGrid(now: Date) -> some View {
         NotchCalendarMonthGrid(month: focus, selectedDay: selectedDay, now: now, height: size.height,
                                events: calendar.events, text: text, select: { date in
@@ -125,16 +118,31 @@ struct NotchCalendarView: View {
         }, move: moveMonth, today: {
             today(now: now)
             showingMonth = false
-        }, open: { openCalendar() }, week: {
-            showingMonth = false
-        })
+        }, open: { openCalendar() }, week: { showingMonth = false }, browse: prefetch, settled: browse)
+        .frame(height: size.height)
+    }
+
+    private func prefetch(_ date: Date) {
+        guard ownsMonth else { return }
+        calendar.showMonth(date)
+    }
+
+    private func browse(_ date: Date) {
+        // Browsing updates the event read and agenda without resetting the
+        // native document's offset. Its coordinator recognizes this readback.
+        selectedDay = Calendar.current.startOfDay(for: date)
+        focus = date
+    }
+
+    private func moveWeek(_ offset: Int) {
+        guard let date = Calendar.current.date(byAdding: .day, value: offset * 7, to: focus) else { return }
+        select(date)
     }
 
     private func moveMonth(_ offset: Int) {
         guard let start = Calendar.current.dateInterval(of: .month, for: focus)?.start,
               let date = Calendar.current.date(byAdding: .month, value: offset, to: start) else { return }
-        selectedDay = date
-        focus = date
+        select(date)
     }
 
     private func select(_ date: Date) {

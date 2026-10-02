@@ -85,6 +85,20 @@ enum NotchCalendarSupport {
         return DateInterval(start: today, end: weekEnd)
     }
 
+    /// Prefetch the neighboring grids that can share the carousel viewport.
+    /// Even a jump many years away still reads only this bounded neighborhood.
+    static func carouselReadInterval(month: Date?, now: Date, calendar: Calendar = .current) -> DateInterval {
+        guard let month,
+              let previous = calendar.date(byAdding: .month, value: -1, to: month),
+              let next = calendar.date(byAdding: .month, value: 1, to: month) else {
+            return readInterval(month: month, now: now, calendar: calendar)
+        }
+        let current = readInterval(month: month, now: now, calendar: calendar)
+        let before = readInterval(month: previous, now: now, calendar: calendar)
+        let after = readInterval(month: next, now: now, calendar: calendar)
+        return DateInterval(start: min(before.start, current.start), end: max(after.end, current.end))
+    }
+
     static func needsCurrentRead(visible: DateInterval, current: DateInterval,
                                  countdownEnabled: Bool) -> Bool {
         countdownEnabled && (visible.start > current.start || visible.end < current.end)
@@ -94,11 +108,31 @@ enum NotchCalendarSupport {
     static func events(_ events: [NotchCalendarEvent], on day: Date,
                        calendar: Calendar = .current) -> [NotchCalendarEvent] {
         guard let interval = calendar.dateInterval(of: .day, for: day) else { return [] }
-        return events.filter { $0.start < interval.end && $0.end > interval.start }.sorted {
-            if $0.allDay != $1.allDay { return $0.allDay }
-            if $0.start != $1.start { return $0.start < $1.start }
-            return $0.id < $1.id
+        return events.filter { $0.start < interval.end && $0.end > interval.start }.sorted(by: eventOrder)
+    }
+
+    /// Month grids contain consecutive midnight dates. Visit only the days
+    /// each event overlaps instead of filtering and sorting all events 42 times.
+    static func colors(_ events: [NotchCalendarEvent], on days: [Date],
+                       calendar: Calendar = .current) -> [[NotchCalendarColor]] {
+        var result = Array(repeating: [NotchCalendarColor](), count: days.count)
+        guard let first = days.first, let last = days.last,
+              let end = calendar.date(byAdding: .day, value: 1, to: last) else { return result }
+        for event in events.filter({ $0.start < end && $0.end > first }).sorted(by: eventOrder) {
+            let start = max(first, calendar.startOfDay(for: event.start))
+            var index = calendar.dateComponents([.day], from: first, to: start).day ?? 0
+            while index < days.count && event.end > days[index] {
+                if result[index].count < 3 && !result[index].contains(event.color) { result[index].append(event.color) }
+                index += 1
+            }
         }
+        return result
+    }
+
+    private static func eventOrder(_ lhs: NotchCalendarEvent, _ rhs: NotchCalendarEvent) -> Bool {
+        if lhs.allDay != rhs.allDay { return lhs.allDay }
+        if lhs.start != rhs.start { return lhs.start < rhs.start }
+        return lhs.id < rhs.id
     }
 
     static func requestFailed(status: EKAuthorizationStatus, hasError: Bool) -> Bool {
