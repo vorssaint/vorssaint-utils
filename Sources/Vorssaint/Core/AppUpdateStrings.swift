@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -382,6 +383,57 @@ extension AppUpdateStrings {
         removeRule: "Odstrániť pravidlo",
         rulesHint: "Preskočenie verzie neskryje novšie vydania. Po odstránení výnimky obnovte zoznam cez Skontrolovať teraz.",
         noVisibleUpdates: "Žiadne aktualizácie mimo vašich pravidiel"
+    )
+
+    static let pl = AppUpdateStrings(
+        pageTitle: "Aktualizacje aplikacji",
+        hubDescription: "Znajdź i zainstaluj aktualizacje dla swoich aplikacji",
+        caption: "Szuka nowszych wersji aplikacji na tym Macu i pomaga ukończyć każdą aktualizację z jej oryginalnego źródła.",
+        panelCaption: "Zobacz, które aplikacje mają nowszą wersję",
+        checkNow: "Sprawdź teraz",
+        checking: "Sprawdzanie",
+        lastCheckFormat: "Ostatnio sprawdzano %@",
+        neverChecked: "Jeszcze nie sprawdzano",
+        upToDate: "Nie znaleziono aktualizacji",
+        partialUpToDate: "W tym częściowym sprawdzaniu nie znaleziono aktualizacji",
+        coverageNote: "Sprawdza oryginalne źródła zainstalowanych aplikacji oraz publiczny katalog. Aktualizacje instalują się przez swoje oryginalne źródło.",
+        selectAll: "Zaznacz wszystko",
+        clearSelection: "Wyczyść",
+        updateSelectedFormat: "Uaktualnij %d",
+        updateOne: "Uaktualnij",
+        openAppStore: "Otwórz App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Otwiera App Store, gdzie ta aktualizacja jest zainstalowana",
+        frequencyLabel: "Sprawdzaj w tle",
+        frequencyOff: "Wyłączone",
+        frequencyDaily: "Codziennie",
+        frequencyWeekly: "Co tydzień",
+        nextCheckFormat: "Następne sprawdzenie %@",
+        notifyToggle: "Powiadamiaj mnie, gdy aplikacja ma aktualizację",
+        includeStoreToggle: "Uwzględnij aplikacje z App Store",
+        includeStoreCaption: "Sprawdza wersje w sklepie dla regionu tego Maca. Apple instaluje te aktualizacje.",
+        packageMissing: "Homebrew nie jest zainstalowany, więc aplikacje nie mogą być jeszcze stąd aktualizowane.",
+        notificationBodyFormat: "Liczba aplikacji z nowszą wersją: %@.",
+        notificationBodyOne: "Jedna aplikacja ma nowszą wersję.",
+        showInPanel: "Pokaż w panelu",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Źródła",
+        includeHomebrewToggle: "Uwzględnij aplikacje Homebrew",
+        onlineBadge: "Online",
+        openApp: "Otwórz",
+        openAppHint: "Otwiera aplikację, aby jej własny instalator mógł dokończyć",
+        includeOnlineToggle: "Uwzględnij inne zainstalowane aplikacje",
+        includeOnlineCaption: "W razie możliwości sprawdza bezpośrednio u deweloperów aplikacji, a następnie korzysta z publicznego katalogu. Własny instalator aplikacji instaluje aktualizację.",
+        incompleteCheck: "Sprawdzanie niekompletne",
+        onlineUnavailable: "Nie można było ukończyć sprawdzania online. Inne wyniki są nadal pokazywane.",
+        skipVersionFormat: "Pomiń wersję %@",
+        excludeApp: "Nie sprawdzaj tej aplikacji",
+        rulesTitle: "Reguły aktualizacji",
+        skippedVersionFormat: "Pominięta wersja %@",
+        excludedApp: "Nie sprawdzana, dopóki ta reguła nie zostanie usunięta",
+        removeRule: "Usuń regułę",
+        rulesHint: "Pominięcie wersji nadal pozwala na nowsze wydania. Po usunięciu wykluczenia aplikacji użyj opcji Sprawdź teraz, aby ją odświeżyć.",
+        noVisibleUpdates: "Brak aktualizacji poza Twoimi regułami"
     )
 
     static let de = AppUpdateStrings(

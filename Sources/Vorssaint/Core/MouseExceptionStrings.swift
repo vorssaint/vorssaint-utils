@@ -40,6 +40,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -142,6 +143,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
         captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
         pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
+    )
+
+    static let pl = MouseExceptionStrings(
+        listTitle: "Aplikacje do pominięcia",
+        addButton: "Dodaj aplikację…",
+        removeButton: "Usuń",
+        captionSmoothScroll: "Kółko zachowuje swoje zwykłe kroki w tych aplikacjach dla narzędzi, które czytają je na swój sposób, takich jak aplikacje 3D i projektowe.",
+        captionLinearScroll: "Kółko zachowuje tempo nadawane mu przez macOS w tych aplikacjach dla gier i narzędzi 3D, które same liczą przewinięcia.",
+        captionScrollDirection: "Kółko zachowuje kierunek nadawany mu przez macOS w tych aplikacjach.",
+        captionNavigation: "Boczne przyciski nadal robią to, co te aplikacje już z nimi robią.",
+        captionButtonShortcuts: "Twoje dodatkowe przyciski myszy pozostają ciche w tych aplikacjach, a naciśnięcie dociera do nich zamiast tego.",
+        captionMiddleClick: "Kliknięcie trzema palcami pozostaje normalnym kliknięciem w tych aplikacjach.",
+        captionFocusFollowsMouse: "Najechanie kursorem nie zmienia fokusu ani nie przenosi na wierzch okna w tych aplikacjach.",
+        captionSuperKey: "Podczas gdy którakolwiek z tych aplikacji jest otwarta, nawet w tle, Klawisz Super zostaje wstrzymany, a wybrany klawisz działa normalnie.",
+        pausedSuperKey: "Wstrzymane podczas gdy wybrana aplikacja jest otwarta"
     )
 
     static let de = MouseExceptionStrings(

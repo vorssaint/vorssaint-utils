@@ -70,6 +70,7 @@ struct MediaImageConverterStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -441,6 +442,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "Uložené obrázky: %d",
         batchPartialFormat: "Uložené: %d, neúspešné: %d",
         batchSummaryHeaderFormat: "Uložené: %d, neúspešné: %d",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let pl = MediaImageConverterStrings(
+        filesSelectedFormat: "Wybrano plików: %d",
+        profile: "Profil",
+        noProfile: "Brak profilu",
+        profileName: "Nazwa profilu",
+        saveAsNew: "Zapisz nowy",
+        updateProfile: "Aktualizuj",
+        deleteProfile: "Usuń profil",
+        profileModified: "Zmodyfikowano",
+        profileDefaultNameFormat: "Profil %d",
+        presetWeb: "Web",
+        presetSocial: "Społecznościowe",
+        presetDocs: "Dokumenty",
+        resize: "Zmiana rozmiaru",
+        resizeNone: "Bez zmian",
+        resizeMax: "Maksymalny bok",
+        resizeWidth: "Szerokość",
+        resizeHeight: "Wysokość",
+        resizeExact: "Niestandardowy",
+        exactStretch: "Rozciągnij",
+        exactFit: "Dopasuj",
+        exactFill: "Wypełnij",
+        height: "Wysokość",
+        watermark: "Znak wodny",
+        watermarkOff: "Wyłączony",
+        watermarkText: "Tekst",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Tekst + logo",
+        watermarkTextPlaceholder: "Tekst znaku wodnego",
+        noLogo: "Brak logo",
+        chooseLogo: "Wybierz logo",
+        position: "Pozycja",
+        topLeft: "Lewy górny",
+        topRight: "Prawy górny",
+        center: "Środek",
+        bottomLeft: "Lewy dolny",
+        bottomRight: "Prawy dolny",
+        opacity: "Krycie",
+        margin: "Margines",
+        scale: "Skala",
+        rename: "Zmień nazwę",
+        preview: "Podgląd",
+        outputName: "Wyjście",
+        background: "Tło",
+        backgroundTransparent: "Przezroczyste",
+        backgroundWhite: "Białe",
+        backgroundBlack: "Czarne",
+        preserveDate: "Zachowaj oryginalną datę modyfikacji",
+        saveInSubfolder: "Zapisz w podfolderze „Converted”",
+        moreOptions: "Więcej opcji",
+        tooLarge: "Te wymiary są zbyt duże, by bezpiecznie je przetworzyć. Wybierz mniejszy rozmiar.",
+        copySummary: "Skopiuj podsumowanie",
+        savedBytesFormat: "Zaoszczędzono %@",
+        grewBytesFormat: "Większe o %@",
+        batchSavedFormat: "Zapisane obrazy: %d",
+        batchPartialFormat: "Zapisano %d, nie powiodło się %d",
+        batchSummaryHeaderFormat: "Zapisano %d, nie powiodło się %d",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

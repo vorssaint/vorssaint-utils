@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -248,6 +249,38 @@ extension FeedbackStrings {
         commandFeature: "Navrhnúť funkciu",
         commandSubtitle: "Poslať spätnú väzbu",
         diagnosticsChannelLabel: "Kanál aktualizácií"
+    )
+
+    static let pl = FeedbackStrings(
+        sectionTitle: "Opinie",
+        sectionCaption: "Wyślij raport o błędzie lub pomysł na funkcję bezpośrednio do osoby, która rozwija Vorssaint.",
+        openButton: "Wyślij opinię",
+        windowTitle: "Wyślij opinię",
+        bugTitle: "Błąd",
+        featureTitle: "Pomysł na funkcję",
+        messageLabel: "Co chciałbyś udostępnić?",
+        bugPlaceholder: "Opisz, co się stało i czego oczekiwałeś.",
+        featurePlaceholder: "Opisz pomysł i jak by on pomógł.",
+        charactersFormat: "%d z 2000 znaków",
+        includeDiagnostics: "Dołącz szczegóły techniczne",
+        includeDiagnosticsCaption: "Dodaje tylko szczegóły techniczne pokazane poniżej. Nie zawiera logów.",
+        whatSentTitle: "Co zostanie wysłane",
+        whatSentBasic: "Twoja wybrana kategoria i tekst powyżej.",
+        whatSentDiagnostics: "Szczegóły techniczne wymienione poniżej.",
+        privacyNote: "Nie są dołączane żadne imiona i nazwiska, konta, e-maile, identyfikatory urządzeń, logi, zrzuty ekranu, pliki ani zawartość Schowka. Twój publiczny adres IP jest tymczasowo przetwarzany w celu ochrony przed nadużyciami i nie jest dołączany do opinii.",
+        retentionNote: "Po dostarczeniu tekst pozostaje w prywatnych kanałach wsparcia, dopóki właściciel usługi go nie usunie. Niedostarczona kopia jest trwale usuwana po 7 dniach.",
+        sendButton: "Wyślij opinię",
+        sending: "Wysyłanie…",
+        sentTitle: "Opinia wysłana",
+        sentCaption: "Dziękuję. Nie wysłano żadnych informacji kontaktowych, więc nie otrzymasz bezpośredniej odpowiedzi.",
+        unavailableError: "Nie można się połączyć. Sprawdź swoje połączenie internetowe i spróbuj ponownie.",
+        rateLimitError: "Zbyt wiele zgłoszeń z tej sieci. Spróbuj ponownie później.",
+        genericError: "Nie można w tej chwili wysłać opinii.",
+        done: "Gotowe",
+        commandBug: "Zgłoś błąd",
+        commandFeature: "Zaproponuj funkcję",
+        commandSubtitle: "Wyślij opinię",
+        diagnosticsChannelLabel: "Kanał aktualizacji"
     )
 
     static let de = FeedbackStrings(

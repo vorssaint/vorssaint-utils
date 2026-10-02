@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -258,6 +259,35 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Snímky obrazovky, čistenie, aktualizácie a ďalšie nástroje.",
         sectionControls: "Prepínače pre funkcie myši, klávesnice a okien.",
         sectionToggles: "Akcie na jedno kliknutie, napríklad tmavý režim a stlmenie mikrofónu."
+    )
+
+    static let pl = GeneralSettingsStrings(
+        pageDescription: "Jak Vorssaint się uruchamia, jak wygląda i co pokazuje jego panel na pasku menu.",
+        appearanceCaption: "Dotyczy okien i paneli samego Vorssaint, a nie całego Maca.",
+        launchAtLoginCaption: "Otwiera się automatycznie przy każdym uruchomieniu Maca.",
+        liquidGlassCaption: "Przezroczyste panele przypominające szkło, Liquid Glass.",
+        liquidGlassOtherWindows: "Inne okna i panele",
+        panelIntro: "Kliknij ikonę Vorssaint na pasku menu, aby otworzyć panel. Jego karty pojawiają się w tej kolejności.",
+        panelReorderHint: "Przeciągnij, aby zmienić kolejność. Wyłącz wszystko, czego nie potrzebujesz.",
+        menuBarIconTitle: "Ikona paska menu",
+        menuBarIconCaption: "Wybierz ikonę, którą Vorssaint pokazuje na pasku menu.",
+        menuBarIconOther: "Inny symbol",
+        menuBarIconOtherCaption: "Wpisz nazwę dowolnego symbolu SF. Zostaw puste, aby użyć ikony Vorssaint.",
+        menuBarIconUnknown: "Ten Mac nie ma symbolu o takiej nazwie.",
+        menuBarIconReset: "Użyj ikony Vorssaint",
+        iconMissingTitle: "Nie możesz znaleźć ikony?",
+        iconMissingCaption: "Przepełniony pasek menu może ją ukryć, zwłaszcza na Macach z notchem.",
+        sectionKeepAwake: "Utrzymuje Maca w stanie czuwania tak długo, jak chcesz.",
+        sectionDisplays: "Jasność Twoich ekranów.",
+        sectionMixer: "Głośność każdej aplikacji, jeden suwak dla każdej.",
+        sectionSystem: "Procesor, grafika i pamięć na pierwszy rzut oka.",
+        sectionNetwork: "Prędkość internetu i to, które aplikacje z niego korzystają.",
+        sectionDisks: "Wolne miejsce i aktywność dysku.",
+        sectionPower: "Bateria, ładowanie i zużycie energii.",
+        sectionFanControl: "Prędkość wentylatorów i własna krzywa chłodzenia.",
+        sectionUtilities: "Zrzuty ekranu, czyszczenie, aktualizacje i inne narzędzia.",
+        sectionControls: "Przełączniki dla funkcji myszy, klawiatury i okien.",
+        sectionToggles: "Akcje jednym kliknięciem, takie jak tryb ciemny i wyciszanie mikrofonu."
     )
 
     static let de = GeneralSettingsStrings(

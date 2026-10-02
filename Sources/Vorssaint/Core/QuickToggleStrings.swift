@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -223,6 +224,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Spustiť šetrič obrazovky",
         screenSaverCaption: "Spustí sa hneď, na všetkých displejoch.",
         actionFailed: "Nepodarilo sa dokončiť."
+    )
+
+    static let pl = QuickToggleFeatureStrings(
+        pageTitle: "Szybkie przełączniki",
+        hubDescription: "Czynności jednym kliknięciem, takie jak tryb ciemny i Kosz",
+        panelCaption: "Systemowe czynności jednym kliknięciem na Pasku menu i w szybkim panelu.",
+        darkModeToDark: "Przełącz na tryb ciemny",
+        darkModeToLight: "Przełącz na tryb jasny",
+        darkModeCaption: "Zmienia wygląd całego systemu.",
+        emptyTrashTitle: "Opróżnij Kosz",
+        emptyTrashCaption: "Usuwa wszystko z Kosza.",
+        emptyTrashConfirmTitle: "Opróżnić Kosz?",
+        emptyTrashConfirmMessage: "Wszystkie rzeczy w Koszu zostaną usunięte. Tego nie można cofnąć.",
+        emptyTrashConfirmButton: "Opróżnij Kosz",
+        ejectTitle: "Wysuń wszystkie dyski",
+        ejectCaption: "Bezpiecznie wysuwa każdy dysk zewnętrzny.",
+        hiddenFilesShow: "Pokazuj ukryte pliki",
+        hiddenFilesHide: "Ukryj ukryte pliki",
+        desktopIconsHide: "Ukryj ikony na biurku",
+        desktopIconsShow: "Pokazuj ikony na biurku",
+        finderRestartCaption: "Finder zostanie uruchomiony ponownie, aby to zastosować.",
+        lockScreenTitle: "Zablokuj ekran",
+        lockScreenCaption: "Prosi o hasło po powrocie.",
+        displayOffTitle: "Wyłącz wyświetlacz",
+        displayOffCaption: "Mac nadal działa z wyłączonym ekranem.",
+        screenSaverTitle: "Uruchom wygaszacz ekranu",
+        screenSaverCaption: "Rozpoczyna się natychmiast na każdym wyświetlaczu.",
+        actionFailed: "Nie udało się ukończyć."
     )
 
     static let de = QuickToggleFeatureStrings(

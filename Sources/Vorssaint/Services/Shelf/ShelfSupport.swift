@@ -338,24 +338,10 @@ struct ShelfTooltipStrings {
     /// through 24 but not 12 through 14; the last for everything else.
     /// Slovak reads the whole number instead, so only 1 and only 2 through 4
     /// leave the last form, and 21 and 22 stay with it.
-    enum Form { case one, few, many }
+    typealias Form = CountAgreement.Form
 
     func form(for count: Int) -> Form {
-        let magnitude = abs(count)
-        switch agreement {
-        case .oneAndMany:
-            return magnitude == 1 ? .one : .many
-        case .byWholeNumber:
-            if magnitude == 1 { return .one }
-            return (2...4).contains(magnitude) ? .few : .many
-        case .byLastDigits:
-            if (11...14).contains(magnitude % 100) { return .many }
-            switch magnitude % 10 {
-            case 1: return .one
-            case 2, 3, 4: return .few
-            default: return .many
-            }
-        }
+        agreement.form(for: count)
     }
 }
 

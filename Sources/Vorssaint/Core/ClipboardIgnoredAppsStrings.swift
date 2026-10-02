@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -73,6 +74,13 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Pridať aplikáciu…",
         removeButton: "Odstrániť",
         caption: "Nič, čo skopírujete v týchto aplikáciách, sa neukladá do histórie."
+    )
+
+    static let pl = ClipboardIgnoredAppsStrings(
+        listTitle: "Aplikacje do pominięcia",
+        addButton: "Dodaj aplikację…",
+        removeButton: "Usuń",
+        caption: "Nic, co skopiujesz w tych aplikacjach, nie zostanie zapisane w historii (Schowek)."
     )
 
     static let de = ClipboardIgnoredAppsStrings(

@@ -18,6 +18,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -66,6 +67,12 @@ extension BatteryTimeFeatureStrings {
         title: "Zostávajúci čas batérie",
         systemEstimate: "Odhad systému",
         calculating: "Počíta sa…"
+    )
+
+    static let pl = BatteryTimeFeatureStrings(
+        title: "Pozostały czas pracy na baterii",
+        systemEstimate: "Szacunki systemu",
+        calculating: "Obliczanie…"
     )
 
     static let de = BatteryTimeFeatureStrings(

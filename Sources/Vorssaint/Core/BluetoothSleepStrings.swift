@@ -25,6 +25,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -97,6 +98,16 @@ extension BluetoothSleepStrings {
         restoreToggle: "Znova zapnúť Bluetooth pri prebudení Macu",
         restoreCaption: "Iba ak ho vypol Vorssaint.",
         unsupported: "Tento Mac nemá Bluetooth radič."
+    )
+
+    static let pl = BluetoothSleepStrings(
+        pageTitle: "Bluetooth w uśpieniu",
+        hubDescription: "Wyłącza Bluetooth, gdy Mac śpi, aby słuchawki w torbie przestały się z nim łączyć.",
+        enable: "Wyłącz Bluetooth, gdy Mac usypia",
+        enableCaption: "Bluetooth, który był wyłączony przed uśpieniem, pozostaje bez zmian i nie włącza się po wybudzeniu.",
+        restoreToggle: "Włącz ponownie Bluetooth, gdy Mac się wybudza",
+        restoreCaption: "Tylko wtedy, gdy to aplikacja Vorssaint go wyłączyła.",
+        unsupported: "Ten Mac nie ma kontrolera Bluetooth."
     )
 
     static let de = BluetoothSleepStrings(

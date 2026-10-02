@@ -39,6 +39,7 @@ enum AlertSoundStrings {
         case .ru: return ru
         case .es: return es
         case .sk: return sk
+        case .pl: return pl
         case .de: return de
         case .fr: return fr
         case .it: return it
@@ -149,6 +150,23 @@ enum AlertSoundStrings {
         "Sosumi": "Sonumi",
         "Submarine": "Ponorenie",
         "Tink": "Pípnutie",
+    ]
+
+    private static let pl: [String: String] = [
+        "Basso": "Mezzo",
+        "Blow": "Bryza",
+        "Bottle": "Kamyk",
+        "Frog": "Skok",
+        "Funk": "Funk",
+        "Glass": "Kryształ",
+        "Hero": "Bohaterka",
+        "Morse": "Pong",
+        "Ping": "Sonar",
+        "Pop": "Bańka",
+        "Purr": "Serw",
+        "Sosumi": "Sonumi",
+        "Submarine": "Zanurzenie",
+        "Tink": "Ping",
     ]
 
     private static let de: [String: String] = [

@@ -40,6 +40,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -207,6 +208,32 @@ extension WallpaperFeatureStrings {
         applyFailed: "Pozadie sa nepodarilo nastaviť",
         previousPage: "Predchádzajúca",
         nextPage: "Ďalšia"
+    )
+
+    static let pl = WallpaperFeatureStrings(
+        pageTitle: "Tapeta",
+        hubDescription: "Wybierz statyczną tapetę bez otwierania Ustawień systemowych",
+        panelDescription: "Wybierz statyczną tapetę bez otwierania Ustawień systemowych.",
+        filterAll: "Wszystkie",
+        filterOwn: "Twoje obrazki",
+        filterApple: "Apple",
+        applyAllDisplays: "Pokaż na wszystkich biurkach",
+        addImage: "Dodaj obrazek",
+        addFolder: "Dodaj folder",
+        removeAdded: "Usuń",
+        doneRemoving: "Gotowe",
+        sourceUnavailable: "Niedostępne",
+        addImagePrompt: "Wybierz obrazki, które mają być przechowywane na liście tapet Vorssaint",
+        addFolderPrompt: "Wybierz folder z obrazkami do przechowywania na liście tapet Vorssaint",
+        openSystemSettings: "Otwórz ustawienia Tapety",
+        emptyAll: "Nie znaleziono tapet",
+        emptyOwn: "Nie dodano jeszcze żadnych obrazków",
+        emptyApple: "Nie znaleziono statycznych obrazków Apple",
+        downloading: "Pobieranie…",
+        downloadFailed: "Nie udało się pobrać tapety",
+        applyFailed: "Nie udało się ustawić tapety",
+        previousPage: "Poprzednia",
+        nextPage: "Następna"
     )
 
     static let de = WallpaperFeatureStrings(

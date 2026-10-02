@@ -28,6 +28,11 @@ extension FeatureStrings {
             title: "Gestá Dynamic Island",
             description: "Otvorte a zatvorte Dynamic Island posúvaním a potiahnutím zmeňte skladbu.",
             hint: "Posunutím nadol otvoríte. Posunutím nahor nad horným riadkom zatvoríte. Potiahnutím doľava alebo doprava nad hudbou zmeníte skladbu. Zoznamy si zachovávajú vlastné posúvanie.")
+        case .pl: return NotchGestureStrings(
+            title: "Gesty Dynamic Island",
+            description: "Otwieraj i zamykaj Dynamic Island przewijaniem, i przesuwaj palcem, aby zmieniać utwory.",
+            hint: "Przewiń w dół, aby otworzyć. Przewiń w górę nad górnym rzędem, aby zamknąć. Przesuń w lewo lub w prawo nad muzyką, aby zmienić utwory. Listy zachowują własne przewijanie."
+        )
         case .de: return NotchGestureStrings(
             title: "Dynamic Island-Gesten",
             description: "Öffne und schließe den Dynamic Island durch Scrollen und wechsle Titel durch Wischen.",

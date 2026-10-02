@@ -182,7 +182,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         L10n.shared.$language
             .dropFirst()
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.installMainMenu() }
+            .sink { [weak self] _ in
+                self?.installMainMenu()
+                self?.settingsWindow?.title = L10n.shared.s.settingsTitle
+            }
             .store(in: &cancellables)
 
         let defaults = UserDefaults.standard

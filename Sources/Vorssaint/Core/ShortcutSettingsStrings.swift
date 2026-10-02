@@ -18,6 +18,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -66,6 +67,12 @@ extension ShortcutSettingsStrings {
         active: "Aktívna",
         inactive: "Neaktívna",
         superKeyAlternativeFormat: "alebo %@"
+    )
+
+    static let pl = ShortcutSettingsStrings(
+        active: "Aktywny",
+        inactive: "Nieaktywny",
+        superKeyAlternativeFormat: "lub %@"
     )
 
     static let de = ShortcutSettingsStrings(

@@ -58,6 +58,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -346,6 +347,52 @@ extension FanControlFeatureStrings {
         hottestGPU: "Najteplejší GPU",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
         resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
+    )
+
+    static let pl = FanControlFeatureStrings(
+        title: "Sterowanie wentylatorami",
+        hubDescription: "Steruj wentylatorami ręcznie lub za pomocą krzywych temperatury, widząc aktualne i docelowe obroty",
+        showInPanel: "Pokaż Sterowanie wentylatorami w panelu",
+        settingsCaption: "Dodaje ręczne prędkości wentylatorów i krzywe temperatury do panelu paska menu.",
+        fanNameFormat: "Wentylator %d",
+        rpmFormat: "%d obr./min",
+        allowControl: "Zezwalaj na sterowanie wentylatorami",
+        approvalCaption: "Zezwól aplikacji Vorssaint w sekcji Rzeczy i rozszerzenia otwierane podczas logowania, aby używać chronionego kontrolera wentylatorów.",
+        openSettings: "Otwórz Ustawienia systemowe",
+        noFans: "Ten Mac nie ma wentylatora, którym można sterować.",
+        unsupported: "Sterowanie wentylatorami nie jest dostępne na tym Macu.",
+        alreadyControlled: "Inny proces steruje wentylatorami. Najpierw przywróć je do sterowania systemowego.",
+        failed: "Wentylatory powróciły do sterowania systemowego, ponieważ żądane sterowanie nie mogło zostać zweryfikowane.",
+        safetyCaption: "Sterowanie pozostaje aktywne, dopóki nie wrócisz do opcji System. Powraca automatycznie, jeśli aplikacja się rozłączy, Mac uśnie, odczyty z czujników zawiodą lub ciśnienie termiczne wzrośnie.",
+        safetyStopped: "Powrócono do sterowania systemowego, ponieważ sterowanie wentylatorami zostało przerwane.",
+        menuBarTitle: "Prędkość wentylatora",
+        systemControl: "System",
+        manualControl: "Ręczne",
+        customCurve: "Krzywa",
+        mode: "Tryb sterowania",
+        coolingIntensity: "Prędkość wentylatora",
+        currentRPMFormat: "Aktualnie: %d obr./min",
+        targetRPMFormat: "Docelowo: %d obr./min",
+        applyManual: "Zastosuj sterowanie ręczne",
+        applyCurve: "Zastosuj krzywą wentylatora",
+        returnToSystem: "Użyj sterowania systemowego",
+        temperatureUnavailable: "Wybrany czujnik temperatury przestał odpowiadać. Sterowanie wentylatorami powróciło do opcji System.",
+        curveUnavailable: "Wybrany czujnik temperatury nie jest dostępny na tym Macu.",
+        sensor: "Czujnik temperatury",
+        temperature: "Temperatura",
+        fanSpeed: "Prędkość wentylatora",
+        addPoint: "Dodaj punkt",
+        addSensor: "Dodaj czujnik",
+        removePoint: "Usuń punkt",
+        removeSensor: "Usuń czujnik",
+        curveGraph: "Krzywa temperatury i prędkości wentylatora",
+        averageSoC: "Średnia SoC",
+        hottestSoC: "Najcieplejszy SoC",
+        averageCPU: "Średnia CPU",
+        hottestCPU: "Najcieplejszy CPU",
+        hottestGPU: "Najcieplejszy GPU",
+        helperUnavailable: "Chroniony kontroler wentylatorów jest niedostępny. Zezwól aplikacji Vorssaint w sekcji Rzeczy i rozszerzenia otwierane podczas logowania, a następnie spróbuj ponownie.",
+        resumeAfterRestart: "Wznów po ponownym uruchomieniu lub uśpieniu"
     )
 
     static let de = FanControlFeatureStrings(
