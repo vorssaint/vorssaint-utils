@@ -540,7 +540,7 @@ final class WindowLayoutService: ObservableObject {
 
         let original = self.frame(of: window)
         settledFrames.removeValue(forKey: windowKey)
-        if attempt(frame, targetRect: targetRect, action: action, on: window) {
+        if attempt(frame, targetRect: targetRect, action: action, original: original, on: window) {
             assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
             // Only the side size cycle uses the settled frame, so the read-back
             // and its later refresh run only for a press that may cycle.
@@ -631,6 +631,7 @@ final class WindowLayoutService: ObservableObject {
         if self.attempt(context.frame,
                         targetRect: context.targetRect,
                         action: context.action,
+                        original: context.original,
                         on: context.window) {
             concludeSettle(context, success: true)
             return
@@ -650,6 +651,7 @@ final class WindowLayoutService: ObservableObject {
             if self.attempt(context.frame,
                             targetRect: context.targetRect,
                             action: context.action,
+                            original: context.original,
                             on: context.window) {
                 concludeSettle(context, success: true)
                 return
@@ -661,7 +663,10 @@ final class WindowLayoutService: ObservableObject {
     private func verified(_ context: SettleContext) -> Bool {
         guard let actual = frame(of: context.window) else { return false }
         return actual.isClose(to: context.frame, tolerance: frameTolerance)
-            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+            || accepted(actual: actual,
+                        targetRect: context.targetRect,
+                        action: context.action,
+                        original: context.original)
     }
 
     // The action already reported success while the window was settling, so a
@@ -678,6 +683,22 @@ final class WindowLayoutService: ObservableObject {
             return
         }
         settledFrames.removeValue(forKey: context.windowKey)
+        if context.action.isStepResize,
+           let original = context.original,
+           let actual = frame(of: context.window),
+           WindowLayoutGeometry.stepResizeRefused(actualRect: appKitFrame(fromAX: actual),
+                                                  originalRect: appKitFrame(fromAX: original),
+                                                  tolerance: frameTolerance) {
+            // The app kept its size (its minimum, or a grid coarser than the
+            // step): nothing changed, so there is nothing to restore or report.
+            frameHistory.discardLatest(for: context.windowKey)
+            if let previousAction = context.previousAction {
+                lastActions[context.windowKey] = previousAction
+            } else {
+                lastActions.removeValue(forKey: context.windowKey)
+            }
+            return
+        }
         if let original = context.original {
             applyFrame(original, on: context.window)
         }
@@ -705,6 +726,7 @@ final class WindowLayoutService: ObservableObject {
     private func attempt(_ frame: WindowLayoutFrame,
                          targetRect: NSRect,
                          action: WindowLayoutAction,
+                         original: WindowLayoutFrame? = nil,
                          on window: AXUIElement) -> Bool {
         let visibleFrame = bestScreen(for: frame)?.visibleFrame ?? targetRect
         for _ in 0..<3 {
@@ -715,7 +737,7 @@ final class WindowLayoutService: ObservableObject {
                        on: window)
             guard let actual = self.frame(of: window) else { continue }
             if actual.isClose(to: frame, tolerance: frameTolerance)
-                || accepted(actual: actual, targetRect: targetRect, action: action) {
+                || accepted(actual: actual, targetRect: targetRect, action: action, original: original) {
                 return true
             }
         }
@@ -775,8 +797,15 @@ final class WindowLayoutService: ObservableObject {
 
     private func accepted(actual: WindowLayoutFrame,
                           targetRect: NSRect,
-                          action: WindowLayoutAction) -> Bool {
+                          action: WindowLayoutAction,
+                          original: WindowLayoutFrame? = nil) -> Bool {
         let actualRect = appKitFrame(fromAX: actual)
+        if action.isStepResize {
+            guard let original else { return false }
+            return WindowLayoutGeometry.stepResizeAccepts(actualRect: actualRect,
+                                                          targetRect: targetRect,
+                                                          originalRect: appKitFrame(fromAX: original))
+        }
         return WindowLayoutGeometry.accepts(actualRect: actualRect,
                                             targetRect: targetRect,
                                             action: action,
