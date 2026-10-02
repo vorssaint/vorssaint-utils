@@ -114,7 +114,9 @@ extension AppFeature {
             return RadialMenuSupport.opensFromMouseOrTrackpad(
                 UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
                 ? .mouse : .idle
-        case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
+        // The listener waits on a socket; nothing runs until Claude Code asks.
+        case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads,
+             .notchAgentApprovals: return .idle
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and
         // limits current while the section is on.

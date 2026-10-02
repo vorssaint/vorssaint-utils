@@ -1,0 +1,308 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// The Now card lists every session with its state, needs-you first.
+enum AgentSessionBoardTests {
+    private static let start = Date(timeIntervalSince1970: 1_790_000_000)
+
+    private static func record(_ session: String, busy: Bool?, pid: Int32 = 1, changed: TimeInterval = 0,
+                               status: AgentSessionStatus? = nil) -> AgentSessionRecord {
+        AgentSessionRecord(pid: pid, session: session, cwd: "/code/\(session)", name: "\(session)-1",
+                           status: status ?? busy.map { $0 ? .busy : .idle },
+                           started: start, statusChanged: start.addingTimeInterval(changed))
+    }
+
+    private static func registry(_ records: [AgentSessionRecord], complete: Bool = true) -> AgentSessionRegistry {
+        var registry = AgentSessionRegistry(running: Set(records.map(\.session)), ended: [], complete: complete, listed: true)
+        for record in records { registry.records[record.session] = record }
+        return registry
+    }
+
+    private static func approval(transcript: String?, cwd: String = "/code/a", agent: AgentProvider = .claude) -> ClaudeApprovalRequest {
+        ClaudeApprovalRequest(agent: agent, cwd: cwd, toolName: "Bash", toolInput: [:], summary: "ls",
+                              transcriptPath: transcript, alwaysRules: nil)
+    }
+
+    private static func store(_ processes: AgentSessionRegistry = AgentSessionRegistry()) -> AgentUsageStore {
+        let store = AgentUsageStore()
+        store.processes = processes
+        return store
+    }
+
+    static func run(_ suite: TestSuite) {
+        jump(suite)
+        launch(suite)
+        resumable(suite)
+        let now = start.addingTimeInterval(600)
+        let tokens = AgentTokens(input: 100, output: 20)
+        let usage = AgentUsageRecord(provider: .claude, date: start.addingTimeInterval(5), model: "claude-opus-5-5",
+                                     project: "a", session: "a", tokens: tokens, cost: 0.5, savings: 0)
+
+        // Claude: the process record says busy or idle.
+        let busy = store(registry([record("a", busy: true), record("b", busy: false, changed: 30)]))
+        busy.apply([.turnBegan(start), .usage(key: "k", record: usage, billable: AgentBillable(tokens: tokens))],
+                   file: "/p/a.jsonl", provider: .claude, tracksTurns: true, modified: start, now: start)
+        let rows = busy.sessions(now: now)
+        let a = rows.first { $0.id == "a" }, b = rows.first { $0.id == "b" }
+        suite.expect(a?.cwd == "/code/a" && a?.pid == 1, "a row keeps its process and folder for the jump")
+        suite.expect(AgentSessionBoard.row(for: approval(transcript: "/p/a.jsonl"), in: rows)?.pid == 1
+                     && AgentSessionBoard.row(for: approval(transcript: "/p/z.jsonl"), in: rows) == nil,
+                     "an approval's header jumps through its board row")
+        suite.expect(rows.count == 2 && a?.activity == .working && a?.model == "claude-opus-5-5" && a?.cost == 0.5
+                        && a?.name == "a-1" && a?.project == "a" && a?.pid == 1,
+                     "a busy session works with its turn's model and cost")
+        suite.expect(b?.activity == .quiet && b?.since == start.addingTimeInterval(30)
+                        && AgentSessionBoard.state(b!, now: now, approval: nil) == .waiting,
+                     "an idle session with no turn ended lately waits for you since its status changed")
+        let alone = store(registry([record("c", busy: true)])).sessions(now: now)
+        suite.expect(alone.count == 1 && alone[0].activity == .working && alone[0].model.isEmpty,
+                     "a busy session shows from its record alone")
+
+        // A permission prompt open in the terminal needs you, with or without the notch holding it.
+        let asking = store(registry([record("w", busy: nil, changed: 20, status: .waiting)]))
+        asking.apply([.turnBegan(start)], file: "/p/w.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        let askingRows = asking.sessions(now: now)
+        suite.expect(askingRows.count == 1 && askingRows[0].activity == .asking
+                        && askingRows[0].since == start.addingTimeInterval(20)
+                        && AgentSessionBoard.state(askingRows[0], now: now, approval: nil) == .needsApproval
+                        && AgentSessionBoard.needsYou(askingRows, now: now, approval: nil) == 1,
+                     "a session waiting on a permission prompt needs approval")
+
+        // Done, then waiting once the recent window passes; an error reads as one.
+        let done = store(registry([record("a", busy: false), record("e", busy: false)]))
+        done.apply([.turnBegan(start), .turnEnded(start.addingTimeInterval(60), completed: true, duration: nil)],
+                   file: "/p/a.jsonl", provider: .claude, tracksTurns: true, modified: start, now: start.addingTimeInterval(60))
+        done.apply([.turnBegan(start), .turnEnded(start.addingTimeInterval(60), completed: false, duration: nil, failed: true)],
+                   file: "/p/e.jsonl", provider: .claude, tracksTurns: true, modified: start, now: start.addingTimeInterval(60))
+        let ended = done.sessions(now: start.addingTimeInterval(70))
+        let doneRow = ended.first { $0.id == "a" }!, failedRow = ended.first { $0.id == "e" }!
+        suite.expect(AgentSessionBoard.state(doneRow, now: start.addingTimeInterval(70), approval: nil) == .done
+                        && AgentSessionBoard.state(doneRow, now: start.addingTimeInterval(60 + 6 * 60), approval: nil) == .waiting,
+                     "a finished turn reads as done, then as waiting after a few minutes")
+        suite.expect(AgentSessionBoard.state(failedRow, now: start.addingTimeInterval(70), approval: nil) == .failed,
+                     "a turn ended by an error reads as an error")
+        suite.expect(AgentSessionBoard.movesWithClock(ended, from: start.addingTimeInterval(70), to: start.addingTimeInterval(70 + 5 * 60))
+                        && !AgentSessionBoard.movesWithClock(ended, from: start.addingTimeInterval(70), to: start.addingTimeInterval(80)),
+                     "the board moves with the clock only when done turns to waiting")
+        var snapshot = AgentUsageSnapshot(loaded: true, now: start.addingTimeInterval(70))
+        snapshot.sessions = ended
+        suite.expect(AgentUsageSummary.movesWithClock(snapshot, now: start.addingTimeInterval(70 + 5 * 60)),
+                     "a snapshot is published again when a done session turns to waiting")
+        suite.expect(done.snapshot(plans: [:], providers: [.claude], now: now).sessions.count == 2
+                        && done.snapshot(plans: [:], providers: [.codex], now: now).sessions.isEmpty,
+                     "the snapshot carries the sessions of the agents shown")
+        done.apply([.turnBegan(start.addingTimeInterval(90))], file: "/p/a.jsonl", provider: .claude, tracksTurns: true,
+                   modified: start, now: start.addingTimeInterval(90))
+        suite.expect(done.recent["/p/a.jsonl"] == nil && done.recent["/p/e.jsonl"] != nil, "a new turn clears the one that ended")
+        done.forget(file: "/p/e.jsonl")
+        suite.expect(done.recent.isEmpty, "a removed log forgets its ended turn")
+
+        // The registry wins over the logs.
+        let stale = store(registry([record("a", busy: false)]))
+        stale.apply([.turnBegan(start)], file: "/p/a.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        stale.apply([.turnBegan(start)], file: "/p/gone.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        let staleRows = stale.sessions(now: now)
+        suite.expect(staleRows.count == 1 && staleRows[0].activity == .quiet,
+                     "an idle record overrides a turn left open, and a session with no process has no row")
+        let partial = store(registry([record("a", busy: nil)], complete: false))
+        partial.apply([.turnBegan(start)], file: "/p/a.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        partial.apply([.turnBegan(start)], file: "/p/b.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        let partialRows = partial.sessions(now: now)
+        suite.expect(partialRows.count == 2 && partialRows.allSatisfy { $0.activity == .working },
+                     "an unknown status and an incomplete read fall back to the logs")
+        let unlisted = store()
+        unlisted.apply([.turnBegan(start)], file: "/p/a.jsonl", provider: .claude, tracksTurns: true, modified: start)
+        suite.expect(unlisted.sessions(now: now).map(\.id) == ["a"], "without records, Claude sessions come from the logs")
+
+        // Codex: done, then waiting, then gone; quiet reads as waiting.
+        let codex = store()
+        let log = "/codex/rollout-1.jsonl"
+        codex.apply([.turnBegan(start), .turnEnded(start.addingTimeInterval(60), completed: true, duration: nil)],
+                    file: log, provider: .codex, tracksTurns: true, modified: start, now: start.addingTimeInterval(60))
+        let codexDone = codex.sessions(now: start.addingTimeInterval(70))
+        suite.expect(codexDone.map(\.id) == [log]
+                        && AgentSessionBoard.state(codexDone[0], now: start.addingTimeInterval(70), approval: nil) == .done
+                        && AgentSessionBoard.state(codexDone[0], now: start.addingTimeInterval(60 + 6 * 60), approval: nil) == .waiting,
+                     "a Codex task that completes reads as done, then waiting")
+        codex.closeIdleTurns(now: start.addingTimeInterval(60 + 31 * 60), after: NotchAgentSupport.idleTurn)
+        suite.expect(codex.sessions(now: start.addingTimeInterval(60 + 31 * 60)).isEmpty, "a Codex session leaves the board after half an hour")
+        let quiet = store()
+        quiet.apply([.turnBegan(start)], file: log, provider: .codex, tracksTurns: true, modified: start)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        let quietRows = quiet.sessions(now: start.addingTimeInterval(1200))
+        suite.expect(quietRows.count == 1 && AgentSessionBoard.state(quietRows[0], now: now, approval: nil) == .waiting,
+                     "a quiet Codex turn reads as waiting")
+
+        // An approval belongs to its session; sorting puts needs-you first.
+        let many = store(registry([record("a", busy: true), record("b", busy: true), record("c", busy: false),
+                                   record("d", busy: false)]))
+        many.apply([.turnBegan(start), .turnEnded(start.addingTimeInterval(500), completed: true, duration: nil)],
+                   file: "/p/c.jsonl", provider: .claude, tracksTurns: true, modified: start, now: start.addingTimeInterval(500))
+        let board = many.sessions(now: now)
+        let ask = approval(transcript: "/x/b.jsonl")
+        suite.expect(board.filter { AgentSessionBoard.state($0, now: now, approval: ask) == .needsApproval }.map(\.id) == ["b"],
+                     "an approval marks only the session its transcript names")
+        suite.expect(board.filter { AgentSessionBoard.state($0, now: now, approval: approval(transcript: nil, cwd: "/code/a")) == .needsApproval }
+                        .map(\.id) == ["a"]
+                        && board.allSatisfy { AgentSessionBoard.state($0, now: now, approval: approval(transcript: nil, agent: .codex)) != .needsApproval },
+                     "without a transcript the folder names the session, for the same agent only")
+        suite.expect(AgentSessionBoard.sorted(board, now: now, approval: ask).map(\.id) == ["b", "c", "a", "d"],
+                     "needs approval, then done, then working, then waiting")
+        suite.expect(AgentSessionBoard.needsYou(board, now: now, approval: ask) == 2
+                        && AgentSessionBoard.needsYou(board, now: now, approval: nil) == 1
+                        && AgentSessionBoard.needsYou(board, now: now, approval: approval(transcript: "/x/zz.jsonl")) == 2,
+                     "needs-you counts approvals and finished turns, never idle sessions")
+
+        // The Now card grows with its sessions.
+        let live = NotchAgentTile(card: .live, provider: nil), spend = NotchAgentTile(card: .spend, provider: nil)
+        let heights = [0, 2, 3, 4, 9].map { NotchAgentSupport.height(of: [live, spend], boardRows: $0) }
+        suite.expect(heights == [96, 96, 112, 136, 136] && NotchAgentSupport.height(of: [spend], boardRows: 9) == 96,
+                     "the Now card grows to four sessions, then scrolls")
+        suite.expect(NotchAgentSupport.contentHeight([[live], [spend]], boardRows: 4) == 136 + NotchAgentSupport.spacing + 96,
+                     "the page grows with the Now card")
+    }
+
+    /// A click selects the tab by tty or folder; nothing unchecked reaches a script.
+    private static func jump(_ suite: TestSuite) {
+        suite.expect(AgentTerminalKind(bundleIdentifier: "com.apple.Terminal") == .terminal
+                     && AgentTerminalKind(bundleIdentifier: "com.mitchellh.ghostty") == .ghostty
+                     && AgentTerminalKind(bundleIdentifier: "com.microsoft.VSCode") == .vscode
+                     && AgentTerminalKind(bundleIdentifier: nil) == .other, "terminal kinds from bundle ids")
+        suite.expect(AgentJumpSupport.isTTYName("ttys002") && AgentJumpSupport.isTTYName("ttyp3")
+                     && !AgentJumpSupport.isTTYName(#"ttys002" then do shell script "x"#)
+                     && !AgentJumpSupport.isTTYName(""), "only device names pass as a tty")
+        let terminal = AgentJumpSupport.script(for: .terminal, tty: "ttys002", cwd: nil) ?? ""
+        suite.expect(terminal.contains(#""/dev/ttys002""#) && terminal.contains(#"return "no""#),
+                     "the Terminal script matches the tty")
+        suite.expect(AgentJumpSupport.script(for: .iTerm2, tty: #"x" & "y"#, cwd: nil) == nil,
+                     "a bad tty builds no script")
+        let ghostty = AgentJumpSupport.script(for: .ghostty, tty: nil, cwd: #"/a "b""#) ?? ""
+        suite.expect(ghostty.contains(#"working directory is "/a \"b\"""#), "the Ghostty folder is escaped")
+        suite.expect(AgentJumpSupport.script(for: .vscode, tty: "ttys002", cwd: "/a") == nil,
+                     "VS Code is raised by window, not scripted")
+        let titles = ["NotchAgentsView.swift — vorssaint-utils — Visual Studio Code", "README.md — other — Visual Studio Code",
+                      "● main.swift — feat-x — Visual Studio Code"]
+        suite.expect(AgentJumpSupport.vsCodeWindow(titles: titles, cwd: "/code/other") == 1
+                     && AgentJumpSupport.vsCodeWindow(titles: titles, cwd: "/code/vorssaint-utils/Sources/Vorssaint") == 0
+                     && AgentJumpSupport.vsCodeWindow(titles: titles, cwd: "/code/vorssaint-utils/.claude/worktrees/feat-x") == 2
+                     && AgentJumpSupport.vsCodeWindow(titles: titles, cwd: "/code/none") == nil,
+                     "the window naming the deepest folder of the session wins")
+
+        let meta = AgentJumpSupport.codexMeta(firstLine: Data(#"""
+            {"timestamp":"2026-10-01T10:00:00.000Z","type":"session_meta","payload":{"id":"r1","cwd":"/Users/me/proj"}}
+            """#.utf8))
+        suite.expect(meta?.cwd == "/Users/me/proj" && meta?.started == AgentTimestamp.parse("2026-10-01T10:00:00.000Z"),
+                     "a rollout's first line gives its folder and start")
+        suite.expect(AgentJumpSupport.codexMeta(firstLine: Data(#"{"timestamp":"2026-10-01T10:00:00Z","type":"turn_context","payload":{"cwd":"/p"}}"#.utf8)) == nil
+                     && AgentJumpSupport.codexMeta(firstLine: Data("not json".utf8)) == nil,
+                     "only a session_meta line names the rollout")
+        let at = meta?.started ?? start
+        let other = AgentSessionProcess(pid: 1, cwd: "/Users/me/other", started: at)
+        let fresh = AgentSessionProcess(pid: 2, cwd: "/Users/me/proj", started: at.addingTimeInterval(-3))
+        let resumed = AgentSessionProcess(pid: 3, cwd: "/Users/me/proj/", started: at.addingTimeInterval(7200))
+        suite.expect(AgentJumpSupport.codexProcess(cwd: "/Users/me/proj", started: at, among: [other, resumed, fresh]) == fresh,
+                     "the codex in the rollout's folder that started closest wins")
+        suite.expect(AgentJumpSupport.codexProcess(cwd: "/Users/me/proj", started: at, among: [other, resumed]) == resumed,
+                     "a resumed session started long after its rollout still matches")
+        suite.expect(AgentJumpSupport.codexProcess(cwd: "/Users/me/proj", started: at, among: [other]) == nil,
+                     "no codex in the folder, no jump")
+
+        // claude → fish → Code Helper → Code, as seen with VS Code here; only Code is a regular app.
+        let parents: [pid_t: pid_t] = [72857: 72000, 72000: 33448, 33448: 33400, 33400: 1]
+        suite.expect(MixerRoutingSupport.owningRegularAppPid(responsiblePid: 72857, isRegularApp: { $0 == 33400 },
+                                                             parentPid: { parents[$0] ?? 0 }) == 33400,
+                     "a VS Code terminal session resolves past Code Helper to Code")
+    }
+
+    /// What a Resume click or a new session types into the terminal.
+    private static func launch(_ suite: TestSuite) {
+        let claudeHead = Data("""
+            {"type":"last-prompt","sessionId":"s1"}
+            {"type":"attachment","cwd":"relative"}
+            {"type":"user","cwd":"/Users/me/code/app","sessionId":"s1"}
+            """.utf8)
+        let codexHead = Data(#"{"timestamp":"2026-10-01T10:00:00Z","type":"session_meta","payload":{"id":"r1","cwd":"/Users/me/proj"}}"#.utf8)
+        suite.expect(AgentLaunchSupport.folder(head: claudeHead) == "/Users/me/code/app"
+                     && AgentLaunchSupport.folder(head: codexHead) == "/Users/me/proj"
+                     && AgentLaunchSupport.folder(head: Data(#"{"type":"mode"}"#.utf8)) == nil,
+                     "a log's first lines give the folder its session ran in")
+
+        let session = AgentResumableSession(id: "s1", provider: .claude, project: "app", cwd: "/Users/me/it's here",
+                                            lastActivity: start, cost: 1)
+        suite.expect(AgentLaunchSupport.resumeCommand(session) == #"cd '/Users/me/it'\''s here' && claude --resume 's1'"#,
+                     "a Claude session resumes by id from its folder, quoted")
+        let codex = AgentResumableSession(id: "r1", provider: .codex, project: "p", cwd: "/p", lastActivity: start, cost: 0)
+        let opencode = AgentResumableSession(id: "o1", provider: .opencode, project: "p", cwd: "/p", lastActivity: start, cost: 0)
+        suite.expect(AgentLaunchSupport.resumeCommand(codex) == "cd '/p' && codex resume 'r1'"
+                     && AgentLaunchSupport.resumeCommand(opencode) == nil, "Codex resumes by id; OpenCode is not offered")
+        suite.expect(AgentLaunchSupport.startCommand(provider: .claude, cwd: "/p", prompt: "  \n ") == "cd '/p' && claude",
+                     "a blank prompt starts a plain session")
+        suite.expect(AgentLaunchSupport.startCommand(provider: .codex, cwd: "/p", prompt: "fix $(rm -rf ~) `id`;\nthen | go") ==
+                        #"cd '/p' && codex 'fix $(rm -rf ~) `id`; then | go'"#,
+                     "the prompt stays one literal argument on one line")
+
+        let installed: (AgentLaunchTerminal) -> Bool = { $0 != .iTerm2 }
+        suite.expect(AgentLaunchSupport.destination(setting: "ghostty", detected: .vscode, installed: installed) == .ghostty
+                     && AgentLaunchSupport.destination(setting: "iTerm2", detected: .vscode, installed: installed) == .vscode
+                     && AgentLaunchSupport.destination(setting: "", detected: nil, installed: installed) == .terminal,
+                     "the chosen terminal while installed, else the newest session's, else Terminal")
+        suite.expect(AgentLaunchTerminal(bundleIdentifier: "com.mitchellh.ghostty") == .ghostty
+                     && AgentLaunchTerminal(bundleIdentifier: "com.todesktop.230313mzl4w4u92") == nil,
+                     "only terminals a session can be started in are detected")
+
+        let command = #"cd '/a "b"\c' && claude"#
+        let escaped = #""cd '/a \"b\"\\c' && claude""#
+        if case .script(let bundle, let source) = AgentLaunchSupport.plan(command, cwd: "/a", in: .terminal) {
+            suite.expect(bundle == "com.apple.Terminal" && source.contains("do script \(escaped)"),
+                         "Terminal types the escaped command into a new window")
+        } else { suite.expect(false, "Terminal is scripted") }
+        if case .script(_, let source) = AgentLaunchSupport.plan(command, cwd: "/a", in: .iTerm2) {
+            suite.expect(source.contains("write text \(escaped)"), "iTerm2 writes the escaped command into a new tab")
+        } else { suite.expect(false, "iTerm2 is scripted") }
+        if case .script(_, let source) = AgentLaunchSupport.plan(command, cwd: #"/a "b""#, in: .ghostty) {
+            suite.expect(source.contains(#"initial working directory of config to "/a \"b\"""#)
+                         && source.contains("initial input of config to \(escaped) & linefeed"),
+                         "Ghostty opens a tab in the folder and types the command")
+        } else { suite.expect(false, "Ghostty is scripted") }
+        suite.expect(AgentLaunchSupport.plan("x", cwd: "/a", in: .vscode)
+                        == .openFolder(bundleID: "com.microsoft.VSCode", folder: "/a", copying: "x"),
+                     "VS Code opens the folder and copies the command")
+    }
+
+    /// Ended sessions of the last week, newest first, with nothing live.
+    private static func resumable(_ suite: TestSuite) {
+        let now = start.addingTimeInterval(10 * 86_400)
+        let store = store(registry([record("running", busy: false)]))
+        var reads: [String] = []
+        store.readFolder = { path in
+            reads.append(path)
+            return path.contains("nofolder") ? "" : "/code/" + ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+        }
+        func use(_ session: String, _ provider: AgentProvider = .claude, file: String? = nil, ago: TimeInterval, cost: Double) {
+            let record = AgentUsageRecord(provider: provider, date: now.addingTimeInterval(-ago), model: "m", project: session,
+                                          session: session, tokens: AgentTokens(input: 1), cost: cost, savings: 0)
+            store.apply([.usage(key: "\(session):\(ago)", record: record, billable: AgentBillable())],
+                        file: file ?? "/logs/\(session).jsonl", provider: provider, tracksTurns: false, modified: record.date)
+        }
+        use("old", ago: 3600, cost: 1)
+        use("old", ago: 7200, cost: 2)
+        use("new", ago: 60, cost: 0.5)
+        use("running", ago: 30, cost: 1)
+        use("stale", ago: 8 * 86_400, cost: 1)
+        use("nofolder", ago: 100, cost: 1)
+        use("o", .opencode, ago: 100, cost: 1)
+        use("r1", .codex, file: "/logs/rollout-1-r1.jsonl", ago: 120, cost: 1)
+        use("side", .codex, file: "/logs/rollout-1-r1_side.jsonl", ago: 110, cost: 1)
+        let found = store.resumable(board: [], now: now)
+        suite.expect(found.map(\.id) == ["new", "r1", "old"] && found.last?.cost == 3 && found.last?.cwd == "/code/old",
+                     "sessions group their cost, newest first, without running, stale, folderless or side ones")
+        let codexRow = AgentSessionRow(id: "/logs/rollout-1-r1.jsonl", provider: .codex, project: "r1", name: nil, pid: nil,
+                                       cwd: nil, started: now, since: now, model: "", tokens: AgentTokens(), cost: 0, activity: .quiet)
+        let readsBefore = reads.count
+        suite.expect(store.resumable(board: [codexRow], now: now, limit: 1).map(\.id) == ["new"],
+                     "a session on the board is not offered, and the list keeps to its limit")
+        suite.expect(reads.count == readsBefore, "each log's folder is read once")
+    }
+}

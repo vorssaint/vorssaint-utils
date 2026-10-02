@@ -23,6 +23,10 @@ final class AgentUsageStore {
     /// Turns gone quiet, by log file: not shown as working, but work that
     /// resumes after an approval or a long command goes on with them.
     private(set) var waiting: [String: AgentLiveSession] = [:]
+    /// Turns that ended a short while ago, by log file, for the board.
+    private(set) var recent: [String: AgentEndedTurn] = [:]
+    /// The Claude session records last read.
+    var processes = AgentSessionRegistry()
     /// Claude turns whose process was seen running, by log file.
     private var registered: Set<String> = []
     /// Turns whose last step ended expecting more, by log file, with when.
@@ -42,10 +46,66 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
+    func sessions(now: Date) -> [AgentSessionRow] {
+        AgentSessionBoard.rows(turns: turns, waiting: waiting, recent: recent, registry: processes, now: now)
+    }
+
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
-        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+        var snapshot = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                                        providers: providers, now: now, calendar: calendar)
+        let board = sessions(now: now)
+        snapshot.sessions = board.filter { providers.contains($0.provider) }
+        snapshot.resumable = resumable(board: board, now: now).filter { providers.contains($0.provider) }
+        return snapshot
+    }
+
+    /// How far back the Resume card looks.
+    static let resumeHistory: TimeInterval = 7 * 86_400
+    /// The folder each log names on its first lines, by log file; empty when
+    /// it names none. Read once, kept in memory only.
+    private var folders: [String: String] = [:]
+    var readFolder: (String) -> String = AgentUsageStore.folder(ofLog:)
+
+    static func folder(ofLog path: String) -> String {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return "" }
+        defer { try? handle.close() }
+        return (try? handle.read(upToCount: 256 << 10)).flatMap(AgentLaunchSupport.folder(head:)) ?? ""
+    }
+
+    /// Sessions of the last week no board row and no running process holds,
+    /// newest first, with what their responses cost in that week.
+    // ponytail: scans every record per publish (a date compare each); keep a
+    // per-session index in `add` if months of history make it show.
+    func resumable(board: [AgentSessionRow], now: Date, limit: Int = 12) -> [AgentResumableSession] {
+        let horizon = now.addingTimeInterval(-Self.resumeHistory)
+        var newest: [String: (position: Int, cost: Double)] = [:]
+        for position in records.indices {
+            let record = records[position]
+            guard record.date >= horizon, record.provider != .opencode, !record.session.isEmpty else { continue }
+            var entry = newest[record.session] ?? (position, 0)
+            if record.date > records[entry.position].date { entry.position = position }
+            entry.cost += record.cost ?? 0
+            newest[record.session] = entry
+        }
+        // Claude rows go by session id, Codex rows by log file.
+        let shown = Set(board.map(\.id)).union(processes.running)
+        var found: [AgentResumableSession] = []
+        for (session, entry) in newest.sorted(by: { records[$0.value.position].date > records[$1.value.position].date }) {
+            let record = records[entry.position]
+            // ponytail: a Codex session idle at its prompt past the board's window
+            // still lists; a process scan by folder would tell.
+            guard let file = sources[entry.position].first, !shown.contains(session), !shown.contains(file),
+                  // A Codex side thread resumes with the thread that started it.
+                  record.provider == .claude || !(file as NSString).lastPathComponent.contains("_") else { continue }
+            let cwd = folders[file] ?? readFolder(file)
+            folders[file] = cwd
+            guard !cwd.isEmpty else { continue }
+            found.append(AgentResumableSession(id: session, provider: record.provider, project: record.project,
+                                               cwd: cwd, lastActivity: record.date, cost: entry.cost))
+            if found.count == limit { break }
+        }
+        return found
     }
 
     /// Applies one file's entries and returns the turns they finished.
@@ -75,6 +135,7 @@ final class AgentUsageStore {
                 // the second reading skips as repeats.
                 if let turn = turns[file] ?? waiting[file], abs(turn.started.timeIntervalSince(date)) < 1 { continue }
                 waiting[file] = nil
+                recent[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
@@ -82,6 +143,7 @@ final class AgentUsageStore {
                 guard tracksTurns else { continue }
                 settled[file] = nil
                 let moment = date ?? modified
+                recent[file] = nil
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
                     turns[file] = turn
@@ -94,14 +156,17 @@ final class AgentUsageStore {
                 turn.lastActivity = max(turn.lastActivity, date)
                 turns[file] = turn
                 settled[file] = date
-            case .turnEnded(let date, let completed, let duration):
+            case .turnEnded(let date, let completed, let duration, let failed):
                 guard tracksTurns else { continue }
                 settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
-                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
+                guard let turn = turns.removeValue(forKey: file) ?? quiet else { continue }
                 let end = date ?? modified
-                guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
+                if now.timeIntervalSince(end) < AgentSessionBoard.codexWindow {
+                    recent[file] = AgentEndedTurn(turn: turn, ended: end, failed: failed)
+                }
+                guard completed, reportsTransitions, now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
@@ -119,6 +184,7 @@ final class AgentUsageStore {
     func forget(file: String) -> Bool {
         waiting[file] = nil
         settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
+        recent = recent.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
         var removed = turns.removeValue(forKey: file) != nil
         for key in turns.keys where key.hasPrefix(file + "#") {
             turns.removeValue(forKey: key)
@@ -267,6 +333,7 @@ final class AgentUsageStore {
             waiting[file] = turn
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
+        recent = recent.filter { now.timeIntervalSince($0.value.ended) < AgentSessionBoard.codexWindow }
     }
 
     /// A turn whose last step ended expecting more, with nothing after it
@@ -448,6 +515,8 @@ struct AgentSessionRegistry: Equatable {
     var complete = true
     /// A sessions folder could be listed, so this Claude Code keeps records.
     var listed = false
+    /// Running sessions by session id.
+    var records: [String: AgentSessionRecord] = [:]
 
     /// `folders` are the `sessions` folders beside each Claude log root.
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
@@ -465,7 +534,15 @@ struct AgentSessionRegistry: Equatable {
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
                 if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
-                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+                guard isRunning(Int32(clamping: pid)) else {
+                    registry.ended.insert(session)
+                    continue
+                }
+                registry.running.insert(session)
+                registry.records[session] = AgentSessionRecord(
+                    pid: Int32(clamping: pid), session: session, cwd: json["cwd"] as? String ?? "",
+                    name: json["name"] as? String ?? "", status: (json["status"] as? String).flatMap(AgentSessionStatus.init),
+                    started: AgentLogParser.seconds(json["startedAt"]), statusChanged: AgentLogParser.seconds(json["statusUpdatedAt"]))
             }
         }
         // A session resumed by a new process after an old one was killed.

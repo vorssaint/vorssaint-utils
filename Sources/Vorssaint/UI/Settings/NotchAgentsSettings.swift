@@ -23,9 +23,17 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
     @AppStorage(DefaultsKey.notchAgentsDailyBudget) private var dailyBudget = 0.0
     @AppStorage(DefaultsKey.notchAgentsPriceUpdates) private var priceUpdates = true
+    @AppStorage(DefaultsKey.notchAgentsOpenIn) private var openIn = ""
+    @AppStorage(DefaultsKey.notchAgentApprovalsEnabled) private var approvalsEnabled = true
+    @AppStorage(AppFeature.notchAgentApprovals.availabilityKey) private var approvalsInstalled = false
+    @State private var hookStatus: [AgentProvider: ClaudeHookStatus] = [:]
+    @State private var foreignHooks: [String] = []
+    @State private var review: ClaudeApprovalReview?
+    @State private var writeFailed: AgentProvider?
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
+    @State private var terminals: [AgentLaunchTerminal] = []
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
 
@@ -68,6 +76,15 @@ struct NotchAgentsSettingsControls: View {
             // The one card that makes Codex ask the account, said where it is chosen.
             if codex, cardBinding(.resets).wrappedValue {
                 Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if cardBinding(.resume).wrappedValue {
+                SettingsMenuRow(symbol: "terminal", title: text.openIn, selection: $openIn) {
+                    Text(text.openInAutomatic).tag("")
+                    ForEach(terminals) { Text($0.displayName).tag($0.rawValue) }
+                }
+                .onAppear { terminals = AgentLaunchTerminal.allCases.filter(AgentLauncher.installed) }
+                Text(text.openInHint).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
@@ -140,10 +157,25 @@ struct NotchAgentsSettingsControls: View {
                 Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            if approvalsInstalled {
+                Divider()
+                approvalsSection
+            }
         }
         .toggleStyle(.switch)
+        .sheet(item: $review) { review in
+            ClaudeApprovalPreviewSheet(review: review, text: approvalText) { confirmed in
+                self.review = nil
+                guard confirmed else { return }
+                writeFailed = ClaudeApprovalService.shared.writeSettings(agent: review.agent, installing: review.installing)
+                    ? nil : review.agent
+                readHookStatus()
+            }
+        }
         .onAppear {
             findRoots()
+            if approvalsInstalled { readHookStatus() }
             // An agent turned off is not read at all, not even for its status.
             if claude { findClaudeApp() }
         }
@@ -151,9 +183,90 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(liveActivity), readout, limitDisplay, limitFocus, String(approvalsEnabled)]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    private var approvalText: ClaudeApprovalStrings { FeatureStrings.claudeApprovals(l10n.language) }
+
+    @ViewBuilder private var approvalsSection: some View {
+        let approval = approvalText
+        Text(approval.title).font(.subheadline.weight(.medium))
+        Text(approval.explanation).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        switchRow("checkmark.shield", approval.toggle, isOn: $approvalsEnabled)
+        if ClaudeApprovalService.shared.socketPath == nil {
+            Label(approval.socketTooLong, systemImage: "exclamationmark.triangle.fill")
+                .font(.callout).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            ForEach(AgentProvider.allCases) { agent in
+                if let status = hookStatus[agent] { hookRow(agent, status, approval) }
+            }
+            Text(approval.codexUntested).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if let writeFailed {
+            Text(String(format: approval.writeFailedFormat, settingsPath(writeFailed)))
+                .font(.caption).foregroundStyle(.red)
+        }
+        if !foreignHooks.isEmpty {
+            Label(String(format: approval.foreignHooksFormat, foreignHooks.joined(separator: ", ")),
+                  systemImage: "exclamationmark.triangle.fill")
+                .font(.caption).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        Text(approval.newSessionsOnly).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func hookRow(_ agent: AgentProvider, _ status: ClaudeHookStatus, _ approval: ClaudeApprovalStrings) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: status == .installed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(status == .installed ? .green : .orange)
+            Text(hookStatusText(agent, status, approval))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            if status == .notInstalled || status == .otherCopy {
+                Button(status == .otherCopy ? approval.update : approval.install) { prepareReview(agent, installing: true) }
+            }
+            if status == .installed || status == .otherCopy {
+                Button(approval.remove) { prepareReview(agent, installing: false) }
+            }
+        }
+        .font(.callout)
+    }
+
+    private func hookStatusText(_ agent: AgentProvider, _ status: ClaudeHookStatus, _ approval: ClaudeApprovalStrings) -> String {
+        let product = ClaudeApprovalSupport.productName(agent)
+        switch status {
+        case .notInstalled: return String(format: approval.statusNotInstalledFormat, product)
+        case .installed: return String(format: approval.statusInstalledFormat, product)
+        case .otherCopy: return product + ": " + approval.statusOtherCopy
+        case .unreadable: return String(format: approval.statusUnreadableFormat, settingsPath(agent))
+        }
+    }
+
+    private func settingsPath(_ agent: AgentProvider) -> String {
+        (ClaudeApprovalService.shared.settingsURL(for: agent).path as NSString).abbreviatingWithTildeInPath
+    }
+
+    /// Read from the file each time the page opens or a write lands; no
+    /// preference mirrors it, so an edit made elsewhere is never contradicted.
+    private func readHookStatus() {
+        let service = ClaudeApprovalService.shared
+        hookStatus = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, service.hookStatus(for: $0)) })
+        foreignHooks = AgentProvider.allCases.flatMap(service.foreignHooks(for:))
+    }
+
+    private func prepareReview(_ agent: AgentProvider, installing: Bool) {
+        writeFailed = nil
+        guard let proposed = ClaudeApprovalService.shared.proposedSettings(agent: agent, installing: installing) else {
+            return readHookStatus()
+        }
+        review = ClaudeApprovalReview(agent: agent, path: settingsPath(agent), installing: installing,
+                                      lines: ClaudeApprovalSupport.diff(proposed.old, proposed.new))
     }
 
     private var priceCaption: String {
@@ -305,3 +418,66 @@ private struct NotchAgentStripSample: View {
     }
 }
 
+
+private struct ClaudeApprovalReview: Identifiable {
+    let id = UUID()
+    let agent: AgentProvider
+    let path: String
+    let installing: Bool
+    let lines: [ClaudeSettingsDiffLine]
+}
+
+/// What installing or removing writes to Claude Code's or Codex's hooks, shown as a
+/// diff before anything is touched.
+private struct ClaudeApprovalPreviewSheet: View {
+    let review: ClaudeApprovalReview
+    let text: ClaudeApprovalStrings
+    let finish: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(String(format: text.reviewTitleFormat, review.path)).font(.headline)
+            ScrollView([.vertical, .horizontal]) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(review.lines.enumerated()), id: \.offset) { _, line in
+                        Text(prefix(line.kind) + line.text)
+                            .foregroundStyle(color(line.kind))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(color(line.kind).opacity(line.kind == .same ? 0 : 0.12))
+                    }
+                }
+                .font(.system(size: 11, design: .monospaced))
+                .textSelection(.enabled)
+                .padding(8)
+            }
+            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            Text(text.reviewNote).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button(text.cancel, role: .cancel) { finish(false) }
+                    .keyboardShortcut(.cancelAction)
+                Button(review.installing ? text.confirmInstall : text.confirmRemove) { finish(true) }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 600, height: 460)
+    }
+
+    private func prefix(_ kind: ClaudeSettingsDiffLine.Kind) -> String {
+        switch kind {
+        case .same: return "  "
+        case .added: return "+ "
+        case .removed: return "- "
+        }
+    }
+
+    private func color(_ kind: ClaudeSettingsDiffLine.Kind) -> Color {
+        switch kind {
+        case .same: return .secondary
+        case .added: return .green
+        case .removed: return .red
+        }
+    }
+}
