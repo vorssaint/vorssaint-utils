@@ -791,10 +791,18 @@ final class CommandBarService: ObservableObject {
         case .emoji:
             let hidden = hiddenCache
             return emojiEntries.contains { !hidden.contains($0.stableKey) }
-        case .actions, .settingsPages, .snippets, .folders, .links:
+        case .actions:
+            // The same rule the content path applies: a chip that answered
+            // with a narrower filter than the list behind it would hide a
+            // category the list still has rows for.
+            let hidden = hiddenCache
+            return catalog.contains {
+                CommandBarPreferences.isActionRow($0.id) && !hidden.contains($0.stableKey)
+            }
+        case .settingsPages, .snippets, .folders, .links:
             // Asked once per chip on every pass with an empty field, so it
-            // stops at the first row that qualifies instead of building a copy
-            // of the catalog five times over.
+            // stops at the first row that qualifies instead of copying the
+            // catalog once per source.
             let hidden = hiddenCache
             return catalog.contains {
                 CommandBarPreferences.source(ofRowID: $0.id) == source
@@ -816,7 +824,7 @@ final class CommandBarService: ObservableObject {
         let rows: [CommandBarEntry]
         switch source {
         case .actions:
-            rows = catalog.filter { CommandBarPreferences.source(ofRowID: $0.id) == .actions }
+            rows = catalog.filter { CommandBarPreferences.isActionRow($0.id) }
         case .apps: rows = appEntries
         case .macSettings: rows = macSettingsEntries
         case .windows: rows = windowEntries
