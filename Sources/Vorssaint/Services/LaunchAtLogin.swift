@@ -10,6 +10,9 @@ import ServiceManagement
 /// registration never drift apart. `LaunchAtLoginSupport` explains why the
 /// system record alone cannot be trusted across relaunches.
 enum LaunchAtLogin {
+    private static let operationQueue = DispatchQueue(
+        label: "com.vorssaint.utils.launch-at-login", qos: .utility)
+
     /// What the system holds for this app right now.
     static var registration: LaunchAtLoginSupport.Registration {
         switch SMAppService.mainApp.status {
@@ -35,7 +38,30 @@ enum LaunchAtLogin {
         var errorDescription: String? { L10n.shared.s.launchAtLoginNeedsApproval }
     }
 
-    static func setEnabled(_ enabled: Bool) throws {
+    static func refresh(_ completion: @escaping (Bool) -> Void) {
+        operationQueue.async {
+            let enabled = isEnabled
+            DispatchQueue.main.async { completion(enabled) }
+        }
+    }
+
+    static func setEnabled(_ enabled: Bool, completion: @escaping (Bool, Error?) -> Void) {
+        operationQueue.async {
+            let actual: Bool
+            let failure: Error?
+            do {
+                try setEnabledNow(enabled)
+                actual = enabled
+                failure = nil
+            } catch {
+                actual = isEnabled
+                failure = error
+            }
+            DispatchQueue.main.async { completion(actual, failure) }
+        }
+    }
+
+    private static func setEnabledNow(_ enabled: Bool) throws {
         if enabled, locationIsUnstable { throw UnstableLocationError() }
         UserDefaults.standard.set(enabled, forKey: DefaultsKey.launchAtLoginWanted)
         var failure: Error?
@@ -69,6 +95,10 @@ enum LaunchAtLogin {
     /// Redoes a registration the system lost and adopts an enable made in
     /// the system's own settings. Called once at startup.
     static func repairAtStartup() {
+        operationQueue.async { repairNow() }
+    }
+
+    private static func repairNow() {
         let defaults = UserDefaults.standard
         switch LaunchAtLoginSupport.startupAction(
             wanted: defaults.bool(forKey: DefaultsKey.launchAtLoginWanted),

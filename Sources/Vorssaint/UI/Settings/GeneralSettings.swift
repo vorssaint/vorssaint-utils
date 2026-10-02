@@ -11,6 +11,7 @@ struct GeneralSettings: View {
     @State private var launchAtLogin = UserDefaults.standard.bool(
         forKey: DefaultsKey.launchAtLoginWanted)
     @State private var loginError: String?
+    @State private var loginPending = true
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
 
@@ -40,12 +41,16 @@ struct GeneralSettings: View {
         SettingsCard {
             SettingsRow(symbol: "laptopcomputer", title: l10n.s.launchAtLogin,
                         caption: text.launchAtLoginCaption) {
-                Toggle(l10n.s.launchAtLogin, isOn: Binding(
-                    get: { launchAtLogin },
-                    set: { setLaunchAtLogin($0) }
-                ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
+                HStack {
+                    if loginPending { ProgressView().controlSize(.small) }
+                    Toggle(l10n.s.launchAtLogin, isOn: Binding(
+                        get: { launchAtLogin },
+                        set: { setLaunchAtLogin($0) }
+                    ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(loginPending)
+                }
             }
             if let loginError {
                 Text(loginError)
@@ -137,24 +142,23 @@ struct GeneralSettings: View {
     private func refreshLaunchAtLogin() {
         let requestID = UUID()
         loginRefreshID = requestID
-        DispatchQueue.global(qos: .userInitiated).async {
-            let enabled = LaunchAtLogin.isEnabled
-            DispatchQueue.main.async {
-                guard loginRefreshID == requestID else { return }
-                launchAtLogin = enabled
-            }
+        loginPending = true
+        LaunchAtLogin.refresh { enabled in
+            guard loginRefreshID == requestID else { return }
+            launchAtLogin = enabled
+            loginPending = false
         }
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
-        loginRefreshID = UUID()
-        launchAtLogin = enabled
-        do {
-            try LaunchAtLogin.setEnabled(enabled)
-            loginError = nil
-        } catch {
-            loginError = error.localizedDescription
-            launchAtLogin = LaunchAtLogin.isEnabled
+        let requestID = UUID()
+        loginRefreshID = requestID
+        loginPending = true
+        LaunchAtLogin.setEnabled(enabled) { actual, error in
+            guard loginRefreshID == requestID else { return }
+            launchAtLogin = actual
+            loginError = error?.localizedDescription
+            loginPending = false
         }
     }
 

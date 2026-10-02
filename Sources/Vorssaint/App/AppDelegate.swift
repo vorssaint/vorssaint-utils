@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Redo a launch at login registration the system lost. The stored
         // choice is the last thing the user expressed in the app; startup
         // never turns the item off.
+        // Service Management can stall while reading the registration status.
         LaunchAtLogin.repairAtStartup()
 
         // Switch back on any display a previous run left off. A run that ends
