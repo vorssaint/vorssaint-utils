@@ -8,6 +8,8 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
     private static let volumeItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.volume")
+    private static let keepAwakeItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.keep-awake")
 
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
@@ -33,7 +35,10 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
-        bar.defaultItemIdentifiers = [Self.volumeItemIdentifier]
+        bar.defaultItemIdentifiers = [
+            Self.keepAwakeItemIdentifier,
+            Self.volumeItemIdentifier,
+        ]
         return bar
     }
 
@@ -41,8 +46,36 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         _ touchBar: NSTouchBar,
         makeItemForIdentifier identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem? {
-        guard identifier == Self.volumeItemIdentifier else { return nil }
+        switch identifier {
+        case Self.keepAwakeItemIdentifier:
+            return makeKeepAwakeItem(identifier: identifier)
 
+        case Self.volumeItemIdentifier:
+            return makeVolumeItem(identifier: identifier)
+
+        default:
+            return nil
+        }
+    }
+
+    private func makeKeepAwakeItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        let button = NSButton(
+            image: keepAwakeImage(),
+            target: self,
+            action: #selector(toggleKeepAwake(_:))
+        )
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        item.view = button
+        return item
+    }
+
+    private func makeVolumeItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
         let item = NSSliderTouchBarItem(identifier: identifier)
         item.label = "Volume"
         item.slider.minValue = 0
@@ -53,8 +86,23 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         return item
     }
 
+    private func keepAwakeImage() -> NSImage {
+        let symbol = KeepAwakeManager.shared.isActive
+            ? "cup.and.saucer.fill"
+            : "cup.and.saucer"
+
+        return NSImage(
+            systemSymbolName: symbol,
+            accessibilityDescription: "Keep Awake"
+        ) ?? NSImage()
+    }
+
+    @objc private func toggleKeepAwake(_ sender: NSButton) {
+        KeepAwakeManager.shared.toggle()
+        sender.image = keepAwakeImage()
+    }
+
     @objc private func volumeChanged(_ sender: NSSlider) {
         AppVolumeMixer.shared.setCurrentOutputVolume(sender.doubleValue)
     }
-
 }
