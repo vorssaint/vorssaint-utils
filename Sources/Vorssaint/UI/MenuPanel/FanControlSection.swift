@@ -12,6 +12,8 @@ struct FanControlSection: View {
     @AppStorage(DefaultsKey.fanControlCurves) private var curvesStorage =
         FanControlConfiguration.defaultCurvesStorage
     @AppStorage(DefaultsKey.fanControlResume) private var resume = false
+    @AppStorage(DefaultsKey.fanControlManualMinutes) private var manualMinutes =
+        FanControlManualDuration.untilChanged
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit =
         TemperatureUnit.celsius.rawValue
     var collapsible = true
@@ -34,9 +36,13 @@ struct FanControlSection: View {
                                   coolingLevel: $coolingLevel,
                                   curves: curvesBinding,
                                   resume: $resume,
+                                  manualMinutes: $manualMinutes,
+                                  timedManualEnd: service.timedManualEnd,
+                                  durationTitle: durationTitle,
                                   temperatureUnit: displayTemperatureUnit,
                                   authorize: service.authorize,
                                   applyConfiguration: service.applyConfiguration,
+                                  applyManual: service.applyManual,
                                   stopCooling: service.returnToSystem)
                 .panelCard()
                 .onAppear { service.panelDidAppear() }
@@ -69,6 +75,13 @@ struct FanControlSection: View {
     private var displayTemperatureUnit: TemperatureUnit {
         TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
     }
+
+    /// The Keep awake chip labels ("5m", "∞"), spelled out for VoiceOver.
+    private func durationTitle(_ minutes: Int, spelledOut: Bool) -> String {
+        guard minutes > 0 else { return spelledOut ? strings.untilChanged : "∞" }
+        return DurationPicker.shortTitle(for: minutes, l10n.s, l10n.language,
+                                         style: spelledOut ? .full : .abbreviated)
+    }
 }
 
 struct FanControlCardContent: View {
@@ -83,9 +96,13 @@ struct FanControlCardContent: View {
     @Binding var coolingLevel: Int
     @Binding var curves: [FanControlCurve]
     @Binding var resume: Bool
+    @Binding var manualMinutes: Int
+    let timedManualEnd: Date?
+    let durationTitle: (Int, Bool) -> String
     let temperatureUnit: TemperatureUnit
     let authorize: () -> Void
     let applyConfiguration: (FanControlConfiguration) -> Void
+    let applyManual: (Int, Int) -> Void
     let stopCooling: () -> Void
 
     var body: some View {
@@ -113,6 +130,7 @@ struct FanControlCardContent: View {
                     EmptyView()
                 case .manual:
                     manualControl
+                    manualDurationChips
                 case .curve:
                     FanControlCurveEditor(strings: strings,
                                           curves: $curves,
@@ -129,6 +147,10 @@ struct FanControlCardContent: View {
             }
 
             action
+
+            if let end = FanControlManualDuration.runningEnd(timedManualEnd, snapshot: snapshot) {
+                timedCountdown(until: end)
+            }
 
             if canConfigure, mode != .system {
                 Toggle(strings.resumeAfterRestart, isOn: $resume)
@@ -172,6 +194,47 @@ struct FanControlCardContent: View {
                    step: Double(FanControlPolicy.coolingLevelStep))
                 .controlSize(.small)
                 .disabled(isWorking)
+        }
+    }
+
+    /// The Keep awake chips, as a choice for the Apply button rather than a
+    /// start: the speed above still has to be picked first.
+    private var manualDurationChips: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(strings.keepManualFor)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                ForEach(FanControlManualDuration.choices, id: \.self) { minutes in
+                    let selected = selectedManualMinutes == minutes
+                    Button(durationTitle(minutes, false)) { manualMinutes = minutes }
+                        .buttonStyle(KeepAwakeChipStyle(isSelected: selected))
+                        .disabled(isWorking)
+                        .help(durationTitle(minutes, true))
+                        .accessibilityLabel(durationTitle(minutes, true))
+                        .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
+    }
+
+    private func timedCountdown(until end: Date) -> some View {
+        HStack(spacing: 6) {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                Label(String(format: strings.returnsToSystemFormat,
+                             KeepAwakeCard.countdownText(until: end)),
+                      systemImage: "timer")
+                    .font(.system(size: 10.5).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 4)
+            // With System picked, the Apply row already offers this button.
+            if mode != .system {
+                Button(strings.returnToSystem, action: stopCooling)
+                    .buttonStyle(KeepAwakeChipStyle())
+                    .fixedSize()
+                    .disabled(isWorking)
+            }
         }
     }
 
@@ -274,7 +337,7 @@ struct FanControlCardContent: View {
             case .manual:
                 Button(strings.applyManual) {
                     coolingLevel = selectedCoolingLevel
-                    applyConfiguration(.manual(level: selectedCoolingLevel))
+                    applyManual(selectedCoolingLevel, selectedManualMinutes)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -358,6 +421,10 @@ struct FanControlCardContent: View {
                           FanControlPolicy.maximumCoolingLevel)
         let remainder = clamped % FanControlPolicy.coolingLevelStep
         return remainder == 0 ? clamped : clamped + FanControlPolicy.coolingLevelStep - remainder
+    }
+
+    private var selectedManualMinutes: Int {
+        FanControlManualDuration.validated(manualMinutes)
     }
 
     private var coolingLevelBinding: Binding<Double> {
