@@ -85,7 +85,8 @@ enum NotchAgentTests {
                         && AgentPricing.price(for: "codex-auto-review") == nil
                         && AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 10)), model: "gpt-reserve").cost == nil,
                      "an unlisted model or sibling has no price rather than a borrowed one")
-        suite.expect(AgentPricing.price(for: "claude-opus-5-6") == nil && AgentPricing.price(for: "claude-sonnet-5-5") == nil
+        // Sonnet 5.5 now has published prices: https://platform.claude.com/docs/en/models/sonnet-5-5/overview
+        suite.expect(AgentPricing.price(for: "claude-opus-5-6") == nil && AgentPricing.price(for: "claude-sonnet-5-6") == nil
                         && AgentPricing.price(for: "claude-opus-6") == nil && AgentPricing.price(for: "gpt-7") == nil
                         && AgentPricing.price(for: "gpt-6-sol-2") == nil,
                      "a version the list does not name yet has no price rather than its predecessor's")
@@ -97,6 +98,9 @@ enum NotchAgentTests {
         suite.expect(AgentPricing.price(for: "gpt-5.5-cyber")?.input == 12.5 && AgentPricing.price(for: "gpt-5.4-mini")?.input == 0.75
                         && AgentPricing.price(for: "claude-mythos-preview")?.output == 125
                         && AgentPricing.price(for: "gpt-daybreak-red-latest")?.output == 75
+                        // Turbo snapshots have their own rates: https://developers.openai.com/api/docs/models/gpt-4-turbo-preview
+                        && AgentPricing.price(for: "gpt-4-0125-preview")?.input == 10
+                        && AgentPricing.price(for: "gpt-4-1106-vision-preview")?.output == 30
                         && AgentPricing.price(for: "gpt-4o-2024-05-13")?.input == 5 && AgentPricing.price(for: "gpt-4o-2024-08-06")?.input == 2.5,
                      "specialized models, aliases and snapshots priced apart get their own price")
         let writes = AgentBillable(tokens: AgentTokens(cacheWrite: 100_000))
@@ -145,7 +149,8 @@ enum NotchAgentTests {
                         == AgentPlan(name: "Max 20×", monthlyPrice: 200)
                         && AgentPlans.claude(organizationType: "claude_pro", rateLimitTier: nil)?.monthlyPrice == 20
                         && AgentPlans.claude(organizationType: nil, rateLimitTier: nil) == nil
-                        && AgentPlans.codex(planType: "pro") == AgentPlan(name: "Pro", monthlyPrice: 200)
+                        // Pro has multiple monthly prices: https://learn.chatgpt.com/docs/pricing
+                        && AgentPlans.codex(planType: "pro") == AgentPlan(name: "Pro", monthlyPrice: nil)
                         && AgentPlans.codex(planType: "business") == AgentPlan(name: "Business", monthlyPrice: nil)
                         && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
                         == AgentPlan(name: "Ultra", monthlyPrice: nil),
