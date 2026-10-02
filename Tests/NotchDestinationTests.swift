@@ -16,8 +16,16 @@ enum NotchDestinationContract {
     }
     final class Host { func containsHover(_ point: CGPoint) -> Bool { false } }
     enum NSEvent { static let mouseLocation = CGPoint.zero }
-    final class AppDelegate { func closePopover(preservingNotch: Bool) {} }
-    struct Application { let delegate: AnyObject? = nil }
+    final class AppDelegate {
+        var closes = 0
+        func closePopover(preservingNotch: Bool) { closes += 1 }
+    }
+    static let appDelegate = AppDelegate()
+    struct Application { var delegate: AnyObject? { appDelegate } }
+    enum PanelInteractionState {
+        static let shared = Interaction()
+        final class Interaction { var isDetached = false }
+    }
     static let NSApp = Application()
     enum ClipboardHistoryService {
         static let shared = Reader()
@@ -123,6 +131,7 @@ enum NotchDestinationContract {
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
         stepBackContracts(suite)
+        detachedPanelContracts(suite)
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
@@ -202,6 +211,22 @@ enum NotchDestinationContract {
     }
 
     /// Escape steps back through what the island shows, then closes it.
+    private static func detachedPanelContracts(_ suite: TestSuite) {
+        defer { PanelInteractionState.shared.isDetached = false }
+        for detached in [false, true] {
+            PanelInteractionState.shared.isDetached = detached
+            for appPanel in [false, true] {
+                let closes = appDelegate.closes
+                Service().open(.controls, appPanel: appPanel)
+                let closed = appDelegate.closes > closes
+                suite.expect(closed == (appPanel || !detached),
+                             !detached ? "opening the island closes the menu panel under the menu bar"
+                                 : appPanel ? "the island's own menu panel page still closes a detached panel"
+                                 : "a panel dragged off the menu bar stays open when the island opens")
+            }
+        }
+    }
+
     private static func stepBackContracts(_ suite: TestSuite) {
         let metric = Service()
         metric.open(.system)

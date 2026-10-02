@@ -12,6 +12,7 @@ enum MenuPanelRecoveryTests {
     final class Queue {
         var jobs: [() -> Void] = []
         func async(execute work: @escaping () -> Void) { jobs.append(work) }
+        func asyncAfter(deadline: DispatchTime, execute work: @escaping () -> Void) { jobs.append(work) }
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
     }
     enum DispatchQueue { static var main = Queue() }
@@ -59,6 +60,7 @@ enum MenuPanelRecoveryTests {
     final class Popover {
         var animates = true
         var isShown = false
+        var isDetached = false
         var contentViewController: Controller? = Controller()
         var fails = false
         var attempts = 0
@@ -74,6 +76,8 @@ enum MenuPanelRecoveryTests {
             isShown = true
         }
     }
+    typealias NSPopover = Popover
+    typealias MetricDetailKind = String
     final class Center {
         var observers: [(NSObject, Any?, (Notification) -> Void)] = []
         func addObserver(forName: Notification.Name, object: Any?, queue: OperationQueue?,
@@ -105,6 +109,7 @@ enum MenuPanelRecoveryTests {
         var popoverIsVisible = false
         func setSwitchingMetricAnchor(_ value: Bool) { switching = value }
         func setPopoverVisible(_ value: Bool) { popoverIsVisible = value }
+        func focus(_ metric: String) { activeMetric = metric }
         func clearMetricFocus() { activeMetric = nil }
     }
     enum Needs { case none, network }
@@ -124,9 +129,10 @@ enum MenuPanelRecoveryTests {
         static var shared = PanelInteractionState()
         var viewKeepsPopoverOpen = false
         var isPresentingPopoverModal = false
+        var isDetached = false
         var anchorScreen: NSScreen?
         var preventsPopoverDismissal: Bool {
-            viewKeepsPopoverOpen || isPresentingPopoverModal
+            viewKeepsPopoverOpen || isDetached || isPresentingPopoverModal
         }
     }
     enum StatusItemAnchorSupport {
@@ -158,6 +164,7 @@ enum MenuPanelRecoveryTests {
         var popoverLastWindowNumber: Int?
         var popoverForeignReopenAt = Date.distantPast
         var popoverClosedAt = Date.distantPast
+        var metricAnchorSwitchSerial = 0
         var lastStatusClick: (point: NSPoint, at: Date)?
         static let statusClickFreshness: TimeInterval = 0.5
         static let statusClickEventTypes: Set<NSEvent.EventType> = [
@@ -182,7 +189,8 @@ enum MenuPanelRecoveryTests {
             handbackReasons.append(closeReason)
         }
         func closePopover() { popover.isShown = false }
-        func configurePopoverWindow(_ window: NSWindow) {}
+        var configuredWindows: [NSWindow] = []
+        func configurePopoverWindow(_ window: NSWindow) { configuredWindows.append(window) }
         func animatePopoverOpen(_ window: NSWindow) {}
         @discardableResult func useStablePopoverPositioningViewIfNeeded(_ window: NSWindow) -> Bool { false }
     }
@@ -442,6 +450,11 @@ enum MenuPanelRecoveryTests {
                    "modal presentation keeps panel open even when Settings window overlaps")
             PanelInteractionState.shared.isPresentingPopoverModal = false
 
+            PanelInteractionState.shared.isDetached = true
+            expect(!host.shouldDismissPopover(forLocalEvent: overlapEvent),
+                   "a detached panel stays open even when Settings window overlaps")
+            PanelInteractionState.shared.isDetached = false
+
             let popoverEvent = event(window: 71)!
             expect(!host.shouldDismissPopover(forLocalEvent: popoverEvent),
                    "interaction with the panel itself does not dismiss the popover")
@@ -473,6 +486,14 @@ enum MenuPanelRecoveryTests {
         }
         do {
             let host = setup()
+            host.popover.isDetached = true
+            host.popoverDidDetach(host.popover)
+            close(host)
+            expect(!host.popover.isShown && host.handbackReasons == [.closeButton],
+                   "a detached panel's close button hands activation back like Esc")
+        }
+        do {
+            let host = setup()
             expect(host.activationTrackingStarts == 0, "a panel shown without activating remembers no app")
             requestClose(host, .escape)
             host.showPopover(allowRecentClose: true, animate: false)
@@ -501,6 +522,35 @@ enum MenuPanelRecoveryTests {
             host.popoverIsSwitchingAnchor = true; requestClose(host, .statusItem)
             expect(host.handbackReasons.isEmpty && host.activationTracking,
                    "moving the panel between metric anchors keeps activation and its tracking")
+        }
+        do {
+            let host = setup()
+            let button = host.statusController.button!
+            MenuPanelFocus.shared.focus("cpu")
+            host.scheduleMetricAnchorSwitch(to: "cpu", anchoredTo: button)
+            host.popover.isDetached = true
+            host.configuredWindows.removeAll()
+            host.popoverDidDetach(host.popover)
+            expect(host.configuredWindows.count == 1
+                   && host.configuredWindows.first === host.popover.contentViewController?.view.window,
+                   "the detached panel's window keeps every desktop and full screen setup")
+            DispatchQueue.main.drain()
+            expect(host.popover.attempts == 1 && host.popoverAnchor == nil && host.popoverDriftObservers.isEmpty,
+                   "a metric switch waiting when the panel detaches neither reanchors it nor restarts drift correction")
+            expect(!host.statusController.held, "a detached panel stops holding the microphone badge")
+        }
+        do {
+            let host = setup()
+            let button = host.statusController.button!
+            host.metricAnchorSwitchSerial = 1
+            host.reanchorMetricPopover(to: "network", anchoredTo: button)
+            host.popover.isDetached = true
+            host.popoverDidDetach(host.popover)
+            host.popover.contentViewController!.view.window!.frame.origin.x = 100
+            DispatchQueue.main.drain()
+            expect(host.popover.isShown && host.popover.attempts == 2
+                   && !host.popoverIsSwitchingAnchor && !MenuPanelFocus.shared.switching,
+                   "a reanchor check waiting when the panel detaches does not close and reopen it")
         }
     }
 }

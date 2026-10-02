@@ -2109,7 +2109,7 @@ enum SwitcherModelFeatureTests {
         suite.expect(!StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: nil,
                                                                      ownWindowIsKey: false, closeReason: .escape),
                "no known frontmost app means nothing is taken from anyone")
-        for (reason, returns) in [(PanelCloseReason.escape, true), (.statusItem, true),
+        for (reason, returns) in [(PanelCloseReason.escape, true), (.statusItem, true), (.closeButton, true),
                                   (.outsideClick, false), (.action, false)] {
             suite.expect(StatusItemAnchorSupport.shouldReturnActivation(to: 501, ownPID: 900, frontmostPID: 900,
                                                                         ownWindowIsKey: false,

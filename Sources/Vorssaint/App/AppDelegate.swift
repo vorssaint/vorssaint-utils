@@ -445,6 +445,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
+        // A detached panel closes only from its own button; the icon brings it back.
+        if popover.isDetached {
+            popover.contentViewController?.view.window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
         if popover.isShown {
             closePopover(reason: .statusItem)
             return
@@ -472,6 +478,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            NotchSupport.modules().contains(.system) {
             NotchService.shared.showMetric(detailKind, toggle: true); return
         }
+        // Re-showing would pull a detached panel back under the icon.
+        if popover.isDetached {
+            MenuPanelFocus.shared.focus(detailKind)
+            return
+        }
         if popover.isShown {
             if MenuPanelFocus.shared.activeMetric == detailKind {
                 metricAnchorSwitchSerial &+= 1
@@ -494,6 +505,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let self,
                   let button,
                   self.popover.isShown,
+                  !self.popover.isDetached,
                   self.metricAnchorSwitchSerial == serial,
                   MenuPanelFocus.shared.activeMetric == detailKind else { return }
             self.reanchorMetricPopover(to: detailKind, anchoredTo: button)
@@ -506,6 +518,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false)
             return
         }
+        let serial = metricAnchorSwitchSerial
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
         let expectedMidX = statusButtonMidX(button)
@@ -526,7 +539,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard let self,
                   let button,
                   self.popover.isShown,
-                  self.metricAnchorSwitchSerial > 0,
+                  !self.popover.isDetached,
+                  self.metricAnchorSwitchSerial == serial,
                   MenuPanelFocus.shared.activeMetric == detailKind else {
                 self?.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
@@ -1061,7 +1075,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
-        if popover.isShown, event.keyCode == UInt16(kVK_Escape) {
+        if popover.isShown, !popover.isDetached, event.keyCode == UInt16(kVK_Escape) {
             // The monitor sees the whole app; Esc in another window, such as
             // Settings or a popover or dialog opened from the panel, stays there.
             guard let window = popover.contentViewController?.view.window,
@@ -1189,12 +1203,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
+    func popoverShouldDetach(_ popover: NSPopover) -> Bool {
+        true
+    }
+
+    func popoverDidDetach(_ popover: NSPopover) {
+        // The anchor, or a metric switch still waiting to run, would pull the
+        // panel back under the icon.
+        metricAnchorSwitchSerial &+= 1
+        endPopoverDriftCorrection()
+        // The badge was held so the icon's width would not move a panel
+        // hanging from it; a detached panel no longer does.
+        statusController.setMicBadgeHeld(false)
+        // AppKit moves the content into a window of its own for the detached
+        // state, which starts without the popover window's setup.
+        if let window = popover.contentViewController?.view.window {
+            configurePopoverWindow(window)
+        }
+        PanelInteractionState.shared.isDetached = true
+    }
+
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
-        popoverCloseIsAppRequested || !PanelInteractionState.shared.preventsPopoverDismissal
+        // Nothing else closes a detached panel, so an unrequested close is its
+        // own close button.
+        popoverCloseIsAppRequested || popover.isDetached
+            || !PanelInteractionState.shared.preventsPopoverDismissal
     }
 
     func popoverWillClose(_ notification: Notification) {
         popoverIsClosing = true
+        // Only its own close button closes a detached panel without us asking.
+        if !popoverCloseIsAppRequested, PanelInteractionState.shared.isDetached {
+            popoverCloseReason = .closeButton
+        }
         if !popoverIsSwitchingAnchor {
             popoverClosedAt = Date()
         }
@@ -1222,6 +1263,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         endPopoverDriftCorrection()
         PanelInteractionState.shared.viewKeepsPopoverOpen = false
         PanelInteractionState.shared.isPresentingPopoverModal = false
+        PanelInteractionState.shared.isDetached = false
         popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         popoverCloseIsAppRequested = false
@@ -1380,7 +1422,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // The panel uses applicationDefined dismissal, so a right-click while it's
         // open won't close it on its own — and the menu would try to open behind it.
         // Close it first so the context menu always appears.
-        if popover.isShown {
+        // A detached panel sits away from the icon, so it stays open.
+        if popover.isShown, !popover.isDetached {
             closePopover { [weak self] in self?.presentContextMenu(from: button) }
             return
         }
