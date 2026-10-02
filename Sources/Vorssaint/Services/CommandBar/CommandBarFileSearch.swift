@@ -4,21 +4,18 @@
 import CoreServices
 import Foundation
 
-/// Finds files by name in the folders the person named, through the index
-/// macOS already keeps.
+/// Resolves explicit paths, or finds files by name in the folders the person
+/// named through the index macOS already keeps.
 ///
-/// Nothing is indexed, watched or remembered here: an empty field does no
-/// work, a query is asked of Spotlight once and its answer is thrown away when
-/// the bar closes. No permission is asked for either, because what comes back
-/// is filtered down to what the person can already see in Finder.
+/// An empty field does no work. Results are cached only until the bar closes;
+/// filename discovery is filtered to visible files, while a pasted path checks
+/// only the target the person named. Neither mode builds its own index.
 ///
 /// `MDQuery` rather than `NSMetadataQuery` for one reason: it can be told to
 /// stop at a thousand names. A broad word has hundreds of thousands of answers
 /// on a full disk, and the newer class has no way to say no to them.
 ///
-/// Not part of the pure-function test harness (`./build.sh --test`): the rules
-/// live in `CommandBarFileSearchSupport` and are tested there; what is left is
-/// a timer and a call into Spotlight.
+/// Path checks share Spotlight's background queue and session cancellation.
 final class CommandBarFileSearch {
     /// How long the field has to sit still before Spotlight is asked. Typing
     /// is faster than this, which is the point: a query per keystroke would
@@ -65,8 +62,10 @@ final class CommandBarFileSearch {
     /// answered, or already being answered, is left alone.
     func schedule(query: String, scopes: [String], patterns: [String]) {
         currentQuery = query
-        guard !scopes.isEmpty,
-              CommandBarFileSearchSupport.expression(for: query) != nil,
+        let explicitPath = CommandBarFileSearchSupport.explicitPath(
+            for: query, homeDirectory: NSHomeDirectory())
+        guard explicitPath != nil || (!scopes.isEmpty
+                && CommandBarFileSearchSupport.expression(for: query) != nil),
               cache[query] == nil, !inFlight.contains(query)
         else { return }
         // The newest query is the only one worth waiting for: a search whose
@@ -84,19 +83,28 @@ final class CommandBarFileSearch {
 
     private func execute(query: String, scopes: [String], patterns: [String],
                          cancellationGeneration runCancellationGeneration: Int) {
-        guard let expression = CommandBarFileSearchSupport.expression(for: query) else { return }
         pendingWorkItem = nil
         let runGeneration = generation
         inFlight.insert(query)
         searchQueue.async { [weak self] in
             guard let self else { return }
-            let found = self.search(expression: expression,
-                                    scopes: scopes,
-                                    cancellationGeneration: runCancellationGeneration)
-            let paths = CommandBarFileSearchSupport.offerable(
-                paths: found,
-                patterns: patterns,
-                isPackage: { Self.isPackage(atPath: $0) })
+            let paths: [String]
+            if let path = CommandBarFileSearchSupport.explicitPath(
+                for: query, homeDirectory: NSHomeDirectory()) {
+                // Search scopes and discovery exclusions do not restrict a
+                // target explicitly named by the person, like Finder's Go to Folder.
+                paths = FileManager.default.fileExists(atPath: path) ? [path] : []
+            } else if let expression = CommandBarFileSearchSupport.expression(for: query) {
+                let found = self.search(expression: expression,
+                                        scopes: scopes,
+                                        cancellationGeneration: runCancellationGeneration)
+                paths = CommandBarFileSearchSupport.offerable(
+                    paths: found,
+                    patterns: patterns,
+                    isPackage: { Self.isPackage(atPath: $0) })
+            } else {
+                paths = []
+            }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.generation == runGeneration else { return }
                 self.inFlight.remove(query)

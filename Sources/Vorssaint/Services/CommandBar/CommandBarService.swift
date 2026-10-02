@@ -1529,11 +1529,12 @@ final class CommandBarService: ObservableObject {
             scriptRunner.cancelPending()
         }
 
-        // Files, once the person has named a folder to look in. Asked for
-        // rather than waited on: the answer lands a moment later and refreshes
-        // the list, the way a saved script's answer does.
+        // An explicit path needs no search scope. Both lookups run off the
+        // main thread and refresh the list when their answer is ready.
+        let isExplicitPath = CommandBarFileSearchSupport.explicitPath(
+            for: trimmed, homeDirectory: NSHomeDirectory()) != nil
         var fileRows: [CommandBarEntry] = []
-        if isEnabled(.files), !fileScopeCache.isEmpty {
+        if isEnabled(.files), isExplicitPath || !fileScopeCache.isEmpty {
             if let paths = fileSearch.cachedPaths(for: trimmed) {
                 fileSearch.cancelPending()
                 fileRows = CommandBarCatalog.fileEntries(paths, bar: bar)
@@ -1598,7 +1599,7 @@ final class CommandBarService: ObservableObject {
             pool.append(contentsOf: menuEntries)
         }
         pool.append(contentsOf: clipboard)
-        pool.append(contentsOf: fileRows)
+        if !isExplicitPath { pool.append(contentsOf: fileRows) }
 
         // The kind of each surviving row, worked out once: the ranking below
         // needs the same answer and working it out twice would double a walk
@@ -1671,7 +1672,9 @@ final class CommandBarService: ObservableObject {
         // known; a conversion asked for with "to" leads like any answer.
         let colorPreview = answer?.id == "color.preview" ? answer : nil
         var counts: [String: Int] = [:]
-        var result: [CommandBarEntry] = []
+        // A full path will not match its basename in ordinary ranking. The
+        // exact target leads, retaining the file row's open/reveal actions.
+        var result = isExplicitPath ? fileRows.filter { !hidden.contains($0.stableKey) } : []
         if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
