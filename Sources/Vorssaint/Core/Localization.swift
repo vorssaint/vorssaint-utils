@@ -1010,6 +1010,8 @@ struct Strings {
     let memoryStyleDot: String
     let memoryStylePercent: String
     let memoryStyleBoth: String
+    let memoryTotalLabel: String
+    let memoryUsedLabel: String
     // MARK: System uptime, battery health, speed test
     let systemUptime: String
     let batteryCharge: String
@@ -2107,6 +2109,8 @@ extension Strings {
         memoryStyleDot: "Ponto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Ambos",
+        memoryTotalLabel: "Total",
+        memoryUsedLabel: "Usada",
         systemUptime: "Ativo há",
         batteryCharge: "Carga",
         powerHealth: "Saúde da bateria",
@@ -3195,6 +3199,8 @@ extension Strings {
         memoryStyleDot: "Dot",
         memoryStylePercent: "%",
         memoryStyleBoth: "Both",
+        memoryTotalLabel: "Total",
+        memoryUsedLabel: "Used",
         systemUptime: "Up for",
         batteryCharge: "Charge",
         powerHealth: "Battery health",

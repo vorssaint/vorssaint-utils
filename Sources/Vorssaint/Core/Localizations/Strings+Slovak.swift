@@ -817,6 +817,8 @@ extension Strings {
         memoryStyleDot: "Bodka",
         memoryStylePercent: "%",
         memoryStyleBoth: "Oboje",
+        memoryTotalLabel: "Celkom",
+        memoryUsedLabel: "Použité",
         systemUptime: "Beží",
         batteryCharge: "Nabitie",
         powerHealth: "Kondícia batérie",
