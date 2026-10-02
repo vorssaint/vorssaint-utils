@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskTemperature, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
 
     var id: String { rawValue }
 
@@ -19,6 +19,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTemperature: return DefaultsKey.menuBarBatteryTemperature
         case .network: return DefaultsKey.menuBarNetwork
         case .diskUsage: return DefaultsKey.menuBarDiskUsage
+        case .diskTemperature: return DefaultsKey.menuBarDiskTemperature
         case .diskActivity: return DefaultsKey.menuBarDiskActivity
         case .battery: return DefaultsKey.menuBarBattery
         case .batteryTime: return DefaultsKey.menuBarBatteryTime
@@ -39,6 +40,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTemperature: return "battery.100"
         case .network: return "network"
         case .diskUsage: return "internaldrive"
+        case .diskTemperature: return "thermometer.medium"
         case .diskActivity: return "internaldrive.fill"
         case .battery: return "battery.100"
         case .batteryTime: return "clock"
@@ -59,6 +61,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .batteryTemperature: return strings.monitorShowBatteryTemperature
         case .network: return strings.monitorShowNetwork
         case .diskUsage: return strings.monitorItemDiskUsage
+        case .diskTemperature: return "디스크 · 온도"
         case .diskActivity: return strings.monitorItemDiskActivity
         case .battery: return strings.batteryLabel
         case .batteryTime: return FeatureStrings.batteryTime(L10n.shared.language).title
@@ -74,7 +77,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
-        .network, .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
+        .network, .diskUsage, .diskTemperature, .diskActivity, .connectedDevices, .power, .fanSpeed,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -96,7 +99,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .gpu, .gpuTemperature: return .monitorGPU
         case .memory: return .monitorMemory
         case .network: return .monitorNetwork
-        case .diskUsage, .diskActivity: return .monitorDisk
+        case .diskUsage, .diskTemperature, .diskActivity: return .monitorDisk
         case .connectedDevices: return .connectedDevices
         case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
         case .fanSpeed: return .fanControl
@@ -410,6 +413,13 @@ enum MenuBarRenderer {
                                             segments: [.symbol(metric.symbolName), .text(" " + text)],
                                             width: reservedWidth(for: metric, preset: preset)))
                 }
+            case .diskTemperature:
+                if let temperature = DiskSupport.temperatureDisk(from: snapshot.disk)?.smart?.temperatureCelsius {
+                    let text = "SSD " + temperatureCompact(temperature)
+                    items.append(MetricItem(metric: metric,
+                                            segments: [.symbol(metric.symbolName), .text(" " + text)],
+                                            width: reservedWidth(for: metric, preset: preset)))
+                }
             case .diskActivity:
                 if let activity = diskActivity(from: snapshot.disk) {
                     let total = activity.read + activity.write
@@ -623,6 +633,15 @@ enum MenuBarRenderer {
                                                     pressure: nil)])
                     }
                 }
+            case .diskTemperature:
+                if let disk = DiskSupport.temperatureDisk(from: snapshot.disk),
+                   let temperature = disk.smart?.temperatureCelsius {
+                    groups.append([.metricBlock(label: "SSD",
+                                                value: temperatureCompact(temperature),
+                                                minimumValue: "999°",
+                                                style: style,
+                                                pressure: nil)])
+                }
             case .diskActivity:
                 if let activity = diskActivity(from: snapshot.disk) {
                     groups.append([.diskActivityBlock(read: MetricFormat.bytesPerSecCompact(activity.read),
@@ -795,6 +814,8 @@ enum MenuBarRenderer {
             return 15      // down symbol + 1.0G + up symbol + 1.0G
         case (_, .diskUsage):
             return DiskMenuBarStyle.current.showsPercentage ? 11 : 14
+        case (_, .diskTemperature):
+            return 11      // symbol + " SSD 999°"
         case (_, .diskActivity):
             return 15      // R1.0G + W1.0G
         case (_, .battery), (_, .power):

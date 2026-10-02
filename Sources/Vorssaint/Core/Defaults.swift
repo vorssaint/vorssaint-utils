@@ -369,6 +369,7 @@ enum DefaultsKey {
     static let menuBarNetwork = "menuBarNetwork"
     static let menuBarDiskUsage = "menuBarDiskUsage"
     static let menuBarDiskActivity = "menuBarDiskActivity"
+    static let menuBarDiskTemperature = "menuBarDiskTemperature"
     static let menuBarBattery = "menuBarBattery"
     static let menuBarBatteryTime = "menuBarBatteryTime"
     static let menuBarPeripheralBattery = "menuBarPeripheralBattery"
@@ -1100,7 +1101,7 @@ enum Defaults {
         "gpu", "gpuTemperature",
         "memory",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
-        "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
+        "network", "diskUsage", "diskTemperature", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]

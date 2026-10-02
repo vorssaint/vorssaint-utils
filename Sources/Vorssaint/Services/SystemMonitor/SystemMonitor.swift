@@ -534,7 +534,7 @@ final class SystemMonitor: ObservableObject {
         plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
         plan.needDisk = panelNeedsDisk
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
-            || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
+            || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity) || defaults.bool(forKey: DefaultsKey.menuBarDiskTemperature)
             || alertDisk
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
