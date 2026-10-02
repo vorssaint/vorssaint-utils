@@ -132,6 +132,19 @@ enum TemperatureSensorSelector {
         return platform == .appleM3Family && key.hasPrefix("Tf")
     }
 
+    static func isBatteryTemperatureKey(_ key: String) -> Bool {
+        key.range(of: "^TB[0-9]T$", options: .regularExpression) != nil
+    }
+
+    /// Hottest reading that can be a real temperature: a sensor answering 0 or
+    /// 128 °C is disconnected, not a frozen or burning component.
+    static func hottestPlausibleReading(_ readings: [Double?]) -> Double? {
+        readings.compactMap { reading -> Double? in
+            guard let reading, reading > 1, reading < 125 else { return nil }
+            return reading
+        }.max()
+    }
+
     static func stabilizedTemperature(_ reading: Double?,
                                       cache: inout CachedSensorReading?,
                                       now: TimeInterval,

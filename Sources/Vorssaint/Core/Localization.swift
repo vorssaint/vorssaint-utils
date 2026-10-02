@@ -259,6 +259,7 @@ struct Strings {
     let notifySessionEndedBody: String
     let notifyBatteryTitle: String
     let notifyBatteryBody: String
+    let notifyThermalBody: String
 
     // MARK: Administrator prompts (shown by macOS password dialogs)
     let adminPromptClamshellOn: String
@@ -320,6 +321,8 @@ struct Strings {
     let batteryDisableBelow: String
     let batteryNever: String
     let batteryProtectionCaption: String
+    let thermalDisableAbove: String
+    let thermalProtectionCaption: String
     let clamshellSection: String
     let configuring: String
     let sudoersFailed: String
@@ -1392,6 +1395,7 @@ extension Strings {
         notifySessionEndedBody: "O tempo acabou. O Mac voltará a suspender normalmente.",
         notifyBatteryTitle: "Vorssaint desativado",
         notifyBatteryBody: "Bateria baixa. A suspensão normal foi restaurada para proteger a carga.",
+        notifyThermalBody: "O Mac estava esquentando. A suspensão normal foi restaurada para proteger a bateria.",
         adminPromptClamshellOn: "O Vorssaint precisa da sua senha para manter o Mac ativo com a tampa fechada.",
         adminPromptClamshellOff: "O Vorssaint precisa da sua senha para reativar a suspensão normal do Mac.",
         adminPromptRecover: "O Vorssaint foi encerrado com a suspensão do Mac desativada. Digite a senha para restaurar a suspensão normal.",
@@ -1446,6 +1450,8 @@ extension Strings {
         batteryDisableBelow: "Desativar com bateria abaixo de",
         batteryNever: "Nunca",
         batteryProtectionCaption: "Evita que uma sessão esquecida drene a bateria do MacBook.",
+        thermalDisableAbove: "Desativar com temperatura da bateria acima de",
+        thermalProtectionCaption: "Encerra uma sessão esquecida quando o Mac esquenta dentro da mochila.",
         clamshellSection: "Tampa fechada",
         configuring: "Configurando…",
         sudoersFailed: "Não foi possível ativar a tampa fechada. Tente de novo.",
@@ -2480,6 +2486,7 @@ extension Strings {
         notifySessionEndedBody: "Time is up. The Mac will sleep normally again.",
         notifyBatteryTitle: "Vorssaint disabled",
         notifyBatteryBody: "Low battery. Normal sleep was restored to protect the charge.",
+        notifyThermalBody: "The Mac was getting hot. Normal sleep was restored to protect the battery.",
         adminPromptClamshellOn: "Vorssaint needs your password to keep the Mac going with the lid closed.",
         adminPromptClamshellOff: "Vorssaint needs your password to restore the Mac’s normal sleep.",
         adminPromptRecover: "Vorssaint quit while the Mac’s sleep was disabled. Enter the password to restore normal sleep.",
@@ -2534,6 +2541,8 @@ extension Strings {
         batteryDisableBelow: "Disable when battery drops below",
         batteryNever: "Never",
         batteryProtectionCaption: "Keeps a forgotten session from draining the MacBook battery.",
+        thermalDisableAbove: "Disable when battery temperature rises above",
+        thermalProtectionCaption: "Ends a forgotten session when the Mac heats up in a bag or case.",
         clamshellSection: "Closed lid",
         configuring: "Configuring…",
         sudoersFailed: "Couldn’t turn on closed-lid mode. Try again.",

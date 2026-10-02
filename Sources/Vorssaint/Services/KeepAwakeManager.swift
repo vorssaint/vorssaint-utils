@@ -9,13 +9,13 @@ import os
 
 /// Core of the energy feature: manages "keep awake" sessions through IOKit power
 /// assertions, the closed-lid mode (pmset disablesleep, administrator password)
-/// and the battery protection watchdog.
+/// and the battery/thermal protection watchdog.
 final class KeepAwakeManager: ObservableObject {
     static let shared = KeepAwakeManager()
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "keep-awake")
 
-    enum EndReason { case manual, timer, battery, quit }
+    enum EndReason { case manual, timer, battery, thermal, quit }
     enum SessionTrigger { case manual, automation }
 
     @Published private(set) var isActive = false
@@ -76,6 +76,9 @@ final class KeepAwakeManager: ObservableObject {
     private var hasDisplayAssertion = false
     private var endTimer: Timer?
     private var batteryTimer: Timer?
+    /// Built on first use: enumerating SMC keys walks the whole key table,
+    /// and a Mac with the thermal limit switched off never needs it.
+    private lazy var temperatureSampler = BatteryTemperatureSampler()
     private var mouseJiggleTimer: Timer?
     private var pendingMouseReturn: DispatchWorkItem?
     private var defaultsObserver: AnyCancellable?
@@ -631,6 +634,7 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func automaticSessionAllowedByBatteryProtection() -> Bool {
+        guard !isTooHotToStayAwake() else { return false }
         let limit = Defaults.sanitizedBatteryLimit(
             UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit)
         )
@@ -1111,22 +1115,45 @@ final class KeepAwakeManager: ObservableObject {
         syncLidDimmingObserver()
     }
 
-    // MARK: - Battery protection
+    // MARK: - Battery and thermal protection
 
     private func startBatteryWatch() {
         stopBatteryWatch()
         let t = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
-            self?.checkBattery()
+            self?.checkProtections()
         }
         t.tolerance = 5
         RunLoop.main.add(t, forMode: .common)
         batteryTimer = t
-        checkBattery()
+        checkProtections()
     }
 
     private func stopBatteryWatch() {
         batteryTimer?.invalidate()
         batteryTimer = nil
+    }
+
+    /// One tick of both forgotten-session guards. Heat goes first: a Mac
+    /// cooking in a bag is the more urgent of the two, and unlike a flat
+    /// battery it can happen at any charge.
+    private func checkProtections() {
+        guard isActive else { return }
+        if isTooHotToStayAwake() {
+            deactivate(reason: .thermal)
+            return
+        }
+        checkBattery()
+    }
+
+    /// True when a battery sensor reports at or above the configured limit.
+    /// Unlike the charge guard this also applies on wall power — a closed Mac
+    /// in a bag heats up the same whether or not a cable is attached.
+    private func isTooHotToStayAwake() -> Bool {
+        let limit = Defaults.sanitizedThermalLimit(
+            UserDefaults.standard.integer(forKey: DefaultsKey.thermalLimit))
+        guard limit > 0 else { return false }
+        return KeepAwakeAutomationSupport.exceedsThermalLimit(celsius: temperatureSampler.read(),
+                                                              limitCelsius: limit)
     }
 
     private func checkBattery() {
