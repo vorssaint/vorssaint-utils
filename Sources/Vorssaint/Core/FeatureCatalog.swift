@@ -80,7 +80,8 @@ extension AppFeature {
                     && !WindowEdgeSnapZone.enabledZones(
                         from: edgeSnapDisabledZones
                     ).isEmpty)
-        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper:
+        // Watch asks when an area is chosen and checks on every reading.
+        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch:
             return false
         default:
             return true
@@ -331,8 +332,9 @@ extension AppFeature {
         // behind the same permission the mixer and the recorder ask for.
         case .notchLiveEqualizer: return [.audioCapture]
         case .notchDownloads: return [.filesAndFolders]
-        // The chosen area is read with the screen capture other tools use.
-        case .notchWatch: return [.screenRecording]
+        // The chosen area is read with the screen capture other tools use,
+        // and the alert becomes a notification where the island is hidden.
+        case .notchWatch: return [.screenRecording, .notifications]
         case .notchNotifications: return [.accessibility]
         case .notchCalendar: return [.calendar]
         case .notch: return [.accessibility, .automationPlayback]
@@ -386,7 +388,7 @@ extension AppFeature {
         switch self {
         case .keepAwake, .brightness, .radialMenu, .quickToggles, .cleaner,
              .uninstaller, .homebrew, .appUpdates, .mixer, .cameraPreview,
-             .micMute, .musicBlock:
+             .micMute, .musicBlock, .notchWatch:
             return []
         default:
             return permissions.filter { $0 == .accessibility || $0 == .screenRecording }

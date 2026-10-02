@@ -14,6 +14,7 @@ enum NotchWatchTests {
         geometryContracts(suite)
         fingerprintContracts(suite)
         gateContracts(suite)
+        readingLoopContracts(suite)
     }
 
     private static func readingContracts(_ suite: TestSuite) {
@@ -50,22 +51,90 @@ enum NotchWatchTests {
             suite.expect(NotchWatchSupport.number(in: text) == expected,
                          "\(text) reads as \(String(describing: expected))")
         }
+        suite.expect(NotchWatchSupport.number(in: "1.000", decimalSeparator: ",") == 1000
+                        && NotchWatchSupport.number(in: "12.500", decimalSeparator: ",") == 12500
+                        && NotchWatchSupport.number(in: "12,500", decimalSeparator: ",") == 12.5
+                        && NotchWatchSupport.number(in: "1.000", decimalSeparator: ".") == 1
+                        && NotchWatchSupport.number(in: "12,500", decimalSeparator: ".") == 12500,
+                     "a lone mark before three digits follows the region's decimal mark")
+        suite.expect(NotchWatchSupport.number(in: "0,125") == 0.125 && NotchWatchSupport.number(in: "0.125",
+                                                                                         decimalSeparator: ",") == 0.125,
+                     "a number that starts at zero has decimals, never thousands")
+        for identifier in ["pt_BR", "de_DE", "en_US", "fr_FR", "ja_JP"] {
+            let locale = Locale(identifier: identifier)
+            for value in [1000.0, 25_000, 1_234_567, 12.5, 0.25] {
+                let shown = NotchWatchSupport.formatted(value, locale: locale)
+                suite.expect(NotchWatchSupport.typedNumber(shown, locale: locale) == value,
+                             "a target shown as \(shown) in \(identifier) reads back as \(value)")
+            }
+        }
+        suite.expect(NotchWatchSupport.typedNumber("1.000", locale: Locale(identifier: "pt_BR")) == 1000
+                        && NotchWatchSupport.typedNumber("1,5", locale: Locale(identifier: "pt_BR")) == 1.5
+                        && NotchWatchSupport.typedNumber("10\u{202F}000", locale: Locale(identifier: "fr_FR")) == 10000
+                        && NotchWatchSupport.typedNumber("1,000", locale: Locale(identifier: "en_US")) == 1000,
+                     "a typed target is read as the page's region writes it")
+        let brazil = Locale(identifier: "pt_BR")
+        var climbing = NotchWatchTracker(condition: .reaches, text: "", target: 1000, locale: brazil)
+        suite.expect(climbing.observe(signature: "a", reading: "850 de 1.200", at: Date()) == nil
+                        && climbing.observe(signature: "b", reading: "1.000 de 1.200", at: Date()) == .reached("1.000 de 1.200"),
+                     "a window's numbers are read as the Mac's region writes them")
+        let france = Locale(identifier: "fr_FR")
+        var falling = NotchWatchTracker(condition: .reaches, text: "", target: 10, locale: france)
+        suite.expect(falling.observe(signature: "a", reading: "Reste 10\u{202F}000 fichiers", at: Date()) == nil
+                        && falling.observe(signature: "b", reading: "Reste 999 fichiers", at: Date()) == nil
+                        && falling.observe(signature: "c", reading: "Reste 3 fichiers", at: Date()) == .reached("Reste 3 fichiers"),
+                     "a region that groups thousands with a space reads them as one number")
+        suite.expect(NotchWatchSupport.number(in: "3 of 10 000", decimalSeparator: ",", groupsWithSpace: true) == 3
+                        && NotchWatchSupport.number(in: "10 000,5 Mo", decimalSeparator: ",", groupsWithSpace: true) == 10000.5
+                        && NotchWatchSupport.groupsWithSpace(france) && !NotchWatchSupport.groupsWithSpace(brazil),
+                     "the first number still comes first, and only space regions join groups")
     }
 
     private static func changeContracts(_ suite: TestSuite) {
-        let now = Date()
+        let start = Date()
+        let hold = NotchWatchTracker.changeConfirmation
+        func at(_ seconds: TimeInterval) -> Date { start.addingTimeInterval(seconds) }
         var tracker = NotchWatchTracker(condition: .changes)
-        suite.expect(tracker.observe(signature: "uploading", reading: "Uploading", at: now) == nil,
+        suite.expect(tracker.observe(signature: "uploading", reading: "Uploading", at: at(0)) == nil,
                      "the first reading is the starting point")
-        suite.expect(tracker.observe(signature: nil, reading: "Uploading", at: now) == nil,
-                     "an unchanged picture is not a change")
-        suite.expect(tracker.observe(signature: "uploadin", reading: "Uploadin", at: now) == nil,
-                     "one different reading waits for the next to agree")
-        suite.expect(tracker.observe(signature: "uploading", reading: "Uploading", at: now) == nil,
+        suite.expect(tracker.observe(signature: nil, reading: "Uploading", at: at(2)) == nil
+                        && tracker.observe(signature: "uploading", reading: "Uploading", at: at(4)) == nil,
+                     "an unchanged area is not a change")
+        suite.expect(tracker.observe(signature: "uploadin", reading: "Uploadin", at: at(6)) == nil
+                        && tracker.observe(signature: "uploading", reading: "Uploading", at: at(6 + hold)) == nil,
                      "a reading that flips back is noise, not a change")
-        suite.expect(tracker.observe(signature: "done", reading: "Done", at: now) == nil
-                        && tracker.observe(signature: "done", reading: "Done", at: now) == .changed,
-                     "two readings in a row that agree on something new end the watch")
+        suite.expect(tracker.observe(signature: "done", reading: "Done", at: at(20)) == nil
+                        && tracker.observe(signature: "done", reading: "Done", at: at(21)) == nil,
+                     "a new reading waits a few seconds before it counts")
+        suite.expect(tracker.observe(signature: "done", reading: "Done", at: at(20 + hold)) == .changed,
+                     "a change that holds for a few seconds ends the watch")
+
+        // A still area is not read again: it comes back with its last signature.
+        var still = NotchWatchTracker(condition: .changes)
+        _ = still.observe(signature: "uploading", reading: "Uploading", at: at(0))
+        suite.expect(still.observe(signature: "done", reading: "Done", at: at(2)) == nil
+                        && still.observe(signature: "done", reading: "Done", at: at(4)) == nil
+                        && still.observe(signature: "done", reading: "Done", at: at(6)) == .changed,
+                     "a change that then holds still ends the watch at the background pace")
+        var moving = NotchWatchTracker(condition: .changes)
+        _ = moving.observe(signature: "12%", reading: "12%", at: at(0))
+        suite.expect(moving.observe(signature: "13%", reading: "13%", at: at(1)) == nil
+                        && moving.observe(signature: "14%", reading: "14%", at: at(2)) == nil
+                        && moving.observe(signature: "15%", reading: "15%", at: at(1 + hold)) == .changed,
+                     "a reading that keeps moving ends the watch too")
+        func picture(_ level: UInt8, nudged: Int = 0) -> String? {
+            var cells = [UInt8](repeating: level, count: 256)
+            for index in 0..<nudged { cells[index] = level + 1 }
+            return NotchWatchSupport.signature(text: "", fingerprint: cells)
+        }
+        var bar = NotchWatchTracker(condition: .changes)
+        _ = bar.observe(signature: picture(4), reading: "", at: at(0))
+        suite.expect(bar.observe(signature: picture(4, nudged: 3), reading: "", at: at(2)) == nil
+                        && bar.observe(signature: picture(4, nudged: 2), reading: "", at: at(2 + hold)) == nil,
+                     "a picture that only shimmers is not a change")
+        suite.expect(bar.observe(signature: picture(9), reading: "", at: at(10)) == nil
+                        && bar.observe(signature: picture(9), reading: "", at: at(10 + hold)) == .changed,
+                     "an area without text ends the watch once its picture moves and holds")
     }
 
     private static func settleContracts(_ suite: TestSuite) {
@@ -82,6 +151,9 @@ enum NotchWatchTests {
         suite.expect(tracker.observe(signature: "line 2", reading: "line 2",
                                      at: start.addingTimeInterval(121 + NotchWatchTracker.settleInterval)) == .settled,
                      "after a change, the settle interval of stillness ends the watch")
+        suite.expect(NotchWatchSupport.sameSignature("done", "done") && !NotchWatchSupport.sameSignature("done", nil)
+                        && !NotchWatchSupport.sameSignature("done", "image:1.2"),
+                     "texts compare exactly, and a text never matches a picture")
     }
 
     private static func matchContracts(_ suite: TestSuite) {
@@ -190,7 +262,36 @@ enum NotchWatchTests {
         suite.expect(NotchSupport.compactActivities(timer: true, watch: true, downloads: true, agents: false,
                                                     calendar: false, music: true) == [.timer, .watch, .downloads, .music],
                      "a watch follows the timer in the closed island's automatic order")
-        suite.expect(AppFeature.notchWatch.permissions == [.screenRecording],
-                     "reading the area is the only permission Watch asks for")
+        suite.expect(AppFeature.notchWatch.permissions == [.screenRecording, .notifications],
+                     "Watch reads the area, and notifies where the island cannot show itself")
+    }
+
+    /// The service is not part of this test binary, so the reading loop's
+    /// load-bearing lines are pinned at their source.
+    private static func readingLoopContracts(_ suite: TestSuite) {
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWatchService.swift",
+                                  encoding: .utf8)) ?? ""
+        func line(_ fragment: String) -> Int? {
+            source.components(separatedBy: "\n").enumerated().first { _, line in
+                let code = line.trimmingCharacters(in: .whitespaces)
+                return !code.hasPrefix("//") && code.contains(fragment)
+            }.map { $0.offset + 1 }
+        }
+        suite.expect(line("tracker.observe(signature: signature, reading: text, at: Date())") != nil
+                        && line("tracker.observe(signature: nil") == nil,
+                     "a still area comes back with its last signature, so a change that holds is confirmed")
+        if let recognized = line("fallbackLanguages: languages"), let kept = line("fingerprint = picture") {
+            suite.expect(kept > recognized, "an area is marked as read only once its reading is kept")
+        } else {
+            suite.expect(false, "the reading loop still reads text and keeps the area's picture")
+        }
+        if let permission = line("guard CGPreflightScreenCaptureAccess() else"),
+           let capture = line("await WindowPreviewProvider.captureViaWindowServer(windowID)"),
+           let region = line("await regionCapture?.image()") {
+            suite.expect(permission < capture && permission < region,
+                         "without Screen Recording nothing is captured, so the system is not asked again")
+        } else {
+            suite.expect(false, "the reading loop still checks Screen Recording before capturing")
+        }
     }
 }

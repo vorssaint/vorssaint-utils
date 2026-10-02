@@ -459,7 +459,12 @@ struct NotchCapsuleWatchStrip: View {
                 if watch.showsThumbnail, let preview = watch.preview {
                     NotchWatchThumbnail(image: preview, height: max(8, geometry.stripBodyHeight - 6))
                 } else if watch.headline.isEmpty {
-                    ProgressView().controlSize(.mini).frame(width: CapsuleLayout.spinnerWidth)
+                    // A hidden window's slashed eye says enough until it is read.
+                    if watch.state == .hidden {
+                        Color.clear.frame(width: CapsuleLayout.spinnerWidth, height: 1)
+                    } else {
+                        ProgressView().controlSize(.mini).frame(width: CapsuleLayout.spinnerWidth)
+                    }
                 } else {
                     Text(watch.headline).font(Font(CapsuleLayout.levelFont as CTFont))
                         .lineLimit(1).truncationMode(.tail)

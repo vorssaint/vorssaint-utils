@@ -42,26 +42,42 @@ enum NotchWatchOutcome: Equatable {
 }
 
 /// Follows one area reading after reading and decides when its condition
-/// is met. Readings arrive only when the area's pixels move; `observe(nil)`
-/// says the area looks as it did, so a quiet area can still settle.
+/// is met. An area whose pixels did not move is not read again: it comes
+/// back with its last signature, so a change that holds still is confirmed
+/// and a quiet area can settle. `observe(nil)` only lets time pass.
 struct NotchWatchTracker {
     static let settleInterval: TimeInterval = 30
+    /// How long a reading must keep differing before it counts as a change.
+    static let changeConfirmation: TimeInterval = 3
 
     let condition: NotchWatchCondition
     let text: String
     let target: Double?
+    /// How the watched app writes numbers: as the Mac's region does.
+    let decimalSeparator: String
+    let groupsWithSpace: Bool
 
     private(set) var baseline: String?
-    private(set) var pending: String?
+    private(set) var changedSince: Date?
     private(set) var current: String?
     private(set) var lastChange: Date?
     private(set) var sawChange = false
     private(set) var start: Double?
 
-    init(condition: NotchWatchCondition, text: String = "", target: Double? = nil) {
+    init(condition: NotchWatchCondition, text: String = "", target: Double? = nil,
+         decimalSeparator: String = ".", groupsWithSpace: Bool = false) {
         self.condition = condition
         self.text = text
         self.target = target
+        self.decimalSeparator = decimalSeparator
+        self.groupsWithSpace = groupsWithSpace
+    }
+
+    /// A tracker that reads numbers as `locale` writes them.
+    init(condition: NotchWatchCondition, text: String, target: Double?, locale: Locale) {
+        self.init(condition: condition, text: text, target: target,
+                  decimalSeparator: locale.decimalSeparator ?? ".",
+                  groupsWithSpace: NotchWatchSupport.groupsWithSpace(locale))
     }
 
     /// Whether the rule can be met at all: a text to find or a number to
@@ -83,14 +99,14 @@ struct NotchWatchTracker {
         case .changes:
             guard let signature else { return nil }
             guard let baseline else { self.baseline = signature; return nil }
-            guard signature != baseline else { pending = nil; return nil }
-            // A change counts once two readings in a row agree on it, so a
-            // frame caught halfway through redrawing does not end the watch.
-            if pending == signature { return .changed }
-            pending = signature
-            return nil
+            guard !NotchWatchSupport.sameSignature(signature, baseline) else { changedSince = nil; return nil }
+            // A change counts once it outlasts a few seconds of readings, so
+            // a frame caught halfway through redrawing or a blinking caret
+            // does not end the watch, while a reading that keeps moving does.
+            guard let changedSince else { self.changedSince = date; return nil }
+            return date.timeIntervalSince(changedSince) >= Self.changeConfirmation ? .changed : nil
         case .settles:
-            if let signature, signature != current {
+            if let signature, !NotchWatchSupport.sameSignature(signature, current) {
                 if current != nil { sawChange = true }
                 current = signature
                 lastChange = date
@@ -102,7 +118,9 @@ struct NotchWatchTracker {
             let wanted = NotchWatchSupport.normalized(text)
             return NotchWatchSupport.normalized(reading).contains(wanted) ? .shows(text) : nil
         case .reaches:
-            guard let target, let value = NotchWatchSupport.number(in: reading) else { return nil }
+            guard let target,
+                  let value = NotchWatchSupport.number(in: reading, decimalSeparator: decimalSeparator,
+                                                       groupsWithSpace: groupsWithSpace) else { return nil }
             let shown = NotchWatchSupport.headline(from: reading)
             guard let start else {
                 self.start = value
@@ -120,6 +138,9 @@ enum NotchWatchSupport {
     /// preview feels live, and less while it only feeds the closed island.
     static let visibleInterval: TimeInterval = 1
     static let backgroundInterval: TimeInterval = 2
+    /// A still picture is read again this often: a few changed words in a
+    /// large area can move its coarse picture too little to notice.
+    static let rereadInterval: TimeInterval = 10
     /// Text recognition gets slower with size and gains nothing past this.
     static let maximumRecognitionSide = 900
     static let headlineLength = 22
@@ -176,15 +197,25 @@ enum NotchWatchSupport {
     }
 
     /// The number a "reaches" rule compares: a percentage first, otherwise
-    /// the first number in the text. Both decimal marks are understood.
-    static func number(in text: String) -> Double? {
+    /// the first number in the text. Both decimal marks are understood;
+    /// `decimalSeparator` settles a lone mark before three digits, which
+    /// groups thousands in one region and starts decimals in another.
+    /// `groupsWithSpace` also reads 10 000 as one number, as regions that
+    /// group thousands with a space write it.
+    static func number(in text: String, decimalSeparator: String = ".", groupsWithSpace: Bool = false) -> Double? {
         let source = firstMatch(percentPattern, in: text) ?? text
-        guard let raw = firstMatch(numberPattern, in: source) else { return nil }
-        return parse(raw)
+        let pattern = groupsWithSpace ? spacedNumberPattern + "|" + numberPattern : numberPattern
+        guard let raw = firstMatch(pattern, in: source) else { return nil }
+        return parse(raw, decimalSeparator: decimalSeparator)
     }
 
-    static func parse(_ raw: String) -> Double? {
-        var digits = raw.replacingOccurrences(of: " ", with: "")
+    static func groupsWithSpace(_ locale: Locale) -> Bool {
+        guard let separator = locale.groupingSeparator, !separator.isEmpty else { return false }
+        return separator.unicodeScalars.allSatisfy { CharacterSet.whitespaces.contains($0) }
+    }
+
+    static func parse(_ raw: String, decimalSeparator: String = ".") -> Double? {
+        var digits = raw.components(separatedBy: .whitespaces).joined()
         let negative = digits.hasPrefix("-") || digits.hasPrefix("−")
         digits = digits.trimmingCharacters(in: CharacterSet(charactersIn: "+-−"))
         let lastDot = digits.lastIndex(of: ".")
@@ -198,13 +229,13 @@ enum NotchWatchSupport {
                 digits = digits.replacingOccurrences(of: ".", with: "").replacingOccurrences(of: ",", with: ".")
             }
         case (nil, _?):
-            let groups = digits.split(separator: ",", omittingEmptySubsequences: false)
-            // 1,234 groups thousands; 12,5 has a decimal comma.
-            digits = groups.count > 2 || groups.last?.count == 3
+            digits = groupsThousands(digits, mark: ",", decimalSeparator: decimalSeparator)
                 ? digits.replacingOccurrences(of: ",", with: "")
                 : digits.replacingOccurrences(of: ",", with: ".")
         case (_?, nil):
-            if digits.split(separator: ".").count > 2 { digits = digits.replacingOccurrences(of: ".", with: "") }
+            if groupsThousands(digits, mark: ".", decimalSeparator: decimalSeparator) {
+                digits = digits.replacingOccurrences(of: ".", with: "")
+            }
         case (nil, nil):
             break
         }
@@ -212,8 +243,27 @@ enum NotchWatchSupport {
         return negative ? -value : value
     }
 
+    /// Whether the only mark in a number groups thousands: it appears more
+    /// than once, as in 1.234.567, or once before exactly three digits, as in
+    /// 1,234, unless the region writes decimals with it or the number starts
+    /// at zero, as 0,125 does.
+    private static func groupsThousands(_ digits: String, mark: Character, decimalSeparator: String) -> Bool {
+        let groups = digits.split(separator: mark, omittingEmptySubsequences: false)
+        if groups.count > 2 { return true }
+        guard groups.count == 2, groups[1].count == 3, groups[0] != "0" else { return false }
+        return decimalSeparator != String(mark)
+    }
+
+    /// A typed target as the page shows it again: without grouping, which
+    /// some regions write with a space a number cannot be read across.
     static func formatted(_ value: Double, locale: Locale) -> String {
-        value.formatted(.number.precision(.fractionLength(0...2)).locale(locale))
+        value.formatted(.number.precision(.fractionLength(0...2)).grouping(.never).locale(locale))
+    }
+
+    /// A typed target, read as the page writes numbers.
+    static func typedNumber(_ text: String, locale: Locale) -> Double? {
+        let digits = text.components(separatedBy: .whitespaces).joined()
+        return number(in: digits, decimalSeparator: locale.decimalSeparator ?? ".")
     }
 
     /// The area as a 16 × 16 grid of coarse grey levels: small enough that
@@ -245,7 +295,32 @@ enum NotchWatchSupport {
     static func signature(text: String, fingerprint: [UInt8]?) -> String? {
         let normalized = normalized(text)
         if !normalized.isEmpty { return normalized }
-        return fingerprint.map { "image:" + $0.map(String.init).joined(separator: ".") }
+        return fingerprint.map { imagePrefix + $0.map(String.init).joined(separator: ".") }
+    }
+
+    /// Whether two readings say the same: the same text, or pictures that
+    /// differ no more than a blinking caret does.
+    static func sameSignature(_ lhs: String?, _ rhs: String?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        if lhs == rhs { return true }
+        guard lhs.hasPrefix(imagePrefix), rhs.hasPrefix(imagePrefix) else { return false }
+        func cells(_ signature: String) -> [UInt8] {
+            signature.dropFirst(imagePrefix.count).split(separator: ".").compactMap { UInt8($0) }
+        }
+        return sameFingerprint(cells(lhs), cells(rhs))
+    }
+
+    private static let imagePrefix = "image:"
+
+    /// The area as an image of its own: a crop keeps the whole window's
+    /// pixels alive, and a large window's are many megabytes.
+    static func standalone(_ image: CGImage) -> CGImage {
+        guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                      bytesPerRow: 0,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return image }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage() ?? image
     }
 
     /// The part of a window's image `crop` covers, `crop` being in points
@@ -276,6 +351,7 @@ enum NotchWatchSupport {
     private static let clockPattern = #"\b\d{1,2}:\d{2}(?::\d{2})?\b"#
     private static let amountPattern = #"[-+]?\d[\d.,]*(?:\s?[A-Za-z]{1,3}\b)?"#
     private static let numberPattern = #"[-+−]?\d[\d.,]*\d|[-+−]?\d"#
+    private static let spacedNumberPattern = #"[-+−]?\d{1,3}(?:[ \x{00A0}\x{202F}]\d{3})+(?:[.,]\d+)?"#
 
     private static func firstMatch(_ pattern: String, in text: String) -> String? {
         guard let range = text.range(of: pattern, options: .regularExpression) else { return nil }

@@ -151,7 +151,8 @@ private struct NotchWatchAreaCard: View {
                     ProgressView().controlSize(.small)
                 }
                 if watch.state == .hidden {
-                    Label(text.hidden, systemImage: "eye.slash")
+                    Label(watch.permissionMissing ? text.permissionHint : text.hidden,
+                          systemImage: watch.permissionMissing ? "lock" : "eye.slash")
                         .font(.caption).multilineTextAlignment(.center)
                         .padding(8)
                         .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -259,6 +260,9 @@ private struct NotchWatchSetupView: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchWatchEnabled) private var enabled = true
+    /// The page follows a grant made in System Settings while it is shown;
+    /// nothing checks for one while it is away.
+    @State private var pollingDemandID = UUID()
     private var text: NotchWatchStrings { FeatureStrings.notchWatch(l10n.language) }
 
     var body: some View {
@@ -279,6 +283,8 @@ private struct NotchWatchSetupView: View {
         .frame(maxWidth: 360)
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { permissions.setActivePermissionSurface(pollingDemandID, visible: true) }
+        .onDisappear { permissions.setActivePermissionSurface(pollingDemandID, visible: false) }
     }
 
     private var glyph: some View {
@@ -433,14 +439,15 @@ struct NotchWatchStrip: View {
         } else if watch.showsThumbnail, let preview = watch.preview {
             NotchWatchThumbnail(image: preview, height: max(8, geometry.compactActivityContentHeight - 6))
         } else if watch.headline.isEmpty {
-            ProgressView().controlSize(.mini)
+            // A hidden window's slashed eye says enough until it is read.
+            if watch.state != .hidden { ProgressView().controlSize(.mini) }
         } else {
+            // A reading can change on every pass; rolling each change would
+            // keep the closed island animating.
             Text(watch.headline)
                 .font(.system(size: textSize, weight: .medium)).monospacedDigit()
                 .foregroundStyle(Self.tint)
                 .lineLimit(1).minimumScaleFactor(0.7).truncationMode(.tail)
-                .contentTransition(.numericText())
-                .animation(.smooth(duration: 0.25), value: watch.headline)
         }
     }
 }

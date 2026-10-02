@@ -695,7 +695,8 @@ enum FeatureCatalogTests {
                 == [.screenRecording, .accessibility],
                "the recorder choice explains both permissions it needs")
         suite.expect(AppFeature.cleaner.onboardingPermissions.isEmpty
-                && AppFeature.cameraPreview.onboardingPermissions.isEmpty,
+                && AppFeature.cameraPreview.onboardingPermissions.isEmpty
+                && AppFeature.notchWatch.onboardingPermissions.isEmpty,
                "contextual grants are not requested during first setup")
         suite.expect(AppFeature.fanControl.group == .monitor
                 && AppFeature.fanControl.enabledKeys.isEmpty
@@ -1253,6 +1254,7 @@ enum FeatureCatalogTests {
                }
                && !AppFeature.screenshot.monitorsPermissionChanges
                && !AppFeature.screenRecorder.monitorsPermissionChanges
+               && !AppFeature.notchWatch.monitorsPermissionChanges
                && AppFeature.switcher.monitorsPermissionChanges
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
                && AppFeature.mouseNavigation.monitorsPermissionChanges,
