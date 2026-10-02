@@ -2240,6 +2240,12 @@ enum NotchAgentTests {
         suite.expect(samples.map(\.date) == [at("2026-09-23T13:50:00Z"), at("2026-09-23T14:05:00Z"), at("2026-09-23T14:20:00Z")]
                         && samples.last?.used == ["fh": 6, "sd": 42] && samples[1].used == ["fh": 3, "sd": 41],
                      "readings come oldest first, with the known windows and nothing that is not a number")
+        let scoped = AgentClaudeAppUsage.samples(from: history([("2026-09-23T14:20:00Z", "o", ["fh": 6, "sd": 42, "sf": 37])])) ?? []
+        let scopedReading = AgentClaudeAppUsage.limits(from: scoped, now: at("2026-09-23T14:30:00Z"))
+        suite.expect(scoped.last?.used == ["fh": 6, "sd": 42, "sf": 37]
+                        && scopedReading?.windows.map(\.scope) == [nil, nil, "Fable"]
+                        && scopedReading?.windows.last?.kind == .weekly && scopedReading?.windows.last?.usedPercent == 37,
+                     "a weekly window scoped to Fable is read like the Opus and Sonnet ones")
         let now = at("2026-09-23T14:30:00Z")
         let reading = AgentClaudeAppUsage.limits(from: samples, now: now)
         suite.expect(reading?.source == .claudeApp && reading?.observedAt == at("2026-09-23T14:20:00Z")
