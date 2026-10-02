@@ -93,6 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PanelLayout.resetCollapsedSectionsOnce(for: "2.15.1")
 
         statusController = StatusItemController()
+        MenuBarManagerService.shared.mainItemFrame = { [weak self] in
+            guard let item = self?.statusController?.statusItem, item.isVisible else { return nil }
+            return item.button?.window?.frame
+        }
         statusController.onLeftClick = { [weak self] in
             self?.captureStatusClick()
             self?.toggleMainPopover()

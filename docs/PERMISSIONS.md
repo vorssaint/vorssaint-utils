@@ -35,6 +35,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
 - **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
 - **Quit on close**, which spots when an app's last window goes away.
+- **Hide menu bar icons**, on macOS 27 only, which finds the system « and catches a click on it, so hidden icons appear next to the others instead of over the frontmost app's menus. Hiding itself needs no permission; without it, a click on « still reveals the icons after the system menu has opened.
 - **Radial menu**, for wheel actions that press a key combo or a media key
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.

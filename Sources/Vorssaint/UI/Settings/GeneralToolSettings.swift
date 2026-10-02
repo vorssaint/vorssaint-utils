@@ -9,6 +9,7 @@ import SwiftUI
 struct GeneralToolSettings: View {
     let anchor: SettingsSectionAnchor
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
 
@@ -34,6 +35,9 @@ struct GeneralToolSettings: View {
                         }
                     }
                     .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
+                    if features.isAvailable(.menuBarManager) {
+                        MenuBarManagerSettings()
+                    }
                 case .mixer:
                     MixerSection(settingsMode: true)
                         .settingsSectionAnchor(.mixer, cornerRadius: 16)
@@ -221,6 +225,67 @@ private struct MenuBarIconNameField: View {
                 BlackHoleGlyph.customMark(named: $0) != nil
             }
             if kept != savedName { savedName = kept }
+        }
+    }
+}
+
+private struct MenuBarManagerSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = MenuBarManagerService.shared
+    @AppStorage(DefaultsKey.menuBarManagerEnabled) private var enabled = false
+    @AppStorage(DefaultsKey.menuBarManagerRehideSeconds) private var rehideSeconds =
+        MenuBarManagerSupport.defaultRehideSeconds
+
+    private var text: MenuBarManagerFeatureStrings { FeatureStrings.menuBarManager(l10n.language) }
+
+    private var modeHint: String {
+        MenuBarManagerSupport.usesOverflowMenu(osMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
+            ? text.overflowNote : text.arrowHint
+    }
+
+    var body: some View {
+        SettingsCard(title: text.title) {
+            SettingsRow(symbol: AppFeature.menuBarManager.symbolName, title: text.title,
+                        caption: text.enableCaption) {
+                Toggle(text.title, isOn: $enabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .onChange(of: enabled) { _, _ in
+                        service.syncWithPreferences()
+                    }
+            }
+            if enabled {
+                Text(text.howTo)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+                if service.ownIconBlocksHiding || service.arrowBlocksHiding {
+                    Text(service.ownIconBlocksHiding ? text.ownIconWarning : text.arrowWarning)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, settingsRowTextInset)
+                }
+                Text(modeHint)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+                HStack(spacing: 8) {
+                    Text(text.rehideLabel)
+                    Spacer()
+                    Picker(text.rehideLabel, selection: $rehideSeconds) {
+                        ForEach(MenuBarManagerSupport.rehideChoices, id: \.self) { seconds in
+                            Text(seconds == 0 ? text.rehideNever
+                                 : String(format: text.rehideSecondsFormat, seconds)).tag(seconds)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 }

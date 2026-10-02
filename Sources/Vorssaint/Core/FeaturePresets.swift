@@ -114,6 +114,12 @@ extension AppFeature {
             return RadialMenuSupport.opensFromMouseOrTrackpad(
                 UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
                 ? .mouse : .idle
+        case .menuBarManager:
+            // On macOS 27 a click tap, or a click monitor without
+            // Accessibility, runs while icons are hidden, which is the
+            // resting state.
+            return MenuBarManagerSupport.usesOverflowMenu(
+                osMajor: ProcessInfo.processInfo.operatingSystemVersion.majorVersion) ? .mouse : .idle
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
         case .notchWatch: return .idle
