@@ -564,11 +564,14 @@ enum AgentLogParser {
 
     /// The names a log gives a window's figures; Codex's server spells the
     /// same ones in camel case.
-    typealias WindowKeys = (used: String, minutes: String, resets: String)
-    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at")
+    typealias WindowKeys = (used: String, minutes: String, resets: String, individual: String, remaining: String)
+    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at",
+                                            "individual_limit", "remaining_percent")
 
     /// Windows are told apart by their length, never by their slot: an
-    /// account can report only its weekly window, and in either slot.
+    /// account can report only its weekly window, and in either slot. A
+    /// Business account can leave both slots empty and report its allowance
+    /// as the share left of its own limit instead.
     static func codexWindows(_ limits: [String: Any], observed: Date,
                              keys: WindowKeys = logWindowKeys) -> [AgentLimitWindow]? {
         var windows: [AgentLimitWindow] = []
@@ -583,6 +586,12 @@ enum AgentLogParser {
             windows.append(AgentLimitWindow(id: "codex.\(minutes.map(String.init) ?? slot)",
                                             kind: kind(minutes: minutes), minutes: minutes, scope: nil,
                                             usedPercent: min(100, max(0, used)), resetsAt: resets))
+        }
+        if windows.isEmpty, let individual = limits[keys.individual] as? [String: Any],
+           let remaining = (individual[keys.remaining] as? NSNumber)?.doubleValue, remaining.isFinite {
+            windows.append(AgentLimitWindow(id: "codex.individual", kind: .other, minutes: nil, scope: nil,
+                                            usedPercent: min(100, max(0, 100 - remaining)),
+                                            resetsAt: seconds(individual[keys.resets])))
         }
         return windows.sorted { ($0.minutes ?? .max) < ($1.minutes ?? .max) }
     }
