@@ -1055,6 +1055,15 @@ extension Strings {
         shelfClearOnClose: "Очищати при закритті",
         shelfClearOnCloseCaption: "Спорожнює полицю лише після натискання кнопки закриття. Автоматичне приховування та згортання зберігають елементи.",
         shelfShortcutFinderSelection: "Додавати вибране у Finder клавіатурним скороченням",
-        shelfShortcutFinderSelectionCaption: "Коли Finder на передньому плані, скорочення відкриває полицю вже з вибраними файлами. Якщо нічого не вибрано, вона відкривається як зазвичай."
+        shelfShortcutFinderSelectionCaption: "Коли Finder на передньому плані, скорочення відкриває полицю вже з вибраними файлами. Якщо нічого не вибрано, вона відкривається як зазвичай.",
+        nativeHiDPI: "Нативне HiDPI",
+        virtualHiDPI: "Віртуальне HiDPI",
+        standardResolution: "Стандартна роздільність (1x)",
+        recoveryKeep: "Зберегти зміни",
+        recoveryRevert: "Відновити",
+        recoveryCountdownTitle: "Підтвердження налаштувань дисплея",
+        recoveryCountdownRemaining: { "Автоматичне повернення через \($0) с" },
+        recoveryFailedMessage: "Не вдалося відновити попередній режим HiDPI",
+        toggleHiDPICaption: "Перемкнути масштабування Retina HiDPI"
     )
 }

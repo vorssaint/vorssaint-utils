@@ -1085,6 +1085,15 @@ extension Strings {
         shelfClearOnClose: "Borrar al cerrar",
         shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
         shelfShortcutFinderSelection: "Añadir la selección del Finder con el atajo",
-        shelfShortcutFinderSelectionCaption: "Con el Finder al frente, el atajo abre el estante con los archivos seleccionados ya dentro. Sin selección, se abre como siempre."
+        shelfShortcutFinderSelectionCaption: "Con el Finder al frente, el atajo abre el estante con los archivos seleccionados ya dentro. Sin selección, se abre como siempre.",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolución estándar (1x)",
+        recoveryKeep: "Mantener ajustes",
+        recoveryRevert: "Restablecer",
+        recoveryCountdownTitle: "¿Mantener esta configuración de pantalla?",
+        recoveryCountdownRemaining: { "Restableciendo automáticamente en \($0) s" },
+        recoveryFailedMessage: "No se pudo restablecer el modo HiDPI anterior",
+        toggleHiDPICaption: "Alternar ajuste de escala Retina HiDPI"
     )
 }

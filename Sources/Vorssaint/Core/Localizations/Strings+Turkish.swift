@@ -1085,6 +1085,15 @@ extension Strings {
         shelfClearOnClose: "Kapatınca temizle",
         shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
         shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
-        shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır."
+        shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır.",
+        nativeHiDPI: "Yerel HiDPI",
+        virtualHiDPI: "Sanal HiDPI",
+        standardResolution: "Standart Çözünürlük (1x)",
+        recoveryKeep: "Ayarları Koru",
+        recoveryRevert: "Geri Dön",
+        recoveryCountdownTitle: "Bu ekran ayarları korunsun mu?",
+        recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
+        recoveryFailedMessage: "Önceki HiDPI modu geri yüklenemedi",
+        toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat"
     )
 }

@@ -1085,6 +1085,15 @@ extension Strings {
         shelfClearOnClose: "Vider à la fermeture",
         shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments.",
         shelfShortcutFinderSelection: "Ajouter la sélection du Finder avec le raccourci",
-        shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude."
+        shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude.",
+        nativeHiDPI: "HiDPI natif",
+        virtualHiDPI: "HiDPI virtuel",
+        standardResolution: "Résolution standard (1x)",
+        recoveryKeep: "Conserver les réglages",
+        recoveryRevert: "Rétablir",
+        recoveryCountdownTitle: "Conserver ces réglages d’affichage\u{00A0}?",
+        recoveryCountdownRemaining: { "Rétablissement automatique dans \($0)\u{00A0}s" },
+        recoveryFailedMessage: "Impossible de rétablir le mode HiDPI précédent",
+        toggleHiDPICaption: "Basculer la mise à l’échelle Retina HiDPI"
     )
 }
