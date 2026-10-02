@@ -589,7 +589,7 @@ struct NotchSettings: View {
                 Text(editor.appPanelHint).font(.caption).foregroundStyle(.secondary)
                 switchRow("menubar.rectangle", editor.hideMenuBarIcon, caption: editor.hideMenuBarIconHint,
                           isOn: $hidesMenuBarIcon)
-                destination(text.tools, symbol: "square.grid.2x2", value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
+                destination(text.tools, symbol: NotchModule.tools.symbol, value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)

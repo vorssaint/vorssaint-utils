@@ -26,7 +26,8 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .captures: return "camera.viewfinder"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
-        case .tools: return "square.grid.2x2"
+        // The quick panel's own mark; the grid belongs to the sections button.
+        case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
