@@ -6,8 +6,8 @@ import AppKit
 final class TouchBarService: NSObject, NSTouchBarDelegate {
     static let shared = TouchBarService()
 
-    private static let vorssaintItemIdentifier =
-        NSTouchBarItem.Identifier("com.vorssaint.touchbar.vorssaint")
+    private static let volumeItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.volume")
 
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
@@ -18,7 +18,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         let shouldBeActive = AppFeature.touchBar.isAvailable
             && TouchBarHardware.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.touchBarEnabled)
-
 
         isActive = shouldBeActive
 
@@ -34,7 +33,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
-        bar.defaultItemIdentifiers = [Self.vorssaintItemIdentifier]
+        bar.defaultItemIdentifiers = [Self.volumeItemIdentifier]
         return bar
     }
 
@@ -42,10 +41,20 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         _ touchBar: NSTouchBar,
         makeItemForIdentifier identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem? {
-        guard identifier == Self.vorssaintItemIdentifier else { return nil }
+        guard identifier == Self.volumeItemIdentifier else { return nil }
 
-        let item = NSCustomTouchBarItem(identifier: identifier)
-        item.view = NSButton(title: "Vorssaint", target: nil, action: nil)
+        let item = NSSliderTouchBarItem(identifier: identifier)
+        item.label = "Volume"
+        item.slider.minValue = 0
+        item.slider.maxValue = 1
+        item.slider.doubleValue = AppVolumeMixer.shared.systemOutputVolume ?? 0
+        item.slider.target = self
+        item.slider.action = #selector(volumeChanged(_:))
         return item
     }
+
+    @objc private func volumeChanged(_ sender: NSSlider) {
+        AppVolumeMixer.shared.setCurrentOutputVolume(sender.doubleValue)
+    }
+
 }
