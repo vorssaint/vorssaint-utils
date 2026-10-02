@@ -159,9 +159,26 @@ enum AgentCodexServer {
         }
         guard let snapshot,
               let windows = AgentLogParser.codexWindows(snapshot, observed: observed,
-                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt")),
-              !windows.isEmpty else { return nil }
-        return AgentLimits(provider: .codex, windows: windows, observedAt: observed, source: .account)
+                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt")) else {
+            return nil
+        }
+        if !windows.isEmpty {
+            return AgentLimits(provider: .codex, windows: windows, observedAt: observed, source: .account)
+        }
+
+        // Business accounts can report their allowance in individualLimit
+        // while leaving the legacy primary/secondary windows empty. Treat it
+        // as a plan-wide limit instead of falling back to stale log data.
+        guard let individual = snapshot["individualLimit"] as? [String: Any],
+              let remaining = (individual["remainingPercent"] as? NSNumber)?.doubleValue,
+              remaining.isFinite else { return nil }
+        let used = min(100, max(0, 100 - remaining))
+        let resets = AgentLogParser.seconds(individual["resetsAt"])
+        let individualWindow = AgentLimitWindow(id: "codex.individual", kind: .other,
+                                                minutes: nil, scope: nil,
+                                                usedPercent: used, resetsAt: resets)
+        return AgentLimits(provider: .codex, windows: [individualWindow],
+                           observedAt: observed, source: .account)
     }
 
     static func outcome(_ result: [String: Any]) -> Outcome? {
