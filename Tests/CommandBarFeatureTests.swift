@@ -245,6 +245,16 @@ enum CommandBarFeatureTests {
                                         keywords: clipboardClearKeywords,
                                         query: "clear clipboard"),
                "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        for (language, query) in [(AppLanguage.enUS, "screen 40"), (.zhHans, "屏幕 40")] {
+            let bar = FeatureStrings.commandBar(language)
+            let split = CommandBarSearch.splitTrailingNumber(query)
+            suite.expect(split.number == 40
+                         && CommandBarSearch.matches(
+                            title: bar.brightnessTitle,
+                            keywords: FeatureStrings.brightness(language).pageTitle + " " + bar.brightnessKeywords,
+                            query: split.text),
+                         "\(query) still finds the display brightness row with its value")
+        }
         let clipboardActionsCode = commandBarCatalogLines.firstIndex {
             isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
         }.map {
