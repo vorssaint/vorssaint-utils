@@ -1125,6 +1125,11 @@ enum NotchTests {
                "hover activation times stay within usable bounds")
         suite.expect([Double.nan, .infinity, -.infinity].allSatisfy { NotchSupport.sanitizedHoverDelay($0) == 0.25 },
                "non-finite hover activation times fall back to the default")
+        suite.expect(defaults.double(forKey: DefaultsKey.notchCloseDelay) == 0.18
+               && NotchSupport.sanitizedCloseDelay(0.65) == 0.65
+               && NotchSupport.sanitizedCloseDelay(-1) == 0.10 && NotchSupport.sanitizedCloseDelay(9) == 2.0
+               && NotchSupport.sanitizedCloseDelay(.nan) == 0.18,
+               "closing after the pointer leaves keeps its old pause and stays within usable bounds")
         suite.expect(!NotchSupport.routesAppPanel(in: defaults) && NotchSupport.routesQuickPanel(in: defaults)
                && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults)
                && NotchSupport.routesCaptureControls(in: defaults),
@@ -1417,7 +1422,7 @@ enum NotchTests {
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
-                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
+                                DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchCloseDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchMicrophone, DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
                                 DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,

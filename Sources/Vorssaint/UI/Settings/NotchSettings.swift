@@ -35,6 +35,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
     @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
     @AppStorage(DefaultsKey.notchHoverDelay) private var hoverDelay = NotchSupport.defaultHoverDelay
+    @AppStorage(DefaultsKey.notchCloseDelay) private var closeDelay = NotchSupport.defaultCloseDelay
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
     @AppStorage(DefaultsKey.notchOpensActivity) private var opensActivity = true
@@ -539,7 +540,10 @@ struct NotchSettings: View {
                     choice(editor.hoverExpand, symbol: "arrow.up.left.and.arrow.down.right", selected: hover && hoverExpand && !hideUntilHover) { hideUntilHover = false; hover = true; hoverExpand = true }
                     choice(editor.hiddenUntilHover, symbol: "eye.slash", selected: hover && hideUntilHover) { hover = true; hoverExpand = true; hideUntilHover = true }
                 }
-                if hover { hoverDelayControl }
+                if hover {
+                    hoverDelayControl
+                    closeDelayControl
+                }
                 switchRow("hand.draw", FeatureStrings.notchGestures(l10n.language).title,
                           caption: gesturesEnabled ? FeatureStrings.notchGestures(l10n.language).hint : nil,
                           isOn: $gesturesEnabled)
@@ -602,19 +606,29 @@ struct NotchSettings: View {
     }
 
     private var hoverDelayControl: some View {
-        let value = Binding(get: { NotchSupport.sanitizedHoverDelay(hoverDelay) },
-                            set: { hoverDelay = NotchSupport.sanitizedHoverDelay($0) })
+        delayControl(editor.activationTime, hint: editor.activationTimeHint, value: $hoverDelay,
+                     range: NotchSupport.hoverDelayRange, sanitize: NotchSupport.sanitizedHoverDelay)
+    }
+
+    private var closeDelayControl: some View {
+        delayControl(editor.closeTime, hint: editor.closeTimeHint, value: $closeDelay,
+                     range: NotchSupport.closeDelayRange, sanitize: NotchSupport.sanitizedCloseDelay)
+    }
+
+    private func delayControl(_ title: String, hint: String, value stored: Binding<Double>,
+                              range: ClosedRange<Double>, sanitize: @escaping (Double) -> Double) -> some View {
+        let value = Binding(get: { sanitize(stored.wrappedValue) }, set: { stored.wrappedValue = sanitize($0) })
         let formatted = String(format: editor.activationTimeFormat, locale: Locale(identifier: l10n.language.rawValue), value.wrappedValue)
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(editor.activationTime)
+                Text(title)
                 Spacer()
                 Text(formatted).monospacedDigit().foregroundStyle(.secondary)
             }
-            Slider(value: value, in: NotchSupport.hoverDelayRange, step: 0.05) {
-                Text(editor.activationTime)
+            Slider(value: value, in: range, step: 0.05) {
+                Text(title)
             }.labelsHidden().accessibilityValue(formatted)
-            Text(editor.activationTimeHint).font(.caption).foregroundStyle(.secondary)
+            Text(hint).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

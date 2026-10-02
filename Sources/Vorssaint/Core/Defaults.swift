@@ -854,6 +854,7 @@ enum DefaultsKey {
     static let notchHideUntilHover = "notchHideUntilHover"
     static let notchCoversMenus = "notchCoversMenus"
     static let notchHoverDelay = "notchHoverDelay"
+    static let notchCloseDelay = "notchCloseDelay"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
     static let notchOpensActivity = "notchOpensActivity"
@@ -1410,6 +1411,7 @@ enum Defaults {
         DefaultsKey.notchHideUntilHover: false,
         DefaultsKey.notchCoversMenus: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
+        DefaultsKey.notchCloseDelay: NotchSupport.defaultCloseDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,
