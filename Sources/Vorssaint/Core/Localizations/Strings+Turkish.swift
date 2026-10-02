@@ -176,7 +176,7 @@ extension Strings {
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",
-        middleClickSection: "Orta tıklama",
+        middleClickSection: "İzleme dörtgeniyle orta tıklama",
         middleClickEnable: "Üç parmakla tıklama orta tıklama olur",
         middleClickEnableCaption: "Trackpad’e üç parmakla basmak fare tekerleği tıklaması gibi çalışır: bağlantıları yeni sekmede açma, sekmeleri kapatma ve orta düğmenin yaptığı her şey.",
         middleClickDragConflict: "macOS’un üç parmakla sürükleme özelliği açık ve aynı hareketi kullanıyor. Orta tıklamanın çalışması için Sistem Ayarları’nda Erişilebilirlik, İmleç Denetimi, Trackpad Seçenekleri bölümünden kapatın.",

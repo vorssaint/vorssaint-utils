@@ -176,7 +176,7 @@ extension Strings {
         mouseNavigationSection: "탐색",
         mouseNavigationEnable: "사이드 버튼으로 뒤로 및 앞으로 이동",
         mouseNavigationCaption: "마우스의 뒤로 및 앞으로 버튼을 Finder, 브라우저 및 지원 앱의 탐색 동작으로 바꿉니다.",
-        middleClickSection: "가운데 클릭",
+        middleClickSection: "트랙패드 가운데 클릭",
         middleClickEnable: "세 손가락 클릭을 가운데 클릭으로 사용",
         middleClickEnableCaption: "트랙패드를 세 손가락으로 누르면 마우스 휠 클릭과 같이 동작합니다. 링크를 새 탭으로 열거나 탭을 닫는 등 가운데 버튼으로 할 수 있는 모든 동작에 사용할 수 있습니다.",
         middleClickDragConflict: "macOS의 세 손가락 드래그가 켜져 있고 같은 제스처를 사용합니다. 시스템 설정의 손쉬운 사용 > 포인터 제어 > 트랙패드 옵션에서 끄면 가운데 클릭이 작동합니다.",
