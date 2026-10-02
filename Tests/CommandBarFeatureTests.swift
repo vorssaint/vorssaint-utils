@@ -397,6 +397,7 @@ enum CommandBarFeatureTests {
                "one prefix remembers a few rows, and the one picked least drops out")
 
         // MARK: Finding a file from the bar
+        CommandBarFilePathTests.run(suite)
         suite.expect(CommandBarFileSearchSupport.expression(for: "annual report")
                 == "kMDItemFSName == \"*annual*\"cd && kMDItemFSName == \"*report*\"cd",
                "every word has to be in the name, in any order")
