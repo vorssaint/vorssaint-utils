@@ -524,6 +524,9 @@ def main():
               .replace("private struct", "struct", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCountdownChoice:")
               .replace("private struct", "struct", 1)
+          # The row's Join opens apps and folds the island; the row only places it.
+          + "struct NotchMeetingJoinButton: View {\nlet meeting: NotchMeetingLink\nlet text: NotchCalendarStrings\n"
+          + "let viewEvent: () -> Void\nvar body: some View { EmptyView() }\n}\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchComponents.swift", "struct NotchRail<")
           + declaration("Sources/Vorssaint/UI/PlainTextEditor.swift", "struct PlainTextEditor:")
           + declaration(scratchpad_view, "struct NotchScratchpadView:")
