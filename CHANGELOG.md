@@ -105,6 +105,7 @@ This beta takes Dynamic Island beyond the notch. It floats as a capsule on displ
 - Optional linear scrolling moves a fixed distance per wheel notch, with a separate list of apps to leave alone. Install it from Settings → Features → Mouse and keyboard, then adjust Lines per step in Settings → Linear scrolling.
 - Brightness keys and display brightness shortcuts can move in half or quarter steps. Choose Brightness key steps in Settings → Displays → More options, shown while Control displays is on.
 - When several installed features were never turned on, the Features page offers to uninstall them, with Undo, or to keep them. Settings → Features → Never turned on.
+- Vorssaint is now available in Dutch (Nederlands), with the full interface and permission prompts translated and the language selectable in onboarding and Settings. Thanks to @lennert-vangeert.
 
 ### Changed
 - The menu bar panel lists Utilities, Controls and Quick toggles one line per tool in a single card. Descriptions move to tooltips and edit mode, while permission notes, status and side effects such as a Finder restart stay on the row.

@@ -72,6 +72,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -562,6 +563,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "使用 %@ 以關閉",
         cancelHint: "Esc 取消",
         releaseHint: "放開以確認",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let nl = QuitProtectionStrings(
+        name: "Stop- en sluitbeveiliging",
+        description: "Beschermt ⌘Q en ⌘W tegen per ongeluk indrukken",
+        intro: "Stel elke sneltoets afzonderlijk in. De oorspronkelijke actie gaat pas door na de gekozen bevestiging.",
+        enabled: "Deze sneltoets beschermen",
+        enabledCaption: "Andere Command-sneltoetsen blijven gewoon werken.",
+        mode: "Bevestigingsmodus",
+        hold: "Ingedrukt houden om te bevestigen",
+        doublePress: "Twee keer drukken",
+        extraModifier: "Extra speciale toets vereisen",
+        holdDuration: "Duur van ingedrukt houden",
+        doublePressInterval: "Interval tussen aanslagen",
+        modifier: "Extra speciale toets",
+        appScope: "Programma’s",
+        allApps: "Alle programma’s",
+        selectedOnly: "Alleen geselecteerde programma’s",
+        allExceptSelected: "Alle behalve geselecteerde programma’s",
+        exceptions: "Uitzonderingen",
+        noExceptions: "Geen programma’s geselecteerd",
+        addApp: "Programma toevoegen…",
+        feedback: "Visuele feedback tonen",
+        accessibilityCaption: "De beveiliging gebruikt Toegankelijkheid om alleen ⌘Q en ⌘W systeembreed te bewaken.",
+        holdQuitHUDFormat: "Houd %@ ingedrukt om te stoppen",
+        holdCloseHUDFormat: "Houd %@ ingedrukt om te sluiten",
+        doubleQuitHUDFormat: "Druk opnieuw op %@ om te stoppen",
+        doubleCloseHUDFormat: "Druk opnieuw op %@ om te sluiten",
+        extraQuitHUDFormat: "Gebruik %@ om te stoppen",
+        extraCloseHUDFormat: "Gebruik %@ om te sluiten",
+        cancelHint: "Esc annuleert",
+        releaseHint: "Loslaten om te bevestigen",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

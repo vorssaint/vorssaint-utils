@@ -44,6 +44,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -70,6 +71,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Show the installed app in Finder",
         installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
+    )
+
+    static let nl = DiskImageInstallerStrings(
+        title: "Schijfkopie-installatie",
+        hubDescription: "Installeer de enige app in een schijfkopie en ruim de download op",
+        useUserApplications: "Installeren in de map Programma’s in je thuismap",
+        applicationsFolder: "de map Programma’s",
+        userApplicationsFolder: "de map Programma’s in je thuismap",
+        promptTitle: "Deze app installeren?",
+        promptBodyFormat: "%@ wordt gekopieerd naar %@ en de schijfkopie wordt uitgeworpen.",
+        installButton: "Installeren",
+        installedTitle: "App geïnstalleerd",
+        installedBodyFormat: "%@ staat klaar in %@. De schijfkopie is uitgeworpen en de download is naar de Prullenmand verplaatst.",
+        installedKeepingMountBodyFormat: "%@ is geïnstalleerd in %@, maar de schijfkopie kon niet worden uitgeworpen. De download is bewaard.",
+        installedKeepingDownloadBodyFormat: "%@ is geïnstalleerd in %@ en de schijfkopie is uitgeworpen, maar de download kon niet naar de Prullenmand worden verplaatst.",
+        failedTitle: "Installeren mislukt",
+        failedBody: "Er is niets gewijzigd. Je kunt de app nog steeds naar Programma’s slepen.",
+        verificationFailedBody: "Deze Mac kon de app niet verifiëren, dus er is niets geïnstalleerd.",
+        alreadyInstalledBodyFormat: "%@ staat al in Programma’s.",
+        trashDownloadOption: "De download naar de Prullenmand verplaatsen",
+        revealAppOption: "De geïnstalleerde app tonen in de Finder",
+        installedKeptDownloadBodyFormat: "%@ staat klaar in %@. De schijfkopie is uitgeworpen en de download is bewaard.",
+        installingFormat: "%@ installeren…"
     )
 
     static let ptBR = DiskImageInstallerStrings(

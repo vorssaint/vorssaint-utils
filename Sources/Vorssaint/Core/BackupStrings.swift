@@ -38,6 +38,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -84,6 +85,20 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "This backup has no Dynamic Island settings. This Mac’s island settings will be kept. Re-export with Vorssaint 3.4 or newer on the other Mac to copy them. Other settings will be imported and the app will restart.",
         importAction: "Import and restart",
         invalidFile: "This file is not a valid Vorssaint backup."
+    )
+
+    static let nl = BackupFeatureStrings(
+        title: "Back-up",
+        description: "Neem je instellingen mee naar een andere Mac: exporteer alle voorkeuren naar een bestand en importeer het daar. Je Kladblok-notities, klembordgeschiedenis, items op de Shelf en systeemtoestemmingen verlaten deze Mac nooit.",
+        exportButton: "Instellingen exporteren…",
+        importButton: "Instellingen importeren…",
+        exported: "Back-up bewaard",
+        exportFailed: "Kan de back-up niet bewaren.",
+        importConfirmTitle: "Deze instellingen importeren?",
+        importConfirmBody: "Je huidige instellingen worden vervangen door die van het bestand en de app herstart. Verder wordt er niets op deze Mac aangepast.",
+        importMissingIslandBody: "Deze back-up bevat geen Dynamic Island-instellingen. De Dynamic Island-instellingen op deze Mac blijven behouden. Exporteer opnieuw met Vorssaint 3.4 of nieuwer op de andere Mac om ze mee te nemen. De overige instellingen worden geïmporteerd en de app herstart.",
+        importAction: "Importeren en herstarten",
+        invalidFile: "Dit bestand is geen geldige Vorssaint-back-up."
     )
 
     static let ptBR = BackupFeatureStrings(

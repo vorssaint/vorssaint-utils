@@ -79,6 +79,7 @@ struct MediaImageConverterStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -141,6 +142,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "%d images saved",
         batchPartialFormat: "%d saved, %d failed",
         batchSummaryHeaderFormat: "%d saved, %d failed",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let nl = MediaImageConverterStrings(
+        filesSelectedFormat: "%d bestanden geselecteerd",
+        profile: "Profiel",
+        noProfile: "Geen profiel",
+        profileName: "Profielnaam",
+        saveAsNew: "Nieuw bewaren",
+        updateProfile: "Bijwerken",
+        deleteProfile: "Profiel verwijderen",
+        profileModified: "Gewijzigd",
+        profileDefaultNameFormat: "Profiel %d",
+        presetWeb: "Web",
+        presetSocial: "Sociale media",
+        presetDocs: "Documenten",
+        resize: "Formaat wijzigen",
+        resizeNone: "Geen wijziging",
+        resizeMax: "Langste zijde",
+        resizeWidth: "Breedte",
+        resizeHeight: "Hoogte",
+        resizeExact: "Aangepast",
+        exactStretch: "Uitrekken",
+        exactFit: "Passend",
+        exactFill: "Vullen",
+        height: "Hoogte",
+        watermark: "Watermerk",
+        watermarkOff: "Uit",
+        watermarkText: "Tekst",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Tekst + logo",
+        watermarkTextPlaceholder: "Watermerktekst",
+        noLogo: "Geen logo",
+        chooseLogo: "Kies logo",
+        position: "Positie",
+        topLeft: "Linksboven",
+        topRight: "Rechtsboven",
+        center: "Midden",
+        bottomLeft: "Linksonder",
+        bottomRight: "Rechtsonder",
+        opacity: "Dekking",
+        margin: "Marge",
+        scale: "Schaal",
+        rename: "Naam wijzigen",
+        preview: "Voorvertoning",
+        outputName: "Uitvoer",
+        background: "Achtergrond",
+        backgroundTransparent: "Transparant",
+        backgroundWhite: "Wit",
+        backgroundBlack: "Zwart",
+        preserveDate: "Oorspronkelijke wijzigingsdatum behouden",
+        saveInSubfolder: "Bewaren in submap “Converted”",
+        moreOptions: "Meer opties",
+        tooLarge: "Deze afmetingen zijn te groot om veilig te verwerken. Kies een kleiner formaat.",
+        copySummary: "Samenvatting kopiëren",
+        savedBytesFormat: "%@ bespaard",
+        grewBytesFormat: "%@ groter",
+        batchSavedFormat: "%d afbeeldingen bewaard",
+        batchPartialFormat: "%d bewaard, %d mislukt",
+        batchSummaryHeaderFormat: "%d bewaard, %d mislukt",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

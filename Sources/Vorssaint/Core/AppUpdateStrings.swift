@@ -73,6 +73,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -127,6 +128,57 @@ extension AppUpdateStrings {
         removeRule: "Remove rule",
         rulesHint: "Skipping a version still allows newer releases. After removing an app exclusion, use Check now to refresh it.",
         noVisibleUpdates: "No updates outside your rules"
+    )
+
+    static let nl = AppUpdateStrings(
+        pageTitle: "App-updates",
+        hubDescription: "Vind en installeer updates voor je apps",
+        caption: "Zoekt naar nieuwere versies van de apps op deze Mac en helpt je elke update af te ronden via de oorspronkelijke bron.",
+        panelCaption: "Bekijk welke apps een nieuwere versie hebben",
+        checkNow: "Nu controleren",
+        checking: "Bezig met controleren",
+        lastCheckFormat: "Laatst gecontroleerd %@",
+        neverChecked: "Nog niet gecontroleerd",
+        upToDate: "Geen updates gevonden",
+        partialUpToDate: "Geen updates gevonden bij deze gedeeltelijke controle",
+        coverageNote: "Controleert de oorspronkelijke bronnen van geïnstalleerde apps en een openbare catalogus. Updates worden via hun oorspronkelijke bron geïnstalleerd.",
+        selectAll: "Alles selecteren",
+        clearSelection: "Wissen",
+        updateSelectedFormat: "%d bijwerken",
+        updateOne: "Bijwerken",
+        openAppStore: "Open de App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Opent de App Store, waar deze update wordt geïnstalleerd",
+        frequencyLabel: "Controleren op de achtergrond",
+        frequencyOff: "Uit",
+        frequencyDaily: "Elke dag",
+        frequencyWeekly: "Elke week",
+        nextCheckFormat: "Volgende controle %@",
+        notifyToggle: "Laat het me weten als een app een update heeft",
+        includeStoreToggle: "Apps uit de App Store meenemen",
+        includeStoreCaption: "Controleert store-versies met de regio van deze Mac. Apple installeert deze updates.",
+        packageMissing: "Homebrew is niet geïnstalleerd, dus apps kunnen hier nog niet worden bijgewerkt.",
+        notificationBodyFormat: "%@ apps hebben een nieuwere versie.",
+        notificationBodyOne: "Eén app heeft een nieuwere versie.",
+        showInPanel: "Toon in paneel",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Bronnen",
+        includeHomebrewToggle: "Homebrew-apps meenemen",
+        onlineBadge: "Online",
+        openApp: "Open",
+        openAppHint: "Opent de app zodat de eigen updater kan afronden",
+        includeOnlineToggle: "Andere geïnstalleerde apps meenemen",
+        includeOnlineCaption: "Controleert rechtstreeks bij appontwikkelaars als dat kan en gebruikt daarna een openbare catalogus. De eigen updater van de app installeert de update.",
+        incompleteCheck: "Controle onvolledig",
+        onlineUnavailable: "De online controle kon niet worden voltooid. Andere resultaten worden nog steeds getoond.",
+        skipVersionFormat: "Versie %@ overslaan",
+        excludeApp: "Deze app niet controleren",
+        rulesTitle: "Updateregels",
+        skippedVersionFormat: "Versie %@ overgeslagen",
+        excludedApp: "Niet gecontroleerd tot deze regel is verwijderd",
+        removeRule: "Regel verwijderen",
+        rulesHint: "Een overgeslagen versie verbergt geen nieuwere releases. Gebruik na het verwijderen van een app-uitsluiting Nu controleren om te vernieuwen.",
+        noVisibleUpdates: "Geen updates buiten je regels"
     )
 
     static let ptBR = AppUpdateStrings(

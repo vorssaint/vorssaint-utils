@@ -52,6 +52,13 @@ extension FeatureStrings {
             sounds: "Töne beim Sperren und Entsperren",
             soundsHint: "Spielt das Vorhängeschloss-Geräusch von macOS, wenn dein Mac gesperrt und entsperrt wird.",
             working: "Arbeitet")
+        case .nl: return NotchLockScreenStrings(
+            title: "Toegangsscherm",
+            show: "Tonen op het toegangsscherm",
+            showHint: "Muziek en de activiteiten van het Dynamic Island, zoals een timer, AI-agents, downloads en je volgende activiteit, verschijnen boven het wachtwoordveld. Iedereen die je scherm kan zien, kan ze lezen.",
+            sounds: "Geluiden bij vergrendelen en ontgrendelen",
+            soundsHint: "Speel het hangslotgeluid van macOS af wanneer je Mac vergrendelt en ontgrendelt.",
+            working: "Bezig")
         case .fr: return NotchLockScreenStrings(
             title: "Écran verrouillé",
             show: "Afficher sur l’écran verrouillé",

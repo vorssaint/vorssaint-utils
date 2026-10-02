@@ -56,6 +56,10 @@ extension FeatureStrings {
             title: "Dynamic Island 제스처",
             description: "스크롤로 Dynamic Island를 열고 닫고, 옆으로 쓸어 곡을 바꾸세요.",
             hint: "아래로 스크롤하면 열립니다. 상단 줄에서 위로 스크롤하면 닫힙니다. 음악 위에서 좌우로 쓸면 곡이 바뀝니다. 목록은 기존처럼 스크롤됩니다.")
+        case .nl: return NotchGestureStrings(
+            title: "Gebaren voor Dynamic Island",
+            description: "Open en sluit het Dynamic Island door te scrollen, en veeg om van nummer te wisselen.",
+            hint: "Scroll omlaag om te openen. Scroll omhoog boven de bovenste rij om te sluiten. Veeg naar links of rechts over de muziek om van nummer te wisselen. Lijsten behouden hun eigen scrollgedrag.")
         case .zhHans: return NotchGestureStrings(
             title: "Dynamic Island手势",
             description: "滚动以打开或关闭Dynamic Island，左右轻扫以切换歌曲。",

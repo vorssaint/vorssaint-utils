@@ -52,6 +52,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -490,5 +491,34 @@ extension GeneralSettingsStrings {
         sectionUtilities: "截圖、清理、更新和其他工具。",
         sectionControls: "滑鼠、鍵盤和視窗功能的開關。",
         sectionToggles: "深色模式、將麥克風靜音等一鍵操作。"
+    )
+
+    static let nl = GeneralSettingsStrings(
+        pageDescription: "Hoe Vorssaint opstart, hoe het eruitziet en wat het paneel in de menubalk toont.",
+        appearanceCaption: "Geldt alleen voor de vensters en panelen van Vorssaint, niet voor de hele Mac.",
+        launchAtLoginCaption: "Opent vanzelf telkens als je je Mac aanzet.",
+        liquidGlassCaption: "Doorschijnende panelen die op glas lijken.",
+        liquidGlassOtherWindows: "Andere vensters en panelen",
+        panelIntro: "Klik op het Vorssaint-symbool in de menubalk om het paneel te openen. De tabbladen verschijnen in deze volgorde.",
+        panelReorderHint: "Sleep om de volgorde te wijzigen. Zet uit wat je niet nodig hebt.",
+        menuBarIconTitle: "Menubalksymbool",
+        menuBarIconCaption: "Kies het symbool dat Vorssaint in de menubalk toont.",
+        menuBarIconOther: "Ander symbool",
+        menuBarIconOtherCaption: "Typ de naam van een willekeurig SF Symbol. Laat het leeg om het Vorssaint-symbool te gebruiken.",
+        menuBarIconUnknown: "Deze Mac heeft geen symbool met die naam.",
+        menuBarIconReset: "Vorssaint-symbool gebruiken",
+        iconMissingTitle: "Kun je het symbool niet vinden?",
+        iconMissingCaption: "Een volle menubalk kan het verbergen, vooral op Macs met een notch.",
+        sectionKeepAwake: "Houdt je Mac wakker zo lang als je wilt.",
+        sectionDisplays: "Helderheid van je schermen.",
+        sectionMixer: "Volume per app, elk met een eigen schuifknop.",
+        sectionSystem: "Processor, grafische kaart en geheugen in één oogopslag.",
+        sectionNetwork: "Internetsnelheid en welke apps het gebruiken.",
+        sectionDisks: "Vrije ruimte en schijfactiviteit.",
+        sectionPower: "Batterij, opladen en stroomverbruik.",
+        sectionFanControl: "Ventilatorsnelheden en je eigen ventilatorcurve.",
+        sectionUtilities: "Schermafbeeldingen, opschonen, updates en andere hulpmiddelen.",
+        sectionControls: "Schakelaars voor muis-, toetsenbord- en vensterfuncties.",
+        sectionToggles: "Acties met één klik, zoals donkere modus en de microfoon dempen."
     )
 }

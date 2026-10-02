@@ -35,6 +35,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case nl = "nl"
 
     var id: String { rawValue }
 
@@ -68,6 +69,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
         case .uk: return "Українська"
+        case .nl: return "Nederlands"
         }
     }
 
@@ -96,7 +98,8 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
-            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
+            ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("nl", .nl), ("uk", .uk),
+            ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -144,6 +147,7 @@ extension Strings {
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }

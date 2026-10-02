@@ -21,6 +21,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 
@@ -41,6 +42,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 
@@ -61,6 +63,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 
@@ -81,6 +84,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 
@@ -101,6 +105,7 @@ enum FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 
@@ -123,6 +128,7 @@ struct MixerFeatureStrings {
     let actions: String
 
     static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
+    static let nl = MixerFeatureStrings(hideInactiveApps: "Inactieve apps verbergen", pin: "Bovenaan vastzetten", unpin: "Losmaken", moveUp: "Omhoog", moveDown: "Omlaag", pinFirst: "Vooraan vastzetten", moveLeft: "Naar links", moveRight: "Naar rechts", arrange: "Houd Command ingedrukt en sleep om de volgorde te wijzigen", actions: "Acties")
     static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
     static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
@@ -357,6 +363,15 @@ struct SettingsCategoryStrings {
         appManagement: "App management"
     )
 
+    static let nl = SettingsCategoryStrings(
+        essentials: "Basisfuncties",
+        windowsControls: "Vensters en bediening",
+        files: "Bestanden",
+        utilities: "Hulpprogramma’s",
+        app: "App",
+        appManagement: "App-beheer"
+    )
+
     static let ptBR = SettingsCategoryStrings(
         essentials: "Essenciais",
         windowsControls: "Janelas e controles",
@@ -585,6 +600,67 @@ struct ClipboardFeatureStrings {
         menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
         menuBarPreviewLength: "Preview length",
         menuBarPreviewLengthSuffix: "characters"
+    )
+
+    static let nl = ClipboardFeatureStrings(
+        title: "Klembord",
+        enable: "Klembordgeschiedenis bewaren",
+        caption: "Bewaart gekopieerde tekst zodat je die later opnieuw kunt gebruiken. Alles blijft lokaal en kan op elk moment worden gewist.",
+        localNote: "Alles blijft op deze Mac. Erg grote items worden genegeerd.",
+        skipSensitive: "Tekst overslaan die er gevoelig uitziet",
+        skipSensitiveCaption: "Voorkomt dat korte tekst zonder spaties die op wachtwoorden, tokens of sleutels lijkt, wordt bewaard.",
+        limit: "Limiet",
+        limitUnlimited: "Onbeperkt",
+        showInPanel: "Tonen in paneel",
+        shortcut: "Sneltoets voor geschiedenis",
+        shortcutCaption: "Opent een snelvenster met zoekfunctie, vastgezette items en sneltoetsen ⌘1 tot ⌘9 om te plakken in de vorige app.",
+        shortcutHint: "Klik op een rij om die in de vorige app te plakken. ⌘-klik selecteert er meerdere; ⌘C kopieert zonder te plakken.",
+        clickRowShortcut: "Klik op rij",
+        commandClickShortcut: "⌘ Klik",
+        pinned: "Vastgezet",
+        recent: "Recent",
+        pin: "Vastzetten",
+        unpin: "Losmaken",
+        clearRecent: "Recente wissen",
+        clearAll: "Niet-vastgezette wissen",
+        empty: "Geen bewaarde tekst",
+        disabled: "Schakel geschiedenis in om gekopieerde tekst te bewaren.",
+        search: "Gekopieerde tekst doorzoeken",
+        copy: "Kopiëren",
+        copied: "Gekopieerd",
+        delete: "Item verwijderen",
+        selectMultiple: "Toevoegen aan stapel",
+        unselectMultiple: "Verwijderen uit stapel",
+        selectShortcutAction: "Selecteren",
+        pasteSelectedFormat: "%d plakken",
+        copySelectedFormat: "%d kopiëren",
+        clearSelection: "Selectie wissen",
+        moveUp: "Omhoog verplaatsen",
+        moveDown: "Omlaag verplaatsen",
+        noResults: "Geen resultaten",
+        newestFirst: "Nieuwste eerst",
+        active: "Nieuwe tekst wordt bewaard",
+        includeImagesFiles: "Ook gekopieerde afbeeldingen en bestanden bewaren",
+        includeImagesFilesCaption: "Afbeeldingen worden toegevoegd aan de geschiedenis en bestanden worden onthouden als koppelingen naar hun locatie. Zet ze vast en plak ze net als tekstitems.",
+        imageEntryLabel: "Afbeelding",
+        fileCountFormat: "%d bestanden",
+        pasteImageAsFile: "Gekopieerde afbeeldingen als bestand plakken",
+        pasteImageAsFileCaption: "Wanneer Finder actief is, bewaart ⌘V een gekopieerde afbeelding als PNG in de huidige map.",
+        previewLabel: "Voorvertoning",
+        edit: "Bewerken",
+        cancel: "Annuleren",
+        save: "Bewaren",
+        autoClearEnable: "Klembord automatisch wissen met een vertraging van",
+        autoClearSecondsSuffix: "seconden",
+        autoClearOnSleep: "Klembord wissen wanneer de computer in sluimerstand gaat",
+        autoClearOnDisplaySleep: "Klembord wissen wanneer het beeldscherm in sluimerstand gaat",
+        autoClearOnScreenLock: "Klembord wissen wanneer het scherm wordt vergrendeld",
+        autoClearCaption: "Wist alleen het systeemklembord. Al bewaarde items blijven in de geschiedenis.",
+        deleteSelectedFormat: "%d verwijderen",
+        menuBarPreview: "Laatste kopie tonen in de menubalk",
+        menuBarPreviewCaption: "Toont een ingekorte voorvertoning van je laatste kopie naast het symbool. Klik erop om de geschiedenis te openen.",
+        menuBarPreviewLength: "Lengte voorvertoning",
+        menuBarPreviewLengthSuffix: "tekens"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -1495,6 +1571,95 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Medium",
         gapLarge: "Large",
         gapExtraLarge: "Extra large"
+    )
+
+    static let nl = WindowLayoutFeatureStrings(
+        title: "Vensterindeling",
+        caption: "Verdeel vensters over schermgedeeltes, of verplaats en wijzig hun grootte met een trackpad of muis.",
+        showInPanel: "Tonen in paneel",
+        gestureSection: "Vensters slepen",
+        gestureEnable: "Verplaatsen en grootte wijzigen door te slepen",
+        gestureCaption: "Houd op een trackpad of muis de getoonde hulptoetsen ingedrukt en sleep ergens binnen in een venster.",
+        gestureModifiers: "Toetsen om te verplaatsen",
+        gestureMove: "Sleep om te verplaatsen",
+        gestureResize: "Voeg Shift toe en sleep om de grootte te wijzigen",
+        gestureResizeHint: "Het beginpunt bepaalt de dichtstbijzijnde rand of hoek. Met een muis wijzigt slepen met de rechterknop ook de grootte.",
+        gestureRaiseWindow: "Breng het gesleepte venster naar voren",
+        shortcuts: "Sneltoetsen",
+        shortcutsCaption: "Gebruik algemene sneltoetsen om het actieve venster in te delen zonder het paneel te openen.",
+        permissionCaption: "Gebruikt Toegankelijkheid alleen om vensters te verplaatsen en van grootte te wijzigen.",
+        noWindow: "Geen actief venster gevonden.",
+        missingPermission: "Geef toegang tot Toegankelijkheid om vensters te verplaatsen.",
+        failed: "Kon dit venster niet verplaatsen.",
+        done: "Venster ingedeeld.",
+        restored: "Venster hersteld.",
+        noRestore: "Geen eerdere indeling om te herstellen.",
+        target: "Actief venster",
+        halves: "Helften",
+        thirds: "Derde delen",
+        quarterRows: "Kwartrijen",
+        quarterColumns: "Kwartkolommen",
+        sixths: "Zesde delen",
+        corners: "Hoeken",
+        other: "Acties",
+        leftHalf: "Links",
+        rightHalf: "Rechts",
+        topHalf: "Boven",
+        bottomHalf: "Onder",
+        centerHalf: "Middelste helft",
+        leftThird: "Links 1/3",
+        centerThird: "Midden 1/3",
+        rightThird: "Rechts 1/3",
+        leftTwoThirds: "Links 2/3",
+        rightTwoThirds: "Rechts 2/3",
+        centerTwoThirds: "Midden 2/3",
+        topThird: "Boven 1/3",
+        middleThird: "Midden 1/3",
+        bottomThird: "Onder 1/3",
+        topTwoThirds: "Boven 2/3",
+        bottomTwoThirds: "Onder 2/3",
+        topQuarter: "Boven 1/4",
+        upperMiddleQuarter: "Midden boven 1/4",
+        lowerMiddleQuarter: "Midden onder 1/4",
+        bottomQuarter: "Onder 1/4",
+        leftQuarter: "Links 1/4",
+        leftMiddleQuarter: "Midden links 1/4",
+        rightMiddleQuarter: "Midden rechts 1/4",
+        rightQuarter: "Rechts 1/4",
+        topLeftSixth: "Linksboven 1/6",
+        topCenterSixth: "Boven midden 1/6",
+        topRightSixth: "Rechtsboven 1/6",
+        bottomLeftSixth: "Linksonder 1/6",
+        bottomCenterSixth: "Onder midden 1/6",
+        bottomRightSixth: "Rechtsonder 1/6",
+        topLeft: "Linksboven",
+        topRight: "Rechtsboven",
+        bottomLeft: "Linksonder",
+        bottomRight: "Rechtsonder",
+        maximize: "Maximaliseren",
+        center: "Centreren",
+        nextDisplay: "Volgend beeldscherm",
+        restore: "Herstellen",
+        fullScreen: "Volledig scherm",
+        previousDisplay: "Vorig beeldscherm",
+        edgeSnapEnable: "Vensters vastklikken aan schermranden",
+        edgeSnapCaption: "Schakel dit in, kies hieronder de gemarkeerde gebieden en sleep dan de titelbalk van een venster naar een ervan en laat los.",
+        edgeSnapSystemConflict: "macOS gebruikt dezelfde randen. Zet het naast elkaar plaatsen van vensters uit bij Bureaublad en Dock, zodat Vorssaint het kan overnemen.",
+        edgeSnapOpenSystemSettings: "Bureaublad en Dock openen",
+        edgeSnapWaitingForSystem: "Ingeschakeld in Vorssaint. Het begint te werken zodra het naast elkaar plaatsen van vensters in macOS uit staat.",
+        marginMaximize: "Maximaliseren met marge",
+        gapsSection: "Ruimtes",
+        gapsCaption: "Ruimte tussen vastgeklikte vensters, en tussen vensters en de schermrand.",
+        windowGap: "Vensterafstand",
+        screenGap: "Schermafstand",
+        sideRepeatCycle: "Links of Rechts herhalen wisselt het formaat",
+        sideRepeatCycleCaption: "Helft, dan twee derde, dan een derde op hetzelfde beeldscherm. Staat dit uit en heb je meer dan één beeldscherm, dan verplaatst herhalen het venster naar het volgende beeldscherm aan die kant.",
+        gapNone: "Geen",
+        gapTiny: "Piepklein",
+        gapSmall: "Klein",
+        gapMedium: "Gemiddeld",
+        gapLarge: "Groot",
+        gapExtraLarge: "Extra groot"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -2633,6 +2798,41 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Temperature above",
         batteryTemperatureTitle: "Hot battery",
         batteryTemperatureBodyFormat: "Battery reached %@."
+    )
+
+    static let nl = MonitorAlertFeatureStrings(
+        section: "Meldingen",
+        caption: "Meldingen gaan af zodra de gekozen limieten worden bereikt. Meldingen voor CPU-gebruik en temperatuur negeren pieken die korter dan ongeveer 12 seconden duren. De herhalingsinstelling beperkt alleen de herhaling van dezelfde melding.",
+        notificationsDenied: "Meldingen voor Vorssaint staan uit in Systeeminstellingen, dus meldingen kunnen niet verschijnen.",
+        cpu: "Hoog CPU-gebruik",
+        cpuTemperature: "Hoge CPU-temperatuur",
+        memory: "Kritieke geheugendruk",
+        disk: "Weinig schijfruimte",
+        battery: "Batterij bijna leeg",
+        cpuThreshold: "CPU boven",
+        cpuTemperatureThreshold: "Temperatuur boven",
+        diskThreshold: "Vrije ruimte onder",
+        batteryThreshold: "Batterij onder",
+        cooldown: "Herhaal dezelfde melding na",
+        cooldown2: "2 minuten",
+        cooldown5: "5 minuten",
+        cooldown15: "15 minuten",
+        cooldown30: "30 minuten",
+        cooldown60: "1 uur",
+        cpuTitle: "Hoog CPU-gebruik",
+        cpuBodyFormat: "CPU bleef enkele seconden boven %d%%.",
+        cpuTemperatureTitle: "Hete CPU",
+        cpuTemperatureBodyFormat: "CPU bereikte %@.",
+        memoryTitle: "Kritiek geheugen",
+        memoryBody: "Geheugendruk bereikte het kritieke niveau.",
+        diskTitle: "Weinig schijfruimte",
+        diskBodyFormat: "%@ heeft minder dan %d%% vrij.",
+        batteryTitle: "Batterij bijna leeg",
+        batteryBodyFormat: "Batterij staat op %d%%.",
+        batteryTemperature: "Hoge batterijtemperatuur",
+        batteryTemperatureThreshold: "Temperatuur boven",
+        batteryTemperatureTitle: "Hete batterij",
+        batteryTemperatureBodyFormat: "Batterij bereikte %@."
     )
 
     static let ptBR = MonitorAlertFeatureStrings(

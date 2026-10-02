@@ -49,6 +49,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -440,5 +441,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
         nextPage: "下一頁"
+    )
+
+    static let nl = WallpaperFeatureStrings(
+        pageTitle: "Achtergrond",
+        hubDescription: "Kies een stilstaande achtergrond zonder Systeeminstellingen te openen",
+        panelDescription: "Kies een stilstaande achtergrond zonder Systeeminstellingen te openen.",
+        filterAll: "Alle",
+        filterOwn: "Je afbeeldingen",
+        filterApple: "Apple",
+        applyAllDisplays: "Toon op alle Spaces",
+        addImage: "Afbeelding toevoegen",
+        addFolder: "Map toevoegen",
+        removeAdded: "Verwijderen",
+        doneRemoving: "Gereed",
+        sourceUnavailable: "Niet beschikbaar",
+        addImagePrompt: "Kies afbeeldingen om te bewaren in de achtergrondlijst van Vorssaint",
+        addFolderPrompt: "Kies een map met afbeeldingen om te bewaren in de achtergrondlijst van Vorssaint",
+        openSystemSettings: "Achtergrondinstellingen openen",
+        emptyAll: "Geen achtergronden gevonden",
+        emptyOwn: "Nog geen afbeeldingen toegevoegd",
+        emptyApple: "Geen stilstaande Apple-achtergronden gevonden",
+        downloading: "Downloaden…",
+        downloadFailed: "Kan de achtergrond niet downloaden",
+        applyFailed: "Kan de achtergrond niet instellen",
+        previousPage: "Vorige",
+        nextPage: "Volgende"
     )
 }

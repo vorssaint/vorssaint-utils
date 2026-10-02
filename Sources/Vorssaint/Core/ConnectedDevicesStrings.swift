@@ -38,6 +38,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
+        case .nl: return .nl
         }
     }
 }
@@ -159,6 +160,16 @@ private extension ConnectedDevicesFeatureStrings {
         menuBarLabel: "USB",
         oneConnected: "Підключено 1 пристрій",
         devicesConnectedFormat: "Підключено пристроїв: %d"
+    )
+
+    static let nl = ConnectedDevicesFeatureStrings(
+        title: "Verbonden apparaten",
+        hubDescription: "Telt aangesloten externe USB-apparaten",
+        noDevices: "Geen externe apparaten verbonden",
+        unnamedDevice: "USB-apparaat",
+        menuBarLabel: "USB",
+        oneConnected: "1 apparaat verbonden",
+        devicesConnectedFormat: "%d apparaten verbonden"
     )
 
     static let zhHans = ConnectedDevicesFeatureStrings(

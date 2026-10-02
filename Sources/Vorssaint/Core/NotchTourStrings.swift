@@ -33,6 +33,8 @@ extension FeatureStrings {
             caption: "音楽、タイマー、音量、明るさを操作できます。よく使うフローティングショートカットを選べます。")
         case .ko: return NotchTourStrings(preview: "3.4 미리보기",
             caption: "음악, 타이머, 음량, 밝기를 조절하세요. 자주 쓰는 플로팅 단축키를 선택할 수 있습니다.")
+        case .nl: return NotchTourStrings(preview: "Voorvertoning van 3.4",
+            caption: "Bedien muziek, timers, volume en helderheid. Kies de zwevende snelknoppen die je het meest gebruikt.")
         case .zhHans: return NotchTourStrings(preview: "3.4 预览",
             caption: "控制音乐、计时器、音量和亮度。选择常用的悬浮快捷按钮。")
         case .zhTW: return NotchTourStrings(preview: "3.4 預覽",

@@ -69,6 +69,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -119,6 +120,53 @@ extension ScratchpadFeatureStrings {
         markLink: "Link",
         formatMarks: "Formatting",
         textSize: "Text size"
+    )
+
+    static let nl = ScratchpadFeatureStrings(
+        pageTitle: "Kladblok",
+        hubDescription: "Zwevende kladblokken voor kortstondige notities",
+        panelCaption: "Snelle notities in aparte tabbladen",
+        openButton: "Kladblok openen",
+        placeholder: "Typ maar raak. Het bewaart zichzelf.",
+        copyAll: "Alles kopiëren",
+        copied: "Gekopieerd",
+        exportAction: "Bewaren als bestand",
+        exportFailed: "Het bestand kon niet worden bewaard",
+        loadFailed: "Je notities konden niet worden geopend. Ze zijn ongewijzigd gebleven.",
+        saveFailed: "Je notities konden niet worden bewaard. Kopieer ze ergens anders naartoe voordat je stopt.",
+        clearAction: "Wissen",
+        retentionTitle: "Zelf wissen",
+        retentionNever: "Nooit",
+        retentionDay: "Na een dag ongebruikt",
+        retentionWeek: "Na een week ongebruikt",
+        retentionMonth: "Na een maand ongebruikt",
+        retentionCaption: "Het kladblok maakt zichzelf leeg zodra de tekst zo lang niet bewerkt is.",
+        closeOnClickOutside: "Sluiten als ik ernaast klik",
+        keepOpen: "Open houden",
+        backgroundOpacity: "Achtergrond kladblok",
+        backgroundTranslucent: "Doorschijnend",
+        backgroundOpaque: "Ondoorzichtig",
+        newPad: "Nieuw kladblok",
+        padActions: "Kladblokacties",
+        renamePad: "Kladblok hernoemen",
+        closePad: "Kladblok sluiten",
+        saveName: "Bewaren",
+        cancel: "Annuleren",
+        deletePadMessageFormat: "“%@” en alles erin verwijderen?",
+        padLimitFormat: "Je kunt tot %d kladblokken bewaren",
+        previewFormatting: "Opmaak tonen",
+        editText: "Tekst bewerken",
+        markBold: "Vet",
+        markItalic: "Cursief",
+        markStrikethrough: "Doorgehaald",
+        markHeading: "Kop",
+        markBullet: "Lijst met opsommingstekens",
+        markNumbered: "Genummerde lijst",
+        markQuote: "Citaat",
+        markCode: "Code",
+        markLink: "Link",
+        formatMarks: "Opmaak",
+        textSize: "Tekstgrootte"
     )
 
     static let ptBR = ScratchpadFeatureStrings(

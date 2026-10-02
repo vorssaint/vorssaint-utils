@@ -140,6 +140,17 @@ extension FeatureStrings {
             unavailable: "이 알림에서는 더 이상 이 동작을 사용할 수 없습니다.",
             hideSystemBanner: "시스템 알림 숨기기",
             hideSystemBannerHint: "Dynamic Island에 표시되는 동안 원래 알림을 숨깁니다.")
+        case .nl: return NotchNotificationStrings(
+            title: "Meldingen",
+            description: "Nieuwe systeemmeldingen in het Dynamic Island.",
+            privacy: "Toont alleen nieuwe zichtbare banners. Berichten blijven in het geheugen en worden gewist wanneer je deze Mac vergrendelt of dit uitschakelt.",
+            empty: "Nieuwe meldingen verschijnen hier",
+            waiting: "Wachten op de meldingendienst van het systeem",
+            open: "Openen",
+            dismiss: "Sluiten",
+            unavailable: "Deze melding kan deze actie niet meer uitvoeren.",
+            hideSystemBanner: "Systeembanner verbergen",
+            hideSystemBannerHint: "Verbergt het origineel zolang het Dynamic Island het toont.")
         case .zhHans: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系统通知。",

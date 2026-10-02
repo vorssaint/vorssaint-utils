@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -36,6 +37,12 @@ extension ShortcutSettingsStrings {
         active: "Active",
         inactive: "Inactive",
         superKeyAlternativeFormat: "or %@"
+    )
+
+    static let nl = ShortcutSettingsStrings(
+        active: "Actief",
+        inactive: "Inactief",
+        superKeyAlternativeFormat: "of %@"
     )
 
     static let ptBR = ShortcutSettingsStrings(
