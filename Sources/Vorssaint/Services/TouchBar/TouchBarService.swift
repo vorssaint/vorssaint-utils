@@ -6,8 +6,6 @@ import AppKit
 final class TouchBarService: NSObject, NSTouchBarDelegate {
     static let shared = TouchBarService()
 
-    private static let volumeItemIdentifier =
-        NSTouchBarItem.Identifier("com.vorssaint.touchbar.volume")
     private static let keepAwakeItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.keep-awake")
 
@@ -37,7 +35,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         bar.delegate = self
         bar.defaultItemIdentifiers = [
             Self.keepAwakeItemIdentifier,
-            Self.volumeItemIdentifier,
         ]
         return bar
     }
@@ -46,16 +43,11 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         _ touchBar: NSTouchBar,
         makeItemForIdentifier identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem? {
-        switch identifier {
-        case Self.keepAwakeItemIdentifier:
-            return makeKeepAwakeItem(identifier: identifier)
-
-        case Self.volumeItemIdentifier:
-            return makeVolumeItem(identifier: identifier)
-
-        default:
+        guard identifier == Self.keepAwakeItemIdentifier else {
             return nil
         }
+
+        return makeKeepAwakeItem(identifier: identifier)
     }
 
     private func makeKeepAwakeItem(
@@ -73,19 +65,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         return item
     }
 
-    private func makeVolumeItem(
-        identifier: NSTouchBarItem.Identifier
-    ) -> NSTouchBarItem {
-        let item = NSSliderTouchBarItem(identifier: identifier)
-        item.label = "Volume"
-        item.slider.minValue = 0
-        item.slider.maxValue = 1
-        item.slider.doubleValue = AppVolumeMixer.shared.systemOutputVolume ?? 0
-        item.slider.target = self
-        item.slider.action = #selector(volumeChanged(_:))
-        return item
-    }
-
     private func keepAwakeImage() -> NSImage {
         let symbol = KeepAwakeManager.shared.isActive
             ? "cup.and.saucer.fill"
@@ -100,9 +79,5 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     @objc private func toggleKeepAwake(_ sender: NSButton) {
         KeepAwakeManager.shared.toggle()
         sender.image = keepAwakeImage()
-    }
-
-    @objc private func volumeChanged(_ sender: NSSlider) {
-        AppVolumeMixer.shared.setCurrentOutputVolume(sender.doubleValue)
     }
 }
