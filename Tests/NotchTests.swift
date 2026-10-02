@@ -964,6 +964,7 @@ enum NotchTests {
         NotchSectionPagingTests.run(suite)
         NotchKeyboardLightTests.run(suite)
         NotchActivityTests.run(suite)
+        NotchWatchTests.run(suite)
         NotchMusicExtrasTests.run(suite)
         NotchLockScreenTests.run(suite)
         NowPlayingOpenContract.run(suite)
@@ -1385,7 +1386,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
@@ -1588,13 +1589,14 @@ enum NotchTests {
         }
         suite.expect(compact.sectionRows(count: allModules.count) == 3 && spacious.sectionRows(count: allModules.count) == 3
                && compact.contentSize(for: compact.sectionPickerSize(count: allModules.count)).height <= compact.pageBudget
+               && tall.sectionRows(count: allModules.count) > spacious.sectionRows(count: allModules.count)
                && tall.sectionRows(count: allModules.count)
-                   == NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns),
-               "the gallery is a page: presets show three whole rows and a tall island shows every row")
+                   <= NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns),
+               "the gallery is a page: presets show three whole rows and a tall island shows more")
         suite.expect(compact.sectionColumns == 4 && spacious.sectionColumns == 5
                && compact.sectionColumns * compact.sectionRows(count: allModules.count) < allModules.count
-               && spacious.sectionColumns * spacious.sectionRows(count: allModules.count) >= allModules.count,
-               "a compact island steps one row to reach its last sections and a spacious one shows them all")
+               && spacious.sectionColumns * (spacious.sectionRows(count: allModules.count) + 1) >= allModules.count,
+               "a compact island steps rows to reach its last sections and a spacious one steps at most one")
         suite.expect(NotchLayout.sectionTileHeight * 2 + NotchLayout.sectionSpacing <= NotchLayout.compactContentHeight
                && NotchLayout.sectionTileHeight * 3 + NotchLayout.sectionSpacing * 2 <= NotchLayout.pageContentHeight,
                "two rows fit the compact strip and three rows fit the gallery's page exactly or better")
