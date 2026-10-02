@@ -689,14 +689,16 @@ final class ScreenshotSelectionController {
         }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            guard let image = await ScreenshotCaptureEngine.captureWindow(
+            // A composite with an attached dialog may be captured at another
+            // display's scale than this panel's; record the one it has.
+            guard let capture = await ScreenshotCaptureEngine.captureWindow(
                 windowID, scale: panel.pixelScale) else {
                 self.finish(.failed)
                 return
             }
             self.finish(.captured(Capture(
-                image: image,
-                scale: panel.pixelScale,
+                image: capture.image,
+                scale: capture.scale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: frame,
                     screenFrame: panel.screenFrame))))

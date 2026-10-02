@@ -114,8 +114,11 @@ enum ScreenshotSelectionRefreshContract {
                 protectedWindowIDs: protectedWindowIDs)
                 ? [(CGWindowID(11), CGRect(x: 0, y: 0, width: 50, height: 50))] : []
         }
-        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> CGImage? {
-            CGImage(excluded: [])
+        /// The scale a window capture reports, like a composite recaptured
+        /// on a 2x display; `nil` echoes the scale asked for.
+        static var windowCaptureScale: CGFloat?
+        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
+            (CGImage(excluded: []), windowCaptureScale ?? scale)
         }
         static func complete(_ index: Int, displays: [CGDirectDisplayID]) {
             let request = requests[index]
@@ -410,6 +413,21 @@ enum ScreenshotSelectionRefreshContract {
                 expect(false, "failed selection cannot subsequently save a stale screenshot")
             }
         }
+        // A 1x panel whose window came back as a 2x composite records 2x, so
+        // the editor, pinned image and 1x export size it by its own pixels.
+        for reported: CGFloat? in [nil, 2] {
+            ScreenshotCaptureEngine.windowCaptureScale = reported
+            let window = Chooser(.screenshot)
+            window.confirmWindow(11, frame: CGRect(x: 0, y: 0, width: 50, height: 50), on: window.panels[0])
+            await drain()
+            if case .captured(let capture)? = window.outcome {
+                expect(capture.scale == (reported ?? window.panels[0].pixelScale),
+                       "a window capture records the scale the engine captured it at")
+            } else {
+                expect(false, "a window capture records the scale the engine captured it at")
+            }
+        }
+        ScreenshotCaptureEngine.windowCaptureScale = nil
         let rapid = Chooser(.recording)
         let r3 = ScreenshotCaptureEngine.requests.count
         rapid.select(.screenshot)
