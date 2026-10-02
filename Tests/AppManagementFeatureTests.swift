@@ -1180,15 +1180,21 @@ enum AppManagementFeatureTests {
             NSDictionary(dictionary: info).write(to: url.appendingPathComponent("Contents/Info.plist"), atomically: true)
             return url
         }
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBar", ["LSUIElement": true])),
+        let menuBarApp = agentBundle("MenuBar", ["LSUIElement": true])
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: false),
                "AutoQuit leaves a menu bar app running when its settings window closes")
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"])),
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: menuBarApp, isInDock: true),
+               "AutoQuit quits a menu bar app that stays in the Dock after its last window closes")
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("MenuBarString", ["LSUIElement": "1"]),
+                                                     isInDock: false),
                "AutoQuit reads a string LSUIElement the way Launch Services does")
-        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true])),
+        suite.expect(AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Daemon", ["LSBackgroundOnly": true]),
+                                                     isInDock: false),
                "AutoQuit leaves a background-only app running")
-        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false])),
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: agentBundle("Regular", ["LSUIElement": false]),
+                                                      isInDock: false),
                "AutoQuit still quits a regular app when its last window closes")
-        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil),
+        suite.expect(!AutoQuitSupport.isBackgroundApp(bundleURL: nil, isInDock: false),
                "AutoQuit treats a process without a bundle as a regular app")
         try? FileManager.default.removeItem(at: outerApp.deletingLastPathComponent())
         suite.expect(!AutoQuitSupport.shouldScheduleWindowCheck(for: .appDeactivated,

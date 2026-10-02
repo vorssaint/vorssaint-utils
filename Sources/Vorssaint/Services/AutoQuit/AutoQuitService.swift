@@ -348,7 +348,8 @@ final class AutoQuitService: ObservableObject {
         let appIsExcepted = AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
                                                        bundleURL: app.bundleURL,
                                                        exceptions: exceptions)
-            || AutoQuitSupport.isBackgroundApp(bundleURL: app.bundleURL)
+            || AutoQuitSupport.isBackgroundApp(bundleURL: app.bundleURL,
+                                               isInDock: app.activationPolicy == .regular)
         let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
         // Cheap early-outs before any synchronous AX IPC: excepted apps and
