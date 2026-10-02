@@ -273,7 +273,7 @@ final class NotchService: ObservableObject {
               countdown.ongoing ? NotchCalendarSupport.showsTimeLeft()
                 : NotchCalendarSupport.showsCountdown(chosen: calendar.isChosen(countdown.event))
         else { return false }
-        return countdown.isShown(at: Date())
+        return countdown.isShown(at: Date(), leadTime: calendar.countdownLeadTime)
     }
 
     var hasKeepAwakeActivity: Bool {
@@ -401,7 +401,7 @@ final class NotchService: ObservableObject {
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
-                                                    paired: companion != nil)
+                                                    paired: companion != nil, marks: calendarStackMarks)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
@@ -428,11 +428,11 @@ final class NotchService: ObservableObject {
     }
 
     /// The wider of the two sides, measured with the strip's fonts and its
-    /// clearance from the curve: alone, the event's title or its clock and
-    /// the time beside it; paired, the event's dot and clock or the mark of
-    /// what shares the island, with air beside the camera.
+    /// clearance from the curve: alone, the events' dots, title and "+1" or
+    /// the clock and the time beside it; paired, the dots and clock or the
+    /// mark of what shares the island, with air beside the camera.
     private func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat {
-        guard let countdown = NotchCalendarService.shared.countdown else {
+        guard let stack = NotchCalendarService.shared.stack else {
             return NotchGeometry.calendarWingRange.upperBound
         }
         // Measured at the narrowest wing the strip may take.
@@ -448,16 +448,26 @@ final class NotchService: ObservableObject {
             (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
         let language = L10n.shared.language
-        let trimmed = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
-        let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
-            + width(title, .systemFont(ofSize: 11, weight: .semibold))
+        let text = FeatureStrings.notchCalendar(language)
+        let locale = language.formattingLocale()
+        // Events taking turns keep the widest one's room, so the island
+        // holds still as they change.
+        let together = stack.together
+        let titleWidth = together.map {
+            width(NotchCalendarStrip.displayTitle($0.event, untitled: text.untitled), .systemFont(ofSize: 11, weight: .semibold))
+        }.max() ?? 0
+        let badge = stack.others > 0
+            ? NotchCalendarSupport.stripTitleSpacing + NotchCapsuleLayout.calendarBadgeWidth(stack.others) : 0
+        let titleSide = NotchCalendarSupport.stackDotsWidth(stack.countdowns.count)
+            + NotchCalendarSupport.stripTitleSpacing + titleWidth + badge
         // The widest clock the hour can show, so the island keeps its size
         // while the minutes count down.
+        let timeWidth = together.map {
+            width(NotchCalendarSupport.stackTimeText(stack, shown: $0, then: text.then, locale: locale),
+                  .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+        }.max() ?? 0
         let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
-            + NotchCalendarSupport.stripClockSpacing
-            + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                    .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+            + NotchCalendarSupport.stripClockSpacing + timeWidth
         return inset + max(titleSide, clockSide)
     }
 
@@ -500,10 +510,20 @@ final class NotchService: ObservableObject {
         }
     }
 
+    /// What several countdowns add beside the title: their other dots and
+    /// the "+1". The wing may grow by this much past its usual limit, so a
+    /// title keeps the room it has alone.
+    private var calendarStackMarks: CGFloat {
+        guard let stack = NotchCalendarService.shared.stack, stack.others > 0 else { return 0 }
+        return NotchCalendarSupport.stackDotsWidth(stack.countdowns.count) - NotchCalendarSupport.stripDotWidth
+            + NotchCalendarSupport.stripTitleSpacing + NotchCapsuleLayout.calendarBadgeWidth(stack.others)
+    }
+
     /// An event's dot and the widest clock its hour can show, so the island
     /// keeps its size while the minutes count down.
     private var calendarClockWidth: CGFloat {
-        NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripClockSpacing
+        NotchCalendarSupport.stackDotsWidth(NotchCalendarService.shared.countdowns.count)
+            + NotchCalendarSupport.stripClockSpacing
             + ("00:00" as NSString).size(withAttributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
             ]).width.rounded(.up)
@@ -758,15 +778,13 @@ final class NotchService: ObservableObject {
                                                          focus: NotchAgentSupport.limitFocus(), now: Date())
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
-            guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
+            guard let stack = NotchCalendarService.shared.stack else { return geometry.restingSize(showsContent: false) }
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
-                                                  language: language)
+                                                  language: language, events: stack.countdowns.count)
             }
-            return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
-                                          time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                                          geometry: geometry)
+            return layout.calendarSurface(stack, geometry: geometry, language: language)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -3202,7 +3220,7 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {
-            NotchCalendarService.shared.$countdown.removeDuplicates()
+            NotchCalendarService.shared.$countdowns.removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()
