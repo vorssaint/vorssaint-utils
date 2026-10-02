@@ -78,6 +78,7 @@ enum SettingsBackup {
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
         let localWatermarkPresets = defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets)
+        let localUploadDestination = defaults.string(forKey: DefaultsKey.captureUploadDestination)
         // A backup carries only the portable half of an exception list: the
         // path of a program that is not an app is authority on one Mac and is
         // filtered out on export (issue #1009). The clear below covers every
@@ -106,6 +107,9 @@ enum SettingsBackup {
         defaults.set(SettingsBackupSupport.restoredScreenshotWatermarkPresets(
             restored: settings[DefaultsKey.screenshotWatermarkPresets] as? String,
             local: localWatermarkPresets), forKey: DefaultsKey.screenshotWatermarkPresets)
+        defaults.set(SettingsBackupSupport.restoredUploadDestination(
+            restored: settings[DefaultsKey.captureUploadDestination] as? String,
+            local: localUploadDestination), forKey: DefaultsKey.captureUploadDestination)
         for (key, paths) in carried where !paths.isEmpty {
             defaults.set(SettingsBackupSupport.restoredExceptionList(
                 restored: defaults.stringArray(forKey: key) ?? [],

@@ -25,6 +25,17 @@ struct ScreenCaptureSettings: View {
         availableTools.contains(selectedTool) ? selectedTool : availableTools.first ?? .screenshot
     }
 
+    /// One destination serves screenshots and recordings, so the section
+    /// follows whichever is selected; the kind picks which copy choice it shows.
+    private var uploadKind: CaptureUploadSupport.Kind? {
+        guard !availableTools.isEmpty else { return nil }
+        switch currentTool {
+        case .screenshot: return .screenshot
+        case .recording: return .recording
+        case .text, .color: return nil
+        }
+    }
+
     var body: some View {
         Form {
             if !availableTools.isEmpty {
@@ -46,6 +57,10 @@ struct ScreenCaptureSettings: View {
             }
 
             selectedSettings
+            if let uploadKind {
+                CaptureUploadSettings(kind: uploadKind)
+                    .id(uploadKind)
+            }
         }
         .formStyle(.grouped)
         .onAppear { reconcileSelection(withDestination: true) }

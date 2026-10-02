@@ -680,6 +680,15 @@ enum DefaultsKey {
     // Developer-only endpoint for an isolated test tunnel. The official app
     // ignores it, and settings backups must never carry it to another Mac.
     static let screenshotSharingDeveloperEndpoint = "screenshotSharingDeveloperEndpoint"
+    // Uploads to a configured server: whether they are on at all,
+    // and the address plus the query parameters and headers the request
+    // carries, as JSON. Backups carry the destination without the values.
+    static let captureUploadEnabled = "captureUploadEnabled"
+    static let captureUploadDestination = "captureUploadDestination"
+    // Whether the link a server answers with lands on the clipboard, one
+    // choice per kind: a recording's link is often the one worth pasting.
+    static let captureUploadCopyScreenshotLink = "captureUploadCopyScreenshotLink"
+    static let captureUploadCopyRecordingLink = "captureUploadCopyRecordingLink"
     static let panelUtilityScreenshot = "panelUtilityScreenshot"
 
     // Screen recorder - records the picked area, keeps the untouched master
@@ -1789,6 +1798,10 @@ enum Defaults {
         DefaultsKey.screenshotPreviewEnabled: true,
         DefaultsKey.screenshotPreviewDuration: ScreenshotSupport.defaultConfirmationPreviewDuration,
         DefaultsKey.screenshotSharingEnabled: true,
+        DefaultsKey.captureUploadEnabled: false,
+        DefaultsKey.captureUploadDestination: "",
+        DefaultsKey.captureUploadCopyScreenshotLink: true,
+        DefaultsKey.captureUploadCopyRecordingLink: true,
         DefaultsKey.panelUtilityScreenshot: true,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowDirectionalEnabled: false,

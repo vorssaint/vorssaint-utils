@@ -23,6 +23,13 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         case cancelled
     }
 
+    enum UploadOutcome {
+        case uploaded(CaptureUploadService.Outcome)
+        case failed(CaptureUploadService.Failure)
+        case tooLarge
+        case cancelled
+    }
+
     let take: RecorderTakeStore.Take
     let player: AVPlayer
 
@@ -1400,6 +1407,72 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         }
     }
 
+    /// Compressed the way a temporary link is, so a recording never lands on
+    /// a server as gigabytes when tens of megabytes would do. The staged copy
+    /// goes as soon as the transfer ends either way.
+    func upload(completion: @escaping (UploadOutcome) -> Void) {
+        guard !isExporting else { return }
+        let destination = CaptureUploadService.shared.destination
+        pause()
+        isExporting = true
+        exportProgress = 0
+        exportPhase = .compressing
+        let exporter = RecorderExporter()
+        self.exporter = exporter
+        let document = document
+        let take = take
+        shareTask = Task { @MainActor [weak self] in
+            let result = await exporter.exportForSharing(
+                take: take,
+                document: document) { value in
+                    DispatchQueue.main.async { [weak self] in
+                        self?.exportProgress = value
+                    }
+                }
+            guard let self else {
+                result.artifact?.discard()
+                return
+            }
+            if let failure = result.failure {
+                self.finishSharing()
+                switch failure {
+                case .cancelled:
+                    completion(.cancelled)
+                case .tooLargeForSharing:
+                    completion(.tooLarge)
+                default:
+                    completion(.failed(.invalidArtifact))
+                }
+                return
+            }
+            guard let artifact = result.artifact else {
+                self.finishSharing()
+                completion(.failed(.invalidArtifact))
+                return
+            }
+            defer { artifact.discard() }
+            if Task.isCancelled {
+                self.finishSharing()
+                completion(.cancelled)
+                return
+            }
+            self.exportPhase = .uploading
+            self.exportProgress = 1
+            let outcome: UploadOutcome
+            do {
+                outcome = .uploaded(
+                    try await CaptureUploadService.shared.upload(recordingAt: artifact.fileURL,
+                                                                to: destination))
+            } catch let failure as CaptureUploadService.Failure {
+                outcome = Task.isCancelled ? .cancelled : .failed(failure)
+            } catch {
+                outcome = Task.isCancelled ? .cancelled : .failed(.unavailable)
+            }
+            self.finishSharing()
+            completion(outcome)
+        }
+    }
+
     private func finishSharing() {
         isExporting = false
         exporter = nil
@@ -1556,6 +1629,26 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             case .failure(.failed):
                 NSSound.beep()
                 QuickToolHUD.show(icon: "link", message: self.shareStrings.failed)
+            }
+        }
+    }
+
+    func upload() {
+        model.upload { [weak self] outcome in
+            guard let self else { return }
+            switch outcome {
+            case let .uploaded(result):
+                // Unlike a temporary link, the server keeps the video, so it
+                // counts as saved the way a written file does.
+                self.exported = true
+                CaptureUploadService.shared.announce(result)
+            case let .failed(failure):
+                CaptureUploadService.shared.announce(failure: failure)
+            case .tooLarge:
+                NSSound.beep()
+                QuickToolHUD.show(icon: "icloud.and.arrow.up", message: self.shareStrings.tooLarge)
+            case .cancelled:
+                break
             }
         }
     }

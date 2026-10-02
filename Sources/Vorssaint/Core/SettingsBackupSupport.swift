@@ -328,6 +328,13 @@ enum SettingsBackupSupport {
             }
             settings[DefaultsKey.recorderEditorPresets] = try? JSONEncoder().encode(presets)
         }
+        // The values of the upload rows are the keys to that server. The file
+        // carries where uploads go and what each row is called; the values
+        // are typed again, or kept from this Mac.
+        if let raw = settings[DefaultsKey.captureUploadDestination] as? String {
+            settings[DefaultsKey.captureUploadDestination] = CaptureUploadSupport.portable(
+                CaptureUploadSupport.Destination.decoded(raw)).encoded()
+        }
         if let rawProfiles = settings[DefaultsKey.mediaImageProfiles] as? String {
             if let portableProfiles = MediaSupport.portableImageProfiles(rawProfiles) {
                 settings[DefaultsKey.mediaImageProfiles] = portableProfiles
@@ -375,6 +382,14 @@ enum SettingsBackupSupport {
             }
         return ScreenshotSupport.encodedWatermarkPresets(
             Array(text.suffix(ScreenshotSupport.backdropPresetLimit - pictures.count)) + pictures)
+    }
+
+    /// The upload rows keep the values already on this Mac when the backup
+    /// names the same server, the way a watermark keeps its local picture.
+    static func restoredUploadDestination(restored: String?, local: String?) -> String {
+        CaptureUploadSupport.restored(CaptureUploadSupport.Destination.decoded(restored),
+                                      local: CaptureUploadSupport.Destination.decoded(local))
+            .encoded()
     }
 
     /// Restoring settings on the same Mac keeps the pictures already owned by
