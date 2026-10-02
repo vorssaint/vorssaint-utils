@@ -225,6 +225,39 @@ enum CommandBarFeatureTests {
             "macSettings", "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
             "selection", "links", "files", "killProcess",
         ], "source ids are stable (they persist inside the disabled list)")
+        // The four rows that open another category are built as the app's
+        // own actions, but they carry that category's prefix, so a filter on
+        // the prefix alone drops them: the same rows turn up in the empty bar
+        // and in typed search, which never ask for a source, and nothing in
+        // the bar says the Actions list is narrower.
+        let actionEntriesCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("private static func actionEntries(")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("private static func settingsEntries(") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        let actionBrowseIDs: Set<String> = [
+            CommandBarPreferences.emojiBrowserRowID,
+            CommandBarPreferences.killProcessBrowserRowID,
+            "uninstall.browse", "uninstall.finder",
+        ]
+        suite.expect(CommandBarPreferences.actionBrowseRowIDs == actionBrowseIDs
+                && actionEntriesCode.contains("id: \"uninstall.browse\"")
+                && actionEntriesCode.contains("id: \"uninstall.finder\"")
+                && actionEntriesCode.contains("id: CommandBarPreferences.emojiBrowserRowID")
+                && actionEntriesCode.contains("id: CommandBarPreferences.killProcessBrowserRowID"),
+               "the app's own actions build all four rows that open another category, and the actions list names every one of them")
+        suite.expect(Set(actionBrowseIDs.map(CommandBarPreferences.source(ofRowID:)))
+                    == [.uninstallApps, .emoji, .killProcess]
+                && actionBrowseIDs.allSatisfy(CommandBarPreferences.isActionRow),
+               "a row is filed under the category it opens, so the actions list has to admit a navigation row by name and not by prefix")
+        suite.expect(CommandBarPreferences.isActionRow("action.cleaner")
+                && !CommandBarPreferences.isActionRow("app.Safari")
+                && !CommandBarPreferences.isActionRow("settings.appearance")
+                && !CommandBarPreferences.isActionRow("emoji.grin"),
+               "naming the navigation rows widens the actions list to them alone and leaves every other category exactly where it was")
         suite.expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
