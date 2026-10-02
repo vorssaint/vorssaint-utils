@@ -17,6 +17,12 @@ enum MonitorSamplingKind: String {
 }
 
 enum MonitorSamplingPolicy {
+    static func powerNeededForAlerts(hasInternalBattery: Bool,
+                                     lowBatteryEnabled: Bool,
+                                     highChargeEnabled: Bool) -> Bool {
+        hasInternalBattery && (lowBatteryEnabled || highChargeEnabled)
+    }
+
     static func shouldSample(_ kind: MonitorSamplingKind,
                              tick: Int,
                              intervalSeconds: Int,

@@ -257,6 +257,30 @@ enum SettingsFeatureTests {
                "the clipboard window size stays on the display where it was chosen")
         suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
                "the apps that pause window layout travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.monitorAlertHighCharge)
+                && backupKeys.contains(DefaultsKey.monitorAlertHighChargePercent),
+               "the high-charge enable and threshold preferences travel with settings backups")
+
+        let monitorAlertsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorAlertsControls.swift",
+            encoding: .utf8)) ?? ""
+        let monitorAlertServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(monitorAlertsSource.contains("AlertTile(title: text.highCharge")
+                && monitorAlertsSource.contains("Toggle(text.highCharge")
+                && monitorAlertsSource.components(separatedBy: "MonitorAlertService.sendHighChargeTest").count == 3,
+               "both monitor alert surfaces offer high-charge controls and an independent test action")
+        let testAction = monitorAlertServiceSource
+            .components(separatedBy: "static func sendHighChargeTest").dropFirst().first?
+            .components(separatedBy: "private func send(").first ?? ""
+        suite.expect(testAction.contains("Notifier.requestPermission()")
+                || testAction.contains("Notifier.requestPermission { granted in"),
+               "the test alert uses the existing notification permission flow")
+        suite.expect(testAction.contains("Notifier.post(")
+                && !testAction.contains("UserDefaults")
+                && !testAction.contains("highChargeGate"),
+               "the test alert uses notification permission without touching defaults or the real session gate")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
                "per-app switcher rules travel with the settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
