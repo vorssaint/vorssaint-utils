@@ -245,6 +245,17 @@ enum CommandBarFeatureTests {
                                         keywords: clipboardClearKeywords,
                                         query: "clear clipboard"),
                "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        for language in AppLanguage.allCases {
+            let clipboard = FeatureStrings.clipboard(language)
+            let keywords = [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                            ClipboardFeatureStrings.enUS.clearRecent,
+                            clipboard.recent, ClipboardFeatureStrings.enUS.recent,
+                            clipboard.clearRecentKeywords,
+                            ClipboardFeatureStrings.enUS.clearRecentKeywords].joined(separator: " ")
+            suite.expect(CommandBarSearch.matches(title: clipboard.clearRecent, keywords: keywords,
+                                                  query: clipboard.clearRecentKeywords),
+                   "the clipboard clear action keeps its former \(language) name as a search term")
+        }
         let clipboardActionsCode = commandBarCatalogLines.firstIndex {
             isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
         }.map {
