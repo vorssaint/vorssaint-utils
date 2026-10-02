@@ -103,6 +103,19 @@ enum ShelfDragCompletionTests {
         suite.expect(pinnedService.removed == [looseID],
                "a pinned shelf item survives a drag-out that removes the rest")
 
+        Context.reset()
+        let packageService = Context.Service()
+        let libraryFileID = UUID()
+        packageService.packageContentIDs = [libraryFileID]
+        packageService.beginInternalDrag(ids: [UUID()], from: Context.Window())
+        let plainDrag = packageService.internalDragHoldsPackageContent
+        packageService.completeInternalDrag(dropAccepted: true)
+        packageService.beginInternalDrag(ids: [UUID(), libraryFileID], from: Context.Window())
+        let libraryDrag = packageService.internalDragHoldsPackageContent
+        packageService.completeInternalDrag(dropAccepted: false)
+        suite.expect(!plainDrag && libraryDrag && !packageService.internalDragHoldsPackageContent,
+               "a drag holding package content is copy-only until that drag ends")
+
         for changedSurface in 0..<5 {
             Context.reset()
             let service = Context.Service()
