@@ -75,6 +75,7 @@ struct NotchCapsuleNoticeView: View {
         switch notice.event {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
+        case .cursor: return .white
         default: return .white
         }
     }
@@ -337,6 +338,8 @@ private struct NotchCapsuleCompanionMark: View {
                         .frame(width: CapsuleLayout.downloadPercentWidth(l10n.language), alignment: .trailing)
                 }
             }
+        case .cursor:
+            NotchCursorMark()
         case .agents:
             NotchCapsuleAgentMarks(providers: AgentProvider.allCases.filter { provider in
                 usage.snapshot.live.contains { $0.provider == provider }

@@ -13,6 +13,7 @@ import ServiceManagement
 /// `SMAppService.mainApp` is scoped to the running app's bundle identifier.
 enum Uninstaller {
     static func runAndExit() -> Never {
+        CursorHookInstaller.removeForUninstall()
         // The fan helper is a daemon service of its own, so unregistering the
         // main app as a login item never reaches it. Without this its root
         // registration outlives the bundle that carried its executable.

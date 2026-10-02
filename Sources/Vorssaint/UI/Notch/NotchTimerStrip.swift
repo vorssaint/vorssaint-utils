@@ -117,6 +117,8 @@ struct NotchCompanionMark: View {
         switch companion {
         case .downloads:
             downloadIndicator
+        case .cursor:
+            NotchCursorMark(size: min(13, NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight)))
         case .agents:
             let working = Self.working
             HStack(spacing: 1) {
@@ -170,7 +172,7 @@ struct NotchCompanionMark: View {
             return geometry.compactMusicArtworkInset
         case .calendar:
             return geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0)
-        case .downloads, .timer, .keepAwake:
+        case .cursor, .downloads, .timer, .keepAwake:
             let side = min(13, NotchTimerSupport.stripIconSize(height: geometry.compactActivityContentHeight))
             return geometry.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
         }
@@ -191,7 +193,7 @@ struct NotchCompanionMark: View {
             let playback = NotchMusicService.shared.playback
             let title = playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying
             return [title, playback?.track.artist].compactMap { $0 }.joined(separator: ", ")
-        case .timer, .keepAwake:
+        case .cursor, .timer, .keepAwake:
             return companion.title(language)
         }
     }

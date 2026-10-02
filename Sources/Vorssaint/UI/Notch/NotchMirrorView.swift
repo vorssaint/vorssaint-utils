@@ -29,6 +29,7 @@ struct NotchMirrorView: View {
                 switch activity {
                 case .timer: NotchCapsuleTimerStrip(service: service, size: size, displayGeometry: geometry)
                 case .downloads: NotchCapsuleDownloadStrip(service: service, size: size, displayGeometry: geometry)
+                case .cursor: NotchCapsuleCursorStrip(service: service, size: size, displayGeometry: geometry)
                 case .agents: NotchCapsuleAgentStrip(service: service, size: size, displayGeometry: geometry)
                 case .calendar: NotchCapsuleCalendarStrip(service: service, size: size, displayGeometry: geometry)
                 case .music: NotchCapsuleMusicStrip(service: service, size: size, displayGeometry: geometry)
@@ -38,6 +39,7 @@ struct NotchMirrorView: View {
                 switch activity {
                 case .timer: NotchTimerStrip(service: service, displayGeometry: mirror.strip)
                 case .downloads: NotchDownloadStrip(service: service, displayGeometry: mirror.strip)
+                case .cursor: NotchCursorStrip(service: service, displayGeometry: mirror.strip)
                 case .agents: NotchAgentStrip(service: service, displayGeometry: mirror.strip)
                 case .calendar: NotchCalendarStrip(service: service, displayGeometry: mirror.strip)
                 case .music: NotchMusicStrip(service: service, displayGeometry: mirror.strip)

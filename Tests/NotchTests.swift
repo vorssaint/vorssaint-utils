@@ -1588,13 +1588,13 @@ enum NotchTests {
         }
         suite.expect(compact.sectionRows(count: allModules.count) == 3 && spacious.sectionRows(count: allModules.count) == 3
                && compact.contentSize(for: compact.sectionPickerSize(count: allModules.count)).height <= compact.pageBudget
-               && tall.sectionRows(count: allModules.count)
-                   == NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns),
-               "the gallery is a page: presets show three whole rows and a tall island shows every row")
+               && tall.sectionRows(count: allModules.count) == 5
+               && NotchSectionPaging.rows(count: allModules.count, columns: tall.sectionColumns) == 6,
+               "the gallery is a page: presets show three whole rows and the tallest island still steps to the last row")
         suite.expect(compact.sectionColumns == 4 && spacious.sectionColumns == 5
                && compact.sectionColumns * compact.sectionRows(count: allModules.count) < allModules.count
-               && spacious.sectionColumns * spacious.sectionRows(count: allModules.count) >= allModules.count,
-               "a compact island steps one row to reach its last sections and a spacious one shows them all")
+               && spacious.sectionColumns * spacious.sectionRows(count: allModules.count) < allModules.count,
+               "preset galleries show three rows and step to reach the last sections")
         suite.expect(NotchLayout.sectionTileHeight * 2 + NotchLayout.sectionSpacing <= NotchLayout.compactContentHeight
                && NotchLayout.sectionTileHeight * 3 + NotchLayout.sectionSpacing * 2 <= NotchLayout.pageContentHeight,
                "two rows fit the compact strip and three rows fit the gallery's page exactly or better")
@@ -2528,6 +2528,18 @@ enum NotchTests {
                      "a chosen event is kept by its key with its end, and an event without a key cannot be chosen")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarChosenCountdowns),
                      "events chosen on this Mac stay out of settings backups")
+        suite.expect(!SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.notchCursorRecentRepos)
+                     && !SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.notchCursorHookState)
+                     && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCursorRecentRepos)
+                     && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCursorHookState)
+                     && Defaults.registeredDefaults[DefaultsKey.notchCursorRecentRepos] == nil
+                     && Defaults.registeredDefaults[DefaultsKey.notchCursorHookState] == nil,
+                     "Cursor folders and hook install state stay on this Mac and out of settings backups")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [
+            DefaultsKey.notchCursorEnabled, DefaultsKey.notchCursorContextNote,
+            DefaultsKey.notchCursorAllowRules, DefaultsKey.notchCursorDenyRules,
+            DefaultsKey.notchCursorProtectedPaths,
+        ]), "the Cursor note, rules and protected paths travel in settings backups")
         let moved = event("chosen", 1200 + hour, 2400 + hour)
         suite.expect(NotchCalendarSupport.refreshedChoices(["chosen": chosen.end], events: [moved], now: now)
                         == ["chosen": moved.end],

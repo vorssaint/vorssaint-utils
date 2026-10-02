@@ -112,6 +112,19 @@ Run it from a clone of the repository, or download the single script from the re
 tccutil reset All com.vorssaint.utils
 ```
 
+## Cursor in the Dynamic Island shows nothing
+
+The Cursor section is off until you add it under Dynamic Island, Content. Connecting writes Vorssaint's helper into your user hooks file, `~/.cursor/hooks.json`. It does not change a project, team or enterprise hooks file.
+
+If the section stays empty after you connect:
+
+1. In Cursor, open Customize, then Hooks. Confirm the hooks are on.
+2. Open Cursor's Hooks output channel and look for the helper. A hook that Cursor has switched off never reaches Vorssaint.
+3. In Vorssaint, open the Cursor section and check Last event. If it stays on "No event yet", press Test connection.
+4. If the hooks file is a shortcut, is unreadable, or is not version 1, the connect card says so and does not overwrite it. Make it a normal file at version 1, then try again.
+
+Approvals, replies and pull requests stay off until you turn each one on. Experimental controls stay off and do not type until a window-title format has been verified.
+
 ## Reporting a useful bug
 
 A clear report gets fixed faster. Try to include the following.

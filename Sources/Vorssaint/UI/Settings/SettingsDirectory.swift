@@ -351,6 +351,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchActivities(language).keepAwakeActivity,
                                                  "notch", "camera", "music", "clipboard",
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "AI", "tokens",
+                                                 FeatureStrings.notchCursor(language).title, "Cursor",
                                                  FeatureStrings.notchAgents(language).resetsCard,
                                                  FeatureStrings.notchLockScreen(language).title,
                                                  FeatureStrings.notchLockScreen(language).sounds]

@@ -31,7 +31,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents
+         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchCursor
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
@@ -115,7 +115,7 @@ extension AppFeature {
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents:
+             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchCursor:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
@@ -188,6 +188,7 @@ extension AppFeature {
         case .notchNotifications: return "bell"
         case .notchCalendar: return "calendar"
         case .notchAgents: return "sparkles"
+        case .notchCursor: return "bubble.left.and.bubble.right"
         case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
@@ -259,6 +260,7 @@ extension AppFeature {
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
         case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notchCursor: return [DefaultsKey.notchCursorEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
@@ -325,6 +327,9 @@ extension AppFeature {
         // Session logs and the saved limits sit in the home folder, outside
         // every protected location, and no sign-in or keychain item is used.
         case .notchAgents: return []
+        // Accessibility appears only while the experimental controls are on.
+        case .notchCursor: return CursorExperimental.permissions(
+            experimental: UserDefaults.standard.bool(forKey: DefaultsKey.notchCursorExperimental))
         // The bars read the player's own audio output, which macOS gates
         // behind the same permission the mixer and the recorder ask for.
         case .notchLiveEqualizer: return [.audioCapture]
@@ -463,7 +468,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchCursor:
             return false
         }
     }
@@ -501,6 +506,9 @@ extension AppFeature {
             case (.notchCalendar, .calendar):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("calendar")
+            case (.notchCursor, .accessibility):
+                return boolFor(DefaultsKey.notchCursorExperimental)
+                    && isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
             case (.notch, .accessibility):
                 return (boolFor(DefaultsKey.notchVolume) && isAvailable(.mixer))
                     || (boolFor(DefaultsKey.notchKeyboardLight) && isAvailable(.brightness))

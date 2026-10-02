@@ -509,6 +509,8 @@ private struct FeatureHubRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var confirmingExtensions = false
+    @State private var confirmingCursorHooks = false
+    @State private var pendingRemoval: [AppFeature] = []
     @State private var hovering = false
     @State private var showingMetadata = false
     let feature: AppFeature
@@ -608,6 +610,19 @@ private struct FeatureHubRow: View {
             Text(String(format: hub.notchUninstallMessageFormat,
                         installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
                             .joined(separator: ", ")))
+        }
+        .alert(FeatureStrings.notchCursorConnect(l10n.language).removeHooksTitle,
+               isPresented: $confirmingCursorHooks) {
+            Button(FeatureStrings.notchCursorConnect(l10n.language).removeHooksConfirm) {
+                CursorHookInstaller.removeForUninstall()
+                commit(pendingRemoval, install: false)
+            }
+            Button(FeatureStrings.notchCursorConnect(l10n.language).keepHooks) {
+                commit(pendingRemoval, install: false)
+            }
+            Button(FeatureStrings.notchCursorConnect(l10n.language).cancelButton, role: .cancel) {}
+        } message: {
+            Text(FeatureStrings.notchCursorConnect(l10n.language).removeHooksMessage)
         }
     }
 
@@ -714,8 +729,18 @@ private struct FeatureHubRow: View {
     }
 
     private func flip(to install: Bool, alongside companions: [AppFeature] = []) {
+        let targets = [feature] + companions
+        if !install, targets.contains(.notchCursor), CursorHookInstaller.liveHooksPresent() {
+            pendingRemoval = targets
+            confirmingCursorHooks = true
+            return
+        }
+        commit(targets, install: install)
+    }
+
+    private func commit(_ targets: [AppFeature], install: Bool) {
         withAnimation(.easeOut(duration: 0.22)) {
-            FeatureRuntime.shared.setAvailable([feature] + companions, install)
+            FeatureRuntime.shared.setAvailable(targets, install)
         }
     }
 }
@@ -1042,6 +1067,7 @@ extension AppFeature {
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsTitle
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
         case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).title
+        case .notchCursor: return FeatureStrings.notchCursor(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -1123,6 +1149,7 @@ extension AppFeature {
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsDescription
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).description
         case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).hubDescription
+        case .notchCursor: return FeatureStrings.notchCursor(L10n.shared.language).hubDescription
         case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription

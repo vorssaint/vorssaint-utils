@@ -187,6 +187,7 @@ struct NotchView: View {
             switch activity {
             case .timer: NotchCapsuleTimerStrip(service: service, size: size)
             case .downloads: NotchCapsuleDownloadStrip(service: service, size: size)
+            case .cursor: NotchCapsuleCursorStrip(service: service, size: size)
             case .agents: NotchCapsuleAgentStrip(service: service, size: size)
             case .calendar: NotchCapsuleCalendarStrip(service: service, size: size)
             case .music: NotchCapsuleMusicStrip(service: service, size: size)
@@ -196,6 +197,7 @@ struct NotchView: View {
             switch activity {
             case .timer: NotchTimerStrip(service: service)
             case .downloads: NotchDownloadStrip(service: service)
+            case .cursor: NotchCursorStrip(service: service)
             case .agents: NotchAgentStrip(service: service)
             case .calendar: NotchCalendarStrip(service: service)
             case .music: NotchMusicStrip(service: service)
@@ -276,6 +278,9 @@ struct NotchView: View {
         case .files:
             // One shelf tile, its vertical insets, the footer and their gap.
             size.height = max(size.height, 88 + 8 + 28 + NotchLayout.rowSpacing)
+        case .cursor:
+            // The connect page stays inside the expanded budget and scrolls there.
+            break
         default: break
         }
         return size
@@ -547,6 +552,7 @@ struct NotchView: View {
                 NotchSystemView(size: pageSize) { service.showMetric($0) }
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
+            case .cursor: NotchCursorView(size: pageSize)
             case .agents: NotchAgentsView(size: pageSize)
             }
         }
@@ -711,6 +717,7 @@ extension NotchModule: PanelOrderItem {
         case .system: return FeatureStrings.notch(language).system
         case .tools: return FeatureStrings.notch(language).tools
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
+        case .cursor: return FeatureStrings.notchCursor(language).title
         case .agents: return FeatureStrings.notchAgents(language).title
         }
     }

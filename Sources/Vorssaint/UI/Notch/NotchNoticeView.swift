@@ -15,6 +15,7 @@ struct NotchNoticeView: View {
         switch notice.event {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
+        case .cursor: return .white
         default: return .white
         }
     }

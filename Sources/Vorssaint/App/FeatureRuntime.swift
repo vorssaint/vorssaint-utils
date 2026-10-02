@@ -369,6 +369,10 @@ final class FeatureRuntime: ObservableObject {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
             else { AgentUsageService.shared.stop() }
         },
+        .notchCursor: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { CursorNotchService.shared.stop() }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {

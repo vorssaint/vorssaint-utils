@@ -248,6 +248,7 @@ enum SelfUninstall {
     }
 
     private static func removePreferences() {
+        CursorHookInstaller.removeForUninstall()
         let id = bundleID
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()

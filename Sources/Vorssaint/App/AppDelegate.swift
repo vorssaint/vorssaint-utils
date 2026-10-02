@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
+        // An update replaces the helper Cursor already launches. Nothing is
+        // created here; Connect is what installs the copy.
+        CursorHookInstall.refreshInstalledCopyIfPresent()
+
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.
@@ -275,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         isTerminating = true
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
+        CursorNotchService.shared.stop()
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()
         if AppFeature.brightness.isAvailable {
@@ -1115,6 +1120,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
         restoreAfterAppUpdateHandoff()
+        let cursor = CursorHookConnectModel.shared
+        cursor.refresh()
+        cursor.alignIfSettingsChanged()
     }
 
     /// Some updates finish in another app. With no Dock icon there is no way

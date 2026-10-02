@@ -22,6 +22,12 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = true
+    @AppStorage(DefaultsKey.notchCursorEnabled) private var cursorEnabled = false
+    @AppStorage(DefaultsKey.notchCursorApprovals) private var cursorApprovals = false
+    @AppStorage(DefaultsKey.notchCursorApprovalTimeout) private var cursorApprovalTimeout = 60
+    @AppStorage(DefaultsKey.notchCursorApprovalFallback) private var cursorApprovalFallback = CursorNotchApprovalFallback.deny.rawValue
+    @AppStorage(DefaultsKey.notchCursorApproveEdits) private var cursorApproveEdits = false
+    @AppStorage(DefaultsKey.notchCursorHoldForReply) private var cursorHoldForReply = 0
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
@@ -92,7 +98,7 @@ struct NotchSettings: View {
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(keepAwakeActivity)]
+         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(cursorEnabled), String(cursorApprovals), String(cursorApprovalTimeout), cursorApprovalFallback, String(cursorApproveEdits), String(cursorHoldForReply), String(keepAwakeActivity)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -132,7 +138,10 @@ struct NotchSettings: View {
             }
         }
         .padding(.horizontal, 22).padding(.top, 22)
-        .onChange(of: configuration) { _, _ in sync() }
+        .onChange(of: configuration) { _, _ in
+            sync()
+            CursorHookConnectModel.shared.alignIfSettingsChanged()
+        }
         .onChange(of: accessData) { _, _ in NotchService.shared.syncWithPreferences() }
         .onChange(of: tab) { _, _ in draggingModule = nil; draggingControl = nil }
         .onAppear(perform: consumeModuleHint)
@@ -427,6 +436,8 @@ struct NotchSettings: View {
             }
         case .scratchpad:
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
+        case .cursor:
+            NotchCursorSettingsControls()
         case .agents:
             NotchAgentsSettingsControls()
         case .mixer, .system, .tools:
@@ -691,6 +702,7 @@ struct NotchSettings: View {
         case .camera: return .cameraPreview
         case .downloads: return .notchDownloads
         case .scratchpad: return .scratchpad
+        case .cursor: return .notchCursor
         case .agents: return .notchAgents
         }
     }
@@ -814,6 +826,7 @@ struct NotchSettings: View {
             (module != .timer || timerEnabled) && (module != .camera || cameraEnabled)
                 && (module != .calendar || calendarEnabled) && (module != .notifications || notificationsEnabled)
                 && (module != .agents || agentsEnabled)
+                && (module != .cursor || cursorEnabled)
                 && !hidden.split(separator: ",").contains(Substring(module.rawValue))
         } set: { shown in
             if module == .timer { timerEnabled = shown }
@@ -821,6 +834,7 @@ struct NotchSettings: View {
             if module == .calendar { calendarEnabled = shown }
             if module == .notifications { notificationsEnabled = shown }
             if module == .agents { agentsEnabled = shown }
+            if module == .cursor { cursorEnabled = shown }
             var values = Set(hidden.split(separator: ",").map(String.init))
             if shown { values.remove(module.rawValue) } else { values.insert(module.rawValue) }
             hidden = values.sorted().joined(separator: ",")

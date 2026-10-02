@@ -65,6 +65,7 @@ struct NotchEditorStrings {
     let downloadsSummary: String
     let scratchpadSummary: String
     let agentsSummary: String
+    let cursorSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -87,6 +88,7 @@ struct NotchEditorStrings {
         case .camera: return cameraSummary
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary
+        case .cursor: return cursorSummary
         case .agents: return agentsSummary
         }
     }
@@ -156,7 +158,8 @@ extension FeatureStrings {
             cameraSummary: "A mirror to check yourself before a call.",
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
-            agentsSummary: "Claude Code, Codex and OpenCode usage, limits and costs."
+            agentsSummary: "Claude Code, Codex and OpenCode usage, limits and costs.",
+            cursorSummary: "Follow the Cursor app’s agent from the island."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -219,7 +222,8 @@ extension FeatureStrings {
             cameraSummary: "Um espelho para se ver antes de uma chamada.",
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
-            agentsSummary: "Uso, limites e custos do Claude Code, do Codex e do OpenCode."
+            agentsSummary: "Uso, limites e custos do Claude Code, do Codex e do OpenCode.",
+            cursorSummary: "Acompanhe o agente do app Cursor pela ilha."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -282,7 +286,8 @@ extension FeatureStrings {
             cameraSummary: "Un espejo para verte antes de una llamada.",
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
-            agentsSummary: "Uso, límites y costes de Claude Code, Codex y OpenCode."
+            agentsSummary: "Uso, límites y costes de Claude Code, Codex y OpenCode.",
+            cursorSummary: "Sigue al agente de la app Cursor desde la isla."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -345,7 +350,8 @@ extension FeatureStrings {
             cameraSummary: "Zrkadlo, v ktorom sa pred hovorom skontrolujete.",
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
-            agentsSummary: "Využitie, limity a náklady Claude Code, Codexu a OpenCode."
+            agentsSummary: "Využitie, limity a náklady Claude Code, Codexu a OpenCode.",
+            cursorSummary: "Sledujte agenta aplikácie Cursor z Dynamic Island."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -408,7 +414,8 @@ extension FeatureStrings {
             cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
-            agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex und OpenCode."
+            agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex und OpenCode.",
+            cursorSummary: "Verfolge den Agenten der Cursor-App über die Insel."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -471,7 +478,8 @@ extension FeatureStrings {
             cameraSummary: "Un miroir pour vous voir avant un appel.",
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
-            agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex et OpenCode."
+            agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex et OpenCode.",
+            cursorSummary: "Suivez l’agent de l’app Cursor depuis l’îlot."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -534,7 +542,8 @@ extension FeatureStrings {
             cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
-            agentsSummary: "Uso, limiti e costi di Claude Code, Codex e OpenCode."
+            agentsSummary: "Uso, limiti e costi di Claude Code, Codex e OpenCode.",
+            cursorSummary: "Segui l’agente dell’app Cursor dall’isola."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -597,7 +606,8 @@ extension FeatureStrings {
             cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
-            agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex и OpenCode."
+            agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex и OpenCode.",
+            cursorSummary: "Следите за агентом приложения Cursor с острова."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -660,7 +670,8 @@ extension FeatureStrings {
             cameraSummary: "Aramadan önce kendinize bakmak için bir ayna.",
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
-            agentsSummary: "Claude Code, Codex ve OpenCode kullanımı, sınırları ve maliyetleri."
+            agentsSummary: "Claude Code, Codex ve OpenCode kullanımı, sınırları ve maliyetleri.",
+            cursorSummary: "Cursor uygulamasının aracısını adadan izleyin."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -723,7 +734,8 @@ extension FeatureStrings {
             cameraSummary: "通話前に身だしなみを確認できるミラー。",
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
-            agentsSummary: "Claude Code、Codex、OpenCodeの使用量、上限、コスト。"
+            agentsSummary: "Claude Code、Codex、OpenCodeの使用量、上限、コスト。",
+            cursorSummary: "島からCursorアプリのエージェントを追います。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -786,7 +798,8 @@ extension FeatureStrings {
             cameraSummary: "통화 전에 모습을 확인하는 거울.",
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
-            agentsSummary: "Claude Code, Codex, OpenCode의 사용량, 한도, 비용."
+            agentsSummary: "Claude Code, Codex, OpenCode의 사용량, 한도, 비용.",
+            cursorSummary: "섬에서 Cursor 앱의 에이전트를 봅니다."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -849,7 +862,8 @@ extension FeatureStrings {
             cameraSummary: "通话前照一照的镜子。",
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
-            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限额和费用。"
+            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限额和费用。",
+            cursorSummary: "从岛上查看 Cursor 应用的代理。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -912,7 +926,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限額和費用。"
+            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限額和費用。",
+            cursorSummary: "從島上查看 Cursor App 的代理。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -975,7 +990,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限額和費用。"
+            agentsSummary: "Claude Code、Codex 和 OpenCode 的用量、限額和費用。",
+            cursorSummary: "從島上查看 Cursor App 的代理。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1038,7 +1054,8 @@ extension FeatureStrings {
             cameraSummary: "Дзеркало, щоб перевірити себе перед викликом.",
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
-            agentsSummary: "Використання Claude Code, Codex і OpenCode, ліміти й витрати."
+            agentsSummary: "Використання Claude Code, Codex і OpenCode, ліміти й витрати.",
+            cursorSummary: "Стежте за агентом програми Cursor з острівця."
         )
         }
     }

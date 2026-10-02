@@ -174,6 +174,23 @@ final class NotchService: ObservableObject {
             || CameraPreviewService.shared.keepsNotchPermissionPrompt
             || (expanded && !showingSections && selected == .captures && captureContent != nil)
             || (expanded && !showingSections && selected == .tools && (QuickLauncherService.shared.activeUtility != nil || QuickLauncherService.shared.isEditing))
+            || (expanded && selected == .cursor && CursorNotchService.shared.keepsSurface)
+    }
+
+    /// The approval card can take the island. A locked or hidden island defers.
+    var cursorApprovalCanShow: Bool {
+        running && !suspended && !hiddenInFullscreen
+    }
+
+    var cursorApprovalBusy: Bool {
+        keepsWorkingSurface && !(expanded && selected == .cursor)
+    }
+
+    func presentCursorApproval() {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.notchCursorApprovalOpensIsland),
+              cursorApprovalCanShow, !cursorApprovalBusy else { return }
+        open(.cursor)
+        CursorNotchFeedback.playApproval()
     }
     private var running = false
     private var session = NotchSessionState()
@@ -281,10 +298,16 @@ final class NotchService: ObservableObject {
         activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
     }
 
+    var hasCursorActivity: Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.notchCursorLiveActivity) else { return false }
+        return !CursorNotchService.shared.visibleSessions.isEmpty
+    }
+
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
-                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
+                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity,
+                                      cursor: hasCursorActivity)
     }
 
     var showsCompactActivityPicker: Bool {
@@ -349,7 +372,8 @@ final class NotchService: ObservableObject {
         NotchSupport.compactCompanions(of: primary, timer: hasTimerActivity,
                                        running: NotchTimerService.shared.session.isRunning,
                                        downloads: hasDownloadActivity, agents: hasAgentActivity,
-                                       calendar: hasCalendarActivity, music: hasMusicActivity)
+                                       calendar: hasCalendarActivity, music: hasMusicActivity,
+                                       cursor: hasCursorActivity)
     }
 
     /// Every pair the picker offers, in the activities' own order.
@@ -393,6 +417,7 @@ final class NotchService: ObservableObject {
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
+        case .cursor: return geometry.compactAgentGeometry(wing: cursorStripWing(in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
@@ -467,6 +492,9 @@ final class NotchService: ObservableObject {
         switch companion {
         case .music:
             return provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
+        case .cursor:
+            let side = NotchTimerSupport.stripIconSize(height: height)
+            return side + provisional.compactActivityEdgeInset(boxHeight: side, radius: side / 2)
         case .agents:
             let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
             let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: working)
@@ -488,6 +516,19 @@ final class NotchService: ObservableObject {
             + ("00:00" as NSString).size(withAttributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
             ]).width.rounded(.up)
+    }
+
+    /// The mark and the product name, kept inside the same wing the agent strip uses.
+    private func cursorStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
+        let textSize = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = CursorNotchService.shared.stripReading(language: L10n.shared.language)
+        let textWidth = (reading as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: textSize, weight: .semibold)
+        ]).width.rounded(.up)
+        let mark = min(14, max(8, textSize))
+        let inset = provisional.compactActivityEdgeInset(boxHeight: mark, radius: mark / 2)
+        return max(textWidth, mark) + inset + NotchAgentSupport.stripCameraGap
     }
 
     /// The wider of the two sides, the reading or the working agents' marks,
@@ -733,6 +774,10 @@ final class NotchService: ObservableObject {
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
+        case .cursor:
+            let title = FeatureStrings.notchCursor(language).title
+            let content = layout.symbolWidth + layout.spacing + layout.width(title, font: layout.readingFont)
+            return layout.surface(content: content, maximum: layout.Maximum.activity, geometry: geometry)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
@@ -809,6 +854,17 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        // The socket answers even while the island is suspended, locked, or
+        // waiting for a display. Hiding the island must not stall Cursor.
+        if CursorNotchService.isEnabled() {
+            CursorNotchService.shared.bindIsland(
+                canShow: { NotchService.shared.cursorApprovalCanShow },
+                busy: { NotchService.shared.cursorApprovalBusy },
+                present: { NotchService.shared.presentCursorApproval() }
+            )
+            CursorNotchService.shared.syncWithPreferences()
+        }
+        else { CursorNotchService.shared.stop() }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -878,6 +934,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        CursorNotchService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -926,6 +983,7 @@ final class NotchService: ObservableObject {
         NotchCalendarService.shared.stop()
         NotchNotificationService.shared.stop()
         AgentUsageService.shared.pause()
+        CursorNotchService.shared.pause()
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -1841,6 +1899,7 @@ final class NotchService: ObservableObject {
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
+             : selectedNotice.event == .cursor ? .cursor
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer : .controls)
     }
 
@@ -3187,6 +3246,25 @@ final class NotchService: ObservableObject {
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
         }
+        if NotchSupport.routes(.cursor) {
+            CursorNotchService.shared.events.receive(on: DispatchQueue.main)
+                .sink { [weak self] signal in
+                    switch signal {
+                    case .sessionsChanged:
+                        self?.objectWillChange.send()
+                        self?.refreshPresentation()
+                    case .notice(let notice):
+                        self?.showCursorNotice(notice)
+                    }
+                }
+                .store(in: &subscriptions)
+            CursorNotchService.shared.approvalOverflow.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showCursorApprovalOverflow() }
+                .store(in: &subscriptions)
+            CursorNotchService.shared.hooksUpdated.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showCursorHooksUpdated() }
+                .store(in: &subscriptions)
+        }
         stopPower()
         if NotchSupport.routes(.volume) {
             bindVolumeEvents()
@@ -3210,7 +3288,59 @@ final class NotchService: ObservableObject {
                                       detail: text.title, symbol: "doc.on.clipboard"))
             }.store(in: &subscriptions)
         }
-        if NotchSupport.routes(.battery) || idleContent == .battery { startPower() }
+        if NotchSupport.routes(.battery) || idleContent == .battery { startPower()         }
+    }
+
+    private func showCursorNotice(_ notice: CursorNoticeFacts) {
+        let text = FeatureStrings.notchCursorView(L10n.shared.language)
+        let locale = L10n.shared.language.formattingLocale()
+        let summary = [text.summary(files: notice.files, commands: notice.commands, failures: notice.failures),
+                       AgentFormat.duration(notice.duration, locale: locale)]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+        switch notice.kind {
+        case .finished:
+            let title = text.finished(notice.project)
+            show(NotchNotice(event: .cursor, title: title, detail: summary, symbol: "checkmark.circle"))
+            announceCursor(title)
+            CursorNotchFeedback.play(notice.kind)
+        case .stopped:
+            let title = "\(text.stopped) · \(notice.project)"
+            show(NotchNotice(event: .cursor, title: title, detail: summary, symbol: "stop.circle"))
+            announceCursor(title)
+        case .failed:
+            let title = text.failed(notice.project)
+            show(NotchNotice(event: .cursor, title: title, detail: summary, symbol: "exclamationmark.circle"))
+            announceCursor(title)
+            CursorNotchFeedback.play(notice.kind)
+        case .needsYou:
+            let title = text.needsYou(notice.waiting)
+            show(NotchNotice(event: .cursor, title: title, detail: summary, symbol: "person.crop.circle.badge.exclamationmark"))
+            announceCursor(title)
+            CursorNotchFeedback.playApproval()
+        }
+    }
+
+    private func announceCursor(_ message: String) {
+        NSAccessibility.post(element: NSApplication.shared,
+                             notification: .announcementRequested,
+                             userInfo: [
+                                NSAccessibility.NotificationUserInfoKey.announcement: message,
+                                NSAccessibility.NotificationUserInfoKey.priority: NSAccessibilityPriorityLevel.high.rawValue,
+                             ])
+    }
+
+    private func showCursorApprovalOverflow() {
+        let text = FeatureStrings.notchCursor(L10n.shared.language)
+        show(NotchNotice(event: .cursor, title: text.title, detail: text.approvalOverflow,
+                         symbol: "checkmark.shield"))
+        announceCursor(text.approvalOverflow)
+    }
+
+    private func showCursorHooksUpdated() {
+        let text = FeatureStrings.notchCursor(L10n.shared.language)
+        let detail = FeatureStrings.notchCursorConnect(L10n.shared.language).hooksUpdated
+        show(NotchNotice(event: .cursor, title: text.title, detail: detail, symbol: "arrow.triangle.2.circlepath"))
     }
 
     private func showAgentEvent(_ event: AgentUsageEvent) {

@@ -837,6 +837,40 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    // Cursor notch: the page, its notices and the choices that travel in a backup.
+    static let notchCursorEnabled = "notchCursorEnabled"
+    static let notchCursorSources = "notchCursorSources"
+    static let notchCursorLiveActivity = "notchCursorLiveActivity"
+    static let notchCursorReadout = "notchCursorReadout"
+    static let notchCursorFinishAlert = "notchCursorFinishAlert"
+    static let notchCursorFinishMinimum = "notchCursorFinishMinimum"
+    static let notchCursorFailureAlert = "notchCursorFailureAlert"
+    static let notchCursorQuietWhenFocused = "notchCursorQuietWhenFocused"
+    static let notchCursorApprovals = "notchCursorApprovals"
+    static let notchCursorApprovalTimeout = "notchCursorApprovalTimeout"
+    static let notchCursorApprovalFallback = "notchCursorApprovalFallback"
+    static let notchCursorApprovalOpensIsland = "notchCursorApprovalOpensIsland"
+    static let notchCursorApproveEdits = "notchCursorApproveEdits"
+    static let notchCursorProtectedPaths = "notchCursorProtectedPaths"
+    static let notchCursorAllowRules = "notchCursorAllowRules"
+    static let notchCursorDenyRules = "notchCursorDenyRules"
+    static let notchCursorHoldForReply = "notchCursorHoldForReply"
+    static let notchCursorQueueOnAbort = "notchCursorQueueOnAbort"
+    static let notchCursorContextNote = "notchCursorContextNote"
+    static let notchCursorPullRequests = "notchCursorPullRequests"
+    static let notchCursorPRDraft = "notchCursorPRDraft"
+    static let notchCursorMergeMethod = "notchCursorMergeMethod"
+    static let notchCursorDeleteBranch = "notchCursorDeleteBranch"
+    static let notchCursorExperimental = "notchCursorExperimental"
+    static let notchCursorShortcuts = "notchCursorShortcuts"
+    static let notchCursorBuddy = "notchCursorBuddy"
+    static let notchCursorEyesFollow = "notchCursorEyesFollow"
+    static let notchCursorGlow = "notchCursorGlow"
+    static let notchCursorTypewriter = "notchCursorTypewriter"
+    static let notchCursorSounds = "notchCursorSounds"
+    // Folders seen on this Mac, and whether hooks are installed. Unregistered, so they stay out of backups.
+    static let notchCursorRecentRepos = "notchCursorRecentRepos"
+    static let notchCursorHookState = "notchCursorHookState"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1387,6 +1421,36 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchCursorEnabled: false,
+        DefaultsKey.notchCursorSources: CursorNotchSource.app.rawValue,
+        DefaultsKey.notchCursorLiveActivity: true,
+        DefaultsKey.notchCursorReadout: CursorNotchReadout.state.rawValue,
+        DefaultsKey.notchCursorFinishAlert: true,
+        DefaultsKey.notchCursorFinishMinimum: 0,
+        DefaultsKey.notchCursorFailureAlert: true,
+        DefaultsKey.notchCursorQuietWhenFocused: false,
+        DefaultsKey.notchCursorApprovals: false,
+        DefaultsKey.notchCursorApprovalTimeout: 60,
+        DefaultsKey.notchCursorApprovalFallback: CursorNotchApprovalFallback.deny.rawValue,
+        DefaultsKey.notchCursorApprovalOpensIsland: true,
+        DefaultsKey.notchCursorApproveEdits: false,
+        DefaultsKey.notchCursorProtectedPaths: "",
+        DefaultsKey.notchCursorAllowRules: "",
+        DefaultsKey.notchCursorDenyRules: "",
+        DefaultsKey.notchCursorHoldForReply: 0,
+        DefaultsKey.notchCursorQueueOnAbort: false,
+        DefaultsKey.notchCursorContextNote: "",
+        DefaultsKey.notchCursorPullRequests: false,
+        DefaultsKey.notchCursorPRDraft: false,
+        DefaultsKey.notchCursorMergeMethod: CursorNotchMergeMethod.squash.rawValue,
+        DefaultsKey.notchCursorDeleteBranch: false,
+        DefaultsKey.notchCursorExperimental: false,
+        DefaultsKey.notchCursorShortcuts: "",
+        DefaultsKey.notchCursorBuddy: true,
+        DefaultsKey.notchCursorEyesFollow: false,
+        DefaultsKey.notchCursorGlow: false,
+        DefaultsKey.notchCursorTypewriter: true,
+        DefaultsKey.notchCursorSounds: false,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchLiveEqualizer: false,

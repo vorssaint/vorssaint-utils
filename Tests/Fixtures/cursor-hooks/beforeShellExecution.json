@@ -1,0 +1,12 @@
+{
+  "hook_event_name": "beforeShellExecution",
+  "command": "echo phase0",
+  "cwd": "",
+  "sandbox": false,
+  "conversation_id": "example-conversation",
+  "generation_id": "example-generation",
+  "session_id": "example-session",
+  "model": "example",
+  "cursor_version": "3.23.12",
+  "workspace_roots": ["/example/project"]
+}

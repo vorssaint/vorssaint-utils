@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, cursor, agents
     var id: String { rawValue }
 
     var symbol: String {
@@ -28,6 +28,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .system: return "gauge.with.dots.needle.50percent"
         case .tools: return "square.grid.2x2"
         case .scratchpad: return "note.text"
+        case .cursor: return "bubble.left.and.bubble.right"
         case .agents: return "sparkles"
         }
     }
@@ -49,6 +50,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .camera: return "w"
         case .downloads: return "d"
         case .scratchpad: return "p"
+        case .cursor: return "u"
         case .agents: return "g"
         }
     }
@@ -71,6 +73,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
+        case .cursor: return AppFeature.notchCursor.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
@@ -512,7 +515,7 @@ enum NotchHoverEmphasis {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, downloads, agents, calendar, music, keepAwake
+    case timer, downloads, cursor, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -520,6 +523,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
+        case .cursor: return FeatureStrings.notchCursor(language).title
         case .agents: return FeatureStrings.notchAgents(language).title
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .music: return FeatureStrings.notch(language).music
@@ -532,6 +536,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return .timer
         case .downloads: return .downloads
+        case .cursor: return .cursor
         case .agents: return .agents
         case .calendar: return .calendar
         case .music: return .music
@@ -798,6 +803,7 @@ enum NotchCapsuleLayout {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
+        case .cursor: return symbolWidth
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
         case .calendar: return calendarClockWidth
@@ -1236,7 +1242,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, cursor, track, microphone
 
     var preferenceKey: String {
         switch self {
@@ -1246,6 +1252,7 @@ enum NotchEvent: String, CaseIterable {
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
         case .download: return DefaultsKey.notchDownloadsEnabled
         case .agents: return DefaultsKey.notchAgentsEnabled
+        case .cursor: return DefaultsKey.notchCursorEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
         case .volume: return DefaultsKey.notchVolume
@@ -1260,7 +1267,7 @@ enum NotchEvent: String, CaseIterable {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone: return 3
         case .capture, .timer: return 2
-        case .battery, .systemNotification, .accessory, .agents: return 1
+        case .battery, .systemNotification, .accessory, .agents, .cursor: return 1
         case .clipboard, .download, .track: return 0
         }
     }
@@ -1270,7 +1277,7 @@ enum NotchEvent: String, CaseIterable {
         case .volume, .brightness, .keyboardLight, .microphone: return 1.6
         case .systemNotification, .track: return 3
         case .timer, .download: return 6
-        case .agents: return 5
+        case .agents, .cursor: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
         case .capture: return 12
@@ -1351,17 +1358,19 @@ enum NotchSupport {
 
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
-                                calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
+                                calendar: Bool = false, music: Bool, keepAwake: Bool = false,
+                                cursor: Bool = false) -> NotchCompactActivity? {
         compactActivities(timer: timer, downloads: downloads, agents: agents,
-                          calendar: calendar, music: music, keepAwake: keepAwake).first
+                          calendar: calendar, music: music, keepAwake: keepAwake, cursor: cursor).first
     }
 
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake.
     static func compactActivities(timer: Bool, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false,
+                                  cursor: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (downloads, .downloads), (cursor, .cursor), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
@@ -1373,14 +1382,14 @@ enum NotchSupport {
     /// status. An event's clock always runs, so a download, agents or music
     /// can take the side its title had.
     static func compactCompanions(of primary: NotchCompactActivity, timer: Bool, running: Bool, downloads: Bool,
-                                  agents: Bool, calendar: Bool, music: Bool) -> [NotchCompactActivity] {
+                                  agents: Bool, calendar: Bool, music: Bool, cursor: Bool = false) -> [NotchCompactActivity] {
         let pairs: [(Bool, NotchCompactActivity)]
         switch primary {
         case .timer where timer:
-            pairs = [(downloads, .downloads), (running && agents, .agents), (running && calendar, .calendar),
-                     (running && music, .music)]
+            pairs = [(downloads, .downloads), (running && cursor, .cursor), (running && agents, .agents),
+                     (running && calendar, .calendar), (running && music, .music)]
         case .calendar where calendar:
-            pairs = [(downloads, .downloads), (agents, .agents), (music, .music)]
+            pairs = [(downloads, .downloads), (cursor, .cursor), (agents, .agents), (music, .music)]
         default:
             pairs = []
         }
@@ -1420,6 +1429,7 @@ enum NotchSupport {
                 && ($0 != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
+                && ($0 != .cursor || defaults.bool(forKey: DefaultsKey.notchCursorEnabled))
         }
     }
 
@@ -1507,6 +1517,8 @@ enum NotchSupport {
             && modules(in: defaults).contains(.downloads)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
             && modules(in: defaults).contains(.agents)
+        case .cursor: return AppFeature.notchCursor.isAvailable(in: defaults)
+            && modules(in: defaults).contains(.cursor)
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
@@ -2058,8 +2070,8 @@ struct NotchGeometry: Equatable {
             case .agents:
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
-            // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad:
+            // Lists and previews fill the chosen content budget. The Cursor page scrolls inside it.
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .cursor:
                 contentHeight = budget
             }
         }

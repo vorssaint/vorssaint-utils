@@ -58,6 +58,8 @@ else
     BUILD_CONFIGURATION="release"
 fi
 FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
+CURSOR_HOOK_NAME="vorssaint-cursor-hook"
+CURSOR_HOOK_ID="$APP_BUNDLE_ID.cursor-hook"
 # Now Playing is read through /usr/bin/perl loading this library; see
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
@@ -274,7 +276,23 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchNotificationStrings.swift
         Sources/Vorssaint/Core/NotchGestureStrings.swift
         Sources/Vorssaint/Core/NotchAgentStrings.swift
+        Sources/Vorssaint/Core/NotchCursorStrings.swift
+        Sources/Vorssaint/Core/NotchCursorConnectStrings.swift
+        Sources/Vorssaint/Core/NotchCursorViewStrings.swift
+        Sources/Vorssaint/Core/NotchCursorControlStrings.swift
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorHookProtocol.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorHookServer.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorHookInstall.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorHookInstaller.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorNotchModels.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorHookDecoder.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorSessionReducer.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorControl.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorExperimental.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorGitPlan.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorGitService.swift
+        Sources/Vorssaint/Services/CursorNotch/CursorNotchService.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
@@ -583,6 +601,13 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     -o "build/$FAN_HELPER_ID"
 "build/$FAN_HELPER_ID" --selftest
 
+echo "▸ Compiling Cursor hook helper…"
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/Vorssaint/Services/CursorNotch/CursorHookProtocol.swift \
+    Sources/VorssaintCursorHook/main.swift \
+    -o "build/$CURSOR_HOOK_NAME"
+"build/$CURSOR_HOOK_NAME" --selftest
+
 echo "▸ Compiling Now Playing adapter…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -module-name VorssaintNowPlaying \
@@ -629,9 +654,11 @@ echo "▸ Assembling and signing bundle…"
 STAGE_TMP="$(mktemp -d)"
 STAGE="$STAGE_TMP/$APP_NAME.app"
 mkdir -p "$STAGE/Contents/MacOS" "$STAGE/Contents/Resources" \
+    "$STAGE/Contents/Helpers" \
     "$STAGE/Contents/Library/LaunchDaemons" "$STAGE/Contents/Library/LaunchServices"
 cp "build/$EXECUTABLE" "$STAGE/Contents/MacOS/$EXECUTABLE"
 cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+cp "build/$CURSOR_HOOK_NAME" "$STAGE/Contents/Helpers/$CURSOR_HOOK_NAME"
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
@@ -729,6 +756,19 @@ codesign_fan_helper() {
     fi
 }
 
+codesign_cursor_hook() {
+    local target="$1"
+    if [[ -n "$DEVID" ]]; then
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --identifier "$CURSOR_HOOK_ID" --sign "$DEVID" "$target"
+    elif legacy_identity_installed; then
+        codesign --force --strip-disallowed-xattrs --identifier "$CURSOR_HOOK_ID" \
+            --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --identifier "$CURSOR_HOOK_ID" --sign - "$target"
+    fi
+}
+
 codesign_now_playing_adapter() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
@@ -746,6 +786,7 @@ sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
+    local cursor_hook="$bundle/Contents/Helpers/$CURSOR_HOOK_NAME"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 
     if [[ -n "$DEVID" ]]; then
@@ -756,6 +797,7 @@ sign_bundle() {
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+    [[ -f "$cursor_hook" ]] && codesign_cursor_hook "$cursor_hook"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
     codesign_app "$bundle"
 
@@ -765,11 +807,13 @@ sign_bundle() {
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
         [[ -f "$helper" ]] && codesign_fan_helper "$helper"
+        [[ -f "$cursor_hook" ]] && codesign_cursor_hook "$cursor_hook"
         [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
         codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
+    [[ -f "$cursor_hook" ]] && codesign --verify --strict "$cursor_hook"
     [[ -f "$adapter" ]] && codesign --verify --strict "$adapter"
     codesign --verify --deep --strict "$bundle"
 }
