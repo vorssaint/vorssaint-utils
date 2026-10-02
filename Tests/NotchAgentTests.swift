@@ -436,6 +436,21 @@ enum NotchAgentTests {
         ], observed: Date(timeIntervalSince1970: 1_000))
         suite.expect(slots?.map(\.kind) == [.session, .weekly] && slots?.last?.resetsAt == Date(timeIntervalSince1970: 1_060),
                      "windows are told apart by length, and a relative renewal counts from the reading")
+        var businessState = AgentLogState()
+        let business = line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"event_msg","payload":{"type":"token_count","info":null,"rate_limits":{"limit_id":"codex","primary":null,"secondary":null,"individual_limit":{"limit":"2500","used":"73.16","remaining_percent":97,"resets_at":1793491201},"spend_control_reached":null,"plan_type":"business"}}}"#)
+        let businessLimits = AgentLogParser.parseCodex(business, state: &businessState, now: now).compactMap { entry -> AgentLimits? in
+            if case .limits(let limits) = entry { return limits }
+            return nil
+        }
+        suite.expect(businessLimits.first?.windows.map(\.id) == ["codex.individual"]
+                        && businessLimits.first?.windows.first?.usedPercent == 3
+                        && businessLimits.first?.windows.first?.resetsAt == Date(timeIntervalSince1970: 1_793_491_201),
+                     "a Business log's own allowance counts when its windows are empty")
+        let both = AgentLogParser.codexWindows([
+            "primary": ["used_percent": 40.0, "window_minutes": 300],
+            "individual_limit": ["remaining_percent": 10],
+        ], observed: now)
+        suite.expect(both?.map(\.id) == ["codex.300"], "an account's own windows come before its individual allowance")
         var aborted = AgentLogState(turnOpen: true)
         suite.expect(AgentLogParser.parseCodex(line(#"{"timestamp":"2026-09-22T15:00:00.000Z","type":"event_msg","payload":{"type":"turn_aborted","duration_ms":10961}}"#),
                                                state: &aborted, now: now)

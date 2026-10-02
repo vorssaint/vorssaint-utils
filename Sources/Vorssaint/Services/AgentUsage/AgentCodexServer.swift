@@ -159,7 +159,8 @@ enum AgentCodexServer {
         }
         guard let snapshot,
               let windows = AgentLogParser.codexWindows(snapshot, observed: observed,
-                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt")),
+                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt",
+                                                               "individualLimit", "remainingPercent")),
               !windows.isEmpty else { return nil }
         return AgentLimits(provider: .codex, windows: windows, observedAt: observed, source: .account)
     }
