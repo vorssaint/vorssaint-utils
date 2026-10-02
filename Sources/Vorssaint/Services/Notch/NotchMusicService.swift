@@ -154,9 +154,24 @@ final class NotchMusicService: ObservableObject {
                 }
                 return
             }
-            let next = NotchPlayback.decode(data, previousArtwork: cachedArtwork,
+            var next = NotchPlayback.decode(data, previousArtwork: cachedArtwork,
                                            commandContext: reply.flatMap(NotchPlaybackContext.init(reply:)),
                                            canSendCommandsDirectly: reply?["canSendCommandsDirectly"] as? Bool == true)
+            // Firefox-family browsers send no cover, or one too small to show
+            // sharp. One found from the tab replaces it, and a lookup that
+            // finishes later redraws the player.
+            if let playback = next {
+                if let cover = NotchBrowserArtwork.shared.artwork(for: playback) {
+                    next = playback.withArtwork(cover)
+                } else {
+                    NotchBrowserArtwork.shared.request(for: playback) {
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self, self.generation == requested else { return }
+                            self.applyBrowserArtwork()
+                        }
+                    }
+                }
+            }
             if cachedArtwork != next?.track.artworkData {
                 cachedArtwork = next?.track.artworkData
                 cachedImage = cachedArtwork.flatMap { ImageThumbnailer.thumbnail(data: $0, pointSize: 160, scale: 2) }
@@ -289,6 +304,16 @@ final class NotchMusicService: ObservableObject {
         }
         restartWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Double(restartCount), execute: work)
+    }
+
+    /// The adapter only replies when the player changes, so a cover that
+    /// arrives between replies goes in here for the track still playing.
+    /// `playback` itself stays put, since a changed track would reset a scrub
+    /// in progress. The next reply carries the cover from the lookup anyway.
+    private func applyBrowserArtwork() {
+        guard let playback, let cover = NotchBrowserArtwork.shared.artwork(for: playback),
+              let image = ImageThumbnailer.thumbnail(data: cover, pointSize: 160, scale: 2) else { return }
+        updateArtwork(image, tint: Self.artworkTint(of: image), playback: playback.withArtwork(cover))
     }
 
     private func updateArtwork(_ image: NSImage?, tint: NotchArtworkTint?, playback: NotchPlayback?) {
