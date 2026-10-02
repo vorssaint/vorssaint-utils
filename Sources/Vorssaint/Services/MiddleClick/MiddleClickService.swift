@@ -24,6 +24,9 @@ final class MiddleClickService: ObservableObject {
     /// it owns three-finger touches and synthesizes clicks from unpressed
     /// contact, so the middle click stands down and Settings shows why.
     @Published private(set) var systemDragGestureConflict = false
+    /// Middle click started but MultitouchSupport gave it no touch device, so
+    /// no contact can ever arrive. A pause or session switch clears it.
+    @Published private(set) var touchDeviceMissing = false
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -180,7 +183,10 @@ final class MiddleClickService: ObservableObject {
 
     private func start() {
         guard tapStateLock.withLock({ tap }) == nil else { return }
-        guard Multitouch.available else { return }
+        guard Multitouch.available else {
+            touchDeviceMissing = true
+            return
+        }
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -244,6 +250,7 @@ final class MiddleClickService: ObservableObject {
         resetTapCandidateLocked()
         stateLock.unlock()
         isRunning = false
+        touchDeviceMissing = false
     }
 
     /// Trackpads come and go across sleep and Bluetooth: drop every contact
@@ -255,7 +262,12 @@ final class MiddleClickService: ObservableObject {
     }
 
     private func startMultitouch() {
-        guard deviceList == nil, let list = Multitouch.deviceList() else { return }
+        guard deviceList == nil else { return }
+        guard let list = Multitouch.deviceList() else {
+            touchDeviceMissing = true
+            return
+        }
+        touchDeviceMissing = false
         deviceList = list
         for index in 0..<CFArrayGetCount(list) {
             guard let device = CFArrayGetValueAtIndex(list, index) else { continue }

@@ -180,6 +180,7 @@ extension Strings {
         middleClickEnable: "Kliknutie tromi prstami funguje ako stredné kliknutie",
         middleClickEnableCaption: "Stlačenie trackpadu tromi prstami funguje ako kliknutie kolieskom myši: otvorí odkazy na novej karte, zatvorí karty a urobí všetko ostatné, čo stredné tlačidlo.",
         middleClickDragConflict: "V macOS je zapnuté ťahanie tromi prstami, ktoré používa rovnaké gesto. Vypnite ho v Systémových nastaveniach v časti Prístupnosť, Ovládanie kurzora, Možnosti trackpadu, a stredné kliknutie začne fungovať.",
+        middleClickNoTrackpad: "Dotyky na trackpade sa nedajú čítať. Pripojte podporovaný trackpad.",
         middleClickTapPicker: "Klikne aj jemné ťuknutie",
         middleClickTapOff: "Vypnuté",
         middleClickTapThreeFingers: "3 prsty",

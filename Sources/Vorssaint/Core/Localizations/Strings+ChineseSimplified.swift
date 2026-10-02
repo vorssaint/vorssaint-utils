@@ -180,6 +180,7 @@ extension Strings {
         middleClickEnable: "三指按下作为中键点按",
         middleClickEnableCaption: "用三根手指按下触控板，效果等同于鼠标滚轮点按：在新标签页中打开链接、关闭标签页，以及中键能做的一切。",
         middleClickDragConflict: "macOS 的三指拖移已开启，与此手势相同。请在系统设置的辅助功能、指针控制、触控板选项中将其关闭，中键点按即可使用。",
+        middleClickNoTrackpad: "无法读取触控板的触摸输入。请连接支持的触控板。",
         middleClickTapPicker: "轻点也可点按",
         middleClickTapOff: "关闭",
         middleClickTapThreeFingers: "3 根手指",

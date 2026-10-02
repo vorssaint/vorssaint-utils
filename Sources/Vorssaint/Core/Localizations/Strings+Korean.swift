@@ -180,6 +180,7 @@ extension Strings {
         middleClickEnable: "세 손가락 클릭을 가운데 클릭으로 사용",
         middleClickEnableCaption: "트랙패드를 세 손가락으로 누르면 마우스 휠 클릭과 같이 동작합니다. 링크를 새 탭으로 열거나 탭을 닫는 등 가운데 버튼으로 할 수 있는 모든 동작에 사용할 수 있습니다.",
         middleClickDragConflict: "macOS의 세 손가락 드래그가 켜져 있고 같은 제스처를 사용합니다. 시스템 설정의 손쉬운 사용 > 포인터 제어 > 트랙패드 옵션에서 끄면 가운데 클릭이 작동합니다.",
+        middleClickNoTrackpad: "트랙패드 터치를 읽을 수 없습니다. 지원되는 트랙패드를 연결하세요.",
         middleClickTapPicker: "가볍게 탭해도 클릭",
         middleClickTapOff: "끔",
         middleClickTapThreeFingers: "세 손가락",

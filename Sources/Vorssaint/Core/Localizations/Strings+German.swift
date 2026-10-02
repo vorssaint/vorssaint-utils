@@ -180,6 +180,7 @@ extension Strings {
         middleClickEnable: "Drei-Finger-Klick als Mittelklick",
         middleClickEnableCaption: "Das Trackpad mit drei Fingern zu drücken wirkt wie ein Klick aufs Mausrad: Links im neuen Tab öffnen, Tabs schließen und alles andere, was die mittlere Taste kann.",
         middleClickDragConflict: "Das Ziehen mit drei Fingern von macOS ist aktiviert und nutzt dieselbe Geste. Schalte es in den Systemeinstellungen unter Bedienungshilfen, Zeigersteuerung, Trackpad-Optionen aus, damit der Mittelklick funktioniert.",
+        middleClickNoTrackpad: "Trackpad-Berührungen können nicht gelesen werden. Schließe ein unterstütztes Trackpad an.",
         middleClickTapPicker: "Leichtes Tippen klickt ebenfalls",
         middleClickTapOff: "Aus",
         middleClickTapThreeFingers: "3 Finger",

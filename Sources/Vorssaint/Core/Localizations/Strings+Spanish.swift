@@ -180,6 +180,7 @@ extension Strings {
         middleClickEnable: "El clic con tres dedos actúa como clic central",
         middleClickEnableCaption: "Presionar el trackpad con tres dedos funciona como el clic de la rueda del ratón: abrir enlaces en una pestaña nueva, cerrar pestañas y todo lo demás que hace el botón central.",
         middleClickDragConflict: "El arrastre con tres dedos de macOS está activado y usa este mismo gesto. Desactívalo en Ajustes del Sistema, en Accesibilidad, Control del puntero, Opciones del trackpad, y el clic central funcionará.",
+        middleClickNoTrackpad: "No se pueden leer los toques del trackpad. Conecta un trackpad compatible.",
         middleClickTapPicker: "Un toque ligero también hace clic",
         middleClickTapOff: "Desactivado",
         middleClickTapThreeFingers: "3 dedos",
