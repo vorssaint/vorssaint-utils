@@ -1326,6 +1326,14 @@ enum UpdateFeatureTests {
         suite.expect(AppUpdatesSupport.compare("2026.723.1724", "2026.714.1952") == .orderedDescending
                 && AppUpdatesSupport.compare("00123", "123") == .orderedSame,
                "leading zeros never decide a comparison")
+        suite.expect(AppUpdatesSupport.compare("1.0Beta", "1.0beta") == .orderedSame
+                && AppUpdatesSupport.compare("1.0beta", "1.0Beta") == .orderedSame
+                && !AppUpdatesSupport.isNewer("1.0Beta", than: "1.0beta")
+                && !AppUpdatesSupport.isNewer("1.0beta", than: "1.0Beta"),
+               "a version spelled with different case is the same release, so neither side reports as newer")
+        suite.expect(AppUpdatesSupport.compare("2.0", "1.9") == .orderedDescending
+                && AppUpdatesSupport.compare("2024.1", "2024.10") == .orderedAscending,
+               "folding case into a tie still leaves a genuinely newer version ranked above the older one")
         suite.expect(!AppUpdatesSupport.isNewer("1.9a", than: "1.10")
                 && AppUpdatesSupport.isNewer("1.10", than: "1.9a")
                 && !AppUpdatesSupport.isNewer("3.5beta", than: "3.5")
