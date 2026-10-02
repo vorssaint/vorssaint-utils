@@ -125,6 +125,10 @@ codesign_with_timestamp_retry() {
     return 1
 }
 
+# App Intents metadata is derived from the compiler's constant values, one file
+# per source. Only the app build asks for them (see OUTPUT_MAP_CONST_VALUES).
+OUTPUT_MAP_CONST_VALUES=0
+
 write_swift_output_file_map() {
     local output_file="$1"
     local object_dir="$2"
@@ -142,6 +146,9 @@ write_swift_output_file_map() {
             print -r -- ","
             print -r -- "  \"$source\": {"
             print -r -- "    \"object\": \"$object_dir/$artifact.o\","
+            if (( OUTPUT_MAP_CONST_VALUES )); then
+                print -r -- "    \"const-values\": \"$object_dir/$artifact.swiftconstvalues\","
+            fi
             print -r -- "    \"swift-dependencies\": \"$object_dir/$artifact.swiftdeps\""
             print -r -- "  }"
         done
@@ -252,6 +259,8 @@ if (( TEST )); then
     TEST_SOURCES=(
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
+        Sources/Vorssaint/Core/ShortcutsActionsSupport.swift
+        Sources/Vorssaint/Core/ShortcutsActionsStrings.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
         Sources/Vorssaint/Core/NotchStrings.swift
@@ -562,8 +571,24 @@ if (( ! DEV )); then
 fi
 APP_OBJECT_DIR="build/objects/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
+# The Shortcuts actions need a metadata file that only Xcode's own tool can
+# write. With Command Line Tools alone the app still builds; it just carries
+# no actions for the Shortcuts app.
+INTENTS_PROCESSOR="$(xcrun --find appintentsmetadataprocessor 2>/dev/null || true)"
+INTENTS_SKIP=""
+INTENTS_FLAGS=()
+if [[ -z "$INTENTS_PROCESSOR" ]]; then
+    INTENTS_SKIP="appintentsmetadataprocessor not found (it ships with Xcode)"
+else
+    print -r -- '["AppIntent","AppEntity","EntityQuery","AppEnum","AppShortcutsProvider","DynamicOptionsProvider"]' \
+        > build/intents-protocols.json
+    INTENTS_FLAGS=(-emit-const-values -Xfrontend -const-gather-protocols-file
+                   -Xfrontend build/intents-protocols.json -module-name "$EXECUTABLE")
+    OUTPUT_MAP_CONST_VALUES=1
+fi
 APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
 write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+OUTPUT_MAP_CONST_VALUES=0
 # Without -j the driver compiles one file at a time, and without batch mode
 # each file's compiler parses the whole module again: a clean release took a
 # quarter of an hour. Batches share that work and run on every core, and the
@@ -571,8 +596,37 @@ write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOUR
 swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
-    "${BUILD_VARIANT_FLAGS[@]}" \
+    "${BUILD_VARIANT_FLAGS[@]}" "${INTENTS_FLAGS[@]}" \
     "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+
+rm -rf build/intents
+if [[ -z "$INTENTS_SKIP" ]]; then
+    echo "▸ Extracting Shortcuts actions metadata…"
+    : > build/intents-sources.txt
+    : > build/intents-const-values.txt
+    for source in "${APP_SOURCES[@]}"; do
+        artifact="${source//\//__}"
+        artifact="${artifact%.swift}"
+        print -r -- "$PWD/$source" >> build/intents-sources.txt
+        print -r -- "$PWD/$APP_OBJECT_DIR/$artifact.swiftconstvalues" >> build/intents-const-values.txt
+    done
+    XCODE_BUILD="$(xcodebuild -version 2>/dev/null | awk '/Build version/ {print $3}')"
+    mkdir -p build/intents
+    if ! "$INTENTS_PROCESSOR" --output build/intents \
+            --toolchain-dir "${INTENTS_PROCESSOR:h:h:h}" --module-name "$EXECUTABLE" \
+            --sdk-root "$SDK" --xcode-version "${XCODE_BUILD:-0}" --platform-family macOS \
+            --deployment-target "${TARGET##*macosx}" --target-triple "$TARGET" \
+            --source-file-list build/intents-sources.txt \
+            --swift-const-vals-list build/intents-const-values.txt \
+            >build/appintents-metadata.log 2>&1 \
+            || [[ ! -s build/intents/Metadata.appintents/extract.actionsdata ]]; then
+        INTENTS_SKIP="appintentsmetadataprocessor failed (see build/appintents-metadata.log)"
+        rm -rf build/intents
+    fi
+fi
+if [[ -n "$INTENTS_SKIP" ]]; then
+    echo "  Shortcuts actions skipped: $INTENTS_SKIP"
+fi
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
@@ -637,6 +691,9 @@ cp "build/$FAN_HELPER_ID" "$STAGE/Contents/Library/LaunchServices/$FAN_HELPER_ID
 mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
+if [[ -d build/intents/Metadata.appintents ]]; then
+    cp -R build/intents/Metadata.appintents "$STAGE/Contents/Resources/Metadata.appintents"
+fi
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"

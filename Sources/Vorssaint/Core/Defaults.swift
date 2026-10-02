@@ -183,6 +183,7 @@ enum DefaultsKey {
     static let quitProtectionCloseScope = "quitProtectionCloseScope"
     static let quitProtectionCloseExceptions = "quitProtectionCloseExceptions"
     static let quitProtectionCloseShowFeedback = "quitProtectionCloseShowFeedback"
+    static let shortcutsActionsEnabled = "shortcutsActionsEnabled"
     static let shelfEnabled = "shelfEnabled"
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
@@ -1252,6 +1253,7 @@ enum Defaults {
         DefaultsKey.quitProtectionCloseScope: QuitProtectionScope.all.rawValue,
         DefaultsKey.quitProtectionCloseExceptions: [String](),
         DefaultsKey.quitProtectionCloseShowFeedback: true,
+        DefaultsKey.shortcutsActionsEnabled: false,
         // When the shelf is on, the shake gesture is on too (still toggleable).
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",
