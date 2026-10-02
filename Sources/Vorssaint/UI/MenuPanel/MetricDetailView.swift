@@ -432,7 +432,7 @@ struct MetricDetailView: View {
                                 l10n.s.peripheralBatteryNoDevices,
                                 wrapsValue: true))
             } else {
-                for device in PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).prefix(5) {
+                for device in PeripheralBatterySupport.sorted(snapshot.peripheralBatteries) {
                     rows.append(row(device.name, "\(device.percent)%"))
                 }
             }

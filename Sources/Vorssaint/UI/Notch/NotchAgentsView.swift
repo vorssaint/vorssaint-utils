@@ -89,10 +89,10 @@ struct NotchAgentsView: View {
         case .trend:
             NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .models:
-            NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
+            NotchAgentShareCard(id: "agent.models", title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .projects:
-            NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
+            NotchAgentShareCard(id: "agent.projects", title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
                                 shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .activity:
             NotchAgentActivityCard(snapshot: snapshot, text: text)
@@ -134,37 +134,66 @@ private struct NotchAgentLimitsCard: View {
         return now.timeIntervalSince(limits.observedAt) >= AgentClaudeAppUsage.freshness
     }
 
-    /// Two rows fit: the session and whichever longer window binds first.
-    private var windows: [AgentLimitWindow] {
-        let all = (snapshot.limits[provider]?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
-        let session = all.first { $0.kind == .session }
-        let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
-        return [session, longer].compactMap { $0 }
+    private var allWindows: [AgentLimitWindow] {
+        (snapshot.limits[provider]?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+    }
+
+    private var windows: [AgentLimitWindow] { NotchAgentSupport.compactLimitWindows(allWindows) }
+    private var expansionID: String { "agent.limits.\(provider.rawValue)" }
+    private var hiddenCount: Int {
+        let visibleIDs = Set(windows.map(\.id))
+        return allWindows.filter { !visibleIDs.contains($0.id) }.count
     }
 
     var body: some View {
-        let windows = windows
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: provider.displayName, symbol: provider.symbol, tint: provider.tint,
-                                     provider: provider) {
-                    HStack(spacing: 4) {
-                        if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
-                        if !snapshot.working(provider).isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
+        if !allWindows.isEmpty {
+            compact.notchExpansionTap(id: expansionID)
+                .notchExpandable(id: expansionID, title: provider.displayName,
+                                    preferredSize: CGSize(width: 360, height: 72 + CGFloat(allWindows.count) * 46),
+                                    header: AnyView(header(expanded: true))) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(allWindows) { row($0, expanded: true) }
+                        caption
                     }
+                    .opacity(stale ? 0.6 : 1)
                 }
+                .scrollIndicators(.automatic)
+            }
+        } else {
+            compact
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: provider.displayName, symbol: provider.symbol, tint: provider.tint,
+                             provider: provider) {
+            HStack(spacing: 4) {
+                if let plan = snapshot.plans[provider] { NotchAgentChip(text: plan.name, tint: provider.tint) }
+                if !snapshot.working(provider).isEmpty { NotchAgentPulse(tint: provider.tint, size: 5) }
+                if !expanded, !allWindows.isEmpty {
+                    NotchExpandButton(id: expansionID, title: "\(provider.displayName), \(L10n.shared.s.menuShowAll)",
+                                      hiddenCount: hiddenCount > 0 ? hiddenCount : nil)
+                }
+            }
+        }
+    }
+
+    private var compact: some View {
+        let windows = windows
+        return NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                header()
                 if windows.isEmpty {
                     estimate
                 } else {
-                    VStack(spacing: 5) {
-                        ForEach(windows) { row($0) }
-                    }
-                    .opacity(stale ? 0.6 : 1)
+                    VStack(spacing: 5) { ForEach(windows) { row($0) } }
+                        .opacity(stale ? 0.6 : 1)
                     if windows.count == 1 { caption }
                 }
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     /// How old a reading is, once it is old enough to have missed use elsewhere.
@@ -180,17 +209,18 @@ private struct NotchAgentLimitsCard: View {
 
     /// A usage-based forecast would read as a promise, so a row says only
     /// what is spent and when the window renews.
-    private func row(_ window: AgentLimitWindow) -> some View {
+    private func row(_ window: AgentLimitWindow, expanded: Bool = false) -> some View {
         let pace = AgentLimitSupport.pace(for: window, now: now)
         let tint = agentLimitTint(provider, usedFraction: window.usedFraction)
         let remaining = display == .remaining
         let fraction = remaining ? window.remainingFraction : window.usedFraction
         return VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
-                Text(label(window))
+                Text(label(window, expanded: expanded))
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
+                    .lineLimit(expanded ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: expanded)
                     .layoutPriority(1)
                 Group {
                     if let resets = window.resetsAt {
@@ -216,14 +246,16 @@ private struct NotchAgentLimitsCard: View {
     }
 
     /// What the window covers: its length, or the model it is kept for.
-    private func label(_ window: AgentLimitWindow) -> String {
+    private func label(_ window: AgentLimitWindow, expanded: Bool = false) -> String {
+        let name: String
         switch window.kind {
-        case .session: return text.session
+        case .session: name = text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
-            return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
+            name = AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
         }
+        return expanded ? window.scope.map { "\(name) · \($0)" } ?? name : name
     }
 
     /// How long until the window renews: days and hours, or hours and
@@ -365,29 +397,81 @@ private struct NotchAgentSpendCard: View {
         let usage = snapshot.usage(chosen)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
-                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) { periodMenu }
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
-                        .font(.system(size: 22, weight: .medium, design: .rounded))
-                        .monospacedDigit()
-                        .contentTransition(.numericText())
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Text(text.apiValue)
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if chosen == .month { multiples(usage) }
+                header()
+                summary(usage)
+            }
+        }
+        .notchExpansionTap(id: "agent.spend")
+        .notchExpandable(id: "agent.spend", title: text.spendCard, header: AnyView(header(expanded: true))) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    summary(usage, expanded: true)
+                    Text(usage.fullyPriced ? text.valueNote : text.unpriced)
+                        .font(.system(size: 9.5)).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    ForEach(providers) { provider in
+                        if let totals = usage.byProvider[provider] {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Label(provider.displayName, systemImage: provider.symbol)
+                                        .foregroundStyle(provider.tint)
+                                    Spacer(minLength: 4)
+                                    Text((totals.unpriced == 0 ? "" : "≥ ") + AgentFormat.cost(totals.cost))
+                                        .monospacedDigit()
+                                }
+                                Text(text.tokens(AgentFormat.tokens(totals.tokens.total)))
+                                Text(text.written(AgentFormat.tokens(totals.tokens.output)))
+                                if let rate = totals.tokens.cacheHitRate {
+                                    Text(text.cached(AgentFormat.percent(rate)))
+                                }
+                                Text(text.saved(AgentFormat.cost(totals.savings)))
+                            }
+                            .font(.system(size: 11))
+                            .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                 }
-                .help(usage.fullyPriced ? text.valueNote : text.unpriced)
-                split(usage)
-                Text(footer(usage))
-                    .font(.system(size: 10))
+                .textSelection(.enabled)
+            }
+        }
+    }
+
+    private func summary(_ usage: AgentPeriodUsage, expanded: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
+                    .font(.system(size: 22, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(text.apiValue)
+                    .font(.system(size: 9.5))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-                    .help(text.saved(AgentFormat.cost(usage.total.savings)))
+                Spacer(minLength: 0)
+                if chosen == .month { multiples(usage) }
+            }
+            .help(usage.fullyPriced ? text.valueNote : text.unpriced)
+            split(usage)
+            Text(footer(usage))
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(expanded ? nil : 1)
+                .minimumScaleFactor(0.85)
+                .help(text.saved(AgentFormat.cost(usage.total.savings)))
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
+            HStack(spacing: 4) {
+                if !expanded {
+                    periodMenu
+                    NotchExpandButton(id: "agent.spend", title: text.spendCard)
+                } else {
+                    Text(text.period(chosen)).font(.system(size: 9.5)).foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -457,41 +541,70 @@ private struct NotchAgentLiveCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
     let text: NotchAgentStrings
+    @ObservedObject private var l10n = L10n.shared
     @Environment(\.locale) private var locale
+    private var live: [AgentLiveSession] { snapshot.live.filter { providers.contains($0.provider) } }
+    private var hiddenCount: Int { NotchAgentSupport.hiddenCount(total: live.count, visible: 2) }
+    private let expansionID = "agent.live"
 
     var body: some View {
-        let live = snapshot.live.filter { providers.contains($0.provider) }
+        if !live.isEmpty {
+            compact.notchExpansionTap(id: expansionID)
+                .notchExpandable(id: expansionID, title: text.liveCard,
+                                    preferredSize: CGSize(width: 360, height: 60 + CGFloat(live.count) * 36),
+                                    header: AnyView(header(expanded: true))) {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    ScrollView { liveRows(live, now: context.date, expanded: true) }
+                        .scrollIndicators(.automatic)
+                }
+            }
+        } else {
+            compact
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
+                             tint: live.first?.provider.tint ?? .secondary) {
+            HStack(spacing: 4) {
+                if !expanded, !live.isEmpty {
+                    NotchExpandButton(id: expansionID, title: "\(text.liveCard), \(l10n.s.menuShowAll)",
+                                      hiddenCount: hiddenCount > 0 ? hiddenCount : nil)
+                }
+                if let first = live.first { NotchAgentPulse(tint: first.provider.tint, size: 5) }
+            }
+        }
+    }
+
+    private var compact: some View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 7) {
-                NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
-                                     tint: live.first?.provider.tint ?? .secondary) {
-                    HStack(spacing: 4) {
-                        if live.count > 2 { NotchAgentChip(text: "+\(live.count - 2)") }
-                        if let first = live.first { NotchAgentPulse(tint: first.provider.tint, size: 5) }
-                    }
-                }
+                header()
                 if live.isEmpty {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(providers) { idleRow($0) }
-                    }
+                    VStack(alignment: .leading, spacing: 5) { ForEach(providers) { idleRow($0) } }
                 } else {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        VStack(alignment: .leading, spacing: 5) {
-                            ForEach(live.prefix(2)) { row($0, now: context.date) }
-                        }
+                        liveRows(Array(live.prefix(2)), now: context.date)
                     }
                 }
             }
         }
     }
 
-    private func row(_ session: AgentLiveSession, now: Date) -> some View {
+    private func liveRows(_ sessions: [AgentLiveSession], now: Date, expanded: Bool = false) -> some View {
+        VStack(alignment: .leading, spacing: expanded ? 10 : 5) {
+            ForEach(sessions) { row($0, now: now, expanded: expanded) }
+        }
+    }
+
+    private func row(_ session: AgentLiveSession, now: Date, expanded: Bool) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 NotchAgentGlyph(provider: session.provider, size: 9)
                 Text(session.project.isEmpty ? session.provider.displayName : session.project)
                     .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
+                    .lineLimit(expanded ? nil : 1)
+                    .fixedSize(horizontal: false, vertical: expanded)
                     .truncationMode(.middle)
                 Spacer(minLength: 4)
                 Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
@@ -499,16 +612,14 @@ private struct NotchAgentLiveCard: View {
                     .monospacedDigit()
                     .foregroundStyle(session.provider.tint)
             }
-            // Tokens the agent wrote, as its own window counts them; every
-            // call also reads the whole context again, which the tooltip and
-            // the cost include.
             Text([AgentPricing.displayName(session.model),
                   session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
                   session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
                     .filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .lineLimit(expanded ? nil : 1)
+                .fixedSize(horizontal: false, vertical: expanded)
         }
         .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
@@ -544,16 +655,43 @@ private struct NotchAgentTrendCard: View {
     }
 
     var body: some View {
-        let byCost = snapshot.usage(period).fullyPriced
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol) {
-                    Text(caption(byCost: byCost))
-                        .font(.system(size: 9.5, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+        if buckets.isEmpty {
+            compact
+        } else {
+            compact.notchExpansionTap(id: "agent.trend")
+                .notchExpandable(id: "agent.trend", title: text.trendCard, header: AnyView(header(expanded: true))) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            NotchAgentBars(buckets: buckets, providers: providers,
+                                           byCost: snapshot.usage(period).fullyPriced, hovered: $hovered)
+                                .frame(height: 80)
+                            axis
+                            NotchAgentBucketRows(buckets: buckets, hourly: period == .today, text: text)
+                        }
+                    }
                 }
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        let byCost = snapshot.usage(period).fullyPriced
+        return NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol) {
+            Text(caption(byCost: byCost))
+                .font(.system(size: 9.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            if !expanded, !buckets.isEmpty {
+                NotchExpandButton(id: "agent.trend", title: text.trendCard)
+            }
+        }
+    }
+
+    private var compact: some View {
+        let byCost = snapshot.usage(period).fullyPriced
+        return NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                header()
                 NotchAgentBars(buckets: buckets, providers: providers, byCost: byCost, hovered: $hovered)
                 axis
             }
@@ -603,36 +741,61 @@ private struct NotchAgentTrendCard: View {
 // MARK: Models and projects
 
 private struct NotchAgentShareCard: View {
+    let id: String
     let title: String
     let symbol: String
     let shares: [AgentShare]
     let byCost: Bool
     let text: NotchAgentStrings
+    private var hiddenCount: Int { NotchAgentSupport.hiddenCount(total: shares.count, visible: 3) }
+    private var peak: Double { max(shares.map { $0.totals.weight(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude) }
 
     var body: some View {
-        let shown = Array(shares.prefix(3))
-        let peak = max(shown.map { $0.totals.weight(byCost: byCost) }.max() ?? 0, .leastNonzeroMagnitude)
+        if !shares.isEmpty {
+            compact.notchExpansionTap(id: id)
+                .notchExpandable(id: id, title: title,
+                                    preferredSize: CGSize(width: 360, height: 60 + CGFloat(shares.count) * 26),
+                                    header: AnyView(header(expanded: true))) {
+                ScrollView {
+                    VStack(spacing: 10) { ForEach(shares) { row($0, expanded: true) } }
+                }
+                .scrollIndicators(.automatic)
+            }
+        } else {
+            compact
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: title, symbol: symbol) {
+            if !expanded, !shares.isEmpty {
+                NotchExpandButton(id: id, title: "\(title), \(L10n.shared.s.menuShowAll)",
+                                  hiddenCount: hiddenCount > 0 ? hiddenCount : nil)
+            }
+        }
+    }
+
+    private var compact: some View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: title, symbol: symbol)
-                if shown.isEmpty {
+                header()
+                if shares.isEmpty {
                     Text(text.noActivity).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 } else {
-                    VStack(spacing: 5) {
-                        ForEach(shown) { share in row(share, peak: peak) }
-                    }
+                    VStack(spacing: 5) { ForEach(Array(shares.prefix(3))) { row($0) } }
                 }
             }
         }
     }
 
-    private func row(_ share: AgentShare, peak: Double) -> some View {
+    private func row(_ share: AgentShare, expanded: Bool = false) -> some View {
         let weight = share.totals.weight(byCost: byCost)
         let tint = share.provider?.tint ?? .white
         return HStack(spacing: 6) {
             Text(share.name)
                 .font(.system(size: 10.5, weight: .medium))
-                .lineLimit(1)
+                .lineLimit(expanded ? nil : 1)
+                .fixedSize(horizontal: false, vertical: expanded)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Capsule(style: .continuous)
@@ -645,9 +808,37 @@ private struct NotchAgentShareCard: View {
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 40, alignment: .trailing)
         }
-        .frame(height: 14)
+        .frame(minHeight: 14)
         .help([share.name, text.tokens(AgentFormat.tokens(share.totals.tokens.total)),
                AgentFormat.cost(share.totals.cost)].joined(separator: " · "))
+    }
+}
+
+/// The values behind both charts, without requiring pointer hover over a tiny cell.
+private struct NotchAgentBucketRows: View {
+    let buckets: [AgentBucket]
+    var hourly = false
+    let text: NotchAgentStrings
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 12) {
+            ForEach(buckets) { bucket in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(bucket.start.formatted(hourly
+                        ? .dateTime.hour().locale(locale)
+                        : .dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(locale)))
+                        .font(.system(size: 11, weight: .semibold))
+                    HStack {
+                        Text(text.tokens(AgentFormat.tokens(bucket.total.tokens.total)))
+                        Spacer(minLength: 4)
+                        Text((bucket.total.unpriced == 0 ? "" : "≥ ") + AgentFormat.cost(bucket.total.cost))
+                    }
+                    .font(.system(size: 11)).monospacedDigit().foregroundStyle(.secondary)
+                }
+            }
+        }
+        .textSelection(.enabled)
     }
 }
 
@@ -670,20 +861,49 @@ private struct NotchAgentActivityCard: View {
     }
 
     var body: some View {
-        let byCost = snapshot.days.allSatisfy { $0.total.unpriced == 0 }
-        NotchAgentCardChrome {
-            VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
-                    if streak > 1 {
-                        Label("\(streak)", systemImage: "flame.fill")
-                            .labelStyle(NotchAgentInlineLabel())
-                            .font(.system(size: 9.5, weight: .semibold))
-                            .foregroundStyle(.orange)
-                            .help(text.streak)
-                            .accessibilityLabel(text.streak)
-                            .accessibilityValue("\(streak)")
+        if snapshot.days.isEmpty {
+            compact
+        } else {
+            compact.notchExpansionTap(id: "agent.activity")
+                .notchExpandable(id: "agent.activity", title: text.activityCard, header: AnyView(header(expanded: true))) {
+                    let byCost = snapshot.days.allSatisfy { $0.total.unpriced == 0 }
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(alignment: .top, spacing: 14) {
+                                NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered)
+                                    .frame(width: NotchAgentHeatmap.width(height: 80, days: snapshot.days))
+                                figures(byCost: byCost)
+                            }
+                            .frame(height: 80)
+                            NotchAgentBucketRows(buckets: snapshot.days, text: text)
+                        }
                     }
                 }
+        }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
+            if streak > 1 {
+                Label("\(streak)", systemImage: "flame.fill")
+                    .labelStyle(NotchAgentInlineLabel())
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .help(text.streak)
+                    .accessibilityLabel(text.streak)
+                    .accessibilityValue("\(streak)")
+            }
+            if !expanded, !snapshot.days.isEmpty {
+                NotchExpandButton(id: "agent.activity", title: text.activityCard)
+            }
+        }
+    }
+
+    private var compact: some View {
+        let byCost = snapshot.days.allSatisfy { $0.total.unpriced == 0 }
+        return NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                header()
                 GeometryReader { proxy in
                     let map = NotchAgentHeatmap.width(height: proxy.size.height, days: snapshot.days)
                     HStack(alignment: .top, spacing: 14) {
@@ -758,21 +978,51 @@ private struct NotchAgentResetsCard: View {
     var body: some View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: text.resetsCard, symbol: NotchAgentCard.resets.symbol, tint: tint,
-                                     provider: .codex) {
-                    if let summary = resets.summary, summary.available > 0 {
-                        NotchAgentChip(text: summary.available.formatted(.number.locale(locale)), tint: tint)
-                    } else if resets.checking {
-                        ProgressView().controlSize(.mini)
+                header()
+                content
+            }
+        }
+        .notchExpansionTap(id: "agent.resets")
+        .notchExpandable(id: "agent.resets", title: text.resetsCard, header: AnyView(header(expanded: true))) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(text.resetsHelp).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    if let summary = resets.summary {
+                        Text(summary.available, format: .number.locale(locale))
+                            .font(.system(size: 17, weight: .medium, design: .rounded))
+                            .foregroundStyle(tint).monospacedDigit()
+                        ForEach(summary.resets) { reset in
+                            if let expiresAt = reset.expiresAt {
+                                Text(text.resetsExpiry(expiresAt.formatted(
+                                    Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))))
+                                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                            }
+                        }
+                    } else if let failure = resets.failure {
+                        Text(message(failure)).font(.system(size: 10.5)).foregroundStyle(.secondary)
                     }
                 }
-                content
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
             }
         }
         .help(text.resetsHelp)
         .onAppear { resets.refreshIfStale() }
         // A count that changed while the question was open asks again.
         .onChange(of: resets.summary?.available) { _, _ in confirming = false }
+    }
+
+    private func header(expanded: Bool = false) -> some View {
+        NotchAgentCardHeader(title: text.resetsCard, symbol: NotchAgentCard.resets.symbol, tint: tint,
+                             provider: .codex) {
+            if let summary = resets.summary, summary.available > 0 {
+                NotchAgentChip(text: summary.available.formatted(.number.locale(locale)), tint: tint)
+            } else if resets.checking {
+                ProgressView().controlSize(.mini)
+            }
+            if !expanded { NotchExpandButton(id: "agent.resets", title: text.resetsCard) }
+        }
     }
 
     @ViewBuilder private var content: some View {

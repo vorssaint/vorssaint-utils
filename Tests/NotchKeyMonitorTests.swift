@@ -73,6 +73,7 @@ enum NotchKeyMonitorTests {
         var captureControls: Int?
         var modules = NotchModule.allCases
         var selected = NotchModule.controls
+        var pageLayers: [NotchModule: () -> Void] = [:]
         var showingAppPanel = false
         var showingSections = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
@@ -125,6 +126,23 @@ enum NotchKeyMonitorTests {
             suite.expect(NSEvent.handler?(escape) == nil && actions == [destination.action],
                          "Esc reaches the island from \(destination.name) once composition ends")
         }
+        service.selected = .tools
+        service.showingAppPanel = false
+        service.showingSections = false
+        service.panel?.firstResponder = nil
+        service.pageLayers[.tools] = { actions.append("reader"); service.pageLayers[.tools] = nil }
+        var copy = NSEvent(window: service.panel, keyCode: 8)
+        copy.modifierFlags = .command
+        copy.charactersIgnoringModifiers = "c"
+        actions = []
+        suite.expect(NSEvent.handler?(copy) != nil && actions.isEmpty,
+                     "a Tools reader keeps copy and text selection keys out of launcher navigation")
+        suite.expect(NSEvent.handler?(escape) == nil && actions == ["reader"],
+                     "Escape closes a Tools result reader before leaving its utility")
+        actions = []
+        suite.expect(NSEvent.handler?(escape) == nil && actions == ["tools"],
+                     "the next Escape returns to the existing Tools navigation")
+
         // A title too long to sit beside the camera takes a row below it, so
         // a custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.

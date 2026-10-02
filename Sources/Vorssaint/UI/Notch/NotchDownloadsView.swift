@@ -174,6 +174,7 @@ struct NotchDownloadsView: View {
                     .foregroundStyle(item.completed ? .green : .white)
                 Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(1).truncationMode(.middle)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                NotchExpandButton(id: "download.\(item.id)", title: L10n.shared.s.menuShowAll)
                 if item.completed {
                     NotchIconButton(symbol: "folder", title: l10n.s.mediaOpenInFinder) {
                         NSWorkspace.shared.activateFileViewerSelecting([item.url])
@@ -209,9 +210,37 @@ struct NotchDownloadsView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .modifier(NotchControlSurface(cornerRadius: 14, fillOpacity: 0.07))
         .clipped()
         .accessibilityElement(children: .contain)
+        .notchCardHover()
+        .notchExpansionTap(id: "download.\(item.id)")
+        .notchExpandable(id: "download.\(item.id)", title: item.name,
+                         surface: NotchControlSurface(cornerRadius: 14, fillOpacity: 0.07),
+                         header: AnyView(HStack(spacing: 8) {
+                            Image(systemName: item.completed ? "checkmark.circle.fill" : "arrow.down.circle")
+                                .foregroundStyle(item.completed ? .green : .white)
+                            Text(item.name).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                         })) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(item.name).font(.system(size: 12, weight: .medium))
+                    Text(item.url.path).font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text(item.completed ? text.saved : text.inProgress).font(.caption).foregroundStyle(.secondary)
+                    if let fraction = item.fraction {
+                        NotchMeter(value: fraction)
+                        Text(fraction, format: .percent.precision(.fractionLength(0))).font(.caption).monospacedDigit()
+                    }
+                    if let bytes = item.receivedBytes, bytes > 0 {
+                        Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .textSelection(.enabled)
+            }
+        }
     }
 }
 

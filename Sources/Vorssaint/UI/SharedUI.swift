@@ -91,33 +91,76 @@ struct UninstallFailureNote: View {
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
-
+    @Environment(\.notchExpansionActions) private var expansion
+    private let expansionID = "tools.uninstallFailures"
     private static let namesShown = 4
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 5 : 7) {
-            Text(l10n.s.uninstallerSomeFailed)
-                .font(compact ? .system(size: 10) : .caption)
-                .foregroundStyle(.orange)
-                .fixedSize(horizontal: false, vertical: true)
-            ForEach(items.prefix(Self.namesShown)) { item in
-                Text(item.name)
-                    .font(compact ? .system(size: 9.5) : .caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-            }
-            if items.count > Self.namesShown {
-                Text(String(format: l10n.s.uninstallerFailedMoreFormat,
-                            items.count - Self.namesShown))
-                    .font(compact ? .system(size: 9.5) : .caption2)
-                    .foregroundStyle(.tertiary)
+            if expansion != nil {
+                VStack(alignment: .leading, spacing: compact ? 5 : 7) {
+                    HStack {
+                        heading
+                        Spacer(minLength: 4)
+                        NotchExpandButton(id: expansionID, title: l10n.s.menuShowAll,
+                                          hiddenCount: items.count > Self.namesShown ? items.count - Self.namesShown : nil)
+                    }
+                    ForEach(items.prefix(Self.namesShown)) { item in
+                        Text(item.name)
+                            .font(compact ? .system(size: 9.5) : .caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1).truncationMode(.middle)
+                    }
+                }
+                .notchExpansionTap(id: expansionID)
+                .notchExpandable(id: expansionID, title: l10n.s.uninstallerSomeFailed,
+                                 header: AnyView(heading)) {
+                    ScrollView { failureList }
+                }
+            } else {
+                DisclosureGroup { failureList } label: {
+                    VStack(alignment: .leading, spacing: compact ? 5 : 7) {
+                        heading
+                        ForEach(items.prefix(Self.namesShown)) { item in
+                            Text(item.name)
+                                .font(compact ? .system(size: 9.5) : .caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        if items.count > Self.namesShown {
+                            Text(String(format: l10n.s.uninstallerFailedMoreFormat, items.count - Self.namesShown))
+                                .font(compact ? .system(size: 9.5) : .caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
             }
             if !permissions.fullDiskAccess,
                UninstallerSupport.failureNeedsFullDiskAccess(paths: items.map(\.url.path)) {
                 FullDiskAccessNote(compact: compact, reason: l10n.s.uninstallerFailedNeedsFDA)
             }
         }
+    }
+
+    private var heading: some View {
+        Text(l10n.s.uninstallerSomeFailed)
+            .font(compact ? .system(size: 10) : .caption)
+            .foregroundStyle(.orange)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var failureList: some View {
+        LazyVStack(alignment: .leading, spacing: 8) {
+            ForEach(items) { item in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name)
+                    Text(item.url.path).foregroundStyle(.secondary)
+                }
+                .font(compact ? .system(size: 9.5) : .caption2)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .textSelection(.enabled)
     }
 }
 

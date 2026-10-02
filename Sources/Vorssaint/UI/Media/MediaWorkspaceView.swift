@@ -55,6 +55,7 @@ struct MediaWorkspaceView: View {
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.notchPresentation) private var inNotch
+    @Environment(\.notchExpansionActions) private var expansion
 
     @AppStorage(DefaultsKey.mediaLastTool) private var toolRaw = MediaTool.videoCompressor.rawValue
     @AppStorage(DefaultsKey.mediaVideoStart) private var videoStart = 0.0
@@ -546,6 +547,12 @@ struct MediaWorkspaceView: View {
         }
     }
 
+    private func ocrText(_ value: String) -> some View {
+        Text(value.isEmpty ? l10n.s.mediaEmptyText : value)
+            .font(.system(size: compact ? 10 : 11, design: .monospaced))
+            .lineLimit(compact ? 5 : 8)
+    }
+
     private func resultCard(_ result: MediaResult) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(l10n.s.mediaCompleted, systemImage: "checkmark.circle.fill")
@@ -573,22 +580,56 @@ struct MediaWorkspaceView: View {
                         .foregroundStyle(.secondary)
                 }
                 if result.failedCount > 0 {
-                    Text(result.imageBatchItems.compactMap { item in
-                        item.failure.map { "\(item.inputURL.lastPathComponent): \(message(for: $0))" }
-                    }.prefix(3).joined(separator: "\n"))
-                        .font(.system(size: compact ? 9 : 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(result.imageBatchItems.compactMap { item in
+                            item.failure.map { "\(item.inputURL.lastPathComponent): \(message(for: $0))" }
+                        }.prefix(3).joined(separator: "\n"))
+                            .font(.system(size: compact ? 9 : 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        if expansion != nil {
+                            NotchExpandButton(id: "tools.batchFailures", title: batchSummary(result),
+                                              hiddenCount: result.failedCount > 3 ? result.failedCount - 3 : nil)
+                        }
+                    }
+                    .notchExpansionTap(id: "tools.batchFailures")
+                    .notchExpandable(id: "tools.batchFailures", title: batchSummary(result), surface: NotchControlSurface(cornerRadius: 18)) {
+                        ClipboardTextPreview(text: result.imageBatchItems.compactMap { item in
+                            item.failure.map { "\(item.inputURL.path): \(message(for: $0))" }
+                        }.joined(separator: "\n\n"), font: .systemFont(ofSize: compact ? 9 : 10),
+                                             textColor: .secondaryLabelColor, inset: .zero)
+                    }
                 }
             }
             if let text = result.text {
-                Text(text.isEmpty ? l10n.s.mediaEmptyText : text)
-                    .font(.system(size: compact ? 10 : 11, design: .monospaced))
-                    .lineLimit(compact ? 5 : 8)
-                    .textSelection(.enabled)
-                    .padding(8)
+                HStack(alignment: .top, spacing: 6) {
+                    Group {
+                        if expansion == nil { ocrText(text).textSelection(.enabled) } else { ocrText(text) }
+                    }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.primary.opacity(0.045)))
+                    if expansion != nil, !text.isEmpty {
+                        NotchExpandButton(id: "tools.ocrResult", title: l10n.s.ocrName)
+                    }
+                }
+                .padding(8)
+                .modifier(NotchControlSurface(cornerRadius: 7, fillOpacity: 0.045))
+                .notchExpansionTap(id: "tools.ocrResult")
+                .notchExpandable(id: "tools.ocrResult", title: l10n.s.ocrName,
+                                 surface: NotchControlSurface(cornerRadius: 7, fillOpacity: 0.045),
+                                 header: AnyView(Label(l10n.s.ocrName, systemImage: "text.viewfinder")
+                                    .font(.system(size: compact ? 10.5 : 11.5, weight: .semibold)))) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ClipboardTextPreview(text: text, font: .monospacedSystemFont(ofSize: compact ? 10 : 11, weight: .regular),
+                                             inset: .zero)
+                        Button {
+                            copy(text)
+                        } label: {
+                            Label(l10n.s.mediaCopyText, systemImage: "doc.on.doc")
+                        }
+                        .controlSize(.small)
+                    }
+                }
             }
             HStack(spacing: 8) {
                 if let outputURL = result.outputURL {

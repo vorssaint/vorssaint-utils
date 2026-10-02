@@ -67,6 +67,7 @@ struct NotchControlsView: View {
                     .padding(.horizontal, 12)
                     .frame(width: 160, height: height)
                     .modifier(NotchControlSurface(cornerRadius: 18))
+                    .notchCardHover()
                 } else if let single = levels.first {
                     level(single, style: .card, showsDevice: height >= 88).frame(width: 160, height: height)
                 }
@@ -114,6 +115,7 @@ struct NotchControlsView: View {
                 .padding(12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .modifier(NotchControlSurface(cornerRadius: 18))
+                .notchCardHover()
             }
         }
     }
@@ -228,6 +230,7 @@ struct NotchAudioControls: View {
             .padding(.vertical, showsDevice ? 10 : 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .modifier(NotchControlSurface(cornerRadius: 18))
+            .notchCardHover()
         }
     }
 
@@ -386,6 +389,7 @@ private struct NotchBrightnessControls: View {
                 .padding(.vertical, showsDevice ? 10 : 5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .modifier(NotchControlSurface(cornerRadius: 18))
+                .notchCardHover()
             }
         }
         .onAppear { service.refresh() }

@@ -54,6 +54,7 @@ struct NotchMixerView: View {
                 HStack(alignment: .top, spacing: 10) {
                     NotchMasterFader(height: faderHeight, editingVolumeID: $editingVolumeID)
                         .frame(width: Self.masterWidth)
+                        .notchCardHover()
                     Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
                         .accessibilityHidden(true)
                     desk.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -113,6 +114,7 @@ struct NotchMixerView: View {
                         },
                         sideways: true))
                     .help(app.name + "\n" + FeatureStrings.mixer(l10n.language).arrange)
+                    .notchCardHover()
             }
         }
     }

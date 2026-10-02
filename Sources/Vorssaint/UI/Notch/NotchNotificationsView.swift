@@ -38,6 +38,12 @@ struct NotchNotificationsView: View {
                 NotchRail(items: service.items, rows: rows, itemWidth: 240, width: size.width) { item in
                     NotchNotificationRow(item: item, service: service, text: text)
                         .frame(height: cardHeight)
+                        .notchCardHover()
+                        .notchExpandable(id: "notification.\(item.id)", title: text.title,
+                                          surface: NotchControlSurface(cornerRadius: 14, fillOpacity: 0.06),
+                                          header: AnyView(Text(text.title).font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)))) {
+                            NotchNotificationExpandedContent(id: item.id, text: text)
+                        }
                 }
             }
         }
@@ -52,6 +58,8 @@ private struct NotchNotificationRow: View {
     let item: NotchSystemNotification
     @ObservedObject var service: NotchNotificationService
     let text: NotchNotificationStrings
+    var expanded = false
+    @ObservedObject private var l10n = L10n.shared
     @State private var feedback: String?
 
     var body: some View {
@@ -73,27 +81,69 @@ private struct NotchNotificationRow: View {
                     }
                     .disabled(service.openingID != nil)
                 }
-                NotchIconButton(symbol: "xmark", title: text.dismiss) { service.dismiss(item.id) }
-                    .disabled(service.openingID == item.id)
+                if !expanded {
+                    NotchExpandButton(id: "notification.\(item.id)", title: l10n.s.menuShowAll)
+                }
+                if expanded {
+                    Button(text.dismiss) { service.dismiss(item.id) }
+                        .buttonStyle(.bordered).controlSize(.small)
+                        .disabled(service.openingID == item.id)
+                } else {
+                    NotchIconButton(symbol: "xmark", title: text.dismiss) { service.dismiss(item.id) }
+                        .disabled(service.openingID == item.id)
+                }
             }
             .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
             .frame(height: 22)
-            Text(item.content.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
-            if !item.content.subtitle.isEmpty { Text(item.content.subtitle).font(.system(size: 12)).lineLimit(1) }
-            if !item.content.body.isEmpty {
-                Text(item.content.body).font(.system(size: 12)).foregroundStyle(.white.opacity(0.8))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            if expanded {
+                ScrollView {
+                    message
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .frame(maxHeight: .infinity)
+            } else {
+                message
             }
             if let message = feedback ?? (service.unavailableID == item.id ? text.unavailable : nil) {
-                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(1)
+                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(expanded ? nil : 1)
             }
         }
-        .padding(12)
+        .padding(expanded ? 0 : 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+        .modifier(NotchControlSurface(cornerRadius: 14, fillOpacity: expanded ? 0 : 0.06))
         .clipped()
         .accessibilityElement(children: .contain)
+        .notchExpansionTap(id: "notification.\(item.id)", enabled: !expanded)
+    }
+
+    private var message: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(item.content.title).font(.system(size: 13, weight: .semibold))
+                .lineLimit(expanded ? nil : 2)
+            if !item.content.subtitle.isEmpty {
+                Text(item.content.subtitle).font(.system(size: 12))
+                    .lineLimit(expanded ? nil : 1)
+            }
+            if !item.content.body.isEmpty {
+                Text(item.content.body).font(.system(size: 12)).foregroundStyle(.white.opacity(0.8))
+                    .frame(maxWidth: .infinity, maxHeight: expanded ? nil : .infinity, alignment: .topLeading)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: expanded ? nil : .infinity, alignment: .topLeading)
+    }
+}
+
+private struct NotchNotificationExpandedContent: View {
+    let id: UUID
+    let text: NotchNotificationStrings
+    @ObservedObject private var service = NotchNotificationService.shared
+
+    var body: some View {
+        if let item = service.items.first(where: { $0.id == id }) {
+            NotchNotificationRow(item: item, service: service, text: text, expanded: true)
+        }
     }
 }
 

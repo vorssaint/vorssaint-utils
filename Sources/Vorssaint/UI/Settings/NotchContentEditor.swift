@@ -164,6 +164,11 @@ struct NotchPagePreview: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
+        NotchCardExpansionHost(module: module, size: size) { page }
+            .id(module)
+    }
+
+    @ViewBuilder private var page: some View {
         switch module {
         case .timer: NotchTimerView(size: size)
         case .camera: camera

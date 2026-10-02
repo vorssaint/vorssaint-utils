@@ -15,9 +15,12 @@ struct NotchButtonStyle: ButtonStyle {
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchPresentation) private var notchPresentation
+    @AppStorage(DefaultsKey.notchCardHoverEnabled) private var cardHoverEnabled = true
 
     func makeBody(configuration: Configuration) -> some View {
         let active = enabled && hovered
+        let lifted = active && (!notchPresentation || cornerRadius < 14 || cardHoverEnabled)
         configuration.label
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -26,7 +29,7 @@ struct NotchButtonStyle: ButtonStyle {
             }
             .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
             .scaleEffect(reduceMotion || !lifts ? 1
-                         : configuration.isPressed ? 0.965 : (active ? 1.022 : 1))
+                         : configuration.isPressed ? 0.965 : (lifted ? 1.022 : 1))
             .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.7),
                        value: configuration.isPressed)
             .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.75), value: hovered)
@@ -490,6 +493,9 @@ struct NotchControlSurface: ViewModifier {
     let cornerRadius: CGFloat
     var selected = false
     var interactive = true
+    var raised = false
+    /// Cards with a flat fill keep it when they expand.
+    var fillOpacity: Double? = nil
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -497,10 +503,15 @@ struct NotchControlSurface: ViewModifier {
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let opacity = fillOpacity ?? (glassSurface ? (selected ? 0.11 : 0.045) : (selected ? 0.12 : 0.065))
+        let tint = Color.white.opacity(opacity)
+        let backing = raised ? Color(white: opacity) : tint
         Group {
-            if glassSurface {
+            if fillOpacity != nil {
+                content.background(backing, in: shape)
+            } else if glassSurface && !raised {
                 content
-                    .background(.white.opacity(selected ? 0.11 : 0.045), in: shape)
+                    .background(tint, in: shape)
                     .overlay {
                         shape.strokeBorder(.white.opacity(selected ? 0.16 : 0.065), lineWidth: 0.5)
                             .allowsHitTesting(false)
@@ -508,13 +519,13 @@ struct NotchControlSurface: ViewModifier {
             } else {
 #if compiler(>=6.2)
                 if #available(macOS 26, *), glass, !reduceTransparency {
-                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                    content.background(tint, in: shape)
                         .glassEffect(.regular.interactive(interactive), in: shape)
                 } else {
-                    content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                    content.background(backing, in: shape)
                 }
 #else
-                content.background(.white.opacity(selected ? 0.12 : 0.065), in: shape)
+                content.background(backing, in: shape)
 #endif
             }
         }
@@ -522,6 +533,14 @@ struct NotchControlSurface: ViewModifier {
             shape.strokeBorder(.white.opacity(contrast == .increased ? 0.5 : 0), lineWidth: 0.75)
                 .allowsHitTesting(false)
         }
+    }
+
+    /// Keep the source palette, with a separate lens or opaque backing above peers.
+    func elevated() -> Self {
+        var surface = self
+        surface.raised = true
+        surface.interactive = false
+        return surface
     }
 }
 

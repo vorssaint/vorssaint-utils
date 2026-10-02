@@ -269,6 +269,18 @@ enum NotchAgentSupport {
         guard !rows.isEmpty else { return 0 }
         return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
     }
+
+    /// Two compact rows keep the session and the longer allowance closest to its limit.
+    static func compactLimitWindows(_ windows: [AgentLimitWindow]) -> [AgentLimitWindow] {
+        let session = windows.first { $0.kind == .session }
+        let longer = windows.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
+        return [session, longer].compactMap { $0 }
+    }
+
+    static func hiddenCount(total: Int, visible: Int) -> Int {
+        max(0, total - visible)
+    }
+
 }
 
 /// Numbers in the reader's region; costs in US dollars, the currency both

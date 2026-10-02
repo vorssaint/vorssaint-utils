@@ -320,6 +320,7 @@ struct QuickLauncherView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title(for: item))
+        .notchCardHover(enabled: notchSize != nil)
         .onHover { hovering in
             hoveredItem = hovering ? item : (hoveredItem == item ? nil : hoveredItem)
             if hovering, !launcher.isEditing {

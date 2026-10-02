@@ -152,6 +152,7 @@ private struct PanelCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         if notchPresentation {
             content.padding(padded ? 12 : 0).modifier(NotchControlSurface(cornerRadius: 18, interactive: interactive))
+                .notchCardHover()
         } else {
         content
             .padding(padded ? 10 : 0)

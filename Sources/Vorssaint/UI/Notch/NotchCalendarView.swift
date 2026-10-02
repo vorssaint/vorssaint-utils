@@ -314,6 +314,7 @@ private struct NotchCalendarEventRow: View {
     var body: some View {
         Button(action: open) { card }
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
+            .notchCardHover()
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
             .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))

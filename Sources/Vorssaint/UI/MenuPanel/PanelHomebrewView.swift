@@ -123,7 +123,6 @@ struct PanelHomebrewView: View {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9.5))
                     .foregroundStyle(.orange)
-                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button {
@@ -474,7 +473,6 @@ struct PanelHomebrewView: View {
             Label(error, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 10))
                 .foregroundStyle(.orange)
-                .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .panelCard()
         }
@@ -495,7 +493,6 @@ struct PanelHomebrewView: View {
                     Text(desc)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 HStack(spacing: 8) {

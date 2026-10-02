@@ -176,6 +176,7 @@ struct NotchMusicView: View {
                     if service.sources.count > 1 || !service.sourceIsAutomatic {
                         sourcePicker(playback)
                     }
+                    NotchExpandButton(id: "music.track", title: text.mediaNowPlaying)
                     if playback.isPlaying {
                         NotchLiveEqualizerBars(bars: 3, barWidth: 2.5, height: 12, tint: accent)
                             .transition(.opacity)
@@ -187,6 +188,24 @@ struct NotchMusicView: View {
                         .font(.system(size: roomy ? 13 : 12))
                         .foregroundStyle(service.commandFailed ? .orange : .secondary)
                         .lineLimit(1)
+                }
+            }
+            .notchExpansionTap(id: "music.track")
+            .notchExpandable(id: "music.track", title: text.mediaNowPlaying) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(playback.track.title ?? text.mediaNowPlaying)
+                            .font(.system(size: roomy ? 20 : 16, weight: .semibold))
+                        if let artist = playback.track.artist, !artist.isEmpty {
+                            Text(artist).font(.system(size: roomy ? 13 : 12)).foregroundStyle(.secondary)
+                        }
+                        if let album = playback.track.album, !album.isEmpty {
+                            Text(album).font(.system(size: roomy ? 13 : 12)).foregroundStyle(.secondary)
+                        }
+                    }
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
                 }
             }
             if timeline { NotchMusicTimeline(playback: playback, service: service, tint: accent) }
@@ -466,6 +485,7 @@ struct NotchMusicControlsView: View {
         .frame(maxWidth: .infinity)
         .frame(height: height)
         .modifier(NotchControlSurface(cornerRadius: 18))
+        .notchCardHover()
         .onAppear { if !preview { music.refreshAutomation() } }
     }
 }

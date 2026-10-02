@@ -1844,6 +1844,20 @@ enum NotchAgentTests {
         let reading = AgentLimits(provider: .codex, windows: [window(40, resetsIn: 100, id: "a"), window(60, resetsIn: 50, id: "b")],
                                   observedAt: now, source: .sessionLog)
         suite.expect(AgentLimitSupport.binding(reading, now: now)?.id == "b", "the most spent window binds")
+        let session = AgentLimitWindow(id: "session", kind: .session, minutes: 300, scope: nil,
+                                       usedPercent: 20, resetsAt: now.addingTimeInterval(100))
+        let scoped = AgentLimitWindow(id: "scoped", kind: .weekly, minutes: week, scope: "Opus",
+                                      usedPercent: 90, resetsAt: now.addingTimeInterval(100))
+        let all = [window(60, resetsIn: 100, id: "weekly"), session, scoped]
+        let compact = NotchAgentSupport.compactLimitWindows(all)
+        suite.expect(compact.map(\.id) == ["session", "scoped"]
+                        && all.filter { !Set(compact.map(\.id)).contains($0.id) }.map(\.id) == ["weekly"]
+                        && NotchAgentSupport.compactLimitWindows([session]).map(\.id) == ["session"]
+                        && NotchAgentSupport.compactLimitWindows([]).isEmpty,
+                     "compact limits keep the session and binding allowance, with omitted windows counted by identity")
+        let current = all.map { AgentLimitSupport.current($0, at: now.addingTimeInterval(200)) }
+        suite.expect(NotchAgentSupport.compactLimitWindows(current).allSatisfy { $0.usedPercent == 0 },
+                     "compact allowance selection uses renewed current readings")
         func limits(_ used: Double, resets: TimeInterval) -> AgentLimits {
             AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now, source: .sessionLog)
         }
@@ -2378,6 +2392,12 @@ enum NotchAgentTests {
                         == NotchAgentSupport.cardHeight + NotchAgentSupport.spacing + NotchAgentSupport.chartHeight
                         && NotchAgentSupport.contentHeight([]) == 0,
                      "the page is as tall as its rows")
+        suite.expect(NotchAgentSupport.hiddenCount(total: 2, visible: 2) == 0
+                        && NotchAgentSupport.hiddenCount(total: 3, visible: 2) == 1
+                        && NotchAgentSupport.hiddenCount(total: 3, visible: 3) == 0
+                        && NotchAgentSupport.hiddenCount(total: 5, visible: 3) == 2
+                        && NotchAgentSupport.hiddenCount(total: 0, visible: 3) == 0,
+                     "Now, Models and Projects count only the omitted rows in their +N badge")
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
                                      cameraWidth: 185, layout: .spacious, compactSideRoom: 200)
         suite.expect(geometry.expandedSize(module: .agents, agentsHeight: 96).height

@@ -11,6 +11,7 @@ struct PanelURLCleanerView: View {
     @State private var input = ""
     @State private var output = ""
     @State private var message: String?
+    @Environment(\.notchExpansionActions) private var expansion
 
     var onClose: () -> Void
     private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
@@ -114,18 +115,43 @@ struct PanelURLCleanerView: View {
                 .lineLimit(2)
         } else {
             VStack(alignment: .leading, spacing: 5) {
-                Text(output)
-                    .font(.system(size: 10.5, design: .monospaced))
-                    .lineLimit(3)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+                HStack(alignment: .top, spacing: 6) {
+                    Group {
+                        if expansion == nil { outputText.textSelection(.enabled) } else { outputText }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if expansion != nil {
+                        NotchExpandButton(id: "tools.urlResult", title: l10n.s.urlCleanerManualTitle)
+                    }
+                }
                 if let message {
                     Text(message)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
             }
+            .notchExpansionTap(id: "tools.urlResult")
+            .notchExpandable(id: "tools.urlResult", title: l10n.s.urlCleanerManualTitle,
+                             surface: NotchControlSurface(cornerRadius: 18)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ClipboardTextPreview(text: output, font: .monospacedSystemFont(ofSize: 10.5, weight: .regular),
+                                         inset: .zero)
+                    HStack {
+                        if let message {
+                            Text(message).font(.system(size: 10)).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                        Button(l10n.s.urlCleanerCopyButton, action: copy)
+                            .controlSize(.small)
+                    }
+                }
+            }
         }
+    }
+
+    private var outputText: some View {
+        Text(output).font(.system(size: 10.5, design: .monospaced))
+            .lineLimit(3).truncationMode(.middle)
     }
 
     /// Through the shared lane: a direct read here would both race the
