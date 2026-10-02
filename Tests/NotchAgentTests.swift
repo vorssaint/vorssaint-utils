@@ -31,6 +31,7 @@ enum NotchAgentTests {
         AgentUsageArchiveSaveTests.run(suite)
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
+        claudeCode(suite)
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -2304,6 +2305,91 @@ enum NotchAgentTests {
         suite.expect(AgentClaudeAppUsage.lastCheck(home: home) == at("2026-09-23T14:20:00Z")
                         && AgentClaudeAppUsage.lastCheck(home: home.appending(path: "none")) == nil,
                      "the settings read when the Claude app last checked, straight from its file")
+    }
+
+    private static func claudeCode(_ suite: TestSuite) {
+        let at = { (time: String) in AgentTimestamp.parse(time)! }
+        let fetched = at("2026-09-28T13:01:17Z")
+        func profile(account: String? = "a", cached: String? = "a", utilization: [String: Any]) -> [String: Any] {
+            var cache: [String: Any] = ["fetchedAtMs": fetched.timeIntervalSince1970 * 1_000, "utilization": utilization]
+            cache["accountUuid"] = cached
+            var result: [String: Any] = ["cachedUsageUtilization": cache]
+            if let account { result["oauthAccount"] = ["accountUuid": account] }
+            return result
+        }
+        let usage: [String: Any] = [
+            "five_hour": ["utilization": 22, "resets_at": "2026-09-28T16:09:59.148385+00:00"],
+            "seven_day": ["utilization": 12, "resets_at": "2026-10-02T13:59:59Z"],
+            "seven_day_opus": NSNull(), "seven_day_sonnet": ["utilization": true],
+            "iguana_necktie": ["utilization": 0, "resets_at": "2026-11-05T07:59:00+00:00"]]
+        let reading = AgentClaudeCodeUsage.reading(from: profile(utilization: usage))
+        suite.expect(reading?.source == .claudeCode && reading?.observedAt == fetched
+                        && reading?.windows.map(\.kind) == [.session, .weekly]
+                        && reading?.windows.map(\.usedPercent) == [22, 12]
+                        && reading?.windows.map(\.resetsAt) == [at("2026-09-28T16:09:59.148385+00:00"), at("2026-10-02T13:59:59Z")],
+                     "Claude Code's cache gives the session and the week with their renewals, and nothing it does not know")
+        suite.expect(AgentClaudeCodeUsage.reading(from: profile(account: "b", utilization: usage)) == nil
+                        && AgentClaudeCodeUsage.reading(from: profile(account: nil, utilization: usage)) == nil
+                        && AgentClaudeCodeUsage.reading(from: profile(cached: nil, utilization: usage)) != nil
+                        && AgentClaudeCodeUsage.reading(from: profile(utilization: [:])) == nil
+                        && AgentClaudeCodeUsage.reading(from: ["cachedUsageUtilization": "x"]) == nil
+                        && AgentClaudeCodeUsage.reading(from: [:]) == nil,
+                     "a cache from another account, an empty one or a malformed one is ignored")
+        let now = at("2026-09-28T13:10:00Z")
+        suite.expect(AgentClaudeCodeUsage.limits(reading, now: now)?.windows.count == 2
+                        && AgentClaudeCodeUsage.limits(reading, now: at("2026-09-28T17:00:00Z"))?.windows.map(\.kind) == [.weekly]
+                        && AgentClaudeCodeUsage.limits(reading, now: at("2026-10-03T00:00:00Z")) == nil
+                        && AgentClaudeCodeUsage.limits(reading, now: at("2026-09-28T12:00:00Z")) == nil,
+                     "a window that renewed since the cache was saved is dropped, and a cache from the future is ignored")
+        let undated = AgentClaudeCodeUsage.reading(from: profile(utilization: [
+            "five_hour": ["utilization": 5], "seven_day": ["utilization": 9]]))
+        suite.expect(AgentClaudeCodeUsage.limits(undated, now: at("2026-09-28T17:00:00Z"))?.windows.map(\.kind) == [.session, .weekly]
+                        && AgentClaudeCodeUsage.limits(undated, now: at("2026-09-28T19:00:00Z"))?.windows.map(\.kind) == [.weekly]
+                        && AgentClaudeCodeUsage.limits(undated, now: at("2026-09-29T14:00:00Z")) == nil,
+                     "without a renewal date a session holds for five hours and a week for a day")
+        let opus = AgentLimitWindow(id: "claude.so", kind: .weekly, minutes: 10_080, scope: "Opus",
+                                    usedPercent: 40, resetsAt: nil)
+        let week = AgentLimitWindow(id: "claude.sd", kind: .weekly, minutes: 10_080, scope: nil,
+                                    usedPercent: 50, resetsAt: nil)
+        let app = AgentLimits(provider: .claude, windows: [week, opus], observedAt: fetched.addingTimeInterval(-600),
+                              source: .claudeApp)
+        let merged = AgentClaudeCodeUsage.combined(app, reading)
+        suite.expect(merged?.source == .claudeCode && merged?.observedAt == fetched
+                        && merged?.windows.map(\.usedPercent) == [22, 12, 40]
+                        && AgentClaudeCodeUsage.combined(reading, app) == merged
+                        && AgentClaudeCodeUsage.combined(app, nil) == app
+                        && AgentClaudeCodeUsage.combined(nil, nil) == nil,
+                     "the newer reading leads and keeps a window only the older one knows")
+        let onTheHour = { (offset: TimeInterval) in AgentLimits(provider: .claude, windows: [AgentLimitWindow(
+            id: "claude.fh", kind: .session, minutes: 300, scope: nil, usedPercent: 85,
+            resetsAt: at("2026-09-28T16:00:00Z"))], observedAt: fetched.addingTimeInterval(offset), source: .claudeApp) }
+        let codeLeads = AgentClaudeCodeUsage.combined(onTheHour(-120), reading)
+        let appLeads = AgentClaudeCodeUsage.combined(onTheHour(120), reading)
+        let renewals = { (limits: AgentLimits?) in limits?.windows.first { $0.kind == .session }?.resetsAt }
+        suite.expect(renewals(codeLeads) == at("2026-09-28T16:09:59.148385+00:00")
+                        && renewals(appLeads) == renewals(codeLeads)
+                        && appLeads?.windows.first?.usedPercent == 85
+                        && appLeads.flatMap { AgentLimitSupport.crossings(previous: codeLeads, current: $0, threshold: 20) } == []
+                        && codeLeads.flatMap { AgentLimitSupport.crossings(previous: appLeads, current: $0, threshold: 20) } == [],
+                     "a window both readings cover keeps Claude Code's renewal time, so alternating saves neither move the countdown nor warn again")
+        let appSession = AgentLimits(provider: .claude, windows: [AgentLimitWindow(
+            id: "claude.fh", kind: .session, minutes: 300, scope: nil, usedPercent: 79, resetsAt: nil)],
+                                     observedAt: fetched.addingTimeInterval(-600), source: .claudeApp)
+        let codeSession = AgentLimits(provider: .claude, windows: [AgentLimitWindow(
+            id: reading?.windows.first?.id ?? "", kind: .session, minutes: 300, scope: nil, usedPercent: 81, resetsAt: nil)],
+                                      observedAt: fetched, source: .claudeCode)
+        suite.expect(reading?.windows.map(\.id) == ["claude.fh", "claude.sd"]
+                        && AgentLimitSupport.crossings(previous: appSession, current: codeSession, threshold: 80)
+                        .map(\.id) == ["claude.fh"],
+                     "a window keeps the Claude app's id, so an alert still fires when the newer reading switches source")
+        let home = FileManager.default.temporaryDirectory.appending(path: "vorss-claude-code-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try? JSONSerialization.data(withJSONObject: profile(utilization: usage))
+            .write(to: AgentClaudeCodeUsage.profileURL(home: home))
+        suite.expect(AgentClaudeCodeUsage.lastCheck(home: home) == fetched
+                        && AgentClaudeCodeUsage.lastCheck(home: home.appending(path: "none")) == nil,
+                     "the settings read when Claude Code last fetched its limits, straight from its profile")
     }
 
     // MARK: Preferences and layout

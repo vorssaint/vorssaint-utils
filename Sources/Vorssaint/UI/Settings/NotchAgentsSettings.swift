@@ -28,6 +28,7 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
+    @State private var claudeCodeFileCheck: Date?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
@@ -165,8 +166,21 @@ struct NotchAgentsSettingsControls: View {
     /// here when they are missing or old.
     @ViewBuilder private func claudeLimitsStatus(now: Date) -> some View {
         let checked = usage.claudeAppChecked ?? claudeAppFileCheck
+        let codeChecked = usage.claudeCodeChecked ?? claudeCodeFileCheck
         HStack(alignment: .top, spacing: 10) {
-            if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
+            // Claude Code's limits stand in while they are newer and current,
+            // and without the Claude app they stay named with their age, since
+            // the island keeps showing them until their windows renew.
+            if let codeChecked, codeChecked > checked ?? .distantPast,
+               now.timeIntervalSince(codeChecked) < AgentClaudeAppUsage.freshness || claudeApp == nil {
+                if now.timeIntervalSince(codeChecked) < AgentClaudeAppUsage.freshness {
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                } else {
+                    Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
+                }
+                Text(text.claudeLimitsCode(relative(codeChecked, now: now)))
+                Spacer(minLength: 0)
+            } else if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                 Text(text.claudeLimitsCurrent(relative(checked, now: now)))
                 Spacer(minLength: 0)
@@ -197,13 +211,19 @@ struct NotchAgentsSettingsControls: View {
         min(date, now).formatted(.relative(presentation: .named).locale(locale))
     }
 
-    /// The app and the file are looked up when the page opens, off the main
-    /// thread for the file, never on every draw.
+    /// The app and the files are looked up when the page opens, off the main
+    /// thread for the files, never on every draw.
     private func findClaudeApp() {
         claudeApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentClaudeAppUsage.bundleIdentifier)
+        // The running service already knows; the profile can be large.
+        let readCode = usage.claudeCodeChecked == nil
         DispatchQueue.global(qos: .utility).async {
             let checked = AgentClaudeAppUsage.lastCheck()
-            DispatchQueue.main.async { claudeAppFileCheck = checked }
+            let codeChecked = readCode ? AgentClaudeCodeUsage.lastCheck() : nil
+            DispatchQueue.main.async {
+                claudeAppFileCheck = checked
+                claudeCodeFileCheck = codeChecked
+            }
         }
     }
 

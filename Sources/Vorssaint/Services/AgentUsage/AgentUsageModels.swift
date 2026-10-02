@@ -98,6 +98,8 @@ struct AgentLimits: Equatable {
     enum Source: Equatable {
         /// Saved on this Mac by the Claude app, which checks them itself.
         case claudeApp
+        /// Cached by Claude Code in its profile, from its own checks.
+        case claudeCode
         /// Copied by the agent into its session log with each response.
         case sessionLog
         /// Asked of the agent on request, which checks the account itself.
