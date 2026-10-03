@@ -3,53 +3,107 @@
 
 import Foundation
 
-/// Display names for the built-in alert sound files, matching what macOS
-/// itself has shown in Sound settings since Big Sur: several no longer
-/// match the file name in /System/Library/Sounds (Tink shows as Boop, Ping
-/// as Sonar, and so on). Sourced from Apple's own AlertSounds.loctable so
-/// the picker reads the same as System Settings instead of drifting from
-/// it, and translated only for the fifteen languages this app supports;
-/// a name outside this table (a sound this Mac ships that macOS never
-/// renamed) falls back to the file name unchanged.
+/// Provides the display names used by macOS for built-in alert sounds.
+///
+/// Apple's `AlertSounds.loctable` renames several of the files shipped in
+/// `/System/Library/Sounds`. This table mirrors those names so the sound
+/// picker matches macOS rather than exposing the underlying file names.
+///
+/// Languages not represented by a translated table intentionally use the
+/// English names, matching Apple's localization data.
 enum AlertSoundStrings {
-    static func displayName(for fileName: String, language: AppLanguage) -> String {
-        table(for: language)[fileName] ?? fileName
+
+    // MARK: - Public API
+
+    /// Returns the macOS display name for a sound file.
+    ///
+    /// Sounds that do not have a renamed display name fall back to their
+    /// original file name.
+    static func displayName(
+        for fileName: String,
+        language: AppLanguage
+    ) -> String {
+        names(for: language)[fileName] ?? fileName
     }
 
-    /// `fileNames` ordered by what each shows in `language`, using that
-    /// language's own collation rather than whatever locale the system
-    /// happens to be in, since the app's own language can differ from it.
-    /// The picker lists what people read, so its order has to sort by that,
-    /// not by the file names underneath. Ties (none today, across any
-    /// language) fall back to the file name so the order stays deterministic.
-    static func sortedNames(_ fileNames: [String], language: AppLanguage) -> [String] {
+    /// Sorts sound file names by their visible display name.
+    ///
+    /// Sorting uses the app's selected language rather than the Mac's
+    /// current system language. If two display names are identical, the
+    /// underlying file names provide a deterministic tie-breaker.
+    static func sortedNames(
+        _ fileNames: [String],
+        language: AppLanguage
+    ) -> [String] {
         let locale = Locale(identifier: language.rawValue)
-        return fileNames.sorted { lhs, rhs in
-            let comparison = displayName(for: lhs, language: language)
-                .compare(displayName(for: rhs, language: language), options: [], range: nil, locale: locale)
-            return comparison == .orderedSame ? lhs < rhs : comparison == .orderedAscending
+        let table = names(for: language)
+
+        return fileNames.sorted {
+            let lhsDisplayName = table[$0] ?? $0
+            let rhsDisplayName = table[$1] ?? $1
+
+            let comparison = lhsDisplayName.compare(
+                rhsDisplayName,
+                options: [.caseInsensitive, .diacriticInsensitive],
+                range: nil,
+                locale: locale
+            )
+
+            switch comparison {
+            case .orderedAscending:
+                return true
+            case .orderedDescending:
+                return false
+            case .orderedSame:
+                return $0.localizedStandardCompare($1) == .orderedAscending
+            }
         }
     }
 
-    private static func table(for language: AppLanguage) -> [String: String] {
+    // MARK: - Localization
+
+    private static func names(for language: AppLanguage) -> [String: String] {
         switch language {
-        case .enUS: return enUS
-        case .ptBR: return ptBR
-        case .tr: return tr
-        case .ru: return ru
-        case .es: return es
-        case .sk: return sk
-        case .de: return de
-        case .fr: return fr
-        case .it: return it
-        case .uk: return uk
-        // Apple's own loctable keeps the English names for these
-        // languages too, rather than translating them.
-        case .ja, .ko, .zhHans, .zhTW, .zhHK: return enUS
+        case .enUS:
+            return english
+
+        case .ptBR:
+            return portugueseBrazil
+
+        case .tr:
+            return turkish
+
+        case .ru:
+            return russian
+
+        case .es:
+            return spanish
+
+        case .sk:
+            return slovak
+
+        case .de:
+            return german
+
+        case .fr:
+            return french
+
+        case .it:
+            return italian
+
+        case .uk:
+            return ukrainian
+
+        // Apple's AlertSounds localization data keeps the English
+        // display names for these locales.
+        case .ja, .ko, .zhHans, .zhTW, .zhHK:
+            return english
         }
     }
 
-    private static let enUS: [String: String] = [
+    // MARK: - English
+
+    private static let english: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Breeze",
         "Bottle": "Pebble",
@@ -66,7 +120,9 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    private static let ptBR: [String: String] = [
+    // MARK: - Portuguese (Brazil)
+
+    private static let portugueseBrazil: [String: String] = [
         "Basso": "Médio",
         "Blow": "Brisa",
         "Bottle": "Seixo",
@@ -83,7 +139,9 @@ enum AlertSoundStrings {
         "Tink": "Tinido",
     ]
 
-    private static let tr: [String: String] = [
+    // MARK: - Turkish
+
+    private static let turkish: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Esinti",
         "Bottle": "Çakıl Taşı",
@@ -100,7 +158,9 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    private static let ru: [String: String] = [
+    // MARK: - Russian
+
+    private static let russian: [String: String] = [
         "Basso": "Меццо",
         "Blow": "Бриз",
         "Bottle": "Галька",
@@ -117,7 +177,9 @@ enum AlertSoundStrings {
         "Tink": "Капля",
     ]
 
-    private static let es: [String: String] = [
+    // MARK: - Spanish
+
+    private static let spanish: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Brisa",
         "Bottle": "Piedrecita",
@@ -134,7 +196,9 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    private static let sk: [String: String] = [
+    // MARK: - Slovak
+
+    private static let slovak: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Vietor",
         "Bottle": "Štrk",
@@ -151,7 +215,9 @@ enum AlertSoundStrings {
         "Tink": "Pípnutie",
     ]
 
-    private static let de: [String: String] = [
+    // MARK: - German
+
+    private static let german: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Brise",
         "Bottle": "Kiesel",
@@ -168,7 +234,9 @@ enum AlertSoundStrings {
         "Tink": "Buup",
     ]
 
-    private static let fr: [String: String] = [
+    // MARK: - French
+
+    private static let french: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Brise",
         "Bottle": "Galet",
@@ -185,7 +253,9 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    private static let it: [String: String] = [
+    // MARK: - Italian
+
+    private static let italian: [String: String] = [
         "Basso": "Mezzo",
         "Blow": "Brezza",
         "Bottle": "Ciottolo",
@@ -202,7 +272,9 @@ enum AlertSoundStrings {
         "Tink": "Boop",
     ]
 
-    private static let uk: [String: String] = [
+    // MARK: - Ukrainian
+
+    private static let ukrainian: [String: String] = [
         "Basso": "Мецо",
         "Blow": "Вітерець",
         "Bottle": "Галька",
