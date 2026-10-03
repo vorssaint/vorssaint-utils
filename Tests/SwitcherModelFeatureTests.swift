@@ -2322,6 +2322,12 @@ enum SwitcherModelFeatureTests {
                "a screen too short for the panel still shows its top")
         suite.expect(registeredDefaults[DefaultsKey.menuBarHideIconWithMetrics] as? Bool == false,
                "the menu bar icon stays visible by default")
+        suite.expect(MenuBarSpacingSupport.keepAwakeSignals(active: true, tint: .orange, style: .vorssaint)
+                     && MenuBarSpacingSupport.keepAwakeSignals(active: true, tint: .none, style: .coffee),
+               "an active Keep Awake brings back the glyph that shows it")
+        suite.expect(!MenuBarSpacingSupport.keepAwakeSignals(active: false, tint: .orange, style: .coffee)
+                     && !MenuBarSpacingSupport.keepAwakeSignals(active: true, tint: .none, style: .vorssaint),
+               "nothing returns while Keep Awake is off, or when its active glyph looks the same as the idle one")
         suite.expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
                                                           metricsEnabled: true, renderedTitleLength: 12,
                                                           mustShowForSignal: false),

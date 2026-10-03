@@ -781,7 +781,7 @@ extension Strings {
         menuBarSpacingStandard: "Стандартний",
         menuBarSpacingCompact: "Компактний",
         menuBarHideIconToggle: "Ховати значок програми, поки показані метрики",
-        menuBarHideIconCaption: "Значок повертається сам, коли метрики зникають зі смуги меню, а також коли є що повідомити (готове оновлення або вимкнено мікрофон).",
+        menuBarHideIconCaption: "Значок повертається сам, коли метрики зникають зі смуги меню, а також коли є що повідомити (готове оновлення, увімкнено «Не давати Mac заснути» або вимкнено мікрофон).",
         monitorLabelStyleLabel: "Підписи",
         menuBarLabelStyleCompact: "Компактні",
         menuBarLabelStyleClassic: "Класичні",

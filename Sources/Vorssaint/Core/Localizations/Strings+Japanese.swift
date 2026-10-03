@@ -808,7 +808,7 @@ extension Strings {
         menuBarSpacingStandard: "標準",
         menuBarSpacingCompact: "コンパクト",
         menuBarHideIconToggle: "メトリクス表示中はアプリのアイコンを隠す",
-        menuBarHideIconCaption: "メトリクスがバーから消えたときや、知らせることがあるとき（アップデートの準備完了やマイクの消音）は、アイコンが自動的に戻ります。",
+        menuBarHideIconCaption: "メトリクスがバーから消えたときや、知らせることがあるとき（アップデートの準備完了、スリープ防止の作動中やマイクの消音）は、アイコンが自動的に戻ります。",
         monitorLabelStyleLabel: "ラベル",
         menuBarLabelStyleCompact: "短縮",
         menuBarLabelStyleClassic: "標準",

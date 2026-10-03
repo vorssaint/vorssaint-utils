@@ -334,6 +334,11 @@ final class StatusItemController {
     /// glyph can also hide entirely while metrics render in the title (user
     /// option); the decision reads the button's actual title, so it must run
     /// AFTER refresh() writes it — refresh() calls this at its end.
+    private var keepAwakeSignal: Bool {
+        MenuBarSpacingSupport.keepAwakeSignals(active: KeepAwakeManager.shared.isActive,
+                                               tint: .current, style: .current)
+    }
+
     private func updateIconAppearance() {
         guard let button = statusItem?.button else { return }
         let defaults = UserDefaults.standard
@@ -354,7 +359,7 @@ final class StatusItemController {
             separateMetrics: separateMetrics,
             metricsEnabled: MenuBarMetric.anyEnabled(in: defaults),
             renderedTitleLength: button.attributedTitle.length,
-            mustShowForSignal: signal)
+            mustShowForSignal: signal || keepAwakeSignal)
         // In the separate-items mode the metrics are their own clickable
         // items, so hiding means the whole main item steps aside instead of
         // just its image (which is all that item has). With Dynamic Island
@@ -365,7 +370,7 @@ final class StatusItemController {
                 separateMetrics: separateMetrics,
                 metricItemsShown: renderedMetricItemCount,
                 renderedTitleLength: button.attributedTitle.length,
-                mustShowForSignal: signal)
+                mustShowForSignal: signal || keepAwakeSignal)
         mainItemHiddenByChoice = mainItemHidden
         let keepAwakeActive = KeepAwakeManager.shared.isActive
 
@@ -517,7 +522,7 @@ final class StatusItemController {
                     separateMetrics: separateMetrics,
                     metricsEnabled: !metrics.isEmpty,
                     renderedTitleLength: 1,
-                    mustShowForSignal: signal)
+                    mustShowForSignal: signal || keepAwakeSignal)
             let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
             full.append(title)
             let stacked = full.string.contains("\n")

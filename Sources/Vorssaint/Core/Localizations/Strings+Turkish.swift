@@ -808,7 +808,7 @@ extension Strings {
         menuBarSpacingStandard: "Standart",
         menuBarSpacingCompact: "Sıkışık",
         menuBarHideIconToggle: "Metrikler gösterilirken uygulama simgesini gizle",
-        menuBarHideIconCaption: "Metrikler çubuktan kalktığında ve bildirilecek bir şey olduğunda (güncelleme hazır veya mikrofon sessizde) simge kendiliğinden geri döner.",
+        menuBarHideIconCaption: "Metrikler çubuktan kalktığında ve bildirilecek bir şey olduğunda (güncelleme hazır, Uyanık tut açık veya mikrofon sessizde) simge kendiliğinden geri döner.",
         monitorLabelStyleLabel: "Etiketler",
         menuBarLabelStyleCompact: "Kompakt",
         menuBarLabelStyleClassic: "Klasik",

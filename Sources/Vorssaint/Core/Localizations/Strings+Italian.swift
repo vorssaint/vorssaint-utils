@@ -808,7 +808,7 @@ extension Strings {
         menuBarSpacingStandard: "Standard",
         menuBarSpacingCompact: "Compatta",
         menuBarHideIconToggle: "Nascondi l’icona dell’app mentre sono mostrate le metriche",
-        menuBarHideIconCaption: "L’icona torna da sola quando le metriche lasciano la barra e quando c’è qualcosa da segnalare (un aggiornamento pronto o il microfono silenziato).",
+        menuBarHideIconCaption: "L’icona torna da sola quando le metriche lasciano la barra e quando c’è qualcosa da segnalare (un aggiornamento pronto, Mantieni attivo in corso o il microfono silenziato).",
         monitorLabelStyleLabel: "Etichette",
         menuBarLabelStyleCompact: "Compatte",
         menuBarLabelStyleClassic: "Classiche",

@@ -809,7 +809,7 @@ extension Strings {
         menuBarSpacingStandard: "標準",
         menuBarSpacingCompact: "緊湊",
         menuBarHideIconToggle: "顯示指標時隱藏 App 圖示",
-        menuBarHideIconCaption: "當指標離開選單列，或有需要提示的內容（更新就緒或麥克風已靜音）時，圖示會自動回來。",
+        menuBarHideIconCaption: "當指標離開選單列，或有需要提示的內容（更新就緒、保持喚醒開啟中或麥克風已靜音）時，圖示會自動回來。",
         monitorLabelStyleLabel: "標籤",
         menuBarLabelStyleCompact: "緊湊",
         menuBarLabelStyleClassic: "經典",

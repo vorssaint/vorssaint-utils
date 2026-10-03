@@ -809,7 +809,7 @@ extension Strings {
         menuBarSpacingStandard: "표준",
         menuBarSpacingCompact: "좁게",
         menuBarHideIconToggle: "지표가 표시될 때 앱 아이콘 숨기기",
-        menuBarHideIconCaption: "지표가 막대에서 사라지거나 알릴 내용이 있을 때(업데이트 준비 완료 또는 마이크 음소거) 아이콘이 자동으로 돌아옵니다.",
+        menuBarHideIconCaption: "지표가 막대에서 사라지거나 알릴 내용이 있을 때(업데이트 준비 완료, 절전 방지 켜짐 또는 마이크 음소거) 아이콘이 자동으로 돌아옵니다.",
         monitorLabelStyleLabel: "레이블",
         menuBarLabelStyleCompact: "축약",
         menuBarLabelStyleClassic: "표준",

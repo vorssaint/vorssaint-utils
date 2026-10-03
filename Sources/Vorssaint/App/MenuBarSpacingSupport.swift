@@ -229,6 +229,13 @@ enum MenuBarSpacingSupport {
             && !mustShowForSignal
     }
 
+    /// Whether a running Keep Awake session needs the glyph that metrics
+    /// hide: the tinted or swapped glyph is the session's only mark there.
+    /// Untinted, the app's own mark looks the same idle and active.
+    static func keepAwakeSignals(active: Bool, tint: KeepAwakeIconTint, style: KeepAwakeActiveIcon) -> Bool {
+        active && (tint != .none || style != .vorssaint)
+    }
+
     /// Whether the whole main status item may hide in the separate-items
     /// mode, where each metric is its own clickable item and the main one
     /// carries only the glyph. It may only vanish while at least one metric

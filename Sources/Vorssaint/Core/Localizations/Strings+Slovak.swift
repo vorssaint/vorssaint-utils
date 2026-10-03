@@ -808,7 +808,7 @@ extension Strings {
         menuBarSpacingStandard: "Štandardné",
         menuBarSpacingCompact: "Kompaktné",
         menuBarHideIconToggle: "Skryť ikonu aplikácie, kým sú zobrazené metriky",
-        menuBarHideIconCaption: "Ikona sa vráti sama, keď metriky z lišty zmiznú a keď treba niečo signalizovať (pripravenú aktualizáciu alebo stlmený mikrofón).",
+        menuBarHideIconCaption: "Ikona sa vráti sama, keď metriky z lišty zmiznú a keď treba niečo signalizovať (pripravenú aktualizáciu, zapnutý Bdelý režim alebo stlmený mikrofón).",
         monitorLabelStyleLabel: "Označenia",
         menuBarLabelStyleCompact: "Kompaktné",
         menuBarLabelStyleClassic: "Klasické",
