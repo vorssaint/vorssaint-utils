@@ -50,6 +50,9 @@ def main():
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))
+    write("MonitorAlertTile.swift", "import SwiftUI\n"
+          + declaration("Sources/Vorssaint/UI/Settings/MonitorAlertsControls.swift",
+                        "private struct AlertTile: View {").replace("private struct", "struct", 1))
     write("NotchModuleTitle.swift", "import Foundation\nextension NotchModule {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    func title(_ language: AppLanguage)",
                         scope="extension NotchModule: PanelOrderItem {")

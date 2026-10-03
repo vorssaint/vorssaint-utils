@@ -221,7 +221,8 @@ struct MonitorAlertsControls: View {
 }
 
 /// One alert as a tile: its icon and name, ticked when it is on, with the
-/// limit it fires at shown inside once it is.
+/// limit it fires at shown inside once it is. A click anywhere on the tile
+/// but the limit's stepper switches it, like the reading tiles above.
 private struct AlertTile: View {
     struct Limit {
         let label: String
@@ -270,6 +271,9 @@ private struct AlertTile: View {
                             .labelsHidden()
                             .controlSize(.mini)
                             .accessibilityValue(limit.formatValue(limit.value.wrappedValue))
+                            // The stepper's clicks also reach the tile's tap
+                            // below; this one claims them first.
+                            .onTapGesture {}
                     }
                 }
             }
@@ -281,10 +285,13 @@ private struct AlertTile: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(isOn ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
             }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .onTapGesture { isOn.toggle() }
             Image(systemName: isOn ? "checkmark.circle.fill" : "plus.circle")
                 .font(.system(size: 15))
                 .foregroundStyle(isOn ? Color.accentColor : .secondary)
                 .frame(width: 28, height: 28)
+                .allowsHitTesting(false)
                 .accessibilityHidden(true)
         }
     }
