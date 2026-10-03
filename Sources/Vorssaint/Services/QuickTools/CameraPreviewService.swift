@@ -22,9 +22,12 @@ final class CameraPreviewService: ObservableObject {
     @Published private(set) var devices: [AVCaptureDevice] = []
     @Published private(set) var selectedDeviceID: String?
     @Published private(set) var isEmbeddedPresented = false
+    /// Lit while the optional microphone ring hears sound.
+    @Published private(set) var micPicksUpSound = false
     private var captureGeneration = UUID()
     private var sessionRequest: CameraPreviewRequest?
     private var sessionObservers: [NSObjectProtocol] = []
+    private var micMeter: CameraMicMeter?
 
     /// The session is created on show and destroyed on hide. The view builds
     /// its preview layer from it while the panel is up.
@@ -195,6 +198,17 @@ final class CameraPreviewService: ObservableObject {
             return
         }
         selectedDeviceID = device.uniqueID
+        let listens = CameraMicActivitySupport.listens(
+            microphoneAuthorized: AVCaptureDevice.authorizationStatus(for: .audio) == .authorized)
+        let microphone = listens ? AVCaptureDevice.default(for: .audio) : nil
+        let meter = microphone.map { _ in CameraMicMeter { [weak self] meterID, active in
+            DispatchQueue.main.async {
+                // A late buffer from a closed session must not light the next mirror.
+                guard let self, self.micMeter?.id == meterID, self.micPicksUpSound != active else { return }
+                self.micPicksUpSound = active
+            }
+        } }
+        micMeter = meter
         let session = AVCaptureSession()
         let request = CameraPreviewRequest()
         sessionRequest = request
@@ -215,8 +229,11 @@ final class CameraPreviewService: ObservableObject {
                session.canAddInput(input) {
                 session.addInput(input)
             }
-            session.commitConfiguration()
             let hasInput = !session.inputs.isEmpty
+            if hasInput, let microphone, let meter {
+                meter.attach(microphone, to: session)
+            }
+            session.commitConfiguration()
             if hasInput, !request.isCancelled {
                 session.startRunning()
             }
@@ -233,6 +250,8 @@ final class CameraPreviewService: ObservableObject {
         sessionObservers.forEach(NotificationCenter.default.removeObserver)
         sessionObservers.removeAll()
         sessionRequest?.cancel(); sessionRequest = nil
+        micMeter = nil
+        micPicksUpSound = false
         guard let session else { return }
         self.session = nil
         sessionQueue.async {
@@ -243,6 +262,14 @@ final class CameraPreviewService: ObservableObject {
                 session.removeInput(input)
             }
         }
+    }
+
+    /// The microphone ring switch changed: an open mirror restarts its
+    /// session so turning the ring off releases the microphone right away.
+    /// A start still in flight read the old value, so it restarts too.
+    func micActivityPreferenceChanged() {
+        guard isPresented, state == .running || state == .starting else { return }
+        startSession()
     }
 
     func retryCapture() {
@@ -268,7 +295,9 @@ final class CameraPreviewService: ObservableObject {
         sessionQueue.async { [weak self] in
             guard !request.isCancelled else { return }
             session.beginConfiguration()
-            for input in session.inputs {
+            // Only the camera changes; the microphone input stays.
+            let isVideo = { (input: AVCaptureInput) in input.ports.contains { $0.mediaType == .video } }
+            for input in session.inputs where isVideo(input) {
                 session.removeInput(input)
             }
             if let input = try? AVCaptureDeviceInput(device: device),
@@ -276,7 +305,7 @@ final class CameraPreviewService: ObservableObject {
                 session.addInput(input)
             }
             session.commitConfiguration()
-            let hasInput = !session.inputs.isEmpty
+            let hasInput = session.inputs.contains(where: isVideo)
             let isRunning = hasInput && session.isRunning
             DispatchQueue.main.async {
                 guard let self, self.isPresented, self.session === session else { return }
@@ -470,5 +499,41 @@ final class CameraPreviewService: ObservableObject {
 
     private static func mouseIsInside(_ panel: NSPanel) -> Bool {
         panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
+    }
+}
+
+/// Reads the microphone's level from the preview session's own audio
+/// output, so it starts and stops with the camera. Nothing is stored; each
+/// buffer only updates when sound was last heard.
+private final class CameraMicMeter: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+    private let queue = DispatchQueue(label: "com.vorssaint.utils.camera-preview.mic")
+    let id = UUID()
+    private let onChange: (UUID, Bool) -> Void
+    private var lastLoudAt: Date?
+    private var active = false
+
+    init(onChange: @escaping (UUID, Bool) -> Void) {
+        self.onChange = onChange
+    }
+
+    /// Called on the session queue inside a configuration block.
+    func attach(_ microphone: AVCaptureDevice, to session: AVCaptureSession) {
+        guard let input = try? AVCaptureDeviceInput(device: microphone), session.canAddInput(input) else { return }
+        let output = AVCaptureAudioDataOutput()
+        guard session.canAddOutput(output) else { return }
+        session.addInput(input)
+        output.setSampleBufferDelegate(self, queue: queue)
+        session.addOutput(output)
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        let now = Date()
+        let level = connection.audioChannels.map(\.averagePowerLevel).max() ?? -160
+        if CameraMicActivitySupport.isLoud(level) { lastLoudAt = now }
+        let isActive = CameraMicActivitySupport.isActive(lastLoudAt: lastLoudAt, now: now)
+        guard isActive != active else { return }
+        active = isActive
+        onChange(id, isActive)
     }
 }
