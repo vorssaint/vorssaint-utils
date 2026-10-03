@@ -4209,7 +4209,19 @@ enum SwitcherModelFeatureTests {
         suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: nil,
                                                  systemDragGestureEnabled: true) == .passThrough,
-               "middle click stands down while the system three-finger drag owns the gesture")
+               "middle click leaves three-finger clicks to the system three-finger drag")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: true) == .transform,
+               "middle click moves to a settled four-finger press while three-finger drag is on")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.01,
+                                                 sinceLastTransformEnd: nil,
+                                                 systemDragGestureEnabled: true) == .passThrough,
+               "middle click rejects a four-finger click arriving with the fourth finger's touchdown")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: true) == .swallow,
+               "middle click drops the bounce after a four-finger transform")
 
         expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
                     "color picker formats pure red as hex")

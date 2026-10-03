@@ -179,7 +179,7 @@ extension Strings {
         middleClickSection: "中クリック",
         middleClickEnable: "3本指クリックを中クリックにする",
         middleClickEnableCaption: "トラックパッドを3本指で押すと、マウスのホイールクリックと同じように動作します。リンクを新しいタブで開く、タブを閉じるなど、中ボタンでできることすべてに使えます。",
-        middleClickDragConflict: "macOSの3本指のドラッグがオンになっており、同じジェスチャを使用します。システム設定のアクセシビリティ、ポインタコントロール、トラックパッドオプションでオフにすると、中クリックが機能します。",
+        middleClickDragConflict: "macOSの3本指のドラッグがオンで3本指を使用するため、中クリックは4本指でクリックしてください。3本指を使うには、システム設定のアクセシビリティ、ポインタコントロール、トラックパッドオプションでオフにしてください。",
         middleClickTapPicker: "軽いタップでもクリック",
         middleClickTapOff: "オフ",
         middleClickTapThreeFingers: "3 本指",
