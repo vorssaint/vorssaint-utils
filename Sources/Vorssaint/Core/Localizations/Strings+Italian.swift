@@ -994,7 +994,7 @@ extension Strings {
         cleanerNotifDenied: "Le notifiche di Vorssaint sono disattivate nel sistema.",
         cleanerNotifOpenSettings: "Apri impostazioni notifiche…",
         launchAtLoginNeedsApplications: "L’app è in esecuzione da una posizione che non consente l’apertura all’accesso. Trascina Vorssaint nella cartella Applicazioni, aprila da lì e riattiva l’opzione.",
-        launchAtLoginNeedsApproval: "L’elemento di login è registrato, ma in Impostazioni di Sistema resta disattivato. Apri Impostazioni di Sistema › Generali › Elementi login ed estensioni e attiva Vorssaint sotto “Apri all’accesso”.",
+        launchAtLoginNeedsApproval: "L’elemento di login è registrato, ma macOS richiede ancora l’autorizzazione. In Impostazioni di Sistema › Generali › Elementi login ed estensioni, controlla Vorssaint in “Apri all’accesso” e “Consenti in background”.",
         ocrRemoveLineBreaksToggle: "Rimuovi interruzioni di riga",
         ocrRemoveLineBreaksCaption: "Rimuove le interruzioni di riga, così il testo copiato viene incollato come un unico paragrafo.",
         ocrQRToggle: "Leggi i codici QR",
