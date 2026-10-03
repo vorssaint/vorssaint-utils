@@ -968,6 +968,18 @@ enum PointerInputFeatureTests {
                 targetWindowID: 42, focusedWindowID: focusedWindowID, targetAppIsFrontmost: false),
                    "hover can activate a background app regardless of its last focused window")
         }
+        suite.expect(FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 42, appIsFrontmost: true),
+               "a canceled handoff gives focus back to the window that still holds it")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: nil, appIsFrontmost: true),
+               "a canceled handoff restores nothing when the focused window cannot be read")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 43, appIsFrontmost: true),
+               "a canceled handoff leaves focus on a window the user clicked")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 42, appIsFrontmost: false),
+               "a canceled handoff leaves focus alone once another app is in front")
         var focusFollowsMouseState = FocusFollowsMouseState()
         suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
                "focus follows mouse starts without work to poll")
@@ -998,12 +1010,31 @@ enum PointerInputFeatureTests {
         focusFollowsMouseState.reset()
         suite.expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
+        var dwellState = FocusFollowsMouseState()
+        dwellState.recordMovement(to: CGPoint(x: 10, y: 10), at: 20, windowID: 1)
+        dwellState.recordMovement(to: CGPoint(x: 30, y: 10), at: 20.2, windowID: 1)
+        let dwellFocus = dwellState.nextEvaluation(at: 20.25, delayMilliseconds: 250)
+        suite.expect(dwellFocus?.point == CGPoint(x: 30, y: 10),
+               "without a raise, moving within a window does not restart the delay")
+        dwellState.recordMovement(to: CGPoint(x: 50, y: 10), at: 20.3, windowID: 1)
+        suite.expect(!dwellState.hasPendingEvaluation && dwellFocus.map(dwellState.isCurrent) == true,
+               "without a raise, moving within a window neither asks again nor cancels the lookup")
+        dwellState.recordMovement(to: CGPoint(x: 70, y: 10), at: 20.4, windowID: 2)
+        suite.expect(dwellState.nextEvaluation(at: 20.6, delayMilliseconds: 250) == nil
+                && dwellState.nextEvaluation(at: 20.65, delayMilliseconds: 250)?.point
+                    == CGPoint(x: 70, y: 10),
+               "without a raise, entering another window restarts the delay")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
                "focus follows mouse ships off with a safe delay")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
                "focus follows mouse preferences follow settings backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseRaise] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseWaitForStop] as? Bool == true
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseRaise)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseWaitForStop),
+               "focus follows mouse keeps raising and waiting for the pointer to stop by default, and backs up both")
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""
@@ -1027,6 +1058,9 @@ enum PointerInputFeatureTests {
         suite.expect(focusFollowsMouseServiceSource.contains(
                 "!SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)"),
                "focus follows mouse never hands a window on a hidden Space to the activator, which would travel")
+        suite.expect(focusFollowsMouseServiceSource.contains(
+                "WindowActivator.supersedePendingActivations(for: target.processID)"),
+               "focus without raise stops the passes a switcher jump left pending, as the raising path does")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a

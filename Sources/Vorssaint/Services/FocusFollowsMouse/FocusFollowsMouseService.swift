@@ -87,8 +87,14 @@ final class FocusFollowsMouseService {
             return
         }
         guard isRunning else { return }
-        state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime)
-        guard timer == nil else { return }
+        // Raising always waits for the pointer to stop, so windows passed on
+        // the way are not reshuffled. Without a raise, the user may instead
+        // have the delay count time over a window while the pointer moves.
+        let waitsForStop = UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise)
+            || UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseWaitForStop)
+        state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime,
+                             windowID: waitsForStop ? nil : Self.receivingWindow(at: point))
+        guard timer == nil, state.hasPendingEvaluation else { return }
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
         timer.tolerance = 0.01
         RunLoop.main.add(timer, forMode: .common)
@@ -142,16 +148,22 @@ final class FocusFollowsMouseService {
             ) { self.target(at: evaluation.point, processID: $0) }
             guard let target else { return }
             DispatchQueue.main.async { [weak self] in
-                guard let self, self.isRunning, self.nothingIsHeldDown,
-                      self.state.isCurrent(evaluation),
-                      Self.receivingWindow(at: evaluation.point) == pointerWindowID,
+                guard let self else { return }
+                let targetAppIsFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                    == target.processID
+                let isCurrent = { [weak self] in
+                    guard let self else { return false }
+                    return self.isRunning && self.nothingIsHeldDown
+                        && self.state.isCurrent(evaluation)
+                        && Self.receivingWindow(at: evaluation.point) == pointerWindowID
+                }
+                guard isCurrent(),
                       let app = NSRunningApplication(processIdentifier: target.processID),
                       app.activationPolicy == .regular, !app.isTerminated,
                       FocusFollowsMouseSupport.shouldActivate(
                           targetWindowID: target.windowID,
                           focusedWindowID: target.focusedWindowID,
-                          targetAppIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier
-                              == target.processID),
+                          targetAppIsFrontmost: targetAppIsFrontmost),
                       // The window server reports a desktop switch only once
                       // its animation ends, so a target it still parks on a
                       // hidden Space is a switch in flight: the activator would
@@ -159,6 +171,14 @@ final class FocusFollowsMouseService {
                       // travels between desktops.
                       !SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)
                 else { return }
+                guard UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise) else {
+                    let activation = WindowActivator.supersedePendingActivations(for: target.processID)
+                    SpaceWindowBridge.focusWithoutRaise(
+                        target.windowID, ownerPID: target.processID,
+                        replacing: targetAppIsFrontmost ? target.focusedWindowID : nil,
+                        while: { isCurrent() && WindowActivator.isCurrentActivation(activation) })
+                    return
+                }
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,
                                          appName: app.localizedName ?? "",

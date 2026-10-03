@@ -26,9 +26,7 @@ enum WindowActivator {
                          handoffSourcePID: pid_t? = nil,
                          sourceWindowID: CGWindowID? = nil,
                          sourceWindowOwnerPID: pid_t? = nil) {
-        let generation = beginActivation(for: item.pid)
-        cancelPendingMinimizeRestore()
-        SpaceHop.cancelPending()
+        let generation = supersedePendingActivations(for: item.pid)
 
         if item.pid == ProcessInfo.processInfo.processIdentifier {
             activateOwnWindow(item)
@@ -451,6 +449,13 @@ enum WindowActivator {
         }
     }
 
+    static func supersedePendingActivations(for pid: pid_t) -> UInt64 {
+        let generation = beginActivation(for: pid)
+        cancelPendingMinimizeRestore()
+        SpaceHop.cancelPending()
+        return generation
+    }
+
     private static func beginActivation(for pid: pid_t) -> UInt64 {
         activationLock.withLock {
             activationGeneration &+= 1
@@ -463,7 +468,7 @@ enum WindowActivator {
         activationLock.withLock { activationGenerationsByPID[pid] ?? 0 }
     }
 
-    private static func isCurrentActivation(_ generation: UInt64) -> Bool {
+    static func isCurrentActivation(_ generation: UInt64) -> Bool {
         activationLock.withLock {
             SwitcherSupport.isCurrentActivationGeneration(
                 generation,
