@@ -114,7 +114,8 @@ enum MouseNavigationKeys {
     /// the menu item. Nil when no key produces it without Option, which is the
     /// case the system's own move exists to avoid.
     static func keyStroke(for character: String) -> (keyCode: CGKeyCode, needsShift: Bool)? {
-        guard let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
+        guard Thread.isMainThread,
+              let source = TISCopyCurrentKeyboardLayoutInputSource()?.takeRetainedValue(),
               let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else {
             return nil
         }

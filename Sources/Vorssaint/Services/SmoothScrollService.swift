@@ -262,6 +262,19 @@ final class SmoothScrollService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        let defaults = UserDefaults.standard
+        let direction = ScrollDirectionPreferences(defaults: defaults)
+        let scrollTargetExcluded = exceptions.excludesPointerTarget(
+            .scrollDirection,
+            at: event.location,
+            sourceProcessID: sourceProcessID
+        )
+        if !scrollTargetExcluded, direction.zoom.action(for: event) != nil {
+            stopGlide()
+            return ScrollInverter.shared.consumeZoom(event, direction: direction)
+                ? nil : Unmanaged.passUnretained(event)
+        }
+
         // The head tap swallows the tick before the inverter's tail tap can
         // reach it, so when inverting is on the wheel's vertical flip is
         // applied here; the glide is marked so the inverter leaves it alone.
@@ -272,12 +285,7 @@ final class SmoothScrollService: ObservableObject {
         // and their switches left on, so the flip itself comes from
         // ScrollDirectionPreferences, which reads each one's availability.
         let adjustDirectionHere = ScrollInverter.shared.isRunning
-            && !exceptions.excludesPointerTarget(
-                .scrollDirection,
-                at: event.location,
-                sourceProcessID: sourceProcessID)
-        let defaults = UserDefaults.standard
-        let direction = ScrollDirectionPreferences(defaults: defaults)
+            && !scrollTargetExcluded
         let redirected: Bool
         if adjustDirectionHere, let modifier = direction.horizontalModifier {
             redirected = ScrollWheelSupport.redirectVerticalScroll(event, modifier: modifier,

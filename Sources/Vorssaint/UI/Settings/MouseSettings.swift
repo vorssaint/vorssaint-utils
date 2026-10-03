@@ -19,6 +19,12 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.scrollHorizontalEnabled) private var horizontalScrollEnabled = false
     @AppStorage(DefaultsKey.scrollHorizontalModifier) private var horizontalScrollModifier =
         ScrollHorizontalModifier.shift
+    @AppStorage(DefaultsKey.verticalZoomEnabled) private var verticalZoomEnabled = false
+    @AppStorage(DefaultsKey.verticalZoomModifier) private var verticalZoomModifier = ScrollZoomModifier.control
+    @AppStorage(DefaultsKey.horizontalZoomEnabled) private var horizontalZoomEnabled = false
+    @AppStorage(DefaultsKey.horizontalZoomModifier) private var horizontalZoomModifier = ScrollZoomModifier.shift
+    @AppStorage(DefaultsKey.pinchZoomEnabled) private var pinchZoomEnabled = false
+    @AppStorage(DefaultsKey.pinchZoomModifier) private var pinchZoomModifier = ScrollZoomModifier.command
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
         FocusFollowsMouseSupport.defaultDelayMilliseconds
@@ -64,6 +70,10 @@ struct MouseSettings: View {
                 if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
                     scrollCard
                         .settingsSectionAnchor(.scrollDirection, cornerRadius: 16)
+                }
+                if AppFeature.scrollZoom.isAvailable {
+                    zoomCard
+                        .settingsSectionAnchor(.scrollZoom, cornerRadius: 16)
                 }
                 if AppFeature.focusFollowsMouse.isAvailable {
                     focusFollowsMouseCard
@@ -116,7 +126,8 @@ struct MouseSettings: View {
 
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
-        [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
+        [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll,
+         .linearScroll, .mouseAcceleration,
          .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
             .filter(\.isAvailable)
     }
@@ -127,6 +138,7 @@ struct MouseSettings: View {
         switch feature {
         case .scrollInverter: return invertVertical || invertHorizontal
         case .scrollHorizontal: return horizontalScrollEnabled
+        case .scrollZoom: return scrollZoomEnabled
         case .focusFollowsMouse: return focusFollowsMouseEnabled
         case .smoothScroll: return smoothScrollEnabled
         case .linearScroll: return linearScrollEnabled
@@ -210,7 +222,7 @@ struct MouseSettings: View {
                         .padding(.leading, settingsRowTextInset)
                 }
             }
-            if scrollInversionEnabled, inverter.isRunning {
+            if scrollDirectionEnabled, inverter.isRunning {
                 activeBadge(l10n.s.scrollActiveNow)
             }
             Text(l10n.s.scrollTrackpadNote)
@@ -220,6 +232,17 @@ struct MouseSettings: View {
             if scrollDirectionEnabled {
                 MouseExceptionsList(scope: .scrollDirection)
             }
+        }
+    }
+
+    private var zoomCard: some View {
+        SettingsCard(title: l10n.s.zoomSection) {
+            scrollZoomControl(l10n.s.verticalZoom, enabled: $verticalZoomEnabled,
+                              modifier: $verticalZoomModifier, setting: .verticalZoom)
+            scrollZoomControl(l10n.s.horizontalZoom, enabled: $horizontalZoomEnabled,
+                              modifier: $horizontalZoomModifier, setting: .horizontalZoom)
+            scrollZoomControl(l10n.s.pinchZoom, enabled: $pinchZoomEnabled,
+                              modifier: $pinchZoomModifier, setting: .pinchZoom)
         }
     }
 
@@ -265,6 +288,49 @@ struct MouseSettings: View {
                 }
             }
         }
+    }
+
+    private enum ScrollZoomSetting { case verticalZoom, horizontalZoom, pinchZoom }
+
+    private func scrollZoomControl(_ title: String, enabled: Binding<Bool>,
+                                    modifier: Binding<ScrollZoomModifier>, setting: ScrollZoomSetting) -> some View {
+        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
+        return HStack(spacing: 16) {
+            Text(title)
+                .frame(width: 180, alignment: .leading)
+            Picker("", selection: modifier) {
+                Text(l10n.s.shortcutNone).tag(ScrollZoomModifier.none)
+                Text("⇧ \(modifierStrings.shiftKey)").tag(ScrollZoomModifier.shift)
+                Text("⌥ \(modifierStrings.optionKey)").tag(ScrollZoomModifier.option)
+                Text("⌃ \(modifierStrings.controlKey)").tag(ScrollZoomModifier.control)
+                Text("⌘ \(l10n.s.scrollHorizontalCommandKey)").tag(ScrollZoomModifier.command)
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity)
+            .disabled(!enabled.wrappedValue)
+            .accessibilityLabel(title)
+            .onChange(of: modifier.wrappedValue) { _, selected in
+                clearZoomModifierConflicts(for: setting, selected: selected)
+            }
+            Toggle(title, isOn: enabled)
+                .labelsHidden()
+                .frame(width: 52, alignment: .trailing)
+                .onChange(of: enabled.wrappedValue) { _, active in
+                    ScrollInverter.shared.syncWithPreferences()
+                    if active { permissions.requestAccessibility() }
+                }
+        }
+    }
+
+    private func clearZoomModifierConflicts(for setting: ScrollZoomSetting, selected: ScrollZoomModifier) {
+        guard selected != .none else {
+            ScrollInverter.shared.syncWithPreferences()
+            return
+        }
+        if setting != .verticalZoom, verticalZoomModifier == selected { verticalZoomModifier = .none }
+        if setting != .horizontalZoom, horizontalZoomModifier == selected { horizontalZoomModifier = .none }
+        if setting != .pinchZoom, pinchZoomModifier == selected { pinchZoomModifier = .none }
+        ScrollInverter.shared.syncWithPreferences()
     }
 
     // MARK: - Focus follows mouse
@@ -547,6 +613,13 @@ struct MouseSettings: View {
     private var scrollDirectionEnabled: Bool {
         scrollInversionEnabled
             || (AppFeature.scrollHorizontal.isAvailable && horizontalScrollEnabled)
+            || (AppFeature.scrollZoom.isAvailable && scrollZoomEnabled)
+    }
+
+    private var scrollZoomEnabled: Bool {
+        (verticalZoomEnabled && verticalZoomModifier != .none)
+            || (horizontalZoomEnabled && horizontalZoomModifier != .none)
+            || (pinchZoomEnabled && pinchZoomModifier != .none)
     }
 
     private var smoothScrollStepBinding: Binding<Double> {

@@ -140,8 +140,10 @@ enum SwitcherModelFeatureTests {
             suite.expect(code(path).contains("AppSwitcher.shared.scrollNavigationActive"),
                          "\(path) yields scrolling to the open switcher")
         }
-        suite.expect(!code("Sources/Vorssaint/Services/ScrollInverter.swift").contains("AppSwitcher.shared.scrollNavigationActive"),
-                     "scroll direction still transforms wheel events before they reach the open switcher")
+        let inverter = code("Sources/Vorssaint/Services/ScrollInverter.swift")
+        suite.expect(inverter.contains("guard !AppSwitcher.shared.scrollNavigationActive else { return false }")
+                && inverter.contains("ScrollWheelSupport.applyDirection("),
+                     "zoom yields its wheel to the switcher while ordinary direction handling remains available")
     }
 
     static func run(_ suite: TestSuite) {

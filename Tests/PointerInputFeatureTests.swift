@@ -3328,6 +3328,20 @@ enum PointerInputFeatureTests {
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(smoothSchedulerCode.contains("ScrollInverter.shared.consumeZoom(event, direction: direction)")
+                && smoothSchedulerCode.contains("stopGlide()"),
+               "Smooth Scrolling consumes configured zoom before creating a glide")
+        suite.expect(!scrollInverterSource.contains("eventTargetUnixProcessID")
+                && scrollInverterSource.contains("zoomTargetQueue.async")
+                && scrollInverterSource.contains("WindowServerSupport.keyboardZoomTarget(")
+                && scrollInverterSource.contains("AppSwitcher.shared.scrollNavigationActive")
+                && scrollInverterSource.contains("postToPid(targetProcessID)")
+                && scrollInverterSource.contains("GlobalShortcut.keyboardLayoutDidChange")
+                && scrollInverterSource.contains("zoomInKeyStroke"),
+               "keyboard zoom resolves hovered focus off the tap and follows the active keyboard layout")
+        suite.expect(scrollInverterSource.contains("pinchZoomLock")
+                && scrollInverterSource.contains("zoomState.update(direction.zoom)"),
+               "pinch zoom ends under the same lock that guards the tap callback")
         for (name, source) in [("scroll inverter", scrollInverterSource),
                                ("smooth scroll", smoothSchedulerCode)] {
             suite.expect(source.contains("guard !tapCreationRetryUsed")
