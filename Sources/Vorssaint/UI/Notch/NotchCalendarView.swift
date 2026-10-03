@@ -35,9 +35,7 @@ struct NotchCalendarView: View {
                                     .accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 12) {
                                     agendaHeader
-                                    ScrollView { appointmentList(now: context.date) }
-                                        .scrollIndicators(.automatic)
-                                        .id(selectedDay)
+                                    agenda(now: context.date)
                                 }
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             }
@@ -46,11 +44,7 @@ struct NotchCalendarView: View {
                         } else {
                             VStack(spacing: NotchLayout.rowSpacing) {
                                 weekStrip(now: context.date)
-                                ScrollView {
-                                    appointmentList(now: context.date)
-                                }
-                                .scrollIndicators(.automatic)
-                                .id(selectedDay)
+                                agenda(now: context.date)
                             }
                         }
                     }
@@ -79,7 +73,7 @@ struct NotchCalendarView: View {
         }
         .onDisappear {
             if ownsMonth { calendar.showMonth(nil) }
-            if !preview { NotchService.shared.setPageLayer(.calendar, close: nil) }
+            if !preview { NotchService.shared.setPageLayer(.calendar, close: nil); calendar.revealing = nil }
         }
     }
 
@@ -183,6 +177,24 @@ struct NotchCalendarView: View {
             .filter { !$0.events.isEmpty }
     }
 
+    /// Scrolls once to the countdown's event opened from the closed island,
+    /// after the reload that opening the page starts has finished.
+    private func agenda(now: Date) -> some View {
+        ScrollViewReader { proxy in
+            ScrollView { appointmentList(now: now) }
+                .scrollIndicators(.automatic)
+                .id(selectedDay)
+                .onChange(of: calendar.loading ? nil : calendar.revealing, initial: true) { _, target in
+                    guard !preview, let target else { return }
+                    DispatchQueue.main.async {
+                        guard !calendar.loading, calendar.revealing == target else { return }
+                        calendar.revealing = nil
+                        proxy.scrollTo(target, anchor: .center)
+                    }
+                }
+        }
+    }
+
     @ViewBuilder private func appointmentList(now: Date) -> some View {
         let groups = groups(now: now)
         let next = NotchCalendarSupport.next(calendar.events, now: now)
@@ -203,6 +215,7 @@ struct NotchCalendarView: View {
                                                   choose: { calendar.setCountdown($0, for: event) }) {
                                 openCalendar(showing: event)
                             }
+                            .id(event.id)
                         }
                     }
                 }
