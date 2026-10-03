@@ -137,7 +137,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
-- **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
+- **Scratchpad.** Write live Markdown and interactive checklists in a floating window or Dynamic Island. New notes name themselves from your text until you rename them. Duplicate notes, reset checklists or remove completed items with Undo, organize notes into folders, reopen closed tabs, search and pin notes, recover deletions from Trash, and import, export or back up your notes.
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
 ### Capture and create

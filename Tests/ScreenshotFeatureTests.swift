@@ -2872,18 +2872,6 @@ enum ScreenshotFeatureTests {
         suite.expect(GlobalShortcutRole.scratchpad.requiredEnableKeys == [DefaultsKey.scratchpadShortcutEnabled]
                 && GlobalShortcutRole.scratchpad.feature == .scratchpad,
                "the scratchpad shortcut role gates on its toggle and feature")
-        let scratchpadViewSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift",
-            encoding: .utf8)) ?? ""
-        let scratchpadHitTargetContracts = [
-            "Image(systemName: \"plus\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            "Image(systemName: \"ellipsis\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            ".fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)\n                }\n                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))",
-            "Image(systemName: service.isPinned ? \"pin.fill\" : \"pin\")\n                    .font(.system(size: 12, weight: .semibold))\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-            "Image(systemName: \"xmark.circle.fill\")\n                    .font(.system(size: 14))\n                    .foregroundStyle(.secondary)\n                    .frame(width: 22, height: 22)\n                    .contentShape(Rectangle())",
-        ]
-        suite.expect(scratchpadHitTargetContracts.allSatisfy { scratchpadViewSource.contains($0) },
-               "the scratchpad tab bar and header controls keep their full padded hit targets")
         suite.expect(ScratchpadRetention.sanitized("day") == .day
                 && ScratchpadRetention.sanitized("week") == .week
                 && ScratchpadRetention.sanitized("month") == .month
@@ -2899,27 +2887,13 @@ enum ScreenshotFeatureTests {
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: true, exportModalActive: false)
                 && !ScratchpadSupport.dismissesOnOutsideClick(isPinned: false, exportModalActive: true),
                "the scratchpad pin and export dialog both block outside-click dismissal")
-        let markdownPreview = ScratchpadSupport.markdownPreview(
-            "# Heading\n\n**Bold** and *italic* with [link](https://example.com)\n\n- First\n- Second\n\n1. Third\n\n```\ncode\n```")
-        suite.expect(markdownPreview.map(\.kind) == [
-                    .heading(1), .paragraph,
-                    .unorderedListItem(depth: 1), .unorderedListItem(depth: 1),
-                    .orderedListItem(ordinal: 1, depth: 1), .code
-                ]
-                && String(markdownPreview[0].text.characters) == "Heading"
-                && String(markdownPreview[2].text.characters) == "First"
-                && String(markdownPreview[5].text.characters) == "code"
-                && markdownPreview[2].containerID == markdownPreview[3].containerID
-                && markdownPreview[2].containerID != nil
-                && markdownPreview[3].containerID != markdownPreview[4].containerID
-                && markdownPreview[1].text.runs.contains {
-                    $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true
-                }
-                && markdownPreview[1].text.runs.contains {
-                    $0.inlinePresentationIntent?.contains(.emphasized) == true
-                }
-                && markdownPreview[1].text.runs.contains { $0.link != nil },
-               "the scratchpad preview renders semantic blocks and inline formatting")
+        let markdown = ScratchpadMarkdown("# Heading\n\n**Bold** and *italic* with [link](https://example.com)\n\n- First\n- Second\n\n1. Third\n\n```\ncode\n```")
+        suite.expect(markdown.spans.contains { $0.heading == 1 }
+                     && markdown.spans.contains { $0.inline.contains(.stronglyEmphasized) }
+                     && markdown.spans.contains { $0.inline.contains(.emphasized) }
+                     && markdown.spans.contains { $0.link != nil }
+                     && markdown.spans.contains { $0.code },
+                     "the live editor recognizes native semantic blocks and inline formatting")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.scratchpadBackgroundOpacity] as? Double == 0.0,
                "the scratchpad keeps its familiar translucent background by default")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.scratchpadBackgroundOpacity),
@@ -2973,21 +2947,18 @@ enum ScreenshotFeatureTests {
                "an existing unnumbered scratchpad still occupies the first numbered slot")
         let renamedPad = threePads?.renaming(secondPadID, to: "  Work\nideas  ")
         suite.expect(renamedPad?.pads[1].name == "Work ideas"
-                && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 50)).count
+                && ScratchpadSupport.sanitizedPadName(String(repeating: "x", count: 200)).count
                     == ScratchpadDocument.maximumNameLength
                 && threePads?.renaming(secondPadID, to: "   ") == nil,
                "scratchpad names stay single-line, bounded and never empty")
         let selectedFirst = renamedPad?.selecting(firstPadID)
         let removedFirst = selectedFirst?.removing(firstPadID)
-        suite.expect(removedFirst?.pads.map(\.id) == [secondPadID, thirdPadID]
+        suite.expect(removedFirst?.openIDs == [secondPadID, thirdPadID]
+                && removedFirst?.pads.count == 3
                 && removedFirst?.selectedID == secondPadID,
                "closing the selected scratchpad keeps order and selects its nearest neighbor")
-        suite.expect(migratedScratchpad.removing(firstPadID) == nil,
-               "the last scratchpad cannot be closed")
-        suite.expect(ScratchpadSupport.requiresCloseConfirmation(migratedScratchpad.pads[0])
-                && !ScratchpadSupport.requiresCloseConfirmation(
-                    ScratchpadDocument.initial(defaultName: "Scratchpad").pads[0]),
-               "only closing a scratchpad with content needs destructive confirmation")
+        suite.expect(migratedScratchpad.removing(firstPadID)?.openIDs.isEmpty == true,
+               "the last tab can close without deleting its note")
 
         suite.expect(ScratchpadFocusedShortcut.action(charactersIgnoringModifiers: "t",
                                                    commandOnly: true,
@@ -3038,12 +3009,12 @@ enum ScreenshotFeatureTests {
                                                    canClosePad: true) == nil,
                "events without a character do not trigger scratchpad tab shortcuts")
         var limitedScratchpads = migratedScratchpad
-        for _ in 2...ScratchpadDocument.maximumPadCount {
+        for _ in 2...50 {
             limitedScratchpads = limitedScratchpads.addingPad(defaultName: "Scratchpad")!
         }
-        suite.expect(limitedScratchpads.pads.count == ScratchpadDocument.maximumPadCount
-                && limitedScratchpads.addingPad(defaultName: "Scratchpad") == nil,
-               "scratchpads keep a small fixed upper bound")
+        suite.expect(limitedScratchpads.pads.count == 50
+                && limitedScratchpads.addingPad(defaultName: "Scratchpad") != nil,
+               "saved notes are no longer constrained by a tab limit")
         var retainedScratchpads = ScratchpadDocument.initial(
             defaultName: "Scratchpad",
             id: firstPadID,
@@ -3053,10 +3024,12 @@ enum ScreenshotFeatureTests {
                                                              id: secondPadID)!
         retainedScratchpads.updateSelectedText("recent text",
                                                modifiedAt: scratchpadNow.addingTimeInterval(-300))
+        retainedScratchpads.pads[0].isTemporary = true
         retainedScratchpads.applyRetention(.day, now: scratchpadNow)
-        suite.expect(retainedScratchpads.pads[0].text.isEmpty
+        suite.expect(retainedScratchpads.pads[0].text == "expired text"
+                && retainedScratchpads.pads[0].deletedAt != nil
                 && retainedScratchpads.pads[1].text == "recent text",
-               "retention clears only scratchpads whose own text expired")
+               "retention trashes only temporary notes and preserves their contents")
         let scratchpadDocumentData = renamedPad?.encoded()
         let decodedScratchpads = ScratchpadDocument.decoded(scratchpadDocumentData,
                                                             defaultName: "Scratchpad")

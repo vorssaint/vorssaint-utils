@@ -48,14 +48,14 @@ enum ScratchpadStoreContractTests {
             suite.expect(store.save(original), "a new scratchpad saves edits after a successful read")
             let reopened = try store.load(defaultName: "Scratchpad", retention: .never, now: now)
             suite.expect(reopened == original, "scratchpad edits survive reopening")
-            let url = directory.appendingPathComponent("Scratchpad.json")
+            let url = directory.appendingPathComponent("Scratchpad-v2.json")
             let permissions = try manager.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber
             suite.expect(permissions?.intValue == 0o600, "scratchpad content remains owner-only")
         }
 
         for damaged in [Data(), Data("{broken".utf8), Data("{}".utf8)] {
             fixture { directory, defaults, store in
-                let url = directory.appendingPathComponent("Scratchpad.json")
+                let url = directory.appendingPathComponent("Scratchpad-v2.json")
                 let legacyURL = directory.appendingPathComponent("Scratchpad.txt")
                 try damaged.write(to: url)
                 try Data("Older notes".utf8).write(to: legacyURL)
@@ -77,7 +77,7 @@ enum ScratchpadStoreContractTests {
         }
 
         fixture { directory, defaults, store in
-            let url = directory.appendingPathComponent("Scratchpad.json")
+            let url = directory.appendingPathComponent("Scratchpad-v2.json")
             try originalData.write(to: url)
             _ = try store.load(defaultName: "Scratchpad", retention: .never, now: now)
             defaults.set(originalData, forKey: DefaultsKey.scratchpadDocument)
@@ -102,7 +102,7 @@ enum ScratchpadStoreContractTests {
                 suite.expect((try? store.load(defaultName: "Scratchpad", retention: .never, now: now)) == nil
                         && !store.save(empty), "an invalid preference blocks replacement and legacy migration")
                 suite.expect(defaults.object(forKey: DefaultsKey.scratchpadDocument) != nil
-                        && !manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad.json").path)
+                        && !manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad-v2.json").path)
                         && (try? String(contentsOf: legacyURL, encoding: .utf8)) == "Older notes",
                        "invalid preferences and older notes survive a failed load")
             }
@@ -111,11 +111,11 @@ enum ScratchpadStoreContractTests {
         fixture { directory, defaults, store in
             defaults.set(originalData, forKey: DefaultsKey.scratchpadDocument)
             let migrated = try store.load(defaultName: "Scratchpad", retention: .never, now: now)
-            let saved = try Data(contentsOf: directory.appendingPathComponent("Scratchpad.json"))
+            let saved = try Data(contentsOf: directory.appendingPathComponent("Scratchpad-v2.json"))
             suite.expect(migrated == original && ScratchpadDocument.decoded(saved, defaultName: "Scratchpad") == original,
                    "valid preferences migrate with all note content intact")
-            suite.expect(defaults.object(forKey: DefaultsKey.scratchpadDocument) == nil,
-                   "a migrated preference is removed after the replacement is verified")
+            suite.expect(defaults.data(forKey: DefaultsKey.scratchpadDocument) == originalData,
+                   "a migrated preference remains as a recovery copy")
         }
 
         for legacy in [false, true] {
@@ -130,7 +130,7 @@ enum ScratchpadStoreContractTests {
                 defer { try? manager.setAttributes([.immutable: false], ofItemAtPath: directory.path) }
                 let loaded = try store.load(defaultName: "Scratchpad", retention: .never, now: now)
                 suite.expect(store.lastSavedDocument == nil
-                        && !manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad.json").path),
+                        && !manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad-v2.json").path),
                        "a blocked migration never counts as a saved document")
                 suite.expect(legacy
                         ? (try? String(contentsOf: legacyURL, encoding: .utf8)) == "Older notes"
@@ -153,7 +153,7 @@ enum ScratchpadStoreContractTests {
                 try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: legacyURL.path)
                 suite.expect(try Data(contentsOf: legacyURL) == legacyData,
                        "failed legacy reads preserve the exact original bytes")
-                suite.expect(!manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad.json").path),
+                suite.expect(!manager.fileExists(atPath: directory.appendingPathComponent("Scratchpad-v2.json").path),
                        "failed legacy reads never create an empty replacement")
             }
         }
@@ -162,21 +162,21 @@ enum ScratchpadStoreContractTests {
             let legacyURL = directory.appendingPathComponent("Scratchpad.txt")
             try Data("Older notes".utf8).write(to: legacyURL)
             let migrated = try store.load(defaultName: "Scratchpad", retention: .never, now: now)
-            let saved = try Data(contentsOf: directory.appendingPathComponent("Scratchpad.json"))
+            let saved = try Data(contentsOf: directory.appendingPathComponent("Scratchpad-v2.json"))
             suite.expect(migrated.pads[0].text == "Older notes"
                     && ScratchpadDocument.decoded(saved, defaultName: "Scratchpad") == migrated
-                    && !manager.fileExists(atPath: legacyURL.path),
-                   "valid legacy text is removed only after its replacement is verified")
+                    && (try? String(contentsOf: legacyURL, encoding: .utf8)) == "Older notes",
+                   "valid legacy text remains as a recovery copy")
         }
 
         fixture { directory, _, store in
-            let url = directory.appendingPathComponent("Scratchpad.json")
+            let url = directory.appendingPathComponent("Scratchpad-v2.json")
             try originalData.write(to: url)
             let loaded = try store.load(defaultName: "Scratchpad", retention: .day, now: now)
             let saved = try Data(contentsOf: url)
-            suite.expect(loaded.pads[0].text.isEmpty
+            suite.expect(loaded.pads[0].text == original.pads[0].text
                     && ScratchpadDocument.decoded(saved, defaultName: "Scratchpad") == loaded,
-                   "retention still clears expired notes after a successful read")
+                   "ordinary notes are never expired by the legacy retention preference")
         }
 
         fixture { _, defaults, _ in
@@ -375,7 +375,8 @@ enum ScratchpadExportContract {
         try "Previous file".write(to: kept, atomically: true, encoding: .utf8)
         closing.exportText(suggestedName: "Notes.txt", from: island)
         let added = closing.document?.addingPad(defaultName: "Notes")
-        closing.document = added?.removing(Fixture.padID)
+        closing.document = added
+        closing.document?.pads.removeAll { $0.id == Fixture.padID }
         let failures = HUD.errors
         Panel.latest?.url = kept
         Panel.latest?.finish(.OK)
@@ -403,6 +404,7 @@ enum ScratchpadSaveContract {
     class Fixture {
         typealias QuickToolHUD = HUD
         var store = Store()
+        let ioQueue = DispatchQueue(label: "scratchpad-save-test")
         var pendingSave: DispatchWorkItem?
         var hasLoaded = true
         var saveFailed = false

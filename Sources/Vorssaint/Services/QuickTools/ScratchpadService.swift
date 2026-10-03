@@ -17,25 +17,31 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var isPinned = false
-    @Published private(set) var isPreviewing = false
     /// Not a preference: the row is a thing you reach for while writing, not a
     /// choice about the pad, so every opening starts without it and one click
     /// brings it back. Held here rather than in either view so both pads agree
     /// while the pad is up.
     @Published private(set) var marksExpanded = false
     @Published private(set) var pads: [ScratchpadPad] = []
+    @Published private(set) var allPads: [ScratchpadPad] = []
+    @Published private(set) var folders: [ScratchpadFolder] = []
+    @Published var collection: ScratchpadCollection = .inbox
+    @Published var search = ""
+    @Published var showsSidebar = false
+    @Published var isSourceMode = false
+    var editingPositions: [UUID: ScratchpadEditorPosition] = [:]
+    private let ioQueue = DispatchQueue(label: "com.vorssaint.scratchpad.storage", qos: .utility)
     @Published private(set) var selectedPadID: UUID?
     /// Both pads show this in place until a write succeeds again.
     @Published private(set) var saveFailed = false
-    /// Bumped when Command-W asks the view to close the selected tab
-    /// (so confirmation stays in SwiftUI).
+    /// Bumped when Command-W asks the floating workspace to close its tab.
     @Published private(set) var keyboardCloseSelectedPadSerial = 0
     @Published var text = "" {
         didSet {
             guard hasLoaded, !isReplacingText, var document else { return }
             document.updateSelectedText(text, modifiedAt: Date())
             self.document = document
-            pads = document.pads
+            publishNotes(document)
             scheduleSave()
         }
     }
@@ -79,6 +85,8 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         hide()
     }
 
+    var presentationWindow: NSWindow? { panel }
+
     var isVisible: Bool {
         panel?.isVisible == true
     }
@@ -111,7 +119,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             focusText(requiresKeyWindow: false)
             return
         }
-        isPreviewing = false
         marksExpanded = false
         isPinned = !closesOnClickOutside
         guard loadApplyingRetention() else {
@@ -161,7 +168,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         removeMonitors()
         panel?.orderOut(nil)
         isPinned = false
-        isPreviewing = false
         modalInteractionActive = false
     }
 
@@ -169,7 +175,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     @discardableResult
     private func loadApplyingRetention() -> Bool {
-        if hasLoaded, let document, document != store.lastSavedDocument {
+        if hasLoaded, let document, document != ioQueue.sync(execute: { store.lastSavedDocument }) {
             flushSave()
             return true
         }
@@ -178,8 +184,10 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         let retention = ScratchpadRetention.sanitized(
             defaults.string(forKey: DefaultsKey.scratchpadRetention))
         do {
-            let loaded = try store.load(defaultName: defaultName, retention: retention, now: Date())
-            apply(loaded)
+            let loaded = try ioQueue.sync { try store.load(defaultName: defaultName, retention: retention, now: Date()) }
+            saveFailed = ioQueue.sync { store.lastSavedDocument != loaded }
+            let reopened = loaded.openIDs.isEmpty ? (loaded.selecting(loaded.selectedID) ?? loaded) : loaded
+            apply(reopened)
             hasLoaded = true
             return true
         } catch {
@@ -190,7 +198,16 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     private func scheduleSave() {
         pendingSave?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.flushSave() }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.hasLoaded, let snapshot = self.document else { return }
+            self.ioQueue.async {
+                let succeeded = self.store.save(snapshot)
+                DispatchQueue.main.async {
+                    guard self.hasLoaded, self.document == snapshot else { return }
+                    self.saveFailed = !succeeded
+                }
+            }
+        }
         pendingSave = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8, execute: work)
     }
@@ -204,24 +221,50 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     /// A failed write keeps the edits in memory and retries on the next change.
     private func save(_ next: ScratchpadDocument) -> Bool {
-        saveFailed = !store.save(next)
+        saveFailed = !ioQueue.sync { store.save(next) }
         return !saveFailed
     }
 
     private func apply(_ document: ScratchpadDocument, focus: Bool = false) {
         self.document = document
-        pads = document.pads
+        publishNotes(document)
         selectedPadID = document.selectedID
         let selectedText = document.pads.first(where: { $0.id == document.selectedID })?.text ?? ""
         isReplacingText = true
         text = selectedText
         isReplacingText = false
-        if text.isEmpty { isPreviewing = false }
         if focus { focusText() }
     }
 
-    var canCreatePad: Bool { pads.count < ScratchpadDocument.maximumPadCount }
-    var canClosePad: Bool { pads.count > 1 }
+    private func publishNotes(_ document: ScratchpadDocument) {
+        allPads = document.pads
+        folders = document.folders
+        let byID = Dictionary(uniqueKeysWithValues: document.pads.map { ($0.id, $0) })
+        pads = document.openIDs.compactMap { byID[$0] }
+    }
+
+    var canCreatePad: Bool { hasLoaded }
+    var canClosePad: Bool { !pads.isEmpty }
+    var visibleNotes: [ScratchpadPad] { document?.notes(in: collection, query: search) ?? [] }
+    var selectedPad: ScratchpadPad? { allPads.first { $0.id == selectedPadID } }
+
+    func binding(for id: UUID) -> Binding<String> {
+        Binding(get: { [weak self] in self?.allPads.first { $0.id == id }?.text ?? "" },
+                set: { [weak self] in self?.updateText($0, for: id) })
+    }
+
+    private func updateText(_ value: String, for id: UUID) {
+        guard hasLoaded, var next = document else { return }
+        next.updateText(value, for: id, modifiedAt: Date())
+        document = next
+        publishNotes(next)
+        if id == selectedPadID {
+            isReplacingText = true
+            text = value
+            isReplacingText = false
+        }
+        scheduleSave()
+    }
     var selectedPadName: String {
         pads.first(where: { $0.id == selectedPadID })?.name
             ?? FeatureStrings.scratchpad(L10n.shared.language).pageTitle
@@ -233,7 +276,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func selectPad(_ id: UUID) {
-        guard id != selectedPadID, let document, let next = document.selecting(id), save(next) else { return }
+        guard let document, let next = document.selecting(id), save(next) else { return }
         apply(next, focus: true)
     }
 
@@ -242,10 +285,91 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         apply(next, focus: id == selectedPadID)
     }
 
+    func duplicatePad(_ id: UUID) {
+        guard let document, let next = document.duplicating(id, now: Date()), save(next) else { return }
+        apply(next, focus: true)
+        showsSidebar = false
+    }
+
+    private func changeDocument(_ edit: (inout ScratchpadDocument) -> Void) {
+        guard var next = document else { return }
+        edit(&next)
+        guard save(next) else { return }
+        apply(next)
+    }
+
+    func movePad(_ id: UUID, to folderID: UUID?) {
+        changeDocument { next in
+            guard folderID == nil || next.folders.contains(where: { $0.id == folderID }),
+                  let index = next.pads.firstIndex(where: { $0.id == id }) else { return }
+            next.pads[index].folderID = folderID
+            next.pads[index].isTemporary = false
+        }
+    }
+
+    func createPadInCollection() {
+        guard let document, var next = document.addingPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle) else { return }
+        if case .folder(let folder) = collection { next.pads[next.pads.count - 1].folderID = folder }
+        guard save(next) else { return }
+        apply(next, focus: true)
+    }
+
+    func addFolder(named proposedName: String) {
+        let name = ScratchpadSupport.sanitizedPadName(proposedName)
+        guard !name.isEmpty else { return }
+        let id = UUID()
+        changeDocument { $0.folders.append(.init(id: id, name: name)) }
+        if folders.contains(where: { $0.id == id }) { collection = .folder(id) }
+    }
+
+    func renameFolder(_ id: UUID, to proposedName: String) {
+        let name = ScratchpadSupport.sanitizedPadName(proposedName)
+        guard !name.isEmpty else { return }
+        changeDocument { next in
+            if let index = next.folders.firstIndex(where: { $0.id == id }) { next.folders[index].name = name }
+        }
+    }
+
+    func deleteFolder(_ id: UUID) {
+        changeDocument { $0.deleteFolder(id) }
+        if !folders.contains(where: { $0.id == id }), collection == .folder(id) { collection = .inbox }
+    }
+
+    func toggleNotePin(_ id: UUID) {
+        changeDocument { next in
+            if let index = next.pads.firstIndex(where: { $0.id == id }) { next.pads[index].isPinned.toggle() }
+        }
+    }
+
+    func toggleTemporary(_ id: UUID) {
+        changeDocument { next in
+            if let index = next.pads.firstIndex(where: { $0.id == id }) { next.pads[index].isTemporary.toggle() }
+        }
+    }
+
+    func deletePad(_ id: UUID) {
+        changeDocument { $0.trash(id, now: Date(), defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle) }
+    }
+
+    func restorePad(_ id: UUID) { changeDocument { $0.restore(id) } }
+
+    /// The caller confirms permanent deletion. Live notes can never be purged.
+    func purgeTrash(_ id: UUID? = nil) {
+        changeDocument { $0.pads.removeAll { $0.deletedAt != nil && (id == nil || $0.id == id) } }
+    }
+
+    func reorderTab(_ id: UUID, before destination: UUID) {
+        changeDocument { $0.reorderTab(id, before: destination) }
+    }
+
     @discardableResult
     func closePad(_ id: UUID) -> Bool {
         guard let document, let next = document.removing(id), save(next) else { return false }
         apply(next, focus: true)
+        if next.openIDs.isEmpty {
+            hide()
+            if NotchService.shared.selected == .scratchpad { NotchService.shared.collapse() }
+        }
         return true
     }
 
@@ -259,14 +383,15 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         if hasLoaded { flushSave() } else { loadApplyingRetention() }
     }
 
-    /// Import intentionally replaces settings. Drop the in-memory document so
-    /// the termination flush cannot overwrite the restored backup on the way out.
+    /// Settings imports never replace notes. Flush edits before releasing the cache.
     func prepareForSettingsRestore() {
+        flushSave()
+        guard !saveFailed else { return }
         pendingSave?.cancel()
         pendingSave = nil
         hasLoaded = false
         document = nil
-        store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL, defaults: .standard)
+        ioQueue.sync { store = ScratchpadStore(directoryURL: PrivateFileStore.containerURL, defaults: .standard) }
     }
 
     // MARK: - Actions
@@ -296,10 +421,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         } else {
             text = ""
         }
-        if isPreviewing {
-            isPreviewing = false
-            focusText()
-        }
         flushSave()
     }
 
@@ -307,7 +428,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     /// text view so one Cmd+Z takes the whole mark back. The island passes its
     /// own editor for the same undo there.
     func apply(_ mark: ScratchpadMark, through editor: NSTextView? = nil) {
-        guard !isPreviewing else { return }
         guard let textView = editor ?? textView.flatMap({ $0.window === panel ? $0 : nil }) else { return }
         // A live input-method composition holds a marked range into the
         // storage; editing around it leaves that range pointing at nothing.
@@ -331,17 +451,13 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         marksExpanded.toggle()
     }
 
-    func togglePreview() {
-        guard !text.isEmpty else { return }
-        isPreviewing.toggle()
-        if isPreviewing { marksExpanded = false }
-        if isPreviewing {
-            if let textView = textView, textView.window === panel { hideFindBar(in: textView) }
-            panel?.makeFirstResponder(nil)
-        } else {
-            focusText()
-        }
+    func applyChecklist(_ action: ScratchpadMarkdown.ChecklistAction, through editor: NSTextView?) {
+        guard let editor, let coordinator = editor.delegate as? ScratchpadEditor.Coordinator,
+              coordinator.applyChecklist(action) else { return }
+        flushSave()
     }
+
+    func toggleSource() { isSourceMode.toggle() }
 
     func togglePin() {
         guard isVisible else { return }
@@ -362,7 +478,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         modalInteractionActive = true
         flushSave()
         let savePanel = NSSavePanel()
-        savePanel.allowedContentTypes = [.plainText]
+        savePanel.allowedContentTypes = [.plainText, UTType(filenameExtension: "md") ?? .plainText]
         savePanel.canCreateDirectories = true
         savePanel.isExtensionHidden = false
         savePanel.nameFieldStringValue = suggestedName
@@ -423,9 +539,6 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
             guard let self, let panel = self.panel, panel.isVisible, panel.isKeyWindow,
                   let textView = self.textView else { return }
             panel.makeFirstResponder(textView)
-            let end = NSRange(location: (textView.string as NSString).length, length: 0)
-            textView.setSelectedRange(end)
-            textView.scrollRangeToVisible(end)
         }
     }
 
@@ -439,7 +552,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = KeyableScratchpadPanel(contentRect: NSRect(x: 0, y: 0, width: 380, height: 300),
+        let panel = KeyableScratchpadPanel(contentRect: NSRect(x: 0, y: 0, width: 430, height: 400),
                                            styleMask: [.borderless, .nonactivatingPanel, .resizable],
                                            backing: .buffered,
                                            defer: false)
@@ -464,7 +577,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         panel.contentViewController = host
         // Assigning the content controller shrinks the window to the view's
         // minimum; restore the pad's starting size.
-        panel.setContentSize(NSSize(width: 380, height: 300))
+        panel.setContentSize(NSSize(width: 430, height: 400))
         center(panel)
         self.panel = panel
         return panel
@@ -507,49 +620,192 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
     private func performFocusedTabShortcut(_ action: ScratchpadFocusedShortcut.Action) {
         switch action {
         case .createPad:
-            createPad(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
+            createPadInCollection()
         case .closeSelectedPad:
             keyboardCloseSelectedPadSerial += 1
         case .hidePad:
             hide()
         case .find:
-            performFind(.showFindInterface)
+            requestFind(.showFindInterface)
         case .findNext:
-            performFind(.nextMatch)
+            requestFind(.nextMatch)
         case .findPrevious:
-            performFind(.previousMatch)
+            requestFind(.previousMatch)
+        case .switchNotes:
+            showNoteSwitcher()
         }
+    }
+
+    private func requestFind(_ action: NSTextFinder.Action) {
+        NotificationCenter.default.post(name: .scratchpadFind, object: nil, userInfo: ["action": action])
     }
 
     /// The text view runs the find itself; it only has to be told which of the
     /// finder's actions was asked for, and that arrives as a sender's tag.
     func performFind(_ action: NSTextFinder.Action, in editor: NSTextView? = nil) {
         guard let textView = editor ?? textView.flatMap({ $0.window === panel ? $0 : nil }) else { return }
-        // Both hosts keep the editor at zero opacity while previewing. Finding
-        // there would open a bar or select a match nobody can see, over a
-        // source nobody is reading, so the pad comes back to the text first.
-        let leftPreview = isPreviewing
-        if isPreviewing {
-            isPreviewing = false
-        }
         let sender = NSMenuItem()
         sender.tag = action.rawValue
-        // Stepping through matches leaves the keyboard where it is, so
-        // Command-G from the search field keeps typing in the field. Preview
-        // took the keyboard from the text, so a step out of it gives it back.
-        if action == .showFindInterface || leftPreview {
+        // Command-G keeps focus in the native find field.
+        if action == .showFindInterface {
             textView.window?.makeFirstResponder(textView)
         }
         textView.performTextFinderAction(sender)
     }
 
-    /// Both hosts draw the editor at zero opacity in preview, and its find bar
-    /// with it, so the bar closes rather than keep a search nobody can see.
+    /// Dismiss the native find interface without changing document contents.
     func hideFindBar(in editor: NSTextView) {
         guard editor.enclosingScrollView?.isFindBarVisible == true else { return }
         let sender = NSMenuItem()
         sender.tag = NSTextFinder.Action.hideFindInterface.rawValue
         editor.performTextFinderAction(sender)
+    }
+
+    /// Independent dialogs preserve the borderless island's size and chrome.
+    func ask(title: String, message: String = "", initialName: String? = nil,
+             destructive: Bool = false, from window: NSWindow?, completion: @escaping (String?) -> Void) {
+        guard !modalInteractionActive else { return }
+        modalInteractionActive = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let labels = FeatureStrings.scratchpad(L10n.shared.language)
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            let field = initialName.map { NSTextField(string: $0) }
+            if let field {
+                field.frame = NSRect(x: 0, y: 0, width: 260, height: 24)
+                alert.accessoryView = field
+                alert.window.initialFirstResponder = field
+            }
+            alert.addButton(withTitle: destructive ? title : labels.saveName).hasDestructiveAction = destructive
+            alert.addButton(withTitle: labels.cancel)
+            let level = NSWindow.Level(rawValue: (window?.level.rawValue ?? 0) + 1)
+            let observer = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: alert.window, queue: .main) { _ in alert.window.level = level }
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async { alert.window.level = level }
+            let accepted = alert.runModal() == .alertFirstButtonReturn
+            NotificationCenter.default.removeObserver(observer)
+            self.modalInteractionActive = false
+            if accepted { completion(field?.stringValue ?? "") }
+            if window?.isVisible == true { window?.makeKey() }
+        }
+    }
+
+    private func filePanel(_ panel: NSSavePanel, from window: NSWindow?, complete: @escaping (URL?) -> Void) {
+        guard !modalInteractionActive, let window, window.isVisible else { return }
+        modalInteractionActive = true
+        panel.canCreateDirectories = true
+        panel.level = NSWindow.Level(rawValue: window.level.rawValue + 1)
+        panel.hidesOnDeactivate = false
+        panel.begin { [weak self] response in
+            self?.modalInteractionActive = false
+            complete(response == .OK ? panel.url : nil)
+            if window.isVisible { window.makeKey() }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    private func reportFileFailure() {
+        QuickToolHUD.show(icon: "exclamationmark.triangle", message: ScratchpadLibraryStrings(language: L10n.shared.language)[.failed])
+    }
+
+    func importNotes(from window: NSWindow?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.plainText, UTType(filenameExtension: "md") ?? .plainText]
+        panel.allowsMultipleSelection = true
+        filePanel(panel, from: window) { [weak self] url in
+            guard url != nil, let self, let document = self.document else { return }
+            do {
+                // Decode every input before committing any of them.
+                var next = document
+                for url in panel.urls {
+                    let accessing = url.startAccessingSecurityScopedResource()
+                    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+                    let content = try String(contentsOf: url, encoding: .utf8)
+                    let id = UUID()
+                    let folder: UUID?
+                    if case .folder(let value) = self.collection { folder = value } else { folder = nil }
+                    next.pads.append(.init(id: id, name: ScratchpadSupport.sanitizedPadName(url.deletingPathExtension().lastPathComponent),
+                                           text: content, modifiedAt: Date(), folderID: folder))
+                    next.openIDs.append(id)
+                    next.selectedID = id
+                }
+                guard self.save(next) else { return }
+                self.apply(next, focus: true)
+            } catch { self.reportFileFailure() }
+        }
+    }
+
+    func backupNotes(from window: NSWindow?) {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "Scratchpad Backup.json"
+        filePanel(panel, from: window) { [weak self] url in
+            guard let self, let url, let data = self.document?.encoded() else { return }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            guard PrivateFileStore.write(data, to: url) else { self.reportFileFailure(); return }
+        }
+    }
+
+    func restoreBackup(from window: NSWindow?) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        filePanel(panel, from: window) { [weak self] url in
+            guard let self, let url else { return }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            do {
+                let restored = try JSONDecoder().decode(ScratchpadDocument.self, from: Data(contentsOf: url))
+                    .sanitized(defaultName: FeatureStrings.scratchpad(L10n.shared.language).pageTitle)
+                let labels = ScratchpadLibraryStrings(language: L10n.shared.language)
+                self.ask(title: labels[.restoreBackup], message: labels[.replaceMessage], destructive: true, from: window) { [weak self] _ in
+                    guard let self, let existing = self.document,
+                          let directory = PrivateFileStore.containerURL, let data = existing.encoded() else { return }
+                    let recovery = directory.appendingPathComponent("Scratchpad-recovery-\(UUID().uuidString).json")
+                    guard PrivateFileStore.write(data, to: recovery), (try? Data(contentsOf: recovery)) == data else {
+                        self.reportFileFailure(); return
+                    }
+                    self.pendingSave?.cancel()
+                    self.pendingSave = nil
+                    guard self.save(restored) else { return }
+                    self.editingPositions = [:]
+                    self.apply(restored, focus: true)
+                    self.collection = .all
+                }
+            } catch { self.reportFileFailure() }
+        }
+    }
+
+    func exportFolder(from window: NSWindow?) {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        filePanel(panel, from: window) { [weak self] url in
+            guard let self, let url else { return }
+            let accessing = url.startAccessingSecurityScopedResource()
+            defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+            let notes = self.document?.notes(in: self.collection) ?? []
+            let destination = url.appendingPathComponent("Scratchpad-\(UUID().uuidString)", isDirectory: true)
+            do {
+                guard PrivateFileStore.createDirectory(at: destination, container: destination) else { throw CocoaError(.fileWriteUnknown) }
+                for note in notes {
+                    let forbidden = CharacterSet(charactersIn: "/:\\").union(.controlCharacters)
+                    let name = note.name.components(separatedBy: forbidden).joined(separator: "-")
+                    let file = destination.appendingPathComponent("\(name)-\(note.id.uuidString).md")
+                    guard PrivateFileStore.write(Data(note.text.utf8), to: file) else { throw CocoaError(.fileWriteUnknown) }
+                }
+            } catch { self.reportFileFailure() }
+        }
+    }
+
+    func showNoteSwitcher() {
+        collection = .all
+        showsSidebar = true
+        search = ""
+        NotificationCenter.default.post(name: .scratchpadFocusSearch, object: nil)
     }
 
     private func installMonitors(for panel: NSPanel) {
@@ -581,7 +837,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
                 self.performFocusedTabShortcut(action)
                 return nil
             }
-            // At the tab limit Command-T still belongs to the pad, not the text.
+            // Command-T still belongs to the pad if its document failed to load.
             if commandOnly, !shift, event.charactersIgnoringModifiers?.lowercased() == "t" {
                 return nil
             }

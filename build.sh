@@ -326,6 +326,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
+        Sources/Vorssaint/Core/ScratchpadLibraryStrings.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
@@ -346,6 +347,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/FanControl/FanControlResumeSupport.swift
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift
+        Sources/Vorssaint/UI/Scratchpad/ScratchpadEditor.swift
+        Sources/Vorssaint/Services/QuickTools/ScratchpadMarkdown.swift
+        Sources/Vorssaint/Services/QuickTools/ScratchpadDocument.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift
