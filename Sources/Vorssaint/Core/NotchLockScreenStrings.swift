@@ -17,6 +17,13 @@ struct NotchLockScreenStrings {
 extension FeatureStrings {
     static func notchLockScreen(_ language: AppLanguage) -> NotchLockScreenStrings {
         switch language {
+        case .el: return NotchLockScreenStrings(
+            title: "Οθόνη κλειδώματος",
+            show: "Εμφάνιση στην Οθόνη κλειδώματος",
+            showHint: "Η μουσική και οι δραστηριότητες του Dynamic Island, όπως χρονόμετρα, πράκτορες AI, λήψεις και το επόμενο γεγονός σας, εμφανίζονται πάνω από το πεδίο συνθηματικού. Οποιοσδήποτε βλέπει την οθόνη σας μπορεί να τα διαβάσει.",
+            sounds: "Ήχοι κλειδώματος και ξεκλειδώματος",
+            soundsHint: "Αναπαράγει τον ήχο λουκέτου του macOS όταν το Mac κλειδώνει και ξεκλειδώνει.",
+            working: "Σε εξέλιξη")
         case .enUS: return NotchLockScreenStrings(
             title: "Lock Screen",
             show: "Show on the Lock Screen",

@@ -6,6 +6,7 @@ struct GraphScaleStrings {
 
     static func localized(_ language: AppLanguage) -> GraphScaleStrings {
         switch language {
+        case .el: return .init(title: "Εμφάνιση κλίμακας γραφημάτων")
         case .enUS: return .init(title: "Show graph scale")
         case .ptBR: return .init(title: "Mostrar escala dos gráficos")
         case .tr: return .init(title: "Grafik ölçeğini göster")

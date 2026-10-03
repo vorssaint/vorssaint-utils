@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func mouseExceptions(_ language: AppLanguage) -> MouseExceptionStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -54,6 +55,21 @@ extension FeatureStrings {
 }
 
 extension MouseExceptionStrings {
+    static let el = MouseExceptionStrings(
+        listTitle: "Εφαρμογές προς εξαίρεση",
+        addButton: "Προσθήκη εφαρμογής…",
+        removeButton: "Αφαίρεση",
+        captionSmoothScroll: "Σε αυτές τις εφαρμογές ο τροχός διατηρεί τα κανονικά βήματά του, για εφαρμογές που τον χειρίζονται με δικό τους τρόπο, όπως εργαλεία 3D και σχεδίασης.",
+        captionLinearScroll: "Σε αυτές τις εφαρμογές ο τροχός διατηρεί τον ρυθμό που ορίζει το macOS, για παιχνίδια και εργαλεία 3D που μετρούν μόνα τους τα βήματά του.",
+        captionScrollDirection: "Σε αυτές τις εφαρμογές ο τροχός διατηρεί την κατεύθυνση κύλισης που ορίζει το macOS.",
+        captionNavigation: "Τα πλευρικά κουμπιά συνεχίζουν να εκτελούν τις ενέργειες που ήδη τους αναθέτουν αυτές οι εφαρμογές.",
+        captionButtonShortcuts: "Τα πρόσθετα κουμπιά του ποντικιού δεν εκτελούν τις συντομεύσεις του Vorssaint σε αυτές τις εφαρμογές και το πάτημα περνά στην εφαρμογή.",
+        captionMiddleClick: "Το κλικ με τρία δάχτυλα παραμένει κανονικό κλικ σε αυτές τις εφαρμογές.",
+        captionFocusFollowsMouse: "Η κατάδειξη δεν αλλάζει την εστίαση ούτε φέρνει παράθυρα στο προσκήνιο σε αυτές τις εφαρμογές.",
+        captionSuperKey: "Όσο οποιαδήποτε από αυτές τις εφαρμογές είναι ανοιχτή, ακόμη και στο παρασκήνιο, το Super Key τίθεται σε παύση και το επιλεγμένο πλήκτρο λειτουργεί κανονικά.",
+        pausedSuperKey: "Σε παύση όσο είναι ανοιχτή μια επιλεγμένη εφαρμογή"
+    )
+
     static let enUS = MouseExceptionStrings(
         listTitle: "Apps to leave alone",
         addButton: "Add an app…",

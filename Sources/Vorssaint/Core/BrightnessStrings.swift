@@ -49,6 +49,7 @@ extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -68,6 +69,45 @@ extension FeatureStrings {
 }
 
 extension BrightnessFeatureStrings {
+    static let el = BrightnessFeatureStrings(
+        pageTitle: "Οθόνες",
+        hubDescription: "Έλεγχος φωτεινότητας και λειτουργίας για κάθε οθόνη",
+        enable: "Έλεγχος οθονών",
+        enableCaption: "Έλεγχος φωτεινότητας και ενεργοποίησης ή απενεργοποίησης για την ενσωματωμένη οθόνη και τις εξωτερικές οθόνες, εδώ και στον πίνακα της γραμμής μενού.",
+        externalCaption: "Οι εξωτερικές οθόνες ρυθμίζονται μέσω του ίδιου πρωτοκόλλου που χρησιμοποιούν τα δικά τους κουμπιά. Όταν η σύνδεση δεν υποστηρίζει αυτό το πρωτόκολλο, όπως συμβαίνει με ορισμένους προσαρμογείς HDMI, το ρυθμιστικό μειώνει αντί γι’ αυτό τη φωτεινότητα της εικόνας, ώστε ο έλεγχος φωτεινότητας να εξακολουθεί να λειτουργεί.",
+        noDisplays: "Δεν βρέθηκε οθόνη.",
+        displayOff: "Απενεργοποιημένη",
+        turnOffDisplay: "Απενεργοποίηση οθόνης",
+        turnOnDisplay: "Ενεργοποίηση οθόνης",
+        lastDisplayCaption: "Τουλάχιστον μία οθόνη πρέπει να παραμένει ενεργοποιημένη.",
+        switchUnavailable: "Η εναλλαγή κατάστασης οθονών δεν είναι διαθέσιμη σε αυτό το Mac.",
+        switchFailed: "Δεν ήταν δυνατή η αλλαγή αυτής της οθόνης.",
+        openLidToEnable: "Ανοίξτε το καπάκι για να ενεργοποιήσετε την ενσωματωμένη οθόνη.",
+        keysToggle: "Τα πλήκτρα φωτεινότητας ακολουθούν τον δείκτη",
+        keysCaption: "Τα πλήκτρα φωτεινότητας του πληκτρολογίου ρυθμίζουν την οθόνη στην οποία βρίσκεται ο δείκτης.",
+        keyStep: "Βήματα πλήκτρων φωτεινότητας",
+        keyStepCaption: "Μικρότερα βήματα σε κάθε πάτημα των πλήκτρων φωτεινότητας και των συντομεύσεων φωτεινότητας οθόνης.",
+        keyStepStandard: "Τυπικά",
+        keyStepHalf: "Μισά βήματα",
+        keyStepQuarter: "Τέταρτα βήματα",
+        osdToggle: "Εμφάνιση φωτεινότητας κατά τη ρύθμιση",
+        osdCaption: "Εμφανίζει το ποσοστό φωτεινότητας όταν χρησιμοποιείτε τα πλήκτρα ή τα ρυθμιστικά φωτεινότητας.",
+        displayBrightnessShortcuts: "Χρήση συντομεύσεων φωτεινότητας οθόνης",
+        displayBrightnessShortcutCaption: "Οι συντομεύσεις ρυθμίζουν την κύρια οθόνη ή την οθόνη κάτω από τον δείκτη όταν είναι ενεργή η παρακολούθηση δείκτη.",
+        displayBrightnessDecrease: "Μείωση φωτεινότητας οθόνης",
+        displayBrightnessIncrease: "Αύξηση φωτεινότητας οθόνης",
+        keyboardLight: "Φωτισμός πληκτρολογίου",
+        keyboardLightCaption: "Ενεργοποιεί ή απενεργοποιεί τον φωτισμό του πληκτρολογίου.",
+        keyboardBrightnessShortcuts: "Χρήση συντομεύσεων φωτεινότητας πληκτρολογίου",
+        keyboardBrightnessDecrease: "Μείωση φωτεινότητας πληκτρολογίου",
+        keyboardBrightnessIncrease: "Αύξηση φωτεινότητας πληκτρολογίου",
+        softwareDimming: "Μείωση φωτεινότητας εικόνας",
+        extendedDimming: "Πρόσθετη μείωση φωτεινότητας",
+        islandPromptTitle: "Εμφάνιση φωτεινότητας στο Dynamic Island;",
+        islandPromptMessage: "Το Dynamic Island εμφανίζει τις αλλαγές φωτεινότητας μόνο όταν είναι ενεργός ο «Έλεγχος οθονών» στις ρυθμίσεις Οθονών.",
+        islandPromptKeepOff: "Να παραμείνει απενεργοποιημένο"
+    )
+
     static let enUS = BrightnessFeatureStrings(
         pageTitle: "Displays",
         hubDescription: "Brightness and power controls for every display",

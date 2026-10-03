@@ -7,6 +7,7 @@ enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -27,6 +28,7 @@ enum FeatureStrings {
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -47,6 +49,7 @@ enum FeatureStrings {
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -67,6 +70,7 @@ enum FeatureStrings {
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -87,6 +91,7 @@ enum FeatureStrings {
     static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -121,6 +126,19 @@ struct MixerFeatureStrings {
     let moveRight: String
     let arrange: String
     let actions: String
+
+    static let el = MixerFeatureStrings(
+        hideInactiveApps: "Απόκρυψη ανενεργών εφαρμογών",
+        pin: "Καρφίτσωμα στην κορυφή",
+        unpin: "Ξεκαρφίτσωμα",
+        moveUp: "Μετακίνηση επάνω",
+        moveDown: "Μετακίνηση κάτω",
+        pinFirst: "Καρφίτσωμα στην αρχή",
+        moveLeft: "Μετακίνηση αριστερά",
+        moveRight: "Μετακίνηση δεξιά",
+        arrange: "Κρατήστε πατημένο το Command και σύρετε για αλλαγή σειράς",
+        actions: "Ενέργειες"
+    )
 
     static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
     static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
@@ -349,6 +367,15 @@ struct SettingsCategoryStrings {
     let app: String
     let appManagement: String
 
+    static let el = SettingsCategoryStrings(
+        essentials: "Βασικά",
+        windowsControls: "Παράθυρα και στοιχεία ελέγχου",
+        files: "Αρχεία",
+        utilities: "Βοηθήματα",
+        app: "Εφαρμογή",
+        appManagement: "Διαχείριση εφαρμογών"
+    )
+
     static let enUS = SettingsCategoryStrings(
         essentials: "Essentials",
         windowsControls: "Window controls",
@@ -526,6 +553,67 @@ struct ClipboardFeatureStrings {
     let menuBarPreviewCaption: String
     let menuBarPreviewLength: String
     let menuBarPreviewLengthSuffix: String
+
+    static let el = ClipboardFeatureStrings(
+        title: "Πρόχειρο",
+        enable: "Αποθήκευση ιστορικού Προχείρου",
+        caption: "Αποθηκεύει το κείμενο που αντιγράφετε, ώστε να μπορείτε να το χρησιμοποιήσετε ξανά αργότερα. Όλα παραμένουν τοπικά και μπορούν να διαγραφούν οποιαδήποτε στιγμή.",
+        localNote: "Όλα παραμένουν σε αυτό το Mac. Τα πολύ μεγάλα στοιχεία παραλείπονται.",
+        skipSensitive: "Παράλειψη κειμένου που φαίνεται ευαίσθητο",
+        skipSensitiveCaption: "Αποφεύγει την αποθήκευση σύντομων συμβολοσειρών χωρίς κενά που μοιάζουν με συνθηματικά, token ή κλειδιά.",
+        limit: "Όριο",
+        limitUnlimited: "Χωρίς όριο",
+        showInPanel: "Εμφάνιση στον πίνακα",
+        shortcut: "Συντόμευση ιστορικού",
+        shortcutCaption: "Ανοίγει ένα γρήγορο παράθυρο με αναζήτηση, καρφιτσωμένα στοιχεία και συντομεύσεις ⌘1 έως ⌘9 για επικόλληση στην προηγούμενη εφαρμογή.",
+        shortcutHint: "Κάντε κλικ σε μια γραμμή για επικόλληση στην προηγούμενη εφαρμογή. Με ⌘-κλικ επιλέγετε πολλά στοιχεία· το ⌘C αντιγράφει χωρίς επικόλληση.",
+        clickRowShortcut: "Κλικ σε γραμμή",
+        commandClickShortcut: "⌘ κλικ",
+        pinned: "Καρφιτσωμένα",
+        recent: "Πρόσφατα",
+        pin: "Καρφίτσωμα",
+        unpin: "Ξεκαρφίτσωμα",
+        clearRecent: "Εκκαθάριση πρόσφατων",
+        clearRecentKeywords: "Εκκαθάριση πρόσφατων",
+        empty: "Δεν υπάρχει αποθηκευμένο κείμενο",
+        disabled: "Ενεργοποιήστε το ιστορικό για να αρχίσει η αποθήκευση του κειμένου που αντιγράφετε.",
+        search: "Αναζήτηση αντιγραμμένου κειμένου",
+        copy: "Αντιγραφή",
+        copied: "Αντιγράφηκε",
+        delete: "Διαγραφή στοιχείου",
+        selectMultiple: "Προσθήκη στη στοίβα",
+        unselectMultiple: "Αφαίρεση από τη στοίβα",
+        selectShortcutAction: "Επιλογή",
+        pasteSelectedFormat: "Επικόλληση %d",
+        copySelectedFormat: "Αντιγραφή %d",
+        clearSelection: "Εκκαθάριση επιλογής",
+        moveUp: "Μετακίνηση επάνω",
+        moveDown: "Μετακίνηση κάτω",
+        noResults: "Δεν υπάρχουν αποτελέσματα",
+        newestFirst: "Νεότερα πρώτα",
+        active: "Αποθήκευση νέου κειμένου",
+        includeImagesFiles: "Αποθήκευση και αντιγραμμένων εικόνων και αρχείων",
+        includeImagesFilesCaption: "Οι εικόνες προστίθενται στο ιστορικό και τα αρχεία αποθηκεύονται ως σύνδεσμοι προς τη θέση τους. Μπορείτε να τα καρφιτσώσετε και να τα επικολλήσετε όπως τα στοιχεία κειμένου.",
+        imageEntryLabel: "Εικόνα",
+        fileCountFormat: "%d αρχεία",
+        pasteImageAsFile: "Επικόλληση αντιγραμμένων εικόνων ως αρχεία",
+        pasteImageAsFileCaption: "Όταν είναι ενεργό το Finder, το ⌘V αποθηκεύει μια αντιγραμμένη εικόνα ως PNG στον τρέχοντα φάκελο.",
+        previewLabel: "Προεπισκόπηση",
+        edit: "Επεξεργασία",
+        cancel: "Ακύρωση",
+        save: "Αποθήκευση",
+        autoClearEnable: "Αυτόματη εκκαθάριση του Προχείρου μετά από",
+        autoClearSecondsSuffix: "δευτερόλεπτα",
+        autoClearOnSleep: "Εκκαθάριση Προχείρου όταν το Mac μεταβαίνει σε κατάσταση ύπνου",
+        autoClearOnDisplaySleep: "Εκκαθάριση Προχείρου όταν απενεργοποιείται η οθόνη",
+        autoClearOnScreenLock: "Εκκαθάριση Προχείρου όταν κλειδώνει η οθόνη",
+        autoClearCaption: "Εκκαθαρίζει μόνο το Πρόχειρο του συστήματος. Τα στοιχεία που έχουν ήδη αποθηκευτεί παραμένουν στο ιστορικό.",
+        deleteSelectedFormat: "Διαγραφή %d",
+        menuBarPreview: "Εμφάνιση της τελευταίας αντιγραφής στη γραμμή μενού",
+        menuBarPreviewCaption: "Εμφανίζει μια συντομευμένη προεπισκόπηση του τελευταίου στοιχείου που αντιγράψατε δίπλα στο εικονίδιο. Κάντε κλικ για να ανοίξετε το ιστορικό.",
+        menuBarPreviewLength: "Μήκος προεπισκόπησης",
+        menuBarPreviewLengthSuffix: "χαρακτήρες"
+    )
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -1409,6 +1497,112 @@ struct WindowLayoutFeatureStrings {
     let gapMedium: String
     let gapLarge: String
     let gapExtraLarge: String
+
+    static let el = WindowLayoutFeatureStrings(
+        title: "Διάταξη παραθύρων",
+        caption: "Τακτοποιήστε τα παράθυρα σε περιοχές της οθόνης ή μετακινήστε και αλλάξτε το μέγεθός τους με την επιφάνεια αφής ή το ποντίκι.",
+        showInPanel: "Εμφάνιση στον πίνακα",
+
+        gestureSection: "Μεταφορά παραθύρων",
+        gestureEnable: "Μετακίνηση και αλλαγή μεγέθους με μεταφορά",
+        gestureCaption: "Στην επιφάνεια αφής ή στο ποντίκι, κρατήστε πατημένα τα εμφανιζόμενα πλήκτρα τροποποίησης και σύρετε από οποιοδήποτε σημείο μέσα σε ένα παράθυρο.",
+        gestureModifiers: "Πλήκτρα μετακίνησης",
+        gestureMove: "Σύρετε για μετακίνηση",
+        gestureResize: "Προσθέστε Shift και σύρετε για αλλαγή μεγέθους",
+        gestureResizeHint: "Το σημείο έναρξης επιλέγει το πλησιέστερο άκρο ή γωνία. Με ποντίκι, η μεταφορά με το δεξί κουμπί αλλάζει επίσης το μέγεθος.",
+        gestureRaiseWindow: "Μεταφορά του παραθύρου στο προσκήνιο",
+
+        shortcuts: "Συντομεύσεις",
+        shortcutsCaption: "Χρησιμοποιήστε καθολικές συντομεύσεις για να τακτοποιήσετε το ενεργό παράθυρο χωρίς να ανοίξετε τον πίνακα.",
+        permissionCaption: "Χρησιμοποιεί την Προσβασιμότητα μόνο για τη μετακίνηση και την αλλαγή μεγέθους παραθύρων.",
+        noWindow: "Δεν βρέθηκε ενεργό παράθυρο.",
+        missingPermission: "Επιτρέψτε την Προσβασιμότητα για μετακίνηση παραθύρων.",
+        failed: "Δεν ήταν δυνατή η μετακίνηση αυτού του παραθύρου.",
+        done: "Το παράθυρο τακτοποιήθηκε.",
+        restored: "Το παράθυρο επαναφέρθηκε.",
+        noRestore: "Δεν υπάρχει προηγούμενη διάταξη για επαναφορά.",
+        target: "Ενεργό παράθυρο",
+
+        halves: "Μισά",
+        thirds: "Τρίτα",
+        quarterRows: "Τέταρτα σε σειρές",
+        quarterColumns: "Τέταρτα σε στήλες",
+        sixths: "Έκτα",
+        corners: "Γωνίες",
+        other: "Ενέργειες",
+
+        leftHalf: "Αριστερά",
+        rightHalf: "Δεξιά",
+        topHalf: "Επάνω",
+        bottomHalf: "Κάτω",
+        centerHalf: "Κεντρικό μισό",
+
+        leftThird: "Αριστερό 1/3",
+        centerThird: "Κεντρικό 1/3",
+        rightThird: "Δεξί 1/3",
+        leftTwoThirds: "Αριστερά 2/3",
+        rightTwoThirds: "Δεξιά 2/3",
+        centerTwoThirds: "Κεντρικά 2/3",
+
+        topThird: "Επάνω 1/3",
+        middleThird: "Μεσαίο 1/3",
+        bottomThird: "Κάτω 1/3",
+        topTwoThirds: "Επάνω 2/3",
+        bottomTwoThirds: "Κάτω 2/3",
+
+        topQuarter: "Επάνω 1/4",
+        upperMiddleQuarter: "Επάνω μεσαίο 1/4",
+        lowerMiddleQuarter: "Κάτω μεσαίο 1/4",
+        bottomQuarter: "Κάτω 1/4",
+
+        leftQuarter: "Αριστερό 1/4",
+        leftMiddleQuarter: "Αριστερό μεσαίο 1/4",
+        rightMiddleQuarter: "Δεξί μεσαίο 1/4",
+        rightQuarter: "Δεξί 1/4",
+
+        topLeftSixth: "Επάνω αριστερά 1/6",
+        topCenterSixth: "Επάνω κέντρο 1/6",
+        topRightSixth: "Επάνω δεξιά 1/6",
+        bottomLeftSixth: "Κάτω αριστερά 1/6",
+        bottomCenterSixth: "Κάτω κέντρο 1/6",
+        bottomRightSixth: "Κάτω δεξιά 1/6",
+
+        topLeft: "Επάνω αριστερά",
+        topRight: "Επάνω δεξιά",
+        bottomLeft: "Κάτω αριστερά",
+        bottomRight: "Κάτω δεξιά",
+
+        maximize: "Μεγιστοποίηση",
+        center: "Στο κέντρο",
+        nextDisplay: "Επόμενη οθόνη",
+        restore: "Επαναφορά",
+        fullScreen: "Πλήρης οθόνη",
+        previousDisplay: "Προηγούμενη οθόνη",
+
+        edgeSnapEnable: "Παράθεση παραθύρων στα άκρα της οθόνης",
+        edgeSnapCaption: "Ενεργοποιήστε το, επιλέξτε παρακάτω τις επισημασμένες περιοχές και μετά σύρετε τη γραμμή τίτλου ενός παραθύρου σε μία από αυτές και αφήστε την.",
+        edgeSnapSystemConflict: "Το macOS χρησιμοποιεί τα ίδια άκρα. Απενεργοποιήστε την παράθεση παραθύρων στο «Γραφείο εργασίας και Dock», ώστε να μπορεί να τα χρησιμοποιήσει το Vorssaint.",
+        edgeSnapOpenSystemSettings: "Άνοιγμα Γραφείου εργασίας και Dock",
+        edgeSnapWaitingForSystem: "Ενεργοποιήθηκε στο Vorssaint. Θα αρχίσει να λειτουργεί μόλις απενεργοποιηθεί η παράθεση παραθύρων του macOS.",
+
+        marginMaximize: "Μεγιστοποίηση με περιθώριο",
+        marginPerEdge: "Περιθώριο ανά πλευρά",
+
+        gapsSection: "Διάκενα",
+        gapsCaption: "Χώρος μεταξύ των παραθύρων σε παράθεση και μεταξύ των παραθύρων και των άκρων της οθόνης.",
+        windowGap: "Διάκενο παραθύρων",
+        screenGap: "Διάκενο από την οθόνη",
+
+        sideRepeatCycle: "Επανάληψη Αριστερά ή Δεξιά για εναλλαγή μεγεθών",
+        sideRepeatCycleCaption: "Μισό, έπειτα δύο τρίτα και μετά ένα τρίτο στην ίδια οθόνη. Όταν είναι απενεργοποιημένο και υπάρχουν περισσότερες από μία οθόνες, η επανάληψη μετακινεί το παράθυρο στην επόμενη οθόνη προς εκείνη την πλευρά.",
+
+        gapNone: "Κανένα",
+        gapTiny: "Ελάχιστο",
+        gapSmall: "Μικρό",
+        gapMedium: "Μεσαίο",
+        gapLarge: "Μεγάλο",
+        gapExtraLarge: "Πολύ μεγάλο"
+    )
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -2614,6 +2808,50 @@ struct MonitorAlertFeatureStrings {
     let batteryTemperatureThreshold: String
     let batteryTemperatureTitle: String
     let batteryTemperatureBodyFormat: String
+
+    static let el = MonitorAlertFeatureStrings(
+        section: "Προειδοποιήσεις",
+        caption: "Οι προειδοποιήσεις εμφανίζονται όταν επιτευχθούν τα επιλεγμένα όρια. Οι προειδοποιήσεις χρήσης και θερμοκρασίας CPU αγνοούν αιχμές που διαρκούν λιγότερο από περίπου 12 δευτερόλεπτα. Η ρύθμιση επανάληψης περιορίζει μόνο τις επαναλήψεις της ίδιας προειδοποίησης.",
+        notificationsDenied: "Οι Γνωστοποιήσεις για το Vorssaint είναι απενεργοποιημένες στις Ρυθμίσεις συστήματος, επομένως οι προειδοποιήσεις δεν μπορούν να εμφανιστούν.",
+
+        cpu: "Υψηλή χρήση CPU",
+        cpuTemperature: "Υψηλή θερμοκρασία CPU",
+        memory: "Κρίσιμη πίεση μνήμης",
+        disk: "Χαμηλός ελεύθερος χώρος δίσκου",
+        battery: "Χαμηλή στάθμη μπαταρίας",
+
+        cpuThreshold: "Χρήση CPU πάνω από",
+        cpuTemperatureThreshold: "Θερμοκρασία πάνω από",
+        diskThreshold: "Ελεύθερος χώρος κάτω από",
+        batteryThreshold: "Μπαταρία κάτω από",
+
+        cooldown: "Επανάληψη της ίδιας προειδοποίησης μετά από",
+        cooldown2: "2 λεπτά",
+        cooldown5: "5 λεπτά",
+        cooldown15: "15 λεπτά",
+        cooldown30: "30 λεπτά",
+        cooldown60: "1 ώρα",
+
+        cpuTitle: "Υψηλή χρήση CPU",
+        cpuBodyFormat: "Η χρήση CPU παρέμεινε πάνω από %d%% για μερικά δευτερόλεπτα.",
+
+        cpuTemperatureTitle: "Υψηλή θερμοκρασία CPU",
+        cpuTemperatureBodyFormat: "Η θερμοκρασία της CPU έφτασε τους %@.",
+
+        memoryTitle: "Κρίσιμη πίεση μνήμης",
+        memoryBody: "Η πίεση μνήμης έφτασε στο κρίσιμο επίπεδο.",
+
+        diskTitle: "Χαμηλός ελεύθερος χώρος δίσκου",
+        diskBodyFormat: "Το %@ έχει λιγότερο από %d%% ελεύθερο χώρο.",
+
+        batteryTitle: "Χαμηλή στάθμη μπαταρίας",
+        batteryBodyFormat: "Η μπαταρία βρίσκεται στο %d%%.",
+
+        batteryTemperature: "Υψηλή θερμοκρασία μπαταρίας",
+        batteryTemperatureThreshold: "Θερμοκρασία πάνω από",
+        batteryTemperatureTitle: "Υψηλή θερμοκρασία μπαταρίας",
+        batteryTemperatureBodyFormat: "Η θερμοκρασία της μπαταρίας έφτασε τους %@."
+    )
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",

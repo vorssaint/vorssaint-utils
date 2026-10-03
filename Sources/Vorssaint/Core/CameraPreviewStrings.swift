@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func cameraPreview(_ language: AppLanguage) -> CameraPreviewFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -39,6 +40,18 @@ extension FeatureStrings {
 }
 
 extension CameraPreviewFeatureStrings {
+    static let el = CameraPreviewFeatureStrings(
+        pageTitle: "Προεπισκόπηση κάμερας",
+        hubDescription: "Ανοίγει έναν αιωρούμενο καθρέφτη με την εικόνα της κάμεράς σας",
+        panelCaption: "Ελέγξτε πώς φαίνεστε πριν από μια κλήση",
+        openButton: "Άνοιγμα προεπισκόπησης",
+        cameraMenuLabel: "Κάμερα",
+        deniedMessage: "Η πρόσβαση στην κάμερα για το Vorssaint είναι απενεργοποιημένη στις Ρυθμίσεις συστήματος.",
+        noCameraMessage: "Δεν εντοπίστηκε κάμερα",
+        permName: "Κάμερα",
+        permExplain: "Εμφανίζει την εικόνα της κάμεράς σας μόνο στο παράθυρο προεπισκόπησης, ώστε να μπορείτε να ελέγξετε πώς φαίνεστε πριν από μια κλήση. Τίποτα δεν εγγράφεται και τίποτα δεν φεύγει από το Mac σας."
+    )
+
     static let enUS = CameraPreviewFeatureStrings(
         pageTitle: "Camera preview",
         hubDescription: "Opens a floating mirror with your camera",

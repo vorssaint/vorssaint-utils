@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func windowLayoutIgnoredApps(_ language: AppLanguage) -> WindowLayoutIgnoredAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -34,6 +35,13 @@ extension FeatureStrings {
 }
 
 extension WindowLayoutIgnoredAppsStrings {
+    static let el = WindowLayoutIgnoredAppsStrings(
+        sectionTitle: "Παράβλεψη εφαρμογών",
+        listTitle: "Παύση σε αυτές τις εφαρμογές",
+        addButton: "Προσθήκη εφαρμογής…",
+        removeButton: "Αφαίρεση",
+        caption: "Η Διάταξη παραθύρων δεν χρησιμοποιεί είσοδο από το ποντίκι ή το πληκτρολόγιο όταν μία από αυτές τις εφαρμογές είναι ενεργή."
+    )
     static let enUS = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignore apps", listTitle: "Pause in these apps", addButton: "Add an app…", removeButton: "Remove", caption: "Window Layout does not use mouse or keyboard input while one of these apps is focused.")
     static let ptBR = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignorar apps", listTitle: "Pausar nestes apps", addButton: "Adicionar app…", removeButton: "Remover", caption: "O Layout de janelas não usa entrada do mouse ou teclado enquanto um destes apps está em foco.")
     static let tr = WindowLayoutIgnoredAppsStrings(sectionTitle: "Yoksayılacak uygulamalar", listTitle: "Bu uygulamalarda duraklat", addButton: "Uygulama ekle…", removeButton: "Kaldır", caption: "Bu uygulamalardan biri odaktayken Pencere yerleşimi fare veya klavye girdisini kullanmaz.")

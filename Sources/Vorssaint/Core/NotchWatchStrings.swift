@@ -59,6 +59,36 @@ struct NotchWatchStrings {
 extension FeatureStrings {
     static func notchWatch(_ language: AppLanguage) -> NotchWatchStrings {
         switch language {
+        case .el: return NotchWatchStrings(
+            title: "Παρακολούθηση",
+            description: "Μετατρέψτε οποιοδήποτε τμήμα οποιουδήποτε παραθύρου σε ζωντανή δραστηριότητα στο Dynamic Island, με ειδοποίηση όταν αλλάξει, ολοκληρωθεί ή εμφανίσει αυτό που περιμένετε.",
+            setupHint: "Επιλέξτε οποιοδήποτε τμήμα ενός παραθύρου, όπως μια γραμμή προόδου, την κατάσταση μιας μεταγλώττισης ή ένα σκορ. Το Dynamic Island το διαβάζει για εσάς και σας ειδοποιεί όταν αλλάζει.",
+            choose: "Επιλογή περιοχής",
+            chooseAgain: "Επιλογή άλλης περιοχής",
+            purpose: "Επιλέξτε τι θα παρακολουθείται",
+            stop: "Διακοπή παρακολούθησης",
+            watchAgain: "Παρακολούθηση ξανά",
+            permissionHint: "Η Παρακολούθηση διαβάζει την περιοχή που επιλέγετε στο Mac σας, επομένως χρειάζεται άδεια Εγγραφής οθόνης και ήχου συστήματος. Τίποτα δεν φεύγει από το Mac σας.",
+            allowAccess: "Να επιτρέπεται η Εγγραφή οθόνης και ήχου συστήματος",
+            tellMe: "Ειδοποίηση",
+            changes: "Όταν αλλάξει",
+            settles: "Όταν σταματήσει να αλλάζει",
+            contains: "Όταν εμφανίσει",
+            reaches: "Όταν ο αριθμός φτάσει",
+            settlesHint: "Αφού αλλάξει, πρέπει να παραμείνει αμετάβλητο για 30 δευτερόλεπτα.",
+            textPlaceholder: "Κείμενο, π.χ. Ολοκληρώθηκε",
+            numberPlaceholder: "Αριθμός, π.χ. 100",
+            noText: "Χωρίς κείμενο",
+            inIsland: "Εμφάνιση στο Dynamic Island",
+            automatic: "Αυτόματα",
+            hidden: "Το παράθυρο είναι κρυμμένο. Η παρακολούθηση συνεχίζεται όταν επανεμφανιστεί.",
+            changedNotice: "Άλλαξε",
+            settledNotice: "Σταμάτησε να αλλάζει",
+            showsFormat: "Εμφανίζει %@",
+            reachedFormat: "Έφτασε στο %@",
+            closedNotice: "Το παράθυρο έκλεισε",
+            sinceFormat: "Παρακολούθηση από %@",
+            sound: "Αναπαραγωγή ήχου")
         case .enUS: return NotchWatchStrings(
             title: "Watch",
             description: "Turn any part of any window into a live activity in the Dynamic Island, with an alert when it changes, finishes or shows what you are waiting for.",

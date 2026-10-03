@@ -65,6 +65,7 @@ struct MediaImageConverterStrings {
     static func localized(_ language: AppLanguage) -> MediaImageConverterStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -84,6 +85,66 @@ struct MediaImageConverterStrings {
 }
 
 extension MediaImageConverterStrings {
+    static let el = MediaImageConverterStrings(
+        filesSelectedFormat: "%d αρχεία επιλεγμένα",
+        profile: "Προφίλ",
+        noProfile: "Χωρίς προφίλ",
+        profileName: "Όνομα προφίλ",
+        saveAsNew: "Αποθήκευση ως νέο",
+        updateProfile: "Ενημέρωση",
+        deleteProfile: "Διαγραφή προφίλ",
+        profileModified: "Τροποποιημένο",
+        profileDefaultNameFormat: "Προφίλ %d",
+        presetWeb: "Ιστός",
+        presetSocial: "Κοινωνικά δίκτυα",
+        presetDocs: "Έγγραφα",
+        resize: "Αλλαγή μεγέθους",
+        resizeNone: "Χωρίς αλλαγή",
+        resizeMax: "Μέγιστη πλευρά",
+        resizeWidth: "Πλάτος",
+        resizeHeight: "Ύψος",
+        resizeExact: "Προσαρμοσμένο",
+        exactStretch: "Παραμόρφωση",
+        exactFit: "Προσαρμογή",
+        exactFill: "Γέμισμα",
+        height: "Ύψος",
+        watermark: "Υδατογράφημα",
+        watermarkOff: "Απενεργοποιημένο",
+        watermarkText: "Κείμενο",
+        watermarkLogo: "Λογότυπο",
+        watermarkBoth: "Κείμενο + λογότυπο",
+        watermarkTextPlaceholder: "Κείμενο υδατογραφήματος",
+        noLogo: "Χωρίς λογότυπο",
+        chooseLogo: "Επιλογή λογότυπου",
+        position: "Θέση",
+        topLeft: "Επάνω αριστερά",
+        topRight: "Επάνω δεξιά",
+        center: "Κέντρο",
+        bottomLeft: "Κάτω αριστερά",
+        bottomRight: "Κάτω δεξιά",
+        opacity: "Αδιαφάνεια",
+        margin: "Περιθώριο",
+        scale: "Κλίμακα",
+        rename: "Μετονομασία",
+        preview: "Προεπισκόπηση",
+        outputName: "Έξοδος",
+        background: "Φόντο",
+        backgroundTransparent: "Διαφανές",
+        backgroundWhite: "Λευκό",
+        backgroundBlack: "Μαύρο",
+        preserveDate: "Διατήρηση αρχικής ημερομηνίας τροποποίησης",
+        saveInSubfolder: "Αποθήκευση στον υποφάκελο «Converted»",
+        moreOptions: "Περισσότερες επιλογές",
+        tooLarge: "Αυτές οι διαστάσεις είναι πολύ μεγάλες για ασφαλή επεξεργασία. Επιλέξτε μικρότερο μέγεθος.",
+        copySummary: "Αντιγραφή σύνοψης",
+        savedBytesFormat: "Εξοικονομήθηκαν %@",
+        grewBytesFormat: "%@ μεγαλύτερο",
+        batchSavedFormat: "Αποθηκεύτηκαν %d εικόνες",
+        batchPartialFormat: "Αποθηκεύτηκαν %d, απέτυχαν %d",
+        batchSummaryHeaderFormat: "Αποθηκεύτηκαν %d, απέτυχαν %d",
+        batchSummaryItemFormat: "%@ → %@"
+    )
+
     static let enUS = MediaImageConverterStrings(
         filesSelectedFormat: "%d files selected",
         profile: "Profile",

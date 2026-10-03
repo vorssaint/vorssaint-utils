@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func mouseClickDebounce(_ language: AppLanguage) -> MouseClickDebounceStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -34,6 +35,14 @@ extension FeatureStrings {
 }
 
 extension MouseClickDebounceStrings {
+    static let el = MouseClickDebounceStrings(
+        title: "Φίλτρο ακούσιων κλικ",
+        caption: "Αγνοεί τα πολύ γρήγορα επιπλέον κλικ που προκαλούνται από φθαρμένα κουμπιά ποντικιού, χωρίς να καθυστερεί τα κανονικά κλικ.",
+        moreOptions: "Περισσότερες επιλογές",
+        windowLabel: "Χρονικό διάστημα φίλτρου",
+        windowCaption: "Ένα επαναλαμβανόμενο κλικ μέσα σε αυτό το χρονικό διάστημα θεωρείται ακούσιο διπλό κλικ."
+    )
+
     static let enUS = MouseClickDebounceStrings(
         title: "Extra click filter",
         caption: "Ignores rapid extra clicks from worn mouse buttons without slowing normal clicks.",

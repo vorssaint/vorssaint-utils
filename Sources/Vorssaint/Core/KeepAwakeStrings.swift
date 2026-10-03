@@ -48,6 +48,7 @@ extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -68,6 +69,7 @@ extension FeatureStrings {
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -87,6 +89,11 @@ extension FeatureStrings {
 }
 
 extension KeepAwakeDisplaySleepStrings {
+    static let el = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Να επιτρέπεται η απενεργοποίηση της οθόνης",
+        allowDisplaySleepCaption: "Διατηρεί το Mac ενεργό ενώ η οθόνη ακολουθεί το κανονικό χρονικό όριο απενεργοποίησής της."
+    )
+
     static let enUS = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Allow the display to sleep",
         allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
@@ -163,6 +170,28 @@ extension KeepAwakeDisplaySleepStrings {
 }
 
 extension KeepAwakeAutomationStrings {
+    static let el = KeepAwakeAutomationStrings(
+        automationSection: "Αυτοματοποίηση",
+        automationCaption: "Ξεκινά όταν είναι ενεργή οποιαδήποτε επιλεγμένη συνθήκη.",
+        automationOff: "Απενεργοποιημένη",
+        externalDisplayToggle: "Εξωτερική οθόνη",
+        externalDisplayActive: "Ενεργό όσο είναι συνδεδεμένη μια εξωτερική οθόνη",
+        powerToggle: "Τροφοδοσία",
+        powerActive: "Ενεργό όσο το Mac είναι συνδεδεμένο στο ρεύμα",
+        runningAppsToggle: "Εφαρμογές",
+        runningAppsActive: "Ενεργό όσο εκτελείται μια επιλεγμένη εφαρμογή",
+        runningAppsListTitle: "Επιλεγμένες εφαρμογές",
+        runningAppsAddButton: "Προσθήκη εφαρμογής…",
+        runningAppsRemoveButton: "Αφαίρεση",
+        runningAppsListCaption: "Η Αποτροπή ύπνου ξεκινά όσο οποιαδήποτε από αυτές τις εφαρμογές είναι ανοιχτή, ακόμη και στο παρασκήνιο.",
+        automationActive: "Ενεργό επειδή πληρούται μια αυτόματη συνθήκη",
+        pauseWhenLockedToggle: "Παύση όταν το Mac είναι κλειδωμένο",
+        pauseWhenLockedCaption: "Ακολουθεί τους κανονικούς κανόνες ύπνου όσο το Mac είναι κλειδωμένο και συνεχίζει την υπόλοιπη συνεδρία μετά το ξεκλείδωμα.",
+        matchAny: "Οποιαδήποτε",
+        matchAll: "Όλες",
+        automationCaptionAll: "Ξεκινά μόνο όταν είναι ενεργές όλες οι επιλεγμένες συνθήκες."
+    )
+
     static let enUS = KeepAwakeAutomationStrings(
         automationSection: "Automation",
         automationCaption: "Starts when any selected condition is active.",

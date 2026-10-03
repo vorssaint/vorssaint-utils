@@ -135,6 +135,31 @@ struct NotchMascotStrings {
 extension FeatureStrings {
     static func notchMascot(_ language: AppLanguage) -> NotchMascotStrings {
         switch language {
+        case .el: return NotchMascotStrings(
+            title: "Σύντροφος",
+            hint: "Ένα μικρό φιλαράκι που ζει στο Dynamic Island. Ξεκουράζεται εκεί όταν δεν εμφανίζεται κάτι άλλο και εμφανίζεται πάνω από τη μουσική και τις δραστηριότητες για να σας χαιρετήσει και να αντιδράσει σε όσα συμβαίνουν.",
+            visits: "Εμφάνιση πού και πού",
+            visitsHint: "Κάθε λίγα λεπτά περνά από το Dynamic Island με μια σύντομη κίνηση.",
+            style: "Στυλ", minimal: "Μινιμαλιστικό", robot: "Ρομπότ",
+            shape: "Σχήμα", ball: "Μπάλα", egg: "Αυγό", squircle: "Στρογγυλεμένο τετράγωνο", pill: "Κάψουλα",
+            color: "Χρώμα", pearl: "Πέρλα", mint: "Μέντα", peach: "Ροδακινί", lilac: "Λιλά", lemon: "Λεμονί", rose: "Ροζ",
+            commandBar: "Γραμμή εντολών στο Dynamic Island",
+            commandBarHint: "Με τη συντόμευση, η Γραμμή εντολών εμφανίζεται από το Dynamic Island με τον σύντροφο ως πρόσωπό της. Αντιδρά όσο κάνετε αναζήτηση.",
+            opensAs: "Ανοίγει ως", droplet: "Σταγόνα", openIsland: "Ανοιχτό Dynamic Island",
+            preview: "Προεπισκόπηση συντρόφου", previewHint: "Κάντε κλικ για να δείτε πώς αντιδρά.",
+            side: "Πλευρά κάμερας", left: "Αριστερά", right: "Δεξιά",
+            frequency: "Συχνότητα", rare: "Σπάνια", normal: "Μερικές φορές", frequent: "Συχνά",
+            sky: "Ουρανί",
+            hubDescription: "Ένα μικρό φιλαράκι στο Dynamic Island που σας χαιρετά πού και πού και αντιδρά σε όσα συμβαίνουν στο Mac σας.",
+            appearance: "Εμφάνιση", behavior: "Συμπεριφορά",
+            reactions: "Αντίδραση σε όσα συμβαίνουν",
+            reactionsHint: "Εμφανίζεται για να αντιδρά στη μουσική, τα χρονόμετρα, τις λήψεις, τα στιγμιότυπα οθόνης, το μικρόφωνο, την Αποτροπή ύπνου και άλλα.",
+            sayHi: "Χαιρέτησε", sayHiHint: "Εμφανίζει τώρα μια επίσκεψη στο Dynamic Island.",
+            momentsTitle: "Δείτε πώς αντιδρά",
+            visitMoment: "Επίσκεψη", timerStarted: "Το χρονόμετρο ξεκίνησε", downloadFailed: "Η λήψη απέτυχε", unlocked: "Το Mac ξεκλειδώθηκε",
+            petTip: "Αφήστε τον δείκτη επάνω του για να τον χαϊδέψετε. Αν μείνει μόνος, αποκοιμιέται μέχρι να επιστρέψετε.",
+            livesInIsland: "Ο σύντροφος ζει στο Dynamic Island.",
+            keywords: "μασκότ κατοικίδιο φιλαράκι χαρακτήρας σύντροφος")
         case .enUS: return NotchMascotStrings(
             title: "Companion",
             hint: "A little friend who lives in the Dynamic Island. It rests there when nothing else is showing, and comes out over music and activities to say hello and react to what happens.",

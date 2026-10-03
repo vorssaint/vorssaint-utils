@@ -1,0 +1,28 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Το Vorssaint χρησιμοποιεί τον Αυτοματισμό για να μετακινεί αρχεία, να στέλνει στοιχεία στον Κάδο, να ανοίγει εντολές που ζητάτε και να ελέγχει την αναπαραγωγή στις εφαρμογές πολυμέσων σας.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Το Vorssaint χρησιμοποιεί τον ήχο κάθε εφαρμογής για να ρυθμίζει την έντασή της στον μίκτη, να κινεί τις μπάρες μουσικής του Dynamic Island και να συμπεριλαμβάνει τον ήχο του Mac στις εγγραφές οθόνης που ξεκινάτε. Τίποτα δεν φεύγει από το Mac σας.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Το Vorssaint χρησιμοποιεί το Bluetooth μόνο για να διαβάζει το επίπεδο μπαταρίας των συνδεδεμένων περιφερειακών συσκευών. Τίποτα δεν φεύγει από το Mac σας.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Το Vorssaint εγγράφει το μικρόφωνό σας μόνο όταν το ενεργοποιείτε για μια εγγραφή οθόνης. Ο ήχος παραμένει στο Mac σας, εκτός αν επιλέξετε να δημιουργήσετε έναν προσωρινό σύνδεσμο.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Το Vorssaint εμφανίζει την κάμερά σας μόνο στο παράθυρο προεπισκόπησης που ανοίγετε, ώστε να μπορείτε να ελέγξετε την εικόνα σας πριν από μια κλήση. Τίποτα δεν εγγράφεται και τίποτα δεν φεύγει από το Mac σας.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Το Vorssaint ελέγχει τοπικά μεταδεδομένα στις Λήψεις για να εξετάζει, να οργανώνει ή να μετακινεί στον Κάδο μόνο επιβεβαιωμένα αρχεία WhatsApp που επιλέγετε. Η Εκκαθάριση αναζητά επίσης ξεχασμένα στιγμιότυπα οθόνης όταν τα αποθηκεύετε εδώ.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Το Vorssaint οργανώνει επιβεβαιωμένες λήψεις WhatsApp σε έναν φάκελο προορισμού που επιλέγετε ρητά. Η Εκκαθάριση αναζητά επίσης ξεχασμένα στιγμιότυπα οθόνης όταν τα αποθηκεύετε εδώ.";
+
+"NSDocumentsFolderUsageDescription" = "Το Vorssaint οργανώνει επιβεβαιωμένες λήψεις WhatsApp σε έναν φάκελο προορισμού που επιλέγετε ρητά. Η Εκκαθάριση αναζητά επίσης ξεχασμένα στιγμιότυπα οθόνης όταν τα αποθηκεύετε εδώ.";
+
+"NSNetworkVolumesUsageDescription" = "Το Vorssaint οργανώνει επιβεβαιωμένες λήψεις WhatsApp σε έναν φάκελο προορισμού που επιλέγετε ρητά. Η Εκκαθάριση αναζητά επίσης ξεχασμένα στιγμιότυπα οθόνης όταν τα αποθηκεύετε εδώ.";
+
+"NSRemovableVolumesUsageDescription" = "Το Vorssaint οργανώνει επιβεβαιωμένες λήψεις WhatsApp σε έναν φάκελο προορισμού που επιλέγετε ρητά. Η Εκκαθάριση αναζητά επίσης ξεχασμένα στιγμιότυπα οθόνης όταν τα αποθηκεύετε εδώ.";
+
+"NSCalendarsFullAccessUsageDescription" = "Εμφανίζει τα επερχόμενα γεγονότα σας στην εγκοπή. Τα γεγονότα του Ημερολογίου παραμένουν σε αυτό το Mac.";

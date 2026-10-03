@@ -25,6 +25,23 @@ struct NotchFilesStrings {
 extension FeatureStrings {
     static func notchFiles(_ language: AppLanguage) -> NotchFilesStrings {
         switch language {
+        case .el: return NotchFilesStrings(
+            archive: "Δημιουργία ZIP",
+            archiveHint: "Κάθε επιλεγμένο στοιχείο αποθηκεύεται ως ξεχωριστό ZIP. Τα πρωτότυπα παραμένουν αμετάβλητα.",
+            saved: "Αποθηκεύτηκε",
+            downloadsTitle: "Λήψεις",
+            downloadsDescription: "Δείτε απευθείας στο Dynamic Island τα αρχεία που φτάνουν σε έναν φάκελο της επιλογής σας.",
+            downloadsHint: "Επιλέξτε τον φάκελο όπου το πρόγραμμα περιήγησης αποθηκεύει τις λήψεις. Παρακολουθείται μόνο αυτός ο φάκελος.",
+            chooseFolder: "Επιλογή φακέλου…",
+            folderUnavailable: "Αυτός ο φάκελος δεν είναι διαθέσιμος. Επιλέξτε τον ξανά για να αποκατασταθεί η πρόσβαση.",
+            waiting: "Δεν υπάρχουν αρχεία σε αυτόν τον φάκελο",
+            inProgress: "Λήψη",
+            totalUnknown: "Το συνολικό μέγεθος δεν είναι διαθέσιμο",
+            completed: "Η λήψη ολοκληρώθηκε",
+            clearFolder: "Αφαίρεση φακέλου",
+            optimizeMedia: "Βελτιστοποίηση πολυμέσων",
+            optimizeDropHint: "Σύρετε εικόνες ή ένα βίντεο στο Dynamic Island και αφήστε τα στη Βελτιστοποίηση πολυμέσων για να επιλέξετε πώς θα αποθηκευτεί ένα αντίγραφο.",
+            resumeMedia: "Επιστροφή στα πολυμέσα")
         case .enUS: return NotchFilesStrings(
             archive: "Create ZIP",
             archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",

@@ -67,6 +67,9 @@ enum AlertSoundStrings {
         case .enUS:
             return english
 
+        case .el:
+            return greek
+
         case .ptBR:
             return portugueseBrazil
 
@@ -118,6 +121,26 @@ enum AlertSoundStrings {
         "Sosumi": "Sonumi",
         "Submarine": "Submerge",
         "Tink": "Boop",
+    ]
+
+    // MARK: - Greek
+
+    // Names taken verbatim from Apple's Greek AlertSounds.loctable.
+    private static let greek: [String: String] = [
+        "Basso": "Μέτζο",
+        "Blow": "Ασθενής άνεμος",
+        "Bottle": "Χαλίκι",
+        "Frog": "Μεταπήδηση",
+        "Funk": "Φάνκι",
+        "Glass": "Κρύσταλλο",
+        "Hero": "Ηρωίδα",
+        "Morse": "Σήματα Μορς",
+        "Ping": "Σόναρ",
+        "Pop": "Φούσκα",
+        "Purr": "Χορδή",
+        "Sosumi": "Ξυλόφωνο",
+        "Submarine": "Κατάδυση",
+        "Tink": "Μπουπ",
     ]
 
     // MARK: - Portuguese (Brazil)

@@ -58,6 +58,7 @@ extension FeatureStrings {
     static func quitProtection(_ language: AppLanguage) -> QuitProtectionStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -77,6 +78,41 @@ extension FeatureStrings {
 }
 
 extension QuitProtectionStrings {
+    static let el = QuitProtectionStrings(
+        name: "Προστασία τερματισμού και κλεισίματος",
+        description: "Προστατεύει τα ⌘Q και ⌘W από ακούσια πατήματα",
+        intro: "Διαμορφώστε κάθε συντόμευση ανεξάρτητα. Η αρχική ενέργεια εκτελείται μόνο μετά την επιλεγμένη επιβεβαίωση.",
+        enabled: "Προστασία αυτής της συντόμευσης",
+        enabledCaption: "Οι υπόλοιπες συντομεύσεις με Command συνεχίζουν να λειτουργούν κανονικά.",
+        mode: "Τρόπος επιβεβαίωσης",
+        hold: "Παρατεταμένο πάτημα για επιβεβαίωση",
+        doublePress: "Διπλό πάτημα",
+        extraModifier: "Απαίτηση πρόσθετου πλήκτρου τροποποίησης",
+        holdDuration: "Διάρκεια παρατεταμένου πατήματος",
+        doublePressInterval: "Διάστημα διπλού πατήματος",
+        modifier: "Πρόσθετο πλήκτρο τροποποίησης",
+        appScope: "Εφαρμογές",
+        allApps: "Όλες οι εφαρμογές",
+        selectedOnly: "Μόνο επιλεγμένες εφαρμογές",
+        allExceptSelected: "Όλες εκτός από τις επιλεγμένες εφαρμογές",
+        exceptions: "Εξαιρέσεις",
+        noExceptions: "Δεν έχουν επιλεγεί εφαρμογές",
+        addApp: "Προσθήκη εφαρμογής…",
+        feedback: "Εμφάνιση οπτικής ένδειξης",
+        accessibilityCaption: "Η προστασία χρησιμοποιεί την Προσβασιμότητα μόνο για την καθολική παρακολούθηση των ⌘Q και ⌘W.",
+        holdQuitHUDFormat: "Κρατήστε πατημένο το %@ για τερματισμό",
+        holdCloseHUDFormat: "Κρατήστε πατημένο το %@ για κλείσιμο",
+        doubleQuitHUDFormat: "Πατήστε ξανά %@ για τερματισμό",
+        doubleCloseHUDFormat: "Πατήστε ξανά %@ για κλείσιμο",
+        extraQuitHUDFormat: "Χρησιμοποιήστε %@ για τερματισμό",
+        extraCloseHUDFormat: "Χρησιμοποιήστε %@ για κλείσιμο",
+        cancelHint: "Το Esc ακυρώνει",
+        releaseHint: "Αφήστε για επιβεβαίωση",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
     static let enUS = QuitProtectionStrings(
         name: "Quit & close protection",
         description: "Protects ⌘Q and ⌘W from accidental presses",

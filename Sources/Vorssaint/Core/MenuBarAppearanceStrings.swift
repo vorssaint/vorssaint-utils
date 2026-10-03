@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func menuBarAppearance(_ language: AppLanguage) -> MenuBarAppearanceStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -39,6 +40,19 @@ extension FeatureStrings {
 }
 
 extension MenuBarAppearanceStrings {
+    static let el = MenuBarAppearanceStrings(
+        label: "Εμφάνιση χρήσης",
+        values: "Τιμές",
+        bars: "Μπάρες",
+        caption: "Οι μπάρες εφαρμόζονται στη χρήση CPU, GPU, μνήμης και δίσκου. Οι υπόλοιπες ενδείξεις παραμένουν αριθμητικές.",
+        customize: "Χρώματα και όρια μπαρών",
+        normalColor: "Κανονικό χρώμα",
+        mediumColor: "Χρώμα μέτριας χρήσης",
+        highColor: "Χρώμα υψηλής χρήσης",
+        mediumFrom: "Μέτρια χρήση από",
+        highFrom: "Υψηλή χρήση από"
+    )
+
     static let enUS = MenuBarAppearanceStrings(
         label: "Usage display",
         values: "Values",
