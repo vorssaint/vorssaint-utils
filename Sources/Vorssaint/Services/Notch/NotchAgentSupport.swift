@@ -82,6 +82,7 @@ enum NotchAgentSupport {
         case .claude: return DefaultsKey.notchAgentsClaude
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -193,12 +194,20 @@ enum NotchAgentSupport {
 
     /// What the strip shows beside the camera while agents work: the reading
     /// the person chose, or the time elapsed while that one is unknown.
+    /// Tokens and cost would read zero while no live turn has tokens, as
+    /// for the whole of an Antigravity turn, whose log has none: the
+    /// elapsed time stands in until one does.
+    static func shownReadout(_ readout: NotchAgentReadout, _ snapshot: AgentUsageSnapshot) -> NotchAgentReadout {
+        guard readout == .tokens || readout == .cost else { return readout }
+        return snapshot.live.contains { $0.tokens.total > 0 } ? readout : .elapsed
+    }
+
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
                              display: NotchAgentLimitDisplay, focus: NotchAgentLimitFocus = .mostUsed,
                              now: Date) -> String {
         let live = snapshot.live
         func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
-        switch readout {
+        switch shownReadout(readout, snapshot) {
         case .elapsed:
             return elapsed()
         case .tokens:

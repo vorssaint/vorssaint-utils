@@ -311,6 +311,7 @@ enum AgentUsageArchive {
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
             bool(value.fast)
+            bool(value.namedWorkspace)
         }
     }
 
@@ -445,7 +446,8 @@ enum AgentUsageArchive {
 
         mutating func state() throws -> AgentLogState {
             AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                          sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+                          sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool(),
+                          namedWorkspace: try bool())
         }
     }
 }

@@ -4,14 +4,16 @@
 import Combine
 import Foundation
 
-/// Reads Claude Code and Codex usage from their local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
-/// the plan limits the Claude app saves. The files are read where they are,
-/// incrementally, and nothing is copied or sent: only counters are kept, in
-/// memory and in the app's private folder so the next launch reads only what
-/// the agents wrote meanwhile. OpenCode's stay in memory only, and its
-/// database is read again at each launch. The one request it makes fetches
-/// the public price list, when the person keeps prices up to date.
+/// Reads Claude Code, Codex and Antigravity usage from their local session
+/// logs, and OpenCode usage from its database, while the AI section is on,
+/// along with the plan limits the Claude app saves. Antigravity's transcripts
+/// carry no token counts, so only its responses are counted. The files are
+/// read where they are, incrementally, and nothing is copied or sent: only
+/// counters are kept, in memory and in the app's private folder so the next
+/// launch reads only what the agents wrote meanwhile. OpenCode's stay in
+/// memory only, and its database is read again at each launch. The one
+/// request it makes fetches the public price list, when the person keeps
+/// prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress
@@ -230,6 +232,8 @@ final class AgentUsageService: ObservableObject {
             loadPrices()
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
+            // Cursors find an Antigravity conversation relative to its root.
+            watchedRoots = roots.filter(\.exists)
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -256,7 +260,7 @@ final class AgentUsageService: ObservableObject {
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
             if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+               store.records.lazy.filter({ $0.provider != .antigravity && $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
                 budgetDay = today
             }
             watch(roots)
@@ -373,7 +377,7 @@ final class AgentUsageService: ObservableObject {
             cursors[path] = nil
             return store.forget(file: path)
         }
-        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
+        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider, roots: watchedRoots)
         cursors[path] = cursor
         var changed = false
         let now = Date()
@@ -386,6 +390,7 @@ final class AgentUsageService: ObservableObject {
             case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
+            case .antigravity: entries = AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
@@ -423,6 +428,7 @@ final class AgentUsageService: ObservableObject {
             for path in Set(paths) where AgentLogReader.isLog(path) {
                 let actualPath = path.hasSuffix("-wal") ? String(path.dropLast(4)) : path
                 guard let root = watchedRoots.first(where: { actualPath.hasPrefix($0.url.path + "/") }),
+                      AgentLogReader.isLog(actualPath, in: root),
                       root.provider != .opencode
                         || actualPath == root.url.appending(path: AgentOpenCodeReader.database).path else { continue }
                 if read(actualPath, provider: root.provider) { changed = true }
@@ -576,7 +582,9 @@ final class AgentUsageService: ObservableObject {
     private func checkBudget(_ snapshot: AgentUsageSnapshot) {
         guard store.reportsTransitions, let budget = NotchAgentSupport.dailyBudget() else { return }
         let today = Calendar.autoupdatingCurrent.startOfDay(for: snapshot.now)
-        let spent = snapshot.usage(.today).total.cost
+        let spent = snapshot.usage(.today).byProvider
+            .filter { $0.key != .antigravity }
+            .values.reduce(0.0) { $0 + $1.cost }
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))

@@ -51,7 +51,8 @@ struct NotchAgentStrip: View {
             Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
-                        NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                        NotchAgentReadoutTimeline(readout: NotchAgentSupport.shownReadout(
+                            NotchAgentReadout(rawValue: readout) ?? .elapsed, usage.snapshot)) { date in
                             let text = reading(at: date)
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))

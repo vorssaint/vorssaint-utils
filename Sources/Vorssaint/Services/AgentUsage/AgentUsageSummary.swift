@@ -22,13 +22,15 @@ struct AgentTotals: Equatable {
     var savings = 0.0
     var requests = 0
     /// Responses from a model without a known price, left out of `cost`.
+    /// A response whose log has no tokens, like Antigravity's, has no cost
+    /// to miss and does not count.
     var unpriced = 0
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
         requests += 1
         savings += record.savings
-        if let price = record.cost { cost += price } else { unpriced += 1 }
+        if let price = record.cost { cost += price } else if record.tokens.total > 0 { unpriced += 1 }
     }
 
     static func += (lhs: inout AgentTotals, rhs: AgentTotals) {

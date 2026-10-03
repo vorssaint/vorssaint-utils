@@ -11,6 +11,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -47,6 +48,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.claude, isOn: $claude)
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
+            providerRow(.antigravity, isOn: $antigravity)
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -223,7 +225,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, antigravity].filter { $0 }.count <= 1)
         }
     }
 
