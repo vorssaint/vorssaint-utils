@@ -3408,6 +3408,18 @@ enum PointerInputFeatureTests {
         suite.expect(QuitProtectionSupport.usesNativeQuitRequest(for: .quit)
                 && !QuitProtectionSupport.usesNativeQuitRequest(for: .close),
                "quit confirmation asks the target app to terminate while close stays a window shortcut")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam"),
+               "a compatibility target sends synthetic keystrokes instead of native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam.helper"),
+               "an unverified helper keeps using native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.steam"),
+               "a same-named unrelated app keeps using native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.editor"),
+               "an ordinary app continues using native terminate requests")
 
         suite.expect(QuitProtectionSupport.scopeAllows(.all, bundleIdentifier: nil, exceptions: []),
                "all-app scope protects even an app without a bundle identifier")
