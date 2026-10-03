@@ -105,10 +105,9 @@ public func vorssaintNowPlayingGet() {
         set("kMRMediaRemoteNowPlayingInfoDuration",
             (info["kMRMediaRemoteNowPlayingInfoDuration"] as? NSNumber)?.doubleValue)
         if let elapsed = (info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? NSNumber)?.doubleValue {
-            let timestamp = info["kMRMediaRemoteNowPlayingInfoTimestamp"] as? Date
-            let rate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0
-            let age = timestamp.map { max(0, Date().timeIntervalSince($0)) } ?? 0
-            set("kMRMediaRemoteNowPlayingInfoElapsedTime", elapsed + age * max(0, rate))
+            set("rawElapsedTime", elapsed)
+            set("elapsedTimestamp", info["kMRMediaRemoteNowPlayingInfoTimestamp"] as? Date)
+            set("rawPlaybackRate", (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0)
         }
         set("kMRMediaRemoteNowPlayingInfoPlaybackRate",
             (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue)
@@ -125,28 +124,46 @@ public func vorssaintNowPlayingGet() {
         NotchNativePlayback.readInfo(selected, artwork: true, queue: queue, completion: receiveInfo)
         set("pid", selected.pid)
         set("displayID", selected.applicationBundleIdentifier ?? selected.bundleIdentifier)
-    } else { getInfo(queue, receiveInfo) }
-    if selected == nil, let getPID = function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self) {
         group.enter()
-        getPID(queue) { pid in
-            set("pid", pid)
+        NotchNativePlayback.readPlaybackState(selected, queue: queue) { state in
+            if state == 1 {
+                set("isPlaying", true)
+            } else if state == 2 || state == 3 || state == 4 {
+                set("isPlaying", false)
+            } else if let getIsPlaying = function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
+                                                   as: IsPlayingFunction.self) {
+                getIsPlaying(queue) { isPlaying in
+                    if selected.pid == (reply["pid"] as? Int32) {
+                        set("isPlaying", isPlaying)
+                    }
+                }
+            }
             group.leave()
         }
-    }
-    if selected == nil, let getDisplayID = function(handle, "MRMediaRemoteGetNowPlayingApplicationDisplayID",
-                                   as: DisplayIDFunction.self) {
-        group.enter()
-        getDisplayID(queue) { identifier in
-            set("displayID", identifier as String?)
-            group.leave()
+    } else {
+        getInfo(queue, receiveInfo)
+        if let getPID = function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self) {
+            group.enter()
+            getPID(queue) { pid in
+                set("pid", pid)
+                group.leave()
+            }
         }
-    }
-    if selected == nil, let getIsPlaying = function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
-                                   as: IsPlayingFunction.self) {
-        group.enter()
-        getIsPlaying(queue) { isPlaying in
-            set("isPlaying", isPlaying)
-            group.leave()
+        if let getDisplayID = function(handle, "MRMediaRemoteGetNowPlayingApplicationDisplayID",
+                                       as: DisplayIDFunction.self) {
+            group.enter()
+            getDisplayID(queue) { identifier in
+                set("displayID", identifier as String?)
+                group.leave()
+            }
+        }
+        if let getIsPlaying = function(handle, "MRMediaRemoteGetNowPlayingApplicationIsPlaying",
+                                       as: IsPlayingFunction.self) {
+            group.enter()
+            getIsPlaying(queue) { isPlaying in
+                set("isPlaying", isPlaying)
+                group.leave()
+            }
         }
     }
     // Only expose seeking when the current player advertises that command.
@@ -197,6 +214,27 @@ public func vorssaintNowPlayingGet() {
     lock.lock()
     var snapshot = reply
     lock.unlock()
+    if let rawElapsed = snapshot["rawElapsedTime"] as? Double {
+        let isPlaying = snapshot["isPlaying"] as? Bool
+        let timestamp = snapshot["elapsedTimestamp"] as? Date
+        let rawRate = snapshot["rawPlaybackRate"] as? Double ?? 0
+        let effectiveRate: Double
+        if isPlaying == false {
+            effectiveRate = 0
+        } else if isPlaying == true {
+            effectiveRate = rawRate > 0 ? rawRate : 1.0
+        } else {
+            effectiveRate = max(0, rawRate)
+        }
+        let age = timestamp.map { max(0, Date().timeIntervalSince($0)) } ?? 0
+        snapshot["kMRMediaRemoteNowPlayingInfoElapsedTime"] = rawElapsed + age * effectiveRate
+        if isPlaying != nil {
+            snapshot["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = effectiveRate
+        }
+        snapshot.removeValue(forKey: "rawElapsedTime")
+        snapshot.removeValue(forKey: "elapsedTimestamp")
+        snapshot.removeValue(forKey: "rawPlaybackRate")
+    }
     if watching, let context = NotchNativePlayback.publish(selected, info: snapshot) {
         snapshot["playbackRevision"] = context.revision.uuidString
         snapshot["canSendCommandsDirectly"] = NotchNativePlayback.target.map {

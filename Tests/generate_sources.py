@@ -457,6 +457,7 @@ def main():
           + declaration(playback_adapter, "    static func validatedTarget(")
           + declaration(playback_adapter, "    static func readInfo(")
           + declaration(playback_adapter, "    static func supportedCommands(")
+          + declaration(playback_adapter, "    static func readPlaybackState(")
           + declaration(playback_adapter, "    private static func currentPlayerPID(").replace("private static", "static", 1)
           + declaration(playback_adapter, "    static func send(")
           + declaration(playback_adapter, "    private static func makeTarget(").replace("private static", "static", 1)

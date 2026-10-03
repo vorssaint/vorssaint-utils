@@ -21,7 +21,14 @@ struct NotchPlaybackSource: Equatable {
     var selection: Selection { Selection(pid: pid, bundleIdentifier: bundleIdentifier) }
 
     static func isMusicApplication(bundleIdentifier: String?, parentBundleIdentifier: String?, category: String?) -> Bool {
-        let knownMusicApps: Set<String> = ["com.apple.Music", "com.apple.iTunes", "com.spotify.client"]
+        let knownMusicApps: Set<String> = [
+            "com.apple.Music", "com.apple.iTunes", "com.spotify.client",
+            "org.videolan.vlc", "com.colliderli.iina", "com.apple.podcasts",
+            "com.tidal.desktop", "com.deezer.Deezer", "com.amazon.music",
+            "com.coppertino.Vox", "com.swinsian.Swinsian", "org.foobar2000.mac",
+            "com.audirvana.Audirvana", "co.brushedtype.doppler-macos",
+            "com.digipine.PinePlayer", "org.cogx.cog"
+        ]
         return category == "public.app-category.music"
             || [bundleIdentifier, parentBundleIdentifier].compactMap { $0 }.contains(where: knownMusicApps.contains)
     }
@@ -58,9 +65,10 @@ struct NotchPlaybackSource: Equatable {
         return sources.sorted { $0.pid < $1.pid }
     }
 
-    /// Automatic playback follows music apps unless the user includes other
-    /// players. A manual source choice always takes precedence. Paused music
-    /// keeps its resume control when nothing eligible is playing.
+    /// Automatic playback follows music apps, but whenever music is paused,
+    /// it follows whatever macOS Now Playing is actively playing or any actively
+    /// playing app if broader playback is enabled. A manual source choice always
+    /// takes precedence. Paused music keeps its resume control when nothing is playing.
     static func preferred(in sources: [Self], previousPID: Int32?, systemPID: Int32?, selection: Selection? = nil,
                           includeOtherPlayers: Bool = false) -> Self? {
         let available = sources.filter { $0.pid > 0 && $0.hasTrack }
@@ -68,15 +76,45 @@ struct NotchPlaybackSource: Equatable {
         // source is playing. Without a track, the automatic order fills in.
         if let selection, let chosen = available.first(where: { $0.selection == selection }) { return chosen }
         let music = available.filter(\.isMusicApp)
-        // Registered clients can be playing while macOS still remembers a
-        // paused music app as its system player. The opt-in follows their live
-        // playback too; ownership only breaks a tie between eligible clients.
-        let other = includeOtherPlayers ? available.filter { !$0.isMusicApp } : []
-        for candidates in [music.filter(\.isPlaying), other.filter(\.isPlaying), music] {
-            if let previous = candidates.first(where: { $0.pid == previousPID }) { return previous }
-            if let current = candidates.first(where: { $0.pid == systemPID }) { return current }
-            if let first = candidates.sorted(by: { $0.pid < $1.pid }).first { return first }
+        let playingMusic = music.filter(\.isPlaying)
+
+        // 1. If any music app is actively playing, music always takes priority.
+        if !playingMusic.isEmpty {
+            if let previous = playingMusic.first(where: { $0.pid == previousPID }) { return previous }
+            if let current = playingMusic.first(where: { $0.pid == systemPID }) { return current }
+            if let first = playingMusic.sorted(by: { $0.pid < $1.pid }).first { return first }
         }
+
+        // 2. When music is paused (or no music app is playing):
+        // Follow whatever macOS Now Playing is actively playing (systemPID),
+        // or any actively playing app if broader playback is enabled.
+        let playingOther = available.filter { source in
+            !source.isMusicApp && source.isPlaying && (includeOtherPlayers || source.pid == systemPID)
+        }
+        if !playingOther.isEmpty {
+            if let current = playingOther.first(where: { $0.pid == systemPID }) { return current }
+            if let previous = playingOther.first(where: { $0.pid == previousPID }) { return previous }
+            if let first = playingOther.sorted(by: { $0.pid < $1.pid }).first { return first }
+        }
+
+        // 3. When nothing is playing anywhere, paused music keeps its place
+        // so its resume control stays reachable.
+        if !music.isEmpty {
+            if let previous = music.first(where: { $0.pid == previousPID }) { return previous }
+            if let current = music.first(where: { $0.pid == systemPID }) { return current }
+            if let first = music.sorted(by: { $0.pid < $1.pid }).first { return first }
+        }
+
+        // 4. If no music app is available, a paused other app is kept if it was already
+        // being followed or owns the system session.
+        if includeOtherPlayers {
+            let pausedOther = available.filter {
+                !$0.isMusicApp && !$0.isPlaying && ($0.pid == systemPID || $0.pid == previousPID)
+            }
+            if let previous = pausedOther.first(where: { $0.pid == previousPID }) { return previous }
+            if let current = pausedOther.first(where: { $0.pid == systemPID }) { return current }
+        }
+
         return includeOtherPlayers ? available.first { $0.pid == systemPID } : nil
     }
 }

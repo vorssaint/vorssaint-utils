@@ -88,6 +88,8 @@ enum NotchNativePlayback {
     }
 
     private static func playPauseCommand(for info: [String: Any]) -> Int32 {
+        if info["isPlaying"] as? Bool == true, info["canPause"] as? Bool == true { return 1 }
+        if info["isPlaying"] as? Bool == false, info["canPlay"] as? Bool == true { return 0 }
         guard let rate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue,
               rate.isFinite else { return 2 }
         if rate > 0, info["canPause"] as? Bool == true { return 1 }
@@ -168,10 +170,32 @@ enum NotchNativePlayback {
             candidate.applicationBundleIdentifier = presentation[candidate.pid]?.application
                 .flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
             group.enter()
+            let readGroup = DispatchGroup()
+            var candidateInfo: NSDictionary?
+            var candidateState: UInt32 = 0
+            readGroup.enter()
             readInfo(candidate, artwork: false, queue: callbacks) { info in
+                candidateInfo = info
+                readGroup.leave()
+            }
+            readGroup.enter()
+            readPlaybackState(candidate, queue: callbacks) { state in
+                candidateState = state
+                readGroup.leave()
+            }
+            readGroup.notify(queue: callbacks) {
+                let info = candidateInfo
+                let isPlaying: Bool
+                if candidateState == 1 {
+                    isPlaying = true
+                } else if candidateState == 2 || candidateState == 3 || candidateState == 4 {
+                    isPlaying = false
+                } else {
+                    isPlaying = (info?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0 > 0
+                }
                 let source = NotchPlaybackSource(pid: candidate.pid, bundleIdentifier: candidate.bundleIdentifier,
                     isMusicApp: isMusicApp(app, parentBundleIdentifier: candidate.applicationBundleIdentifier),
-                    isPlaying: (info?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0 > 0,
+                    isPlaying: isPlaying,
                     hasTrack: (info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
                     displayName: presentation[candidate.pid]?.name ?? app.localizedName)
                 resultsLock.lock()
@@ -320,6 +344,15 @@ enum NotchNativePlayback {
         typealias Read = @convention(c) (AnyObject, DispatchQueue, @escaping @convention(block) (NSArray?) -> Void) -> Void
         guard let read = function(handle, "MRMediaRemoteGetSupportedCommandsForPlayer", as: Read.self) else {
             completion(nil); return
+        }
+        read(target.path, queue, completion)
+    }
+
+    static func readPlaybackState(_ target: Target, queue: DispatchQueue, completion: @escaping (UInt32) -> Void) {
+        typealias Read = @convention(c) (AnyObject, DispatchQueue, @escaping @convention(block) (UInt32) -> Void) -> Void
+        guard target.isRunning,
+              let read = function(handle, "MRMediaRemoteGetPlaybackStateForPlayer", as: Read.self) else {
+            completion(0); return
         }
         read(target.path, queue, completion)
     }

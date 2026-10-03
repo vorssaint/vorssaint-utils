@@ -135,6 +135,22 @@ enum NotchPlaybackRoutingContract {
                 completion([])
             }
             return unsafeBitCast(commands, to: T.self)
+        case "MRMediaRemoteGetPlaybackStateForPlayer":
+            typealias ReadState = @convention(c) (AnyObject, DispatchQueue, @escaping @convention(block) (UInt32) -> Void) -> Void
+            let readState: ReadState = { path, _, completion in
+                let client = path.perform(NSSelectorFromString("client"))?.takeUnretainedValue() as? NSObject
+                let pid = (client?.value(forKey: "processIdentifier") as? NSNumber)?.int32Value ?? 0
+                let finish = {
+                    let rate = (NotchPlaybackRoutingContract.sourceMetadata[pid]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue
+                    completion(rate.map { $0 > 0 ? 1 : 2 } ?? 0)
+                }
+                if NotchPlaybackRoutingContract.silentPIDs.contains(pid) {
+                    NotchPlaybackRoutingContract.lateReads.append(finish)
+                } else {
+                    finish()
+                }
+            }
+            return unsafeBitCast(readState, to: T.self)
         default: return nil
         }
     }
@@ -234,6 +250,17 @@ enum NotchPlaybackRoutingTests {
         Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: paused))
         suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 0,
                      "the same radio player receives Play when the stream is paused")
+
+        var pausedVLC = info
+        pausedVLC["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1.2
+        pausedVLC["isPlaying"] = false
+        pausedVLC["canPlay"] = true
+        pausedVLC["canPause"] = true
+        Adapter.metadata[ObjectIdentifier(path)] = pausedVLC
+        let vlcContext = Adapter.publish(radio, info: pausedVLC)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: vlcContext))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 0,
+                     "a paused player with positive playback rate receives Play when isPlaying is false")
 
         info["canPlay"] = false
         Adapter.metadata[ObjectIdentifier(path)] = info
@@ -440,9 +467,13 @@ enum NotchPlaybackRoutingTests {
         let browser = NotchPlaybackSource.Selection(pid: 20, bundleIdentifier: "test.player.20")
         Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         Adapter.systemPID = 20
+        suite.expect(Adapter.select()?.pid == 20,
+                     "automatic playback follows active macOS Now Playing media when music is paused")
+        Adapter.systemPID = 10
         suite.expect(Adapter.select()?.pid == 10,
-                     "automatic playback keeps paused music instead of showing the active video by default")
+                     "automatic playback keeps paused music when the active video does not own the system session")
         Adapter.includeOtherPlayers = true
+        Adapter.systemPID = 20
         suite.expect(Adapter.select()?.requiresCurrentPlayer == true && Adapter.select()?.allowsDirectCommands == true,
                      "opted-in video playback exposes native controls without Automation")
         Adapter.includeOtherPlayers = false
@@ -545,11 +576,14 @@ enum NotchPlaybackRoutingTests {
         Adapter.selection = .init(pid: 115, bundleIdentifier: "test.player.115")
         suite.expect(Adapter.select()?.pid == 115, "a chosen source enumerated last keeps its place in the bound")
         Adapter.selection = nil
-        Adapter.systemPID = 115
+        Adapter.systemPID = 10
         Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         Adapter.sourceMetadata[115]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
         suite.expect(Adapter.select()?.pid == 10,
-                     "a video discovered at the end of a crowded list stays out of music-only playback")
+                     "a video discovered at the end of a crowded list stays out of playback when it does not own the system session")
+        Adapter.systemPID = 115
+        suite.expect(Adapter.select()?.pid == 115,
+                     "a video owning the system session is selected when music is paused")
         Adapter.includeOtherPlayers = true
         suite.expect(Adapter.select()?.pid == 115,
                      "opted-in playback still finds the system's current player at the end of the bound")

@@ -532,6 +532,8 @@ enum NotchMusicHardeningTests {
         let other = source(30, music: true)
         suite.expect(NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.apple.Music", parentBundleIdentifier: nil,
                                                              category: nil)
+                     && NotchPlaybackSource.isMusicApplication(bundleIdentifier: "org.videolan.vlc", parentBundleIdentifier: nil,
+                                                               category: nil)
                      && NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.spotify.client.helper",
                                                                parentBundleIdentifier: "com.spotify.client", category: nil)
                      && NotchPlaybackSource.isMusicApplication(bundleIdentifier: "com.example.player",
@@ -546,9 +548,11 @@ enum NotchMusicHardeningTests {
         }
         suite.expect(choose([browser, music]) == music, "a browser video cannot take controls from playing music")
         suite.expect(choose([music, browser]) == music, "source discovery order does not change music priority")
-        suite.expect(choose([browser, paused], previous: 10) == paused && choose([browser]) == nil,
-                     "music-only automatic playback ignores videos, even when they own the system session")
-        suite.expect(choose([browser, paused], previous: 10, includeOtherPlayers: true) == browser
+        suite.expect(choose([browser, paused], previous: 10, system: 10) == paused && choose([browser], system: nil) == nil,
+                     "music-only automatic playback ignores videos when they do not own the system session")
+        suite.expect(choose([browser, paused], previous: 10, system: 20) == browser,
+                     "automatic playback follows active macOS Now Playing media when music is paused")
+        suite.expect(choose([browser, paused], previous: 10, system: 10, includeOtherPlayers: true) == browser
                      && choose([browser], includeOtherPlayers: true) == browser,
                      "the opt-in restores automatic playback from other apps")
         suite.expect(choose([paused, browser], previous: 10, system: 10, includeOtherPlayers: true) == browser,
