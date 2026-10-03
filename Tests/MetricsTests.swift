@@ -57,6 +57,7 @@ struct MetricsTests {
             ("overlays", { OverlayPanelTests.run(suite) }),
             ("updates", {
                 UpdateFeatureTests.run(suite)
+                LaunchAtLoginSettingsTests.run(suite)
                 PostUpdateStatusItemRecoveryTests.run(suite)
                 UpdateAdminInstallContract.run(suite)
                 UpdateHighlightsTests.run(suite)

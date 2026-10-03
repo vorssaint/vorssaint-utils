@@ -994,7 +994,7 @@ extension Strings {
         cleanerNotifDenied: "Mitteilungen von Vorssaint sind im System deaktiviert.",
         cleanerNotifOpenSettings: "Mitteilungseinstellungen öffnen…",
         launchAtLoginNeedsApplications: "Die App läuft von einem Ort, der das Öffnen bei der Anmeldung nicht erlaubt. Ziehe Vorssaint in den Ordner Programme, öffne die App von dort und schalte die Option wieder ein.",
-        launchAtLoginNeedsApproval: "Das Anmeldeobjekt ist registriert, in den Systemeinstellungen aber weiterhin aus. Öffne Systemeinstellungen › Allgemein › Anmeldeobjekte & Erweiterungen und schalte Vorssaint unter „Bei der Anmeldung öffnen“ ein.",
+        launchAtLoginNeedsApproval: "Das Anmeldeobjekt ist registriert, benötigt aber noch die Genehmigung von macOS. Prüfe unter Systemeinstellungen › Allgemein › Anmeldeobjekte & Erweiterungen die Einträge für Vorssaint in „Bei der Anmeldung öffnen“ und „Im Hintergrund erlauben“.",
         ocrRemoveLineBreaksToggle: "Zeilenumbrüche entfernen",
         ocrRemoveLineBreaksCaption: "Entfernt Zeilenumbrüche, damit kopierter Text als ein Absatz eingefügt wird.",
         ocrQRToggle: "QR-Codes lesen",

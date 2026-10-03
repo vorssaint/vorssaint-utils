@@ -47,6 +47,13 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
+    write("LaunchAtLoginSettings.swift", "import Foundation\n"
+          + "extension LaunchAtLoginSettingsTests.View {\n"
+          + "".join(declaration(general, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func refreshLaunchAtLogin()",
+                                   "    private func setLaunchAtLogin("])
+          + "}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))

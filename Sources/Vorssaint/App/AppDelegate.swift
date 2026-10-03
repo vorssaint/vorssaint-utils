@@ -1115,6 +1115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
         restoreAfterAppUpdateHandoff()
+        if settingsWindow?.isVisible == true {
+            NotificationCenter.default.post(name: LaunchAtLoginSupport.settingsRefreshRequested, object: nil)
+        }
     }
 
     /// Some updates finish in another app. With no Dock icon there is no way
@@ -1658,6 +1661,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // that page's own onAppear, since its view was never removed from
         // the hierarchy; the window itself is the only reliable signal here.
         SecureInputMonitor.shared.setSettingsWindowOpen(true)
+        NotificationCenter.default.post(name: LaunchAtLoginSupport.settingsRefreshRequested, object: nil)
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = self.settingsWindow else { return }
             self.positionSettingsWindow(window, force: false, on: targetScreen)
