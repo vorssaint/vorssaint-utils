@@ -32,5 +32,8 @@ struct WindowPreviewExclusionsList: View {
         let sanitized = Defaults.sanitizedBundleIdentifierList(bundleIDs)
         UserDefaults.standard.set(sanitized, forKey: key)
         apps = sanitized
+        // The same list backs the switcher pause scope (issue #1181), so the
+        // frontmost-app matcher has to re-read it the moment it changes.
+        MouseAppExceptions.shared.reload()
     }
 }

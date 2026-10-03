@@ -592,6 +592,14 @@ final class AppSwitcher: ObservableObject {
                 return verdict
             }
             guard type == .keyDown else { return Unmanaged.passUnretained(event) }
+            // A remote desktop or KVM app in front gets the shortcut back, so
+            // ⌘Tab reaches the other machine instead of opening this app's
+            // switcher (issue #1181). The same "pause preview capture" list
+            // under Window thumbnails already names these apps; until now it
+            // only stopped the preview, leaving the shortcut taken.
+            if MouseAppExceptions.shared.frontmostAppMatches(.switcherPause) {
+                return Unmanaged.passUnretained(event)
+            }
             let matchesApps = shortcut.matches(event: event, allowingExtraShift: true)
             let matchesWindows = !matchesApps
                 && (windowShortcut.matches(event: event, allowingExtraShift: true)

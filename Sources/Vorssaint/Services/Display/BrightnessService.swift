@@ -113,25 +113,19 @@ final class BrightnessService: ObservableObject {
     /// nothing, and taking that silence at face value would move it off the
     /// protocol its own buttons use.
     private static let wakeSettleDelay: TimeInterval = 3
-    /// Media-key tap, alive while pointer routing, the optional overlay or a
-    /// finer key step is on and Accessibility is granted. Its mask covers
-    /// system-defined events only, so ordinary typing never touches it.
-    private var keyTap: CFMachPort?
-    private var keyTapSource: CFRunLoopSource?
-    private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
-    /// Second tap for keyboards that send brightness as an ordinary key
-    /// press instead of a media key. Every keystroke in the session passes
-    /// through it, so it runs on its own thread: the window server waits for
-    /// a tap to answer, and waiting on the main run loop is what made typing
-    /// stutter once already.
+    /// The shared F-row tap's two listeners, named so each half can be
+    /// brought up and down on its own conditions (see `syncKeyTap`).
+    private static let mediaKeysListener = "brightnessMediaKeys"
+    private static let functionKeysListener = "brightnessFunctionKeys"
+    /// Guards the state the tap thread reads: the sampled key options and
+    /// the presses whose release must be consumed. The tap itself lives in
+    /// `FunctionKeyTap`, which every keystroke in the session reaches on
+    /// its own thread: the window server waits for a tap to answer, and
+    /// waiting on the main run loop is what made typing stutter once
+    /// already.
     private let keyThreadLock = NSLock()
-    private var functionKeyTap: CFMachPort?
-    private var functionKeyRunLoop: CFRunLoop?
-    private var functionKeyThread: Thread?
-    private var shouldStopFunctionKeyThread = false
-    private var pendingFunctionKeyRestart = false
     /// Whether F14 and F15 still mean brightness for the system. Sampled when
-    /// the tap goes up, never from the tap thread.
+    /// the listener goes up, never from the tap thread.
     private var functionKeysAdjustBrightness = true
     /// Whether the app's own overlay stands in for the system's, sampled with
     /// the tap so the tap thread never reads published state.
@@ -146,6 +140,10 @@ final class BrightnessService: ObservableObject {
     /// Codes whose press this app consumed, so the matching release is
     /// consumed as well and the system never sees half a key.
     private var swallowedKeyCodes = Set<Int>()
+    /// Which side answers a brightness media press, per direction. Guarded by
+    /// `keyThreadLock`: the media listener on the tap thread asks, the main
+    /// thread resets it when the listener comes down.
+    private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     /// Serializes every I2C transaction and rebuild; DDC displays drop
     /// commands that interleave.
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.brightness", qos: .userInitiated)
@@ -238,13 +236,6 @@ final class BrightnessService: ObservableObject {
     /// last row so the panel still offers the button that brings it back.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
-    /// Permission reset removes only the two Accessibility event taps. The
-    /// display routes, disabled-display journal and gamma state stay live so
-    /// revoking permission cannot undo a user's current brightness setup.
-    private var inputTapsSuspended = false
-    private func tapsAreSuspended() -> Bool {
-        keyThreadLock.withLock { inputTapsSuspended }
-    }
     @Published private(set) var keyboardLightLevel: Float?
     private var keyboardNoticeWork: DispatchWorkItem?
     /// A drag folds into one write of its newest value, like the display
@@ -518,13 +509,15 @@ final class BrightnessService: ObservableObject {
         keyboardNoticeWork?.cancel(); keyboardNoticeWork = nil
         keyboardLevelWork?.cancel(); keyboardLevelWork = nil
         keyboardDragStart = nil
-        removeKeyTap()
+        FunctionKeyTap.shared.removeListener(named: Self.mediaKeysListener)
+        keyThreadLock.withLock { keyOwnership = BrightnessSupport.BrightnessKeyOwnership() }
         displayBrightnessDecreaseHotkey.unregister()
         displayBrightnessIncreaseHotkey.unregister()
         displayBrightnessShortcutRegistrationFailed = false
         guard running else { return }
         running = false
-        removeFunctionKeyTap()
+        FunctionKeyTap.shared.removeListener(named: Self.functionKeysListener)
+        keyThreadLock.withLock { swallowedKeyCodes.removeAll() }
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
         removeWakeObservers()
@@ -984,13 +977,12 @@ final class BrightnessService: ObservableObject {
     // MARK: - Brightness keys (follow the pointer)
 
     private func syncKeyTap() {
-        guard !tapsAreSuspended() else { return }
         let defaults = UserDefaults.standard
         let wantsKeyRouting = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         // An island away in full screen, or set to stay hidden until hover,
         // shows no notices while closed, so its keys keep the system's own
-        // feedback. The plain key tap runs on its own thread and keeps this
-        // sample; the island asks for a new one when full screen hides it.
+        // feedback. The tap thread keeps this sample; the island asks for a
+        // new one when full screen hides it.
         let wantsBrightnessOSD = BrightnessSupport.overlayReplacesNative(
             overlayEnabled: defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled),
             islandRoutes: NotchSupport.routes(.brightness),
@@ -1007,9 +999,22 @@ final class BrightnessService: ObservableObject {
                 || wantsKeyboardLight,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
-        if wanted { installKeyTap() } else { removeKeyTap() }
+        // Both halves answer through the shared F-row tap (`FunctionKeyTap`):
+        // the media listener for the system-defined brightness and keyboard
+        // light keys, the function-key listener for the ordinary presses other
+        // keyboards send. The tap itself comes up when any listener wants it.
+        if wanted {
+            FunctionKeyTap.shared.addListener(
+                named: Self.mediaKeysListener, priority: 20) { [weak self] type, event in
+                guard let self else { return Unmanaged.passUnretained(event) }
+                return self.handleKeyEvent(type: type, event: event)
+            }
+        } else {
+            FunctionKeyTap.shared.removeListener(named: Self.mediaKeysListener)
+            keyThreadLock.withLock { keyOwnership = BrightnessSupport.BrightnessKeyOwnership() }
+        }
         // Other keyboards send brightness as plain key presses. Their
-        // keystroke tap is only earned when this app answers a brightness key
+        // listener is only earned when this app answers a brightness key
         // instead of the system: the pointer decides the target, an overlay
         // or the island stands in for the system's own, or a finer step.
         if wanted, running, BrightnessSupport.answersPlainBrightnessKeys(followsPointer: wantsKeyRouting,
@@ -1027,9 +1032,14 @@ final class BrightnessService: ObservableObject {
                 functionKeySystemTarget = systemTarget
                 functionKeyStep = keyStep
             }
-            installFunctionKeyTap()
+            FunctionKeyTap.shared.addListener(
+                named: Self.functionKeysListener, priority: 10) { [weak self] type, event in
+                guard let self else { return Unmanaged.passUnretained(event) }
+                return self.routeFunctionKey(type: type, event: event)
+            }
         } else {
-            removeFunctionKeyTap()
+            FunctionKeyTap.shared.removeListener(named: Self.functionKeysListener)
+            keyThreadLock.withLock { swallowedKeyCodes.removeAll() }
         }
     }
 
@@ -1040,156 +1050,24 @@ final class BrightnessService: ObservableObject {
             ?? displays.first(where: { $0.isActive && $0.method == .system })
     }
 
-    private func installKeyTap() {
-        guard !tapsAreSuspended(), keyTap == nil else { return }
-        let systemDefined = CGEventType(rawValue: CleaningSystemKeyEvent.systemDefinedEventTypeRawValue)!
-        let callback: CGEventTapCallBack = { _, type, event, userInfo in
-            guard let userInfo else { return Unmanaged.passUnretained(event) }
-            let service = Unmanaged<BrightnessService>.fromOpaque(userInfo).takeUnretainedValue()
-            return service.handleKeyEvent(type: type, event: event)
-        }
-        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap,
-                                          place: .headInsertEventTap,
-                                          options: .defaultTap,
-                                          eventsOfInterest: CGEventMask(1 << systemDefined.rawValue),
-                                          callback: callback,
-                                          userInfo: Unmanaged.passUnretained(self).toOpaque())
-        else { return }
-        keyTap = tap
-        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        keyTapSource = source
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-        CGEvent.tapEnable(tap: tap, enable: true)
-    }
-
-    private func removeKeyTap() {
-        guard let tap = keyTap else { return }
-        CGEvent.tapEnable(tap: tap, enable: false)
-        if let keyTapSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), keyTapSource, .commonModes)
-        }
-        CFMachPortInvalidate(tap)
-        keyTapSource = nil
-        keyTap = nil
-        keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
-    }
-
     // MARK: - Brightness keys on other keyboards
 
-    /// Stops only the media-key and ordinary-function-key event taps before a
-    /// permission reset. This intentionally leaves display routes, observers,
-    /// OSD state, disabled displays and gamma curves untouched. The guard
-    /// keeps session/rebuild callbacks from bringing either tap back while
-    /// the reset is in progress. MUST run on the main thread.
+    /// Stops the shared F-row event tap before a permission reset, which
+    /// takes every listener down with it. This intentionally leaves display
+    /// routes, observers, OSD state, disabled displays and gamma curves
+    /// untouched. The guard keeps session/rebuild callbacks from bringing
+    /// the tap back while the reset is in progress. MUST run on the main
+    /// thread.
     func suspendInputTaps() {
-        keyThreadLock.withLock { inputTapsSuspended = true }
-        removeKeyTap()
-        removeFunctionKeyTap()
+        FunctionKeyTap.shared.suspend()
     }
 
     /// Ends the reset-only guard after TCC work has completed (or an
     /// uninstall aborts before TCC is touched), then lets the normal
-    /// preference and permission checks decide whether to reinstall the taps.
-    /// MUST run on the main thread.
+    /// preference and permission checks decide whether to reinstall the
+    /// listeners. MUST run on the main thread.
     func resumeInputTaps() {
-        keyThreadLock.withLock { inputTapsSuspended = false }
-        syncKeyTap()
-    }
-
-    private func installFunctionKeyTap() {
-        let thread = keyThreadLock.withLock { () -> Thread? in
-            guard !inputTapsSuspended else { return nil }
-            if functionKeyThread != nil {
-                if shouldStopFunctionKeyThread { pendingFunctionKeyRestart = true }
-                return nil
-            }
-            shouldStopFunctionKeyThread = false
-            pendingFunctionKeyRestart = false
-            let thread = Thread { [weak self] in self?.runFunctionKeyTap() }
-            thread.name = "Vorssaint Brightness Keys"
-            thread.qualityOfService = .userInteractive
-            functionKeyThread = thread
-            return thread
-        }
-        thread?.start()
-    }
-
-    private func removeFunctionKeyTap() {
-        let snapshot = keyThreadLock.withLock {
-            () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
-            shouldStopFunctionKeyThread = true
-            pendingFunctionKeyRestart = false
-            swallowedKeyCodes.removeAll()
-            return (functionKeyRunLoop, functionKeyTap, functionKeyThread != nil)
-        }
-        if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
-        if let runLoop = snapshot.runLoop {
-            CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue) {
-                CFRunLoopStop(runLoop)
-            }
-            CFRunLoopWakeUp(runLoop)
-        } else if !snapshot.threadExists {
-            keyThreadLock.withLock {
-                shouldStopFunctionKeyThread = false
-                functionKeyThread = nil
-            }
-        }
-    }
-
-    private func runFunctionKeyTap() {
-        autoreleasepool {
-            let runLoop = CFRunLoopGetCurrent()
-            keyThreadLock.withLock { functionKeyRunLoop = runLoop }
-            let stopBeforeCreating = keyThreadLock.withLock { shouldStopFunctionKeyThread }
-            guard !stopBeforeCreating else {
-                if clearFunctionKeyThread() { installFunctionKeyTap() }
-                return
-            }
-            let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
-                | CGEventMask(1 << CGEventType.keyUp.rawValue)
-            guard let tap = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
-                place: .headInsertEventTap,
-                options: .defaultTap,
-                eventsOfInterest: mask,
-                callback: { _, type, event, userInfo in
-                    guard let userInfo else { return Unmanaged.passUnretained(event) }
-                    let service = Unmanaged<BrightnessService>.fromOpaque(userInfo)
-                        .takeUnretainedValue()
-                    return service.routeFunctionKey(type: type, event: event)
-                },
-                userInfo: Unmanaged.passUnretained(self).toOpaque()
-            ) else {
-                _ = clearFunctionKeyThread()
-                return
-            }
-            let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-            keyThreadLock.withLock { functionKeyTap = tap }
-            CFRunLoopAddSource(runLoop, source, .commonModes)
-            CGEvent.tapEnable(tap: tap, enable: true)
-            if keyThreadLock.withLock({ shouldStopFunctionKeyThread }) {
-                CGEvent.tapEnable(tap: tap, enable: false)
-            } else {
-                CFRunLoopRun()
-            }
-            CGEvent.tapEnable(tap: tap, enable: false)
-            CFRunLoopRemoveSource(runLoop, source, .commonModes)
-            CFMachPortInvalidate(tap)
-            if clearFunctionKeyThread() { installFunctionKeyTap() }
-        }
-    }
-
-    private func clearFunctionKeyThread() -> Bool {
-        keyThreadLock.withLock {
-            let restart = pendingFunctionKeyRestart
-            functionKeyTap = nil
-            functionKeyRunLoop = nil
-            functionKeyThread = nil
-            shouldStopFunctionKeyThread = false
-            pendingFunctionKeyRestart = false
-            swallowedKeyCodes.removeAll()
-            return restart
-        }
+        FunctionKeyTap.shared.resume()
     }
 
     /// Runs on the tap thread. The window server holds every keystroke in the
@@ -1198,26 +1076,6 @@ final class BrightnessService: ObservableObject {
     /// belongs to the main thread: the target display comes from the display
     /// server and the route from behind the state lock.
     private func routeFunctionKey(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            let shouldSync = keyThreadLock.withLock { () -> Bool in
-                guard SessionActivity.shared.isActive, AXIsProcessTrusted(),
-                      !shouldStopFunctionKeyThread, let tap = functionKeyTap else {
-                    return true
-                }
-                guard !inputTapsSuspended else { return false }
-                // Keep the lock through the enable so a main-thread suspend
-                // cannot disable the tap and then lose a race to re-enable it.
-                CGEvent.tapEnable(tap: tap, enable: true)
-                return false
-            }
-            if shouldSync {
-                DispatchQueue.main.async { [weak self] in self?.syncKeyTap() }
-            }
-            return Unmanaged.passUnretained(event)
-        }
-        guard !tapsAreSuspended() else {
-            return Unmanaged.passUnretained(event)
-        }
         guard type == .keyDown || type == .keyUp else {
             return Unmanaged.passUnretained(event)
         }
@@ -1427,23 +1285,22 @@ final class BrightnessService: ObservableObject {
     /// Both halves are swallowed so the system never performs the same step.
     /// With a finer step, a press left to the system becomes its own quarter
     /// steps instead.
+    ///
+    /// Runs on the shared F-row tap's thread. The decision is made here, from
+    /// lock-guarded state and pure reads; the brightness work itself goes to
+    /// the main thread, exactly like the plain-press listener above, because
+    /// it touches the published displays, the sliders' pending state and the
+    /// keyboard-light work items.
     private func handleKeyEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard !tapsAreSuspended() else { return Unmanaged.passUnretained(event) }
-        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let keyTap {
-                CGEvent.tapEnable(tap: keyTap, enable: true)
-            } else {
-                DispatchQueue.main.async { [weak self] in self?.syncKeyTap() }
-            }
-            return Unmanaged.passUnretained(event)
-        }
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
               let nsEvent = NSEvent(cgEvent: event) else { return Unmanaged.passUnretained(event) }
         if BrightnessSupport.isKeyboardLightPress(subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) {
             let modifiers = nsEvent.modifierFlags
             if modifiers.intersection([.command, .control]).isEmpty,
                !modifiers.contains(.option) || modifiers.contains(.shift) {
-                scheduleKeyboardLightNotice()
+                DispatchQueue.main.async { [weak self] in
+                    self?.scheduleKeyboardLightNotice()
+                }
             }
             return Unmanaged.passUnretained(event)
         }
@@ -1454,12 +1311,17 @@ final class BrightnessService: ObservableObject {
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
-        guard case .app(let ownedDelta) = keyOwnership.owner(
-            of: press,
-            option: event.flags.contains(.maskAlternate),
-            shift: event.flags.contains(.maskShift),
-            commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
-        else { return Unmanaged.passUnretained(event) }
+        let ownedDelta: Double?
+        ownedDelta = keyThreadLock.withLock { () -> Double? in
+            guard case .app(let delta) = keyOwnership.owner(
+                of: press,
+                option: event.flags.contains(.maskAlternate),
+                shift: event.flags.contains(.maskShift),
+                commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
+            else { return nil }
+            return delta
+        }
+        guard let ownedDelta else { return Unmanaged.passUnretained(event) }
 
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
@@ -1474,24 +1336,31 @@ final class BrightnessService: ObservableObject {
                 control: event.flags.contains(.maskControl),
                 option: event.flags.contains(.maskAlternate))
             else { return Unmanaged.passUnretained(event) }
-            if press.isKeyDown { Self.postSystemQuarterSteps(increase: press.delta > 0, count: count) }
+            if press.isKeyDown {
+                DispatchQueue.main.async {
+                    Self.postSystemQuarterSteps(increase: press.delta > 0, count: count)
+                }
+            }
             return nil
         }
-        // This tap runs on the main thread, so every press asks the island
-        // whether it shows notices right now.
         let wantsBrightnessOSD = BrightnessSupport.overlayReplacesNative(
             overlayEnabled: showsOverlay, islandRoutes: NotchSupport.routes(.brightness),
             islandShowsNotices: NotchService.shared.showsSystemFeedback)
         let displayID: CGDirectDisplayID
         if followsPointer {
+            // The pointer position is a display-server read; the screen list
+            // is not safe off the main thread, so the display under the
+            // pointer is resolved the way the plain-press listener does it.
             let pointer = NSEvent.mouseLocation
-            guard let screen = NSScreen.screens.first(where: {
-                NSMouseInRect(pointer, $0.frame, false)
-            }), let id = (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
-                           as? NSNumber)?.uint32Value else {
+            let mainBounds = CGDisplayBounds(CGMainDisplayID())
+            var candidate: CGDirectDisplayID = 0
+            var matched: UInt32 = 0
+            let point = CGPoint(x: pointer.x, y: mainBounds.maxY - pointer.y)
+            guard CGGetDisplaysWithPoint(point, 1, &candidate, &matched) == .success,
+                  matched > 0 else {
                 return leaveToSystem()
             }
-            displayID = id
+            displayID = candidate
         } else if wantsBrightnessOSD, let systemTarget = systemKeyTarget {
             // With pointer routing off, keep the native target. In clamshell
             // mode this can be a system-managed external display.
@@ -1515,6 +1384,7 @@ final class BrightnessService: ObservableObject {
             // the wrong side of the built-in check.
             let isBuiltIn = displays.first(where: { $0.id == displayID })?.isBuiltIn
                 ?? (CGDisplayIsBuiltin(displayID) != 0)
+            let fallback = displays.first(where: { $0.id == displayID })?.brightness
             guard BrightnessSupport.stepsSystemRoutedDisplay(
                 followsPointer: followsPointer,
                 displayIsBuiltIn: isBuiltIn,
@@ -1524,13 +1394,15 @@ final class BrightnessService: ObservableObject {
                 // handling and animation unless the overlay replaces it.
                 return leaveToSystem()
             }
-            if press.isKeyDown, let current = currentSystemBrightness(
-                for: displayID,
-                fallback: displays.first(where: { $0.id == displayID })?.brightness
-            ) {
-                let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
-                Self.log.log("key step display \(displayID) route system \(current) to \(stepped)")
-                setBrightness(stepped, for: displayID, showOSD: showsOverlay, smooth: true)
+            if press.isKeyDown {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    guard let current = self.currentSystemBrightness(
+                        for: displayID, fallback: fallback) else { return }
+                    let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
+                    Self.log.log("key step display \(displayID) route system \(current) to \(stepped)")
+                    self.setBrightness(stepped, for: displayID, showOSD: showsOverlay, smooth: true)
+                }
             }
             // Both halves are replaced so the system never draws a second OSD.
             return nil
@@ -1539,7 +1411,9 @@ final class BrightnessService: ObservableObject {
             return leaveToSystem()
         }
         if press.isKeyDown {
-            step(displayID, method: route.method, delta: delta, showOSD: showsOverlay)
+            DispatchQueue.main.async { [weak self] in
+                self?.step(displayID, method: route.method, delta: delta, showOSD: showsOverlay)
+            }
         }
         return nil
     }
