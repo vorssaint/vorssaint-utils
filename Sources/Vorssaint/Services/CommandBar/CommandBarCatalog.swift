@@ -739,7 +739,7 @@ enum CommandBarCatalog {
             keywords: bar.kindEmoji,
             icon: .symbol("face.smiling"),
             keepsBarOpen: true,
-            run: { _ in CommandBarService.shared.setCategory(.emoji) }))
+            run: { _ in CommandBarService.shared.openEmojiGrid() }))
         if AppFeature.killProcess.isAvailable,
            UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) {
             let killStrings = FeatureStrings.killProcess(language)

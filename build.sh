@@ -460,6 +460,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarFontScale.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDates.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift

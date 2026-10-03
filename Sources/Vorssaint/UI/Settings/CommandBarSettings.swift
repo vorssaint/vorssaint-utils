@@ -11,6 +11,9 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
+    @AppStorage(DefaultsKey.commandBarEmojiTileSize) private var emojiTileSize = CommandBarEmojiTileSize.medium.rawValue
+    @AppStorage(DefaultsKey.commandBarFontScale) private var fontScaleRaw = CommandBarFontScale.medium.rawValue
+    @AppStorage(DefaultsKey.commandBarEmojiShortcutEnabled) private var emojiShortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
@@ -22,15 +25,81 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarFileIgnores) private var fileIgnoresRaw = ""
     @State private var editing: CommandBarLink?
     @State private var ignoreDraft = ""
+    @State private var fontScaleDraft = ""
     @State private var showsFileOptions = false
     @State private var showsLayoutOptions = false
     @State private var showsAppShortcuts = false
+    /// The take-over the emoji key's toggle is asking about. Shown until the
+    /// person accepts (the toggle arms with the take-over written) or declines
+    /// (the toggle stays off: a key macOS answers is not taken quietly).
+    @State private var pendingEmojiTakeOver: GlobalShortcut?
+
+    /// The emoji key's toggle asks before it arms. A combination macOS answers
+    /// becomes the grid's key only through the offer; any other key, or one
+    /// whose take-over is already agreed, arms at once.
+    private var emojiShortcutBinding: Binding<Bool> {
+        Binding(get: { emojiShortcutEnabled },
+                set: { wanted in
+                    guard wanted else {
+                        emojiShortcutEnabled = false
+                        return
+                    }
+                    let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarEmojiShortcut,
+                                                        fallback: .commandBarEmojiDefault)
+                    if SystemShortcutTakeoverSupport.emojiShortcutMayArm(
+                        conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(
+                            shortcut, for: .commandBarEmoji),
+                        takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.commandBarEmojiShortcut)) {
+                        emojiShortcutEnabled = true
+                    } else {
+                        pendingEmojiTakeOver = shortcut
+                    }
+                })
+    }
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
     /// language; saying them twice would only mean two things to keep.
     private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
     private var editLabel: String { FeatureStrings.screenshot(l10n.language).editButton }
+
+    // MARK: - The bar's type scale
+
+    private var fontScaleFactor: CGFloat { CommandBarFontScale.factor(from: fontScaleRaw) }
+
+    /// The size read back as a percent, the shape the field speaks.
+    private var fontScalePercent: Int { Int((fontScaleFactor * 100).rounded()) }
+
+    private func fontScaleLabel(_ scale: CommandBarFontScale) -> String {
+        switch scale {
+        case .small: return text.fontScaleSmall
+        case .medium: return text.fontScaleMedium
+        case .large: return text.fontScaleLarge
+        case .huge: return text.fontScaleHuge
+        }
+    }
+
+    /// The presets bind by name; a hand-typed size stores a decimal factor
+    /// instead, so while one stands no preset shows as chosen.
+    private var fontScaleSelection: Binding<String> {
+        Binding(
+            get: { CommandBarFontScale(rawValue: fontScaleRaw)?.rawValue ?? "" },
+            set: { fontScaleRaw = $0 }
+        )
+    }
+
+    /// A typed percent becomes a stored factor. Anything unreadable keeps
+    /// what was there; anything out of range stops at the edge. The factor
+    /// is written through `String(_:)`, not a localized format, so the
+    /// stored decimal always reads back the same on every machine.
+    private func commitCustomFontScale() {
+        let typed = fontScaleDraft.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: ",", with: ".")
+        if let percent = Double(typed), percent.isFinite {
+            fontScaleRaw = String(CommandBarFontScale.clamped(percent / 100))
+        }
+        fontScaleDraft = "\(fontScalePercent)"
+    }
 
     /// The examples do double duty: they say what the bar can do, which no
     /// list of toggles ever manages to.
@@ -92,6 +161,82 @@ struct CommandBarSettings: View {
                     }
                     .pickerStyle(.segmented)
                     Text(text.emojiSkinToneCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(text.emojiTileSizeLabel, selection: $emojiTileSize) {
+                        Text(text.emojiTileSizeSmall).tag(CommandBarEmojiTileSize.small.rawValue)
+                        Text(text.emojiTileSizeMedium).tag(CommandBarEmojiTileSize.medium.rawValue)
+                        Text(text.emojiTileSizeLarge).tag(CommandBarEmojiTileSize.large.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(text.emojiTileSizeCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                // The bar's own type, one voice for the whole strip: the
+                // presets answer a click, and the field holds the exact size
+                // between them. The panel's width stays fixed, so the range
+                // stops where the rows would stop fitting it.
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(text.fontScaleLabel, selection: fontScaleSelection) {
+                        ForEach(CommandBarFontScale.allCases) { scale in
+                            Text(fontScaleLabel(scale)).tag(scale.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    HStack(spacing: 6) {
+                        TextField(text.fontScaleCustomPlaceholder, text: $fontScaleDraft)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 90)
+                            .onSubmit(commitCustomFontScale)
+                        Text("%")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .onAppear { fontScaleDraft = "\(fontScalePercent)" }
+                    .onChange(of: fontScaleRaw) { _, _ in
+                        fontScaleDraft = "\(fontScalePercent)"
+                    }
+                    Text(text.fontScaleCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                // The emoji grid's own key, the same row any feature's shortcut
+                // gets: recorded here, offered as a take-over when macOS
+                // answers the combination, and listed on the shortcuts page.
+                // Turning the toggle on with macOS's own key under it is the
+                // moment the offer is asked: the shortcut arms only once the
+                // take-over is agreed, or the picker and the grid would both
+                // answer the same press.
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle(text.emojiShortcutToggle, isOn: emojiShortcutBinding)
+                        .onChange(of: emojiShortcutEnabled) { _, _ in
+                            CommandBarService.shared.syncWithPreferences()
+                        }
+                    if let takeOver = pendingEmojiTakeOver {
+                        SystemShortcutTakeOverOffer(shortcut: takeOver,
+                                                    onAccept: {
+                                                        SystemShortcutTakeover.setTakeOver(
+                                                            DefaultsKey.commandBarEmojiShortcut, true)
+                                                        emojiShortcutEnabled = true
+                                                        pendingEmojiTakeOver = nil
+                                                    },
+                                                    onDismiss: {
+                                                        pendingEmojiTakeOver = nil
+                                                    })
+                    }
+                    if emojiShortcutEnabled {
+                        ShortcutPreferenceRow(role: .commandBarEmoji,
+                                              isEnabled: emojiShortcutEnabled) {
+                            CommandBarService.shared.syncWithPreferences()
+                        }
+                    }
+                    if emojiShortcutEnabled, service.emojiShortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Text(text.emojiShortcutCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

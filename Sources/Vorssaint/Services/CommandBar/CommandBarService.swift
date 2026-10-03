@@ -100,9 +100,17 @@ final class CommandBarService: ObservableObject {
     /// above the list are about to act on.
     @Published private(set) var selectionPreview = ""
     @Published private(set) var selectedIndex = 0
+    /// How many columns the emoji grid is showing. The view measures the real
+    /// layout and reports it here; the arrow keys read it to walk a row instead
+    /// of a list. Zero outside the grid, where arrows mean what they always did.
+    @Published var emojiGridColumns = 0
     @Published private(set) var mode: Mode = .search
     @Published private(set) var presentationID = UUID()
     @Published private(set) var shortcutRegistrationFailed = false
+    /// Whether the emoji key's own registration was refused, because another
+    /// app got to the combination first. Shown in Settings so the key is not
+    /// a mystery.
+    @Published private(set) var emojiShortcutRegistrationFailed = false
     /// Rows whose own combination the system refused, because another app got
     /// there first. Shown in Settings so the key is not a mystery.
     @Published private(set) var refusedRowShortcutKeys: Set<String> = []
@@ -130,9 +138,18 @@ final class CommandBarService: ObservableObject {
     @Published private(set) var isCompactHome = false
 
     private let hotkey = QuickToolHotkey(id: 20)
+    /// The emoji grid's own key. Unlike the bar's field key this one never
+    /// opens the field: it lands on the tiles, and takes the combination over
+    /// from the system emoji picker when the person accepts the offer.
+    /// Id 11 sits outside the 25+ range the capture tools count up from —
+    /// the shared handler routes by id, so a shared id would let the
+    /// capture tools' sync drop this hotkey out of its route.
+    private let emojiHotkey = QuickToolHotkey(id: 11)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
     private var keyMonitor: Any?
+    /// The keyUp twin of `keyMonitor`, for the fallback drain's debts.
+    private var keyUpMonitor: Any?
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
     private var flagsMonitor: Any?
@@ -230,6 +247,7 @@ final class CommandBarService: ObservableObject {
     private init() {
         CommandBarLearning.discardLegacyQueryHabits()
         hotkey.onPress = { [weak self] in self?.toggle() }
+        emojiHotkey.onPress = { [weak self] in self?.toggleEmoji() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
     }
@@ -244,6 +262,7 @@ final class CommandBarService: ObservableObject {
                                             fallback: .commandBarDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
                                                   storageKey: DefaultsKey.commandBarShortcut)
+        syncEmojiShortcut()
         reloadPreferenceCaches()
         syncRowHotkeys()
         if available {
@@ -288,6 +307,7 @@ final class CommandBarService: ObservableObject {
     func suspend() {
         pendingAppShortcut.cancel()
         hotkey.unregister()
+        emojiHotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
         hide()
@@ -302,12 +322,61 @@ final class CommandBarService: ObservableObject {
         isVisible ? hide() : show()
     }
 
+    /// The emoji key's own entry: never the bare field, always the grid. The
+    /// same flip as `toggle`, with the category pre-armed before the results
+    /// read it.
+    func toggleEmoji() {
+        guard AppFeature.commandBar.isAvailable else { return }
+        if isVisible, activeCategory == .emoji {
+            hide()
+            return
+        }
+        show()
+        activeCategory = .emoji
+        selectedID = nil
+        lastRankedQuery = nil
+        refreshResults()
+    }
+
+    /// The emoji grid key's registration, mirroring the field key's: an
+    /// enabled shortcut claims itself, and a disable hands it back. A refusal
+    /// from macOS is not swallowed: Settings names it beside the toggle. A
+    /// macOS key whose take-over was never agreed is put back down here too —
+    /// a restored backup or an older build's leftovers must not register
+    /// beside the system picker; the toggle asks for the take-over again. The
+    /// question is the same one Settings asks: keys this app holds count as
+    /// macOS's, so the two paths can never disagree about arming.
+    func syncEmojiShortcut() {
+        let available = AppFeature.commandBar.isAvailable
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarEmojiShortcut,
+                                            fallback: .commandBarEmojiDefault)
+        var enabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarEmojiShortcutEnabled)
+        if enabled, !SystemShortcutTakeoverSupport.emojiShortcutMayArm(
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(
+                shortcut, for: .commandBarEmoji),
+            takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.commandBarEmojiShortcut)) {
+            enabled = false
+            UserDefaults.standard.set(false, forKey: DefaultsKey.commandBarEmojiShortcutEnabled)
+        }
+        // Synced on both turns of the toggle: the unregister on the way off is
+        // what hands ⌃⌘Space back to the system picker.
+        let registered = emojiHotkey.sync(enabled: enabled, shortcut: shortcut,
+                                          storageKey: DefaultsKey.commandBarEmojiShortcut)
+        emojiShortcutRegistrationFailed = enabled && !registered
+    }
+
     func show() {
         show(promptingFor: nil)
     }
 
     private func show(promptingFor stableKey: String?) {
         guard AppFeature.commandBar.isAvailable else { return }
+        // A shortcut that opens the bar or the grid over an uninstall review
+        // would strand the selected app and its checklist in the shared
+        // uninstaller, the way hide() once skipped the same exit. Leaving the
+        // review first is the one cleanup every opening owes it.
+        exitUninstallReviewIfNeeded()
         let panel = ensurePanel()
         if AppFeature.textSnippets.isAvailable {
             TextSnippetService.shared.setCommandBarVisible(true)
@@ -399,6 +468,22 @@ final class CommandBarService: ObservableObject {
         panel.makeKey()
     }
 
+    /// The exit an uninstall review owes the shared uninstaller, whatever
+    /// opens over it: the selected app and its scanned checklist go, while a
+    /// removal - Homebrew or plain - that is still actually running in the
+    /// background stays.
+    private func exitUninstallReviewIfNeeded() {
+        switch mode {
+        case .uninstallReview, .uninstallHomebrewConfirm:
+            let uninstaller = AppUninstaller.shared
+            if !uninstaller.isRemoving {
+                uninstaller.reset()
+            }
+        default:
+            break
+        }
+    }
+
     func hide() {
         if AppFeature.textSnippets.isAvailable {
             TextSnippetService.shared.setCommandBarVisible(false)
@@ -409,6 +494,12 @@ final class CommandBarService: ObservableObject {
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
+        // Without the tap the monitors own the fallback debts; with the panel
+        // gone they stop seeing events, so the debts would only swallow
+        // fresh presses of keys the keyboard no longer holds. (A physical
+        // hold survives the close in frontmost-app land — the one leak the
+        // fallback path cannot cover, and the reason the tap is preferred.)
+        if !recordingTapAvailable { fallbackRouter.reset() }
         // Clearing the field on the way out would otherwise rebuild the whole
         // browse list for a panel nobody can see.
         isTearingDown = true
@@ -424,17 +515,7 @@ final class CommandBarService: ObservableObject {
         // click) skipped the reset stepBack() does for the same mode -
         // AppUninstaller kept its selected target and scanned checklist,
         // which then showed up unprompted in Settings and the menu panel.
-        // Guarded the same way: don't tear down a removal - Homebrew or
-        // plain - that's still actually running in the background.
-        switch mode {
-        case .uninstallReview, .uninstallHomebrewConfirm:
-            let uninstaller = AppUninstaller.shared
-            if !uninstaller.isRemoving {
-                uninstaller.reset()
-            }
-        default:
-            break
-        }
+        exitUninstallReviewIfNeeded()
         mode = .search
         uninstallFinderRequestID = nil
         // A selection belongs to the moment the bar was opened. Keeping it
@@ -587,17 +668,130 @@ final class CommandBarService: ObservableObject {
     }
 
     /// Binds (or with nil clears) one row's own combination and registers it
-    /// straight away, so the key works before the bar is even closed.
+    /// straight away, so the key works before the bar is even closed. A
+    /// combination macOS answers is never written by this call alone: the
+    /// same decision the Settings recorders make stands the take-over offer
+    /// up first, and only `confirmRowShortcutTakeOver` completes that save.
+    /// `source` names which surface asked the question.
     @discardableResult
-    func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) -> String? {
+    func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry,
+                        source: CommandBarRowShortcuts.TakeOverSource = .captureCard) -> String? {
         guard AppFeature.commandBar.isAvailable else { return nil }
-        if let shortcut, let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        let claimKey = "\(DefaultsKey.commandBarRowShortcuts).\(entry.stableKey)"
+        // Answering the standing offer of this surface, whatever the rest
+        // decides: a fresh recording, an error and a removal each take the
+        // question down before the save acts on its own.
+        pendingRowTakeOver[source] = nil
+        if let shortcut, let message = rowShortcutIssue(shortcut, for: entry) {
+            return message
+        }
+        guard let shortcut else {
+            // Removing a binding puts its claim down with it, so a key the
+            // row had taken over reaches macOS again on its own.
+            SystemShortcutTakeover.setTakeOver(claimKey, false)
+            storeRowShortcut(nil, for: entry)
+            return nil
+        }
+        // A combination macOS answers is not a refusal here, but it is not a
+        // silent take-over either: the offer is asked before the row's claim
+        // exists. The claim is named by the row, so a later change of the
+        // binding hands the key back on its own — and a fresh non-conflicting
+        // binding clears the stored agreement, so it never outlives the
+        // combination it was agreed for.
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: shortcut,
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
+            takenOver: SystemShortcutTakeover.isTakenOver(claimKey),
+            current: rowShortcuts[entry.stableKey]) {
+        case .save(let clearTakeOver):
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(claimKey, false) }
+            storeRowShortcut(shortcut, for: entry)
+        case .offer:
+            // The question stands only now that every check has passed; the
+            // recording holds still until it is answered.
+            pendingRowTakeOver[source] = PendingRowTakeOver(entry: entry, shortcut: shortcut)
+        }
+        syncRowTakeOverOfferPause()
+        return nil
+    }
+
+    /// While the capture card's question stands, the card's keys belong to
+    /// the answer: the recording tap passes only the offer's keys through,
+    /// so its buttons take keyboard focus and activation. A Settings
+    /// question is answered in a sheet whose recorder is not running, so it
+    /// never pauses anything.
+    private func syncRowTakeOverOfferPause() {
+        let offer = pendingRowTakeOver[.captureCard]
+        ShortcutRecordingTap.setPaused(offer != nil, offerID: offer?.id)
+    }
+
+    /// The one write path for a row binding: the ordinary save, the offer's
+    /// acceptance and the removal all land here.
+    private func storeRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) {
         let next = CommandBarRowShortcuts.setting(shortcut, for: entry.stableKey, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
         refreshAfterPreferenceChange()
+    }
+
+    /// The offer's acceptance: the agreement is written for the row's claim
+    /// key first, so the save below registers against a claim the take-over
+    /// already names. The decision is re-run against the live state, so a
+    /// conflict macOS gave up while the question stood saves as an ordinary
+    /// key instead of holding an opt-in nothing resolves — and a check that
+    /// went stale reports back instead of saving.
+    @discardableResult
+    func confirmRowShortcutTakeOver(_ source: CommandBarRowShortcuts.TakeOverSource) -> String? {
+        guard let pending = pendingRowTakeOver[source] else { return nil }
+        pendingRowTakeOver[source] = nil
+        syncRowTakeOverOfferPause()
+        if let message = rowShortcutIssue(pending.shortcut, for: pending.entry) {
+            return message
+        }
+        let claimKey = "\(DefaultsKey.commandBarRowShortcuts).\(pending.entry.stableKey)"
+        let conflicts = SystemShortcutTakeover.conflictsWithMacOS(pending.shortcut)
+        switch SystemShortcutTakeoverSupport.recorderDecision(
+            shortcut: pending.shortcut,
+            conflictsWithMacOS: conflicts,
+            takenOver: SystemShortcutTakeover.isTakenOver(claimKey),
+            current: rowShortcuts[pending.entry.stableKey]) {
+        case .save(let clearTakeOver):
+            // The conflict went away while the question stood: the save is an
+            // ordinary key, and a stale agreement goes with it.
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(claimKey, false) }
+            storeRowShortcut(pending.shortcut, for: pending.entry)
+            return nil
+        case .offer:
+            // The person answered the question the offer asked; writing the
+            // agreement together with the save is what accepting means.
+            break
+        }
+        SystemShortcutTakeover.setTakeOver(claimKey, true)
+        storeRowShortcut(pending.shortcut, for: pending.entry)
         return nil
+    }
+
+    /// The offer's dismissal: nothing was saved while it stood, so there is
+    /// nothing to take back — the recording simply stands down. The source
+    /// names the question it answers, so a Settings leave cannot pull the
+    /// capture card's offer away under it, and the other way around.
+    func declineRowShortcutTakeOver(_ source: CommandBarRowShortcuts.TakeOverSource) {
+        guard pendingRowTakeOver[source] != nil else { return }
+        pendingRowTakeOver[source] = nil
+        syncRowTakeOverOfferPause()
+    }
+
+    /// The capture card's own answer to the offer: accepting writes the
+    /// agreement and the binding in one turn, then leaves the recording the
+    /// way an ordinary save does. A check that went stale reports on the
+    /// card's own line instead.
+    func confirmCapturedRowShortcutTakeOver() {
+        if let message = confirmRowShortcutTakeOver(.captureCard) {
+            aliasWarning = message
+            return
+        }
+        stepBack()
     }
 
     private func rowShortcutIssue(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
@@ -614,9 +808,10 @@ final class CommandBarService: ObservableObject {
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             return String(format: strings.shortcutConflictFormat, role.title(strings))
         }
-        if shortcut.conflictsWithSystemShortcut {
-            return String(format: strings.shortcutConflictFormat, "macOS")
-        }
+        // The macOS conflict is settled by the take-over offer in
+        // `setRowShortcut` instead of an error: the person who records the
+        // combination means to have it, and the row's claim restores it when
+        // it goes.
         if AppFeature.windowLayout.isAvailable,
            let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
             return String(format: strings.shortcutConflictFormat, title)
@@ -755,6 +950,15 @@ final class CommandBarService: ObservableObject {
     func goHome() {
         if !query.isEmpty { query = "" }
         if activeCategory != nil { setCategory(nil) }
+    }
+
+    /// The emoji grid's own door, from the row the search offers: the query
+    /// that found the door is left at the threshold, so the grid opens as the
+    /// full browse instead of a search-results list.
+    func openEmojiGrid() {
+        if !isVisible { show() }
+        query = ""
+        setCategory(.emoji)
     }
 
     func setCategory(_ source: CommandBarSource?) {
@@ -1707,6 +1911,17 @@ final class CommandBarService: ObservableObject {
         select(next < 0 ? next + rows.count : next)
     }
 
+    /// Walking the emoji grid: Left and Right step over one tile, Up and Down
+    /// jump a whole row — unless the target row stops early, where the walk
+    /// keeps to its edge instead of sliding sideways. Unlike the list, the
+    /// walk clamps at the ends instead of wrapping, the way the keyboard
+    /// reaches through Finder's own icon view.
+    func moveSelectionInGrid(_ dx: Int, _ dy: Int, columns: Int) {
+        select(CommandBarEmojiTileSize.gridTarget(from: selectedIndex,
+                                                  dx: dx, dy: dy,
+                                                  columns: columns, count: rows.count))
+    }
+
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
@@ -1746,6 +1961,31 @@ final class CommandBarService: ObservableObject {
 
     var selectedEntry: CommandBarEntry? {
         rows.indices.contains(selectedIndex) ? rows[selectedIndex] : nil
+    }
+
+    /// Whether the emoji grid is what the list area shows: the emoji category,
+    /// browsed empty or filtered by what is typed. The view reports the column
+    /// count on top of this; the arrow keys only walk the grid once it has.
+    var isEmojiGridOpen: Bool {
+        activeCategory == .emoji
+    }
+
+    /// A typed query whose whole result set the emoji catalog produced: the
+    /// grid serves it the same way, so a search of emoji looks like the
+    /// browsing of them. The browser row itself is not catalog produce — its
+    /// title is a bare word, and a grid tile that took it for a glyph would
+    /// draw the word "Emoji" the size of an emoji.
+    var isEmojiResultSet: Bool {
+        activeCategory == nil
+            && !rows.isEmpty
+            && rows.allSatisfy { $0.id != CommandBarPreferences.emojiBrowserRowID
+                                 && (CommandBarSource.emoji.idPrefix.map($0.id.hasPrefix) ?? false) }
+    }
+
+    /// Whether the arrow keys walk the tiles: the grid is showing and the
+    /// view has reported its geometry.
+    var isEmojiGridNavigable: Bool {
+        (isEmojiGridOpen || isEmojiResultSet) && emojiGridColumns > 1
     }
 
     /// A row by its id, from the catalog first and from what is on screen
@@ -2171,28 +2411,49 @@ final class CommandBarService: ObservableObject {
     /// feature instead of reaching the bar. This is the same pair the shortcut
     /// fields in Settings use, and it gives every key back, not only ours.
     private func beginCapturingShortcut(_ entry: CommandBarEntry) {
+        // A fresh capture answers the capture card's own question only; a
+        // question the Settings page asked stays standing until it is
+        // answered there.
+        pendingRowTakeOver[.captureCard] = nil
         ShortcutCapture.begin()
         // The tap sits ahead of the app's own menu. Without it, Command Q
         // never reaches the local monitor. It quits Vorssaint instead of
         // landing on the card (issue #1193). When Accessibility cannot
         // create the tap, the monitor below still records as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
+        // The result decides who owns the offer's keys: with the tap the
+        // drain lives there; without it the panel's monitors do, through
+        // `fallbackRouter`.
+        recordingTapAvailable = ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
             self?.handleCaptureKey(keyCode: keyCode, modifiers: modifiers)
         }
+        // With the tap the drain lives there; without it the panel's
+        // monitors do, through `fallbackRouter` — and then the debts stay:
+        // a forwarded key may still be held (the offer accepted with
+        // Return, the next capture opened before its release), and its
+        // release must follow the press. A tap switch is the only reset:
+        // monitor-side debts are dead the moment the tap owns the drain.
+        if recordingTapAvailable { fallbackRouter.reset() }
         mode = .capturingShortcut(entryID: entry.id)
         aliasWarning = nil
         refreshPanelLayout()
     }
 
     private func endCapturingShortcut() {
+        // Whatever the recording was about to ask, an unfinished offer dies
+        // with the recording.
+        pendingRowTakeOver[.captureCard] = nil
         ShortcutRecordingTap.end()
         ShortcutCapture.end()
     }
-
     /// One press while the capture card is up. Shared by the recording tap
     /// and the local monitor fallback.
     private func handleCaptureKey(keyCode: Int64, modifiers: GlobalShortcutModifiers) {
         guard case .capturingShortcut(let entryID) = mode else { return }
+        // While the offer stands, the recording is answered, not re-recorded:
+        // every key but Esc waits, so a press cannot silently replace the
+        // combination the question names. Escape takes the offer down with
+        // the recording.
+        if pendingRowTakeOver[.captureCard] != nil, keyCode != Int64(kVK_Escape) { return }
         switch Int(keyCode) {
         case kVK_Escape:
             stepBack()
@@ -2217,7 +2478,10 @@ final class CommandBarService: ObservableObject {
                 aliasWarning = message
                 return
             }
-            stepBack()
+            // An offer keeps the card up with the question on it; accepting
+            // finishes this save (confirmCapturedRowShortcutTakeOver) and
+            // steps back the way an ordinary save does.
+            if pendingRowTakeOver[.captureCard] == nil { stepBack() }
         }
     }
 
@@ -2231,6 +2495,28 @@ final class CommandBarService: ObservableObject {
     @Published private(set) var actionIndex = 0
     /// Set when the name being typed already belongs to another row.
     @Published private(set) var aliasWarning: String?
+    /// A conflicting combination waiting for the take-over offer's answer.
+    /// Nothing is saved while it stands: the offer is the last word before
+    /// the row's claim exists. The capture card and the app-shortcut field
+    /// in Settings both render it; accepting writes the agreement and the
+    /// binding together, dismissing saves nothing. Each surface keeps its
+    /// own question: a Settings leave or a fresh capture takes its own offer
+    /// down and never the other surface's.
+    struct PendingRowTakeOver {
+        let id = UUID()
+        let entry: CommandBarEntry
+        let shortcut: GlobalShortcut
+    }
+
+    /// One question per surface, so neither can silently pull the other's
+    /// out. Every transition below addresses a single slot.
+    @Published private(set) var pendingRowTakeOver =
+        CommandBarRowShortcuts.TakeOverOffers<PendingRowTakeOver>()
+    /// Whether the recording tap could exist. When it could not (no
+    /// Accessibility), the panel's monitors own the offer's keys and the
+    /// debts a forwarded keyDown hands out, through `fallbackRouter`.
+    private var recordingTapAvailable = true
+    private var fallbackRouter = CommandBarRowShortcuts.FallbackKeyRouter()
 
     func moveActionSelection(_ delta: Int) {
         let count = actionRows.count
@@ -3079,11 +3365,53 @@ final class CommandBarService: ObservableObject {
             // speaks, so composition always wins.
             if self.fieldIsComposing(in: panel) { return event }
 
+            // Without the recording tap the monitors own the offer's keys:
+            // the same pause policy, plus the debts a keyDown hands out. A
+            // forwarded key's repeats stay suppressed once the offer closes
+            // and its release passes to the app; a swallowed key keeps its
+            // repeats and release with the recording; a fresh press is
+            // never swallowed for a debt whose release the monitor never
+            // saw. (The tap-based drain does the same inside the tap; this
+            // is its monitor-side twin.)
+            if !self.recordingTapAvailable {
+                var capturing = false
+                if case .capturingShortcut = self.mode { capturing = true }
+                switch self.fallbackRouter.routeDown(
+                    keyCode: Int64(event.keyCode),
+                    modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags),
+                    offerID: self.pendingRowTakeOver[.captureCard]?.id,
+                    captureIsActive: capturing,
+                    isRepeat: event.isARepeat) {
+                case .swallow:
+                    return nil
+                case .pass:
+                    // An offered key goes on to the buttons the focus walk
+                    // reaches. (Escape never gets here: the router hands it
+                    // to the capture as a swallowed pair.)
+                    return event
+                case .record:
+                    break
+                }
+            }
+
             // Listening for a combination: every key belongs to the person,
             // except the two that mean "never mind" and "take it off". The
             // recording tap is the primary path; this is the fallback when
             // that tap cannot exist.
             if case .capturingShortcut = self.mode {
+                // While the card's offer stands, the recording holds still:
+                // only the keys the offer's buttons use reach the buttons —
+                // Tab, Space, Return, the arrows — and Esc keeps its "never
+                // mind". Any other key is swallowed, so the combination the
+                // question names cannot fire while the offer waits.
+                if self.pendingRowTakeOver[.captureCard] != nil {
+                    guard ShortcutRecordingTap.passesWhilePaused(
+                        keyCode: Int64(event.keyCode),
+                        modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags)) else {
+                        return nil
+                    }
+                    guard Int(event.keyCode) == kVK_Escape else { return event }
+                }
                 self.handleCaptureKey(
                     keyCode: Int64(event.keyCode),
                     modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags))
@@ -3167,19 +3495,42 @@ final class CommandBarService: ObservableObject {
                 self.runSelected()
                 return nil
             case kVK_UpArrow:
-                if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
+                // Keep the existing selection behavior even while a shortcut
+                // modifier is still held.
+                if case .actions = self.mode { self.moveActionSelection(-1) }
+                else if self.isEmojiGridNavigable {
+                    self.moveSelectionInGrid(0, -1, columns: self.emojiGridColumns)
+                }
+                else { self.moveSelection(-1) }
                 return nil
             case kVK_DownArrow:
                 if case .actions = self.mode {
                     self.moveActionSelection(1)
+                } else if self.isEmojiGridNavigable {
+                    self.moveSelectionInGrid(0, 1, columns: self.emojiGridColumns)
                 } else if !self.peekHome() {
                     self.moveSelection(1)
                 }
                 return nil
             case kVK_LeftArrow:
-                // Handed back untouched when the field has text in it.
+                // Bare Left and Right walk tiles. Modified arrows keep their
+                // field meaning when text is present; with an empty field they
+                // still walk the category chips as they do on main.
+                if CommandBarEmojiGridNavigation.consumesHorizontalArrow(
+                    gridIsNavigable: self.isEmojiGridNavigable,
+                    modifiersPresent: !navigationModifiers.isEmpty) {
+                    self.moveSelectionInGrid(-1, 0, columns: self.emojiGridColumns)
+                    return nil
+                }
+                // Handed back untouched when there is no grid to walk.
                 return self.moveCategory(-1) ? nil : event
             case kVK_RightArrow:
+                if CommandBarEmojiGridNavigation.consumesHorizontalArrow(
+                    gridIsNavigable: self.isEmojiGridNavigable,
+                    modifiersPresent: !navigationModifiers.isEmpty) {
+                    self.moveSelectionInGrid(1, 0, columns: self.emojiGridColumns)
+                    return nil
+                }
                 return self.moveCategory(1) ? nil : event
             case kVK_Tab:
                 self.completeSelection()
@@ -3218,6 +3569,18 @@ final class CommandBarService: ObservableObject {
                 if case .naming = self.mode { self.aliasWarning = nil }
                 return event
             }
+        }
+        // The fallback drain's debts live in these monitors: a forwarded
+        // key's release passes to the app, a swallowed one ends its hold.
+        // With the tap the drain is the tap's own; the monitors then only
+        // watch, and this stays a no-op.
+        keyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            if !self.recordingTapAvailable,
+               case .swallow = self.fallbackRouter.routeUp(Int64(event.keyCode)) {
+                return nil
+            }
+            return event
         }
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard let self else { return event }
@@ -3260,6 +3623,10 @@ final class CommandBarService: ObservableObject {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let keyUpMonitor {
+            NSEvent.removeMonitor(keyUpMonitor)
+            self.keyUpMonitor = nil
         }
         if let localClickMonitor {
             NSEvent.removeMonitor(localClickMonitor)

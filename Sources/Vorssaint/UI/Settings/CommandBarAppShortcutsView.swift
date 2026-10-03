@@ -122,6 +122,22 @@ struct CommandBarAppShortcutsView: View {
                 }
             }
 
+            // The take-over this page's recorder just asked about: the
+            // question stands here until it is answered, and an acceptance
+            // writes the agreement and the binding together. A question the
+            // capture card asked is not visible here — and not dismissible
+            // from here either.
+            if let pending = service.pendingRowTakeOver[.appShortcutsSettings] {
+                SystemShortcutTakeOverOffer(
+                    shortcut: pending.shortcut,
+                    onAccept: {
+                        if let failure = service.confirmRowShortcutTakeOver(.appShortcutsSettings) {
+                            message = "\(pending.entry.title): \(failure)"
+                        }
+                    },
+                    onDismiss: { service.declineRowShortcutTakeOver(.appShortcutsSettings) })
+            }
+
             HStack(alignment: .center, spacing: 16) {
                 Text(message ?? text.shortcutCaptureHint)
                     .font(.caption)
@@ -135,6 +151,9 @@ struct CommandBarAppShortcutsView: View {
         .padding(24)
         .frame(width: 780, height: 560)
         .onAppear { service.refreshApplications() }
+        // Only this page's own question dies with the page: an offer the
+        // capture card asked stays standing.
+        .onDisappear { service.declineRowShortcutTakeOver(.appShortcutsSettings) }
         .onChange(of: features.revision) { _, _ in
             if !AppFeature.commandBar.isAvailable { dismiss() }
         }
@@ -169,11 +188,11 @@ struct CommandBarAppShortcutsView: View {
                 isEnabled: AppFeature.commandBar.isAvailable,
                 waitingTitle: l10n.s.shortcutPressKeys,
                 emptyTitle: shortcut == nil ? text.appShortcutRecord : nil,
-                clearAction: { report(service.setRowShortcut(nil, for: entry), for: entry) },
+                clearAction: { report(service.setRowShortcut(nil, for: entry, source: .appShortcutsSettings), for: entry) },
                 notCapturedAction: { report(l10n.s.shortcutNotCaptured, for: entry) },
                 recordingChanged: { if $0 { message = nil } },
                 invalidAction: { report(l10n.s.shortcutInvalid, for: entry) },
-                captureAction: { report(service.setRowShortcut($0, for: entry), for: entry) })
+                captureAction: { report(service.setRowShortcut($0, for: entry, source: .appShortcutsSettings), for: entry) })
                 .frame(width: 140)
                 .accessibilityLabel("\(entry.title): \(text.appShortcutLabel)")
             if service.refusedRowShortcutKeys.contains(entry.stableKey) {
@@ -183,7 +202,7 @@ struct CommandBarAppShortcutsView: View {
                     .accessibilityLabel(l10n.s.shortcutUnavailable)
             }
             if shortcut != nil {
-                Button { report(service.setRowShortcut(nil, for: entry), for: entry) } label: {
+                Button { report(service.setRowShortcut(nil, for: entry, source: .appShortcutsSettings), for: entry) } label: {
                     Image(systemName: "xmark.circle")
                 }
                 .buttonStyle(.borderless)
