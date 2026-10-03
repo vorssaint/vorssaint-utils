@@ -1064,6 +1064,28 @@ enum FeatureCatalogTests {
         )
         suite.expect(unmappedFanTemperatures.isEmpty,
                "fan curves reject unknown Apple Silicon sensors instead of treating them as CPU")
+        // Apple M4 Pro (Mac16,8) sample: the base M4 set it would otherwise use
+        // tops out at Tp0Y, 10 °C below its hottest core.
+        let m4ProFanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Te05", 74.15), ("Tp01", 77.10), ("Tp0Y", 87.08),
+                          ("Tp0U", 97.84), ("Tpx5", 97.84), ("Tp29", 95.81)],
+            gpuReadings: [71.2],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
+        )
+        suite.expectClose(m4ProFanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    97.84,
+                    "M4 Pro fan curves follow its hottest CPU core")
+        suite.expectClose(m4ProFanTemperatures.first { $0.source == .hottestSoC }?.celsius ?? -1,
+                    97.84,
+                    "M4 Pro fan curves keep the CPU in the SoC reading")
+        let m4FanTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: [("Tp01", 46.12), ("Te05", 45.01), ("Tp0W", 62.56)],
+            gpuReadings: [],
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4")
+        )
+        suite.expectClose(m4FanTemperatures.first { $0.source == .hottestCPU }?.celsius ?? -1,
+                    46.12,
+                    "base M4 fan curves keep using its mapped cores")
         suite.expect(FanControlPolicy.telemetryReadings(expectedCount: 1, readings: [1_200]) == [1_200]
                 && FanControlPolicy.telemetryReadings(expectedCount: 2,
                                                       readings: [1_200, 1_350]) == [1_200, 1_350],

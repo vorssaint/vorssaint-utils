@@ -61,6 +61,10 @@ enum TemperatureSensorSelector {
         // Preserve the established Tp/Te reading path for this supported chip
         // until a verified per-core map is available.
         if brand == "Apple A18 Pro" { return .generic }
+        // The M4 core set comes from a base M4. An M4 Pro lacks three of its
+        // keys and runs hottest on sensors outside it, so the set reads about
+        // 10 °C low there. It takes the same path until it has a verified map.
+        if brand == "Apple M4 Pro" { return .generic }
         switch appleSiliconGeneration(in: brand) {
         case 1: return .appleM1Family
         case 2: return .appleM2Family

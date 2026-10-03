@@ -625,6 +625,42 @@ enum MetricsFeatureTests {
         suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
             readings: appleM4Sensors, platform: .appleM4Family
         ) ?? -1, 46.12, "a mapped M4 keeps reading its own cores, not the hotter hotspot")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: appleM4Sensors,
+            platform: TemperatureSensorSelector.platform(brandString: "Apple M4")
+        ) ?? -1, 46.12, "a base M4 identified by its brand keeps its mapped cores")
+
+        // MacBook Pro 14-inch, Mac16,8, Apple M4 Pro, macOS 15.7.1, one sample
+        // of --sensors under load (issue #2460). Te09, Te0H and Tp0V of the M4
+        // set do not exist here, and the cores it does map sit about 10 °C
+        // below the hottest ones. Each Tpx/Tex key repeats one of the sensors
+        // next to it, consistent with those hot readings being core sensors.
+        let appleM4ProSensors: [(key: String, value: Double)] = [
+            ("Te05", 74.15), ("Te0S", 72.94), ("Te06", 79.64), ("Tex1", 79.64),
+            ("Tp01", 77.10), ("Tp05", 79.19), ("Tp09", 73.73), ("Tp0D", 74.44),
+            ("Tp0Y", 87.08), ("Tp0b", 77.96), ("Tp0e", 73.06),
+            ("Tp06", 91.91), ("Tp0c", 92.77), ("Tpx1", 92.77),
+            ("Tp0M", 96.59), ("Tp23", 96.59), ("TpxD", 96.59),
+            ("Tp0U", 97.84), ("Tpx5", 97.84), ("Tp29", 95.81),
+            ("Tp1o", 93.22), ("Tpx9", 93.22), ("Tp2G", 92.84),
+        ]
+        let m4ProPlatform = TemperatureSensorSelector.platform(brandString: "Apple M4 Pro")
+        suite.expect(TemperatureSensorSelector.platform(brandString: " Apple M4 Pro\n") == m4ProPlatform,
+               "M4 Pro identification ignores surrounding whitespace")
+        let m4ProCPUReadings = appleM4ProSensors.filter {
+            TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: m4ProPlatform)
+        }
+        suite.expect(m4ProCPUReadings.count == appleM4ProSensors.count
+                && !TemperatureSensorSelector.isCPUTemperatureKey("Tg0k", platform: m4ProPlatform)
+                && !TemperatureSensorSelector.isCPUTemperatureKey("TB0T", platform: m4ProPlatform),
+               "M4 Pro discovery keeps both CPU families and excludes GPU and battery")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: m4ProCPUReadings, platform: m4ProPlatform
+        ) ?? -1, 97.84, "an M4 Pro shows its hottest core, not the base M4 set")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("Tp0U", 7.0), ("Tp0M", 130.0), ("Te05", 71.63)],
+            platform: m4ProPlatform
+        ) ?? -1, 71.63, "an M4 Pro with its P cores parked still reads its E cores")
         let genericCPU = TemperatureSensorSelector.displayedCPUTemperature(
             readings: [("Tp00", 44.5), ("Tp01", 51.6)],
             platform: .generic
