@@ -562,7 +562,9 @@ private struct NotchAgentTrendCard: View {
 
     private func caption(byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost)
+            // A pointed-at bar reads its tokens beside its cost.
+            let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
+            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
         }
         return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }
