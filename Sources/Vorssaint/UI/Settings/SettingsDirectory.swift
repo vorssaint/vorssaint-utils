@@ -343,6 +343,9 @@ enum SettingsDirectory {
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
             ]),
             (categories.utilities, [
+                SettingsDirectoryItem(page: .geminiLive,
+                                      title: FeatureStrings.geminiLive(language).title, icon: "sparkles",
+                                      keywords: [FeatureStrings.geminiLive(language).description, "Gemini", "API", "AI"]),
                 SettingsDirectoryItem(page: .notch,
                                       title: FeatureStrings.notch(language).title,
                                       icon: "macbook",

@@ -550,7 +550,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, geminiLive
 
     var id: String { rawValue }
 
@@ -575,6 +575,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
+        case .geminiLive: return .geminiLive
         case .portManager: return .portManager
         }
     }
@@ -611,7 +612,9 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
+    @AppStorage(DefaultsKey.panelUtilityGeminiLive) private var showGeminiLive = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @ObservedObject private var gemini = GeminiLiveService.shared
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -775,6 +778,7 @@ struct UtilitiesSection: View {
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
+        case .geminiLive: return showGeminiLive
         case .portManager: return showPortManager
         }
     }
@@ -1010,6 +1014,31 @@ struct UtilitiesSection: View {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                                         CommandBarService.shared.show()
+                                    }
+                                })
+        case .geminiLive:
+            let strings = FeatureStrings.geminiLive(l10n.language)
+            UtilityActionButton(title: gemini.state == .idle ? strings.title : strings.title + " · " + strings.end,
+                                caption: gemini.error ?? (gemini.state == .connecting ? strings.connecting
+                                    : gemini.state == .live ? (gemini.isSharingScreen ? strings.active
+                                        : gemini.isMuted ? strings.ready : strings.listening) : strings.description),
+                                systemImage: "sparkles", isEditing: editing, showsDragHandle: true,
+                                visibility: $showGeminiLive,
+                                needsAttention: gemini.error != nil,
+                                captionStaysVisible: gemini.state != .idle,
+                                accessoryTitle: gemini.isSharingScreen || gemini.isSelectingScreen ? strings.stop : strings.share,
+                                accessorySystemImage: "rectangle.on.rectangle",
+                                accessoryAction: gemini.state == .live ? {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        if gemini.isSharingScreen || gemini.isSelectingScreen { gemini.stopSharingScreen() }
+                                        else { gemini.shareScreen() }
+                                    }
+                                } : nil,
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        GeminiLiveController.shared.toggle()
                                     }
                                 })
         case .portManager:

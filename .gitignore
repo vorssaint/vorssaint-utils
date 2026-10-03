@@ -23,3 +23,8 @@ AGENTS.md
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+
+# Personal API credentials
+.env
+.env.*
+!.env.example

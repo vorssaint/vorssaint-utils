@@ -142,6 +142,8 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Capture and create
 
+- Gemini Live (optional). Start voice chat with Gemini 3.8 Live from the expanded notch or menu-bar dropdown using your own API key. Keep chatting while the controls are collapsed, and optionally share a selected screen or window. Content goes directly to Google only during a session; API charges may apply.
+
 - **Screen capture.** Switch between screenshots, recording, text recognition and color picking in one selector with a pixel magnifier.
 - **Screenshot.** Capture an area, window, screen or scrolling page. Annotate, crop, redact, add backgrounds and watermarks, pin captures, send them through the Share menu or share an expiring link.
 - **Screen recording.** Record with separate system-audio and microphone tracks. Trim, cut, add automatic zooms, blur private details and export video or GIFs, or share an expiring link.

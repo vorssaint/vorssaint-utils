@@ -9,6 +9,8 @@ struct NotchView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
+    @ObservedObject private var gemini = GeminiLiveService.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
@@ -348,6 +350,25 @@ struct NotchView: View {
                 Color.clear.frame(width: service.expandedGeometry.headerCameraGap)
             }
             HStack(spacing: 6) {
+                if AppFeature.geminiLive.isAvailable {
+                    let strings = FeatureStrings.geminiLive(l10n.language)
+                    NotchIconButton(symbol: "sparkles", title: gemini.state == .idle ? strings.talk : strings.end,
+                                    selected: gemini.state != .idle) {
+                        service.perform { GeminiLiveController.shared.toggle() }
+                    }
+                    .accessibilityIdentifier("notch.geminiLive")
+                    if gemini.state == .live {
+                        NotchIconButton(symbol: "rectangle.on.rectangle",
+                                        title: gemini.isSharingScreen || gemini.isSelectingScreen ? strings.stop : strings.share,
+                                        selected: gemini.isSharingScreen) {
+                            service.perform {
+                                if gemini.isSharingScreen || gemini.isSelectingScreen { gemini.stopSharingScreen() }
+                                else { gemini.shareScreen() }
+                            }
+                        }
+                        .accessibilityIdentifier("notch.geminiLive.shareScreen")
+                    }
+                }
                 if service.selected == .captures, !showsDetail, !service.showingSections,
                    let actions = service.captureActions {
                     actions.fixedSize()

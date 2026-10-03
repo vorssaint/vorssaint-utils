@@ -8,7 +8,7 @@
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint používa Bluetooth len na načítanie stavu batérie pripojeného príslušenstva. Nič neopustí váš Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint nahráva váš mikrofón len vtedy, keď ho zapnete pre nahrávanie obrazovky. Zvuk ostáva na vašom Macu, pokiaľ sa nerozhodnete vytvoriť dočasný odkaz.";
+"NSMicrophoneUsageDescription" = "Vorssaint používa mikrofón, keď ho zapnete pre nahrávanie obrazovky alebo Gemini Live. Gemini Live odosiela tento zvuk priamo Googlu s vaším osobným kľúčom API.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint zobrazuje vašu kameru len v okne náhľadu, ktoré otvoríte, aby ste pred hovorom videli, ako vyzeráte. Nič sa nenahráva a nič neopustí váš Mac.";

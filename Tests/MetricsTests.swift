@@ -91,6 +91,7 @@ struct MetricsTests {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
             }),
+            ("gemini-live", { GeminiLiveTests.run(suite); GeminiLiveLifecycleTests.run(suite); GeminiLiveWindowTests.run(suite) }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
                 PortManagerRefreshTests.run(suite)

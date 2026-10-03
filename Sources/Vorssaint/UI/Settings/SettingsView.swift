@@ -551,6 +551,7 @@ struct SettingsView: View {
         case .quitProtection: QuitProtectionSettings()
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
+        case .geminiLive: GeminiLiveView()
         case .portManager: PortManagerView()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()

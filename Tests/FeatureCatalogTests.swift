@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 75, "feature catalog has 75 features")
+        suite.expect(AppFeature.allCases.count == 76, "feature catalog has 76 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "geminiLive", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -1346,11 +1346,11 @@ enum FeatureCatalogTests {
                "mixer without precise volume roller does not use accessibility")
 
         suite.expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
-                == [.switcher, .screenOCR, .screenshot, .screenRecorder],
+                == [.switcher, .screenOCR, .screenshot, .screenRecorder, .geminiLive],
                "switcher with previews uses screen recording; OCR, screenshots and recordings are on demand")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode])
-                == [.screenOCR, .screenshot, .screenRecorder],
+                == [.screenOCR, .screenshot, .screenRecorder, .geminiLive],
                "simple-mode switcher stops using screen recording")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
@@ -1420,9 +1420,9 @@ enum FeatureCatalogTests {
                "audio capture reads as unused once the mixer is off in the hub")
         suite.expect(activeSet(.audioCapture, on: [DefaultsKey.recorderSystemAudio]) == [.mixer, .screenRecorder],
                "the recorder uses audio capture only while the Mac's sound is a chosen source")
-        suite.expect(activeSet(.microphone).isEmpty
-                && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder],
-               "the recorder uses microphone access only when that optional source is on")
+        suite.expect(activeSet(.microphone) == [.geminiLive]
+                && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder, .geminiLive],
+               "Gemini microphone access is on demand; the recorder uses it only with its optional source on")
         suite.expect(activeSet(.camera) == [.cameraPreview],
                "the camera preview is the only on-demand camera user")
         suite.expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview])) == [],

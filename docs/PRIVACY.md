@@ -19,7 +19,7 @@ Clipboard history, including the images and files you copy, lives in the app's l
 
 Recent Captures keeps up to 12 screenshots, within a 256 MB limit, in the app's private local cache so you can reopen them. Recordings are not duplicated: only their existing path and a small thumbnail are kept. Clear removes that history and its cached images. When a screenshot is copied as a file, its private local PNG is kept temporarily so other apps can finish reading it, then cleaned on later copies once it is older than 24 hours or earlier when the bounded cache fills. None of these local caches is uploaded automatically.
 
-When a feature needs a macOS permission such as Accessibility, Screen Recording or Microphone, that access is used only for the feature it belongs to. Captured content leaves the Mac only when you explicitly share it, from the Share menu or with a temporary link, and the audio of apps you route to AirPlay goes only to the speaker you pick on your local network. The [permissions guide](PERMISSIONS.md) breaks down each permission.
+When a feature needs a macOS permission such as Accessibility, Screen Recording or Microphone, that access is used only for the feature it belongs to. Captured content leaves the Mac only when you explicitly share it, from the Share menu, with a temporary link, or through an explicitly started Gemini Live session, and the audio of apps you route to AirPlay goes only to the speaker you pick on your local network. The [permissions guide](PERMISSIONS.md) breaks down each permission.
 
 ## Optional notch features
 
@@ -86,3 +86,11 @@ This page describes how the current version of Vorssaint behaves. If the app's b
 ## Questions
 
 If anything here is unclear, open a question in [GitHub issues](https://github.com/vorssaint/vorssaint-utils/issues), or have a look at [support](../SUPPORT.md).
+
+## Gemini Live (optional)
+
+Gemini Live is uninstalled by default. Installing it does not start a network connection or capture. Clicking Gemini Live in the menu-bar dropdown or expanded notch starts a voice connection with your saved key. No chat window needs to stay open, and collapsing the notch or closing the dropdown does not stop voice or screen sharing. When no key is saved, a key-entry window appears and closes once you start. The microphone asks for permission and starts listening when allowed. Screen sharing is optional: choosing Share screen opens the macOS screen/window picker. Only that selection is streamed to `generativelanguage.googleapis.com`, as JPEG frames at up to one frame per second, over an encrypted WebSocket. An enabled microphone streams mono PCM audio directly to Google. Gemini returns speech and transcription. Vorssaint does not save the frames, audio or transcripts to disk. Transcripts are bounded in memory while the session is active.
+
+You supply your own Google Gemini API key. Saving it stores it in this Mac’s Keychain; removing it deletes that credential. Keys are not synced or included in settings backups, sent to Vorssaint, or printed in diagnostics. Google may charge your API account, and its processing of the content is governed by its own service terms and privacy policy. The key is sent only to Google for authentication.
+
+Stop sharing or a capture error ends screen capture while voice chat continues. Cancelling screen selection leaves the conversation connected. Clicking Gemini again to stop chatting, uninstalling the feature, sleep, screen lock, switching away from this login session or a lost connection stops the whole session. Closing Settings does not stop an active voice session. There is no automatic reconnection. When enabled, microphone audio continues during Gemini speech so you can interrupt a reply. Input and playback share macOS voice processing for echo cancellation; headphones are recommended. Muting silences the processed input, removes its capture tap and stops sending microphone audio while playback continues. Stopping the session releases the audio engine. This feature offers screen understanding and conversation, with no computer-control tools.
