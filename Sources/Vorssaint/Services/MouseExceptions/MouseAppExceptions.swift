@@ -35,8 +35,8 @@ final class MouseAppExceptions: ObservableObject {
     @Published private(set) var lists: [MouseExceptionScope: [String]] = [:]
     @Published private(set) var runningScopes = Set<MouseExceptionScope>()
     /// The scopes whose list contains the app in front right now, published
-    /// on the main thread whenever that app changes (issues #1181, #1227).
-    /// The features that follow the frontmost app observe this and
+    /// on the main thread whenever that app changes (issue #1227). The
+    /// feature that follows the frontmost app observes this and
     /// the event taps ask the same answer through `frontmostAppMatches`,
     /// which reads a lock-guarded snapshot and never touches AppKit.
     @Published private(set) var frontmostScopes = Set<MouseExceptionScope>()
@@ -95,7 +95,7 @@ final class MouseAppExceptions: ObservableObject {
 
     func list(_ scope: MouseExceptionScope) -> [String] { lists[scope] ?? [] }
 
-    // MARK: - The app in front (issues #1181, #1227)
+    // MARK: - The app in front (issue #1227)
 
     /// True when the app in front is on this feature's list. Safe from any
     /// event tap: it reads the snapshot the main thread keeps fresh and

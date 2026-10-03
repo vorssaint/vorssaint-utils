@@ -2553,13 +2553,10 @@ enum PointerInputFeatureTests {
                 && MouseExceptionScope.buttonShortcuts.feature == .mouseButtonShortcuts
                 && MouseExceptionScope.middleClick.feature == .middleClick
                  && MouseExceptionScope.superKey.feature == .superKey
-                 && MouseExceptionScope.fnLock.feature == .fnLock
-                 && MouseExceptionScope.switcherPause.feature == .switcher,
+                 && MouseExceptionScope.fnLock.feature == .fnLock,
                 "each list knows the feature that owns it, so it hides with that feature")
-        suite.expect(MouseExceptionScope.allCases.allSatisfy {
-                $0.feature.group == .mouseKeyboard || $0 == .switcherPause
-            },
-               "every exception list belongs to a mouse-and-keyboard feature, except the switcher pause list (issue #1181)")
+        suite.expect(MouseExceptionScope.allCases.allSatisfy { $0.feature.group == .mouseKeyboard },
+                "every exception list belongs to a mouse-and-keyboard feature")
         suite.expect(Defaults.sanitizedBundleIdentifierList(["  com.example.a  ", "", "com.example.a", "com.example.b"])
                 == ["com.example.a", "com.example.b"],
                "the exception list drops blanks, spaces and repeats")
