@@ -833,6 +833,86 @@ enum AgentLogParser {
         return .other
     }
 
+    // MARK: Pi
+
+    static func parsePi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard let type = firstType(line)?.name else { return [] }
+        switch type {
+        case "message":
+            // A tool result can be large, and it only says that work goes on.
+            if contains(line, #""role":"toolResult""#) { return state.turnOpen ? [.turnActive(nil)] : [] }
+            guard let json = object(line), let message = json["message"] as? [String: Any] else { return [] }
+            return piMessage(json, message, state: &state, now: now)
+        case "usage":
+            guard contains(line, #""kind":"cache_warm""#), let json = object(line),
+                  let usage = json["usage"] as? [String: Any] else { return [] }
+            let model = native(json["model"] as? String ?? state.model)
+            return piUsage(usage, model: model, json: json, state: state, now: now).map { [$0] } ?? []
+        case "session":
+            guard let json = object(line) else { return [] }
+            state.session = native(json["id"] as? String ?? state.session)
+            if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
+            return []
+        case "model_change":
+            guard let json = object(line), let model = json["modelId"] as? String, !model.isEmpty else { return [] }
+            state.model = native(model)
+            return []
+        default:
+            return []
+        }
+    }
+
+    private static func piMessage(_ json: [String: Any], _ message: [String: Any],
+                                  state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        let date = timestamp(json["timestamp"]) ?? now
+        switch message["role"] as? String {
+        case "user":
+            if state.turnOpen { return [.turnActive(nil)] }
+            state.turnOpen = true
+            return [.turnBegan(date)]
+        case "assistant":
+            var entries: [AgentLogEntry] = []
+            let reported = native(message["model"] as? String ?? "")
+            if !reported.isEmpty { state.model = reported }
+            if let usage = message["usage"] as? [String: Any],
+               let entry = piUsage(usage, model: state.model, json: json, state: state, now: now) {
+                entries.append(entry)
+            }
+            let stop = message["stopReason"] as? String
+            if stop == "stop" || stop == "error" || stop == "aborted" {
+                if state.turnOpen { entries.append(.turnEnded(date, completed: stop == "stop", duration: nil)) }
+                state.turnOpen = false
+            } else {
+                entries.append(state.turnOpen ? .turnActive(date) : .turnBegan(date))
+                state.turnOpen = true
+            }
+            return entries
+        default:
+            return []
+        }
+    }
+
+    /// Pi writes `input` without cache traffic and `output` with reasoning, the
+    /// shape `AgentTokens` keeps, so the counts pass through unchanged.
+    private static func piUsage(_ usage: [String: Any], model: String, json: [String: Any],
+                                state: AgentLogState, now: Date) -> AgentLogEntry? {
+        let tokens = AgentTokens(
+            input: int(usage["input"]), cacheWrite: int(usage["cacheWrite"]), cacheRead: int(usage["cacheRead"]),
+            output: int(usage["output"]), reasoning: int(usage["reasoning"]))
+        guard tokens.total > 0 else { return nil }
+        let date = timestamp(json["timestamp"]) ?? now
+        var billable = AgentBillable(tokens: tokens)
+        billable.longCacheWrite = int(usage["cacheWrite1h"])
+        let priced = AgentPricing.cost(billable, model: model)
+        let recorded = ((usage["cost"] as? [String: Any])?["total"] as? NSNumber)?.doubleValue
+        let cost = priced.cost ?? recorded
+        let reportedCost = priced.cost == nil && (recorded ?? 0) > 0
+        let id = json["id"] as? String ?? "\(date.timeIntervalSince1970)"
+        return .usage(key: "pi:\(state.session):\(id)", record: AgentUsageRecord(
+            provider: .pi, date: date, model: model, project: state.project, session: state.session,
+            tokens: tokens, cost: cost, savings: priced.savings, reportedCost: reportedCost), billable: billable)
+    }
+
     // MARK: Shared values
 
     /// The folder an agent ran in names the project. A worktree kept inside

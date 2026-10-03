@@ -169,7 +169,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
-                if record.provider == .opencode {
+                if record.provider.reportsCost {
                     let newCost: Double?
                     let isReported: Bool
                     if record.reportedCost {
@@ -208,7 +208,7 @@ final class AgentUsageStore {
             let priced = AgentPricing.cost(combined, model: old.model)
             let newCost: Double?
             let isReported: Bool
-            if record.provider == .opencode {
+            if record.provider.reportsCost {
                 if record.reportedCost {
                     newCost = record.cost
                     isReported = true
@@ -265,9 +265,9 @@ final class AgentUsageStore {
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
-            // A zero OpenCode recorded for a model the list still does not
+            // A zero the log recorded for a model the list still does not
             // know stays that reply's cost.
-            let recordedZero = records[position].provider == .opencode && records[position].cost == 0
+            let recordedZero = records[position].provider.reportsCost && records[position].cost == 0
             records[position].cost = priced.cost ?? (recordedZero ? 0 : nil)
             records[position].savings = priced.savings
         }
@@ -475,7 +475,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.pi, ".pi/agent/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }

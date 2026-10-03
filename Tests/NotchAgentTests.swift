@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        piParsing(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -606,6 +607,75 @@ enum NotchAgentTests {
                                                      state: &quiet, now: now).isEmpty
                         && quiet == AgentLogState(turnOpen: true),
                      "records quoted inside another line's payload are not read as the line's own")
+    }
+
+    // MARK: Pi logs
+
+    private static func piParsing(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let stamp = { (second: Int) in "2026-09-21T10:00:\(String(format: "%02d", second)).000Z" }
+        func date(_ second: Int) -> Date { AgentTimestamp.parse(stamp(second)) ?? now }
+        func entries(_ json: String) -> [AgentLogEntry] {
+            AgentLogParser.parsePi(line(json), state: &state, now: now)
+        }
+        func usage(_ list: [AgentLogEntry]) -> (key: String, record: AgentUsageRecord)? {
+            for case .usage(let key, let record, _) in list { return (key, record) }
+            return nil
+        }
+        let counts = #""usage":{"input":1000,"output":200,"cacheRead":50,"cacheWrite":30,"reasoning":50,"totalTokens":1280,"cost":{"total":0.0042}}"#
+
+        suite.expect(entries(#"{"type":"session","version":3,"id":"pi-s1","timestamp":"\#(stamp(0))","cwd":"/Users/me/code/backend/"}"#).isEmpty
+                        && state.session == "pi-s1" && state.project == "backend",
+                     "a Pi session line names the session and the project folder")
+        suite.expect(entries(#"{"type":"model_change","id":"a1","timestamp":"\#(stamp(0))","provider":"relay","modelId":"mystery-pi-model"}"#).isEmpty
+                        && state.model == "mystery-pi-model",
+                     "a Pi model change sets the model for what follows")
+
+        suite.expect(entries(#"{"type":"message","id":"u1","timestamp":"\#(stamp(1))","message":{"role":"user","content":"hi"}}"#)
+                        == [.turnBegan(date(1))],
+                     "a Pi user message begins a turn")
+        let toolUse = entries(#"{"type":"message","id":"b1","timestamp":"\#(stamp(2))","message":{"role":"assistant","model":"mystery-pi-model","stopReason":"toolUse",\#(counts)}}"#)
+        let first = usage(toolUse)
+        suite.expect(first?.key == "pi:pi-s1:b1" && first?.record.provider == .pi && first?.record.date == date(2)
+                        && first?.record.project == "backend" && first?.record.session == "pi-s1"
+                        && first?.record.tokens == AgentTokens(input: 1000, cacheWrite: 30, cacheRead: 50, output: 200, reasoning: 50),
+                     "a Pi reply keeps its counts as written, without adding reasoning to output again")
+        suite.expect(first?.record.cost == 0.0042 && first?.record.reportedCost == true && first?.record.savings == 0
+                        && toolUse.contains(.turnActive(date(2))),
+                     "a model the list does not know costs what Pi recorded, and a tool call keeps the turn going")
+
+        let listed = usage(entries(#"{"type":"message","id":"b2","timestamp":"\#(stamp(3))","message":{"role":"assistant","model":"gpt-6-astra","stopReason":"toolUse","usage":{"input":80,"output":20,"cacheRead":0,"cacheWrite":0,"reasoning":0,"cost":{"total":9}}}}"#))
+        suite.expectClose(listed?.record.cost ?? -1, 0.0018, "a listed model is priced from the list", tol: 0.000001)
+        suite.expect(listed?.record.reportedCost == false, "a priced Pi reply is not marked as reported")
+        var longWrites: Int?
+        for case .usage(_, _, let billable) in entries(#"{"type":"message","id":"b5","timestamp":"\#(stamp(3))","message":{"role":"assistant","model":"gpt-6-astra","stopReason":"toolUse","usage":{"input":80,"output":20,"cacheRead":0,"cacheWrite":600,"cacheWrite1h":400,"reasoning":0}}}"#) {
+            longWrites = billable.longCacheWrite
+        }
+        suite.expect(longWrites == 400, "a Pi reply's one-hour cache writes are billed at the long cache price")
+
+        let big = String(repeating: "x", count: 4000)
+        suite.expect(entries(#"{"type":"message","id":"t1","timestamp":"\#(stamp(4))","message":{"role":"toolResult","content":"\#(big)"}}"#)
+                        == [.turnActive(nil)],
+                     "a Pi tool result inside a turn only says that work goes on")
+
+        let warm = entries(#"{"type":"usage","id":"w1","timestamp":"\#(stamp(5))","kind":"cache_warm","provider":"relay","model":"mystery-pi-model",\#(counts)}"#)
+        suite.expect(usage(warm)?.key == "pi:pi-s1:w1" && usage(warm)?.record.tokens.total == 1280 && warm.count == 1,
+                     "a cache warm request is billed usage of its own without touching the turn")
+
+        let finished = entries(#"{"type":"message","id":"b3","timestamp":"\#(stamp(6))","message":{"role":"assistant","model":"mystery-pi-model","stopReason":"stop","usage":{"input":10,"output":5,"cacheRead":0,"cacheWrite":0,"reasoning":0,"cost":{"total":0}}}}"#)
+        suite.expect(finished.last == .turnEnded(date(6), completed: true, duration: nil) && !state.turnOpen,
+                     "a Pi reply that stops ends the turn as completed")
+
+        _ = entries(#"{"type":"message","id":"u2","timestamp":"\#(stamp(7))","message":{"role":"user","content":"again"}}"#)
+        let aborted = entries(#"{"type":"message","id":"b4","timestamp":"\#(stamp(8))","message":{"role":"assistant","model":"mystery-pi-model","stopReason":"aborted","usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"reasoning":0,"totalTokens":0,"cost":{"total":0}}}}"#)
+        suite.expect(aborted == [.turnEnded(date(8), completed: false, duration: nil)],
+                     "an aborted Pi reply ends the turn unfinished and, with no usage, records nothing")
+
+        let ignored = entries(#"{"type":"custom","id":"c1","timestamp":"\#(stamp(9))","data":{"role":"assistant"}}"#)
+        suite.expect(ignored.isEmpty, "Pi lines that are not messages or usage are ignored")
+        let copied = entries(#"{"version":1,"recordType":"message","source":"async","agent":"reviewer","timestamp":"\#(stamp(10))","role":"assistant","model":"mystery-pi-model","stopReason":"stop",\#(counts),"message":{"role":"assistant","content":[{"type":"thinking","thinking":""}],"model":"mystery-pi-model",\#(counts),"stopReason":"stop"}}"#)
+        suite.expect(copied.isEmpty, "a subagent extension's copy of a reply its own session already logged is not counted twice")
     }
 
     // MARK: OpenCode logs
@@ -2588,11 +2658,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .pi], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .pi], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .pi], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsPi)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "every agent can be left out but the one kept")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -2605,7 +2677,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsPi,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
