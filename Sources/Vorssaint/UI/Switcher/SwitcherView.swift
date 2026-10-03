@@ -169,7 +169,10 @@ struct SwitcherView: View {
                                    },
                                    onClose: {
                                        switcher.closeWindow(window)
-                                   })
+                                   },
+                                   onMinimize: { switcher.toggleMinimized(window) },
+                                   onFullScreen: { switcher.toggleFullScreen(window) },
+                                   onQuit: { switcher.quitApp(window, forceIfQuitting: true) })
                             .id(window.id)
                             .onHover { hovering in
                                 if hovering {
@@ -318,7 +321,10 @@ struct SwitcherView: View {
                                                               },
                                                               onClose: {
                                                                   switcher.closeWindow(window)
-                                                              })
+                                                              },
+                                                              onMinimize: { switcher.toggleMinimized(window) },
+                                                              onFullScreen: { switcher.toggleFullScreen(window) },
+                                                              onQuit: { switcher.quitApp(window, forceIfQuitting: true) })
                                         .id(window.id)
                                         .onHover { hovering in
                                             if hovering {
@@ -777,11 +783,13 @@ private struct SwitcherWindowPreviewTile: View {
     let instantSelection: Bool
     let onCommit: () -> Void
     let onClose: () -> Void
+    let onMinimize: () -> Void
+    let onFullScreen: () -> Void
+    let onQuit: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
-    @State private var isCloseHovering = false
     @State private var suppressNextCommit = false
 
     private var hasStatusBadges: Bool {
@@ -789,7 +797,7 @@ private struct SwitcherWindowPreviewTile: View {
     }
 
     private var showsCloseButton: Bool {
-        !minimalPreviews && isHovering && window.windowID != nil
+        !minimalPreviews && isHovering
     }
 
     var body: some View {
@@ -881,23 +889,17 @@ private struct SwitcherWindowPreviewTile: View {
     @ViewBuilder
     private var closeButton: some View {
         if showsCloseButton {
-            Button {
-                suppressNextCommit = true
-                onClose()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    suppressNextCommit = false
-                }
-            } label: {
-                Image(systemName: isCloseHovering ? "xmark.circle.fill" : "xmark.circle")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 22, height: 22)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(isCloseHovering ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
-            .help(l10n.s.dockPreviewCloseWindow)
-            .accessibilityLabel(l10n.s.dockPreviewCloseWindow)
-            .onHover { isCloseHovering = $0 }
+            SwitcherCardControls(window: window, size: 16,
+                                 perform: perform, onClose: onClose, onMinimize: onMinimize,
+                                 onFullScreen: onFullScreen, onQuit: onQuit)
+        }
+    }
+
+    private func perform(_ action: () -> Void) {
+        suppressNextCommit = true
+        action()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            suppressNextCommit = false
         }
     }
 
@@ -935,15 +937,17 @@ private struct WindowCard: View {
     let animatesSelection: Bool
     let onCommit: () -> Void
     let onClose: () -> Void
+    let onMinimize: () -> Void
+    let onFullScreen: () -> Void
+    let onQuit: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @State private var isHovering = false
-    @State private var isCloseHovering = false
     @State private var suppressNextCommit = false
 
     private var showsCloseButton: Bool {
-        !minimalPreviews && isHovering && window.windowID != nil
+        !minimalPreviews && isHovering
     }
 
     private var hasStatusBadges: Bool {
@@ -1115,27 +1119,81 @@ private struct WindowCard: View {
     }
 
     private var closeButton: some View {
-        Button {
-            suppressNextCommit = true
-            onClose()
-            DispatchQueue.main.async {
-                suppressNextCommit = false
+        SwitcherCardControls(window: window, size: 18,
+                             perform: perform, onClose: onClose, onMinimize: onMinimize,
+                             onFullScreen: onFullScreen, onQuit: onQuit)
+            .opacity(showsCloseButton ? 1 : 0)
+            .animation(.easeOut(duration: 0.12), value: showsCloseButton)
+            .allowsHitTesting(showsCloseButton)
+    }
+
+    private func perform(_ action: () -> Void) {
+        suppressNextCommit = true
+        action()
+        DispatchQueue.main.async {
+            suppressNextCommit = false
+        }
+    }
+}
+
+/// AltTab-style buttons on a hovered card: close, minimize and fullscreen for
+/// a window, and quit for every entry (a second click force quits an app that
+/// is still up). An app with no window gets only quit.
+private struct SwitcherCardControls: View {
+    let window: SwitcherItem
+    let size: CGFloat
+    let perform: (() -> Void) -> Void
+    let onClose: () -> Void
+    let onMinimize: () -> Void
+    let onFullScreen: () -> Void
+    let onQuit: () -> Void
+
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        HStack(spacing: 5) {
+            control("power", color: Color(red: 0.62, green: 0.38, blue: 0.95),
+                    help: "Quit app (click again to force quit)") { onQuit() }
+            if window.windowID != nil {
+                control("xmark", color: Color(red: 1.0, green: 0.37, blue: 0.34),
+                        help: l10n.s.dockPreviewCloseWindow) { onClose() }
+                control("minus", color: Color(red: 1.0, green: 0.74, blue: 0.18),
+                        help: window.isMinimized ? "Unminimize" : "Minimize") { onMinimize() }
+                control("arrow.up.left.and.arrow.down.right", color: Color(red: 0.16, green: 0.79, blue: 0.25),
+                        help: window.isFullscreen ? "Exit Full Screen" : "Full Screen") { onFullScreen() }
             }
-        } label: {
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 19, weight: .medium))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(Color.white.opacity(isCloseHovering ? 0.95 : 0.72),
-                                 Color(red: 1.0, green: 0.38, blue: 0.33).opacity(isCloseHovering ? 1 : 0.92))
-                .frame(width: 26, height: 26)
-                .contentShape(Circle())
+        }
+    }
+
+    private func control(_ symbol: String, color: Color, help: String,
+                         action: @escaping () -> Void) -> some View {
+        SwitcherCardControlButton(symbol: symbol, color: color, size: size) { perform(action) }
+            .help(help)
+            .accessibilityLabel(help)
+    }
+}
+
+private struct SwitcherCardControlButton: View {
+    let symbol: String
+    let color: Color
+    let size: CGFloat
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle().fill(color)
+                Circle().strokeBorder(Color.black.opacity(0.18), lineWidth: 0.5)
+                Image(systemName: symbol)
+                    .font(.system(size: size * 0.5, weight: .bold))
+                    .foregroundStyle(Color.black.opacity(isHovering ? 0.7 : 0.45))
+            }
+            .frame(width: size, height: size)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .opacity(showsCloseButton ? 1 : 0)
-        .animation(.easeOut(duration: 0.12), value: showsCloseButton)
-        .allowsHitTesting(showsCloseButton)
-        .onHover { isCloseHovering = $0 }
-        .help(l10n.s.dockPreviewCloseWindow)
-        .accessibilityLabel(l10n.s.dockPreviewCloseWindow)
+        .onHover { isHovering = $0 }
     }
 }

@@ -180,6 +180,8 @@ final class AppSwitcher: ObservableObject {
     /// Apps already asked to quit this session, so a repeated Q is ignored
     /// while a window closing through W is not.
     private var quittingPIDs: Set<pid_t> = []
+    /// Apps the quit button has asked to quit; a second click force quits them.
+    private var quitRequestedPIDs: Set<pid_t> = []
 
     // Virtual key codes handled during a session.
     private enum KeyCode {
@@ -1276,6 +1278,24 @@ final class AppSwitcher: ObservableObject {
         }
     }
 
+    /// The card's minimize button. Leaves the session open, like AltTab.
+    func toggleMinimized(_ item: SwitcherItem) {
+        guard sessionActive, let windowID = item.windowID else { return }
+        WindowActivator.setWindowMinimized(!item.isMinimized, windowID: windowID, pid: item.windowOwnerPID)
+    }
+
+    /// The card's fullscreen button: switches to the window, then toggles it
+    /// once the panel is gone so the Space animation is not hidden behind it.
+    func toggleFullScreen(_ item: SwitcherItem) {
+        guard sessionActive, let windowID = item.windowID,
+              let index = windows.firstIndex(where: { $0.id == item.id }) else { return }
+        select(index: index)
+        commitSession()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            WindowActivator.toggleFullScreen(windowID: windowID, pid: item.windowOwnerPID)
+        }
+    }
+
     private func advanceSelection(by delta: Int, wrapping: Bool = true) {
         cancelIconRowEdgeHover()
         guard !windows.isEmpty else { return }
@@ -1373,10 +1393,22 @@ final class AppSwitcher: ObservableObject {
     /// still running after about as long as a closing window gets.
     private func quitSelectedApp() {
         guard windows.indices.contains(selectedIndex) else { return }
-        let pid = windows[selectedIndex].pid
+        quitApp(windows[selectedIndex])
+    }
+
+    /// The card's quit button. Option is held to keep the switcher open, so a
+    /// second click on an app that is still quitting is what force quits it.
+    func quitApp(_ item: SwitcherItem, forceIfQuitting: Bool = false) {
+        guard sessionActive else { return }
+        let pid = item.pid
         guard let app = NSRunningApplication(processIdentifier: pid),
               app.bundleIdentifier != Defaults.finderBundleIdentifier else { return }
+        if forceIfQuitting, quitRequestedPIDs.contains(pid) {
+            app.forceTerminate()
+            return
+        }
         guard !quittingPIDs.contains(pid), app.terminate() else { return }
+        if forceIfQuitting { quitRequestedPIDs.insert(pid) }
         quittingPIDs.insert(pid)
         // Only what this quit marked is given back; a window W is closing
         // keeps its own mark.
@@ -1422,6 +1454,7 @@ final class AppSwitcher: ObservableObject {
 
     private func removeTerminatedApp(pid: pid_t) {
         quittingPIDs.remove(pid)
+        quitRequestedPIDs.remove(pid)
         guard sessionActive, sessionItems.contains(where: { $0.pid == pid }) else { return }
         let removedIDs = Set(sessionItems.lazy.filter { $0.pid == pid }.map(\.id))
         closingItemIDs.subtract(removedIDs)
