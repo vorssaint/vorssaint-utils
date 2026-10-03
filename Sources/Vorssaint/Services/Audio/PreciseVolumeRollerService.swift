@@ -114,6 +114,14 @@ final class PreciseVolumeRollerService: ObservableObject {
             }
             return Unmanaged.passUnretained(event)
         }
+        // The Fn-Lock's own media posts travel to the system untouched, so
+        // the native handling answers them, and while it holds the frontmost
+        // app the row belongs to that app: its F10 is a function key, not a
+        // volume key (issue #1227). Both orders of the two taps are safe,
+        // whichever sees the event first lets it through.
+        if FnLockKeyEvents.isPosted(event) || FnLockService.shared.engagesFrontmostApp {
+            return Unmanaged.passUnretained(event)
+        }
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
               let nsEvent = NSEvent(cgEvent: event),
               nsEvent.subtype.rawValue == 8 else { return Unmanaged.passUnretained(event) }
