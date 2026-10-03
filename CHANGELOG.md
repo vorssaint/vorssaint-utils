@@ -149,6 +149,7 @@ This beta takes Dynamic Island beyond the notch. It floats as a capsule on displ
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
+- Keep Awake's running-app trigger can now use helper apps such as Citrix Viewer, and notices them starting and quitting without a restart.
 
 ### Contributors
 Thanks to @0mgABear, @0miicr0n, @abdulshahid1, @ahfornitani, @arsarsars1, @Aryan-Saini, @ashishsnair, @bebricoOOOOOOf, @bweh, @cedigang, @daniel-dosiper, @Ffinnis, @Frozen0wl, @Goonwb, @gorillasuti, @HirschiK, @I-Have-No-Idea-What-Im-Doing-Right-Now, @IanHollow, @ilim-cell, @iva-zhu, @Kernel-Hunter, @muhammad-p, @muskecan, @npcmail010, @PathGao, @renan-tiberio, @rhymeswithjazz, @ruvelro, @sarat03, @scream1ng, @shlok1806, @slantie, @trac3r00, @tyteachestech, @veged, @Void1-1, @Yahddyyp and @zxedacus. Feedback: Brain, DeWalt Brushless, ItsMoses, Pinea, Shiro and yellow.
