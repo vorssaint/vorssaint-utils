@@ -30,6 +30,7 @@ enum NotchAgentTests {
         AgentUsageArchiveSettleTests.run(suite)
         AgentUsageArchiveSaveTests.run(suite)
         claudeApp(suite)
+        claudeCode(suite)
         AgentCodexResetTests.run(suite)
         preferences(suite)
         formatting(suite)
@@ -1864,14 +1865,27 @@ enum NotchAgentTests {
         let reading = AgentLimits(provider: .codex, windows: [window(40, resetsIn: 100, id: "a"), window(60, resetsIn: 50, id: "b")],
                                   observedAt: now, source: .sessionLog)
         suite.expect(AgentLimitSupport.binding(reading, now: now)?.id == "b", "the most spent window binds")
-        func limits(_ used: Double, resets: TimeInterval) -> AgentLimits {
-            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now, source: .sessionLog)
+        func limits(_ used: Double, resets: TimeInterval, after: TimeInterval = 0) -> AgentLimits {
+            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now.addingTimeInterval(after),
+                        source: .sessionLog)
         }
         suite.expect(AgentLimitSupport.crossings(previous: limits(70, resets: 100), current: limits(85, resets: 100), threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 100), threshold: 80).isEmpty
-                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000), threshold: 80).count == 1
+                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000, after: 200),
+                                                       threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: nil, current: limits(99, resets: 100), threshold: 80).isEmpty,
                      "a warning comes once per crossing, again after a renewal, never for the first reading")
+        suite.expect(AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 1300, after: 50),
+                                                 threshold: 80).isEmpty,
+                     "a renewal dated again before it passed is the same period, not a new one to warn about")
+        let warned = window(85, resetsIn: 100)
+        suite.expect(AgentLimitSupport.warnedChange(warned, current: window(85, resetsIn: 1300), threshold: 80)
+                        == .redated(window(85, resetsIn: 1300))
+                        && AgentLimitSupport.warnedChange(warned, current: window(0, resetsIn: 9000), threshold: 80)
+                        == .renewed(window(0, resetsIn: 9000))
+                        && AgentLimitSupport.warnedChange(warned, current: window(90, resetsIn: 130), threshold: 80) == nil
+                        && AgentLimitSupport.warnedChange(warned, current: nil, threshold: 80) == nil,
+                     "a warned window follows a better date for its renewal, and an early renewal is news at once")
     }
 
     // MARK: Reading files
@@ -2312,6 +2326,98 @@ enum NotchAgentTests {
     }
 
     // MARK: Preferences and layout
+
+    private static func claudeCode(_ suite: TestSuite) {
+        let at = { (time: String) in AgentTimestamp.parse(time)! }
+        let fetched = at("2026-10-03T05:07:54Z")
+        // The shape Claude Code 2.1 saves, with windows the reader does not know.
+        func profile(account: String? = "a", signedIn: String = "a",
+                     utilization: [String: Any]? = nil) -> [String: Any] {
+            var cache: [String: Any] = ["fetchedAtMs": fetched.timeIntervalSince1970 * 1_000, "utilization": utilization ?? [
+                "five_hour": ["utilization": 4, "resets_at": "2026-10-03T07:40:00.319359+00:00", "limit_dollars": NSNull()],
+                "seven_day": ["utilization": 16, "resets_at": "2026-10-07T19:00:00.319378+00:00"],
+                "seven_day_opus": NSNull(), "seven_day_sonnet": ["utilization": true],
+                "iguana_necktie": ["utilization": 0, "resets_at": "2026-11-05T07:59:00+00:00"]]]
+            cache["accountUuid"] = account
+            return ["oauthAccount": ["accountUuid": signedIn], "cachedUsageUtilization": cache]
+        }
+        let reading = AgentClaudeCodeUsage.reading(from: profile())
+        suite.expect(reading?.date == fetched && reading?.windows.map(\.id) == ["claude.fh", "claude.sd"]
+                        && reading?.windows.map(\.usedPercent) == [4, 16]
+                        && reading?.windows.map(\.resetsAt) == [at("2026-10-03T07:40:00.319359Z"), at("2026-10-07T19:00:00.319378Z")],
+                     "Claude Code's cache gives the session and the week with their renewals, and nothing it does not know")
+        suite.expect(AgentClaudeCodeUsage.reading(from: profile(signedIn: "b")) == nil
+                        && AgentClaudeCodeUsage.reading(from: profile(account: nil)) != nil
+                        && AgentClaudeCodeUsage.reading(from: profile(utilization: ["five_hour": NSNull()])) == nil
+                        && AgentClaudeCodeUsage.reading(from: ["cachedUsageUtilization": "x"]) == nil,
+                     "a cache for another account, or with no window known, is left out")
+        let now = at("2026-10-03T05:10:00Z")
+        let limits = AgentClaudeCodeUsage.limits(from: reading, now: now)
+        suite.expect(limits?.source == .claudeCode && limits?.observedAt == fetched && limits?.windows.count == 2,
+                     "a fresh reading gives both windows")
+        suite.expect(AgentClaudeCodeUsage.limits(from: reading, now: at("2026-10-03T08:00:00Z"))?.windows.map(\.kind) == [.weekly]
+                        && AgentClaudeCodeUsage.limits(from: reading, now: at("2026-10-08T00:00:00Z")) == nil,
+                     "a window that renewed after the reading is dropped")
+        let undated = AgentClaudeCodeUsage.reading(from: profile(utilization: [
+            "five_hour": ["utilization": 10], "seven_day": ["utilization": 20]]))
+        suite.expect(AgentClaudeCodeUsage.limits(from: undated, now: at("2026-10-03T09:00:00Z"))?.windows.count == 2
+                        && AgentClaudeCodeUsage.limits(from: undated, now: at("2026-10-03T11:00:00Z"))?.windows.map(\.kind) == [.weekly]
+                        && AgentClaudeCodeUsage.limits(from: undated, now: at("2026-10-04T06:00:00Z")) == nil,
+                     "without a renewal, a session is kept for five hours and a week for a day")
+        let app = AgentLimits(provider: .claude, windows: [
+            AgentLimitWindow(id: "claude.sd", kind: .weekly, minutes: 10_080, scope: nil, usedPercent: 9, resetsAt: nil),
+            AgentLimitWindow(id: "claude.so", kind: .weekly, minutes: 10_080, scope: "Opus", usedPercent: 3, resetsAt: nil)],
+                              observedAt: at("2026-10-02T16:30:00Z"), source: .claudeApp)
+        let merged = AgentClaudeCodeUsage.merged(app: app, code: reading, now: now)
+        suite.expect(merged == limits,
+                     "the newer reading wins whole, so nothing older passes for as recent")
+        let appSession = AgentLimits(provider: .claude, windows: [
+            AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300, scope: nil, usedPercent: 60,
+                             resetsAt: at("2026-10-03T09:00:00Z"))], observedAt: at("2026-10-03T04:00:00Z"), source: .claudeApp)
+        suite.expect(AgentClaudeCodeUsage.merged(app: appSession, code: reading, now: at("2026-10-03T08:00:00Z"))?
+                        .windows.map(\.id) == ["claude.sd"],
+                     "a session Claude Code saw renew does not come back from the app's older reading")
+        let newerApp = AgentLimits(provider: .claude, windows: app.windows, observedAt: at("2026-10-03T05:20:00Z"),
+                                   source: .claudeApp)
+        suite.expect(AgentClaudeCodeUsage.merged(app: newerApp, code: reading, now: now) == newerApp,
+                     "a newer app reading wins")
+        // The app guesses this session renews at 07:20, five hours after its
+        // first reading above zero; Claude Code dated it 07:40.
+        let samples = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-03T02:15:00Z", "o", ["fh": 0, "sd": 10]), ("2026-10-03T02:20:00Z", "o", ["fh": 5, "sd": 11]),
+            ("2026-10-03T05:20:00Z", "o", ["fh": 90, "sd": 15])])) ?? []
+        let renewals = reading?.renewals ?? [:]
+        let exact = AgentClaudeAppUsage.limits(from: samples, now: at("2026-10-03T07:30:00Z"), renewals: renewals)
+        let later = at("2026-10-03T05:30:00Z")
+        suite.expect(AgentClaudeAppUsage.limits(from: samples, now: later)?.windows.first?.resetsAt == at("2026-10-03T07:20:00Z")
+                        && exact?.windows.map(\.resetsAt) == [at("2026-10-03T07:40:00.319359Z"), at("2026-10-07T19:00:00.319378Z")]
+                        && exact?.windows.first?.usedPercent == 90,
+                     "the app's reading takes the renewals Claude Code dated, and keeps a window its own guess would end")
+        suite.expect(AgentClaudeAppUsage.limits(from: samples, now: at("2026-10-03T07:50:00Z"), renewals: renewals)?
+                        .windows.map(\.kind) == [.weekly]
+                        && AgentClaudeAppUsage.limits(from: samples, now: later, renewals: ["claude.fh": at("2026-10-03T05:00:00Z")])?
+                        .windows.first?.resetsAt == at("2026-10-03T07:20:00Z"),
+                     "a dated window ends at its renewal, and a renewal before the reading belongs to an earlier period")
+        suite.expect(AgentClaudeCodeUsage.merged(app: nil, code: reading, now: now) == limits
+                        && AgentClaudeCodeUsage.merged(app: app, code: nil, now: now) == app
+                        && AgentClaudeCodeUsage.merged(app: app, code: reading, now: at("2026-10-03T05:00:00Z")) == app,
+                     "either stands alone, and a Claude Code reading from the future is ignored")
+        func session(_ resets: String, from source: AgentLimits.Source, at observed: String = "2026-10-03T05:10:00Z") -> AgentLimits {
+            AgentLimits(provider: .claude, windows: [AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300, scope: nil,
+                                                                      usedPercent: 85, resetsAt: at(resets))],
+                        observedAt: at(observed), source: source)
+        }
+        let warned = session("2026-10-03T07:20:00Z", from: .claudeApp)
+        suite.expect(AgentLimitSupport.crossings(previous: warned, current: session("2026-10-03T07:40:00Z", from: .claudeCode),
+                                                 threshold: 80).isEmpty
+                        && AgentLimitSupport.crossings(previous: warned, current: session("2026-10-03T07:40:00Z", from: .claudeApp),
+                                                       threshold: 80).isEmpty,
+                     "a guessed renewal giving way to Claude Code's date is not a renewal to warn about again")
+        suite.expect(AgentLimitSupport.crossings(previous: warned, current: session("2026-10-03T12:40:00Z", from: .claudeCode,
+                                                                                    at: "2026-10-03T08:00:00Z"),
+                                                 threshold: 80).count == 1,
+                     "a renewal that passed before the next reading still warns for the new period, whichever source read it")
+    }
 
     private static func preferences(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-agents"

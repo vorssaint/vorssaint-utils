@@ -127,10 +127,11 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     @Environment(\.locale) private var locale
 
-    /// A reading the Claude app saved a while ago: still the latest known,
-    /// shown quieter until the app checks again.
+    /// A reading the Claude app or Claude Code saved a while ago: still the
+    /// latest known, shown quieter until one of them checks again.
     private var stale: Bool {
-        guard let limits = snapshot.limits[provider], limits.source == .claudeApp else { return false }
+        guard let limits = snapshot.limits[provider], limits.source == .claudeApp || limits.source == .claudeCode
+        else { return false }
         return now.timeIntervalSince(limits.observedAt) >= AgentClaudeAppUsage.freshness
     }
 

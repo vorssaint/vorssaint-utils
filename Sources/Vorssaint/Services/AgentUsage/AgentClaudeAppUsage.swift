@@ -64,9 +64,10 @@ enum AgentClaudeAppUsage {
     /// renewal times: a session renews five hours after its first request,
     /// which the history brackets and Claude Code's own first request can
     /// narrow, and a week renews every seven days at the moment of the
-    /// last drop the history saw.
+    /// last drop the history saw. A renewal Claude Code dated after the
+    /// reading, by window id, is that window's own and replaces the guess.
     static func limits(from samples: [Sample], now: Date, sessionStart: Date? = nil,
-                       organization: String? = nil) -> AgentLimits? {
+                       organization: String? = nil, renewals: [String: Date] = [:]) -> AgentLimits? {
         let samples = readings(samples, organization: organization)
         guard let latest = samples.last, latest.date <= now.addingTimeInterval(300),
               now.timeIntervalSince(latest.date) < 7 * 86_400 else { return nil }
@@ -77,9 +78,10 @@ enum AgentClaudeAppUsage {
             let length = TimeInterval(window.minutes) * 60
             // An old reading says nothing about a session that renewed since.
             if window.kind == .session, now.timeIntervalSince(latest.date) >= length { continue }
-            let resets = window.kind == .session
+            let exact = renewals["claude.\(window.key)"].flatMap { $0 > latest.date ? $0 : nil }
+            let resets = exact ?? (window.kind == .session
                 ? sessionEnd(history, used: used, start: sessionStart, length: length)
-                : renewal(history, key: window.key, length: length, after: latest.date)
+                : renewal(history, key: window.key, length: length, after: latest.date))
             // A window that renewed after the reading has spent an unknown
             // amount since, and without a date a day-old week may have too.
             if let resets, resets <= now { continue }
