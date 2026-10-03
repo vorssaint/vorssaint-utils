@@ -933,6 +933,9 @@ enum DefaultsKey {
 
     // Touch Bar controls on supported MacBook Pro models.
     static let touchBarEnabled = "touchBarEnabled"
+    static let touchBarControlOrder = "touchBarControlOrder"
+    static let touchBarShowKeepAwake = "touchBarShowKeepAwake"
+    static let touchBarShowMicMute = "touchBarShowMicMute"
 
     // Radial menu: a wheel of actions on a shortcut.
     static let radialMenuEnabled = "radialMenuEnabled"
@@ -1937,6 +1940,9 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.touchBarEnabled: false,
+        DefaultsKey.touchBarControlOrder: "",
+        DefaultsKey.touchBarShowKeepAwake: true,
+        DefaultsKey.touchBarShowMicMute: true,
     ]
 
     static func register() {

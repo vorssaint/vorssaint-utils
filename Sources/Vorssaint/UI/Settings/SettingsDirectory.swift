@@ -219,6 +219,10 @@ enum SettingsDirectory {
                                         (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ]),
+                SettingsDirectoryItem(page: .touchBar,
+                                      title: "Touch Bar",
+                                      icon: "rectangle.and.hand.point.up.left",
+                                      keywords: ["Touch Bar", "Keep Awake", "Microphone Mute"]),
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",

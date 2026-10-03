@@ -45,9 +45,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         isActive = shouldBeActive
 
         if shouldBeActive {
-            if touchBar == nil {
-                touchBar = makeTouchBar()
-            }
+            touchBar = makeTouchBar()
         } else {
             touchBar = nil
         }
@@ -56,10 +54,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
-        bar.defaultItemIdentifiers = [
-            Self.keepAwakeItemIdentifier,
-            Self.micMuteItemIdentifier,
-        ]
+        bar.defaultItemIdentifiers = TouchBarControl.visibleOrdered.map { control in
+            switch control {
+            case .keepAwake:
+                return Self.keepAwakeItemIdentifier
+            case .micMute:
+                return Self.micMuteItemIdentifier
+            }
+        }
         return bar
     }
 
