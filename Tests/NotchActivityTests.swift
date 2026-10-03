@@ -197,6 +197,12 @@ enum NotchActivityTests {
         session.cancel()
         session.start(mode: .timer, minutes: Int.max, now: 0)
         suite.expect(session.duration == 10_800, "corrupt duration input stays within three hours")
+        suite.expect(NotchTimerSupport.timerMinutes(60) == 60 && NotchTimerSupport.timerMinutes(Int.max) == 180
+               && NotchTimerSupport.timerMinutes(Int.min) == 1,
+               "a remembered duration restored from a backup stays between a minute and three hours")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerMinutes] as? Int == 15
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerMinutes),
+               "the timer's duration is registered and travels with settings backups")
         suite.expect(NotchTimerSupport.clockText(0.01) == "00:01" && NotchTimerSupport.clockText(-1) == "00:00"
                && NotchTimerSupport.clockText(.nan) == "00:00", "display rounds up and safely handles invalid remaining time")
         let clockCases: [(TimeInterval, String)] = [
