@@ -73,7 +73,7 @@ enum NotchMediaPresentationProbe {
     }
 
     private static func picker(in view: NSView) -> NSSegmentedControl? {
-        if let picker = view as? NSSegmentedControl, picker.segmentCount == 4 { return picker }
+        if let picker = view as? NSSegmentedControl, picker.segmentCount == MediaTool.allCases.count { return picker }
         return view.subviews.lazy.compactMap { picker(in: $0) }.first
     }
 
@@ -135,7 +135,7 @@ enum NotchMediaPresentationProbe {
             failures.append("layout resizes concealed the island \(backing.concealedFrameChanges) times outside Mission Control")
         }
         backing.close()
-        for index in [3, 2, 1, 0, 2, 3] {
+        for index in [4, 3, 2, 1, 0, 3, 4] {
             guard let picker = host.panel.contentView.flatMap({ picker(in: $0) }) else {
                 failures.append("media picker was not mounted")
                 break

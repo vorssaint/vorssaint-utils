@@ -39,4 +39,11 @@ enum ClipboardAutoClearSupport {
         guard changeCount != lastClearedChangeCount else { return .wait }
         return now.timeIntervalSince(lastChangeDate) >= delay ? .clear : .wait
     }
+
+    /// Another part of the app replaced the content the countdown is timing
+    /// with an equivalent copy (the image optimizer). The countdown carries on
+    /// from the original copy; content the poll has not seen yet is left to it.
+    static func changeCountAfterOwnRewrite(lastChangeCount: Int, from: Int, to: Int) -> Int {
+        lastChangeCount == from ? to : lastChangeCount
+    }
 }

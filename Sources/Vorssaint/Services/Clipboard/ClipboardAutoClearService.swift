@@ -139,6 +139,13 @@ final class ClipboardAutoClearService {
         }
     }
 
+    /// Called on the main thread after the image optimizer rewrote the copy
+    /// the countdown is timing, so the rewrite does not restart it.
+    func noteOwnRewrite(from: Int, to: Int) {
+        lastChangeCount = ClipboardAutoClearSupport.changeCountAfterOwnRewrite(
+            lastChangeCount: lastChangeCount, from: from, to: to)
+    }
+
     /// Reads the change count on the shared pasteboard lane and answers on the
     /// main thread. Never reads on the main thread: a blocked main thread stalls
     /// every event tap with it, which is what froze typing system wide in #189.

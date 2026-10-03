@@ -130,6 +130,10 @@ struct ClipboardSettings: View {
                 .settingsFormSectionAnchor(.pastePlain)
             }
 
+            if AppFeature.clipboardImageOptimizer.isAvailable {
+                ClipboardImageOptimizerSettings()
+            }
+
             if AppFeature.clipboardHistory.isAvailable {
                 clipboardStatsSection
             }

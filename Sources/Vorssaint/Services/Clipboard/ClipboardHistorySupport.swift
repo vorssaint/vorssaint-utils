@@ -805,3 +805,34 @@ enum ClipboardHistoryImageSupport {
         return fileManager.fileExists(atPath: path)
     }
 }
+
+/// The clipboard optimizer swaps a copied file for a smaller copy. History
+/// keeps one entry for that copy, pointing at what the clipboard now holds,
+/// instead of the original and a look-alike second entry.
+enum ClipboardHistoryRewrite {
+    static func apply(_ entries: [ClipboardHistoryEntry], from original: [String],
+                      to optimized: [String]) -> [ClipboardHistoryEntry] {
+        guard let index = entries.firstIndex(where: { !$0.isPinned && $0.filePaths != optimized }),
+              entries[index].kind == .files, entries[index].filePaths == original
+        else { return entries }
+        let source = entries[index]
+        var result = entries
+        result[index] = ClipboardHistoryEntry(id: source.id, text: source.text, copiedAt: source.copiedAt,
+                                              pinnedAt: nil, kind: .files, filePaths: optimized)
+        // History may already have recorded the optimized copy on its own.
+        result.removeAll { $0.id != source.id && !$0.isPinned && $0.kind == .files && $0.filePaths == optimized }
+        return result
+    }
+
+    /// Stored copies are being deleted: unpinned entries that pointed at one
+    /// go back to the file originally copied. A pinned copy stays pinned.
+    static func restore(_ entries: [ClipboardHistoryEntry],
+                        originals: [String: String]) -> [ClipboardHistoryEntry] {
+        entries.map { entry in
+            guard !entry.isPinned, entry.kind == .files,
+                  entry.filePaths.contains(where: { originals[$0] != nil }) else { return entry }
+            return ClipboardHistoryEntry(id: entry.id, text: entry.text, copiedAt: entry.copiedAt, pinnedAt: nil,
+                                         kind: .files, filePaths: entry.filePaths.map { originals[$0] ?? $0 })
+        }
+    }
+}

@@ -18,6 +18,10 @@ final class TransientPaste {
     private var restoreWork: DispatchWorkItem?
     private var isPerforming = false
 
+    /// Main thread only. True while a paste is running or its restore is
+    /// still pending, so pasteboard watchers leave the swap alone.
+    var isBusy: Bool { isPerforming || pendingRestore != nil }
+
     @discardableResult
     func paste(_ text: String,
                willPostShortcut: (() -> Void)? = nil,

@@ -8,9 +8,28 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum MediaTool: String, CaseIterable, Identifiable {
-    case videoCompressor, gifMaker, imageCompressor, textExtractor
+    case videoCompressor, gifMaker, imageCompressor, pdfCompressor, textExtractor
 
     var id: String { rawValue }
+
+    /// What the open panel offers and a drop accepts, shared with the notch.
+    var inputTypes: [UTType] {
+        switch self {
+        case .videoCompressor, .gifMaker: return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
+        case .pdfCompressor: return [.pdf]
+        case .imageCompressor, .textExtractor: return [.image]
+        }
+    }
+}
+
+struct MediaPDFOptions: Equatable {
+    var dpi: Int
+    var quality: Double
+    var grayscale: Bool
+
+    var settings: MediaPDFCompressor.Settings {
+        MediaPDFCompressor.Settings.sanitized(dpi: dpi, quality: quality, grayscale: grayscale)
+    }
 }
 
 /// A cancelled duration lookup remains resumable, while a successful lookup

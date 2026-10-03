@@ -318,6 +318,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AlertSoundStrings.swift
         Sources/Vorssaint/Core/BrightnessStrings.swift
         Sources/Vorssaint/Core/MediaImageStrings.swift
+        Sources/Vorssaint/Core/MediaPDFStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
         Sources/Vorssaint/Core/ScreenshotStrings.swift
         Sources/Vorssaint/Core/RecentCaptureStrings.swift
@@ -411,6 +412,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Clipboard/ClipboardHistorySupport.swift
         Sources/Vorssaint/Core/ColorValue.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardAutoClearSupport.swift
+        Sources/Vorssaint/Services/ClipboardImageOptimizer/ClipboardImageOptimizerSupport.swift
+        Sources/Vorssaint/Services/ClipboardImageOptimizer/ClipboardOptimizerFileSupport.swift
+        Sources/Vorssaint/Services/Media/MediaImageEncoder.swift
+        Sources/Vorssaint/Services/Media/MediaVideoEncoder.swift
+        Sources/Vorssaint/Services/Media/MediaPDFCompressor.swift
+        Sources/Vorssaint/Core/ClipboardImageOptimizerStrings.swift
         Sources/Vorssaint/Services/AutoQuit/AutoQuitSupport.swift
         Sources/Vorssaint/Services/Shelf/ShelfSupport.swift
         Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift

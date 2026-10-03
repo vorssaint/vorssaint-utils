@@ -297,6 +297,12 @@ enum SettingsDirectory {
                                                              FeatureStrings.clipboardIgnoredApps(language)
                                                                 .listTitle]),
                                         (.pastePlain, [s.pastePlainName]),
+                                        (.clipboardImageOptimizer,
+                                         [FeatureStrings.clipboardImageOptimizer(language).title,
+                                          FeatureStrings.clipboardImageOptimizer(language).enable,
+                                          FeatureStrings.clipboardImageOptimizer(language).videos,
+                                          FeatureStrings.clipboardImageOptimizer(language).pdfs,
+                                          FeatureStrings.clipboardImageOptimizer(language).convertImages]),
                                        ]),
                 SettingsDirectoryItem(page: .cutPaste,
                                        title: FeatureStrings.finderRename(language).pageTitle,
@@ -314,7 +320,10 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .media, title: s.mediaName, icon: "photo.on.rectangle.angled",
                                       keywords: ["PDF", "GIF", "PNG", "JPEG", "convert", "resize", "watermark",
                                                  "rename", "profile", "fit", "fill", "crop",
-                                                 s.mediaStartConvertPDF, s.ocrName]),
+                                                 "compress", "dpi", "grayscale",
+                                                 s.mediaStartConvertPDF, s.ocrName,
+                                                 MediaPDFStrings.localized(language).start,
+                                                 MediaPDFStrings.localized(language).grayscale]),
             ]),
             // Everything about the apps installed on the Mac lives together:
             // what is out of date, what is junk and what should go.

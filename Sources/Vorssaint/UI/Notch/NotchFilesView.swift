@@ -213,6 +213,7 @@ struct NotchFilesView: View {
         case .videoCompressor: return l10n.s.mediaToolVideo
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
+        case .pdfCompressor: return MediaPDFStrings.localized(l10n.language).tool
         case .textExtractor: return l10n.s.mediaToolText
         }
     }

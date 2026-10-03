@@ -132,6 +132,37 @@ final class ClipboardHistoryService: ObservableObject {
         latestPasteboardEntry = nil
     }
 
+    /// The clipboard optimizer put a smaller copy of a copied file on the
+    /// clipboard. The entry for the original now points at that copy, so
+    /// history shows one entry for it rather than two look-alikes.
+    func noteOptimizedRewrite(from original: [String], to optimized: [String]) {
+        let updated = ClipboardHistoryRewrite.apply(entries, from: original, to: optimized)
+        guard updated != entries else { return }
+        entries = updated
+        save()
+    }
+
+    /// Stored copies were deleted; entries that pointed at them go back to
+    /// the files originally copied.
+    func restoreOriginals(_ originals: [String: String]) {
+        guard !originals.isEmpty else { return }
+        let updated = ClipboardHistoryRewrite.restore(entries, originals: originals)
+        guard updated != entries else { return }
+        entries = updated
+        save()
+    }
+
+    /// File paths history still offers to paste, pinned apart from the rest,
+    /// so the optimizer never deletes a copy someone pinned.
+    var referencedFilePaths: (pinned: Set<String>, recent: Set<String>) {
+        var pinned = Set<String>()
+        var recent = Set<String>()
+        for entry in entries where entry.kind == .files {
+            if entry.isPinned { pinned.formUnion(entry.filePaths) } else { recent.formUnion(entry.filePaths) }
+        }
+        return (pinned, recent)
+    }
+
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
         writeToPasteboard([entry]) { [weak self] copied in
             if copied {

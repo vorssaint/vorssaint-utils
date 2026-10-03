@@ -1015,6 +1015,8 @@ extension AppFeature {
         case .urlCleaner: return s.urlCleanerName
         case .diskImageInstaller:
             return FeatureStrings.diskImageInstaller(L10n.shared.language).title
+        case .clipboardImageOptimizer:
+            return FeatureStrings.clipboardImageOptimizer(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .audioPriority: return hub.titleAudioPriority
@@ -1097,6 +1099,8 @@ extension AppFeature {
         case .urlCleaner: return hub.descURLCleaner
         case .diskImageInstaller:
             return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
+        case .clipboardImageOptimizer:
+            return FeatureStrings.clipboardImageOptimizer(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
         case .audioPriority: return hub.descAudioPriority

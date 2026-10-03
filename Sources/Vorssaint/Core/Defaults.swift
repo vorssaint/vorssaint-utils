@@ -522,6 +522,9 @@ enum DefaultsKey {
     static let mediaImageSaveInSubfolder = "mediaImageSaveInSubfolder"
     static let mediaImageProfiles = "mediaImageProfiles"
     static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
+    static let mediaPDFDPI = "mediaPDFDPI"
+    static let mediaPDFQuality = "mediaPDFQuality"
+    static let mediaPDFGrayscale = "mediaPDFGrayscale"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
 
@@ -546,6 +549,25 @@ enum DefaultsKey {
     static let clipboardAutoClearOnSleep = "clipboardAutoClearOnSleep"
     static let clipboardAutoClearOnDisplaySleep = "clipboardAutoClearOnDisplaySleep"
     static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
+    static let clipboardImageOptimizerEnabled = "clipboardImageOptimizerEnabled"
+    static let clipboardImageOptimizerFormat = "clipboardImageOptimizerFormat" // keep | jpeg
+    static let clipboardImageOptimizerQuality = "clipboardImageOptimizerQuality" // 0.1...1, JPEG only
+    static let clipboardImageOptimizerMaxDimension = "clipboardImageOptimizerMaxDimension" // long edge in pixels, 0 = off
+    static let clipboardImageOptimizerHalveRetina = "clipboardImageOptimizerHalveRetina"
+    static let clipboardImageOptimizerIncludeFiles = "clipboardImageOptimizerIncludeFiles"
+    static let clipboardOptimizerImages = "clipboardOptimizerImages"
+    static let clipboardOptimizerConvertImages = "clipboardOptimizerConvertImages" // HEIC/WebP/AVIF/BMP files to JPEG or PNG
+    static let clipboardOptimizerVideos = "clipboardOptimizerVideos"
+    static let clipboardOptimizerVideoCodec = "clipboardOptimizerVideoCodec" // h264 | hevc
+    static let clipboardOptimizerVideoQuality = "clipboardOptimizerVideoQuality" // 0.1...1
+    static let clipboardOptimizerVideoMaxDimension = "clipboardOptimizerVideoMaxDimension" // 0 = keep, 1280, 1920, 3840
+    static let clipboardOptimizerVideoRemoveAudio = "clipboardOptimizerVideoRemoveAudio"
+    static let clipboardOptimizerVideoMaxMB = "clipboardOptimizerVideoMaxMB"
+    static let clipboardOptimizerVideoMaxMinutes = "clipboardOptimizerVideoMaxMinutes"
+    static let clipboardOptimizerPDFs = "clipboardOptimizerPDFs"
+    static let clipboardOptimizerPDFDPI = "clipboardOptimizerPDFDPI"
+    static let clipboardOptimizerPDFQuality = "clipboardOptimizerPDFQuality" // 0.1...1
+    static let clipboardOptimizerPDFMaxMB = "clipboardOptimizerPDFMaxMB"
 
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause Dock Preview thumbnail capture while these apps are in front (once shared with the app switcher)
     static let switcherPreviewExcludedApps = "switcherPreviewExcludedApps" // pause app switcher thumbnail capture while these apps are in front
@@ -1639,6 +1661,9 @@ enum Defaults {
         DefaultsKey.mediaImageSaveInSubfolder: false,
         DefaultsKey.mediaImageProfiles: "[]",
         DefaultsKey.mediaImageSelectedProfileID: "",
+        DefaultsKey.mediaPDFDPI: MediaPDFCompressor.Settings.defaultDPI,
+        DefaultsKey.mediaPDFQuality: MediaPDFCompressor.Settings.defaultQuality,
+        DefaultsKey.mediaPDFGrayscale: false,
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,
@@ -1657,6 +1682,25 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnSleep: false,
         DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
+        DefaultsKey.clipboardImageOptimizerEnabled: false,
+        DefaultsKey.clipboardImageOptimizerFormat: "keep",
+        DefaultsKey.clipboardImageOptimizerQuality: 0.8,
+        DefaultsKey.clipboardImageOptimizerMaxDimension: 0,
+        DefaultsKey.clipboardImageOptimizerHalveRetina: false,
+        DefaultsKey.clipboardImageOptimizerIncludeFiles: false,
+        DefaultsKey.clipboardOptimizerImages: true,
+        DefaultsKey.clipboardOptimizerConvertImages: false,
+        DefaultsKey.clipboardOptimizerVideos: false,
+        DefaultsKey.clipboardOptimizerVideoCodec: "hevc",
+        DefaultsKey.clipboardOptimizerVideoQuality: 0.6,
+        DefaultsKey.clipboardOptimizerVideoMaxDimension: 1920,
+        DefaultsKey.clipboardOptimizerVideoRemoveAudio: false,
+        DefaultsKey.clipboardOptimizerVideoMaxMB: 500,
+        DefaultsKey.clipboardOptimizerVideoMaxMinutes: 15,
+        DefaultsKey.clipboardOptimizerPDFs: false,
+        DefaultsKey.clipboardOptimizerPDFDPI: 150,
+        DefaultsKey.clipboardOptimizerPDFQuality: 0.7,
+        DefaultsKey.clipboardOptimizerPDFMaxMB: 100,
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),

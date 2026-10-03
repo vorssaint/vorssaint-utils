@@ -94,6 +94,10 @@ struct MediaWorkspaceView: View {
     @AppStorage(DefaultsKey.mediaImageProfiles) private var imageProfilesRaw = "[]"
     @AppStorage(DefaultsKey.mediaImageSelectedProfileID) private var imageSelectedProfileID = ""
 
+    @AppStorage(DefaultsKey.mediaPDFDPI) private var pdfDPI = MediaPDFCompressor.Settings.defaultDPI
+    @AppStorage(DefaultsKey.mediaPDFQuality) private var pdfQuality = MediaPDFCompressor.Settings.defaultQuality
+    @AppStorage(DefaultsKey.mediaPDFGrayscale) private var pdfGrayscale = false
+
     @AppStorage(DefaultsKey.mediaTextAccurate) private var textAccurate = true
 
     @StateObject private var workspace: MediaWorkspaceSelection
@@ -159,6 +163,10 @@ struct MediaWorkspaceView: View {
     ]
     private var imageText: MediaImageConverterStrings {
         MediaImageConverterStrings.localized(l10n.language)
+    }
+
+    private var pdfText: MediaPDFStrings {
+        MediaPDFStrings.localized(l10n.language)
     }
 
     private var screenshotText: ScreenshotFeatureStrings {
@@ -467,6 +475,22 @@ struct MediaWorkspaceView: View {
                     .padding(.top, 6)
                     .disclosureIndent()
                 }
+            }
+            .panelCard()
+        case .pdfCompressor:
+            VStack(alignment: .leading, spacing: 10) {
+                Picker(pdfText.resolution, selection: $pdfDPI) {
+                    ForEach(MediaPDFCompressor.Settings.dpiChoices, id: \.self) { dpi in
+                        Text(String(format: pdfText.dpiFormat, dpi)).tag(dpi)
+                    }
+                }
+                compressionRow(value: $pdfQuality)
+                Toggle(pdfText.grayscale, isOn: $pdfGrayscale)
+                    .toggleStyle(.checkbox)
+                Text(pdfText.caption)
+                    .font(.system(size: compact ? 9.5 : 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .panelCard()
         case .textExtractor:
@@ -1254,6 +1278,7 @@ struct MediaWorkspaceView: View {
             return MediaImageFormat.sanitized(imageFormatRaw) == .pdf
                 ? l10n.s.mediaStartConvertPDF
                 : l10n.s.mediaStartImage
+        case .pdfCompressor: return pdfText.start
         case .textExtractor: return l10n.s.mediaStartText
         }
     }
@@ -1263,6 +1288,7 @@ struct MediaWorkspaceView: View {
         case .videoCompressor: return l10n.s.mediaToolVideo
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
+        case .pdfCompressor: return pdfText.tool
         case .textExtractor: return l10n.s.mediaToolText
         }
     }
@@ -1465,7 +1491,7 @@ struct MediaWorkspaceView: View {
                 case .gifMaker:
                     gifStart = 0
                     gifEnd = duration
-                case .imageCompressor, .textExtractor:
+                case .imageCompressor, .pdfCompressor, .textExtractor:
                     break
                 }
             }
@@ -1578,6 +1604,9 @@ struct MediaWorkspaceView: View {
                                     outputURL: outputURL,
                                     options: currentImageOptions)
             }
+        case .pdfCompressor:
+            media.compressPDF(inputURL: inputURL, outputURL: outputURL,
+                              options: MediaPDFOptions(dpi: pdfDPI, quality: pdfQuality, grayscale: pdfGrayscale))
         case .textExtractor:
             media.extractText(inputURL: inputURL, outputURL: outputURL,
                               options: MediaTextOptions(accurate: textAccurate,
@@ -1586,14 +1615,7 @@ struct MediaWorkspaceView: View {
         }
     }
 
-    private var inputTypes: [UTType] {
-        switch selectedTool {
-        case .videoCompressor, .gifMaker:
-            return [.movie, .video, .mpeg4Movie, .quickTimeMovie]
-        case .imageCompressor, .textExtractor:
-            return [.image]
-        }
-    }
+    private var inputTypes: [UTType] { selectedTool.inputTypes }
 
     private var outputType: UTType {
         switch selectedTool {
@@ -1606,6 +1628,7 @@ struct MediaWorkspaceView: View {
             case .png: return .png
             case .pdf: return .pdf
             }
+        case .pdfCompressor: return .pdf
         case .textExtractor: return .plainText
         }
     }
@@ -1627,6 +1650,8 @@ struct MediaWorkspaceView: View {
                                                options: currentImageOptions,
                                                index: 1,
                                                outputSize: currentResizeMode.targetSize(for: sourceSize))
+        case .pdfCompressor:
+            return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-compressed", fileExtension: "pdf")
         case .textExtractor:
             return MediaSupport.uniqueOutputURL(for: inputURL, suffix: "-text", fileExtension: "txt")
         }
@@ -1644,6 +1669,14 @@ struct MediaWorkspaceView: View {
                           maxSeconds)
         case .targetTooSmall: return l10n.s.mediaErrorTargetTooSmall
         case .watermarkUnavailable: return imageText.noLogo
+        case .notDownloaded: return pdfText.notDownloaded
+        case .notWritable: return pdfText.notWritable
+        case .notEnoughSpace: return pdfText.notEnoughSpace
+        case let .pdfProtected(protection): return pdfText.protectionMessage(protection)
+        case let .notSmaller(originalBytes, outputBytes):
+            return String(format: pdfText.notSmallerFormat,
+                          ByteCountFormatter.string(fromByteCount: originalBytes, countStyle: .file),
+                          ByteCountFormatter.string(fromByteCount: outputBytes, countStyle: .file))
         case .cancelled: return l10n.s.mediaCancelled
         case let .failed(message): return message.isEmpty ? l10n.s.mediaErrorUnsupported : message
         }
