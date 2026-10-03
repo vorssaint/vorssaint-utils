@@ -50,6 +50,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCapture) private var capture = true
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
+    @AppStorage(DefaultsKey.notchHideMusicWhenPlayerActive) private var hideMusicWhenPlayerActive = false
+    @AppStorage(DefaultsKey.notchMusicPauseTimeout) private var musicPauseTimeout = 5.0
     @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = false
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
@@ -91,7 +93,7 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
+        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(hideMusicWhenPlayerActive), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
          String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity)]
     }
@@ -364,6 +366,14 @@ struct NotchSettings: View {
         case .music:
             let music = FeatureStrings.notchMusicExtras(l10n.language)
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
+            if showPlayingMusic {
+                switchRow("eye.slash", music.hideWhenPlayerActive,
+                          caption: music.hideWhenPlayerActiveHint,
+                          isOn: $hideMusicWhenPlayerActive)
+                    .padding(.leading, settingsRowTextInset)
+                pauseTimeoutSlider(music)
+                    .padding(.leading, settingsRowTextInset)
+            }
             switchRow("play.rectangle", music.includeOtherPlayers, isOn: $includeOtherPlayers)
             switchRow("text.quote", music.enableLyrics, isOn: $lyricsEnabled)
                 .disabled(!AppFeature.notchLyrics.isAvailable)
@@ -521,6 +531,12 @@ struct NotchSettings: View {
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
+            }
+            if NotchSupport.modules().contains(.music) {
+                let music = FeatureStrings.notchMusicExtras(l10n.language)
+                SettingsCard(title: FeatureStrings.radialMenu(l10n.language).mediaNowPlaying) {
+                    pauseTimeoutSlider(music)
+                }
             }
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
@@ -831,6 +847,32 @@ struct NotchSettings: View {
             if shown { values.remove(module.rawValue) } else { values.insert(module.rawValue) }
             hidden = values.sorted().joined(separator: ",")
         }
+    }
+
+    private func pauseTimeoutSlider(_ music: NotchMusicExtrasStrings) -> some View {
+        let value = Binding(get: { NotchSupport.sanitizedPauseTimeout(musicPauseTimeout) },
+                            set: { musicPauseTimeout = NotchSupport.sanitizedPauseTimeout($0) })
+        let seconds = Int(value.wrappedValue.rounded())
+        let formatted = seconds == 0 ? music.pauseTimeoutOff : String(format: music.pauseTimeoutFormat, locale: Locale(identifier: l10n.language.rawValue), seconds)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label(music.pauseTimeout, systemImage: "timer")
+                Spacer()
+                Text(formatted)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: NotchSupport.pauseTimeoutRange, step: 1) {
+                Text(music.pauseTimeout)
+            }
+            .labelsHidden()
+            .accessibilityLabel(music.pauseTimeout)
+            .accessibilityValue(formatted)
+            Text(music.pauseTimeoutHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 
 }

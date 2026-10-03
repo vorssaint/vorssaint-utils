@@ -320,13 +320,25 @@ enum NotchMusicExtrasTests {
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchLyricsSupport.onlineEnabled(in: defaults) && !NotchQueueSupport.isEnabled(in: defaults),
                "hidden music does not retain an optional lyrics or queue subscription")
+        defaults.removeObject(forKey: DefaultsKey.notchMusicPauseTimeout)
+        suite.expect(NotchSupport.pauseTimeout(in: defaults) == 5.0, "default pause timeout is 5.0s")
+        defaults.set(3.5, forKey: DefaultsKey.notchMusicPauseTimeout)
+        suite.expect(NotchSupport.pauseTimeout(in: defaults) == 3.5, "pause timeout reflects custom setting")
+        defaults.set(-1.0, forKey: DefaultsKey.notchMusicPauseTimeout)
+        suite.expect(NotchSupport.pauseTimeout(in: defaults) == 0.0, "pause timeout clamps minimum to 0.0s")
+        defaults.set(15.0, forKey: DefaultsKey.notchMusicPauseTimeout)
+        suite.expect(NotchSupport.pauseTimeout(in: defaults) == 10.0, "pause timeout clamps maximum to 10.0s")
+        suite.expect(NotchSupport.sanitizedPauseTimeout(Double.nan) == 5.0, "sanitized pause timeout handles NaN")
+        suite.expect(NotchSupport.sanitizedPauseTimeout(Double.infinity) == 5.0, "sanitized pause timeout handles infinity")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLyricsEnabled, DefaultsKey.notchLyricsOnline,
-                                                                 DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer, AppFeature.notchLyrics.availabilityKey,
+                                                                 DefaultsKey.notchQueueEnabled, DefaultsKey.notchLiveEqualizer,
+                                                                 DefaultsKey.notchMusicPauseTimeout,
+                                                                 AppFeature.notchLyrics.availabilityKey,
                                                                  AppFeature.notchQueue.availabilityKey]),
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 38 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 44 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

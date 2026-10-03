@@ -1445,8 +1445,24 @@ enum NotchSupport {
             && (defaults.object(forKey: DefaultsKey.notchShowPlayingMusic) as? Bool ?? true)
     }
 
-    static func showsMusicActivity(isPlaying: Bool, in defaults: UserDefaults = .standard) -> Bool {
-        isPlaying && watchesMusicActivity(in: defaults)
+    static func hidesMusicWhenPlayerActive(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHideMusicWhenPlayerActive)
+    }
+
+    static let pauseTimeoutRange: ClosedRange<Double> = 0...10
+    static let defaultPauseTimeout: Double = 5.0
+
+    static func sanitizedPauseTimeout(_ value: Double) -> Double {
+        value.isFinite ? min(pauseTimeoutRange.upperBound, max(pauseTimeoutRange.lowerBound, value)) : defaultPauseTimeout
+    }
+
+    static func pauseTimeout(in defaults: UserDefaults = .standard) -> Double {
+        let value = defaults.object(forKey: DefaultsKey.notchMusicPauseTimeout) as? Double ?? defaultPauseTimeout
+        return sanitizedPauseTimeout(value)
+    }
+
+    static func showsMusicActivity(isPlaying: Bool, isHoldingPause: Bool = false, in defaults: UserDefaults = .standard, isPlayerActive: Bool = false) -> Bool {
+        (isPlaying || isHoldingPause) && watchesMusicActivity(in: defaults) && !(hidesMusicWhenPlayerActive(in: defaults) && isPlayerActive)
     }
 
     static func showsInCaptures(in defaults: UserDefaults = .standard) -> Bool {
@@ -1472,9 +1488,9 @@ enum NotchSupport {
         return choice
     }
 
-    static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {
+    static func visibleIdleContent(isPlaying: Bool, isHoldingPause: Bool = false, in defaults: UserDefaults = .standard, isPlayerActive: Bool = false) -> NotchIdleContent {
         let choice = idleContent(in: defaults)
-        return choice == .music && !showsMusicActivity(isPlaying: isPlaying, in: defaults) ? .none : choice
+        return choice == .music && !showsMusicActivity(isPlaying: isPlaying, isHoldingPause: isHoldingPause, in: defaults, isPlayerActive: isPlayerActive) ? .none : choice
     }
 
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {

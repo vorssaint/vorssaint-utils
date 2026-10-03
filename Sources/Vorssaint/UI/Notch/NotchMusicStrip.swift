@@ -56,6 +56,7 @@ struct NotchMusicStrip: View {
     private var showsArtist: Bool { geometry.compactActivityContentHeight >= 28 }
 
     var body: some View {
+        let isPaused = playback?.isPlaying != true
         Button { service.openActivity(.music) } label: {
             HStack(spacing: 0) {
                 HStack(spacing: 8) {
@@ -88,6 +89,9 @@ struct NotchMusicStrip: View {
             }
             .frame(height: geometry.compactActivityContentHeight)
             .modifier(NotchMusicSwipeFeedback(enabled: snapshot == nil))
+            .saturation(isPaused ? 0.35 : 1.0)
+            .opacity(isPaused ? 0.65 : 1.0)
+            .animation(.smooth(duration: 0.35), value: isPaused)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

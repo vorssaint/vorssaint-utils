@@ -1412,7 +1412,7 @@ enum NotchTests {
         suite.expect(NotchEvent.allCases.allSatisfy { !NotchSupport.routes($0, in: defaults) },
                "hub removal gates every notch event")
 
-        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
+        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchHideMusicWhenPlayerActive, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,

@@ -216,3 +216,17 @@ struct NotchTrackChange {
         return text
     }
 }
+
+enum NotchMusicSupport {
+    static func isPlayerActive(pid: Int32?, bundle: String?, frontPID: Int32?, frontBundle: String?) -> Bool {
+        if let pid, let frontPID, pid == frontPID { return true }
+        if let bundle, let frontBundle, !bundle.isEmpty, bundle == frontBundle { return true }
+        return false
+    }
+
+    static func isPlayerActive(playback: NotchPlayback?, selectedPID: Int32?, frontPID: Int32?, frontBundle: String?) -> Bool {
+        let pid = playback?.track.appPID ?? selectedPID
+        let bundle = playback?.track.appBundleIdentifier
+        return isPlayerActive(pid: pid, bundle: bundle, frontPID: frontPID, frontBundle: frontBundle)
+    }
+}

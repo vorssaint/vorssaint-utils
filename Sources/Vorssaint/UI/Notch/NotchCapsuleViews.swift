@@ -219,6 +219,7 @@ struct NotchCapsuleMusicStrip: View {
     private var title: String { playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
 
     var body: some View {
+        let isPaused = playback?.isPlaying != true
         let side = CapsuleLayout.artworkSide(geometry)
         let named = service.capsuleMusicTitleShown
         NotchCapsuleRow(size: size ?? CapsuleLayout.musicSurface(title: named ? title : nil, geometry: geometry),
@@ -239,6 +240,9 @@ struct NotchCapsuleMusicStrip: View {
                                        tint: tint?.color ?? .white)
             }
             .modifier(NotchMusicSwipeFeedback(enabled: snapshot == nil))
+            .saturation(isPaused ? 0.35 : 1.0)
+            .opacity(isPaused ? 0.65 : 1.0)
+            .animation(.smooth(duration: 0.35), value: isPaused)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([title, playback?.track.artist].compactMap { $0 }.joined(separator: ", "))

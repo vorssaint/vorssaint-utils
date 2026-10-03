@@ -71,6 +71,7 @@ enum NotchHoverTests {
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
         var running = true, suspended = false, inside = false, hoverEmphasized = false
+        var isPlayerActive = false
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?

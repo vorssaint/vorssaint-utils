@@ -767,6 +767,8 @@ enum DefaultsKey {
 
     // Optional top-of-screen workspace and activity presentations.
     static let notchShowPlayingMusic = "notchShowPlayingMusic"
+    static let notchHideMusicWhenPlayerActive = "notchHideMusicWhenPlayerActive"
+    static let notchMusicPauseTimeout = "notchMusicPauseTimeout"
     static let notchIncludeOtherPlayers = "notchIncludeOtherPlayers"
     static let notchDefaultProfileInitialized = "notchDefaultProfileInitialized" // local migration marker; never backed up
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
@@ -1334,6 +1336,8 @@ enum Defaults {
         DefaultsKey.snippetSoundEnabled: false,
         DefaultsKey.snippetSoundName: defaultSnippetSoundName,
         DefaultsKey.notchShowPlayingMusic: true,
+        DefaultsKey.notchHideMusicWhenPlayerActive: false,
+        DefaultsKey.notchMusicPauseTimeout: 5.0,
         DefaultsKey.notchIncludeOtherPlayers: false,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,

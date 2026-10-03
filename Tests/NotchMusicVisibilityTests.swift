@@ -59,6 +59,8 @@ enum NotchMusicVisibilityTests {
         var hiddenInFullscreen = false
         var running = true
         var suspended = false
+        var isPlayerActive = false
+        var isMusicPausedHolding = false
         var expanded = false
         var peeking = false
         var showingAppPanel = false
@@ -363,5 +365,24 @@ enum NotchMusicVisibilityTests {
         suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
                      && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
                      "an event beside music takes the wings its pair needs, and alone keeps room for its title")
+
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
+        defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+        defaults.set(false, forKey: DefaultsKey.notchHideMusicWhenPlayerActive)
+        suite.expect(NotchSupport.showsMusicActivity(isPlaying: true, in: defaults, isPlayerActive: true),
+                     "default behavior keeps music activity even if player is active")
+        defaults.set(true, forKey: DefaultsKey.notchHideMusicWhenPlayerActive)
+        suite.expect(!NotchSupport.showsMusicActivity(isPlaying: true, in: defaults, isPlayerActive: true),
+                     "hiding music while player is active suppresses music activity")
+        suite.expect(NotchSupport.showsMusicActivity(isPlaying: true, in: defaults, isPlayerActive: false),
+                     "hiding music while player is active preserves music activity when another app is active")
+        suite.expect(NotchMusicSupport.isPlayerActive(pid: 100, bundle: "com.example.player", frontPID: 100, frontBundle: "com.example.player"),
+                     "player active detects matching pid and bundle")
+        suite.expect(NotchMusicSupport.isPlayerActive(pid: 100, bundle: "com.example.player", frontPID: 200, frontBundle: "com.example.player"),
+                     "player active detects matching bundle identifier even with different pid")
+        suite.expect(NotchMusicSupport.isPlayerActive(pid: 100, bundle: nil, frontPID: 100, frontBundle: "com.example.other"),
+                     "player active detects matching process identifier")
+        suite.expect(!NotchMusicSupport.isPlayerActive(pid: 100, bundle: "com.example.player", frontPID: 200, frontBundle: "com.example.browser"),
+                     "player active returns false when another application is in foreground")
     }
 }
