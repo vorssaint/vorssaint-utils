@@ -39,7 +39,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Pause in these apps",
         addButton: "Add an app…",
         removeButton: "Remove",
-        caption: "Window thumbnails stop while one of these apps is in front, and the app switcher hands its shortcut back so a remote desktop or KVM receives it instead."
+        caption: "Window thumbnails stop while one of these apps is in front."
     )
 
     static let ptBR = WindowPreviewExclusionStrings(
@@ -47,7 +47,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Pausar nestes apps",
         addButton: "Adicionar app…",
         removeButton: "Remover",
-        caption: "As miniaturas das janelas param enquanto um destes apps está na frente, e o alternador de apps devolve o atalho para que uma área de trabalho remota ou KVM o receba."
+        caption: "As miniaturas das janelas param enquanto um destes apps está na frente."
     )
 
     static let tr = WindowPreviewExclusionStrings(
@@ -63,7 +63,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Приостанавливать в этих приложениях",
         addButton: "Добавить приложение…",
         removeButton: "Удалить",
-        caption: "Миниатюры окон не обновляются, пока одно из этих приложений на переднем плане, и переключатель приложений отдаёт свой ярлык обратно, чтобы удалённый рабочий стол или KVM получил его."
+        caption: "Миниатюры окон не обновляются, пока одно из этих приложений на переднем плане."
     )
 
     static let es = WindowPreviewExclusionStrings(
@@ -79,7 +79,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Pozastaviť v týchto aplikáciách",
         addButton: "Pridať aplikáciu…",
         removeButton: "Odstrániť",
-        caption: "Miniatúry okien sa zastavia, kým je jedna z týchto aplikácií v popredí, a prepínač aplikácií vráti svoju skratku, aby ju dostala vzdialená plocha alebo KVM."
+        caption: "Miniatúry okien sa zastavia, kým je jedna z týchto aplikácií v popredí."
     )
 
     static let de = WindowPreviewExclusionStrings(
@@ -87,7 +87,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "In diesen Apps pausieren",
         addButton: "App hinzufügen…",
         removeButton: "Entfernen",
-        caption: "Fenstervorschauen pausieren, solange eine dieser Apps im Vordergrund ist, und der App-Umschalter gibt seinen Kurzbefehl zurück, damit ein Remote-Desktop oder KVM ihn erhält."
+        caption: "Fenstervorschauen pausieren, solange eine dieser Apps im Vordergrund ist."
     )
 
     static let fr = WindowPreviewExclusionStrings(
@@ -95,7 +95,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Mettre en pause dans ces apps",
         addButton: "Ajouter une app…",
         removeButton: "Retirer",
-        caption: "Les aperçus des fenêtres s’arrêtent tant que l’une de ces apps est au premier plan, et le sélecteur d’apps rend son raccourci pour qu’un bureau distant ou un KVM le reçoive."
+        caption: "Les aperçus des fenêtres s’arrêtent tant que l’une de ces apps est au premier plan."
     )
 
     static let it = WindowPreviewExclusionStrings(
@@ -103,7 +103,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "Metti in pausa in queste app",
         addButton: "Aggiungi app…",
         removeButton: "Rimuovi",
-        caption: "Le anteprime delle finestre si fermano quando una di queste app è in primo piano, e il selettore app restituisce la sua scorciatoia, così un desktop remoto o KVM la riceve."
+        caption: "Le anteprime delle finestre si fermano quando una di queste app è in primo piano."
     )
 
     static let ja = WindowPreviewExclusionStrings(
@@ -111,7 +111,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "これらのAppで一時停止",
         addButton: "Appを追加…",
         removeButton: "削除",
-        caption: "これらのAppが前面にある間はウインドウのサムネイルを更新せず、Appスイッチャーはショートカットを返してリモートデスクトップやKVMがそれを受け取ります。"
+        caption: "これらのAppが前面にある間は、ウインドウのサムネイルを更新しません。"
     )
 
     static let ko = WindowPreviewExclusionStrings(
@@ -119,7 +119,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "이 앱에서 일시 정지",
         addButton: "앱 추가…",
         removeButton: "제거",
-        caption: "이 앱 중 하나가 앞에 있는 동안에는 창 미리보기가 멈추고, App 스위처가 자신의 단축키를 돌려주어 원격 데스크톱이나 KVM이 받습니다."
+        caption: "이 앱 중 하나가 앞에 있는 동안에는 창 미리보기가 멈춥니다."
     )
 
     static let zhHans = WindowPreviewExclusionStrings(
@@ -127,7 +127,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "在这些 App 中暂停",
         addButton: "添加 App…",
         removeButton: "移除",
-        caption: "当这些 App 之一位于前台时，窗口缩略图会暂停更新，App 切换器也会交还快捷键，让远程桌面或 KVM 接收。"
+        caption: "当这些 App 之一位于前台时，窗口缩略图会暂停更新。"
     )
 
     static let zhTW = WindowPreviewExclusionStrings(
@@ -135,7 +135,7 @@ extension WindowPreviewExclusionStrings {
         listTitle: "在這些 App 中暫停",
         addButton: "加入 App…",
         removeButton: "移除",
-        caption: "當這些 App 之一位於前景時，視窗縮圖會暫停更新，App 切換器也會交還快捷鍵，讓遠端桌面或 KVM 接收。"
+        caption: "當這些 App 之一位於前景時，視窗縮圖會暫停更新。"
     )
 
     static let zhHK = WindowPreviewExclusionStrings(
@@ -143,13 +143,13 @@ extension WindowPreviewExclusionStrings {
         listTitle: "在這些 App 中暫停",
         addButton: "加入 App…",
         removeButton: "移除",
-        caption: "當其中一個 App 位於前景時，視窗縮圖會暫停更新，App 切換器亦會交還快捷鍵，令遠端桌面或 KVM 接收。"
+        caption: "當其中一個 App 位於前景時，視窗縮圖會暫停更新。"
     )
     static let uk = WindowPreviewExclusionStrings(
         sectionTitle: "Мініатюри вікон",
         listTitle: "Пауза в цих програмах",
         addButton: "Додати програму…",
         removeButton: "Видалити",
-        caption: "Мініатюри вікон зупиняються, поки одна з цих програм на передньому плані, і перемикач програм віддає свій ярлик, щоб віддалена стільниця або KVM його отримала."
+        caption: "Мініатюри вікон зупиняються, поки одна з цих програм на передньому плані."
     )
 }

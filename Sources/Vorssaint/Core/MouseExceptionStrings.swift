@@ -16,7 +16,6 @@ struct MouseExceptionStrings {
     let captionFocusFollowsMouse: String
     let captionSuperKey: String
     let captionFnLock: String
-    let captionSwitcherPause: String
     let pausedSuperKey: String
 
     func caption(for scope: MouseExceptionScope) -> String {
@@ -30,7 +29,6 @@ struct MouseExceptionStrings {
         case .middleClick: return captionMiddleClick
         case .superKey: return captionSuperKey
         case .fnLock: return captionFnLock
-        case .switcherPause: return captionSwitcherPause
         }
     }
 }
@@ -71,7 +69,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
         captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
         captionFnLock: "In these apps the F1–F12 keys switch to the behavior the system’s checkbox does not give them: real function keys where the system gives media actions, and media actions where the system gives function keys.",
-        captionSwitcherPause: "While any of these apps is in front, the app switcher hands its shortcut back, so a remote desktop or KVM receives it instead.",
         pausedSuperKey: "Paused while a selected app is open"
     )
 
@@ -88,7 +85,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Nestes apps passar o mouse não muda o foco nem traz a janela para frente.",
         captionSuperKey: "Enquanto algum destes apps estiver aberto, mesmo em segundo plano, a Super Key pausa e a tecla escolhida funciona normalmente.",
         captionFnLock: "Nestes apps as teclas F1–F12 trocam para o comportamento que a caixa do sistema não lhes dá: teclas de função reais onde o sistema dá ações de mídia, e ações de mídia onde o sistema dá teclas de função.",
-        captionSwitcherPause: "Enquanto algum destes apps estiver em primeiro plano, o alternador de apps devolve o atalho, para que uma área de trabalho remota ou KVM o receba.",
         pausedSuperKey: "Pausada enquanto um app selecionado está aberto"
     )
 
@@ -105,7 +101,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Bu uygulamalarda imleci bekletmek odağı değiştirmez veya pencereyi öne getirmez.",
         captionSuperKey: "Bu uygulamalardan biri arka planda bile açıkken Super Key duraklatılır ve seçilen tuş normal çalışır.",
         captionFnLock: "Bu uygulamalarda F1–F12 tuşları sistemin onlara vermediği davranışa geçer: sistemin medya eylemleri verdiği yerde gerçek işlev tuşları, sistemin işlev tuşları verdiği yerde medya eylemleri.",
-        captionSwitcherPause: "Bu uygulamalardan biri önde olduğu sürece uygulama değiştirici kısayolu geri verir, böylece uzak masaüstü veya KVM onu alır.",
         pausedSuperKey: "Seçili bir uygulama açıkken duraklatıldı"
     )
 
@@ -122,7 +117,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "В этих приложениях наведение не меняет фокус и не выводит окно на передний план.",
         captionSuperKey: "Пока любое из этих приложений открыто, даже в фоне, Super Key приостановлена, а выбранная клавиша работает как обычно.",
         captionFnLock: "В этих приложениях клавиши F1–F12 переключаются на поведение, которое не даёт системная галочка: настоящие функциональные клавиши там, где система даёт медиадействия, и медиадействия там, где система даёт функциональные клавиши.",
-        captionSwitcherPause: "Пока одно из этих приложений на переднем плане, переключатель приложений отдаёт свой ярлык обратно, чтобы удалённый рабочий стол или KVM получил его.",
         pausedSuperKey: "Приостановлено, пока открыто выбранное приложение"
     )
 
@@ -139,7 +133,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
         captionFnLock: "En estas apps las teclas F1–F12 cambian al comportamiento que la casilla del sistema no les da: teclas de función reales donde el sistema da acciones de medios, y acciones de medios donde el sistema da teclas de función.",
-        captionSwitcherPause: "Mientras alguna de estas apps esté en primer plano, el conmutador de apps devuelve su atajo, para que un escritorio remoto o KVM lo reciba.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
     )
 
@@ -156,7 +149,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Prejdenie kurzorom nad oknom v týchto aplikáciách nemení fokus ani ho nezobrazí navrchu.",
         captionSuperKey: "Kým je otvorená ktorákoľvek z týchto aplikácií, aj na pozadí, Super kláves sa pozastaví a vybraný kláves funguje normálne.",
         captionFnLock: "V týchto aplikáciách sa klávesy F1–F12 prepnú na správanie, ktoré im systémový prepínač nedáva: skutočné funkčné klávesy tam, kde systém dáva multimediálne akcie, a multimediálne akcie tam, kde systém dáva funkčné klávesy.",
-        captionSwitcherPause: "Kým je jedna z týchto aplikácií v popredí, prepínač aplikácií vráti svoju skratku, aby ju dostala vzdialená plocha alebo KVM.",
         pausedSuperKey: "Pozastavené, kým je otvorená vybraná aplikácia"
     )
 
@@ -173,7 +165,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "In diesen Apps ändert ein Verweilen des Zeigers weder den Fokus noch die Fensterreihenfolge.",
         captionSuperKey: "Solange eine dieser Apps geöffnet ist, auch im Hintergrund, pausiert Super Key und die gewählte Taste funktioniert normal.",
         captionFnLock: "In diesen Apps wechseln F1–F12 zu dem Verhalten, das das Systemhäkchen nicht gibt: echte Funktionstasten, wo das System Medienaktionen gibt, und Medienaktionen, wo das System Funktionstasten gibt.",
-        captionSwitcherPause: "Solange eine dieser Apps im Vordergrund ist, gibt der App-Umschalter seinen Kurzbefehl zurück, damit ein Remote-Desktop oder KVM ihn erhält.",
         pausedSuperKey: "Pausiert, solange eine ausgewählte App geöffnet ist"
     )
 
@@ -190,7 +181,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Dans ces apps le survol ne change pas le focus et ne place pas la fenêtre au premier plan.",
         captionSuperKey: "Tant qu’une de ces apps est ouverte, même en arrière-plan, Super Key est en pause et la touche choisie fonctionne normalement.",
         captionFnLock: "Dans ces apps les touches F1–F12 basculent vers le comportement que la case du système ne leur donne pas\u{00A0}: de vraies touches de fonction là où le système donne des actions média, et des actions média là où le système donne des touches de fonction.",
-        captionSwitcherPause: "Tant qu’une de ces apps est au premier plan, le sélecteur d’apps rend son raccourci, pour qu’un bureau distant ou un KVM le reçoive.",
         pausedSuperKey: "En pause tant qu’une app sélectionnée est ouverte"
     )
 
@@ -207,7 +197,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "In queste app il passaggio del puntatore non cambia il focus né porta avanti la finestra.",
         captionSuperKey: "Finché una di queste app è aperta, anche in background, Super Key è in pausa e il tasto scelto funziona normalmente.",
         captionFnLock: "In queste app i tasti F1–F12 passano al comportamento che la casella di sistema non dà loro: veri tasti funzione dove il sistema dà azioni multimediali, e azioni multimediali dove il sistema dà tasti funzione.",
-        captionSwitcherPause: "Finché una di queste app è in primo piano, il selettore app restituisce la sua scorciatoia, così un desktop remoto o KVM la riceve.",
         pausedSuperKey: "In pausa mentre un’app selezionata è aperta"
     )
 
@@ -224,7 +213,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "これらのAppではポインタを止めてもフォーカスやウインドウの前後関係は変わりません。",
         captionSuperKey: "これらのAppのいずれかが開いている間は、バックグラウンドでもSuper Keyが一時停止し、選択したキーは通常どおり動作します。",
         captionFnLock: "これらのAppではF1–F12キーがシステムのチェックボックスが与えない動作に切り替わります。システムがメディア操作を与える場合は本来のファンクションキーに、システムがファンクションキーを与える場合はメディア操作に切り替わります。",
-        captionSwitcherPause: "これらのAppのいずれかが最前面にある間、Appスイッチャーはショートカットを返し、リモートデスクトップやKVMがそれを受け取ります。",
         pausedSuperKey: "選択したAppが開いている間は一時停止中"
     )
 
@@ -241,7 +229,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "이 앱들에서는 포인터를 올려 두어도 포커스나 윈도우 순서가 바뀌지 않습니다.",
         captionSuperKey: "이 앱 중 하나라도 열려 있으면 백그라운드에서도 Super Key가 일시 정지되고 선택한 키가 정상적으로 작동합니다.",
         captionFnLock: "이 앱들에서 F1–F12 키가 시스템 체크박스가 주지 않는 동작으로 전환됩니다. 시스템이 미디어 동작을 주는 곳에서는 진짜 기능 키로, 시스템이 기능 키를 주는 곳에서는 미디어 동작으로 바뀝니다.",
-        captionSwitcherPause: "이 앱 중 하나라도 맨앞에 있는 동안 App 스위처가 자신의 단축키를 돌려주어 원격 데스크톱이나 KVM이 받습니다.",
         pausedSuperKey: "선택한 앱이 열려 있는 동안 일시 정지됨"
     )
 
@@ -274,7 +261,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
         captionFnLock: "在這些 App 裡，F1–F12 鍵切換到系統勾選框未給出的行為：系統給媒體操作的地方變為真正的功能鍵，系統給功能鍵的地方變為媒體操作。",
-        captionSwitcherPause: "在這些 App 中任一個在最前方面時，App 切換器會交還其快捷鍵，讓遠端桌面或 KVM 接收。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
 
@@ -291,7 +277,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "在這些 App 裡停留指標不會改變焦點，也不會將視窗移到最前方。",
         captionSuperKey: "這些 App 中任何一個開啟時，即使在背景執行，Super Key 也會暫停，所選按鍵恢復正常功能。",
         captionFnLock: "喺呢啲 App 裡面，F1–F12 鍵切換到系統剔選框無畀到嘅行為：系統畀媒體操作嘅地方變為真正嘅功能鍵，系統畀功能鍵嘅地方變為媒體操作。",
-        captionSwitcherPause: "呢啲 App 中任何一個喺最前面嗰陣，App 切換器會交還佢嘅快捷鍵，令遠端桌面或 KVM 接收。",
         pausedSuperKey: "所選 App 開啟期間已暫停"
     )
     static let uk = MouseExceptionStrings(
@@ -307,7 +292,6 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
         captionFnLock: "У цих програмах клавіші F1–F12 перемикаються на поведінку, яку не дає системна галочка: справжні функціональні клавіші там, де система дає медіадії, і медіадії там, де система дає функціональні клавіші.",
-        captionSwitcherPause: "Поки одна з цих програм на передньому плані, перемикач програм віддає свій ярлик, щоб віддалена стільниця або KVM його отримала.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
     )
 }
