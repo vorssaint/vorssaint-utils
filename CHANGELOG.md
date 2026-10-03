@@ -146,6 +146,7 @@ This beta takes Dynamic Island beyond the notch. It floats as a capsule on displ
 - Radial menu profiles refuse a shortcut that another profile or feature already uses, and other shortcut settings now warn when a combination belongs to a radial menu profile.
 - The Keyboard Shortcuts page lists the shortcuts radial menu profiles use and links to the Radial menu page to change them, instead of showing an outdated shortcut whose changes had no effect.
 - Extra Brightness no longer hides purchase confirmations in the system app store or administrator password prompts.
+- Maximize windows no longer snaps a window moved in from another display back to its old size when the Dock is on the right, as happened with Google Chrome.
 - Clipboard History search reuses prepared text while typing in long histories, reducing repeated processing.
 - Scratchpad warns in both views when notes cannot be saved and shows a warning if the final save fails while closing.
 - Homebrew commands and app update checks use proxy and mirror settings exported by the user's shell, allowing package operations on networks where direct access is blocked.
