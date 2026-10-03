@@ -713,7 +713,8 @@ final class NotchService: ObservableObject {
         let layout = NotchCapsuleLayout.self
         guard let content = notice.notification else {
             return layout.surface(content: layout.noticeContent(title: notice.title, detail: notice.detail,
-                                                                level: notice.level != nil),
+                                                                level: notice.level != nil,
+                                                                showsReading: NotchSupport.showsLevelValue(for: notice.event)),
                                   maximum: layout.Maximum.notice, geometry: geometry)
         }
         return layout.surface(content: layout.notificationContent(title: content.compactTitle, message: content.compactDetail,

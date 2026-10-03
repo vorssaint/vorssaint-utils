@@ -43,6 +43,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
     @AppStorage(DefaultsKey.notchMicrophone) private var microphone = true
     @AppStorage(DefaultsKey.notchBrightness) private var brightness = true
+    @AppStorage(DefaultsKey.notchLevelPercent) private var levelPercent = true
     @AppStorage(DefaultsKey.notchBattery) private var battery = true
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = true
     @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = true
@@ -520,6 +521,9 @@ struct NotchSettings: View {
                                unavailableAction: { showModule(.music) })
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
+                if volume || brightness || keyboardLight {
+                    switchRow("percent", text.levelPercent, caption: text.levelPercentHint, isOn: $levelPercent)
+                }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
             }
             let locked = FeatureStrings.notchLockScreen(l10n.language)
