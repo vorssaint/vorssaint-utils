@@ -52,6 +52,10 @@ struct NotchNotificationInbox {
     }
 
     mutating func dismiss(_ id: UUID) { items.removeAll { $0.id == id } }
+
+    /// Banners still on screen stay seen, so the next layout pass cannot
+    /// bring back what was just cleared; later arrivals are mirrored as usual.
+    mutating func clear() { items.removeAll() }
 }
 
 /// Only labelled notification text belongs in the mirror. Controls, widgets

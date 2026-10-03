@@ -377,6 +377,12 @@ struct NotchView: View {
             && !service.showingSections && !service.modules.isEmpty
     }
 
+    /// Notifications show only cards too; every row of height is theirs.
+    private var showsNotificationsClear: Bool {
+        service.selected == .notifications && !showsDetail
+            && !service.showingSections && !service.modules.isEmpty
+    }
+
     private var cameraHeaderActions: some View {
         ViewThatFits(in: .horizontal) {
             cameraHeaderActions(compactUpdate: false).fixedSize(horizontal: true, vertical: false)
@@ -389,13 +395,13 @@ struct NotchView: View {
             NotchUpdateControl(action: service.showUpdate, compact: compactUpdate)
             overflowMenu(items: overflowItems(
                 tools: service.selected == .tools && !showsDetail && !service.showingSections && launcher.activeUtility == nil,
-                clear: showsCapturesClear))
+                clear: showsCapturesClear, clearNotifications: showsNotificationsClear))
         }
     }
 
     /// The header's overflow entries, each with the glyph its own button
     /// wears when the pointer row shows them separately.
-    private func overflowItems(tools: Bool, clear: Bool) -> [NotchMenuItem] {
+    private func overflowItems(tools: Bool, clear: Bool, clearNotifications: Bool = false) -> [NotchMenuItem] {
         var items: [NotchMenuItem] = []
         if tools {
             items.append(NotchMenuItem(title: text.customizeTools, checked: launcher.isEditing,
@@ -409,6 +415,17 @@ struct NotchView: View {
                                        enabled: !empty(), action: {
                 guard !empty() else { return }
                 RecentCapturesView.confirmClearAboveIsland()
+            }))
+        }
+        if clearNotifications {
+            // Checked as the header draws and again when chosen, like the
+            // captures entry: this view does not observe the notification service.
+            let notifications = NotchNotificationService.shared
+            let unavailable = { notifications.items.isEmpty || notifications.openingID != nil }
+            items.append(NotchMenuItem(title: FeatureStrings.notchNotifications(l10n.language).clearAll, symbol: "trash",
+                                       enabled: !unavailable(), action: {
+                guard !unavailable() else { return }
+                NotchClearNotificationsButton.confirmClearAboveIsland()
             }))
         }
         if !items.isEmpty { items.append(.separator) }
@@ -448,6 +465,7 @@ struct NotchView: View {
                 }
             }
             if showsCapturesClear { NotchClearCapturesButton() }
+            if showsNotificationsClear { NotchClearNotificationsButton() }
             // Keeping the island open is one click, like the floating buttons;
             // a header button steps aside when the same action floats beside it.
             if !quickActions.contains(.pin) {
