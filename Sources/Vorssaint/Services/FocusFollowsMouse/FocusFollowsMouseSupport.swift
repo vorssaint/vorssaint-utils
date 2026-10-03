@@ -49,6 +49,64 @@ enum FocusFollowsMouseSupport {
         return nil
     }
 
+    /// With "only between displays" on, hover moves focus only when the
+    /// pointer rests on a different display than the focused window. Without
+    /// a focused window there is nothing holding focus to a display.
+    static func crossesDisplays(pointer: CGPoint,
+                                focusedWindowBounds: CGRect?,
+                                displays: [CGRect]) -> Bool {
+        guard let focusedWindowBounds,
+              let focusedDisplay = display(of: focusedWindowBounds, in: displays)
+        else { return true }
+        guard let pointerDisplay = displays.firstIndex(where: { contains($0, pointer) }) else { return false }
+        return pointerDisplay != focusedDisplay
+    }
+
+    /// The bounds of the window holding the app's keyboard focus, as
+    /// Accessibility names it. That can be a floating panel on one display
+    /// while the app's frontmost normal window sits on another, so the
+    /// stacking order alone cannot tell. Only when Accessibility names no
+    /// window does the app's frontmost window, panels included, stand in.
+    /// A named window counts on any layer, so a focused modal alert above
+    /// the app layers still holds hover to its display.
+    static func focusedWindowBounds(in windows: [[String: Any]],
+                                    processID: pid_t,
+                                    focusedWindowID: CGWindowID?) -> CGRect? {
+        for window in windows {
+            guard (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == processID,
+                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = WindowServerSupport.bounds(from: window),
+                  bounds.width > 1, bounds.height > 1
+            else { continue }
+            if let focusedWindowID {
+                guard (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == focusedWindowID
+                else { continue }
+            } else {
+                guard MouseAppExceptionSupport.appWindowLayers.contains(layer) else { continue }
+            }
+            return bounds
+        }
+        return nil
+    }
+
+    /// The display a window mostly sits on, as macOS assigns it.
+    private static func display(of bounds: CGRect, in displays: [CGRect]) -> Int? {
+        var best: (index: Int, area: CGFloat)?
+        for (index, display) in displays.enumerated() {
+            let overlap = display.intersection(bounds)
+            guard !overlap.isNull else { continue }
+            let area = overlap.width * overlap.height
+            if area > (best?.area ?? 0) { best = (index, area) }
+        }
+        return best?.index
+    }
+
+    /// Right and bottom edges count, like the pointer reaching a screen edge.
+    private static func contains(_ rect: CGRect, _ point: CGPoint) -> Bool {
+        point.x >= rect.minX && point.x <= rect.maxX && point.y >= rect.minY && point.y <= rect.maxY
+    }
+
     static func shouldActivate(targetWindowID: CGWindowID,
                                focusedWindowID: CGWindowID?,
                                targetAppIsFrontmost: Bool) -> Bool {

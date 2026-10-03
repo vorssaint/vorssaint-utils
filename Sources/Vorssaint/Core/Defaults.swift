@@ -57,6 +57,7 @@ enum DefaultsKey {
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
     static let focusFollowsMouseDelay = "focusFollowsMouseDelayMilliseconds"
     static let focusFollowsMouseExceptions = "focusFollowsMouseExceptions"
+    static let focusFollowsMouseOnlyBetweenDisplays = "focusFollowsMouseOnlyBetweenDisplays"
     static let smoothScrollEnabled = "smoothScrollEnabled"
     static let smoothScrollStep = "smoothScrollStep"      // pixels per wheel tick
     static let linearScrollEnabled = "linearScrollEnabled" // every mouse wheel notch scrolls the same lines (issue #403)
@@ -1150,6 +1151,7 @@ enum Defaults {
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,
         DefaultsKey.focusFollowsMouseDelay: FocusFollowsMouseSupport.defaultDelayMilliseconds,
+        DefaultsKey.focusFollowsMouseOnlyBetweenDisplays: false,
         DefaultsKey.smoothScrollEnabled: false,
         DefaultsKey.smoothScrollStep: 40,
         DefaultsKey.linearScrollEnabled: false,

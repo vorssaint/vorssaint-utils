@@ -1062,6 +1062,8 @@ extension Strings {
         focusFollowsMouseName: "Le focus suit la souris",
         focusFollowsMouseCaption: "Active et place au premier plan la fenêtre sous le pointeur après une courte pause.",
         focusFollowsMouseDelay: "Délai de survol",
+        focusFollowsMouseOnlyBetweenDisplays: "Uniquement entre écrans",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Change le focus seulement quand le pointeur s’arrête sur une fenêtre d’un autre écran. Sur le même écran, le focus ne bouge pas.",
         switcherMinimizedPlacementLabel: "Fenêtres réduites",
         switcherTreatHiddenAppsLikeMinimized: "Traiter les apps masquées comme des fenêtres réduites",
         switcherMinimizedPlacementNormal: "Ordre normal",

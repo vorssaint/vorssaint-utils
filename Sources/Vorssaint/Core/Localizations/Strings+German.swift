@@ -1062,6 +1062,8 @@ extension Strings {
         focusFollowsMouseName: "Fokus folgt Maus",
         focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger und bringt es nach kurzer Pause nach vorn.",
         focusFollowsMouseDelay: "Verzögerung",
+        focusFollowsMouseOnlyBetweenDisplays: "Nur zwischen Bildschirmen",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Wechselt den Fokus nur, wenn der Zeiger auf einem Fenster eines anderen Bildschirms verweilt. Auf demselben Bildschirm bleibt der Fokus unverändert.",
         switcherMinimizedPlacementLabel: "Minimierte Fenster",
         switcherTreatHiddenAppsLikeMinimized: "Ausgeblendete Apps wie minimierte Fenster behandeln",
         switcherMinimizedPlacementNormal: "Normale Reihenfolge",

@@ -1062,6 +1062,8 @@ extension Strings {
         focusFollowsMouseName: "悬停聚焦",
         focusFollowsMouseCaption: "鼠标短暂停留后，聚焦并置前指针下方的窗口。",
         focusFollowsMouseDelay: "悬停延迟",
+        focusFollowsMouseOnlyBetweenDisplays: "仅在显示器之间",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "仅当指针停留在另一台显示器上的窗口时才切换焦点。在同一显示器内悬停不会改变焦点。",
         switcherMinimizedPlacementLabel: "最小化的窗口",
         switcherTreatHiddenAppsLikeMinimized: "将隐藏的 App 视为最小化的窗口",
         switcherMinimizedPlacementNormal: "正常顺序",

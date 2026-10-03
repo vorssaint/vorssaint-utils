@@ -1062,6 +1062,8 @@ extension Strings {
         focusFollowsMouseName: "El foco sigue al ratón",
         focusFollowsMouseCaption: "Enfoca y trae al frente la ventana bajo el puntero tras una breve pausa.",
         focusFollowsMouseDelay: "Retraso al pasar",
+        focusFollowsMouseOnlyBetweenDisplays: "Solo entre pantallas",
+        focusFollowsMouseOnlyBetweenDisplaysCaption: "Cambia el foco solo cuando el puntero se detiene en una ventana de otra pantalla. Dentro de la misma pantalla, el foco no cambia.",
         switcherMinimizedPlacementLabel: "Ventanas minimizadas",
         switcherTreatHiddenAppsLikeMinimized: "Tratar las apps ocultas como ventanas minimizadas",
         switcherMinimizedPlacementNormal: "Orden normal",

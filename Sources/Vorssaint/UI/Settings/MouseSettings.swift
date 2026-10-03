@@ -22,6 +22,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.focusFollowsMouseDelay) private var focusFollowsMouseDelay =
         FocusFollowsMouseSupport.defaultDelayMilliseconds
+    @AppStorage(DefaultsKey.focusFollowsMouseOnlyBetweenDisplays) private var focusFollowsMouseOnlyBetweenDisplays = false
     @AppStorage(DefaultsKey.smoothScrollEnabled) private var smoothScrollEnabled = false
     @AppStorage(DefaultsKey.smoothScrollStep) private var smoothScrollStep = SmoothScrollSupport.defaultStep
     @AppStorage(DefaultsKey.mouseAccelerationDisabled) private var mouseAccelerationDisabled = false
@@ -288,6 +289,18 @@ struct MouseSettings: View {
                                   ... Double(FocusFollowsMouseSupport.delayRange.upperBound),
                               step: 50,
                               readout: "\(focusFollowsMouseDelay) ms")
+                    Toggle(isOn: $focusFollowsMouseOnlyBetweenDisplays) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(l10n.s.focusFollowsMouseOnlyBetweenDisplays)
+                            Text(l10n.s.focusFollowsMouseOnlyBetweenDisplaysCaption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .onChange(of: focusFollowsMouseOnlyBetweenDisplays) { _, _ in
+                        FocusFollowsMouseService.shared.preferencesDidChange()
+                    }
                     MouseExceptionsList(scope: .focusFollowsMouse)
                 }
                 .padding(.leading, settingsRowTextInset)
