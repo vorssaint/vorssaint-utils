@@ -27,6 +27,10 @@ final class AgentUsageStore {
     private var registered: Set<String> = []
     /// Turns whose last step ended expecting more, by log file, with when.
     private var settled: [String: Date] = [:]
+    /// When each log's last turn finished or was cancelled. A subagent's
+    /// response from before then belongs to that finished turn and must not
+    /// show the session working again.
+    private var ended: [String: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -60,7 +64,7 @@ final class AgentUsageStore {
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
                 let turn = provider == .copilot ? nil : tracksTurns ? file : parent
-                add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
+                add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns, now: now)
             case .usageModel(let key, let model):
                 guard let position = index[key], records[position].model.isEmpty else { continue }
                 let old = records[position]
@@ -119,6 +123,7 @@ final class AgentUsageStore {
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
                 settled[file] = nil
+                ended[file] = max(ended[file] ?? .distantPast, date ?? modified)
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
@@ -129,6 +134,7 @@ final class AgentUsageStore {
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file
+                ended = ended.filter { $0.key != baseFile && !$0.key.hasPrefix(baseFile + "#") }
                 forget(file: baseFile)
             }
         }
@@ -154,9 +160,9 @@ final class AgentUsageStore {
 
     /// `source` is the log the response was read from; `file` names the log
     /// whose turn it counts toward. A subagent's responses leave that turn's
-    /// model and project alone.
+    /// model and project alone, unless the turn has none of its own.
     private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, source: String,
-                     turn file: String?, subagent: Bool) {
+                     turn file: String?, subagent: Bool, now: Date) {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
@@ -236,16 +242,27 @@ final class AgentUsageStore {
             billables.append(billable)
             sources.append([source])
         }
-        guard let file, var turn = turns[file] ?? waiting[file],
-              record.date >= turn.started.addingTimeInterval(-1) else { return }
+        guard let file else { return }
+        var open = turns[file] ?? waiting[file]
+        // A background subagent works on after the turn that started it has
+        // ended, so its fresh responses show that session working again. Old
+        // ones, read from history, show nothing, and neither do responses
+        // from before the parent's turn ended: a session's own log is read
+        // before its subagents', so a foreground subagent's last reply can
+        // arrive after the finish it preceded.
+        if open == nil, subagent, record.provider == .claude,
+           now.timeIntervalSince(record.date) < NotchAgentSupport.idleTurn,
+           record.date > ended[file] ?? .distantPast {
+            open = AgentLiveSession(id: file, provider: record.provider, started: record.date,
+                                    lastActivity: record.date, model: "", project: "", tokens: AgentTokens(), cost: 0)
+        }
+        guard var turn = open, record.date >= turn.started.addingTimeInterval(-1) else { return }
         waiting[file] = nil
         turn.tokens += delta
         turn.cost += extra
         turn.lastActivity = max(turn.lastActivity, record.date)
-        if !subagent {
-            if !record.model.isEmpty { turn.model = record.model }
-            if !record.project.isEmpty { turn.project = record.project }
-        }
+        if !record.model.isEmpty, !subagent || turn.model.isEmpty { turn.model = record.model }
+        if !record.project.isEmpty, !subagent || turn.project.isEmpty { turn.project = record.project }
         turns[file] = turn
     }
 
@@ -290,6 +307,9 @@ final class AgentUsageStore {
             waiting[file] = turn
         }
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
+        // A response older than the idle wait never reopens a turn, so older
+        // finishes no longer need remembering.
+        ended = ended.filter { now.timeIntervalSince($0.value) < idle }
     }
 
     /// A turn whose last step ended expecting more, with nothing after it
@@ -390,6 +410,7 @@ final class AgentUsageStore {
     /// notice.
     func forget(files: Set<String>) {
         for file in files { forget(file: file) }
+        ended = ended.filter { !files.contains($0.key) }
         var emptied = false
         for position in sources.indices where sources[position].contains(where: files.contains) {
             sources[position].removeAll(where: files.contains)
