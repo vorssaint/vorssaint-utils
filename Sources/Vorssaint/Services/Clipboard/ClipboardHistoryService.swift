@@ -258,12 +258,17 @@ final class ClipboardHistoryService: ObservableObject {
         return result.length > 0 ? result : nil
     }
 
+    /// A reused entry moves up the way a fresh copy of the same content
+    /// does in promote(): to the top of its group, a selection in the order
+    /// it was pasted.
     private func touch(_ entryIDs: [UUID]) {
         var didUpdate = false
         let now = Date()
-        for entryID in entryIDs {
+        for entryID in entryIDs.reversed() {
             if let index = entries.firstIndex(where: { $0.id == entryID }) {
-                entries[index].copiedAt = now
+                var entry = entries.remove(at: index)
+                entry.copiedAt = now
+                entries.insert(entry, at: entry.isPinned ? 0 : firstRecentIndex)
                 didUpdate = true
             }
         }
