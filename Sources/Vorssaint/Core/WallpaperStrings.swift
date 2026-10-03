@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -54,6 +55,32 @@ extension FeatureStrings {
 }
 
 extension WallpaperFeatureStrings {
+    static let el = WallpaperFeatureStrings(
+        pageTitle: "Ταπετσαρία",
+        hubDescription: "Επιλέξτε μια στατική ταπετσαρία χωρίς να ανοίξετε τις Ρυθμίσεις συστήματος",
+        panelDescription: "Επιλέξτε μια στατική ταπετσαρία χωρίς να ανοίξετε τις Ρυθμίσεις συστήματος.",
+        filterAll: "Όλες",
+        filterOwn: "Οι εικόνες σας",
+        filterApple: "Apple",
+        applyAllDisplays: "Εμφάνιση σε όλους τους χώρους",
+        addImage: "Προσθήκη εικόνας",
+        addFolder: "Προσθήκη φακέλου",
+        removeAdded: "Αφαίρεση",
+        doneRemoving: "Τέλος",
+        sourceUnavailable: "Μη διαθέσιμη",
+        addImagePrompt: "Επιλέξτε εικόνες που θα διατηρούνται στη λίστα ταπετσαριών του Vorssaint",
+        addFolderPrompt: "Επιλέξτε έναν φάκελο εικόνων που θα διατηρείται στη λίστα ταπετσαριών του Vorssaint",
+        openSystemSettings: "Άνοιγμα ρυθμίσεων Ταπετσαρίας",
+        emptyAll: "Δεν βρέθηκαν ταπετσαρίες",
+        emptyOwn: "Δεν έχουν προστεθεί ακόμη εικόνες",
+        emptyApple: "Δεν βρέθηκαν στατικές ταπετσαρίες Apple",
+        downloading: "Λήψη…",
+        downloadFailed: "Δεν ήταν δυνατή η λήψη της ταπετσαρίας",
+        applyFailed: "Δεν ήταν δυνατός ο ορισμός της ταπετσαρίας",
+        previousPage: "Προηγούμενη",
+        nextPage: "Επόμενη"
+    )
+
     static let enUS = WallpaperFeatureStrings(
         pageTitle: "Wallpaper",
         hubDescription: "Pick a still wallpaper without opening System Settings",

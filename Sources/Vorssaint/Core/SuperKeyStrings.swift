@@ -41,6 +41,7 @@ extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -60,6 +61,30 @@ extension FeatureStrings {
 }
 
 extension SuperKeyStrings {
+    static let el = SuperKeyStrings(
+        pageTitle: "Super Key",
+        hubDescription: "Μετατρέπει ένα πλήκτρο στον συνδυασμό πλήκτρων τροποποίησης που επιλέγετε.",
+        enableToggle: "Χρήση αυτού του πλήκτρου ως Super Key",
+        enableCaption: "Κρατήστε το πατημένο και πατήστε οποιοδήποτε πλήκτρο. Επιλέξτε παρακάτω ένα ή περισσότερα πλήκτρα τροποποίησης.",
+        modifierKeysNote: "Διατηρήστε αυτό το πλήκτρο στην προεπιλεγμένη ενέργειά του στις Ρυθμίσεις συστήματος › Πληκτρολόγιο › Πλήκτρα τροποποίησης.",
+        sourceKey: "Πλήκτρο για παρατεταμένο πάτημα",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Δεξιό %@",
+        holdHint: "Κρατήστε πατημένο",
+        soloSection: "Σύντομο πάτημα μόνο του",
+        soloCaption: "Τι κάνει ένα σύντομο πάτημα όταν δεν πατιέται κανένα άλλο πλήκτρο.",
+        soloNothing: "Καμία ενέργεια",
+        soloCapsLock: "Ενεργοποίηση και απενεργοποίηση κεφαλαίων",
+        soloEscape: "Πάτημα Escape",
+        activeNow: "Ενεργό τώρα",
+        panelCaptionFormat: "Το %1$@ κρατά πατημένο το %2$@.",
+        manageButton: "Διαμόρφωση…",
+        soloInputSource: "Αλλαγή πηγής εισόδου· παρατεταμένο πάτημα για Caps Lock",
+        mappingForeignMapping: "Μια αντιστοίχιση πλήκτρων άλλης εφαρμογής χρησιμοποιεί το επιλεγμένο πλήκτρο. Αφαιρέστε την από εκείνη την εφαρμογή· ο τερματισμός της δεν αρκεί.",
+        mappingSystemRefused: "Το macOS απέρριψε την αντιστοίχιση του πλήκτρου. Επανασυνδέστε το πληκτρολόγιο ή επανεκκινήστε το Mac και ενεργοποιήστε ξανά αυτήν τη δυνατότητα.",
+        keyboardTapRefused: "Το macOS δεν επέτρεψε στο Vorssaint να παρακολουθεί το πληκτρολόγιο. Απενεργοποιήστε και ενεργοποιήστε ξανά το Vorssaint στις Ρυθμίσεις συστήματος › Απόρρητο και ασφάλεια › Προσβασιμότητα και στη συνέχεια ενεργοποιήστε ξανά αυτήν τη δυνατότητα."
+    )
+
     func sourceLabel(_ source: SuperKeySource) -> String {
         guard let symbol = source.symbol else { return capsLockKey }
         return String(format: rightKeyFormat, symbol)

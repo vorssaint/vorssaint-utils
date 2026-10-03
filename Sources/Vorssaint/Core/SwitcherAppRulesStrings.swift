@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func switcherAppRules(_ language: AppLanguage) -> SwitcherAppRulesStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -37,6 +38,17 @@ extension FeatureStrings {
 }
 
 extension SwitcherAppRulesStrings {
+    static let el = SwitcherAppRulesStrings(
+        listTitle: "Κανόνες ανά εφαρμογή",
+        addButton: "Προσθήκη εφαρμογής…",
+        removeButton: "Αφαίρεση",
+        behaviorLabel: "Συμπεριφορά στην εναλλαγή",
+        showWithoutWindows: "Εμφάνιση χωρίς παράθυρα",
+        windowsOnly: "Μόνο με παράθυρα",
+        hidden: "Να μην εμφανίζεται ποτέ",
+        caption: "Επιλέξτε πώς θα εμφανίζεται κάθε εφαρμογή. Οι εφαρμογές χωρίς κανόνα χρησιμοποιούν την παραπάνω επιλογή."
+    )
+
     static let enUS = SwitcherAppRulesStrings(
         listTitle: "Rules by app",
         addButton: "Add an app…",

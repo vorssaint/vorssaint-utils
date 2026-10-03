@@ -24,6 +24,7 @@ extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -72,6 +73,20 @@ extension BackupFeatureStrings {
 }
 
 extension BackupFeatureStrings {
+    static let el = BackupFeatureStrings(
+        title: "Εφεδρικό αντίγραφο",
+        description: "Μεταφέρετε τη διαμόρφωσή σας σε άλλο Mac: εξαγάγετε όλες τις προτιμήσεις σε ένα αρχείο και εισαγάγετέ το εκεί. Οι σημειώσεις του Σημειωματάριου, το ιστορικό προχείρου, τα στοιχεία του Ραφιού και τα δικαιώματα συστήματος δεν φεύγουν ποτέ από αυτό το Mac.",
+        exportButton: "Εξαγωγή ρυθμίσεων…",
+        importButton: "Εισαγωγή ρυθμίσεων…",
+        exported: "Το εφεδρικό αντίγραφο αποθηκεύτηκε",
+        exportFailed: "Δεν ήταν δυνατή η αποθήκευση του εφεδρικού αντιγράφου.",
+        importConfirmTitle: "Να εισαχθούν αυτές οι ρυθμίσεις;",
+        importConfirmBody: "Οι τρέχουσες ρυθμίσεις σας θα αντικατασταθούν από αυτές του αρχείου και η εφαρμογή θα επανεκκινηθεί. Τίποτα άλλο σε αυτό το Mac δεν θα επηρεαστεί.",
+        importMissingIslandBody: "Αυτό το εφεδρικό αντίγραφο δεν περιέχει ρυθμίσεις Dynamic Island. Οι αντίστοιχες ρυθμίσεις αυτού του Mac θα διατηρηθούν. Για να τις μεταφέρετε από άλλο Mac, πραγματοποιήστε νέα εξαγωγή με Vorssaint 3.4 ή νεότερη έκδοση. Οι υπόλοιπες ρυθμίσεις θα εισαχθούν και η εφαρμογή θα επανεκκινηθεί.",
+        importAction: "Εισαγωγή και επανεκκίνηση",
+        invalidFile: "Αυτό το αρχείο δεν είναι έγκυρο εφεδρικό αντίγραφο του Vorssaint."
+    )
+
     static let enUS = BackupFeatureStrings(
         title: "Backup",
         description: "Take your setup to another Mac: export every preference to a file and import it there. Your Scratchpad notes, clipboard history, Shelf items and system permissions never leave this Mac.",

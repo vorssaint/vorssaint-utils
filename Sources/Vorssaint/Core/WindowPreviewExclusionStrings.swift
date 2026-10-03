@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func windowPreviewExclusions(_ language: AppLanguage) -> WindowPreviewExclusionStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -34,6 +35,14 @@ extension FeatureStrings {
 }
 
 extension WindowPreviewExclusionStrings {
+    static let el = WindowPreviewExclusionStrings(
+        sectionTitle: "Μικρογραφίες παραθύρων",
+        listTitle: "Παύση σε αυτές τις εφαρμογές",
+        addButton: "Προσθήκη εφαρμογής…",
+        removeButton: "Αφαίρεση",
+        caption: "Οι μικρογραφίες παραθύρων παύουν να ενημερώνονται όσο μία από αυτές τις εφαρμογές βρίσκεται στο προσκήνιο."
+    )
+
     static let enUS = WindowPreviewExclusionStrings(
         sectionTitle: "Window thumbnails",
         listTitle: "Pause in these apps",

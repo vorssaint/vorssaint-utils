@@ -30,6 +30,7 @@ extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -49,6 +50,29 @@ extension FeatureStrings {
 }
 
 extension DiskImageInstallerStrings {
+    static let el = DiskImageInstallerStrings(
+        title: "Εγκατάσταση από είδωλο δίσκου",
+        hubDescription: "Εγκαταστήστε τη μοναδική εφαρμογή μέσα σε ένα είδωλο δίσκου και καθαρίστε τη λήψη",
+        useUserApplications: "Εγκατάσταση στον φάκελο Εφαρμογές μέσα στον προσωπικό σας φάκελο",
+        applicationsFolder: "τον φάκελο Εφαρμογές",
+        userApplicationsFolder: "τον φάκελο Εφαρμογές μέσα στον προσωπικό σας φάκελο",
+        promptTitle: "Να εγκατασταθεί αυτή η εφαρμογή;",
+        promptBodyFormat: "Το %@ θα αντιγραφεί στο %@ και θα γίνει εξαγωγή του ειδώλου δίσκου.",
+        installButton: "Εγκατάσταση",
+        installedTitle: "Η εφαρμογή εγκαταστάθηκε",
+        installedBodyFormat: "Το %@ είναι έτοιμο στο %@. Έγινε εξαγωγή του ειδώλου δίσκου και η λήψη μετακινήθηκε στον Κάδο.",
+        installedKeepingMountBodyFormat: "Το %@ εγκαταστάθηκε στο %@, αλλά δεν ήταν δυνατή η εξαγωγή του ειδώλου δίσκου. Η λήψη διατηρήθηκε.",
+        installedKeepingDownloadBodyFormat: "Το %@ εγκαταστάθηκε στο %@ και έγινε εξαγωγή του ειδώλου δίσκου, αλλά δεν ήταν δυνατή η μετακίνηση της λήψης στον Κάδο.",
+        failedTitle: "Δεν ήταν δυνατή η εγκατάσταση",
+        failedBody: "Δεν άλλαξε τίποτα. Μπορείτε ακόμη να σύρετε την εφαρμογή στις Εφαρμογές.",
+        verificationFailedBody: "Αυτό το Mac δεν μπόρεσε να επαληθεύσει την εφαρμογή, επομένως δεν εγκαταστάθηκε τίποτα.",
+        alreadyInstalledBodyFormat: "Το %@ βρίσκεται ήδη στις Εφαρμογές.",
+        trashDownloadOption: "Μετακίνηση της λήψης στον Κάδο",
+        revealAppOption: "Εμφάνιση της εγκατεστημένης εφαρμογής στο Finder",
+        installedKeptDownloadBodyFormat: "Το %@ είναι έτοιμο στο %@. Έγινε εξαγωγή του ειδώλου δίσκου και η λήψη διατηρήθηκε.",
+        installingFormat: "Εγκατάσταση %@…"
+    )
+
     static let enUS = DiskImageInstallerStrings(
         title: "Disk image installer",
         hubDescription: "Install the single app inside a disk image and clean up the download",

@@ -46,6 +46,7 @@ extension FeatureStrings {
     static func mouseButtons(_ language: AppLanguage) -> MouseButtonFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -65,6 +66,41 @@ extension FeatureStrings {
 }
 
 extension MouseButtonFeatureStrings {
+    static let el = MouseButtonFeatureStrings(
+        pageTitle: "Συντομεύσεις κουμπιών ποντικιού",
+        hubDescription: "Τα πρόσθετα κουμπιά και οι κατευθύνσεις του πλευρικού τροχού εκτελούν έναν συνδυασμό πλήκτρων της επιλογής σας.",
+        enableLabel: "Χρήση πρόσθετων κουμπιών ως συντομεύσεων",
+        enableCaption: "Κάθε πρόσθετο κουμπί ή κατεύθυνση του πλευρικού τροχού μπορεί να εκτελεί έναν συνδυασμό πλήκτρων για εσάς. Όσο έχει αντιστοιχισμένη συντόμευση, σταματά να εκτελεί την προηγούμενη λειτουργία του.",
+        addButton: "Προσθήκη κουμπιού ή πλευρικού τροχού",
+        captureWaiting: "Πατήστε τώρα ένα πρόσθετο κουμπί ή μετακινήστε τον πλευρικό τροχό.",
+        captureCancel: "Ακύρωση",
+        captureBlind: "Το Vorssaint δεν μπορεί να παρακολουθήσει το ποντίκι αυτήν τη στιγμή.",
+        captureUnsupported: "Δεν μπορεί να αντιστοιχιστεί συντόμευση σε αυτό το στοιχείο ελέγχου. Χρησιμοποιήστε ένα πρόσθετο κουμπί ή μια κατεύθυνση του πλευρικού τροχού.",
+        captureWheel: "Αυτό το κουμπί ανοίγει ήδη το ακτινικό μενού. Επιλέξτε άλλο ή καταργήστε πρώτα την αντιστοίχισή του από εκεί.",
+        captureExists: "Αυτό το κουμπί ή η κατεύθυνση βρίσκεται ήδη στην παρακάτω λίστα.",
+        captureHint: "Αν δεν συμβαίνει τίποτα, το λογισμικό του ποντικιού σας ενδέχεται να χρησιμοποιεί ήδη αυτό το στοιχείο ελέγχου.",
+        backButtonName: "Πλευρικό κουμπί Πίσω",
+        forwardButtonName: "Πλευρικό κουμπί Μπροστά",
+        otherButtonFormat: "Κουμπί %d",
+        setShortcutButton: "Ορισμός συντόμευσης",
+        removeButton: "Αφαίρεση",
+        emptyCaption: "Δεν υπάρχουν ακόμη συντομεύσεις. Προσθέστε ένα κουμπί ή μια κατεύθυνση του πλευρικού τροχού.",
+        rowWheelNote: "Αυτό το κουμπί ανοίγει τώρα το ακτινικό μενού, επομένως η συντόμευση παραμένει σε αναμονή.",
+        manageButton: "Διαμόρφωση…",
+        panelCaption: "Τα πρόσθετα κουμπιά και οι κατευθύνσεις του πλευρικού τροχού εκτελούν συνδυασμούς πλήκτρων της επιλογής σας.",
+        sideWheelLeftName: "Πλευρικός τροχός αριστερά",
+        sideWheelRightName: "Πλευρικός τροχός δεξιά",
+        spacesEnableLabel: "Εναλλαγή γραφείων εργασίας με μεταφορά κουμπιού",
+        spacesEnableCaption: "Κρατήστε πατημένο το επιλεγμένο κουμπί και σύρετε: αριστερά ή δεξιά μετακινεί κατά ένα γραφείο εργασίας, επάνω ανοίγει το Mission Control και κάτω ανοίγει το App Exposé. Ένα σύντομο κλικ συνεχίζει να εκτελεί την κανονική λειτουργία του κουμπιού.",
+        spacesPickButton: "Επιλογή κουμπιού",
+        spacesShortcutsOffNote: "Οι συντομεύσεις πληκτρολογίου του Mission Control είναι απενεργοποιημένες στις Ρυθμίσεις συστήματος, επομένως αυτή η χειρονομία δεν έχει διαθέσιμη ενέργεια.",
+        spacesCaptureWaiting: "Πατήστε τώρα ένα πρόσθετο κουμπί.",
+        spacesCaptureUnsupported: "Αυτό το στοιχείο ελέγχου δεν μπορεί να κρατηθεί πατημένο για μεταφορά. Χρησιμοποιήστε ένα πρόσθετο κουμπί.",
+        spacesCaptureExists: "Αυτό το κουμπί έχει ήδη συντόμευση. Επιλέξτε άλλο.",
+        spacesFollowsDragLabel: "Τα γραφεία εργασίας ακολουθούν τη μεταφορά",
+        spacesFollowsDragCaption: "Η μεταφορά προς τα δεξιά φέρνει το γραφείο εργασίας που βρίσκεται αριστερά, όπως μια σάρωση στην επιφάνεια αφής μετακινεί το γραφείο μαζί με τα δάχτυλά σας."
+    )
+
     static let enUS = MouseButtonFeatureStrings(
         pageTitle: "Mouse button shortcuts",
         hubDescription: "Extra buttons and side-wheel directions press a key combination you choose.",

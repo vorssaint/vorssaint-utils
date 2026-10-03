@@ -8,6 +8,7 @@ struct SettingsNavigationStrings {
 
     static func localized(_ language: AppLanguage) -> Self {
         switch language {
+        case .el: return Self(go: "Μετάβαση", back: "Πίσω", forward: "Μπροστά")
         case .enUS: return Self(go: "Go", back: "Back", forward: "Forward")
         case .ptBR: return Self(go: "Ir", back: "Voltar", forward: "Avançar")
         case .tr: return Self(go: "Git", back: "Geri", forward: "İleri")

@@ -47,6 +47,35 @@ struct NotchActivityStrings {
 extension FeatureStrings {
     static func notchActivities(_ language: AppLanguage) -> NotchActivityStrings {
         switch language {
+        case .el: return NotchActivityStrings(
+            timer: "Χρονόμετρο",
+            timerDescription: "Χρονόμετρα, χρονόμετρο ακριβείας και συνεδρίες συγκεντρωμένης εργασίας στο Dynamic Island.",
+            pomodoro: "Pomodoro",
+            stopwatch: "Χρονόμετρο ακριβείας",
+            focus: "Συγκέντρωση",
+            shortBreak: "Σύντομο διάλειμμα",
+            longBreak: "Μεγάλο διάλειμμα",
+            pomodoroHint: "Ξεκινήστε κάθε φάση όταν είστε έτοιμοι. Ο κύκλος ολοκληρώνεται μετά την τελευταία συνεδρία συγκέντρωσης.",
+            totalSessions: "Συνολικές συνεδρίες",
+            longBreakInterval: "Συνεδρίες μεταξύ μεγάλων διαλειμμάτων",
+            sessionProgress: "Συνεδρία %d από %d",
+            pomodoroFinished: "Το Pomodoro ολοκληρώθηκε",
+            minutes: "Λεπτά",
+            start: "Έναρξη",
+            resume: "Συνέχιση",
+            finished: "Ο χρόνος έληξε",
+            soundEnabled: "Αναπαραγωγή ήχου όταν λήξει ο χρόνος",
+            camera: "Καθρέφτης κάμερας",
+            cameraUnavailable: "Δεν ήταν δυνατή η εκκίνηση της κάμερας. Δοκιμάστε να την ανοίξετε ξανά.",
+            cameraHint: "Ανοίξτε εδώ μια ζωντανή εικόνα καθρέφτη. Η κάμερα σταματά όταν αποχωρήσετε από αυτήν την προβολή.",
+            startCamera: "Άνοιγμα κάμερας",
+            stopCamera: "Διακοπή κάμερας",
+            accessories: "Ειδοποιήσεις αξεσουάρ",
+            accessoryDescription: "Εμφανίζει τα συνδεδεμένα αξεσουάρ και σας προειδοποιεί μία φορά όταν η μπαταρία τους πέσει στο 20%.",
+            connected: "Συνδεδεμένο",
+            lowBattery: "Χαμηλή μπαταρία",
+            keepAwakeActivity: "Εμφάνιση της «Αποτροπής ύπνου» στο κλειστό Dynamic Island",
+            keepAwakeActivityHint: "Μια ενεργή συνεδρία εμφανίζεται δίπλα στην κάμερα με τον χρόνο που απομένει ή με ∞ όταν δεν έχει τέλος.")
         case .enUS: return NotchActivityStrings(
             timer: "Timer",
             timerDescription: "Timers, a stopwatch and focused work sessions in the Dynamic Island.",

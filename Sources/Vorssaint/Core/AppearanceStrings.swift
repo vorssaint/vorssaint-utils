@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func appearance(_ language: AppLanguage) -> AppearanceStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -34,6 +35,14 @@ extension FeatureStrings {
 }
 
 extension AppearanceStrings {
+    static let el = AppearanceStrings(
+        label: "Εμφάνιση",
+        system: "Αυτόματη",
+        light: "Ανοιχτόχρωμη",
+        dark: "Σκούρα",
+        liquidGlass: "Liquid Glass"
+    )
+
     static let enUS = AppearanceStrings(
         label: "Appearance",
         system: "System",
