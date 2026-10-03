@@ -169,11 +169,7 @@ final class SuperKeyService: ObservableObject {
         let exceptions = MouseAppExceptions.shared
         if enabled {
             if exceptionObservation == nil {
-                // Super Key pauses for the app in front, not for every listed
-                // app that happens to be running (issue #741): the key holds
-                // the modifiers while the frontmost app has keyboard focus, so
-                // a listed app in the background must not pause it.
-                exceptionObservation = exceptions.$frontmostScopes
+                exceptionObservation = exceptions.$runningScopes
                     .map { $0.contains(.superKey) }
                     .removeDuplicates()
                     .receive(on: DispatchQueue.main)
@@ -185,7 +181,7 @@ final class SuperKeyService: ObservableObject {
         // Tracking outlives a pause: the final app exit must restart the key.
         // An empty list leaves the shared workspace observer stopped.
         exceptions.setSourceTracking(enabled, for: .superKey)
-        let paused = enabled && exceptions.frontmostScopes.contains(.superKey)
+        let paused = enabled && exceptions.runningScopes.contains(.superKey)
         if isPausedForApplication != paused { isPausedForApplication = paused }
     }
 
