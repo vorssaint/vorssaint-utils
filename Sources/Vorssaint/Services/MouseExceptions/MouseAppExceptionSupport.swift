@@ -23,13 +23,16 @@ enum MouseExceptionScope: String, CaseIterable {
     case switcherPause
 
     /// Whether this feature's list is answered for the app in front (issues
-    /// #741, #1181, #1227) rather than for the app under the pointer. Keys go
-    /// to the app holding keyboard focus, not to the one under the hand, and
-    /// a feature that stands down or switches on per app has to follow the
-    /// same app the keys are delivered to.
+    /// #1181, #1227) rather than for the app under the pointer. Keys go to the
+    /// app holding keyboard focus, not to the one under the hand, and a
+    /// feature that stands down or switches on per app has to follow the
+    /// same app the keys are delivered to. The Super Key is the one
+    /// exception: its #741 reporter named software KVMs (Deskflow, Synergy),
+    /// which grab the keyboard while running in the background, so its list
+    /// keeps the running-app semantics #1399 shipped.
     var keysOffFrontmostApp: Bool {
         switch self {
-        case .superKey, .fnLock, .switcherPause: return true
+        case .fnLock, .switcherPause: return true
         default: return false
         }
     }
