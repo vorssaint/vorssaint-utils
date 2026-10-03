@@ -21,11 +21,54 @@ final class NotchLockScreenModel: ObservableObject {
     /// sleeping and waking, and cleared once it unlocks.
     @Published var playedWhileLocked = false
     @Published var padlockOpen = false
+    @Published var islandRetracted = false
 
     func showsMusic(_ playback: NotchPlayback?) -> Bool {
         gates.music && playback.map {
             NotchLockScreenSupport.showsMusic(isPlaying: $0.isPlaying, playedWhileLocked: playedWhileLocked)
         } == true
+    }
+}
+
+/// The island shape hanging from the top of the display, with an optional top bleed
+/// extending into the hardware bezel to prevent any wallpaper seam.
+struct NotchLockScreenIslandShape: Shape {
+    var radius: CGFloat
+    var bleed: CGFloat = NotchLockScreenLayout.islandTopBleed
+
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let visibleHeight = max(0, rect.height - bleed)
+        let shoulder = NotchLayout.shoulder(height: visibleHeight)
+        let bottom = min(radius, visibleHeight / 2, (rect.width - shoulder * 2) / 2)
+        let tangent: CGFloat = 0.55228475
+        var path = Path()
+
+        path.move(to: CGPoint(x: 0, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: 0))
+        path.addLine(to: CGPoint(x: rect.width, y: bleed))
+        path.addCurve(to: CGPoint(x: rect.width - shoulder, y: bleed + shoulder),
+                      control1: CGPoint(x: rect.width - shoulder * tangent, y: bleed),
+                      control2: CGPoint(x: rect.width - shoulder, y: bleed + shoulder * (1 - tangent)))
+        path.addLine(to: CGPoint(x: rect.width - shoulder, y: rect.height - bottom))
+        path.addCurve(to: CGPoint(x: rect.width - shoulder - bottom, y: rect.height),
+                      control1: CGPoint(x: rect.width - shoulder, y: rect.height - bottom * (1 - tangent)),
+                      control2: CGPoint(x: rect.width - shoulder - bottom * (1 - tangent), y: rect.height))
+        path.addLine(to: CGPoint(x: shoulder + bottom, y: rect.height))
+        path.addCurve(to: CGPoint(x: shoulder, y: rect.height - bottom),
+                      control1: CGPoint(x: shoulder + bottom * (1 - tangent), y: rect.height),
+                      control2: CGPoint(x: shoulder, y: rect.height - bottom * (1 - tangent)))
+        path.addLine(to: CGPoint(x: shoulder, y: bleed + shoulder))
+        path.addCurve(to: CGPoint(x: 0, y: bleed),
+                      control1: CGPoint(x: shoulder, y: bleed + shoulder * (1 - tangent)),
+                      control2: CGPoint(x: shoulder * tangent, y: bleed))
+        path.addLine(to: CGPoint(x: 0, y: 0))
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -40,31 +83,54 @@ struct NotchLockScreenIsland: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let shoulder = NotchLayout.shoulder(height: size.height)
-        let wing = max(0, (size.width - cameraWidth) / 2 - shoulder)
+        let width = size.width
+        let cameraHeight = size.height
+        let visibleHeight = cameraHeight
+        let bleed = NotchLockScreenLayout.islandTopBleed
+        let radius = NotchLayout.surfaceRadius(height: cameraHeight)
+        let shoulder = NotchLayout.shoulder(height: visibleHeight)
+        let wing = max(0, (width - cameraWidth) / 2 - shoulder)
         let playing = model.showsMusic(music.playback) && music.playback?.isPlaying == true
-        NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height))
-            .fill(.black)
-            .overlay {
-                HStack(spacing: 0) {
-                    Image(systemName: model.padlockOpen ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: min(13, size.height * 0.42), weight: .semibold))
-                        .foregroundStyle(.white)
-                        .contentTransition(.symbolEffect(.replace))
-                        .symbolEffect(.bounce, options: .speed(1.4), value: reduceMotion ? false : model.padlockOpen)
-                        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.padlockOpen)
-                        .frame(width: wing, height: size.height)
-                    Spacer(minLength: 0)
-                    NotchEqualizerBars(isPlaying: playing, bars: 4, barWidth: 2.5, height: min(12, size.height * 0.38),
-                                       tint: music.artworkTint?.color ?? .white)
-                        .opacity(playing ? 1 : 0)
-                        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
-                        .frame(width: wing, height: size.height)
-                }
-                .padding(.horizontal, shoulder)
+        let activeWidth = model.islandRetracted ? cameraWidth : width
+
+        VStack(spacing: 0) {
+            Color.clear.frame(height: bleed)
+
+            HStack(spacing: 0) {
+                Image(systemName: model.padlockOpen ? "lock.open.fill" : "lock.fill")
+                    .font(.system(size: min(13, cameraHeight * 0.42), weight: .semibold))
+                    .foregroundStyle(.white)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, options: .speed(1.4), value: reduceMotion ? false : model.padlockOpen)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.padlockOpen)
+                    .frame(width: wing, height: cameraHeight)
+                    .opacity(model.islandRetracted ? 0 : 1)
+                    .scaleEffect(model.islandRetracted ? 0.7 : 1.0)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.islandRetracted)
+                    .allowsHitTesting(false)
+
+                Spacer(minLength: 0)
+
+                NotchEqualizerBars(isPlaying: playing, bars: 4, barWidth: 2.5,
+                                   height: min(12, cameraHeight * 0.38),
+                                   tint: music.artworkTint?.color ?? .white)
+                    .opacity(playing && !model.islandRetracted ? 1 : 0)
+                    .scaleEffect(model.islandRetracted ? 0.7 : 1.0)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.islandRetracted)
+                    .frame(width: wing, height: cameraHeight)
+                    .allowsHitTesting(false)
             }
-            .frame(width: size.width, height: size.height)
-            .accessibilityHidden(true)
+            .padding(.horizontal, shoulder)
+            .frame(width: width, height: cameraHeight)
+        }
+        .frame(width: activeWidth, height: visibleHeight + bleed, alignment: .top)
+        .background {
+            NotchLockScreenIslandShape(radius: radius, bleed: bleed)
+                .fill(.black)
+        }
+        .clipShape(NotchLockScreenIslandShape(radius: radius, bleed: bleed))
+        .frame(width: width, height: visibleHeight + bleed, alignment: .top)
+        .accessibilityHidden(true)
     }
 }
 
