@@ -488,9 +488,14 @@ enum SwitcherModelFeatureTests {
         let previewProviderCode = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(previewProviderCode.contains("Self.warmEnumerationQueue.async {")
-               && previewProviderCode.contains("continuation.resume(returning: WindowEnumerator.listWindows(for: pid, snapshot: snapshot))")
-               && !previewProviderCode.contains("Task.detached"),
+        // The warm task itself may be detached (its image work must stay off
+        // the main thread); what must never run on a shared task thread is the
+        // window listing, so the file lists windows in exactly one place, and
+        // that place is the warm enumeration queue.
+        let listingCalls = previewProviderCode.components(separatedBy: "WindowEnumerator.listWindows(").count - 1
+        suite.expect(listingCalls == 1
+               && previewProviderCode.contains("Self.warmEnumerationQueue.async {\n"
+                   + "                        continuation.resume(returning: WindowEnumerator.listWindows(for: pid, snapshot: snapshot))"),
                "preview warming enumerates windows on a queue of its own, never on a shared task thread")
         suite.expect(SwitcherSupport.preservesGroupedWindowsDuringEnumeration(allApps: true,
                                                                         mergeWindowsByApp: true,
