@@ -244,6 +244,11 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.mouseAccelerationDisabled)
                 && backupKeys.contains(DefaultsKey.panelControlMouseAcceleration),
                "mouse acceleration preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.spacesOrderEnabled)
+                && backupKeys.contains(DefaultsKey.panelControlSpacesOrder)
+                && !backupKeys.contains(DefaultsKey.spacesOrderRestore)
+                && !backupKeys.contains(DefaultsKey.spacesOrderRestartPending),
+               "fixed Space order preferences travel with the settings backup, but never the restore state")
         suite.expect(backupKeys.contains(DefaultsKey.linearScrollEnabled)
                 && backupKeys.contains(DefaultsKey.linearScrollLines)
                 && backupKeys.contains(DefaultsKey.panelControlLinearScroll),

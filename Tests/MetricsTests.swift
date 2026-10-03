@@ -151,6 +151,7 @@ struct MetricsTests {
                 DockAutohideHoldTests.run(suite)
                 DockPreviewFrameRestorationTests.run(suite)
             }),
+            ("spaces-order", { SpacesOrderTests.run(suite) }),
             ("switcher", {
                 SwitcherScrollContract.run(suite)
                 SwitcherActivationTests.run(suite)

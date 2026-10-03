@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "¿Desinstalar Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint borrará sus permisos, eliminará sus preferencias y se moverá a la Papelera; después se cerrará. Esto no se puede deshacer desde la app, pero permanece en la Papelera hasta que la vacíes.",
         advancedUninstallFailedTitle: "La desinstalación se detuvo",
-        advancedUninstallFailedBody: "Vorssaint no pudo restaurar un ajuste del sistema que había cambiado: la suspensión, la velocidad de los ventiladores o la aceleración del ratón. No se eliminó nada. Inténtalo de nuevo y permite la solicitud de contraseña si aparece.",
+        advancedUninstallFailedBody: "Vorssaint no pudo restaurar un ajuste del sistema que había cambiado: la suspensión, la velocidad de los ventiladores, la aceleración del ratón o el orden de los Espacios. No se eliminó nada. Inténtalo de nuevo y permite la solicitud de contraseña si aparece.",
 
         launchAtLogin: "Abrir al iniciar sesión",
         languageLabel: "Idioma",
@@ -1085,6 +1085,8 @@ extension Strings {
         shelfClearOnClose: "Borrar al cerrar",
         shelfClearOnCloseCaption: "Vacía el estante solo al hacer clic en el botón de cierre. Ocultarlo automáticamente y contraerlo conservan los ítems.",
         shelfShortcutFinderSelection: "Añadir la selección del Finder con el atajo",
-        shelfShortcutFinderSelectionCaption: "Con el Finder al frente, el atajo abre el estante con los archivos seleccionados ya dentro. Sin selección, se abre como siempre."
+        shelfShortcutFinderSelectionCaption: "Con el Finder al frente, el atajo abre el estante con los archivos seleccionados ya dentro. Sin selección, se abre como siempre.",
+        spacesOrderName: "Mantener los Espacios en un orden fijo",
+        spacesOrderCaption: "Evita que macOS reorganice los Espacios según el uso más reciente, para que sigan en el orden que elegiste. Tu ajuste anterior vuelve al desactivar esta opción. El Dock puede reiniciarse una vez para aplicar el cambio."
     )
 }

@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Odinštalovať Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint vymaže svoje povolenia, odstráni predvoľby, presunie sa do Koša a ukončí sa. Z aplikácie sa to už nedá vrátiť späť, ale ostane v Koši, kým ho nevyprázdnite.",
         advancedUninstallFailedTitle: "Odinštalovanie sa zastavilo",
-        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora alebo akceleráciu myši. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
+        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora, akceleráciu myši alebo poradie plôch. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
 
         launchAtLogin: "Spustiť po prihlásení",
         languageLabel: "Jazyk",
@@ -1085,6 +1085,8 @@ extension Strings {
         shelfClearOnClose: "Vymazať pri zatvorení",
         shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú.",
         shelfShortcutFinderSelection: "Pridať výber z Findera skratkou",
-        shelfShortcutFinderSelectionCaption: "Keď je Finder v popredí, skratka otvorí policu už s vybranými súbormi. Ak nie je nič vybraté, otvorí sa ako zvyčajne."
+        shelfShortcutFinderSelectionCaption: "Keď je Finder v popredí, skratka otvorí policu už s vybranými súbormi. Ak nie je nič vybraté, otvorí sa ako zvyčajne.",
+        spacesOrderName: "Udržať plochy v pevnom poradí",
+        spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila."
     )
 }

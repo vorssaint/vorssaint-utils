@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Désinstaller Vorssaint\u{00A0}?",
         advancedUninstallConfirmBody: "Vorssaint va effacer ses autorisations, supprimer ses préférences et se placer dans la corbeille, puis quitter. L’app ne peut pas annuler cette action, mais elle reste dans la corbeille jusqu’à ce que vous la vidiez.",
         advancedUninstallFailedTitle: "Désinstallation interrompue",
-        advancedUninstallFailedBody: "Vorssaint n’a pas pu rétablir un réglage système qu’il avait modifié\u{00A0}: la veille, la vitesse des ventilateurs ou l’accélération de la souris. Rien n’a été supprimé. Réessayez et autorisez la demande de mot de passe si elle apparaît.",
+        advancedUninstallFailedBody: "Vorssaint n’a pas pu rétablir un réglage système qu’il avait modifié\u{00A0}: la veille, la vitesse des ventilateurs, l’accélération de la souris ou l’ordre des Espaces. Rien n’a été supprimé. Réessayez et autorisez la demande de mot de passe si elle apparaît.",
 
         launchAtLogin: "Ouvrir à l’ouverture de session",
         languageLabel: "Langue",
@@ -1085,6 +1085,8 @@ extension Strings {
         shelfClearOnClose: "Vider à la fermeture",
         shelfClearOnCloseCaption: "Vide l’étagère uniquement lorsque vous cliquez sur le bouton de fermeture. Le masquage automatique et la réduction conservent les éléments.",
         shelfShortcutFinderSelection: "Ajouter la sélection du Finder avec le raccourci",
-        shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude."
+        shelfShortcutFinderSelectionCaption: "Quand le Finder est au premier plan, le raccourci ouvre l’étagère avec les fichiers sélectionnés déjà dedans. Sans sélection, elle s’ouvre comme d’habitude.",
+        spacesOrderName: "Garder les Espaces dans un ordre fixe",
+        spacesOrderCaption: "Empêche macOS de réorganiser les Espaces selon leur utilisation récente, pour qu’ils restent dans l’ordre choisi. Votre réglage précédent revient quand cette option est désactivée. Le Dock peut redémarrer une fois pour appliquer le changement."
     )
 }

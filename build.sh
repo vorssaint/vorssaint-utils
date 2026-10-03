@@ -400,6 +400,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockAutohideHold.swift
+        Sources/Vorssaint/Services/SpacesOrder/SpacesOrderHold.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
@@ -546,6 +547,7 @@ if (( TEST )); then
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
     if (( ${#TEST_ARGS} == 0 )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
+        ./Tests/UninstallSpacesTests.sh || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status

@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "解除安裝 Vorssaint？",
         advancedUninstallConfirmBody: "Vorssaint 會清除其權限、移除偏好設定並移至垃圾桶，然後結束。此操作無法從 App 內復原，但在你清空垃圾桶之前，它仍會留在垃圾桶內。",
         advancedUninstallFailedTitle: "已停止解除安裝",
-        advancedUninstallFailedBody: "Vorssaint 無法還原它變更過的系統設定：睡眠、風扇轉速或滑鼠加速。沒有移除任何項目。請再試一次，並在出現密碼要求時允許。",
+        advancedUninstallFailedBody: "Vorssaint 無法還原它變更過的系統設定：睡眠、風扇轉速、滑鼠加速或桌面空間順序。沒有移除任何項目。請再試一次，並在出現密碼要求時允許。",
 
         launchAtLogin: "登入時啟動",
         languageLabel: "語言",
@@ -1086,6 +1086,8 @@ extension Strings {
         shelfClearOnClose: "關閉時清空",
         shelfClearOnCloseCaption: "只有點按關閉按鈕時才會清空暫存架。自動隱藏或收合時會保留項目。",
         shelfShortcutFinderSelection: "使用快捷鍵加入 Finder 所選項目",
-        shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快捷鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。"
+        shelfShortcutFinderSelectionCaption: "Finder 位於前景時，快捷鍵會打開暫存架並放入所選檔案。未選取任何項目時照常打開。",
+        spacesOrderName: "固定桌面空間順序",
+        spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。"
     )
 }

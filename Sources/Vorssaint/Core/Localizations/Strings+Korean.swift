@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vorssaint를 제거할까요?",
         advancedUninstallConfirmBody: "Vorssaint가 권한과 설정을 지우고 휴지통으로 이동한 뒤 종료됩니다. 이 작업은 앱에서 되돌릴 수 없지만 휴지통을 비우기 전까지는 복원할 수 있습니다.",
         advancedUninstallFailedTitle: "제거를 중단했습니다",
-        advancedUninstallFailedBody: "Vorssaint가 변경한 시스템 설정을 되돌리지 못했습니다. 잠자기, 팬 속도 또는 마우스 가속입니다. 아무것도 삭제되지 않았습니다. 다시 시도하고 암호를 요청하면 허용하세요.",
+        advancedUninstallFailedBody: "Vorssaint가 변경한 시스템 설정을 되돌리지 못했습니다. 잠자기, 팬 속도, 마우스 가속 또는 공간 순서입니다. 아무것도 삭제되지 않았습니다. 다시 시도하고 암호를 요청하면 허용하세요.",
 
         launchAtLogin: "로그인 시 실행",
         languageLabel: "언어",
@@ -1086,6 +1086,8 @@ extension Strings {
         shelfClearOnClose: "닫을 때 항목 지우기",
         shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
         shelfShortcutFinderSelection: "단축키로 Finder 선택 항목 추가",
-        shelfShortcutFinderSelectionCaption: "Finder가 앞에 있을 때 단축키를 누르면 선택한 파일이 담긴 선반이 열립니다. 아무것도 선택하지 않았다면 평소처럼 열립니다."
+        shelfShortcutFinderSelectionCaption: "Finder가 앞에 있을 때 단축키를 누르면 선택한 파일이 담긴 선반이 열립니다. 아무것도 선택하지 않았다면 평소처럼 열립니다.",
+        spacesOrderName: "공간 순서 고정",
+        spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다."
     )
 }

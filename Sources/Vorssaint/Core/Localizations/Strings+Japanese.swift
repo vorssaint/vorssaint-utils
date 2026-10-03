@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vorssaint をアンインストールしますか？",
         advancedUninstallConfirmBody: "Vorssaint はアクセス権を消去し、環境設定を削除し、ゴミ箱に移動してから終了します。この操作はアプリからは取り消せませんが、ゴミ箱を空にするまではゴミ箱に残ります。",
         advancedUninstallFailedTitle: "アンインストールを中止しました",
-        advancedUninstallFailedBody: "Vorssaint が変更したシステム設定（スリープ、ファンの回転数、マウス加速）を元に戻せませんでした。何も削除していません。もう一度試して、パスワードの入力を求められたら許可してください。",
+        advancedUninstallFailedBody: "Vorssaint が変更したシステム設定（スリープ、ファンの回転数、マウス加速、スペースの順序）を元に戻せませんでした。何も削除していません。もう一度試して、パスワードの入力を求められたら許可してください。",
 
         launchAtLogin: "ログイン時に起動",
         languageLabel: "言語",
@@ -1085,6 +1085,8 @@ extension Strings {
         shelfClearOnClose: "閉じるときに項目を消去",
         shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
         shelfShortcutFinderSelection: "ショートカットで Finder の選択項目を追加",
-        shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。"
+        shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。",
+        spacesOrderName: "スペースの順序を固定",
+        spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。"
     )
 }

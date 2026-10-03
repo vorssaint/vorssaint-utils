@@ -139,7 +139,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Vorssaint deinstallieren?",
         advancedUninstallConfirmBody: "Vorssaint setzt seine Berechtigungen zurück, entfernt seine Einstellungen und wandert in den Papierkorb, dann beendet es sich. Das lässt sich aus der App nicht rückgängig machen, doch sie bleibt im Papierkorb, bis du ihn leerst.",
         advancedUninstallFailedTitle: "Deinstallation gestoppt",
-        advancedUninstallFailedBody: "Vorssaint konnte eine geänderte Systemeinstellung nicht wiederherstellen: Ruhezustand, Lüfterdrehzahl oder Mausbeschleunigung. Es wurde nichts entfernt. Versuche es erneut und erlaube die Kennwortabfrage, falls sie erscheint.",
+        advancedUninstallFailedBody: "Vorssaint konnte eine geänderte Systemeinstellung nicht wiederherstellen: Ruhezustand, Lüfterdrehzahl, Mausbeschleunigung oder Reihenfolge der Spaces. Es wurde nichts entfernt. Versuche es erneut und erlaube die Kennwortabfrage, falls sie erscheint.",
 
         launchAtLogin: "Beim Anmelden öffnen",
         languageLabel: "Sprache",
@@ -1085,6 +1085,8 @@ extension Strings {
         shelfClearOnClose: "Beim Schließen leeren",
         shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte.",
         shelfShortcutFinderSelection: "Finder-Auswahl per Kurzbefehl hinzufügen",
-        shelfShortcutFinderSelectionCaption: "Ist der Finder im Vordergrund, öffnet der Kurzbefehl die Ablage bereits mit den ausgewählten Dateien. Ohne Auswahl öffnet sie sich wie gewohnt."
+        shelfShortcutFinderSelectionCaption: "Ist der Finder im Vordergrund, öffnet der Kurzbefehl die Ablage bereits mit den ausgewählten Dateien. Ohne Auswahl öffnet sie sich wie gewohnt.",
+        spacesOrderName: "Spaces in fester Reihenfolge halten",
+        spacesOrderCaption: "Verhindert, dass macOS die Spaces nach der letzten Nutzung neu anordnet, damit sie in deiner Reihenfolge bleiben. Deine vorherige Einstellung kehrt zurück, wenn du dies ausschaltest. Das Dock startet dafür eventuell einmal neu."
     )
 }

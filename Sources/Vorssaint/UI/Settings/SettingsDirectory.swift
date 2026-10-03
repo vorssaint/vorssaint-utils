@@ -258,6 +258,7 @@ enum SettingsDirectory {
                                         (.dockClick, [FeatureStrings.hub(language).titleDockClick,
                                                       s.dockClickMinimize, s.dockClickHide,
                                                       s.dockClickCycleWindows]),
+                                        (.spacesOrder, [s.spacesOrderName]),
                                        ]),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
