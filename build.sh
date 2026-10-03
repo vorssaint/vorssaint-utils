@@ -254,6 +254,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
+        Sources/Vorssaint/Core/StatusItemQuickActions.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
         Sources/Vorssaint/Core/NotchEditorStrings.swift
@@ -335,6 +336,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppAppearance.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
         Sources/Vorssaint/Core/GeneralSettingsStrings.swift
+        Sources/Vorssaint/Core/StatusItemQuickActionStrings.swift
         Sources/Vorssaint/Core/SettingsPageStrings.swift
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift

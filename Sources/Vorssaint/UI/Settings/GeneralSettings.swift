@@ -8,11 +8,14 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
+    @ObservedObject private var permissions = Permissions.shared
     @State private var launchAtLogin = UserDefaults.standard.bool(
         forKey: DefaultsKey.launchAtLoginWanted)
     @State private var loginError: String?
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.statusItemMiddleClickAction) private var middleAction = StatusItemQuickAction.none.rawValue
+    @AppStorage(DefaultsKey.statusItemLongPressAction) private var holdAction = StatusItemQuickAction.none.rawValue
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -24,6 +27,7 @@ struct GeneralSettings: View {
                 Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
+                statusItemActionsCard
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }
@@ -98,6 +102,58 @@ struct GeneralSettings: View {
             }
 #endif
         }
+    }
+
+    private var statusItemActionsCard: some View {
+        let strings = StatusItemQuickActionStrings.localized(l10n.language)
+        return SettingsCard(title: strings.title) {
+            statusItemActionRow(strings.middleClick, caption: strings.middleHint,
+                                selection: Binding(get: { middleAction }, set: setMiddleAction))
+            if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: middleAction) ?? .none)
+                .needsAccessibility, !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+                    .padding(.leading, settingsRowTextInset)
+            }
+            Divider()
+            statusItemActionRow(strings.longPress, caption: strings.holdHint,
+                                selection: $holdAction)
+        }
+    }
+
+    /// A picker write is a user choice; observing defaults would also prompt
+    /// during launch, restore or an unrelated settings refresh.
+    private func setMiddleAction(_ value: String) {
+        guard value != middleAction else { return }
+        middleAction = value
+        if StatusItemGesture.Settings(middle: StatusItemQuickAction(rawValue: value) ?? .none)
+            .needsAccessibility, !permissions.accessibility {
+            permissions.requestAccessibility()
+        }
+    }
+
+    private func statusItemActionRow(_ title: String, caption: String,
+                                     selection: Binding<String>) -> some View {
+        SettingsRow(symbol: "cursorarrow.click", title: title, caption: caption) {
+            Picker(title, selection: selection) {
+                ForEach(StatusItemQuickAction.allCases) { action in
+                    Text(statusItemActionLabel(action))
+                        .tag(action.rawValue)
+                        .disabled(action != .none && !action.feature.isAvailable)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .accessibilityLabel(title)
+        }
+    }
+
+    /// A saved assignment outlives the feature it points at. Marking it keeps
+    /// the choice visible instead of silently falling back to Off, and the
+    /// picker still shows it even though the entry is not selectable.
+    private func statusItemActionLabel(_ action: StatusItemQuickAction) -> String {
+        let name = action.title(l10n.language)
+        guard action != .none, !action.feature.isAvailable else { return name }
+        return "\(name) — \(StatusItemQuickActionStrings.localized(l10n.language).unavailable)"
     }
 
     private var shortcutCard: some View {
