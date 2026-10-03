@@ -38,6 +38,7 @@ On macOS 27 the Volume mixer can send a single app to an AirPlay speaker, clipbo
 - Dynamic Island keeps the current song on screen while a web player loads the next one, instead of briefly showing another player's paused song. With the New track indicator on, a new song appears in the indicator before the compact island, even when it takes a while to load.
 - With Automatically include videos and other apps on, Dynamic Island switches to a browser that starts playing even while macOS still points to a paused music app.
 - Lyrics are also found for songs whose player reports no album.
+- Dynamic Island resumes Emby after a pause. Emby keeps reporting that it is playing, so the island sent Pause again; players that support Toggle now receive it, and Play or Pause is still sent separately only to players without it, such as radio streams.
 - A Dynamic Island opened by hover now closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
 - The closed Dynamic Island no longer stays enlarged after the pointer passes over it quickly, such as on the way to a display above it.
 - When Dynamic Island opens on a click, a click at the top edge of the screen while the island grows under the pointer now opens it instead of doing nothing.

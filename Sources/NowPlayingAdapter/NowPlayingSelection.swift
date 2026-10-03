@@ -88,6 +88,9 @@ enum NotchNativePlayback {
     }
 
     private static func playPauseCommand(for info: [String: Any]) -> Int32 {
+        // Some players (Emby) never update their rate on pause, so the rate
+        // cannot choose between Play and Pause. Toggle needs no state.
+        if info["canToggle"] as? Bool == true { return 2 }
         guard let rate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue,
               rate.isFinite else { return 2 }
         if rate > 0, info["canPause"] as? Bool == true { return 1 }
@@ -246,8 +249,8 @@ enum NotchNativePlayback {
             context = NotchPlaybackContext(pid: target.pid, revision: UUID())
         }
         target.itemIdentifier = next.item
-        // Some players expose Play and Pause separately. Use the command for
-        // the displayed state, keeping Toggle for players without either one.
+        // Some players expose only Play and Pause. Use the command for the
+        // displayed state, keeping Toggle for any player that supports it.
         target.playPauseCommand = playPauseCommand(for: info)
         selected = target
         identity = next
