@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func finderRename(_ language: AppLanguage) -> FinderRenameFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -35,6 +36,15 @@ extension FeatureStrings {
 }
 
 extension FinderRenameFeatureStrings {
+    static let el = FinderRenameFeatureStrings(
+        pageTitle: "Συντομεύσεις Finder",
+        hubTitle: "Συντόμευση μετονομασίας",
+        hubDescription: "Μετονομάστε το επιλεγμένο αρχείο ή φάκελο με μια συντόμευση της επιλογής σας.",
+        enableLabel: "Χρήση συντόμευσης για μετονομασία",
+        caption: "Η συντόμευση λειτουργεί μόνο στο Finder και δεν επηρεάζει τα πεδία κειμένου. Το F2 λειτουργεί ως κανονικό πλήκτρο. Σε πληκτρολόγια όπου ελέγχει τη φωτεινότητα, χρησιμοποιήστε Fn-F2 ή επιλέξτε άλλη συντόμευση.",
+        shortcutLabel: "Μετονομασία"
+    )
+
     static let enUS = FinderRenameFeatureStrings(
         pageTitle: "Finder shortcuts",
         hubTitle: "Rename shortcut",

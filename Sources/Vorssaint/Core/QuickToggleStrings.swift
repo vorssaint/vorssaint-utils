@@ -38,6 +38,7 @@ extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -57,6 +58,34 @@ extension FeatureStrings {
 }
 
 extension QuickToggleFeatureStrings {
+    static let el = QuickToggleFeatureStrings(
+        pageTitle: "Γρήγορες ενέργειες",
+        hubDescription: "Ενέργειες με ένα κλικ, όπως σκούρα εμφάνιση και Κάδος",
+        panelCaption: "Ενέργειες συστήματος με ένα κλικ στον πίνακα της γραμμής μενού και στον γρήγορο πίνακα.",
+        darkModeToDark: "Μετάβαση σε σκούρα εμφάνιση",
+        darkModeToLight: "Μετάβαση σε ανοιχτόχρωμη εμφάνιση",
+        darkModeCaption: "Αλλάζει την εμφάνιση ολόκληρου του συστήματος.",
+        emptyTrashTitle: "Άδειασμα Κάδου",
+        emptyTrashCaption: "Αφαιρεί όλα τα στοιχεία από τον Κάδο.",
+        emptyTrashConfirmTitle: "Να αδειάσει ο Κάδος;",
+        emptyTrashConfirmMessage: "Όλα τα στοιχεία στον Κάδο θα αφαιρεθούν. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+        emptyTrashConfirmButton: "Άδειασμα Κάδου",
+        ejectTitle: "Εξαγωγή όλων των δίσκων",
+        ejectCaption: "Εξάγει με ασφάλεια όλους τους εξωτερικούς δίσκους.",
+        hiddenFilesShow: "Εμφάνιση κρυφών αρχείων",
+        hiddenFilesHide: "Απόκρυψη κρυφών αρχείων",
+        desktopIconsHide: "Απόκρυψη εικονιδίων γραφείου εργασίας",
+        desktopIconsShow: "Εμφάνιση εικονιδίων γραφείου εργασίας",
+        finderRestartCaption: "Το Finder επανεκκινείται για την εφαρμογή της αλλαγής.",
+        lockScreenTitle: "Κλείδωμα οθόνης",
+        lockScreenCaption: "Ζητά το συνθηματικό σας για να επιστρέψετε.",
+        displayOffTitle: "Απενεργοποίηση οθόνης",
+        displayOffCaption: "Το Mac συνεχίζει να λειτουργεί με την οθόνη απενεργοποιημένη.",
+        screenSaverTitle: "Έναρξη προφύλαξης οθόνης",
+        screenSaverCaption: "Ξεκινά αμέσως σε όλες τις οθόνες.",
+        actionFailed: "Δεν ήταν δυνατή η ολοκλήρωση."
+    )
+
     static let enUS = QuickToggleFeatureStrings(
         pageTitle: "Quick toggles",
         hubDescription: "One-click actions like dark mode and Trash",

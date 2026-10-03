@@ -42,6 +42,36 @@ struct NotchCalendarStrings {
 extension FeatureStrings {
     static func notchCalendar(_ language: AppLanguage) -> NotchCalendarStrings {
         switch language {
+        case .el: return NotchCalendarStrings(
+            title: "Ημερολόγιο",
+            description: "Περιηγηθείτε στον μήνα και δείτε τα επερχόμενα γεγονότα σας στο Dynamic Island.",
+            permission: "Διαβάζει τα ημερολόγιά σας για να εμφανίζει επερχόμενα γεγονότα. Τα γεγονότα παραμένουν σε αυτό το Mac.",
+            allow: "Να επιτρέπεται η πρόσβαση στο Ημερολόγιο",
+            denied: "Επιτρέψτε την πρόσβαση στο Ημερολόγιο στις Ρυθμίσεις συστήματος για να δείτε τα γεγονότα σας.",
+            settings: "Άνοιγμα Ρυθμίσεων συστήματος",
+            empty: "Δεν υπάρχουν επερχόμενα γεγονότα",
+            next: "Ακολουθεί",
+            ongoing: "Σε εξέλιξη",
+            allDay: "Ολοήμερο",
+            untitled: "Γεγονός χωρίς τίτλο",
+            openCalendar: "Άνοιγμα Ημερολογίου",
+            week: "Επόμενες 7 ημέρες",
+            today: "Σήμερα",
+            requestFailed: "Δεν ήταν δυνατό να ζητηθεί πρόσβαση στο Ημερολόγιο. Δοκιμάστε ξανά.",
+            previousMonth: "Προηγούμενος μήνας",
+            nextMonth: "Επόμενος μήνας",
+            previousWeek: "Προηγούμενη εβδομάδα",
+            nextWeek: "Επόμενη εβδομάδα",
+            month: "Μήνας",
+            emptyDay: "Δεν υπάρχουν γεγονότα αυτήν την ημέρα",
+            hasEvents: "Υπάρχουν γεγονότα",
+            countdown: "Αντίστροφη μέτρηση γεγονότος",
+            countdownHint: "Εμφανίζει κάθε γεγονός με καθορισμένη ώρα στο κλειστό Dynamic Island κατά την ώρα πριν από την έναρξή του. Για αντίστροφη μέτρηση μόνο σε ορισμένα γεγονότα, απενεργοποιήστε αυτήν την επιλογή και κάντε δεξί κλικ πάνω τους στη σελίδα Ημερολόγιο του Dynamic Island. Οι τίτλοι ενδέχεται να εμφανίζονται σε στιγμιότυπα οθόνης.",
+            addCountdown: "Προσθήκη αντίστροφης μέτρησης",
+            removeCountdown: "Αφαίρεση αντίστροφης μέτρησης",
+            timeLeft: "Χρόνος που απομένει στο τρέχον γεγονός",
+            timeLeftHint: "Εμφανίζει ένα γεγονός με καθορισμένη ώρα που βρίσκεται σε εξέλιξη στο κλειστό Dynamic Island κατά την ώρα πριν από τη λήξη του. Ο τίτλος του ενδέχεται να εμφανίζεται σε στιγμιότυπα οθόνης.",
+            calendars: "Εμφανιζόμενα ημερολόγια")
         case .enUS: return NotchCalendarStrings(
             title: "Calendar",
             description: "Browse the month and your upcoming appointments in the Dynamic Island.",

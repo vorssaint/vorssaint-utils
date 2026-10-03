@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func diskExclusions(_ language: AppLanguage) -> DiskExclusionStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -35,6 +36,15 @@ extension FeatureStrings {
 }
 
 extension DiskExclusionStrings {
+    static let el = DiskExclusionStrings(
+        listTitle: "Εξαιρούμενοι δίσκοι",
+        addButton: "Προσθήκη δίσκου…",
+        otherDrive: "Άλλο όνομα δίσκου…",
+        removeButton: "Αφαίρεση",
+        customPlaceholder: "Όνομα δίσκου ή τόμου",
+        caption: "Οι δίσκοι αυτής της λίστας δεν εξάγονται ποτέ όταν χρησιμοποιείτε την «Εξαγωγή όλων των δίσκων»."
+    )
+
     static let enUS = DiskExclusionStrings(
         listTitle: "Excluded drives",
         addButton: "Add drive…",

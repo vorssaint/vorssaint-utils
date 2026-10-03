@@ -227,6 +227,7 @@ extension FeatureStrings {
     static func screenshot(_ language: AppLanguage) -> ScreenshotFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -246,6 +247,245 @@ extension FeatureStrings {
 }
 
 extension ScreenshotFeatureStrings {
+    static let el = ScreenshotFeatureStrings(
+        pageTitle: "Στιγμιότυπο οθόνης",
+        hubDescription: "Καταγράφει μια περιοχή, ένα παράθυρο ή την οθόνη και επιτρέπει την προσθήκη σχολίων",
+        captureButton: "Λήψη τώρα",
+        panelCaption: "Καταγράψτε μια περιοχή, ένα παράθυρο ή ολόκληρη την οθόνη",
+        fileNamePrefix: "Στιγμιότυπο οθόνης",
+
+        hintDrag: "Σύρετε για να επιλέξετε μια περιοχή",
+        hintClick: "Κάντε κλικ σε ένα παράθυρο για να το καταγράψετε",
+        hintFullScreen: "Το Return καταγράφει ολόκληρη την οθόνη",
+        hintCancel: "Το Esc ακυρώνει",
+        hintRepeat: "Το R επαναλαμβάνει την τελευταία περιοχή",
+
+        freezeToggle: "Πάγωμα της οθόνης κατά την επιλογή",
+        freezeCaption: "Η εικόνα παγώνει όσο επιλέγετε την περιοχή, ώστε τίποτα να μη μετακινηθεί ή αλλάξει κατά την επιλογή.",
+
+        folderLabel: "Αποθήκευση σε",
+        folderChoose: "Επιλογή…",
+
+        subfolderLabel: "Μοτίβο υποφακέλου",
+        subfolderCaption: "Προαιρετικό. Δημιουργεί υποφακέλους με ημερομηνία μέσα στον παραπάνω φάκελο χρησιμοποιώντας %y, %year, %mo, %month, %d, %h, %mi και %s, για παράδειγμα %y-%mo για 24-03.",
+
+        fileNamePatternLabel: "Όνομα αρχείου",
+        fileNamePatternCaption: "Προαιρετικό. Αντικαθιστά το προεπιλεγμένο όνομα χρησιμοποιώντας τα ίδια %y, %year, %mo, %month, %d, %h, %mi και %s, καθώς και %# για αριθμό που αυξάνεται αυτόματα (%## για 2 ψηφία, %### για 3 και ούτω καθεξής).",
+
+        fileNumberStartLabel: "Έναρξη από",
+        fileNumberResetButton: "Επαναφορά",
+        fileNumberNextFormat: "Επόμενο: %d",
+
+        delayLabel: "Καθυστέρηση",
+        delayOff: "Απενεργοποιημένη",
+        delaySecondsFormat: "%d δευτ.",
+
+        pointerToggle: "Συμπερίληψη του δείκτη",
+
+        downscaleToggle: "Αποθήκευση σε μέγεθος 1x",
+        downscaleCaption: "Τα στιγμιότυπα Retina αποθηκεύονται στο μισό μέγεθος pixel, δημιουργώντας μικρότερα αρχεία.",
+
+        editorTitle: "Στιγμιότυπο οθόνης",
+
+        toolShortcutsTitle: "Εργαλεία επεξεργαστή",
+        toolShortcutsToggle: "Χρήση συντομεύσεων εργαλείων",
+        toolShortcutsCaption: "Κάντε κλικ σε μια συντόμευση για να καταγράψετε ένα πλήκτρο. Τα ψηφία 1–9 αλλάζουν εργαλείο. Το Delete διαγράφει τη συντόμευσή του.",
+        toolShortcutReserved: "Αυτό το πλήκτρο χρησιμοποιείται από τον επεξεργαστή.",
+
+        toolSelect: "Επιλογή",
+        toolArrow: "Βέλος",
+
+        arrowStyleLabel: "Στυλ βέλους",
+        arrowStyleFilled: "Συμπαγές",
+        arrowStyleOutline: "Περίγραμμα",
+        arrowStyleOpen: "Ανοιχτό",
+        arrowStyleDoubleEnded: "Διπλής κατεύθυνσης",
+        arrowStyleScribbly: "Χειρόγραφο",
+
+        toolLine: "Γραμμή",
+        toolRect: "Ορθογώνιο",
+        toolEllipse: "Έλλειψη",
+        toolFreehand: "Πένα",
+        toolHighlight: "Επισήμανση",
+        toolText: "Κείμενο",
+        toolSticker: "Αυτοκόλλητο",
+        toolCounter: "Αριθμός",
+        toolPixelate: "Μωσαϊκό",
+        toolRedact: "Συμπαγές μπλοκ",
+        toolCrop: "Περικοπή",
+
+        textPlaceholder: "Κείμενο",
+        cropApply: "Περικοπή",
+        cancel: "Ακύρωση",
+
+        colorLabel: "Χρώμα",
+        strokeLabel: "Πάχος",
+        fontSizeLabel: "Μέγεθος γραμματοσειράς",
+        blurStrengthLabel: "Ένταση θόλωσης",
+        shadowLabel: "Σκιές",
+
+        backdropLabel: "Φόντο",
+        backdropNone: "Κανένα",
+
+        editButton: "Επεξεργασία",
+        copyButton: "Αντιγραφή",
+        saveButton: "Αποθήκευση",
+        saveAsButton: "Αποθήκευση ως…",
+        pinButton: "Καρφίτσωμα στην οθόνη",
+        copyTextButton: "Αντιγραφή κειμένου",
+
+        discardTitle: "Απόρριψη αυτού του στιγμιότυπου οθόνης;",
+        discardMessage: "Δεν έχει ακόμη αντιγραφεί ή αποθηκευτεί.",
+        discardConfirm: "Απόρριψη",
+
+        copiedHUD: "Το στιγμιότυπο οθόνης αντιγράφηκε",
+        savedHUDFormat: "Αποθηκεύτηκε στο %@",
+        savedAndCopiedHUDFormat: "Αποθηκεύτηκε στο %@ και αντιγράφηκε",
+
+        defaultActionLabel: "Προεπιλεγμένη ενέργεια",
+        defaultActionCaption: "Εκτελείται αυτόματα αμέσως μετά τη λήψη.",
+
+        confirmationPreviewToggle: "Εμφάνιση προεπισκόπησης επιβεβαίωσης",
+        confirmationPreviewDurationLabel: "Διάρκεια επιβεβαίωσης",
+        confirmationPreviewUntilDismissed: "Μέχρι να κλείσει",
+        confirmationPreviewCaption: "Μετά από μια επιτυχημένη αυτόματη ενέργεια, διατηρεί την προεπισκόπηση διαθέσιμη για επεξεργασία ή απόρριψη.",
+
+        defaultActionNone: "Ερώτηση κάθε φορά",
+        defaultActionSaveAndCopy: "Αποθήκευση και αντιγραφή",
+
+        captureFailed: "Δεν ήταν δυνατή η λήψη της οθόνης",
+
+        pinOpacity: "Αδιαφάνεια",
+        pinClickThrough: "Παράβλεψη κλικ",
+        pinCloseAll: "Κλείσιμο όλων των καρφιτσωμένων",
+
+        backdropPaddingLabel: "Περιθώριο",
+        backdropWallpaperLabel: "Ταπετσαρία",
+        backdropImageButton: "Εικόνα…",
+        backdropSolidLabel: "Συμπαγές",
+        backdropGradientLabel: "Διαβάθμιση",
+        backdropCornersLabel: "Γωνίες",
+        backdropSavePreset: "Αποθήκευση φόντου",
+        backdropDeletePreset: "Αφαίρεση",
+        backdropCustomLabel: "Προσαρμοσμένο",
+
+        openEditorToggle: "Άνοιγμα του επεξεργαστή αμέσως μετά τη λήψη",
+        openEditorCaption: "Παραλείπει την αιωρούμενη προεπισκόπηση και ανοίγει το στιγμιότυπο έτοιμο για σχολιασμό.",
+
+        autoCopyToggle: "Αυτόματη αντιγραφή στο Πρόχειρο",
+        autoCopyCaption: "Κάθε στιγμιότυπο αντιγράφεται στο Πρόχειρο αμέσως μετά τη λήψη, έτοιμο για επικόλληση. Η αποθήκευση αρχείου παραμένει ξεχωριστή επιλογή.",
+
+        hintLoupe: "Το Z ενεργοποιεί ή απενεργοποιεί τον μεγεθυντικό φακό",
+        lastRegionToggle: "Εμφάνιση περιγράμματος της τελευταίας λήψης",
+        backdropBlurLabel: "Θόλωση",
+
+        scrollingCaptureButton: "Λήψη με κύλιση",
+        scrollingCaptureTitle: "Κυλιόμενο στιγμιότυπο οθόνης",
+        scrollingCaptureProgressHUD: "Κάντε κύλιση με το ποντίκι ή την επιφάνεια αφής. Πατήστε Return ή επιλέξτε Τέλος.",
+        scrollingCaptureHintOff: "Το S ενεργοποιεί την κύλιση",
+        scrollingCaptureHintOn: "Η κύλιση είναι ενεργή",
+        scrollingCaptureTooLongHUD: "Η λήψη σταμάτησε στο ασφαλές όριο",
+
+        uploadLastCapture: "Μεταφόρτωση πιο πρόσφατου στιγμιότυπου οθόνης",
+        uploadExpiry: "Προεπιλεγμένη λήξη συνδέσμου",
+        editLastCapture: "Επεξεργασία πιο πρόσφατου στιγμιότυπου οθόνης",
+        lastCaptureMissing: "Πρώτα τραβήξτε ένα στιγμιότυπο οθόνης",
+
+        fullScreenCaptureButton: "Πλήρης οθόνη",
+        fullScreenShortcutTitle: "Λήψη ολόκληρης της οθόνης",
+
+        bringForward: "Μεταφορά προς τα εμπρός",
+        sendBackward: "Μεταφορά προς τα πίσω",
+
+        shareSectionTitle: "Προσωρινοί σύνδεσμοι",
+        shareCaption: "Κατά την κοινοποίηση, επιλέξτε 1, 6 ή 24 ώρες. Η εικόνα διαγράφεται αυτόματα.",
+        shareButton: "Κοινοποίηση",
+        shareOneHour: "Για 1 ώρα",
+        shareSixHours: "Για 6 ώρες",
+        shareTwentyFourHours: "Για 24 ώρες",
+
+        sharingHUD: "Δημιουργία συνδέσμου…",
+        sharedHUD: "Ο σύνδεσμος αντιγράφηκε",
+        shareFailedHUD: "Δεν ήταν δυνατή η δημιουργία του συνδέσμου",
+        linkCopyFailedHUD: "Ο σύνδεσμος δημιουργήθηκε, αλλά η αντιγραφή απέτυχε. Αντιγράψτε τον από τους Προσωρινούς συνδέσμους στις Ρυθμίσεις.",
+
+        sharedLinksTitle: "Κοινόχρηστοι σύνδεσμοι",
+        sharedLinksEmpty: "Δεν υπάρχουν ενεργοί σύνδεσμοι",
+        expiresLabel: "Λήγει",
+        deleteLink: "Διαγραφή τώρα",
+        linkDeletedHUD: "Ο σύνδεσμος διαγράφηκε",
+        deleteFailedHUD: "Δεν ήταν δυνατή η διαγραφή του συνδέσμου",
+        openLink: "Άνοιγμα",
+        copyLink: "Αντιγραφή συνδέσμου",
+        done: "Τέλος",
+
+        sharePrivacyButton: "Απόρρητο",
+        sharePrivacyTitle: "Απόρρητο προσωρινών συνδέσμων",
+        sharePrivacyData: "Το Vorssaint αποστέλλει μόνο την τελική εικόνα και τον χρόνο λήξης που επιλέγετε. Δεν αποστέλλει το όνομα, τον λογαριασμό, το αναγνωριστικό συσκευής ή τη διεύθυνση MAC σας. Σε αυτό το Mac διατηρεί μόνο τον σύνδεσμο, τον χρόνο λήξης και το ιδιωτικό διακριτικό διαγραφής όσο ο σύνδεσμος είναι ενεργός.",
+        sharePrivacyStorage: "Οι πάροχοι δικτύου και η υπηρεσία επεξεργάζονται προσωρινά τη δημόσια διεύθυνση IP σας για την αποτροπή κατάχρησης. Η εικόνα και τα μεταδεδομένα του συνδέσμου διαγράφονται οριστικά όταν διαγράψετε τον σύνδεσμο ή λήξει ο χρόνος του. Η υπηρεσία δεν δημιουργεί αντίγραφα ασφαλείας των στιγμιότυπων οθόνης.",
+        sharePrivacyAccess: "Οποιοσδήποτε διαθέτει τον σύνδεσμο μπορεί να προβάλει, να κατεβάσει, να αποθηκεύσει ή να αναδιανείμει την εικόνα. Οι ενεργοί σύνδεσμοι είναι διαθέσιμοι στον διαχειριστή της υπηρεσίας για έλεγχο κατάχρησης. Κοινοποιείτε μόνο σε άτομα που εμπιστεύεστε.",
+
+        scrollingCaptureCaption: "Επιλέξτε μια περιοχή, κάντε κύλιση με το ποντίκι ή την επιφάνεια αφής και μετά πατήστε Return ή Τέλος για να ενωθούν τα τμήματα.",
+        scrollingCaptureSelectionHint: "Σύρετε μόνο πάνω στο τμήμα της σελίδας που μετακινείται.",
+        scrollingCapturePartialHUD: "Η σελίδα άλλαξε. Το ολοκληρωμένο τμήμα διατηρήθηκε.",
+
+        previewPositionLabel: "Θέση προεπισκόπησης",
+        previewPositionAutomatic: "Αυτόματα",
+        previewPositionTopLeft: "Επάνω αριστερά",
+        previewPositionTopRight: "Επάνω δεξιά",
+        previewPositionBottomLeft: "Κάτω αριστερά",
+        previewPositionBottomRight: "Κάτω δεξιά",
+
+        previewFocusToggle: "Αυτόματη εστίαση στην προεπισκόπηση",
+        previewFocusCaption: "Οι συντομεύσεις λειτουργούν μόλις εμφανιστεί η προεπισκόπηση, αλλά το πληκτρολόγιο παύει προσωρινά να ελέγχει την εφαρμογή που χρησιμοποιούσατε μέχρι να κλείσει.",
+
+        hideVorssaintWindowsToggle: "Απόκρυψη παραθύρων του Vorssaint",
+        shareEnabledToggle: "Να επιτρέπονται προσωρινοί σύνδεσμοι",
+
+        editClipboardImage: "Επεξεργασία εικόνας από το Πρόχειρο",
+        clipboardImageMissing: "Πρώτα αντιγράψτε μια εικόνα",
+
+        showCaptureMenuOnShortcut: "Εμφάνιση μενού λήψης κατά τη χρήση συντόμευσης πληκτρολογίου",
+        screenCaptureTitle: "Λήψη οθόνης",
+        dragOutHandleLabel: "Μεταφορά και απόθεση",
+
+        loupeStartsOnToggle: "Έναρξη επιλογής με ενεργό τον μεγεθυντικό φακό",
+        loupeRememberZoomToggle: "Απομνημόνευση της τελευταίας μεγέθυνσης του μεγεθυντικού φακού",
+        loupeDefaultZoomLabel: "Προεπιλεγμένη μεγέθυνση μεγεθυντικού φακού",
+        loupeWheelZoomLabel: "Μεγέθυνση με τροχό",
+        loupeZoomFast: "Γρήγορη",
+        loupeZoomStepped: "Βήμα προς βήμα",
+        loupeZoomOptionCaption: "Κρατήστε πατημένο το ⌥ για προσωρινή χρήση της άλλης λειτουργίας.",
+
+        watermarkLabel: "Υδατογράφημα",
+        watermarkImageLabel: "Εικόνα",
+        watermarkTextPlaceholder: "Κείμενο υδατογραφήματος",
+        watermarkPositionLabel: "Θέση",
+        watermarkSizeLabel: "Μέγεθος",
+        watermarkOpacityLabel: "Αδιαφάνεια",
+        watermarkRotationLabel: "Περιστροφή",
+        watermarkSavePreset: "Αποθήκευση υδατογραφήματος",
+
+        watermarkColorRed: "Κόκκινο",
+        watermarkColorOrange: "Πορτοκαλί",
+        watermarkColorYellow: "Κίτρινο",
+        watermarkColorGreen: "Πράσινο",
+        watermarkColorBlue: "Μπλε",
+        watermarkColorPurple: "Μοβ",
+        watermarkColorBlack: "Μαύρο",
+        watermarkColorWhite: "Λευκό",
+
+        watermarkPositionTopLeading: "Επάνω αριστερά",
+        watermarkPositionTop: "Επάνω στο κέντρο",
+        watermarkPositionTopTrailing: "Επάνω δεξιά",
+        watermarkPositionLeading: "Στο κέντρο αριστερά",
+        watermarkPositionCenter: "Κέντρο",
+        watermarkPositionTrailing: "Στο κέντρο δεξιά",
+        watermarkPositionBottomLeading: "Κάτω αριστερά",
+        watermarkPositionBottom: "Κάτω στο κέντρο",
+        watermarkPositionBottomTrailing: "Κάτω δεξιά"
+    )
+
     static let enUS = ScreenshotFeatureStrings(
         pageTitle: "Screenshot",
         hubDescription: "Captures an area, window or screen and annotates it",

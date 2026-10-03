@@ -25,6 +25,7 @@ extension FeatureStrings {
     static func portManager(_ language: AppLanguage) -> PortManagerFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -44,6 +45,24 @@ extension FeatureStrings {
 }
 
 extension PortManagerFeatureStrings {
+    static let el = PortManagerFeatureStrings(
+        title: "Διαχείριση θυρών",
+        filter: "Φιλτράρισμα κατά θύρα, διεργασία ή PID",
+        openFormat: "%d ανοιχτές",
+        empty: "Δεν βρέθηκαν θύρες σε ακρόαση",
+        emptyHint: "Δοκιμάστε να ανανεώσετε τη λίστα ή να αλλάξετε την αναζήτηση.",
+        listeningCaption: "Θύρες σε ακρόαση",
+        kill: "Τερματισμός",
+        forceKill: "Εξαναγκασμένος τερματισμός",
+        loadFailed: "Δεν ήταν δυνατή η ανάγνωση των θυρών σε ακρόαση. Δοκιμάστε να ανανεώσετε.",
+        refresh: "Ανανέωση",
+        terminateFormat: "Τερματισμός %@;",
+        terminateMessageFormat: "Αυτό θα κλείσει τη θύρα %d τερματίζοντας τη διεργασία με PID %d.",
+        hubDescription: "Προβάλετε τις ενεργές θύρες σε ακρόαση και, αν είναι εγκατεστημένος ο Τερματισμός διεργασιών, τερματίστε τις διεργασίες που τις χρησιμοποιούν",
+        allInterfaces: "Όλες οι διασυνδέσεις",
+        allInterfacesHelp: "Γίνεται ακρόαση σε όλες τις διασυνδέσεις δικτύου, επομένως ενδέχεται να μπορούν να συνδεθούν και άλλες συσκευές στο δίκτυο."
+    )
+
     static let uk = PortManagerFeatureStrings(
         title: "Менеджер портів", filter: "Фільтрувати за портом, процесом або PID",
         openFormat: "Відкрито: %d", empty: "Не знайдено портів, що очікують з’єднання",

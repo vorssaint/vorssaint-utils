@@ -19,6 +19,17 @@ struct NotchNotificationStrings {
 extension FeatureStrings {
     static func notchNotifications(_ language: AppLanguage) -> NotchNotificationStrings {
         switch language {
+        case .el: return NotchNotificationStrings(
+            title: "Γνωστοποιήσεις",
+            description: "Νέες γνωστοποιήσεις συστήματος στο Dynamic Island.",
+            privacy: "Εμφανίζει μόνο νέα ορατά μπάνερ. Τα μηνύματα παραμένουν στη μνήμη και διαγράφονται όταν κλειδώνετε αυτό το Mac ή απενεργοποιείτε τη δυνατότητα.",
+            empty: "Οι νέες γνωστοποιήσεις θα εμφανίζονται εδώ",
+            waiting: "Αναμονή για την υπηρεσία γνωστοποιήσεων του συστήματος",
+            open: "Άνοιγμα",
+            dismiss: "Απόρριψη",
+            unavailable: "Αυτή η γνωστοποίηση δεν δέχεται πλέον αυτήν την ενέργεια.",
+            hideSystemBanner: "Απόκρυψη μπάνερ συστήματος",
+            hideSystemBannerHint: "Αποκρύπτει το αρχικό μπάνερ όσο εμφανίζεται στο Dynamic Island.")
         case .enUS: return NotchNotificationStrings(
             title: "Notifications",
             description: "New system notifications in the Dynamic Island.",

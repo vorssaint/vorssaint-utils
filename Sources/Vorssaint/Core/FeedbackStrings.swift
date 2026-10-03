@@ -39,6 +39,7 @@ extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -58,6 +59,38 @@ extension FeatureStrings {
 }
 
 extension FeedbackStrings {
+    static let el = FeedbackStrings(
+        sectionTitle: "Σχόλια",
+        sectionCaption: "Στείλτε μια αναφορά σφάλματος ή μια ιδέα για νέα δυνατότητα απευθείας στον δημιουργό που συντηρεί το Vorssaint.",
+        openButton: "Αποστολή σχολίων",
+        windowTitle: "Αποστολή σχολίων",
+        bugTitle: "Σφάλμα",
+        featureTitle: "Ιδέα δυνατότητας",
+        messageLabel: "Τι θα θέλατε να μοιραστείτε;",
+        bugPlaceholder: "Περιγράψτε τι συνέβη και τι περιμένατε να συμβεί.",
+        featurePlaceholder: "Περιγράψτε την ιδέα και πώς θα ήταν χρήσιμη.",
+        charactersFormat: "%d από 2000 χαρακτήρες",
+        includeDiagnostics: "Συμπερίληψη τεχνικών λεπτομερειών",
+        includeDiagnosticsCaption: "Προσθέτει μόνο τις τεχνικές λεπτομέρειες που εμφανίζονται παρακάτω. Δεν περιλαμβάνονται αρχεία καταγραφής.",
+        whatSentTitle: "Τι θα αποσταλεί",
+        whatSentBasic: "Η κατηγορία που επιλέξατε και το παραπάνω κείμενο.",
+        whatSentDiagnostics: "Οι τεχνικές λεπτομέρειες που αναφέρονται παρακάτω.",
+        privacyNote: "Δεν περιλαμβάνονται όνομα, λογαριασμός, email, αναγνωριστικό συσκευής, αρχεία καταγραφής, στιγμιότυπα οθόνης, αρχεία ή περιεχόμενο του Προχείρου. Η δημόσια διεύθυνση IP σας υποβάλλεται προσωρινά σε επεξεργασία για προστασία από κατάχρηση και δεν επισυνάπτεται στα σχόλια.",
+        retentionNote: "Μετά την παράδοση, το κείμενο παραμένει σε ιδιωτικά κανάλια υποστήριξης μέχρι να το διαγράψει ο διαχειριστής της υπηρεσίας. Ένα αντίγραφο που δεν παραδόθηκε διαγράφεται οριστικά μετά από 7 ημέρες.",
+        sendButton: "Αποστολή σχολίων",
+        sending: "Αποστολή…",
+        sentTitle: "Τα σχόλια στάλθηκαν",
+        sentCaption: "Ευχαριστώ. Δεν στάλθηκαν στοιχεία επικοινωνίας, επομένως δεν θα λάβετε απευθείας απάντηση.",
+        unavailableError: "Δεν ήταν δυνατή η σύνδεση. Ελέγξτε τη σύνδεσή σας στο διαδίκτυο και δοκιμάστε ξανά.",
+        rateLimitError: "Έχουν γίνει πάρα πολλές υποβολές από αυτό το δίκτυο. Δοκιμάστε ξανά αργότερα.",
+        genericError: "Δεν ήταν δυνατή η αποστολή των σχολίων αυτήν τη στιγμή.",
+        done: "Τέλος",
+        commandBug: "Αναφορά σφάλματος",
+        commandFeature: "Πρόταση δυνατότητας",
+        commandSubtitle: "Αποστολή σχολίων",
+        diagnosticsChannelLabel: "Κανάλι ενημερώσεων"
+    )
+
     static let enUS = FeedbackStrings(
         sectionTitle: "Feedback",
         sectionCaption: "Send a bug report or feature idea directly to the person who maintains Vorssaint.",

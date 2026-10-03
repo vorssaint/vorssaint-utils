@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func recentCaptures(_ language: AppLanguage) -> RecentCaptureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -37,6 +38,17 @@ extension FeatureStrings {
 }
 
 extension RecentCaptureStrings {
+    static let el = RecentCaptureStrings(
+        title: "Πρόσφατες λήψεις",
+        empty: "Τραβήξτε ένα στιγμιότυπο οθόνης ή αποθηκεύστε μια εγγραφή για να τη βρείτε εδώ.",
+        screenshot: "Στιγμιότυπο οθόνης",
+        recording: "Εγγραφή",
+        restore: "Επαναφορά",
+        open: "Άνοιγμα",
+        remove: "Αφαίρεση από το ιστορικό",
+        clear: "Εκκαθάριση ιστορικού"
+    )
+
     static let enUS = RecentCaptureStrings(
         title: "Recent captures",
         empty: "Take a screenshot or save a recording to find it here.",

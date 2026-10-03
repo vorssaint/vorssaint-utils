@@ -137,6 +137,7 @@ extension FeatureStrings {
     static func hub(_ language: AppLanguage) -> FeatureHubStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -278,6 +279,138 @@ extension FeatureHubStrings {
 }
 
 extension FeatureHubStrings {
+    static let el = FeatureHubStrings(
+        pageTitle: "Δυνατότητες",
+        intro: "Εγκαταστήστε μόνο ό,τι χρησιμοποιείτε. Ό,τι απεγκαθιστάτε εξαφανίζεται από ολόκληρη την εφαρμογή και παύει να φορτώνεται.",
+        tabFeatures: "Δυνατότητες",
+        tabPermissions: "Άδειες",
+        activeCountFormat: "%1$d από %2$d δυνατότητες εγκατεστημένες",
+        monitorAllOffNote: "Με όλα απενεργοποιημένα, η Παρακολούθηση συστήματος αφαιρείται από τον πίνακα και τη γραμμή μενού.",
+        titleDockClick: "Κλικ στο Dock",
+        titleMouseNavigation: "Πλευρικά κουμπιά",
+        titleMusicBlock: "Αποκλεισμός εφαρμογής Μουσική",
+        titleAudioPriority: "Προτεραιότητα συσκευών ήχου",
+
+        groupWindowsDock: "Παράθυρα και Dock",
+        groupMouseKeyboard: "Ποντίκι και πληκτρολόγιο",
+        groupClipboardFiles: "Πρόχειρο και αρχεία",
+        groupSound: "Ήχος",
+        groupEnergyDisplay: "Ενέργεια και οθόνη",
+        groupTools: "Εργαλεία",
+        groupMonitor: "Παρακολούθηση συστήματος",
+        experimentalBadge: "Πειραματικό",
+
+        permissionsIntro: "Δείτε τι κάνει κάθε άδεια και ποιες δυνατότητες τη χρησιμοποιούν. Άλλες προσβάσεις ζητούνται μόνο όταν τις χρησιμοποιείτε.",
+        usedByFormat: "Χρησιμοποιείται από: %@",
+        usedByNone: "Καμία ενεργή δυνατότητα δεν χρησιμοποιεί αυτήν την άδεια αυτήν τη στιγμή.",
+        unusedBanner: "Έχετε παραχωρήσει αυτήν την άδεια, αλλά καμία ενεργή δυνατότητα δεν τη χρειάζεται. Αν θέλετε, μπορείτε να την ανακαλέσετε στις Ρυθμίσεις συστήματος.",
+        statusGranted: "Χορηγήθηκε",
+        statusMissing: "Δεν χορηγήθηκε",
+        statusUnknown: "Η εφαρμογή δεν μπορεί να ελέγξει αυτήν την άδεια",
+        requestButton: "Αίτημα άδειας",
+        openSystemSettings: "Άνοιγμα Ρυθμίσεων συστήματος",
+
+        permAccessibility: "Προσβασιμότητα",
+        permScreenRecording: "Εγγραφή οθόνης και ήχου συστήματος",
+        permFullDisk: "Πλήρης πρόσβαση στον δίσκο",
+        permFilesAndFolders: "Αρχεία και φάκελοι",
+        permNotifications: "Γνωστοποιήσεις",
+        permAutomationFinder: "Αυτοματοποίηση Finder",
+        permAutomationTerminal: "Αυτοματοποίηση Τερματικού",
+        permAudioCapture: "Ήχος εφαρμογών",
+
+        explainAccessibility: "Επιτρέπει στις δυνατότητες να αντιδρούν σε κλικ και πλήκτρα και να μετακινούν παράθυρα.",
+        explainScreenRecording: "Επιτρέπει στις δυνατότητες να εμφανίζουν μικρογραφίες παραθύρων και να διαβάζουν κείμενο στην οθόνη.",
+        explainFullDisk: "Επιτρέπει στο εργαλείο εκκαθάρισης και στο εργαλείο απεγκατάστασης να βρίσκουν υπολειπόμενα αρχεία παντού.",
+        explainFilesAndFolders: "Επιτρέπει στην εκκαθάριση λήψεων WhatsApp και στον πειραματικό οργανωτή να ελέγχουν τον φάκελο Λήψεις.",
+        explainNotifications: "Επιτρέπει στην εφαρμογή να σας γνωστοποιεί τις προειδοποιήσεις που έχετε ενεργοποιήσει.",
+        explainAutomationFinder: "Επιτρέπει στην εφαρμογή να ζητά από το Finder να μετακινεί αρχεία για εσάς.",
+        explainAutomationTerminal: "Επιτρέπει στις εντολές Homebrew να ανοίγουν στο Τερματικό.",
+        explainAudioCapture: "Επιτρέπει στον μίκτη να ρυθμίζει την ένταση κάθε εφαρμογής, στις μπάρες του Dynamic Island να ακολουθούν τη μουσική και στις εγγραφές οθόνης να περιλαμβάνουν τον ήχο του Mac.",
+
+        descSwitcher: "Εναλλαγή εφαρμογών και παραθύρων με προεπισκοπήσεις",
+        descDockPreview: "Προεπισκοπήσεις παραθύρων κατά την κατάδειξη στο Dock",
+        descDockClick: "Κλικ σε εικονίδιο του Dock για ελαχιστοποίηση ή εναλλαγή παραθύρων",
+        descWindowMaximizer: "Το πράσινο κουμπί μεγιστοποιεί αντί να ανοίγει σε πλήρη οθόνη",
+        descWindowLayout: "Διάταξη παραθύρων με συντομεύσεις ή παράθεση στα άκρα και προσαρμογή με μεταφορά",
+        descAutoQuit: "Τερματισμός εφαρμογών όταν κλείνει το τελευταίο παράθυρό τους",
+        descScrollInverter: "Αντιστροφή κατεύθυνσης του τροχού ποντικιού",
+        descSmoothScroll: "Ομαλή, κινούμενη κύλιση με το ποντίκι",
+        descMouseNavigation: "Τα πλευρικά κουμπιά του ποντικιού μεταβαίνουν πίσω και μπροστά",
+        descMiddleClick: "Το κλικ με τρία δάχτυλα λειτουργεί ως μεσαίο κλικ",
+        descKeyboardDebounce: "Αγνόηση ακούσιων διπλών πατημάτων πλήκτρων",
+        descClipboardHistory: "Διατήρηση τοπικού ιστορικού όσων αντιγράφετε",
+        descPastePlain: "Επικόλληση κειμένου χωρίς μορφοποίηση",
+        descFinderCutPaste: "Αποκοπή και επικόλληση αρχείων στο Finder",
+        descShelf: "Απόθεση αρχείων στη γραμμή μενού για προσωρινή φύλαξη",
+        descURLCleaner: "Αφαίρεση στοιχείων παρακολούθησης από αντιγραμμένους συνδέσμους",
+        descMixer: "Ένταση ανά εφαρμογή, καρφίτσωμα και προσαρμοσμένη σειρά",
+        descSoundOutputSwitcher: "Εναλλαγή εξόδων ήχου με συντόμευση",
+        descAudioPriority: "Αυτόματη χρήση των προτιμώμενων συσκευών ήχου",
+        descMicMute: "Σίγαση μικροφώνου από οπουδήποτε",
+        descMusicBlock: "Αποτροπή ανοίγματος της εφαρμογής Μουσική από εντοπισμένα πλήκτρα πολυμέσων",
+        descKeepAwake: "Διατήρηση του Mac σε ενεργή κατάσταση όταν χρειάζεται",
+        descExtraBrightness: "Επιπλέον φωτεινότητα σε οθόνες XDR",
+        descQuickLauncher: "Αιωρούμενος πίνακας με τα αγαπημένα σας εργαλεία",
+        descColorPicker: "Επιλογή οποιουδήποτε χρώματος στην οθόνη",
+        descScreenOCR: "Αντιγραφή κειμένου ή κωδικών QR από οτιδήποτε στην οθόνη",
+        descCleaningMode: "Κλείδωμα πληκτρολογίου και οθόνης για καθαρισμό",
+        descMediaTools: "Συμπίεση βίντεο, εικόνων και GIF",
+        descCleaner: "Εκκαθάριση μνήμης cache και άχρηστων αρχείων",
+        descUninstaller: "Αφαίρεση εφαρμογών και των υπολειπόμενων αρχείων τους",
+        descHomebrew: "Διατήρηση των πακέτων Homebrew ενημερωμένων",
+        descMonitorCPU: "Χρήση και θερμοκρασία επεξεργαστή",
+        descMonitorGPU: "Χρήση και θερμοκρασία γραφικών",
+        descMonitorMemory: "Χρήση και πίεση μνήμης",
+        descMonitorNetwork: "Ταχύτητα και χρήση δικτύου",
+        descMonitorDisk: "Χώρος και δραστηριότητα δίσκου",
+        descMonitorPower: "Μπαταρία, τροφοδοσία και φόρτιση",
+
+        footerNote: "Η απεγκατάσταση δεν διαγράφει τίποτα: η δυνατότητα απλώς αφαιρείται από την εφαρμογή και παύει να φορτώνεται. Εγκαταστήστε την ξανά οποιαδήποτε στιγμή και όλα επιστρέφουν όπως ήταν.",
+        restartNote: "Οι δυνατότητες που απεγκαταστάθηκαν σε αυτήν τη συνεδρία παραμένουν φορτωμένες μέχρι να γίνει επανεκκίνηση της εφαρμογής. Κάντε επανεκκίνηση τώρα για να αφαιρεθούν από τη μνήμη.",
+        restartButton: "Επανεκκίνηση τώρα",
+        installAllButton: "Εγκατάσταση όλων",
+        uninstallAllButton: "Απεγκατάσταση όλων",
+
+        presetsTitle: "Ξεκινήστε με ένα πακέτο",
+        presetsCaption: "Με ένα κλικ, η εφαρμογή ρυθμίζεται ανάλογα με τον τρόπο που χρησιμοποιείτε το Mac σας. Όλα τα υπόλοιπα παραμένουν διαθέσιμα με ένα κλικ.",
+        presetEssentialName: "Βασικά",
+        presetEssentialDesc: "Μίκτης έντασης, παρακολούθηση συστήματος και αποτροπή ύπνου.",
+        presetWindowsName: "Παράθυρα",
+        presetWindowsDesc: "Εναλλαγή εφαρμογών, διάταξη παραθύρων και δυνατότητες του Dock.",
+        presetBatteryName: "Μπαταρία και ησυχία",
+        presetBatteryDesc: "Λιτή παρακολούθηση με μπαταρία, μνήμη και επεξεργαστή. Δεν παρακολουθεί καμία είσοδο.",
+        presetApplyButton: "Εφαρμογή",
+        presetConfirmFormat: "Να εγκατασταθεί το πακέτο «%1$@» και να απεγκατασταθούν τα υπόλοιπα; Δεν διαγράφεται τίποτα και όλα επανέρχονται με ένα κλικ.",
+        presetConfirmApply: "Εφαρμογή πακέτου",
+        presetConfirmCancel: "Ακύρωση",
+
+        energyIdle: "Τίποτα σε αδράνεια",
+        energyMouse: "Παρακολουθεί το ποντίκι",
+        energyPointer: "Παρακολουθεί την είσοδο δείκτη",
+        energyKeyboard: "Παρακολουθεί το πληκτρολόγιο",
+        energyInputs: "Παρακολουθεί ποντίκι και πληκτρολόγιο",
+        energyPeriodic: "Ελέγχει περιοδικά",
+        energyHelp: "Δείχνει τι διατηρεί ενεργό η δυνατότητα όσο είναι ενεργοποιημένη. Οι απεγκατεστημένες δυνατότητες δεν φορτώνουν τίποτα.",
+
+        explainAppManagement: "Επιτρέπει στις ενημερώσεις να αντικαθιστούν ή να αφαιρούν εφαρμογές που εγκαταστάθηκαν από τον διαχειριστή πακέτων.",
+
+        onboardingSelectedPermissionsTitle: "Άδειες για τις επιλογές σας",
+        onboardingNoSelectedPermissions: "Δεν χρειάζεται να παραχωρήσετε καμία άδεια για να ολοκληρώσετε τη διαμόρφωση.",
+        onboardingOtherPermissionsTitle: "Άλλες άδειες",
+        onboardingOtherPermissionsCaption: "Προαιρετικό. Παραχωρήστε τις τώρα ή αργότερα, όταν τις χρειαστεί κάποια δυνατότητα.",
+
+        notchUninstallTitle: "Απεγκατάσταση Dynamic Island",
+        notchUninstallMessageFormat: "Αυτές οι επεκτάσεις λειτουργούν μόνο μέσα στο Dynamic Island: %@. Να απεγκατασταθούν και αυτές; Δεν διαγράφεται τίποτα και όλα επανέρχονται με ένα κλικ.",
+        notchUninstallWithExtensions: "Απεγκατάσταση και των επεκτάσεων",
+        notchUninstallKeepExtensions: "Διατήρηση επεκτάσεων",
+
+        neverUsedTitle: "Δεν ενεργοποιήθηκαν ποτέ",
+        neverUsedMessageFormat: "Αυτές οι δυνατότητες είναι εγκατεστημένες αλλά δεν έχουν ενεργοποιηθεί ποτέ: %@. Η απεγκατάστασή τους μικραίνει τον πίνακα και τις Ρυθμίσεις. Δεν διαγράφεται τίποτα και καθεμία επανέρχεται με ένα κλικ.",
+        neverUsedUninstall: "Απεγκατάσταση αυτών",
+        neverUsedKeep: "Διατήρησή τους"
+    )
+
     static let enUS = FeatureHubStrings(
         pageTitle: "Features",
         intro: "Install only what you use. Whatever you uninstall disappears from the whole app and stops loading.",

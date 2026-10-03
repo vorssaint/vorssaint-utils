@@ -78,6 +78,7 @@ extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -234,6 +235,87 @@ extension SnippetFeatureStrings {
 }
 
 extension SnippetFeatureStrings {
+    static let el = SnippetFeatureStrings(
+        pageTitle: "Αποσπάσματα κειμένου",
+        hubDescription: "Σύντομα κείμενα ενεργοποίησης αναπτύσσονται σε πλήρες κείμενο",
+        enable: "Ανάπτυξη αποσπασμάτων κατά την πληκτρολόγηση",
+        enableCaption: "Πληκτρολογήστε ένα κείμενο ενεργοποίησης οπουδήποτε και αντικαθίσταται από το αντίστοιχο κείμενο. Όλα παραμένουν σε αυτό το Mac.",
+        addButton: "Προσθήκη αποσπάσματος",
+        newTitle: "Νέο απόσπασμα",
+        editTitle: "Επεξεργασία αποσπάσματος",
+
+        nameLabel: "Όνομα",
+        namePlaceholder: "Προσωπικό email",
+        triggerLabel: "Κείμενο ενεργοποίησης",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Κείμενο",
+        replacementPlaceholder: "myemail@example.com",
+
+        expansionLabel: "Ανάπτυξη",
+        expansionImmediate: "Αμέσως",
+        expansionDelimiter: "Μετά από κενό, Tab ή Return",
+
+        variablesHint: "Μεταβλητές: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Αντικαθίστανται από την ημερομηνία, την ώρα και το αντιγραμμένο κείμενο τη στιγμή της ανάπτυξης.",
+
+        emptyList: "Δεν υπάρχουν ακόμη αποσπάσματα. Προσθέστε το πρώτο.",
+        duplicateTrigger: "Ένα άλλο απόσπασμα χρησιμοποιεί ήδη αυτό το κείμενο ενεργοποίησης.",
+        triggerTooShort: "Το κείμενο ενεργοποίησης πρέπει να έχει τουλάχιστον 2 χαρακτήρες.",
+
+        deleteButton: "Διαγραφή",
+        saveButton: "Αποθήκευση",
+        manageButton: "Διαχείριση αποσπασμάτων",
+        ignoreCaseLabel: "Αγνόηση πεζών και κεφαλαίων",
+
+        libraryTitle: "Γρήγορο μενού αποσπασμάτων",
+        libraryToggle: "Άνοιγμα αποσπασμάτων από μενού",
+        libraryCaption: "Η συντόμευση ανοίγει ένα μενού με δυνατότητα αναζήτησης. Η επιλογή ενός αποσπάσματος πληκτρολογεί το κείμενό του ακριβώς στη θέση του δρομέα.",
+        librarySearchPlaceholder: "Αναζήτηση αποσπασμάτων",
+        libraryNoResults: "Κανένα απόσπασμα δεν αντιστοιχεί στην αναζήτηση.",
+        libraryEmpty: "Δεν υπάρχει ακόμη κάτι για εμφάνιση. Προσθέστε αποσπάσματα ή ενεργοποιήστε την «Εμφάνιση στο γρήγορο μενού» για όσα χρησιμοποιείτε συχνότερα.",
+        libraryFooterHint: "↩ εισαγωγή · esc κλείσιμο",
+
+        folderLabel: "Φάκελος",
+        folderPlaceholder: "Εργασία",
+        showInLibraryLabel: "Εμφάνιση στο γρήγορο μενού",
+
+        variablesFormatCaption: "Μια μορφή μετά από άνω και κάτω τελεία καθορίζει την εμφάνιση, όπως {{date:yyyy-MM-dd}}. Το τμήμα -tz(...) ορίζει τη ζώνη ώρας, όπως {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Μια μορφή μετά από άνω και κάτω τελεία καθορίζει την εμφάνιση, όπως {{date:yyyy-MM-dd}}, ή χρησιμοποιήστε το παραπάνω κουμπί ημερομηνίας/ώρας. Το τμήμα -tz(...) ορίζει τη ζώνη ώρας, όπως {{date-tz(America/New_York):yyyy-MM-dd}}.",
+
+        dateTimeInsertButton: "Εισαγωγή ημερομηνίας/ώρας",
+        dateTimeEditButton: "Επεξεργασία ημερομηνίας/ώρας",
+        dateTimeTypeLabel: "Τύπος",
+        dateTimeKindDate: "Ημερομηνία",
+        dateTimeKindTime: "Ώρα",
+        dateTimeKindDateTime: "Ημερομηνία και ώρα",
+
+        dateTimeStyleLabel: "Μορφή",
+        dateTimeStyleShort: "Σύντομη",
+        dateTimeStyleMedium: "Μεσαία",
+        dateTimeStyleLong: "Εκτενής",
+        dateTimeStyleFull: "Πλήρης",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Προσαρμοσμένη",
+        dateTimeStyleLocaleNote: "Μια επώνυμη μορφή αποθηκεύει τη μορφοποίηση που χρησιμοποιεί αυτήν τη στιγμή η περιοχή του Mac σας.",
+
+        dateTimeTimezoneLabel: "Ζώνη ώρας",
+        dateTimeTimezoneDeviceDefault: "Προεπιλογή συσκευής",
+        dateTimeTimezoneValid: "Έγκυρη ζώνη ώρας",
+        dateTimeTimezoneInvalid: "Μη αναγνωρισμένη ζώνη ώρας",
+        dateTimeTimezoneClear: "Εκκαθάριση ζώνης ώρας",
+        dateTimeTimezoneSearchPlaceholder: "Αναζήτηση ζωνών ώρας",
+
+        dateTimePatternLabel: "Μοτίβο",
+        dateTimePreviewLabel: "Προεπισκόπηση",
+        dateTimeConfirmInsert: "Εισαγωγή",
+        dateTimeConfirmUpdate: "Ενημέρωση",
+
+        soundToggle: "Αναπαραγωγή ήχου όταν αναπτύσσεται ένα πληκτρολογημένο κείμενο ενεργοποίησης",
+        soundCaption: "Αναπαράγεται ένας σύντομος ήχος συστήματος κάθε φορά που αναπτύσσεται ένα πληκτρολογημένο κείμενο ενεργοποίησης.",
+        soundPickerLabel: "Ήχος",
+        soundUnavailable: "Ο ήχος δεν είναι διαθέσιμος"
+    )
+
     static let enUS = SnippetFeatureStrings(
         pageTitle: "Text snippets",
         hubDescription: "Short triggers expand into full text",

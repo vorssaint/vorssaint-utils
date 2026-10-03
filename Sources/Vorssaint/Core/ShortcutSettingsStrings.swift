@@ -13,6 +13,7 @@ extension FeatureStrings {
     static func shortcuts(_ language: AppLanguage) -> ShortcutSettingsStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -32,6 +33,12 @@ extension FeatureStrings {
 }
 
 extension ShortcutSettingsStrings {
+    static let el = ShortcutSettingsStrings(
+        active: "Ενεργή",
+        inactive: "Ανενεργή",
+        superKeyAlternativeFormat: "ή %@"
+    )
+
     static let enUS = ShortcutSettingsStrings(
         active: "Active",
         inactive: "Inactive",

@@ -96,6 +96,7 @@ extension FeatureStrings {
     static func notch(_ language: AppLanguage) -> NotchStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -115,6 +116,116 @@ extension FeatureStrings {
 }
 
 extension NotchStrings {
+    static let el = NotchStrings(
+        title: "Dynamic Island",
+        combineActivities: "Συνδυασμός",
+        enable: "Ενεργοποίηση Dynamic Island",
+        description: "Η μουσική σας, τα στοιχεία ελέγχου και τα καθημερινά εργαλεία, μαζί στο επάνω μέρος της οθόνης σας. Προαιρετικό. Απενεργοποιήστε το για να συνεχίσετε να χρησιμοποιείτε τους ξεχωριστούς πίνακες.",
+        menuBarAccessHint: "Επιτρέψτε την Προσβασιμότητα, ώστε το Dynamic Island να μπορεί να εμφανίζεται σε αυτήν την οθόνη χωρίς να καλύπτει τα μενού.",
+
+        display: "Οθόνη",
+        automatic: "Αυτόματα",
+        builtIn: "Ενσωματωμένη οθόνη",
+        mainDisplay: "Κύρια οθόνη",
+        followPointer: "Ακολούθηση δείκτη",
+        allDisplays: "Όλες οι οθόνες",
+
+        hover: "Άνοιγμα όταν ο δείκτης παραμένει πάνω από το Dynamic Island",
+        modules: "Τι εμφανίζεται",
+        events: "Περισσότερες επιλογές",
+
+        clipboardActivity: "Γνωστοποίηση όταν αντιγράφεται κάτι",
+        captureActivity: "Εμφάνιση προεπισκοπήσεων στιγμιοτύπων οθόνης εδώ",
+        privacy: "Το αντιγραμμένο περιεχόμενο παραμένει ιδιωτικό μέχρι να ανοίξετε το Πρόχειρο. Αυτές οι επιλογές ακολουθούν τις ρυθμίσεις της αρχικής δυνατότητας.",
+
+        open: "Άνοιγμα Dynamic Island",
+        collapse: "Σύμπτυξη",
+        pin: "Διατήρηση ανοιχτού",
+        unpin: "Να επιτρέπεται το αυτόματο κλείσιμο",
+        panel: "Άνοιγμα πίνακα εφαρμογής",
+
+        dropHint: "Αφήστε αρχεία εδώ",
+        empty: "Επιλέξτε τι εμφανίζεται στις ρυθμίσεις του Dynamic Island.",
+
+        volume: "Ένταση ήχου",
+        brightness: "Φωτεινότητα",
+        battery: "Μπαταρία",
+        onBattery: "Με μπαταρία",
+        charging: "Φόρτιση",
+        charged: "Πλήρως φορτισμένη",
+        lowBattery: "Χαμηλή μπαταρία",
+
+        controls: "Στοιχεία ελέγχου",
+        system: "Σύστημα",
+        disabled: "Ενεργοποιήστε την αντίστοιχη δυνατότητα για να τη χρησιμοποιήσετε εδώ.",
+        files: "Αρχεία",
+
+        hideInFullscreen: "Απόκρυψη περιεχομένου σε πλήρη οθόνη",
+        showInCaptures: "Εμφάνιση σε στιγμιότυπα οθόνης και βίντεο",
+        clipboardWindow: "Άνοιγμα ιστορικού Προχείρου στο Dynamic Island",
+
+        tools: "Εργαλεία",
+        size: "Μέγεθος",
+        showOutline: "Εμφάνιση περιγράμματος",
+        compact: "Συμπαγές",
+        spacious: "Ευρύχωρο",
+        hoverExpand: "Πλήρης ανάπτυξη κατά την κατάδειξη",
+
+        shelfWindow: "Άνοιγμα του Ραφιού αρχείων στο Dynamic Island",
+        dragReveal: "Εμφάνιση στόχου απόθεσης κατά τη μεταφορά",
+        captureControls: "Εμφάνιση στοιχείων ελέγχου λήψης οθόνης στο Dynamic Island",
+        quickPanel: "Άνοιγμα γρήγορου πίνακα στο Dynamic Island",
+        appPanel: "Άνοιγμα πίνακα εφαρμογής στο Dynamic Island",
+
+        idleContent: "Κατά την αδράνεια",
+        idleNone: "Τίποτα",
+
+        coverMenus: "Εμφάνιση πάνω από τα μενού",
+        coverMenusHint: "Διατηρεί το χρονόμετρο, τη μουσική και άλλες συμπαγείς δραστηριότητες στην οθόνη όταν δεν υπάρχει χώρος στη γραμμή μενού, καλύπτοντας τα μενού δίπλα στην κάμερα.",
+
+        controlShortcuts: "Στοιχεία ελέγχου και συντομεύσεις",
+        activity: "Δραστηριότητα",
+        playingMusic: "Εμφάνιση μουσικής κατά την αναπαραγωγή",
+
+        custom: "Προσαρμοσμένο",
+        width: "Πλάτος",
+        maximumHeight: "Μέγιστο ύψος",
+        sizeHint: "Τα στοιχεία ελέγχου παραμένουν συμπαγή. Οι μεγαλύτερες λίστες χρησιμοποιούν έως αυτό το ύψος.",
+
+        cameraFit: "Προσαρμογή εγκοπής",
+        height: "Ύψος",
+        cameraFitHint: "Αν φαίνεται κάποιο άκρο της εγκοπής γύρω από το Dynamic Island, προσαρμόστε αυτές τις τιμές μέχρι να εξαφανιστεί.",
+
+        withoutNotch: "Οθόνες χωρίς εγκοπή",
+        capsuleShape: "Κάψουλα",
+        notchShape: "Εγκοπή",
+        capsuleFit: "Προσαρμογή κάψουλας",
+        fromTop: "Απόσταση από επάνω",
+        capsuleFitHint: "Αλλάζει το μέγεθος της κάψουλας και τη μετακινεί χαμηλότερα από το επάνω μέρος της οθόνης σε οθόνες χωρίς εγκοπή.",
+
+        hapticFeedback: "Απτική ανάδραση",
+        hapticHint: "Απαλά πατήματα κατά το άνοιγμα, την εναλλαγή ενοτήτων ή τη ρύθμιση των λεπτών του χρονομέτρου, σε συμβατή επιφάνεια αφής.",
+
+        playbackPosition: "Θέση αναπαραγωγής",
+        musicHint: "Η μουσική σας και τα στοιχεία ελέγχου αναπαραγωγής εμφανίζονται εδώ.",
+        music: "Μουσική",
+        captures: "Καταγραφές",
+        newTrack: "Νέο τραγούδι",
+
+        customizeTools: "Προσαρμογή εργαλείων",
+        switchSection: "Εναλλαγή ενότητας",
+        sectionsTitle: "Εξερεύνηση",
+        searchSections: "Εύρεση ενότητας",
+        sectionKeyboardHint: "Χρησιμοποιήστε τα πλήκτρα βέλους και μετά πατήστε Return",
+
+        quickAccessLeft: "Αριστερά",
+        quickAccessRight: "Δεξιά",
+
+        translucentBackground: "Ημιδιαφανές φόντο",
+        translucentBackgroundHint: "Όταν είναι ανοιχτό, το Dynamic Island θολώνει ό,τι βρίσκεται πίσω του χρησιμοποιώντας το υλικό του συστήματος.",
+        translucentBackgroundGlassHint: "Το Liquid Glass είναι ενεργό, οπότε το Dynamic Island το χρησιμοποιεί αντί γι’ αυτό."
+    )
+
     static let enUS = NotchStrings(
         title: "Dynamic Island",
         combineActivities: "Combine",

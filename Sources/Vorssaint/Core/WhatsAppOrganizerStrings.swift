@@ -38,6 +38,7 @@ struct WhatsAppOrganizerStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -57,6 +58,39 @@ struct WhatsAppOrganizerStrings {
 }
 
 extension WhatsAppOrganizerStrings {
+    static let el = WhatsAppOrganizerStrings(
+        title: "Αυτόματη οργάνωση",
+        experimental: "Πειραματικό",
+        description: "Μετακινεί τις ολοκληρωμένες λήψεις του WhatsApp σε ειδικό φάκελο και εντοπίζει πανομοιότυπες επαναλαμβανόμενες λήψεις.",
+        enabled: "Αυτόματη οργάνωση",
+        enabledCaption: "Το WhatsApp μπορεί να πραγματοποιήσει ξανά λήψη ενός αρχείου που μετακινήθηκε. Το Vorssaint δεν μπορεί να αποτρέψει τη λήψη από το δίκτυο, αλλά μπορεί να εντοπίσει και να απορρίψει ένα πανομοιότυπο επιπλέον αντίγραφο.",
+        destination: "Φάκελος προορισμού",
+        chooseFolder: "Επιλογή…",
+        useDefault: "Χρήση Λήψεις/WhatsApp",
+        invalidDestination: "Επιλέξτε έναν φάκελο διαφορετικό από τον ίδιο τον φάκελο «Λήψεις».",
+        organization: "Δομή φακέλων",
+        flat: "Χωρίς υποφακέλους",
+        byType: "Κατά τύπο αρχείου",
+        byMonth: "Κατά έτος και μήνα",
+        delay: "Αναμονή πριν από τη μετακίνηση",
+        minutesFormat: "%d λεπτά",
+        duplicateAction: "Όταν γίνει ξανά λήψη του ίδιου αρχείου",
+        trashDuplicate: "Μετακίνηση του νέου αντιγράφου στον Κάδο",
+        keepBoth: "Διατήρηση και των δύο αντιγράφων",
+        replaceExisting: "Αντικατάσταση του οργανωμένου αντιγράφου",
+        duplicateCaption: "Τα διπλότυπα επιβεβαιώνονται με ιδιωτικό αποτύπωμα SHA-256. Το οργανωμένο αντίγραφο ελέγχεται ξανά πριν απορριφθεί κάποιο άλλο αντίγραφο.",
+        organizeNow: "Οργάνωση κατάλληλων αρχείων τώρα",
+        undo: "Αναίρεση τελευταίας οργάνωσης",
+        waiting: "Παρακολούθηση Λήψεων",
+        working: "Οργάνωση αρχείων WhatsApp…",
+        resultFormat: "%1$d μετακινήθηκαν · %2$d διπλότυπα · %3$d απέτυχαν",
+        lastRunFormat: "Τελευταία οργάνωση %@: %d μετακινήθηκαν · %d διπλότυπα · %d απέτυχαν",
+        neverRun: "Δεν έχει πραγματοποιηθεί ακόμη οργάνωση.",
+        notificationTitle: "Οργάνωση WhatsApp",
+        notificationFormat: "%1$d αρχεία οργανώθηκαν. Έγινε διαχείριση %2$d διπλότυπων λήψεων. %3$d απέτυχαν.",
+        privacyNote: "Για τον εντοπισμό πανομοιότυπων διπλότυπων, τα byte των αρχείων διαβάζονται μόνο τοπικά κατά τον υπολογισμό ενός κρυπτογραφικού αποτυπώματος. Τα περιεχόμενα και οι συνομιλίες δεν αποθηκεύονται ούτε αποστέλλονται ποτέ."
+    )
+
     static let enUS = WhatsAppOrganizerStrings(
         title: "Automatic organization",
         experimental: "Experimental",

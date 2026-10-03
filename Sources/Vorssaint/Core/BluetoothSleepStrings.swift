@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func bluetoothSleep(_ language: AppLanguage) -> BluetoothSleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -39,6 +40,16 @@ extension FeatureStrings {
 }
 
 extension BluetoothSleepStrings {
+    static let el = BluetoothSleepStrings(
+        pageTitle: "Bluetooth κατά τον ύπνο",
+        hubDescription: "Απενεργοποιεί το Bluetooth όσο το Mac βρίσκεται σε κατάσταση ύπνου, ώστε να μη συνδέονται ακουστικά που βρίσκονται σε τσάντα.",
+        enable: "Απενεργοποίηση Bluetooth όταν το Mac μεταβαίνει σε κατάσταση ύπνου",
+        enableCaption: "Αν το Bluetooth ήταν ήδη απενεργοποιημένο πριν από τον ύπνο, παραμένει απενεργοποιημένο και μετά την αφύπνιση.",
+        restoreToggle: "Ενεργοποίηση Bluetooth όταν το Mac αφυπνίζεται",
+        restoreCaption: "Μόνο όταν το Vorssaint ήταν αυτό που το απενεργοποίησε.",
+        unsupported: "Αυτό το Mac δεν διαθέτει ελεγκτή Bluetooth."
+    )
+
     static let enUS = BluetoothSleepStrings(
         pageTitle: "Bluetooth on sleep",
         hubDescription: "Switches Bluetooth off while the Mac sleeps, so headphones in a bag stop connecting to it.",

@@ -53,6 +53,7 @@ extension FeatureStrings {
     static func fanControl(_ language: AppLanguage) -> FanControlFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -72,6 +73,52 @@ extension FeatureStrings {
 }
 
 extension FanControlFeatureStrings {
+    static let el = FanControlFeatureStrings(
+        title: "Έλεγχος ανεμιστήρων",
+        hubDescription: "Ελέγξτε τους ανεμιστήρες χειροκίνητα ή με καμπύλες θερμοκρασίας, βλέποντας τις τρέχουσες και τις επιθυμητές RPM",
+        showInPanel: "Εμφάνιση Ελέγχου ανεμιστήρων στον πίνακα",
+        settingsCaption: "Προσθέτει χειροκίνητες ταχύτητες ανεμιστήρων και καμπύλες θερμοκρασίας στον πίνακα της γραμμής μενού.",
+        fanNameFormat: "Ανεμιστήρας %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Να επιτρέπεται ο έλεγχος ανεμιστήρων",
+        approvalCaption: "Επιτρέψτε το Vorssaint στα «Στοιχεία εισόδου και επεκτάσεις» για χρήση του προστατευμένου ελεγκτή ανεμιστήρων.",
+        openSettings: "Άνοιγμα Ρυθμίσεων συστήματος",
+        noFans: "Αυτό το Mac δεν διαθέτει ελεγχόμενο ανεμιστήρα.",
+        unsupported: "Ο έλεγχος ανεμιστήρων δεν είναι διαθέσιμος σε αυτό το Mac.",
+        alreadyControlled: "Μια άλλη διεργασία ελέγχει τους ανεμιστήρες. Επαναφέρετέ τους πρώτα στον έλεγχο του συστήματος.",
+        failed: "Οι ανεμιστήρες επέστρεψαν στον έλεγχο του συστήματος επειδή δεν ήταν δυνατή η επαλήθευση του ζητούμενου ελέγχου.",
+        safetyCaption: "Ο έλεγχος παραμένει ενεργός μέχρι να επιστρέψετε στο Σύστημα. Επιστρέφει αυτόματα στον έλεγχο του συστήματος αν αποσυνδεθεί η εφαρμογή, το Mac μεταβεί σε κατάσταση ύπνου, αποτύχουν οι μετρήσεις αισθητήρων ή αυξηθεί η θερμική πίεση.",
+        safetyStopped: "Έγινε επιστροφή στον έλεγχο του συστήματος επειδή διακόπηκε ο έλεγχος των ανεμιστήρων.",
+        menuBarTitle: "Ταχύτητα ανεμιστήρων",
+        systemControl: "Σύστημα",
+        manualControl: "Χειροκίνητα",
+        customCurve: "Καμπύλη",
+        mode: "Λειτουργία ελέγχου",
+        coolingIntensity: "Ταχύτητα ανεμιστήρων",
+        currentRPMFormat: "Τρέχουσες %d RPM",
+        targetRPMFormat: "Στόχος %d RPM",
+        applyManual: "Εφαρμογή χειροκίνητου ελέγχου",
+        applyCurve: "Εφαρμογή καμπύλης ανεμιστήρων",
+        returnToSystem: "Χρήση ελέγχου συστήματος",
+        temperatureUnavailable: "Ο επιλεγμένος αισθητήρας θερμοκρασίας σταμάτησε να αποκρίνεται. Ο έλεγχος ανεμιστήρων επέστρεψε στο Σύστημα.",
+        curveUnavailable: "Ένας επιλεγμένος αισθητήρας θερμοκρασίας δεν είναι διαθέσιμος σε αυτό το Mac.",
+        sensor: "Αισθητήρας θερμοκρασίας",
+        temperature: "Θερμοκρασία",
+        fanSpeed: "Ταχύτητα ανεμιστήρων",
+        addPoint: "Προσθήκη σημείου",
+        addSensor: "Προσθήκη αισθητήρα",
+        removePoint: "Αφαίρεση σημείου",
+        removeSensor: "Αφαίρεση αισθητήρα",
+        curveGraph: "Καμπύλη θερμοκρασίας και ταχύτητας ανεμιστήρων",
+        averageSoC: "Μέση θερμοκρασία SoC",
+        hottestSoC: "Θερμότερο SoC",
+        averageCPU: "Μέση θερμοκρασία CPU",
+        hottestCPU: "Θερμότερη CPU",
+        hottestGPU: "Θερμότερη GPU",
+        helperUnavailable: "Ο προστατευμένος ελεγκτής ανεμιστήρων δεν είναι διαθέσιμος. Επιτρέψτε το Vorssaint στα «Στοιχεία εισόδου και επεκτάσεις» και δοκιμάστε ξανά.",
+        resumeAfterRestart: "Συνέχιση μετά από επανεκκίνηση ή ύπνο"
+    )
+
     static let enUS = FanControlFeatureStrings(
         title: "Fan Control",
         hubDescription: "Control fans manually or with temperature curves while seeing live and target RPM",

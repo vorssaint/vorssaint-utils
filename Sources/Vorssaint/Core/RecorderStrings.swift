@@ -147,6 +147,7 @@ extension FeatureStrings {
     static func recorder(_ language: AppLanguage) -> RecorderFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -166,6 +167,175 @@ extension FeatureStrings {
 }
 
 extension RecorderFeatureStrings {
+    static let el = RecorderFeatureStrings(
+        pageTitle: "Εγγραφή οθόνης",
+        hubDescription: "Εγγράφει μια περιοχή, ένα παράθυρο ή την οθόνη και επιτρέπει την επεξεργασία μετά",
+        panelCaption: "Εγγράψτε μια περιοχή, ένα παράθυρο ή ολόκληρη την οθόνη",
+        startButton: "Έναρξη εγγραφής",
+        stopButton: "Διακοπή εγγραφής",
+        fileNamePrefix: "Εγγραφή",
+        selectionPurpose: "Επιλέξτε τι θα εγγραφεί",
+        indicatorTooltip: "Στοιχεία ελέγχου εγγραφής",
+
+        countdownLabel: "Αντίστροφη μέτρηση",
+        countdownOff: "Απενεργοποιημένη",
+        countdownSecondsFormat: "%d δευτ.",
+
+        qualityLabel: "Ποιότητα",
+        qualitySmall: "Μικρό αρχείο",
+        qualityBalanced: "Ισορροπημένη",
+        qualityHigh: "Υψηλή",
+        qualityCaption: "Η ισορροπημένη ποιότητα είναι κατάλληλη για τις περισσότερες χρήσεις. Η υψηλή διατηρεί κάθε λεπτομέρεια και δημιουργεί μεγαλύτερα αρχεία.",
+
+        frameRateLabel: "Καρέ ανά δευτερόλεπτο",
+        frameRateFormat: "%d FPS",
+
+        systemAudioToggle: "Εγγραφή του ήχου του Mac",
+        systemAudioCaption: "Ό,τι ακούτε περιλαμβάνεται στην εγγραφή σε ξεχωριστό κομμάτι, ώστε να μπορείτε να το θέσετε σε σίγαση αργότερα.",
+
+        folderLabel: "Αποθήκευση σε",
+        folderChoose: "Επιλογή…",
+        moreOptions: "Περισσότερες επιλογές",
+
+        copyButton: "Αντιγραφή",
+        copyGIFButton: "Αντιγραφή ως GIF",
+        saveButton: "Αποθήκευση",
+        discardButton: "Διαγραφή",
+
+        copiedHUD: "Η εγγραφή αντιγράφηκε",
+        savedHUDFormat: "Αποθηκεύτηκε στο %@",
+        recordFailed: "Δεν ήταν δυνατή η εγγραφή της οθόνης",
+
+        noSpaceTitle: "Δεν υπάρχει αρκετός χώρος για εγγραφή",
+        noSpaceMessage: "Ελευθερώστε χώρο στον δίσκο και δοκιμάστε ξανά.",
+        stoppedNoSpaceHUD: "Η εγγραφή διακόπηκε, ο δίσκος είναι σχεδόν γεμάτος",
+
+        shortcutLabel: "Συντόμευση",
+
+        editorTitle: "Εγγραφή",
+        saveVideoButton: "Αποθήκευση",
+        saveGIFButton: "Αποθήκευση ως GIF",
+        exportingLabel: "Αποθήκευση…",
+        cancelButton: "Ακύρωση",
+        exportFailed: "Δεν ήταν δυνατή η αποθήκευση της εγγραφής",
+
+        gifTooLongFormat: "Ένα GIF μπορεί να έχει διάρκεια έως %d δευτερόλεπτα",
+        gifSizeLabel: "Μέγεθος GIF",
+        gifSizeSmall: "Μικρό",
+        gifSizeMedium: "Μεσαίο",
+        gifSizeLarge: "Μεγάλο",
+        gifFrameRateLabel: "Ομαλότητα GIF",
+
+        discardTitle: "Διαγραφή αυτής της εγγραφής;",
+        discardMessage: "Δεν έχει αποθηκευτεί ακόμη πουθενά.",
+
+        openEditorToggle: "Άνοιγμα του επεξεργαστή μετά την εγγραφή",
+        openEditorCaption: "Η εγγραφή ανοίγει έτοιμη για περικοπή, σίγαση και αποθήκευση. Απενεργοποιήστε το για να λάβετε αμέσως το αρχείο.",
+
+        lookLabel: "Εμφάνιση",
+        lookRaw: "Αρχική",
+        lookClean: "Ομαλή",
+        lookStudio: "Στούντιο",
+        lookCaption: "Ένα σημείο εκκίνησης. Αλλάξτε οτιδήποτε παρακάτω και η αλλαγή θα διατηρηθεί.",
+
+        pointerSectionLabel: "Δείκτης",
+        pointerShowToggle: "Εμφάνιση του δείκτη",
+        pointerSmoothingLabel: "Εξομάλυνση",
+        pointerSmoothingOff: "Καμία",
+        pointerSmoothingLight: "Ελαφριά",
+        pointerSmoothingSmooth: "Ομαλή",
+        pointerSmoothingCinematic: "Κινηματογραφική",
+        pointerSizeLabel: "Μέγεθος",
+        clickRingToggle: "Επισήμανση των σημείων όπου κάνετε κλικ",
+
+        zoomSectionLabel: "Ζουμ",
+        zoomToggle: "Ζουμ σε κάθε κλικ",
+        zoomAmountLabel: "Βαθμός μεγέθυνσης",
+
+        backgroundSectionLabel: "Φόντο",
+        shapeLabel: "Σχήμα",
+        shapeOriginal: "Αρχικό",
+        shapeWide: "Ευρύ",
+        shapeSquare: "Τετράγωνο",
+        shapeVertical: "Κατακόρυφο",
+
+        noPointerNote: "Αυτή η εγγραφή δεν έχει κομμάτι δείκτη, επομένως δεν υπάρχει κάτι για εξομάλυνση. Τα ζουμ που προσθέτετε χειροκίνητα εξακολουθούν να λειτουργούν.",
+
+        zoomLaneEmptyHint: "Κάντε κλικ εδώ για να προσθέσετε ζουμ",
+        addZoomButton: "Προσθήκη ζουμ",
+        removeZoom: "Αφαίρεση",
+        thisZoomLabel: "Αυτό το ζουμ",
+        zoomWhereLabel: "Σημείο εστίασης",
+        zoomFollowsPointer: "Ακολουθεί τον δείκτη",
+        zoomPickSpot: "Επιλογή σημείου",
+        zoomPickSpotHint: "Κάντε κλικ στην εικόνα για να ορίσετε το σημείο",
+        regenerateZooms: "Επιστροφή σε ένα ζουμ ανά κλικ",
+        backToOptions: "Όλες οι επιλογές",
+
+        cutOutButton: "Αποκοπή τμήματος",
+        cutHint: "Σύρετε πάνω στη γραμμή χρόνου για να επιλέξετε το τμήμα που θα αφαιρεθεί",
+
+        addTextButton: "Προσθήκη κειμένου",
+        textLaneEmptyHint: "Κάντε κλικ εδώ για να προσθέσετε κείμενο",
+        thisTextLabel: "Αυτό το κείμενο",
+        textPlaceholder: "Το κείμενό σας εδώ",
+        textContentLabel: "Κείμενο",
+        textSizeLabel: "Μέγεθος",
+        textPositionLabel: "Θέση",
+        textColorLabel: "Χρώμα",
+        removeText: "Αφαίρεση",
+
+        copyAndDeleteButton: "Αντιγραφή και διαγραφή",
+        saveAsButton: "Αποθήκευση ως…",
+        discardSavedMessage: "Τα αποθηκευμένα και αντιγραμμένα αρχεία θα παραμείνουν στη θέση τους.",
+
+        presetsButton: "Προεπιλογές",
+        savePreset: "Αποθήκευση τρέχουσας προεπιλογής…",
+        presetNamePlaceholder: "Όνομα προεπιλογής",
+        removePreset: "Αφαίρεση προεπιλογής",
+
+        zoomEmptyTitle: "Δεν υπάρχουν ακόμη ζουμ",
+        zoomEmptyCaption: "Δημιουργήστε τα από τα κλικ σας ή προσθέστε ένα στη γραμμή χρόνου.",
+        createAutomaticZooms: "Δημιουργία αυτόματων ζουμ",
+
+        typingZoomToggle: "Διατήρηση του ζουμ κατά την πληκτρολόγηση",
+        typingZoomCaption: "Μετά από ένα κλικ, η πληκτρολόγηση διατηρεί το αυτόματο ζουμ σε αυτό το σημείο.",
+
+        microphoneToggle: "Εγγραφή μικροφώνου",
+        microphoneCaption: "Η φωνή σας εγγράφεται σε ξεχωριστό κομμάτι και παραμένει ρυθμιζόμενη στον επεξεργαστή.",
+        systemAudioTrackLabel: "Ήχος Mac",
+        microphoneTrackLabel: "Μικρόφωνο",
+        audioVolumeLabel: "Ένταση ήχου",
+        removeAudio: "Αφαίρεση",
+        restoreAudio: "Επαναφορά",
+        microphoneUnavailableHUD: "Το μικρόφωνο δεν είναι διαθέσιμο",
+        microphonePermissionName: "Μικρόφωνο",
+        microphonePermissionExplain: "Επιτρέπει στις εγγραφές οθόνης να περιλαμβάνουν τη φωνή σας όταν το ενεργοποιείτε.",
+
+        automaticZoomToggle: "Αυτόματη προσθήκη ζουμ",
+        automaticZoomCaption: "Απενεργοποιήστε το για να ξεκινούν οι νέες εγγραφές χωρίς ζουμ. Μπορείτε πάντα να τα προσθέσετε στον επεξεργαστή.",
+
+        pauseButton: "Παύση εγγραφής",
+        resumeButton: "Συνέχιση εγγραφής",
+
+        blurLaneLabel: "Θόλωση",
+        addBlurButton: "Θόλωση περιοχής",
+        blurLaneEmptyHint: "Κάντε κλικ εδώ για να προσθέσετε θόλωση",
+        thisBlurLabel: "Αυτή η θόλωση",
+        blurPickArea: "Επιλογή περιοχής",
+        blurPickAreaHint: "Σύρετε πάνω από ό,τι πρέπει να παραμείνει κρυφό",
+        blurCaption: "Παραμένει κρυφό για όσο διαρκεί το αντίστοιχο τμήμα στη γραμμή χρόνου.",
+
+        addImageButton: "Προσθήκη εικόνας",
+        imageLaneLabel: "Εικόνα",
+        imageLaneEmptyHint: "Κάντε κλικ εδώ για να προσθέσετε εικόνα",
+        thisImageLabel: "Αυτή η εικόνα",
+        imageSizeLabel: "Μέγεθος",
+        imageOpacityLabel: "Αδιαφάνεια",
+        imagePositionLabel: "Θέση",
+        imageImportFailed: "Δεν ήταν δυνατή η προσθήκη αυτής της εικόνας."
+    )
+
     static let enUS = RecorderFeatureStrings(
         pageTitle: "Screen recording",
         hubDescription: "Records an area, window or screen and edits it afterwards",

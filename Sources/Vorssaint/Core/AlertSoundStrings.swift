@@ -33,6 +33,7 @@ enum AlertSoundStrings {
 
     private static func table(for language: AppLanguage) -> [String: String] {
         switch language {
+        case .el: return el
         case .enUS: return enUS
         case .ptBR: return ptBR
         case .tr: return tr
@@ -48,6 +49,24 @@ enum AlertSoundStrings {
         case .ja, .ko, .zhHans, .zhTW, .zhHK: return enUS
         }
     }
+
+    // Names taken verbatim from Apple's Greek AlertSounds.loctable.
+    private static let el: [String: String] = [
+        "Basso": "Μέτζο",
+        "Blow": "Ασθενής άνεμος",
+        "Bottle": "Χαλίκι",
+        "Frog": "Μεταπήδηση",
+        "Funk": "Φάνκι",
+        "Glass": "Κρύσταλλο",
+        "Hero": "Ηρωίδα",
+        "Morse": "Σήματα Μορς",
+        "Ping": "Σόναρ",
+        "Pop": "Φούσκα",
+        "Purr": "Χορδή",
+        "Sosumi": "Ξυλόφωνο",
+        "Submarine": "Κατάδυση",
+        "Tink": "Μπουπ",
+    ]
 
     private static let enUS: [String: String] = [
         "Basso": "Mezzo",
