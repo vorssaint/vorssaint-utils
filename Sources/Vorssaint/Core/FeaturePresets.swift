@@ -105,9 +105,14 @@ extension AppFeature {
                     from: UserDefaults.standard.string(
                         forKey: DefaultsKey.windowEdgeSnapDisabledZones)
                 ).isEmpty
-            return UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+            let pointerTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
                 || edgeSnapRuns
-                ? .pointer : .idle
+            let modifierTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
+                && UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
+                    .flatMap(WindowDirectionalTrigger.init(storageValue:))
+                    .map { if case .modifiers = $0 { return true }; return false } == true
+            if pointerTapRuns { return modifierTapRuns ? .inputs : .pointer }
+            return modifierTapRuns ? .keyboard : .idle
         case .radialMenu:
             // A side button or the trackpad tap on any wheel keeps an input
             // tap running; shortcut-only costs nothing at rest.

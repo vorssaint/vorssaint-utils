@@ -1793,6 +1793,13 @@ enum FeatureCatalogTests {
         let previousWindowGestureEnergy = UserDefaults.standard.object(
             forKey: DefaultsKey.windowGestureEnabled
         )
+        let previousWindowDirectionalEnergy = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowDirectionalEnabled
+        )
+        let previousWindowDirectionalShortcut = UserDefaults.standard.object(
+            forKey: DefaultsKey.windowDirectionalShortcut
+        )
+        UserDefaults.standard.set(false, forKey: DefaultsKey.windowDirectionalEnabled)
         UserDefaults.standard.set(true, forKey: DefaultsKey.windowGestureEnabled)
         suite.expect(AppFeature.windowLayout.energyProfile == .pointer,
                "window dragging reports trackpad and mouse pointer input")
@@ -1819,6 +1826,19 @@ enum FeatureCatalogTests {
         )
         suite.expect(AppFeature.windowLayout.energyProfile == .idle,
                "edge snapping keeps no pointer listener when every visual zone is off")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.windowDirectionalEnabled)
+        UserDefaults.standard.set("modifiers:control+command",
+                                  forKey: DefaultsKey.windowDirectionalShortcut)
+        suite.expect(AppFeature.windowLayout.energyProfile == .keyboard,
+               "a modifier-only pointer layout trigger reports its idle keyboard tap")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.windowGestureEnabled)
+        suite.expect(AppFeature.windowLayout.energyProfile == .inputs,
+               "window layout reports mouse and keyboard when pointer and modifier taps both run")
+        UserDefaults.standard.set(false, forKey: DefaultsKey.windowGestureEnabled)
+        UserDefaults.standard.set(GlobalShortcut.windowDirectionalDefault.storageValue,
+                                  forKey: DefaultsKey.windowDirectionalShortcut)
+        suite.expect(AppFeature.windowLayout.energyProfile == .idle,
+               "a key-based pointer layout trigger keeps no event tap at rest")
         if let previousWindowEdgeSnapZones {
             UserDefaults.standard.set(previousWindowEdgeSnapZones,
                                       forKey: DefaultsKey.windowEdgeSnapDisabledZones)
@@ -1836,6 +1856,18 @@ enum FeatureCatalogTests {
                                       forKey: DefaultsKey.windowGestureEnabled)
         } else {
             UserDefaults.standard.removeObject(forKey: DefaultsKey.windowGestureEnabled)
+        }
+        if let previousWindowDirectionalShortcut {
+            UserDefaults.standard.set(previousWindowDirectionalShortcut,
+                                      forKey: DefaultsKey.windowDirectionalShortcut)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowDirectionalShortcut)
+        }
+        if let previousWindowDirectionalEnergy {
+            UserDefaults.standard.set(previousWindowDirectionalEnergy,
+                                      forKey: DefaultsKey.windowDirectionalEnabled)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.windowDirectionalEnabled)
         }
         let radialMenuEnergyKeys = [DefaultsKey.radialMenuProfiles, DefaultsKey.radialMenuMouseButton]
         let previousRadialMenuEnergy = radialMenuEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
