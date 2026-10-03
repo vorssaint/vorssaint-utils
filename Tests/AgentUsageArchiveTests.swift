@@ -234,6 +234,7 @@ enum AgentUsageArchiveTests {
                      "a log written again in place while the app runs is read again at once, and the next launch counts only what it holds")
 
         openCode(suite, now: now)
+        piRecordedCost(suite, folder: folder, now: now)
 
         // Developer builds keep the version of their release, and each one
         // may parse differently.
@@ -312,6 +313,29 @@ enum AgentUsageArchiveTests {
             suite.expect(layout.stored == layout.written,
                          "every stored property of \(layout.name) has its place in the archive's layout or is listed as not kept")
         }
+    }
+
+    /// Pi's logs are saved like the others, so a cost Pi recorded for a model
+    /// the list does not price has to survive the next launch's repricing.
+    private static func piRecordedCost(_ suite: TestSuite, folder: URL, now: Date) {
+        let log = folder.appending(path: "pi.jsonl")
+        try? Data("""
+        {"type":"session","version":3,"id":"pi-s","timestamp":"2026-09-22T14:00:00.000Z","cwd":"/Users/me/code/web"}
+        {"type":"message","id":"b1","timestamp":"2026-09-22T14:00:01.000Z","message":{"role":"assistant","model":"mystery-pi-model","stopReason":"stop","usage":{"input":100,"output":10,"cacheRead":0,"cacheWrite":0,"reasoning":0,"cost":{"total":0.25}}}}
+
+        """.utf8).write(to: log)
+        let store = AgentUsageStore()
+        let cursor = AgentLogCursor(path: log.path, provider: .pi)
+        AgentLogReader.readAppended(cursor) { line in
+            store.apply(AgentLogParser.parsePi(line, state: &cursor.state, now: now), file: cursor.path, provider: .pi,
+                        tracksTurns: cursor.tracksTurns, parent: cursor.parent, modified: cursor.modified, now: now)
+        }
+        let contents = AgentUsageArchive.Contents(providers: [.pi], store: store.saved, cursors: [cursor.saved])
+        let decoded = AgentUsageArchive.decode(AgentUsageArchive.encode(contents, build: build), build: build)
+        let resumed = decoded.map { AgentUsageArchive.resume($0, logs: [log.path], since: .distantPast) }
+        let record = resumed?.store.records.first
+        suite.expect(store.records.first?.reportedCost == true && record?.cost == 0.25 && record?.reportedCost == true,
+                     "a cost Pi recorded for an unpriced model is still there after a relaunch")
     }
 
     /// OpenCode's database is read again at each launch. Nothing from it is

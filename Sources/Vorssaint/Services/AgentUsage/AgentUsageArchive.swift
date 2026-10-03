@@ -282,6 +282,7 @@ enum AgentUsageArchive {
             tokens(value.tokens)
             optional(value.cost) { $0.double($1) }
             double(value.savings)
+            bool(value.reportedCost)
         }
 
         mutating func limits(_ value: AgentLimits) {
@@ -441,7 +442,7 @@ enum AgentUsageArchive {
             AgentUsageRecord(provider: try provider(), date: try date(), model: try string(), project: try string(),
                              session: try string(), requests: try amount(),
                              tokens: try tokens(), cost: try optional { try $0.double() },
-                             savings: try double())
+                             savings: try double(), reportedCost: try bool())
         }
 
         mutating func limits() throws -> AgentLimits {
