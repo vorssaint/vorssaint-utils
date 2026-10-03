@@ -166,23 +166,9 @@ enum ScreenshotCaptureEngine {
         // own, and neither single-window route draws it (issue #1098). The
         // window list answers this without waiting on shareable content, so
         // the ordinary capture keeps the faster route.
-        let onScreen = onScreenWindows()
-        if let target = onScreen.first(where: { $0.id == windowID }),
-           let geometricPlan = ScreenshotCapturePolicy.attachedCapturePlan(
-               target: target, frontToBack: onScreen) {
-            var plan: ScreenshotCapturePolicy.AttachedCapturePlan? = geometricPlan
-            if Permissions.shared.accessibility {
-                let confirmedIDs = accessibilityAttachedWindowIDs(
-                    targetWindowID: target.id,
-                    ownerPID: target.ownerPID,
-                    candidateWindowIDs: Array(geometricPlan.windowIDs.dropFirst()))
-                plan = ScreenshotCapturePolicy.confirmedAttachment(
-                    geometricPlan, confirmedIDs: confirmedIDs)
-            }
-            if let plan,
-               let composited = await captureAttached(plan) {
-                return composited
-            }
+        if let plan = attachedCapturePlan(for: windowID),
+           let composited = await captureAttached(plan) {
+            return composited
         }
         var clippedFallback: CGImage?
         let capturedImage = await WindowPreviewProvider.captureViaWindowServer(windowID)
@@ -214,6 +200,27 @@ enum ScreenshotCaptureEngine {
         let capture = try? await SCScreenshotManager.captureImage(contentFilter: filter,
                                                                   configuration: configuration)
         return capture ?? clippedFallback
+    }
+
+    /// The clicked window and what the app has stacked on it right now, as
+    /// the window list shows it, narrowed by Accessibility when that is
+    /// granted. `nil` when nothing is attached. The recorder asks this again
+    /// while it runs, so the answer is read fresh every time.
+    static func attachedCapturePlan(for windowID: CGWindowID) -> ScreenshotCapturePolicy.AttachedCapturePlan? {
+        let onScreen = onScreenWindows()
+        guard let target = onScreen.first(where: { $0.id == windowID }),
+              let geometricPlan = ScreenshotCapturePolicy.attachedCapturePlan(
+                  target: target, frontToBack: onScreen)
+        else { return nil }
+        if Permissions.shared.accessibility {
+            let confirmedIDs = accessibilityAttachedWindowIDs(
+                targetWindowID: target.id,
+                ownerPID: target.ownerPID,
+                candidateWindowIDs: Array(geometricPlan.windowIDs.dropFirst()))
+            return ScreenshotCapturePolicy.confirmedAttachment(
+                geometricPlan, confirmedIDs: confirmedIDs)
+        }
+        return geometricPlan
     }
 
     /// On-screen windows front to back, as the attached-window decision needs

@@ -44,6 +44,15 @@ final class RecorderCaptureEngine: NSObject {
     private let lifecycleLock = NSLock()
     private var lifecycle = RecorderCaptureLifecycle()
     private var stream: SCStream?
+    /// The windows a clicked-window stream includes: the window first, then
+    /// what the app has stacked on it. Empty for a plain region. Guarded by
+    /// `lifecycleLock` with the flag that keeps one refresh in flight.
+    private var includedWindowIDs: [CGWindowID] = []
+    private var attachmentRefreshInFlight = false
+    /// Answers the clicked window with itself and what the app has stacked on
+    /// it. Handed in at start, since the window list and its Accessibility
+    /// confirmation live with the screenshot engine, outside this file.
+    private var attachedWindows: (CGWindowID) -> [CGWindowID] = { [$0] }
 
     /// True while pixels are being delivered. Read from the main thread.
     var isRunning: Bool {
@@ -58,6 +67,7 @@ final class RecorderCaptureEngine: NSObject {
                frameRate: Int,
                capturesSystemAudio: Bool,
                excludedWindowNumbers: [Int],
+               attachedWindows: @escaping (CGWindowID) -> [CGWindowID] = { [$0] },
                willStartCapture: (CMTime) -> Void,
                isCancelled: @escaping () -> Bool) async -> RecorderFailure? {
         guard lifecycleLock.withLock({ self.stream == nil }), !isCancelled() else {
@@ -76,11 +86,17 @@ final class RecorderCaptureEngine: NSObject {
         // Keep the call and optional binding as separate type-checking targets.
         // Older Swift compilers otherwise crash in their constraint walker when
         // this expression sits inside the larger async start routine.
+        let included = region.windowID.map(attachedWindows) ?? []
         let preparedFilter: SCContentFilter? = Self.filter(
             for: region,
             in: content,
-            excluding: excludedWindowNumbers)
+            excluding: excludedWindowNumbers,
+            including: included)
         guard let filter = preparedFilter else { return .noContent }
+        lifecycleLock.withLock {
+            includedWindowIDs = included
+            self.attachedWindows = attachedWindows
+        }
 
         let configuration = SCStreamConfiguration()
         configuration.width = Int(region.pixelRect.width)
@@ -89,10 +105,10 @@ final class RecorderCaptureEngine: NSObject {
                                                     timescale: CMTimeScale(frameRate))
         configuration.pixelFormat = kCVPixelFormatType_32BGRA
         configuration.colorSpaceName = CGColorSpace.sRGB
-        // An independent window keeps the output dimensions chosen when the
-        // recording starts. Scaling it into that output makes later window
-        // resizes follow the recording instead of leaving an empty frame.
-        configuration.scalesToFit = region.windowID != nil
+        // The recorded rectangle is fixed at start for every kind of region,
+        // so nothing is scaled: a clicked window that moves or resizes shows
+        // whatever now lies in its original rectangle.
+        configuration.scalesToFit = false
         configuration.preservesAspectRatio = true
         configuration.captureResolution = .best
         // The pointer is drawn by us afterwards, from the track the sampler
@@ -104,9 +120,7 @@ final class RecorderCaptureEngine: NSObject {
         // they would be baked into the frame the background is drawn behind.
         configuration.ignoreShadowsDisplay = true
         configuration.ignoreShadowsSingleWindow = true
-        if region.windowID == nil {
-            configuration.sourceRect = Self.sourceRect(for: region)
-        }
+        configuration.sourceRect = Self.sourceRect(for: region)
         if capturesSystemAudio {
             configuration.capturesAudio = true
             configuration.sampleRate = 48_000
@@ -176,6 +190,30 @@ final class RecorderCaptureEngine: NSObject {
         queue.sync {}
     }
 
+    /// Re-reads what the app has stacked on the clicked window and swaps the
+    /// stream's filter when that set changed, so a sheet or dialog that opens
+    /// or closes mid-recording enters or leaves the video. The source
+    /// rectangle lives in the configuration, which a filter swap leaves alone.
+    /// A tick that finds a refresh already in flight does nothing.
+    func refreshAttachedWindows(for region: RecorderSupport.Region) async {
+        guard let windowID = region.windowID else { return }
+        let wanted = lifecycleLock.withLock { attachedWindows }(windowID)
+        let stream: SCStream? = lifecycleLock.withLock {
+            guard lifecycle.isRunning, !attachmentRefreshInFlight,
+                  wanted != includedWindowIDs else { return nil }
+            attachmentRefreshInFlight = true
+            return self.stream
+        }
+        guard let stream else { return }
+        defer { lifecycleLock.withLock { attachmentRefreshInFlight = false } }
+        guard let content = try? await SCShareableContent.excludingDesktopWindows(
+                  false, onScreenWindowsOnly: true),
+              let filter = Self.windowFilter(for: region, in: content, including: wanted)
+        else { return }
+        guard (try? await stream.updateContentFilter(filter)) != nil else { return }
+        lifecycleLock.withLock { includedWindowIDs = wanted }
+    }
+
     private func stopAndDrain(_ stream: SCStream) async {
         try? await stream.stopCapture()
         queue.sync {}
@@ -183,12 +221,28 @@ final class RecorderCaptureEngine: NSObject {
 
     // MARK: - Filter
 
+    /// A clicked window records through the display, limited to an explicit
+    /// window list: the window and its attached sheets are drawn, everything
+    /// else on the display stays out, and the fixed source rectangle keeps
+    /// the area the person picked. `nil` when the window is no longer on
+    /// screen, which leaves the caller its own answer.
+    private static func windowFilter(for region: RecorderSupport.Region,
+                                     in content: SCShareableContent,
+                                     including windowIDs: [CGWindowID]) -> SCContentFilter? {
+        guard let windowID = region.windowID,
+              let display = content.displays.first(where: { $0.displayID == region.displayID }),
+              content.windows.contains(where: { $0.windowID == windowID })
+        else { return nil }
+        let windows = windowIDs.compactMap { id in content.windows.first { $0.windowID == id } }
+        return SCContentFilter(display: display, including: windows)
+    }
+
     private static func filter(for region: RecorderSupport.Region,
                                in content: SCShareableContent,
-                               excluding windowNumbers: [Int]) -> SCContentFilter? {
-        if let windowID = region.windowID,
-           let window = content.windows.first(where: { $0.windowID == windowID }) {
-            return SCContentFilter(desktopIndependentWindow: window)
+                               excluding windowNumbers: [Int],
+                               including windowIDs: [CGWindowID]) -> SCContentFilter? {
+        if let filter = windowFilter(for: region, in: content, including: windowIDs) {
+            return filter
         }
         guard let display = content.displays.first(where: { $0.displayID == region.displayID })
         else { return nil }

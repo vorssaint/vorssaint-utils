@@ -167,6 +167,38 @@ enum RecorderFeatureTests {
             CGRect(x: CGFloat.nan, y: 0, width: 100, height: 100), in: displayPixels)
         suite.expect(broken.width > 0 && broken.height > 0,
                "a broken rectangle falls back to the whole display instead of failing")
+        // A clicked window is clipped to the display it was picked from before
+        // it ever becomes a Region, so a fixed rectangle is all the recorder
+        // needs: no rectangle escapes its display.
+        let straddlingWindow = RecorderSupport.snappedPixelRect(
+            CGRect(x: 1_200, y: 80, width: 800, height: 600), in: CGRect(x: 0, y: 0, width: 1_440, height: 900))
+        suite.expect(CGRect(x: 0, y: 0, width: 1_440, height: 900).contains(straddlingWindow)
+                && straddlingWindow.width > 0 && straddlingWindow.height > 0,
+               "a clicked window crossing a display edge records the part on the selected display")
+        let containedWindow = CGRect(x: 120, y: 80, width: 800, height: 600)
+        suite.expect(RecorderSupport.snappedPixelRect(containedWindow, in: CGRect(x: 0, y: 0, width: 1_440, height: 900))
+                == containedWindow,
+               "a clicked window inside one display keeps the rectangle it was picked with")
+
+        // ScreenCaptureKit cannot run in this helper binary, so the filter a
+        // clicked window records through is pinned by shape, comments
+        // stripped so prose cannot satisfy a check (issue #1147).
+        func codeLines(_ path: String) -> String {
+            ((try? String(contentsOfFile: path, encoding: .utf8)) ?? "")
+                .components(separatedBy: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+        }
+        let recorderEngineCode = codeLines("Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift")
+        suite.expect(!recorderEngineCode.isEmpty
+                && recorderEngineCode.contains("SCContentFilter(display: display, including: windows)")
+                && !recorderEngineCode.contains("desktopIndependentWindow"),
+               "a clicked window records through the display limited to the window and what sits on it")
+        suite.expect(recorderEngineCode.contains("stream.updateContentFilter(filter)"),
+               "a sheet opening or closing swaps the running stream's window list")
+        let recorderIndicatorCode = codeLines("Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift")
+        suite.expect(!recorderIndicatorCode.isEmpty && !recorderIndicatorCode.contains("region.windowID == nil"),
+               "a clicked window's fixed rectangle shows its boundary guide like any other")
 
         suite.expect(RecorderSupport.elapsedLabel(seconds: 0) == "0:00"
                 && RecorderSupport.elapsedLabel(seconds: 7) == "0:07"

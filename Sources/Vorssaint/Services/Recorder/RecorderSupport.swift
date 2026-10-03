@@ -255,8 +255,9 @@ enum RecorderSupport {
     /// was picked in, which is what the pointer track and the zoom assume.
     struct Region: Equatable {
         let displayID: CGDirectDisplayID
-        /// Set only when a window was clicked, so the stream can follow that
-        /// window's own buffer instead of a slice of the display.
+        /// Set only when a window was clicked. The stream then draws that
+        /// window and whatever the app stacks on it, still within this fixed
+        /// rectangle, with the rest of the display left out.
         let windowID: CGWindowID?
         /// Top-left origin, in the display's pixels, already even on both axes.
         let pixelRect: CGRect

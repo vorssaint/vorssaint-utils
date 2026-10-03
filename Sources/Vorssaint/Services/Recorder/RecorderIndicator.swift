@@ -37,7 +37,7 @@ final class RecorderIndicator {
     /// Keeps the chosen area visible without trapping clicks. The panel is
     /// app-owned capture chrome, so the recorder leaves it out of the video.
     func showRegionGuide(for region: RecorderSupport.Region) {
-        guard regionGuide == nil, region.windowID == nil,
+        guard regionGuide == nil,
               let screen = NSScreen.screens.first(where: { $0.displayID == region.displayID })
         else { return }
 

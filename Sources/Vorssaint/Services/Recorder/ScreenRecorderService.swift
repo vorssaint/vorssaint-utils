@@ -43,6 +43,10 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     private let streamHeard = RecorderAudioFlag()
     private let pointer: RecorderPointerSampler
     private let typing: RecorderTypingSampler
+    /// Asks the window list four times a second what sits on the clicked
+    /// window, since nothing announces a sheet. A sheet lands in the video up
+    /// to a quarter second plus one shareable-content fetch after it opens.
+    private var attachmentWatch: Timer?
     private let writerQueue = DispatchQueue(label: "com.vorssaint.recorder.writer",
                                             qos: .userInitiated)
     private let startGate = RecorderStartGate()
@@ -105,6 +109,10 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                             frameRate: frameRate,
                                             capturesSystemAudio: capturesSystemAudio,
                                             excludedWindowNumbers: excludedWindowNumbers,
+                                            attachedWindows: { windowID in
+                                                ScreenshotCaptureEngine.attachedCapturePlan(for: windowID)?
+                                                    .windowIDs ?? [windowID]
+                                            },
                                             willStartCapture: { [writerQueue, writer] time in
                                                 writerQueue.sync { writer.beginSession(at: time) }
                                             },
@@ -154,7 +162,24 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             pointer.start()
             typing.start()
         }
+        if region.windowID != nil {
+            await MainActor.run { startAttachmentWatch() }
+        }
         return nil
+    }
+
+    @MainActor private func startAttachmentWatch() {
+        let watch = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.engine.refreshAttachedWindows(for: self.region) }
+        }
+        watch.tolerance = 0.05
+        attachmentWatch = watch
+    }
+
+    @MainActor private func stopAttachmentWatch() {
+        attachmentWatch?.invalidate()
+        attachmentWatch = nil
     }
 
     var isPaused: Bool { pauseClock.isPaused }
@@ -197,6 +222,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                                      streamHeardSound: streamHeard.value),
                 forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
+        await MainActor.run { stopAttachmentWatch() }
         let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
         writerQueue.sync {}
         let written = await writer.finish(at: end)
