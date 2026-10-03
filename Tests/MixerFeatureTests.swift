@@ -49,6 +49,32 @@ enum MixerFeatureTests {
         suite.expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "nan",
                                                   maximumPercent: 100) == nil,
                "mixer percentage input rejects non-finite numbers")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(0) == 0,
+               "gain = 0 translates to slider position = 0")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(1) == 1,
+               "gain = 1 translates to slider position = 1")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(2) == 2,
+               "gain = 2 translates to slider position = 2")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(0) == 0,
+               "slider position = 0 translates to gain = 0")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(1) == 1,
+               "slider position = 1 translates to gain = 1")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(2) == 2,
+               "slider position = 2 translates to gain = 2")
+        // test if gainToSliderPosition() & sliderPositionToGain() are perfect inverts
+        // of each other
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.5)) == 0.5,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 0.5")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.25)) == 0.25,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 0.25")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.32)) == 0.32,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 0.32")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.8)) == 0.8,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 0.8")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(1.5)) == 1.5,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 1.5")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(1.2)) == 1.2,
+               "gainToSliderPosition & sliderPositionToGain match: test value = 1.2")
         let percentWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 24),
                                      styleMask: .borderless,
                                      backing: .buffered,

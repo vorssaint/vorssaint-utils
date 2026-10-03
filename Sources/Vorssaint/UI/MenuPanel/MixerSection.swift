@@ -1052,8 +1052,8 @@ private struct MixerRow: View {
 
     private var volumeBinding: Binding<Double> {
         Binding(
-            get: { app.volume },
-            set: { mixer.setVolume($0, for: app) }
+            get: { MixerRoutingSupport.gainToSliderPosition(app.volume) },
+            set: { mixer.setVolume(MixerRoutingSupport.sliderPositionToGain($0), for: app) }
         )
     }
 
