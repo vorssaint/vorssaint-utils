@@ -117,7 +117,11 @@ struct MetricsTests {
                 StorageFeatureTests.run(suite)
                 ScratchpadStoreContractTests.run(suite)
             }),
-            ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
+            ("quit-protection", {
+                QuitProtectionHUD.progressChecks(suite)
+                TouchIDGuardTests.run(suite)
+                LockShortcutGuardTests.run(suite)
+            }),
             ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),
             ("recording", {
                 RecorderSampleTimingTests.run(suite)

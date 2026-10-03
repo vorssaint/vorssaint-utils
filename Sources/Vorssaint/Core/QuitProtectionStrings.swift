@@ -36,6 +36,17 @@ struct QuitProtectionStrings {
     let shiftKey: String
     let optionKey: String
     let controlKey: String
+    let lockShortcutCaption: String
+    let lockShortcutOwnedByQuit: String
+    let holdLockHUDFormat: String
+    let doubleLockHUDFormat: String
+    let touchIDTitle: String
+    let touchIDEnabled: String
+    let touchIDEnabledCaption: String
+    let touchIDIgnore: String
+    let touchIDHoldUnavailable: String
+    let touchIDHoldHUD: String
+    let releaseCancelHint: String
 
     func holdHUDFormat(for shortcut: QuitProtectionShortcut) -> String {
         shortcut == .quit ? holdQuitHUDFormat : holdCloseHUDFormat
@@ -98,7 +109,7 @@ extension QuitProtectionStrings {
         noExceptions: "No applications selected",
         addApp: "Add application…",
         feedback: "Show visual feedback",
-        accessibilityCaption: "Protection uses Accessibility to observe only ⌘Q and ⌘W globally.",
+        accessibilityCaption: "Protection uses Accessibility to observe only the shortcuts and the button it protects.",
         holdQuitHUDFormat: "Hold %@ to quit",
         holdCloseHUDFormat: "Hold %@ to close",
         doubleQuitHUDFormat: "Press %@ again to quit",
@@ -109,7 +120,18 @@ extension QuitProtectionStrings {
         releaseHint: "Release to confirm",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Holds back the ⌃⌘Q screen lock until confirmed. While this is on, Vorssaint handles the shortcut and gives it back to macOS when it is turned off or the app quits.",
+        lockShortcutOwnedByQuit: "⌘Q protection uses Control as its extra key, so ⌃⌘Q confirms a quit there and this guard stays off.",
+        holdLockHUDFormat: "Hold %@ to lock",
+        doubleLockHUDFormat: "Press %@ again to lock",
+        touchIDTitle: "Touch ID / Power button",
+        touchIDEnabled: "Protect this button",
+        touchIDEnabledCaption: "A quick tap no longer locks the Mac. The lock shortcut and the Lock Screen menu item still work.",
+        touchIDIgnore: "Never lock with the button",
+        touchIDHoldUnavailable: "This Mac does not report when the button is released, so only the never lock option works.",
+        touchIDHoldHUD: "Keep holding to lock",
+        releaseCancelHint: "Release to cancel"
     )
 
     static let ptBR = QuitProtectionStrings(
@@ -133,7 +155,7 @@ extension QuitProtectionStrings {
         noExceptions: "Nenhum aplicativo selecionado",
         addApp: "Adicionar aplicativo…",
         feedback: "Mostrar feedback visual",
-        accessibilityCaption: "A proteção usa Acessibilidade para observar apenas ⌘Q e ⌘W globalmente.",
+        accessibilityCaption: "A proteção usa Acessibilidade para observar apenas os atalhos e o botão que protege.",
         holdQuitHUDFormat: "Segure %@ para encerrar",
         holdCloseHUDFormat: "Segure %@ para fechar",
         doubleQuitHUDFormat: "Pressione %@ novamente para encerrar",
@@ -144,7 +166,18 @@ extension QuitProtectionStrings {
         releaseHint: "Solte para confirmar",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Segura o bloqueio de tela ⌃⌘Q até a confirmação. Enquanto estiver ativo, o Vorssaint trata o atalho e o devolve ao macOS quando a proteção é desligada ou o app é encerrado.",
+        lockShortcutOwnedByQuit: "A proteção de ⌘Q usa Control como tecla extra, então ⌃⌘Q confirma o encerramento ali e esta proteção fica desligada.",
+        holdLockHUDFormat: "Segure %@ para bloquear",
+        doubleLockHUDFormat: "Pressione %@ novamente para bloquear",
+        touchIDTitle: "Botão Touch ID / liga/desliga",
+        touchIDEnabled: "Proteger este botão",
+        touchIDEnabledCaption: "Um toque rápido não bloqueia mais o Mac. O atalho de bloqueio e o item Bloquear Tela continuam funcionando.",
+        touchIDIgnore: "Nunca bloquear com o botão",
+        touchIDHoldUnavailable: "Este Mac não informa quando o botão é solto, então só a opção de nunca bloquear funciona.",
+        touchIDHoldHUD: "Continue segurando para bloquear",
+        releaseCancelHint: "Solte para cancelar"
     )
 
     static let es = QuitProtectionStrings(
@@ -168,7 +201,7 @@ extension QuitProtectionStrings {
         noExceptions: "Ninguna aplicación seleccionada",
         addApp: "Añadir aplicación…",
         feedback: "Mostrar respuesta visual",
-        accessibilityCaption: "La protección utiliza Accesibilidad para supervisar solo ⌘Q y ⌘W de forma global.",
+        accessibilityCaption: "La protección utiliza Accesibilidad para supervisar solo los atajos y el botón que protege.",
         holdQuitHUDFormat: "Mantén %@ para salir",
         holdCloseHUDFormat: "Mantén %@ para cerrar",
         doubleQuitHUDFormat: "Pulsa %@ de nuevo para salir",
@@ -179,7 +212,18 @@ extension QuitProtectionStrings {
         releaseHint: "Suelta para confirmar",
         shiftKey: "Mayúsculas",
         optionKey: "Opción",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Retiene el bloqueo de pantalla ⌃⌘Q hasta que se confirme. Mientras esté activo, Vorssaint gestiona el atajo y se lo devuelve a macOS al desactivarlo o al cerrar la app.",
+        lockShortcutOwnedByQuit: "La protección de ⌘Q usa Control como tecla adicional, así que ⌃⌘Q confirma la salida allí y esta protección queda desactivada.",
+        holdLockHUDFormat: "Mantén %@ para bloquear",
+        doubleLockHUDFormat: "Pulsa %@ de nuevo para bloquear",
+        touchIDTitle: "Botón Touch ID / encendido",
+        touchIDEnabled: "Proteger este botón",
+        touchIDEnabledCaption: "Un toque rápido ya no bloquea el Mac. El atajo de bloqueo y la opción Bloquear pantalla siguen funcionando.",
+        touchIDIgnore: "No bloquear nunca con el botón",
+        touchIDHoldUnavailable: "Este Mac no indica cuándo se suelta el botón, así que solo funciona la opción de no bloquear nunca.",
+        touchIDHoldHUD: "Sigue manteniendo para bloquear",
+        releaseCancelHint: "Suelta para cancelar"
     )
 
     static let sk = QuitProtectionStrings(
@@ -203,7 +247,7 @@ extension QuitProtectionStrings {
         noExceptions: "Nie sú vybrané žiadne aplikácie",
         addApp: "Pridať aplikáciu…",
         feedback: "Zobraziť vizuálnu spätnú väzbu",
-        accessibilityCaption: "Ochrana používa Prístupnosť na sledovanie iba ⌘Q a ⌘W globálne.",
+        accessibilityCaption: "Ochrana používa Prístupnosť na sledovanie iba chránených skratiek a tlačidla.",
         holdQuitHUDFormat: "Podržte %@ na ukončenie",
         holdCloseHUDFormat: "Podržte %@ na zatvorenie",
         doubleQuitHUDFormat: "Stlačte %@ znova na ukončenie",
@@ -214,7 +258,18 @@ extension QuitProtectionStrings {
         releaseHint: "Uvoľnením potvrdíte",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Zadrží zámku obrazovky ⌃⌘Q, kým ju nepotvrdíte. Kým je zapnutá, skratku spracúva Vorssaint a vráti ju macOS po vypnutí alebo ukončení aplikácie.",
+        lockShortcutOwnedByQuit: "Ochrana ⌘Q používa Control ako ďalší kláves, preto ⌃⌘Q potvrdzuje ukončenie tam a táto ochrana zostáva vypnutá.",
+        holdLockHUDFormat: "Podržte %@ na zamknutie",
+        doubleLockHUDFormat: "Stlačte %@ znova na zamknutie",
+        touchIDTitle: "Tlačidlo Touch ID / napájanie",
+        touchIDEnabled: "Chrániť toto tlačidlo",
+        touchIDEnabledCaption: "Rýchly dotyk už Mac nezamkne. Skratka zámku a položka Zamknúť obrazovku fungujú ďalej.",
+        touchIDIgnore: "Nikdy nezamykať tlačidlom",
+        touchIDHoldUnavailable: "Tento Mac nehlási, kedy sa tlačidlo pustí, preto funguje iba možnosť nikdy nezamykať.",
+        touchIDHoldHUD: "Držte ďalej na zamknutie",
+        releaseCancelHint: "Pustite na zrušenie"
     )
 
     static let de = QuitProtectionStrings(
@@ -238,7 +293,7 @@ extension QuitProtectionStrings {
         noExceptions: "Keine Programme ausgewählt",
         addApp: "Programm hinzufügen…",
         feedback: "Visuelles Feedback anzeigen",
-        accessibilityCaption: "Der Schutz nutzt Bedienungshilfen, um nur ⌘Q und ⌘W global zu überwachen.",
+        accessibilityCaption: "Der Schutz nutzt Bedienungshilfen, um nur die geschützten Kurzbefehle und die Taste zu überwachen.",
         holdQuitHUDFormat: "%@ halten zum Beenden",
         holdCloseHUDFormat: "%@ halten zum Schließen",
         doubleQuitHUDFormat: "%@ erneut drücken zum Beenden",
@@ -249,7 +304,18 @@ extension QuitProtectionStrings {
         releaseHint: "Loslassen zum Bestätigen",
         shiftKey: "Umschalttaste",
         optionKey: "Wahltaste",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Hält die Bildschirmsperre ⌃⌘Q zurück, bis sie bestätigt ist. Solange der Schutz aktiv ist, verarbeitet Vorssaint den Kurzbefehl und gibt ihn an macOS zurück, wenn er ausgeschaltet oder die App beendet wird.",
+        lockShortcutOwnedByQuit: "Der ⌘Q-Schutz nutzt Control als zusätzliche Taste, daher bestätigt ⌃⌘Q dort das Beenden und dieser Schutz bleibt aus.",
+        holdLockHUDFormat: "%@ halten zum Sperren",
+        doubleLockHUDFormat: "%@ erneut drücken zum Sperren",
+        touchIDTitle: "Touch-ID-/Ein-Aus-Taste",
+        touchIDEnabled: "Diese Taste schützen",
+        touchIDEnabledCaption: "Ein kurzes Antippen sperrt den Mac nicht mehr. Der Sperr-Kurzbefehl und der Menüeintrag Bildschirm sperren funktionieren weiter.",
+        touchIDIgnore: "Nie mit der Taste sperren",
+        touchIDHoldUnavailable: "Dieser Mac meldet nicht, wann die Taste losgelassen wird, daher funktioniert nur die Option „Nie sperren“.",
+        touchIDHoldHUD: "Weiter halten zum Sperren",
+        releaseCancelHint: "Loslassen zum Abbrechen"
     )
 
     static let fr = QuitProtectionStrings(
@@ -273,7 +339,7 @@ extension QuitProtectionStrings {
         noExceptions: "Aucune application sélectionnée",
         addApp: "Ajouter une application…",
         feedback: "Afficher le retour visuel",
-        accessibilityCaption: "La protection utilise Accessibilité pour observer uniquement ⌘Q et ⌘W globalement.",
+        accessibilityCaption: "La protection utilise Accessibilité pour observer uniquement les raccourcis et le bouton qu’elle protège.",
         holdQuitHUDFormat: "Maintenez %@ pour quitter",
         holdCloseHUDFormat: "Maintenez %@ pour fermer",
         doubleQuitHUDFormat: "Appuyez à nouveau sur %@ pour quitter",
@@ -284,7 +350,18 @@ extension QuitProtectionStrings {
         releaseHint: "Relâchez pour confirmer",
         shiftKey: "Maj",
         optionKey: "Option",
-        controlKey: "Contrôle"
+        controlKey: "Contrôle",
+        lockShortcutCaption: "Retient le verrouillage d’écran ⌃⌘Q jusqu’à confirmation. Tant que la protection est active, Vorssaint gère le raccourci et le rend à macOS quand elle est désactivée ou que l’app se ferme.",
+        lockShortcutOwnedByQuit: "La protection de ⌘Q utilise Contrôle comme touche supplémentaire, donc ⌃⌘Q y confirme la fermeture et cette protection reste désactivée.",
+        holdLockHUDFormat: "Maintenez %@ pour verrouiller",
+        doubleLockHUDFormat: "Appuyez à nouveau sur %@ pour verrouiller",
+        touchIDTitle: "Bouton Touch ID / alimentation",
+        touchIDEnabled: "Protéger ce bouton",
+        touchIDEnabledCaption: "Un appui rapide ne verrouille plus le Mac. Le raccourci de verrouillage et l’élément Verrouiller l’écran continuent de fonctionner.",
+        touchIDIgnore: "Ne jamais verrouiller avec le bouton",
+        touchIDHoldUnavailable: "Ce Mac n’indique pas quand le bouton est relâché ; seule l’option de ne jamais verrouiller fonctionne.",
+        touchIDHoldHUD: "Continuez à maintenir pour verrouiller",
+        releaseCancelHint: "Relâchez pour annuler"
     )
 
     static let it = QuitProtectionStrings(
@@ -308,7 +385,7 @@ extension QuitProtectionStrings {
         noExceptions: "Nessuna applicazione selezionata",
         addApp: "Aggiungi applicazione…",
         feedback: "Mostra feedback visivo",
-        accessibilityCaption: "La protezione usa Accessibilità per osservare solo ⌘Q e ⌘W a livello globale.",
+        accessibilityCaption: "La protezione usa Accessibilità per osservare solo le abbreviazioni e il pulsante che protegge.",
         holdQuitHUDFormat: "Tieni premuto %@ per uscire",
         holdCloseHUDFormat: "Tieni premuto %@ per chiudere",
         doubleQuitHUDFormat: "Premi di nuovo %@ per uscire",
@@ -319,7 +396,18 @@ extension QuitProtectionStrings {
         releaseHint: "Rilascia per confermare",
         shiftKey: "Maiuscole",
         optionKey: "Opzione",
-        controlKey: "Controllo"
+        controlKey: "Controllo",
+        lockShortcutCaption: "Trattiene il blocco schermo ⌃⌘Q finché non viene confermato. Finché è attivo, l’abbreviazione la gestisce Vorssaint, che la restituisce a macOS quando il controllo viene spento o l’app si chiude.",
+        lockShortcutOwnedByQuit: "La protezione di ⌘Q usa Controllo come tasto aggiuntivo, quindi ⌃⌘Q conferma l’uscita e questa protezione resta spenta.",
+        holdLockHUDFormat: "Tieni premuto %@ per bloccare",
+        doubleLockHUDFormat: "Premi di nuovo %@ per bloccare",
+        touchIDTitle: "Pulsante Touch ID / accensione",
+        touchIDEnabled: "Proteggi questo pulsante",
+        touchIDEnabledCaption: "Un tocco veloce non blocca più il Mac. L’abbreviazione di blocco e la voce Blocca schermo continuano a funzionare.",
+        touchIDIgnore: "Non bloccare mai con il pulsante",
+        touchIDHoldUnavailable: "Questo Mac non segnala quando il pulsante viene rilasciato, quindi funziona solo l’opzione di non bloccare mai.",
+        touchIDHoldHUD: "Continua a tenere premuto per bloccare",
+        releaseCancelHint: "Rilascia per annullare"
     )
 
     static let tr = QuitProtectionStrings(
@@ -343,7 +431,7 @@ extension QuitProtectionStrings {
         noExceptions: "Hiçbir uygulama seçilmedi",
         addApp: "Uygulama ekle…",
         feedback: "Görsel geri bildirim göster",
-        accessibilityCaption: "Koruma, yalnızca ⌘Q ve ⌘W tuşlarını izlemek için Erişilebilirlik kullanır.",
+        accessibilityCaption: "Koruma, Erişilebilirlik’i yalnızca koruduğu kısayolları ve düğmeyi izlemek için kullanır.",
         holdQuitHUDFormat: "Çıkmak için %@ basılı tutun",
         holdCloseHUDFormat: "Kapatmak için %@ basılı tutun",
         doubleQuitHUDFormat: "Çıkmak için tekrar %@ basın",
@@ -354,7 +442,18 @@ extension QuitProtectionStrings {
         releaseHint: "Onaylamak için bırakın",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "⌃⌘Q ekran kilidini onaylanana kadar tutar. Bu açıkken kısayolu Vorssaint yönetir ve kapatıldığında ya da uygulamadan çıkıldığında macOS’a geri verir.",
+        lockShortcutOwnedByQuit: "⌘Q koruması ek tuş olarak Control kullanıyor, bu yüzden ⌃⌘Q orada çıkışı onaylar ve bu koruma kapalı kalır.",
+        holdLockHUDFormat: "Kilitlemek için %@ basılı tutun",
+        doubleLockHUDFormat: "Kilitlemek için tekrar %@ basın",
+        touchIDTitle: "Touch ID / Güç düğmesi",
+        touchIDEnabled: "Bu düğmeyi koru",
+        touchIDEnabledCaption: "Hızlı bir dokunuş artık Mac’i kilitlemez. Kilit kısayolu ve Ekranı Kilitle öğesi çalışmaya devam eder.",
+        touchIDIgnore: "Düğmeyle asla kilitleme",
+        touchIDHoldUnavailable: "Bu Mac düğmenin ne zaman bırakıldığını bildirmiyor; yalnızca asla kilitleme seçeneği çalışır.",
+        touchIDHoldHUD: "Kilitlemek için basılı tutmaya devam edin",
+        releaseCancelHint: "İptal için bırakın"
     )
 
     static let ru = QuitProtectionStrings(
@@ -378,7 +477,7 @@ extension QuitProtectionStrings {
         noExceptions: "Приложения не выбраны",
         addApp: "Добавить приложение…",
         feedback: "Показывать подсказку",
-        accessibilityCaption: "Защита использует Универсальный доступ только для отслеживания ⌘Q и ⌘W.",
+        accessibilityCaption: "Защита использует Универсальный доступ только для отслеживания защищаемых сочетаний и кнопки.",
         holdQuitHUDFormat: "Удерживайте %@ для выхода",
         holdCloseHUDFormat: "Удерживайте %@ для закрытия",
         doubleQuitHUDFormat: "Нажмите %@ ещё раз для выхода",
@@ -389,7 +488,18 @@ extension QuitProtectionStrings {
         releaseHint: "Отпустите для подтверждения",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Удерживает блокировку экрана ⌃⌘Q до подтверждения. Пока защита включена, сочетанием управляет Vorssaint и возвращает его macOS, когда защита выключена или приложение закрыто.",
+        lockShortcutOwnedByQuit: "Защита ⌘Q использует Control как доп. клавишу, поэтому ⌃⌘Q там подтверждает выход, а эта защита остаётся выключенной.",
+        holdLockHUDFormat: "Удерживайте %@ для блокировки",
+        doubleLockHUDFormat: "Нажмите %@ ещё раз для блокировки",
+        touchIDTitle: "Кнопка Touch ID / питания",
+        touchIDEnabled: "Защитить эту кнопку",
+        touchIDEnabledCaption: "Короткое касание больше не блокирует Mac. Сочетание блокировки и пункт «Заблокировать экран» продолжают работать.",
+        touchIDIgnore: "Никогда не блокировать кнопкой",
+        touchIDHoldUnavailable: "Этот Mac не сообщает, когда кнопка отпущена, поэтому работает только вариант «никогда не блокировать».",
+        touchIDHoldHUD: "Продолжайте удерживать для блокировки",
+        releaseCancelHint: "Отпустите для отмены"
     )
 
     static let ja = QuitProtectionStrings(
@@ -413,7 +523,7 @@ extension QuitProtectionStrings {
         noExceptions: "アプリケーションが選択されていません",
         addApp: "アプリケーションを追加…",
         feedback: "視覚的フィードバックを表示",
-        accessibilityCaption: "この機能はアクセシビリティを使用して ⌘Q と ⌘W のみをグローバルに監視します。",
+        accessibilityCaption: "この機能はアクセシビリティを使用して、保護対象のショートカットとボタンのみをグローバルに監視します。",
         holdQuitHUDFormat: "終了するには %@ を長押し",
         holdCloseHUDFormat: "閉じるには %@ を長押し",
         doubleQuitHUDFormat: "終了するにはもう一度 %@ を入力",
@@ -424,7 +534,18 @@ extension QuitProtectionStrings {
         releaseHint: "離して確認",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "⌃⌘Q による画面のロックを、確認が取れるまで保留します。オンの間は Vorssaint がこのショートカットを処理し、オフにするかアプリを終了すると macOS に戻します。",
+        lockShortcutOwnedByQuit: "⌘Q の保護が追加の修飾キーに Control を使っているため、⌃⌘Q は終了の確認になり、この保護はオフのままです。",
+        holdLockHUDFormat: "ロックするには %@ を長押し",
+        doubleLockHUDFormat: "ロックするにはもう一度 %@ を入力",
+        touchIDTitle: "Touch ID / 電源ボタン",
+        touchIDEnabled: "このボタンを保護",
+        touchIDEnabledCaption: "軽く触れただけでは Mac がロックされなくなります。ロックのショートカットと「画面をロック」項目は引き続き使えます。",
+        touchIDIgnore: "ボタンでは常にロックしない",
+        touchIDHoldUnavailable: "この Mac はボタンが離された時点を通知しないため、「常にロックしない」のみ使えます。",
+        touchIDHoldHUD: "ロックするには長押しを続けてください",
+        releaseCancelHint: "離すとキャンセル"
     )
 
     static let ko = QuitProtectionStrings(
@@ -448,7 +569,7 @@ extension QuitProtectionStrings {
         noExceptions: "선택된 응용 프로그램 없음",
         addApp: "응용 프로그램 추가…",
         feedback: "시각적 피드백 표시",
-        accessibilityCaption: "이 기능은 손쉬운 사용을 사용하여 ⌘Q 및 ⌘W만 전역적으로 감지합니다.",
+        accessibilityCaption: "이 기능은 손쉬운 사용을 사용하여 보호하는 단축키와 버튼만 전역적으로 감지합니다.",
         holdQuitHUDFormat: "종료하려면 %@ 길게 누르기",
         holdCloseHUDFormat: "닫으려면 %@ 길게 누르기",
         doubleQuitHUDFormat: "종료하려면 %@ 다시 누르기",
@@ -459,7 +580,18 @@ extension QuitProtectionStrings {
         releaseHint: "손을 떼어 확인",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "⌃⌘Q 화면 잠금을 확인될 때까지 보류합니다. 켜져 있는 동안 Vorssaint가 단축키를 처리하며, 끄거나 앱을 종료하면 macOS에 돌려줍니다.",
+        lockShortcutOwnedByQuit: "⌘Q 보호가 추가 보조 키로 Control을 사용하므로 ⌃⌘Q는 종료 확인에 쓰이고 이 보호는 꺼진 상태로 유지됩니다.",
+        holdLockHUDFormat: "잠그려면 %@ 길게 누르기",
+        doubleLockHUDFormat: "잠그려면 %@ 다시 누르기",
+        touchIDTitle: "Touch ID / 전원 버튼",
+        touchIDEnabled: "이 버튼 보호",
+        touchIDEnabledCaption: "짧게 눌러도 더 이상 Mac이 잠기지 않습니다. 잠금 단축키와 화면 잠금 항목은 계속 작동합니다.",
+        touchIDIgnore: "버튼으로 잠그지 않기",
+        touchIDHoldUnavailable: "이 Mac은 버튼을 뗀 시점을 알려 주지 않으므로 ‘잠그지 않기’ 옵션만 작동합니다.",
+        touchIDHoldHUD: "잠그려면 계속 누르세요",
+        releaseCancelHint: "떼면 취소"
     )
 
     static let zhHans = QuitProtectionStrings(
@@ -483,7 +615,7 @@ extension QuitProtectionStrings {
         noExceptions: "未选择任何应用程序",
         addApp: "添加应用程序…",
         feedback: "显示视觉反馈",
-        accessibilityCaption: "该保护功能使用辅助功能仅全局监听 ⌘Q 和 ⌘W。",
+        accessibilityCaption: "该保护功能使用辅助功能仅全局监听其保护的快捷键和按钮。",
         holdQuitHUDFormat: "按住 %@ 以退出",
         holdCloseHUDFormat: "按住 %@ 以关闭",
         doubleQuitHUDFormat: "再次按 %@ 以退出",
@@ -494,7 +626,18 @@ extension QuitProtectionStrings {
         releaseHint: "松开以确认",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "在确认之前暂缓 ⌃⌘Q 锁定屏幕。开启期间由 Vorssaint 处理该快捷键，关闭或退出 App 时交还给 macOS。",
+        lockShortcutOwnedByQuit: "⌘Q 保护使用 Control 作为额外修饰键，因此 ⌃⌘Q 用于确认退出，此保护保持关闭。",
+        holdLockHUDFormat: "按住 %@ 以锁定",
+        doubleLockHUDFormat: "再次按 %@ 以锁定",
+        touchIDTitle: "Touch ID / 电源按钮",
+        touchIDEnabled: "保护此按钮",
+        touchIDEnabledCaption: "轻点一下不再锁定 Mac。锁定快捷键和“锁定屏幕”菜单项仍然可用。",
+        touchIDIgnore: "永不通过按钮锁定",
+        touchIDHoldUnavailable: "此 Mac 不报告按钮何时松开，因此只有“永不锁定”选项可用。",
+        touchIDHoldHUD: "继续按住以锁定",
+        releaseCancelHint: "松开以取消"
     )
 
     static let zhTW = QuitProtectionStrings(
@@ -518,7 +661,7 @@ extension QuitProtectionStrings {
         noExceptions: "未選取任何應用程式",
         addApp: "加入應用程式…",
         feedback: "顯示視覺回饋",
-        accessibilityCaption: "該保護功能使用輔助使用僅全域監聽 ⌘Q 和 ⌘W。",
+        accessibilityCaption: "該保護功能使用輔助使用僅全域監聽其保護的快速鍵和按鈕。",
         holdQuitHUDFormat: "按住 %@ 以結束",
         holdCloseHUDFormat: "按住 %@ 以關閉",
         doubleQuitHUDFormat: "再次按 %@ 以結束",
@@ -529,7 +672,18 @@ extension QuitProtectionStrings {
         releaseHint: "放開以確認",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "在確認之前暫緩 ⌃⌘Q 鎖定螢幕。開啟期間由 Vorssaint 處理該快速鍵，關閉或結束 App 時交還給 macOS。",
+        lockShortcutOwnedByQuit: "⌘Q 保護使用 Control 作為額外變更鍵，因此 ⌃⌘Q 用於確認結束，此保護維持關閉。",
+        holdLockHUDFormat: "按住 %@ 以鎖定",
+        doubleLockHUDFormat: "再次按 %@ 以鎖定",
+        touchIDTitle: "Touch ID / 電源按鈕",
+        touchIDEnabled: "保護此按鈕",
+        touchIDEnabledCaption: "輕點一下不再鎖定 Mac。鎖定快速鍵和「鎖定螢幕」選單項目仍然可用。",
+        touchIDIgnore: "永不透過按鈕鎖定",
+        touchIDHoldUnavailable: "此 Mac 不會回報按鈕何時放開，因此只有「永不鎖定」選項可用。",
+        touchIDHoldHUD: "繼續按住以鎖定",
+        releaseCancelHint: "放開以取消"
     )
 
     static let zhHK = QuitProtectionStrings(
@@ -553,7 +707,7 @@ extension QuitProtectionStrings {
         noExceptions: "未選取任何應用程式",
         addApp: "加入應用程式…",
         feedback: "顯示視覺回饋",
-        accessibilityCaption: "該保護功能使用輔助使用僅全域監聽 ⌘Q 和 ⌘W。",
+        accessibilityCaption: "該保護功能使用輔助使用僅全域監聽其保護的快捷鍵和按鈕。",
         holdQuitHUDFormat: "按住 %@ 以結束",
         holdCloseHUDFormat: "按住 %@ 以關閉",
         doubleQuitHUDFormat: "再次按 %@ 以結束",
@@ -564,7 +718,18 @@ extension QuitProtectionStrings {
         releaseHint: "放開以確認",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "在確認之前暫緩 ⌃⌘Q 鎖定螢幕。開啟期間由 Vorssaint 處理該快捷鍵，關閉或結束 App 時交還給 macOS。",
+        lockShortcutOwnedByQuit: "⌘Q 保護使用 Control 作為額外修飾鍵，因此 ⌃⌘Q 用於確認結束，此保護維持關閉。",
+        holdLockHUDFormat: "按住 %@ 以鎖定",
+        doubleLockHUDFormat: "再次按 %@ 以鎖定",
+        touchIDTitle: "Touch ID / 電源按鈕",
+        touchIDEnabled: "保護此按鈕",
+        touchIDEnabledCaption: "輕點一下不再鎖定 Mac。鎖定快捷鍵和「鎖定螢幕」選單項目仍然可用。",
+        touchIDIgnore: "永不透過按鈕鎖定",
+        touchIDHoldUnavailable: "此 Mac 不會回報按鈕何時放開，因此只有「永不鎖定」選項可用。",
+        touchIDHoldHUD: "繼續按住以鎖定",
+        releaseCancelHint: "放開以取消"
     )
 
     static let uk = QuitProtectionStrings(
@@ -588,7 +753,7 @@ extension QuitProtectionStrings {
         noExceptions: "Не вибрано жодної програми",
         addApp: "Додати програму…",
         feedback: "Показувати візуальний відгук",
-        accessibilityCaption: "Для захисту використовується дозвіл «Доступність», щоб глобально відстежувати лише ⌘Q та ⌘W.",
+        accessibilityCaption: "Для захисту використовується дозвіл «Доступність», щоб глобально відстежувати лише захищені скорочення та кнопку.",
         holdQuitHUDFormat: "Утримуйте %@, щоб завершити програму",
         holdCloseHUDFormat: "Утримуйте %@, щоб закрити вікно",
         doubleQuitHUDFormat: "Натисніть %@ ще раз, щоб завершити програму",
@@ -599,6 +764,17 @@ extension QuitProtectionStrings {
         releaseHint: "Відпустіть для підтвердження",
         shiftKey: "Shift",
         optionKey: "Option",
-        controlKey: "Control"
+        controlKey: "Control",
+        lockShortcutCaption: "Утримує блокування екрана ⌃⌘Q до підтвердження. Поки захист увімкнено, скорочення обробляє Vorssaint і повертає його macOS, коли захист вимкнено або застосунок закрито.",
+        lockShortcutOwnedByQuit: "Захист ⌘Q використовує Control як додаткову клавішу, тож ⌃⌘Q там підтверджує вихід, а цей захист лишається вимкненим.",
+        holdLockHUDFormat: "Утримуйте %@, щоб заблокувати",
+        doubleLockHUDFormat: "Натисніть %@ ще раз, щоб заблокувати",
+        touchIDTitle: "Кнопка Touch ID / живлення",
+        touchIDEnabled: "Захищати цю кнопку",
+        touchIDEnabledCaption: "Короткий дотик більше не блокує Mac. Скорочення блокування та пункт «Заблокувати екран» і далі працюють.",
+        touchIDIgnore: "Ніколи не блокувати кнопкою",
+        touchIDHoldUnavailable: "Цей Mac не повідомляє, коли кнопку відпущено, тому працює лише варіант «ніколи не блокувати».",
+        touchIDHoldHUD: "Продовжуйте утримувати, щоб заблокувати",
+        releaseCancelHint: "Відпустіть, щоб скасувати"
     )
 }

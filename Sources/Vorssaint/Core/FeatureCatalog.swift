@@ -247,7 +247,8 @@ extension AppFeature {
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .quitWindowProtection:
-            return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
+            return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled,
+                    DefaultsKey.touchIDGuardEnabled, DefaultsKey.lockShortcutGuardEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]
         case .superKey: return [DefaultsKey.superKeyEnabled]
         case .mouseClickDebounce: return [DefaultsKey.mouseClickDebounceEnabled]

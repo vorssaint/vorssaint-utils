@@ -183,6 +183,15 @@ enum DefaultsKey {
     static let quitProtectionCloseScope = "quitProtectionCloseScope"
     static let quitProtectionCloseExceptions = "quitProtectionCloseExceptions"
     static let quitProtectionCloseShowFeedback = "quitProtectionCloseShowFeedback"
+    static let lockShortcutGuardEnabled = "lockShortcutGuardEnabled"
+    static let lockShortcutGuardMode = "lockShortcutGuardMode"
+    static let lockShortcutGuardHoldDurationMs = "lockShortcutGuardHoldDurationMs"
+    static let lockShortcutGuardDoubleIntervalMs = "lockShortcutGuardDoubleIntervalMs"
+    static let lockShortcutGuardShowFeedback = "lockShortcutGuardShowFeedback"
+    static let touchIDGuardEnabled = "touchIDGuardEnabled"
+    static let touchIDGuardShowFeedback = "touchIDGuardShowFeedback"
+    static let touchIDGuardMode = "touchIDGuardMode"
+    static let touchIDGuardHoldDurationMs = "touchIDGuardHoldDurationMs"
     static let shelfEnabled = "shelfEnabled"
     static let shelfShortcutEnabled = "shelfShortcutEnabled"
     static let shelfShortcut = "shelfShortcut"            // GlobalShortcut storage value
@@ -1252,6 +1261,15 @@ enum Defaults {
         DefaultsKey.quitProtectionCloseScope: QuitProtectionScope.all.rawValue,
         DefaultsKey.quitProtectionCloseExceptions: [String](),
         DefaultsKey.quitProtectionCloseShowFeedback: true,
+        DefaultsKey.lockShortcutGuardEnabled: false,
+        DefaultsKey.lockShortcutGuardMode: LockShortcutGuardMode.hold.rawValue,
+        DefaultsKey.lockShortcutGuardHoldDurationMs: LockShortcutGuardSupport.defaultHoldDurationMilliseconds,
+        DefaultsKey.lockShortcutGuardDoubleIntervalMs: LockShortcutGuardSupport.defaultDoublePressIntervalMilliseconds,
+        DefaultsKey.lockShortcutGuardShowFeedback: true,
+        DefaultsKey.touchIDGuardEnabled: false,
+        DefaultsKey.touchIDGuardShowFeedback: true,
+        DefaultsKey.touchIDGuardMode: TouchIDGuardMode.hold.rawValue,
+        DefaultsKey.touchIDGuardHoldDurationMs: TouchIDGuardSupport.defaultHoldDurationMilliseconds,
         // When the shelf is on, the shake gesture is on too (still toggleable).
         DefaultsKey.shelfShortcutEnabled: true,
         DefaultsKey.shelfShortcut: "control+option+command:2",

@@ -252,6 +252,8 @@ if (( TEST )); then
     TEST_SOURCES=(
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
+        Sources/Vorssaint/Core/TouchIDGuardSupport.swift
+        Sources/Vorssaint/Core/LockShortcutGuardSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
         Sources/Vorssaint/Core/NotchStrings.swift
