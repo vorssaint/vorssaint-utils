@@ -160,6 +160,15 @@ struct ScratchpadView: View {
                     .font(.system(size: 11, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    // Handle selection here so the enclosing Button does not
+                    // wait for the title's double-click gesture to fail.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        service.selectPad(pad.id)
+                    })
+                    .simultaneousGesture(TapGesture(count: 2).onEnded {
+                        service.selectPad(pad.id)
+                        presentRename(pad)
+                    })
                 if showClose {
                     Button {
                         requestClose(pad)
@@ -334,6 +343,18 @@ struct ScratchpadView: View {
             }
             .disabled(service.isPreviewing)
 
+            footerButton("pencil.line", text.renamePad) {
+                guard let selectedPad else { return }
+                presentRename(selectedPad)
+            }
+            .disabled(selectedPad == nil)
+            footerButton("square.and.arrow.down", text.exportAction) {
+                service.exportText(suggestedName:
+                    ScratchpadSupport.exportFileName(title: service.selectedPadName, date: Date()))
+            }
+            .disabled(isEmpty)
+            .opacity(isEmpty ? 0.5 : 1)
+
             Group {
                 footerButton(service.isPreviewing ? "pencil" : "eye",
                              service.isPreviewing ? text.editText : text.previewFormatting,
@@ -341,18 +362,14 @@ struct ScratchpadView: View {
                     service.togglePreview()
                 }
                 footerButton(copied ? "checkmark" : "doc.on.doc",
-                         copied ? text.copied : text.copyAll,
-                         tint: copied ? .green : nil) {
-                service.copyAll()
-                withAnimation(.easeOut(duration: 0.15)) { copied = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                    withAnimation(.easeOut(duration: 0.2)) { copied = false }
+                             copied ? text.copied : text.copyAll,
+                             tint: copied ? .green : nil) {
+                    service.copyAll()
+                    withAnimation(.easeOut(duration: 0.15)) { copied = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        withAnimation(.easeOut(duration: 0.2)) { copied = false }
+                    }
                 }
-            }
-            footerButton("square.and.arrow.down", text.exportAction) {
-                service.exportText(suggestedName:
-                    ScratchpadSupport.exportFileName(title: service.selectedPadName, date: Date()))
-            }
                 Spacer()
                 footerButton("trash", text.clearAction) {
                     service.clear()
