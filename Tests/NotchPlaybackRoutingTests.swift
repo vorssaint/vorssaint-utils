@@ -235,6 +235,17 @@ enum NotchPlaybackRoutingTests {
         suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 0,
                      "the same radio player receives Play when the stream is paused")
 
+        // A player that supports Toggle gets it even when its rate is stale,
+        // as Emby's is: the rate stays at 1 after a pause.
+        var stale = info
+        stale["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 1
+        stale["canToggle"] = true
+        Adapter.metadata[ObjectIdentifier(path)] = stale
+        let toggling = Adapter.publish(radio, info: stale)!
+        Adapter.sendPlaybackCommand(NotchPlaybackRequest(command: .toggle, context: toggling))
+        suite.expect(Adapter.reply["sent"] as? Bool == true && Adapter.command == 2,
+                     "a player that supports Toggle receives it whatever its playback rate says")
+
         info["canPlay"] = false
         Adapter.metadata[ObjectIdentifier(path)] = info
         let fallback = Adapter.publish(radio, info: info)!

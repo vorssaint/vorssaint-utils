@@ -170,6 +170,7 @@ public func vorssaintNowPlayingGet() {
             if commands != nil {
                 set("canPlay", supports(0))
                 set("canPause", supports(1))
+                set("canToggle", supports(2))
                 set("canSeek", NotchNativePlayback.stringConstant("kMRMediaRemoteOptionPlaybackPosition") != nil && supports(24))
                 set("canSkipNext", supports(4))
                 set("canSkipPrevious", supports(5))
