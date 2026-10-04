@@ -18,6 +18,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarDiskUsage) private var diskUsage = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
+    @AppStorage(DefaultsKey.menuBarDiskTemperature) private var diskTemperature = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
