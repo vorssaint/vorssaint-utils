@@ -122,6 +122,10 @@ enum NotchLockScreenLayout {
     /// The island as it rests with something beside the camera: one wing on
     /// each side, the padlock in the first.
     static let islandWing: CGFloat = 44
+    // The panel extends 8 pts above screen.maxY into the hardware notch bezel
+    // so the NSHostingView safe-area inset is hidden behind the black fill
+    // rather than appearing as a gap beneath the hardware notch.
+    static let islandTopBleed: CGFloat = 8
 
     /// The locked island hung from the top of `screen`, around its camera.
     static func islandFrame(in screen: CGRect, cameraWidth: CGFloat, cameraHeight: CGFloat) -> CGRect? {
