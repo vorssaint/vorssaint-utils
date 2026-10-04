@@ -84,7 +84,6 @@ final class KeepAwakeManager: ObservableObject {
     private var powerSourceRunLoopSource: CFRunLoopSource?
     private var runningAppsObservers: [NSObjectProtocol] = []
     private var automationEvaluationWorkItem: DispatchWorkItem?
-    private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
     private var sessionPausedForScreenLock = false
     private var automationSuppressedUntilConditionsClear = false
@@ -442,7 +441,6 @@ final class KeepAwakeManager: ObservableObject {
         } else if let screenParametersObserver {
             NotificationCenter.default.removeObserver(screenParametersObserver)
             self.screenParametersObserver = nil
-            lastExternalDisplayConnected = nil
         }
     }
 
@@ -583,15 +581,12 @@ final class KeepAwakeManager: ObservableObject {
 
     private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
         let externalDisplayEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
-        let externalDisplayConnected: Bool
-        if externalDisplayEnabled {
-            if let current = Self.hasExternalDisplay() {
-                lastExternalDisplayConnected = current
-            }
-            externalDisplayConnected = lastExternalDisplayConnected ?? false
-        } else {
-            externalDisplayConnected = false
-        }
+        // A failed read (Self.hasExternalDisplay() == nil) must default to "not
+        // connected", not to whatever we last saw: caching a stale `true` here
+        // let a keep-awake session started while docked survive long after the
+        // display was actually unplugged, since nothing else ever re-triggers
+        // an evaluation to correct it.
+        let externalDisplayConnected = externalDisplayEnabled && (Self.hasExternalDisplay() ?? false)
 
         let powerEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
         let connectedToPower = powerEnabled
