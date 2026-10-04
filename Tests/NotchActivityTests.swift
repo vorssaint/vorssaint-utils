@@ -20,6 +20,42 @@ enum NotchActivityTests {
         accessoryContracts(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
+        cameraMicActivityContracts(suite)
+    }
+
+    /// The mirror's microphone ring: off by default, never listens without
+    /// both the switch and an existing grant, lights on speech, rides out
+    /// short pauses and goes dark after them.
+    private static func cameraMicActivityContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.camera-mic-activity"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.cameraPreviewMicActivity] as? Bool == false,
+                     "the microphone ring is off until the user turns it on")
+        suite.expect(!CameraMicActivitySupport.listens(microphoneAuthorized: true, in: defaults),
+                     "a granted microphone alone does not start listening")
+        defaults.set(true, forKey: DefaultsKey.cameraPreviewMicActivity)
+        suite.expect(!CameraMicActivitySupport.listens(microphoneAuthorized: false, in: defaults),
+                     "the switch alone never prompts for or opens the microphone")
+        suite.expect(CameraMicActivitySupport.listens(microphoneAuthorized: true, in: defaults),
+                     "switch and grant together let the mirror listen")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.cameraPreviewMicActivity),
+                     "the microphone ring choice travels in backup")
+        suite.expect(CameraMicActivitySupport.isLoud(-20) && !CameraMicActivitySupport.isLoud(-60)
+                     && !CameraMicActivitySupport.isLoud(CameraMicActivitySupport.thresholdDB)
+                     && !CameraMicActivitySupport.isLoud(-160),
+                     "speech lights the ring, room noise and silence do not")
+        let spoke = Date(timeIntervalSinceReferenceDate: 1_000)
+        suite.expect(!CameraMicActivitySupport.isActive(lastLoudAt: nil, now: spoke),
+                     "the ring starts dark")
+        suite.expect(CameraMicActivitySupport.isActive(lastLoudAt: spoke, now: spoke.addingTimeInterval(0.2)),
+                     "a short pause between words keeps the ring lit")
+        suite.expect(!CameraMicActivitySupport.isActive(lastLoudAt: spoke,
+                                                        now: spoke.addingTimeInterval(CameraMicActivitySupport.hold + 0.01)),
+                     "the ring goes dark right after the hold")
+        suite.expect(!CameraMicActivitySupport.isActive(lastLoudAt: spoke, now: spoke.addingTimeInterval(1)),
+                     "the ring goes dark once the speaker stops")
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,

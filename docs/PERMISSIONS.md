@@ -9,7 +9,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
-| Microphone | Yes | Your voice in a screen recording, only when you turn it on |
+| Microphone | Yes | Your voice in a screen recording, and the optional microphone ring on the camera mirror, only when you turn them on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
@@ -69,9 +69,9 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **Why it comes up.** macOS asks before an app can record your microphone.
 
-**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor.
+**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor. The camera mirror's optional microphone ring, which only reads the input level while the mirror is open and records nothing.
 
-**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
+**If you say no.** Screen recording and the camera mirror still work without your microphone. System audio remains a separate choice.
 
 **Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
 

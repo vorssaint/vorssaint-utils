@@ -24,3 +24,22 @@ enum NotchCameraSupport {
         isEnabled(in: defaults) && expanded && selected == .camera && !appPanel && !captureControls
     }
 }
+
+/// The mirror's optional microphone ring. It listens only when the user
+/// turned it on and already granted the microphone; the mirror never asks.
+enum CameraMicActivitySupport {
+    /// Quiet room noise stays below this, a normal speaking voice is well above.
+    static let thresholdDB: Float = -45
+    /// Keeps the ring lit across the short gaps between words.
+    static let hold: TimeInterval = 0.4
+
+    static func listens(microphoneAuthorized: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        microphoneAuthorized && defaults.bool(forKey: DefaultsKey.cameraPreviewMicActivity)
+    }
+
+    static func isLoud(_ levelDB: Float) -> Bool { levelDB > thresholdDB }
+
+    static func isActive(lastLoudAt: Date?, now: Date) -> Bool {
+        lastLoudAt.map { now.timeIntervalSince($0) < hold } ?? false
+    }
+}

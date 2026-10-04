@@ -16,6 +16,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
+    @AppStorage(DefaultsKey.cameraPreviewMicActivity) private var cameraMicActivity = false
     @AppStorage(DefaultsKey.scratchpadShortcutEnabled) private var scratchpadShortcutEnabled = false
     @AppStorage(DefaultsKey.scratchpadRetention) private var scratchpadRetention = ScratchpadRetention.never.rawValue
     @AppStorage(DefaultsKey.scratchpadCloseOnClickOutside) private var scratchpadCloseOnClickOutside = true
@@ -162,6 +163,16 @@ struct QuickToolsSettings: View {
                         Text(l10n.s.shortcutUnavailable)
                             .font(.caption)
                             .foregroundStyle(.orange)
+                    }
+                    Toggle(isOn: $cameraMicActivity) {
+                        Text(FeatureStrings.cameraPreview(l10n.language).micActivity)
+                        Text(FeatureStrings.cameraPreview(l10n.language).micActivityHint)
+                    }
+                    .onChange(of: cameraMicActivity) { _, _ in
+                        CameraPreviewService.shared.micActivityPreferenceChanged()
+                    }
+                    if cameraMicActivity, permissions.microphone != .granted {
+                        PermissionRow(kind: .microphone)
                     }
                     if permissions.camera == .denied {
                         CameraPermissionRow()
