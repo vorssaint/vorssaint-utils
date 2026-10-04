@@ -436,6 +436,40 @@ enum RepositoryFeatureTests {
                "Homebrew install and upgrade preserve package details after success")
         suite.expect(HomebrewCommandBuilder.needsTerminalFallback(output: "sudo: a terminal is required to read the password"),
                "sudo terminal error triggers Homebrew terminal fallback")
+
+        // .command scripts open via the default handler — no named terminal app.
+        expectEqual(HomebrewCommandScript.contents(command: "sudo brew install jq"),
+                    "#!/bin/zsh\nsudo brew install jq\n",
+                    "Homebrew command script uses a zsh shebang and the raw command")
+        expectEqual(HomebrewCommandScript.contents(command: #"echo "a'b""#),
+                    "#!/bin/zsh\necho \"a'b\"\n",
+                    "Homebrew command script preserves quoting inside the command body")
+        let commandDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-homebrew-command-tests-\(UUID().uuidString)",
+                                    isDirectory: true)
+        suite.expect((try? FileManager.default.createDirectory(at: commandDir,
+                                                               withIntermediateDirectories: true)) != nil,
+               "Homebrew command script test directory can be created")
+        let commandURL = try? HomebrewCommandScript.write(
+            command: "brew --version", toDirectory: commandDir)
+        suite.expect(commandURL?.pathExtension == "command",
+               "Homebrew command script uses the .command extension")
+        suite.expect(commandURL?.deletingLastPathComponent().path == commandDir.path,
+               "Homebrew command script is written into the requested directory")
+        let written = commandURL.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        expectEqual(written, "#!/bin/zsh\nbrew --version\n",
+                    "Homebrew command script file matches contents(command:)")
+        let mode = commandURL.flatMap {
+            (try? FileManager.default.attributesOfItem(atPath: $0.path)[.posixPermissions] as? NSNumber)?
+                .uint16Value
+        } ?? 0
+        suite.expect(mode & 0o111 != 0, "Homebrew command script is executable")
+        try? FileManager.default.removeItem(at: commandDir)
+        suite.expect(!managerSource.contains("tell application \"Terminal\""),
+               "Homebrew no longer hardcodes Terminal.app via AppleScript")
+        suite.expect(managerSource.contains("HomebrewCommandScript")
+                && managerSource.contains("NSWorkspace.shared.open"),
+               "Homebrew opens a .command file through NSWorkspace")
         suite.expect(HomebrewCommandBuilder.installerCommand == #"/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)""#,
                "Homebrew installer command matches the official install script entrypoint")
         expectEqual(HomebrewCommandBuilder.shellProfilePath(homeDirectory: "/Users/test", shellPath: "/bin/zsh"),
