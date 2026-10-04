@@ -230,8 +230,12 @@ enum MetricsFeatureTests {
                "battery time ignores the public unavailable sentinel")
         suite.expect(BatteryTimeSupport.formatted(seconds: 13_320) == "3h 42m",
                "battery time formats hours and minutes")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 3600) == "1h 0m",
+               "battery time formats an exact hour")
         suite.expect(BatteryTimeSupport.formatted(seconds: 30) == "0h 1m",
                "battery time keeps a positive final minute visible")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 1e21) == nil,
+               "battery time returns nil rather than trapping on an absurd input")
 
         suite.expect(MetricFormat.systemPowerWatts(measured: 3,
                                              batteryWatts: 10,
