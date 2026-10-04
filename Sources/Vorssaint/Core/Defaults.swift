@@ -160,6 +160,8 @@ enum DefaultsKey {
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
     static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
+    static let finderCopyPathEnabled = "finderCopyPathEnabled"
+    static let finderCopyPathShortcut = "finderCopyPathShortcut"
     static let finderRenameEnabled = "finderRenameEnabled"
     static let finderRenameShortcut = "finderRenameShortcut"
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
@@ -1691,6 +1693,8 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderCutPasteShowHUD: true,
+        DefaultsKey.finderCopyPathEnabled: false,
+        DefaultsKey.finderCopyPathShortcut: GlobalShortcut.finderCopyPathDefault.storageValue,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.switcherPreviewExcludedApps: [String](),
