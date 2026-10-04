@@ -768,6 +768,42 @@ enum UtilitiesFeatureTests {
         suite.expect(adapterAfterWarning?.info[RadialNowPlayingSupport.titleKey] as? String == "Midnight City"
                 && adapterAfterWarning?.pid == 42 && adapterAfterWarning?.isPlaying == true,
                "a perl warning on the shared stderr pipe ahead of the adapter's JSON line still parses")
+        // A browser can report the helper that plays the page, which has no
+        // windows and takes no activation, so opening the player resolves it
+        // to the browser first.
+        let nowPlayingServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(nowPlayingServiceSource.contains("ResponsibleProcess.regularAppOwner(of: pid)"),
+               "a browser's web content helper resolves to the browser that owns it")
+        suite.expect(nowPlayingServiceSource.contains("NowPlayingTabFocus.select(trackTitle: snapshot.title, in: application)"),
+               "opening the Now Playing app also selects the tab that plays the track")
+        let browserTabs = ["Inbox (12) - Mail", "Reviews of Midnight City - Blog",
+                           "(3) Midnight City - YouTube", "New Tab"]
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(tabTitles: browserTabs, trackTitle: "Midnight City") == 2,
+               "a tab that starts with the track, past an unread count, beats one that only mentions it")
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(
+                    tabTitles: ["Docs", "Café del Mar • Energy 52 - YouTube Music"], trackTitle: "cafe del mar") == 1,
+               "tab matching ignores case and accents")
+        suite.expect(RadialNowPlayingSupport.playingTabIndex(tabTitles: ["Watch later - YouTube"],
+                                                             trackTitle: "Midnight City - Live") == nil
+                && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["A tour"], trackTitle: "A") == nil
+                && RadialNowPlayingSupport.playingTabIndex(tabTitles: ["Midnight City"], trackTitle: nil) == nil,
+               "no tab is chosen without a real title match")
+        let zenStart = "Docs — Zen Browser"
+        suite.expect(RadialNowPlayingSupport.tabCycleStep(
+                    startTitle: zenStart, currentTitle: "she likes spring, I prefer winter | YouTube Music",
+                    trackTitle: "she likes spring, I prefer winter") == .found
+                && RadialNowPlayingSupport.tabCycleStep(startTitle: zenStart, currentTitle: "Inbox — Zen Browser",
+                                                        trackTitle: "Midnight City") == .next
+                && RadialNowPlayingSupport.tabCycleStep(startTitle: zenStart, currentTitle: zenStart,
+                                                        trackTitle: "Midnight City") == .wrapped,
+               "the keyboard fallback stops on the track and gives up once it is back on the first tab")
+        let cycling = RadialNowPlayingSupport.keyboardTabCyclingBrowsers
+        suite.expect(cycling.contains("app.zen-browser.zen") && cycling.contains("org.mozilla.firefox")
+                && !cycling.contains("com.apple.Music") && !cycling.contains("com.spotify.client")
+                && !cycling.contains("com.google.Chrome"),
+               "only Firefox-family browsers get keystrokes, never a music app or a browser that exposes its tabs")
         let nowPlayingBuildScript = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
         suite.expect(nowPlayingBuildScript.contains("Sources/NowPlayingAdapter/NowPlayingAdapter.swift")
                 && nowPlayingBuildScript.contains("Resources/now-playing.pl")

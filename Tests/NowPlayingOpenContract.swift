@@ -53,10 +53,17 @@ enum NowPlayingOpenContract {
             events.append("\(quiet ? "reopen" : "launch"):\(url.lastPathComponent)")
         }
     }
+    static var tabSelections: [String] = []
+    enum TabFocus {
+        static func select(trackTitle: String?, in application: App) {
+            tabSelections.append("\(trackTitle ?? "nil"):\(application.processIdentifier)")
+        }
+    }
     enum Application {
         typealias NSRunningApplication = App
         typealias ActivationHandoff = Handoff
         typealias NSWorkspace = Workspace
+        typealias NowPlayingTabFocus = TabFocus
         static func runningApplication(for snapshot: RadialNowPlayingSnapshot) -> App? { running }
         static func hasWindowOnScreen(pid: pid_t) -> Bool { windowOnScreen }
     }
@@ -66,6 +73,7 @@ enum NowPlayingOpenContract {
                                              appBundleIdentifier: "org.example.player", appPID: 20)
         func open(_ app: App?, cooperative: Bool = true, installedAt url: URL? = nil, window: Bool = true) {
             events = []
+            tabSelections = []
             running = app
             windowOnScreen = window
             cooperativeActivation = cooperative
@@ -75,6 +83,8 @@ enum NowPlayingOpenContract {
         open(App(processIdentifier: 20))
         suite.expect(events == ["yield:20", "activate:20:1:true"],
                      "the cover hands Vorssaint's activation to the player before asking for all its windows")
+        suite.expect(tabSelections == ["Track:20"],
+                     "a running player also gets its playing tab selected, by the track's title")
         open(App(processIdentifier: 20), cooperative: false)
         suite.expect(events == ["yield:20", "activate:20:1:true", "fallback:20:true"],
                      "a refused cooperative request still falls back to a direct one")
@@ -84,7 +94,7 @@ enum NowPlayingOpenContract {
         for policy in [NSApplication.ActivationPolicy.accessory, .prohibited] {
             open(App(processIdentifier: 20, activationPolicy: policy),
                  installedAt: URL(fileURLWithPath: "/Applications/Player.app"))
-            suite.expect(events.isEmpty,
+            suite.expect(events.isEmpty && tabSelections.isEmpty,
                          "a helper that takes no activation leaves Vorssaint inactive and launches nothing")
         }
         open(App(processIdentifier: 20), window: false)
@@ -94,7 +104,8 @@ enum NowPlayingOpenContract {
         suite.expect(events == ["unhide:20", "yield:20", "activate:20:1:true"],
                      "a hidden player's own windows come back with it, so no reopen is sent")
         open(nil, installedAt: URL(fileURLWithPath: "/Applications/Player.app"))
-        suite.expect(events == ["launch:Player.app"], "a player that has quit opens again from its bundle")
+        suite.expect(events == ["launch:Player.app"] && tabSelections.isEmpty,
+                     "a player that has quit opens again from its bundle, with no tab to select yet")
         open(nil)
         suite.expect(events.isEmpty, "a player that is neither running nor installed is left alone")
     }
