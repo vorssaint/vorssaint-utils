@@ -28,10 +28,16 @@ trap 'exit 1' INT TERM HUP
 
 # Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
+#
+# Architecture: by default the build targets the Mac it runs on (arm64 on Apple
+# Silicon, x86_64 on Intel). --arch=arm64|x86_64|universal overrides that, and
+# --universal is shorthand for --arch=universal (one bundle for both CPUs).
+# VORSSAINT_ARCH in the environment works the same as --arch=.
 DEV=0
 INSTALL=0
 TEST=0
 TEST_ARGS=()
+ARCH_REQUEST="${VORSSAINT_ARCH:-}"
 for arg in "$@"; do
     case "$arg" in
         --dev)     DEV=1 ;;
@@ -39,8 +45,27 @@ for arg in "$@"; do
         --test)    TEST=1 ;;
         --test-suite=*) TEST=1; TEST_ARGS+=("--suite=${arg#*=}") ;;
         --list-tests) TEST=1; TEST_ARGS+=(--list) ;;
+        --arch=*)  ARCH_REQUEST="${arg#*=}" ;;
+        --universal) ARCH_REQUEST="universal" ;;
     esac
 done
+
+# hw.optional.arm64 exists (and is 1) only on Apple Silicon, even when this
+# shell itself runs under Rosetta, where `uname -m` would say x86_64.
+if [[ "$(sysctl -n hw.optional.arm64 2>/dev/null)" == "1" ]]; then
+    HOST_ARCH="arm64"
+else
+    HOST_ARCH="x86_64"
+fi
+case "${ARCH_REQUEST:-$HOST_ARCH}" in
+    arm64)               ARCHS=(arm64) ;;
+    x86_64|intel|x86)    ARCHS=(x86_64) ;;
+    universal|both)      ARCHS=(arm64 x86_64) ;;
+    *)
+        echo "✗ Unknown --arch value '$ARCH_REQUEST' (use arm64, x86_64 or universal)" >&2
+        exit 1
+        ;;
+esac
 
 if (( DEV )); then
     APP_NAME="Vorssaint (Developer)"
@@ -62,7 +87,9 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
-TARGET="arm64-apple-macosx14.0"
+DEPLOYMENT_TARGET="macosx14.0"
+# The test runner executes on this Mac, so it always builds for the host CPU.
+TARGET="$HOST_ARCH-apple-$DEPLOYMENT_TARGET"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
@@ -554,7 +581,7 @@ if (( TEST )); then
     exit $test_status
 fi
 
-echo "▸ Compiling ($BUILD_CONFIGURATION) against $(basename "$SDK")…"
+echo "▸ Compiling ($BUILD_CONFIGURATION, ${(j:+:)ARCHS}) against $(basename "$SDK")…"
 APP_SOURCES=(Sources/Vorssaint/**/*.swift)
 if (( ! DEV )); then
     # A release starts from an empty build directory, so nothing an earlier
@@ -563,40 +590,75 @@ if (( ! DEV )); then
     # changed since, and a fresh checkout has none.
     find build -mindepth 1 -maxdepth 1 ! -name objects -exec rm -rf {} + 2>/dev/null || true
 fi
-APP_OBJECT_DIR="build/objects/$EXECUTABLE"
-mkdir -p build "$APP_OBJECT_DIR"
-APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
-write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
-# Without -j the driver compiles one file at a time, and without batch mode
-# each file's compiler parses the whole module again: a clean release took a
-# quarter of an hour. Batches share that work and run on every core, and the
-# optimization stays per file, as before.
-swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
-    -output-file-map "$APP_OUTPUT_FILE_MAP" \
-    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
-    "${BUILD_VARIANT_FLAGS[@]}" \
-    "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+mkdir -p build
 
-echo "▸ Compiling protected fan helper…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
-    Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
-    Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
-    Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
-    Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
-    Sources/FanControlHelper/main.swift \
-    -o "build/$FAN_HELPER_ID"
-"build/$FAN_HELPER_ID" --selftest
+# Each architecture compiles into build/<arch>/ with its own incremental
+# records; merge_slices then copies (one arch) or lipo-merges (universal) the
+# slices into the build/ path the bundle step expects.
+merge_slices() {
+    local output="$1" name="$2" arch
+    local slices=()
+    for arch in "${ARCHS[@]}"; do slices+=("build/$arch/$name"); done
+    if (( ${#slices} == 1 )); then
+        cp "${slices[1]}" "$output"
+    else
+        lipo -create "${slices[@]}" -output "$output"
+    fi
+}
 
-echo "▸ Compiling Now Playing adapter…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
-    -module-name VorssaintNowPlaying \
-    Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
-    Sources/NowPlayingAdapter/NowPlayingQueue.swift \
-    Sources/NowPlayingAdapter/NowPlayingSelection.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
-    Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
-    -o "build/$NOW_PLAYING_ADAPTER"
+for ARCH in "${ARCHS[@]}"; do
+    ARCH_TARGET="$ARCH-apple-$DEPLOYMENT_TARGET"
+    mkdir -p "build/$ARCH"
+    (( ${#ARCHS} > 1 )) && echo "  ▹ $ARCH"
+
+    APP_OBJECT_DIR="build/objects/$ARCH/$EXECUTABLE"
+    mkdir -p "$APP_OBJECT_DIR"
+    APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
+    write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+    # Without -j the driver compiles one file at a time, and without batch mode
+    # each file's compiler parses the whole module again: a clean release took a
+    # quarter of an hour. Batches share that work and run on every core, and the
+    # optimization stays per file, as before.
+    swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
+        -output-file-map "$APP_OUTPUT_FILE_MAP" \
+        -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+        "${BUILD_VARIANT_FLAGS[@]}" \
+        "${APP_SOURCES[@]}" -o "build/$ARCH/$EXECUTABLE"
+
+    echo "▸ Compiling protected fan helper ($ARCH)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+        Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
+        Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
+        Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
+        Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
+        Sources/FanControlHelper/main.swift \
+        -o "build/$ARCH/$FAN_HELPER_ID"
+
+    echo "▸ Compiling Now Playing adapter ($ARCH)…"
+    swiftc -O -target "$ARCH_TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
+        -module-name VorssaintNowPlaying \
+        Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
+        Sources/NowPlayingAdapter/NowPlayingQueue.swift \
+        Sources/NowPlayingAdapter/NowPlayingSelection.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
+        Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
+        -o "build/$ARCH/$NOW_PLAYING_ADAPTER"
+done
+
+merge_slices "build/$EXECUTABLE" "$EXECUTABLE"
+merge_slices "build/$FAN_HELPER_ID" "$FAN_HELPER_ID"
+merge_slices "build/$NOW_PLAYING_ADAPTER" "$NOW_PLAYING_ADAPTER"
+
+# The self-test needs a slice this Mac can execute: the native one, or x86_64
+# through Rosetta on Apple Silicon. An arm64-only build made on Intel cannot run.
+if (( ${ARCHS[(Ie)$HOST_ARCH]} )); then
+    "build/$FAN_HELPER_ID" --selftest
+elif [[ "$HOST_ARCH" == "arm64" ]] && /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+    /usr/bin/arch -x86_64 "build/$FAN_HELPER_ID" --selftest
+else
+    echo "  ⚠ fan helper self-test skipped: this Mac cannot run ${(j:+:)ARCHS} binaries"
+fi
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
