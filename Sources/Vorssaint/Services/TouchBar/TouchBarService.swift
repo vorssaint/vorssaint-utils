@@ -11,6 +11,8 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.keep-awake")
     private static let micMuteItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.mic-mute")
+    private static let clipboardItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.clipboard")
 
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
@@ -60,6 +62,8 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 return Self.keepAwakeItemIdentifier
             case .micMute:
                 return Self.micMuteItemIdentifier
+            case .clipboard:
+                return Self.clipboardItemIdentifier
             }
         }
         return bar
@@ -76,9 +80,30 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         case Self.micMuteItemIdentifier:
             return makeMicMuteItem(identifier: identifier)
 
+        case Self.clipboardItemIdentifier:
+            return makeClipboardItem(identifier: identifier)
+
         default:
             return nil
         }
+    }
+
+    private func makeClipboardItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        let button = NSButton(
+            image: NSImage(
+                systemSymbolName: "doc.on.clipboard",
+                accessibilityDescription: "Clipboard"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(toggleClipboard(_:))
+        )
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        item.view = button
+        return item
     }
 
     private func makeKeepAwakeItem(
@@ -143,6 +168,10 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
     private func updateMicMuteButton() {
         micMuteButton?.image = micMuteImage()
+    }
+
+    @objc private func toggleClipboard(_ sender: NSButton) {
+        ClipboardHistoryService.shared.toggleHistoryWindow()
     }
 
     @objc private func toggleKeepAwake(_ sender: NSButton) {

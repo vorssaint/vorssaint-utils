@@ -936,6 +936,7 @@ enum DefaultsKey {
     static let touchBarControlOrder = "touchBarControlOrder"
     static let touchBarShowKeepAwake = "touchBarShowKeepAwake"
     static let touchBarShowMicMute = "touchBarShowMicMute"
+    static let touchBarShowClipboard = "touchBarShowClipboard"
 
     // Radial menu: a wheel of actions on a shortcut.
     static let radialMenuEnabled = "radialMenuEnabled"
@@ -1943,6 +1944,7 @@ enum Defaults {
         DefaultsKey.touchBarControlOrder: "",
         DefaultsKey.touchBarShowKeepAwake: true,
         DefaultsKey.touchBarShowMicMute: true,
+        DefaultsKey.touchBarShowClipboard: true,
     ]
 
     static func register() {

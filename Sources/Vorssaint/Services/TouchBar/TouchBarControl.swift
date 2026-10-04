@@ -6,6 +6,7 @@ import Foundation
 enum TouchBarControl: String, CaseIterable, Hashable {
     case keepAwake
     case micMute
+    case clipboard
 
     var visibilityKey: String {
         switch self {
@@ -13,6 +14,8 @@ enum TouchBarControl: String, CaseIterable, Hashable {
             return DefaultsKey.touchBarShowKeepAwake
         case .micMute:
             return DefaultsKey.touchBarShowMicMute
+        case .clipboard:
+            return DefaultsKey.touchBarShowClipboard
         }
     }
 
