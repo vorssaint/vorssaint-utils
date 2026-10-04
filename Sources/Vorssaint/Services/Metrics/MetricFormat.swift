@@ -157,6 +157,16 @@ enum MetricFormat {
             value /= 1024
             index += 1
         }
+        // A value that only crosses 1024 once the number is rounded still reads
+        // as the larger unit, so promoting only before rounding labelled a
+        // megabyte "1,024 KB". `bytesPerSecCompact` already re-checks for this;
+        // doing it here keeps every byte rate one unit apart in name and value.
+        // Under ten the decimal is kept and can never reach 1024, and at the
+        // last unit there is nothing left to promote into.
+        while index < units.count - 1, value.rounded() >= 1024, index == 0 || value >= 10 {
+            value /= 1024
+            index += 1
+        }
         return (value, units[index])
     }
 

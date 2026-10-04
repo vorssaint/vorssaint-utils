@@ -237,11 +237,19 @@ final class MicMuteService: ObservableObject {
         UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
         syncListeners()
         guard announce else { return }
+        // A partial result keeps the floating confirmation: the whole
+        // sentence matters, and it is longer than the island's wings.
         if outcome.failed {
+            NotchService.shared.retractMicrophoneNotice()
             QuickToolHUD.show(icon: "exclamationmark.triangle",
                               message: muted ? L10n.shared.s.micMutePartialHUD : L10n.shared.s.micUnmutePartialHUD)
             return
         }
+        // With Dynamic Island on, the switch reports there like the volume,
+        // and the companion hushes or perks up, in its notice or where it is.
+        let shownInIsland = NotchService.shared.showMicrophone(muted: muted)
+        NotchService.shared.reactMascot(muted ? .hush : .perk)
+        guard !shownInIsland else { return }
         QuickToolHUD.show(icon: muted ? "mic.slash.fill" : "mic.fill",
                           message: muted ? L10n.shared.s.micMutedHUD : L10n.shared.s.micUnmutedHUD)
     }

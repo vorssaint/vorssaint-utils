@@ -21,15 +21,39 @@ final class NotchMusicService: ObservableObject {
     @Published private(set) var commandPending = false
     @Published private(set) var automationAvailability: NotchMusicAutomation.Availability?
     @Published private(set) var requestingAutomation = false
-    @Published private(set) var upcoming: NotchQueueSnapshot?
+    @Published private(set) var upcoming: NotchQueueSnapshot? {
+        didSet {
+            guard upcoming != oldValue else { return }
+            queueCovers.update(upcoming, decode: NSImage.init(data:))
+            upcomingArtwork = queueCovers.images
+        }
+    }
+    @Published private(set) var upcomingArtwork: [String: NSImage] = [:]
+    private var queueCovers = NotchQueueCovers<NSImage>()
     @Published private(set) var queueLoading = false
     @Published private(set) var queueActionPending = false
     @Published private(set) var queueActionFailed = false
-    /// A player moved on to another song; see NotchTrackChange.
+    /// A player moved on to another song; see NotchTrackChange. Sent before
+    /// the song is published, while every surface still shows the old one.
     let trackChanges = PassthroughSubject<Void, Never>()
+    /// The song shown stops, and no other plays yet: a gap between songs
+    /// outlasted its grace period, or another player's paused song took over
+    /// from a pause. Sent before that reading is published.
+    let trackEnds = PassthroughSubject<Void, Never>()
     /// Immediate visual acknowledgement of an accepted swipe, before metadata arrives.
     let gestureSkips = PassthroughSubject<Bool, Never>()
     private var trackChange = NotchTrackChange()
+    private struct Reading {
+        let playback: NotchPlayback?
+        let artwork: NSImage?
+        let tint: NotchArtworkTint?
+        let sources: [NotchPlaybackSource]
+        let automatic: Bool?
+        let selectedPID: Int32?
+    }
+    /// An empty reading waiting out a gap between songs; see receive(_:).
+    private var gapReading: Reading?
+    private var gapWork: DispatchWorkItem?
     private var queueVisible = false
     private var queueRequest: UUID?
     private var queueReply: [String: Any]?
@@ -146,17 +170,8 @@ final class NotchMusicService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.generation == requested,
                       self.acceptsSourceReply(automatic: automatic, sources: sources) else { return }
-                let first = self.awaitingPlayback
-                self.updateArtwork(image, tint: tint, playback: next)
-                self.playback = next
-                self.sources = sources
-                self.sourceIsAutomatic = automatic ?? true
-                self.selectedSourcePID = selectedPID
-                self.awaitingPlayback = false
-                self.updateAutomation(for: next)
-                NotchLyricsService.shared.playbackChanged(next)
-                self.updateQueue()
-                if self.trackChange.isNewSong(next, first: first) { self.trackChanges.send() }
+                self.receive(Reading(playback: next, artwork: image, tint: tint, sources: sources,
+                                     automatic: automatic, selectedPID: selectedPID))
             }
         }
         output.fileHandleForReading.readabilityHandler = { handle in
@@ -203,6 +218,59 @@ final class NotchMusicService: ObservableObject {
             return true
         }
         return !restoring
+    }
+
+    /// A player moving on to its next song can clear its metadata for a
+    /// moment, which reads as nothing playing or as another player's paused
+    /// song standing in, or report the next song paused before it starts. The
+    /// page would empty or change and shrink, and the compact strip leave,
+    /// until the next song plays. The last song stays through such a gap and
+    /// the next reading replaces it at once. Later readings of the gap never
+    /// extend the grace period.
+    private func receive(_ reading: Reading) {
+        // A player that still lists a song when another player's paused song
+        // takes its place was paused. During a gap it had left, the song it
+        // lists again can be its next one, still loading.
+        let listing = gapWork == nil ? reading.sources : []
+        if let current = playback, !awaitingPlayback,
+           NotchTrackChange.isBetweenSongs(reading.playback, after: current, sources: listing) {
+            gapReading = reading
+            guard gapWork == nil else { return }
+            let requested = generation
+            let work = DispatchWorkItem { [weak self] in
+                guard let self, self.generation == requested, let reading = self.gapReading else { return }
+                self.endPlaybackGap()
+                self.apply(reading)
+            }
+            gapWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + NotchPlayback.gapGracePeriod, execute: work)
+            return
+        }
+        endPlaybackGap()
+        apply(reading)
+    }
+
+    private func endPlaybackGap() {
+        gapWork?.cancel()
+        gapWork = nil
+        gapReading = nil
+    }
+
+    private func apply(_ reading: Reading) {
+        let first = awaitingPlayback
+        if trackChange.isNewSong(reading.playback, first: first) { trackChanges.send() }
+        else if !first, let current = playback, NotchTrackChange.isBetweenSongs(reading.playback, after: current) {
+            trackEnds.send()
+        }
+        updateArtwork(reading.artwork, tint: reading.tint, playback: reading.playback)
+        playback = reading.playback
+        sources = reading.sources
+        sourceIsAutomatic = reading.automatic ?? true
+        selectedSourcePID = reading.selectedPID
+        awaitingPlayback = false
+        updateAutomation(for: reading.playback)
+        NotchLyricsService.shared.playbackChanged(reading.playback)
+        updateQueue()
     }
 
     private func connectionEnded() {
@@ -275,6 +343,7 @@ final class NotchMusicService: ObservableObject {
     }
 
     private func disconnect() {
+        endPlaybackGap()
         artworkWork?.cancel()
         artworkWork = nil
         artworkCache = .init()
@@ -289,6 +358,7 @@ final class NotchMusicService: ObservableObject {
         queueRequest = nil
         queueReply = nil
         upcoming = nil
+        queueCovers = .init()
         queueLoading = false
         queueActionPending = false
         queueActionFailed = false
@@ -328,6 +398,7 @@ final class NotchMusicService: ObservableObject {
         setQueueVisible(false)
         // Remove the old controls while the adapter validates and reads the
         // new source. No gesture can borrow the previous player's context.
+        endPlaybackGap()
         playback = nil
         artwork = nil
         artworkTint = nil
@@ -354,7 +425,9 @@ final class NotchMusicService: ObservableObject {
     }
 
     func syncQueuePreference() {
-        if !NotchQueueSupport.isEnabled() { setQueueVisible(false) }
+        guard !NotchQueueSupport.isEnabled() else { return }
+        setQueueVisible(false)
+        queueCovers = .init()
     }
 
     func refreshQueue() {
@@ -370,11 +443,21 @@ final class NotchMusicService: ObservableObject {
         if !send(.queue(request)) { queueLoading = false; queueActionFailed = true }
     }
 
+    var upcomingIsHeld: Bool {
+        guard let upcoming else { return false }
+        return upcoming.currentIdentifier != playback?.itemIdentifier || upcoming.pid != playback?.track.appPID
+    }
+
+    var upcomingRows: [NotchQueueItem] {
+        upcoming?.items.filter { $0.id != playback?.itemIdentifier } ?? []
+    }
+
     func playQueued(_ item: NotchQueueItem) {
         guard queueVisible, NotchQueueSupport.isEnabled(), let request = queueRequest, let upcoming,
               let playback, upcoming.currentIdentifier == playback.itemIdentifier,
               upcoming.pid == playback.track.appPID, upcoming.canPlay,
-              upcoming.items.contains(item), !queueActionPending else { return }
+              upcoming.items.contains(where: { $0.id == item.id && $0.offset == item.offset }),
+              !queueActionPending else { return }
         queueActionFailed = false
         queueActionPending = true
         let selected = NotchQueueSelection(requestID: request, pid: upcoming.pid,
@@ -399,7 +482,10 @@ final class NotchMusicService: ObservableObject {
             upcoming = nil
             return
         }
-        upcoming = NotchQueueSupport.decode(queueReply, requestID: request, playback: playback)
+        let next = NotchQueueSupport.decode(queueReply, requestID: request, playback: playback)
+        if next == nil, upcoming != nil,
+           NotchQueueSupport.awaitsSongQueue(queueReply, requestID: request, playback: playback) { return }
+        upcoming = next
     }
 
     func seek(to position: Double, in track: RadialNowPlayingSnapshot, context: NotchPlaybackContext?) {
@@ -432,7 +518,9 @@ final class NotchMusicService: ObservableObject {
         }
         guard process?.isRunning == true, let input else { return false }
         if command.requiresPlaybackContext {
-            guard let context, context == playback?.commandContext else { return false }
+            // A song held through a gap has no player left to reach, and a
+            // command would come back as a failure.
+            guard gapWork == nil, let context, context == playback?.commandContext else { return false }
             guard !commandPending, let playback else { return false }
             if !playback.canSendCommandsDirectly { return beginAutomation(command, playback: playback) }
         }

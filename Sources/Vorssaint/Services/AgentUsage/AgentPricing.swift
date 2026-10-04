@@ -262,13 +262,16 @@ enum AgentPricing {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
         if id.hasPrefix("claude-") {
-            var parts = id.dropFirst(7).split(separator: "-").map(String.init)
+            // A router's tag after a colon, like ":thinking", is a mode of the same model.
+            let family = id.split(separator: ":", maxSplits: 1).first.map(String.init) ?? id
+            var parts = family.dropFirst(7).split(separator: "-").map(String.init)
             // Snapshot dates and version suffixes add nothing to a name.
             parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
             parts.removeAll { $0.hasPrefix("v") && $0.dropFirst().first?.isNumber == true }
             parts.removeAll { $0 == "latest" }
-            let words = parts.filter { !$0.allSatisfy(\.isNumber) }
-            let version = parts.filter { $0.allSatisfy(\.isNumber) }.joined(separator: ".")
+            let words = parts.filter { !$0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
         }

@@ -25,6 +25,9 @@ final class MiddleClickService: ObservableObject {
     /// it owns three-finger touches and synthesizes clicks from unpressed
     /// contact, so the press moves to four fingers and Settings shows why.
     @Published private(set) var systemDragGestureConflict = false
+    /// Middle click started but MultitouchSupport gave it no touch device, so
+    /// no contact can ever arrive. A pause or session switch clears it.
+    @Published private(set) var touchDeviceMissing = false
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -41,7 +44,7 @@ final class MiddleClickService: ObservableObject {
     private var deviceList: CFArray?
     private var observers: [Any] = []
     private var hotplugPort: IONotificationPortRef?
-    private var hotplugIterator: io_iterator_t = 0
+    private var hotplugIterators: [io_iterator_t] = []
     /// Whether presses are turned into middle clicks. Off while the service
     /// runs only for the radial menu's tap. Guarded by `tapStateLock`.
     private var middleClickOn = false
@@ -181,7 +184,10 @@ final class MiddleClickService: ObservableObject {
 
     private func start() {
         guard tapStateLock.withLock({ tap }) == nil else { return }
-        guard Multitouch.available else { return }
+        guard Multitouch.available else {
+            touchDeviceMissing = true
+            return
+        }
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -245,6 +251,7 @@ final class MiddleClickService: ObservableObject {
         resetTapCandidateLocked()
         stateLock.unlock()
         isRunning = false
+        touchDeviceMissing = false
     }
 
     /// Trackpads come and go across sleep and Bluetooth: drop every contact
@@ -256,7 +263,12 @@ final class MiddleClickService: ObservableObject {
     }
 
     private func startMultitouch() {
-        guard deviceList == nil, let list = Multitouch.deviceList() else { return }
+        guard deviceList == nil else { return }
+        guard let list = Multitouch.deviceList() else {
+            touchDeviceMissing = true
+            return
+        }
+        touchDeviceMissing = false
         deviceList = list
         for index in 0..<CFArrayGetCount(list) {
             guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
@@ -286,40 +298,46 @@ final class MiddleClickService: ObservableObject {
         installHotplugObserver()
     }
 
-    /// A Magic Trackpad appearing mid-session (Bluetooth or USB) must start
-    /// streaming without a relaunch. Event-driven via IOKit matching; if the
-    /// registration fails the internal trackpad still works.
+    /// Rebuild on both arrivals and removals, so unplugging the last trackpad
+    /// releases its contacts and shows the same warning as starting without one.
+    /// If notification registration fails, the current trackpad still works.
     private func installHotplugObserver() {
         guard hotplugPort == nil else { return }
         guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
         IONotificationPortSetDispatchQueue(port, DispatchQueue.main)
         let context = Unmanaged.passUnretained(self).toOpaque()
-        var iterator: io_iterator_t = 0
-        let result = IOServiceAddMatchingNotification(
-            port,
-            kIOFirstMatchNotification,
-            IOServiceMatching("AppleMultitouchDevice"),
-            { context, iterator in
-                guard let context else { return }
-                while case let entry = IOIteratorNext(iterator), entry != 0 {
-                    IOObjectRelease(entry)
-                }
-                let service = Unmanaged<MiddleClickService>.fromOpaque(context).takeUnretainedValue()
-                service.restartMultitouch()
-            },
-            context,
-            &iterator
-        )
-        guard result == KERN_SUCCESS else {
-            IONotificationPortDestroy(port)
-            return
-        }
-        // Drain the existing devices or the notification never arms.
-        while case let entry = IOIteratorNext(iterator), entry != 0 {
-            IOObjectRelease(entry)
+        var iterators: [io_iterator_t] = []
+        for notification in [kIOFirstMatchNotification, kIOTerminatedNotification] {
+            var iterator: io_iterator_t = 0
+            let result = IOServiceAddMatchingNotification(
+                port,
+                notification,
+                IOServiceMatching("AppleMultitouchDevice"),
+                { context, iterator in
+                    guard let context else { return }
+                    while case let entry = IOIteratorNext(iterator), entry != 0 {
+                        IOObjectRelease(entry)
+                    }
+                    let service = Unmanaged<MiddleClickService>.fromOpaque(context).takeUnretainedValue()
+                    service.restartMultitouch()
+                },
+                context,
+                &iterator
+            )
+            guard result == KERN_SUCCESS else {
+                if iterator != 0 { IOObjectRelease(iterator) }
+                for registered in iterators { IOObjectRelease(registered) }
+                IONotificationPortDestroy(port)
+                return
+            }
+            // Drain the existing devices or the notification never arms.
+            while case let entry = IOIteratorNext(iterator), entry != 0 {
+                IOObjectRelease(entry)
+            }
+            iterators.append(iterator)
         }
         hotplugPort = port
-        hotplugIterator = iterator
+        hotplugIterators = iterators
     }
 
     private func removeObservers() {
@@ -328,10 +346,8 @@ final class MiddleClickService: ObservableObject {
             center.removeObserver(observer)
         }
         observers = []
-        if hotplugIterator != 0 {
-            IOObjectRelease(hotplugIterator)
-            hotplugIterator = 0
-        }
+        for iterator in hotplugIterators { IOObjectRelease(iterator) }
+        hotplugIterators.removeAll()
         if let hotplugPort {
             IONotificationPortDestroy(hotplugPort)
             self.hotplugPort = nil

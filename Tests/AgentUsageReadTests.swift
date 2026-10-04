@@ -10,9 +10,9 @@ typealias AgentUsageProductionLogReader = AgentLogReader
 enum AgentUsageReadTests {
     enum AgentLogReader {
         static var beforeLine: (() -> Void)?
-        static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool,
+        static func readAppended(_ cursor: AgentLogCursor, since horizon: Date, shouldContinue: () -> Bool,
                                  line: (Data) -> Void) {
-            AgentUsageProductionLogReader.readAppended(cursor, shouldContinue: shouldContinue) {
+            AgentUsageProductionLogReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue) {
                 beforeLine?()
                 line($0)
             }
@@ -24,6 +24,7 @@ enum AgentUsageReadTests {
     }
 
     class Fixture {
+        static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
         var readerCancellation: Cancellation? = Cancellation()
         var cursors: [String: AgentLogCursor] = [:]
         let store = AgentUsageStore()
@@ -70,6 +71,7 @@ enum AgentUsageReadTests {
                 switch provider {
                 case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
+                case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 }
             }
             let reference = AgentUsageStore()

@@ -204,13 +204,17 @@ final class ShelfService: ObservableObject {
     private var pointerInsidePanel = false
     @Published private(set) var dropTargeted = false
     @Published private(set) var hotkeyRegistrationFailed = false
+    private var shortcutSelectionRequests = ShelfShortcutSelectionRequests()
     private var interactionDepth = 0
     /// Drag-pasteboard change count captured when the current gesture started.
-    /// Finder bumps the count after this point; Dock stacks can publish the
-    /// drag contents first. The drag pasteboard retains the previous drag's
-    /// items indefinitely, so only a bump during the current gesture may read
-    /// as content being dragged.
+    /// Finder bumps the count after this point. The drag pasteboard retains
+    /// the previous drag's items indefinitely, so only a bump during the
+    /// current gesture may read as content being dragged.
     private var dragBaselineChangeCount = 0
+    /// Drag-pasteboard change count when the previous gesture ended, which is
+    /// where a gesture in the Dock counts from: a Dock stack can publish its
+    /// drag before the mouse-down reaches the monitor.
+    private var dragRestingChangeCount = 0
     /// Whether the current gesture's start was observed. macOS 27 moves
     /// windows in the window server, and the title-bar mouse-down (sometimes
     /// the mouse-up too) never reaches global monitors while the dragged
@@ -330,6 +334,7 @@ final class ShelfService: ObservableObject {
             syncHotkey()
             syncDragMonitor()
         } else {
+            shortcutSelectionRequests.invalidate()
             cancelPendingPromiseDeliveries()
             unregisterHotkey()
             stopDragMonitor()
@@ -406,7 +411,7 @@ final class ShelfService: ObservableObject {
                 guard id.signature == 0x5655_5348, id.id == 2
                 else { return OSStatus(eventNotHandledErr) }
                 let service = Unmanaged<ShelfService>.fromOpaque(userData).takeUnretainedValue()
-                DispatchQueue.main.async { service.toggle() }
+                DispatchQueue.main.async { service.handleShortcut() }
                 return noErr
             }, 1, &spec, Unmanaged.passUnretained(self).toOpaque(), &hotKeyHandler)
         }
@@ -540,7 +545,8 @@ final class ShelfService: ObservableObject {
     private func isContentDragActive() -> Bool {
         let pasteboard = NSPasteboard(name: .drag)
         return ShelfInteractionSupport.isContentDrag(
-            baselineChangeCount: dragBaselineChangeCount,
+            gestureChangeCount: dragBaselineChangeCount,
+            restingChangeCount: dragRestingChangeCount,
             changeCount: pasteboard.changeCount,
             beganInDock: dragBeganInDock,
             hasDroppableContent: { pasteboardHasDroppableContent(pasteboard) })
@@ -563,6 +569,14 @@ final class ShelfService: ObservableObject {
         if !isInternalDragActive { NotchService.shared.fileDragChanged(false) }
         sawGestureStart = false
         dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
+        dragRestingChangeCount = dragBaselineChangeCount
+    }
+
+    /// A drag from one of our own windows never reaches the global monitor,
+    /// so no gesture closes after it. What it left on the drag pasteboard is
+    /// absorbed here, or the next press in the Dock would count it (#2212).
+    func absorbOwnDrag() {
+        dragRestingChangeCount = NSPasteboard(name: .drag).changeCount
     }
 
     private func pasteboardHasDroppableContent(_ pasteboard: NSPasteboard) -> Bool {
@@ -1097,6 +1111,7 @@ final class ShelfService: ObservableObject {
     /// keeps its pinned entries. The tile's own remove button still takes a
     /// pinned item away.
     func clear() {
+        shortcutSelectionRequests.invalidate()
         cancelPendingPromiseDeliveries()
         let protected = protectedIDs
         guard !protected.isEmpty else {
@@ -2382,6 +2397,61 @@ final class ShelfService: ObservableObject {
     func toggle() {
         if NotchService.shared.openShelf(toggle: true) { return }
         isVisible ? hide() : summon()
+    }
+
+    /// With the option on and Finder in front, the shortcut brings the
+    /// selected files along, like dragging them onto the shelf. Without a
+    /// selection it keeps toggling, so the shortcut still closes the shelf.
+    func handleShortcut() {
+        guard shortcutMayAddFinderSelection,
+              NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder"
+        else {
+            shortcutSelectionRequests.invalidate()
+            toggle()
+            return
+        }
+        let ticket = shortcutSelectionRequests.begin()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let urls = FinderBridge.selectionURLs()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch self.shortcutSelectionRequests.resolve(
+                    ticket, urls: urls, stillAllowed: self.shortcutMayAddFinderSelection,
+                    shelvedPaths: self.shelvedFilePaths) {
+                case .discard:
+                    return
+                case .toggle:
+                    self.toggle()
+                case let .add(urls):
+                    // A selection larger than the shelf holds is refused before
+                    // every file gets an icon, a thumbnail and a bookmark on the
+                    // main thread only to be thrown away.
+                    guard ShelfPersistenceSupport.canAdd(existingLeaves: self.itemCount,
+                                                         newLeaves: urls.count) else {
+                        NSSound.beep()
+                        self.toggle()
+                        return
+                    }
+                    if self.addFiles(urls) { self.summon() } else { self.toggle() }
+                }
+            }
+        }
+    }
+
+    /// The paths of the files on the shelf, piles included.
+    private var shelvedFilePaths: Set<String> {
+        Set(dragItems(for: items).compactMap { item -> String? in
+            guard case let .file(url) = item.payload else { return nil }
+            return url.standardizedFileURL.path
+        })
+    }
+
+    private var shortcutMayAddFinderSelection: Bool {
+        let defaults = UserDefaults.standard
+        return AppFeature.shelf.isAvailable
+            && defaults.bool(forKey: DefaultsKey.shelfEnabled)
+            && defaults.bool(forKey: DefaultsKey.shelfShortcutEnabled)
+            && defaults.bool(forKey: DefaultsKey.shelfShortcutAddsFinderSelection)
     }
 
     func togglePin() {

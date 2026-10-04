@@ -693,10 +693,6 @@ struct HomebrewSettings: View {
             .help(popularityDescription(popularity))
     }
 
-    private func updateHelp(_ update: HomebrewPackageUpdate) -> String {
-        "\(l10n.s.homebrewUpdateAvailableBadge): \(update.versionSummary)"
-    }
-
     private func popularityDescription(_ popularity: HomebrewPopularity) -> String {
         String(format: l10n.s.homebrewPopularityFormat,
                popularity.decimalCount,

@@ -89,6 +89,7 @@ enum SettingsBackupSupport {
         DefaultsKey.lastUpdateIntroVersion,
         DefaultsKey.supportUpdateIntroVersion,
         DefaultsKey.updateHighlightsSeenVersion,
+        DefaultsKey.featureHubKeptFeatures,
         DefaultsKey.brightnessUpdatePromptState,
         DefaultsKey.panelCollapsedResetVersion,
     ]
@@ -140,6 +141,9 @@ enum SettingsBackupSupport {
         DefaultsKey.notchDownloadsFolderBookmark,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
+        DefaultsKey.recorderSaveFolder,
+        DefaultsKey.screenshotSaveFolder,
+        DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,
@@ -172,6 +176,9 @@ enum SettingsBackupSupport {
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
+        // A fit measured against one Mac's camera housing would misfit another's.
+        DefaultsKey.notchCameraFitWidth,
+        DefaultsKey.notchCameraFitHeight,
     ]
 
     /// The file's content: an envelope with the format version, the app

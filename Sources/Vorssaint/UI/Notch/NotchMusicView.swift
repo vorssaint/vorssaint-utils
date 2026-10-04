@@ -90,6 +90,7 @@ struct NotchMusicView: View {
         .onDisappear {
             guard !preview else { return }
             NotchService.shared.setMusicDetailsVisible(false)
+            NotchService.shared.setPageLayer(.music, close: nil)
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
         }
@@ -98,6 +99,8 @@ struct NotchMusicView: View {
     private func syncExtras() {
         guard !preview else { return }
         NotchService.shared.setMusicDetailsVisible(openExtra != nil)
+        // Escape closes lyrics or the queue before the island.
+        NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
         service.setQueueVisible(extra == .queue)
     }
@@ -238,8 +241,12 @@ private struct NotchMusicTransport: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchSettingsPreview) private var preview
+    /// What a tap on play or pause asked for, shown at once while the player
+    /// takes its round trip to say so. It gives way to the player's word.
+    @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var height: CGFloat { compact ? 36 : 44 }
+    private var showsPlaying: Bool { requestedPlaying ?? playback.isPlaying }
 
     var body: some View {
         if !playback.canSendCommandsDirectly, service.automationAvailability?.access != .granted {
@@ -278,19 +285,33 @@ private struct NotchMusicTransport: View {
 
     private var toggleButton: some View {
         Button {
-            if service.canPerform(.toggle) { service.send(.toggle, context: playback.commandContext) }
-            else { service.requestAutomationAccess() }
+            if service.canPerform(.toggle) {
+                // Only a player the island writes to directly answers fast enough
+                // to show its word early; a slower path waits for the player.
+                let direct = playback.canSendCommandsDirectly
+                if service.send(.toggle, context: playback.commandContext), direct { requestedPlaying = !showsPlaying }
+            } else { service.requestAutomationAccess() }
         } label: {
-            Image(systemName: playback.isPlaying ? "pause.fill" : "play.fill")
+            Image(systemName: showsPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: compact ? 14 : 17, weight: .semibold))
                 .foregroundStyle(.black)
                 .contentTransition(.symbolEffect(.replace))
-                .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: playback.isPlaying)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: showsPlaying)
                 .frame(width: height, height: height)
                 .background(.white, in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: height / 2))
+        // A second tap before the player answers asks for the state after it,
+        // so only the player reaching what was asked ends the early word.
+        .onChange(of: playback.isPlaying) { if playback.isPlaying == requestedPlaying { requestedPlaying = nil } }
+        .onChange(of: playback.track) { requestedPlaying = nil }
+        // A player that never answers leaves the button as it was.
+        .task(id: requestedPlaying) {
+            guard requestedPlaying != nil else { return }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if !Task.isCancelled { requestedPlaying = nil }
+        }
         .disabled(!service.canPerform(.toggle)
                   && (service.automationAvailability?.access != .consent || service.requestingAutomation))
         // A preview in Settings must not take Space from the window it sits in.
@@ -315,7 +336,7 @@ private struct NotchMusicTransport: View {
     }
 }
 
-private struct NotchMusicTimeline: View {
+struct NotchMusicTimeline: View {
     let playback: NotchPlayback
     @ObservedObject var service: NotchMusicService
     var tint: Color = .white

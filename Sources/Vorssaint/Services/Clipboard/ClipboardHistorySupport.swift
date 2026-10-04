@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import SwiftUI
 
 enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
@@ -175,8 +176,8 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     }
 
     /// The color a text entry spells out, if that is all it holds.
-    var color: ClipboardHistoryColor? {
-        kind == .text ? ClipboardHistoryColor(text: text) : nil
+    var color: ColorValue? {
+        kind == .text ? ColorValue(text: text) : nil
     }
 
     /// `preview` collapsed further to a menu bar sized excerpt, for the
@@ -239,129 +240,6 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageHash = try container.decodeIfPresent(String.self, forKey: .imageHash)
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
-    }
-}
-
-/// A text entry that is only a color value, so the history can show a swatch
-/// beside it. The accepted forms are the CSS ones designers copy and the ones
-/// the color picker writes: `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`, `rgb()`,
-/// `rgba()`, `hsl()` and `hsla()`. The value must be the whole entry; a color
-/// inside a longer text is not one, and a bare `RRGGBB` would also match plain
-/// numbers and hashes.
-struct ClipboardHistoryColor: Equatable {
-    let red: Double
-    let green: Double
-    let blue: Double
-    let alpha: Double
-
-    /// Longer than any accepted form with generous spacing; the cap keeps a
-    /// render from trimming or scanning a large entry.
-    static let maxLength = 64
-
-    init(red: Double, green: Double, blue: Double, alpha: Double = 1) {
-        self.red = red
-        self.green = green
-        self.blue = blue
-        self.alpha = alpha
-    }
-
-    init?(text: String) {
-        guard text.utf8.count <= Self.maxLength else { return nil }
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if value.hasPrefix("#") {
-            self.init(hexDigits: value.dropFirst())
-        } else if let arguments = Self.arguments(of: value, names: ["rgba", "rgb"]) {
-            self.init(rgbArguments: arguments)
-        } else if let arguments = Self.arguments(of: value, names: ["hsla", "hsl"]) {
-            self.init(hslArguments: arguments)
-        } else {
-            return nil
-        }
-    }
-
-    private init?(hexDigits: Substring) {
-        guard [3, 4, 6, 8].contains(hexDigits.count),
-              hexDigits.allSatisfy(\.isHexDigit)
-        else { return nil }
-        let expanded = hexDigits.count <= 4
-            ? String(hexDigits.flatMap { [$0, $0] })
-            : String(hexDigits)
-        guard let value = UInt64(expanded, radix: 16) else { return nil }
-        let hasAlpha = expanded.count == 8
-        let rgb = hasAlpha ? value >> 8 : value
-        self.init(red: Double((rgb >> 16) & 0xFF) / 255,
-                  green: Double((rgb >> 8) & 0xFF) / 255,
-                  blue: Double(rgb & 0xFF) / 255,
-                  alpha: hasAlpha ? Double(value & 0xFF) / 255 : 1)
-    }
-
-    private init?(rgbArguments: [String]) {
-        guard (3...4).contains(rgbArguments.count) else { return nil }
-        var channels: [Double] = []
-        for argument in rgbArguments.prefix(3) {
-            if let percent = Self.percentage(argument) {
-                channels.append(percent)
-            } else if let number = Self.number(argument), (0...255).contains(number) {
-                channels.append(number / 255)
-            } else {
-                return nil
-            }
-        }
-        guard let alpha = Self.alpha(rgbArguments.dropFirst(3).first) else { return nil }
-        self.init(red: channels[0], green: channels[1], blue: channels[2], alpha: alpha)
-    }
-
-    private init?(hslArguments: [String]) {
-        guard (3...4).contains(hslArguments.count) else { return nil }
-        let hueText = hslArguments[0].hasSuffix("deg")
-            ? String(hslArguments[0].dropLast(3))
-            : hslArguments[0]
-        guard let hue = Self.number(hueText),
-              let saturation = Self.percentage(hslArguments[1]),
-              let lightness = Self.percentage(hslArguments[2]),
-              let alpha = Self.alpha(hslArguments.dropFirst(3).first)
-        else { return nil }
-        let h = (hue.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 360
-        let chroma = (1 - abs(2 * lightness - 1)) * saturation
-        func channel(_ offset: Double) -> Double {
-            let k = (offset + h * 12).truncatingRemainder(dividingBy: 12)
-            return lightness - chroma / 2 * max(-1, min(k - 3, 9 - k, 1))
-        }
-        self.init(red: channel(0), green: channel(8), blue: channel(4), alpha: alpha)
-    }
-
-    /// The arguments of `name(...)`, split on commas, spaces and the slash
-    /// that CSS puts before the alpha value.
-    private static func arguments(of value: String, names: [String]) -> [String]? {
-        guard value.hasSuffix(")"),
-              let name = names.first(where: { value.hasPrefix($0 + "(") })
-        else { return nil }
-        let inner = value.dropFirst(name.count + 1).dropLast()
-        return inner
-            .split(whereSeparator: { $0 == "," || $0 == "/" || $0.isWhitespace })
-            .map(String.init)
-    }
-
-    private static func number(_ text: String) -> Double? {
-        guard let value = Double(text), value.isFinite else { return nil }
-        return value
-    }
-
-    /// A `0%`...`100%` value as a fraction.
-    private static func percentage(_ text: String) -> Double? {
-        guard text.hasSuffix("%"),
-              let value = number(String(text.dropLast())),
-              (0...100).contains(value)
-        else { return nil }
-        return value / 100
-    }
-
-    /// Opaque when absent; otherwise a `0`...`1` number or a percentage.
-    private static func alpha(_ text: String?) -> Double? {
-        guard let text else { return 1 }
-        if let percent = percentage(text) { return percent }
-        guard let value = number(text), (0...1).contains(value) else { return nil }
-        return value
     }
 }
 
@@ -534,6 +412,35 @@ enum ClipboardHistorySearch {
         return tokens.allSatisfy { normalizedText.contains($0) }
     }
 
+    /// Non-empty search tokens from a raw query, split by whitespace.
+    static func searchTokens(for query: String) -> [String] {
+        query.split(whereSeparator: \.isWhitespace)
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    /// Finds all matching character ranges in `text` for the given tokens,
+    /// matching case-insensitively, diacritic-insensitively, and width-insensitively.
+    static func highlightRanges(in text: String, tokens: [String]) -> [Range<String.Index>] {
+        guard !text.isEmpty, !tokens.isEmpty else { return [] }
+        var ranges: [Range<String.Index>] = []
+        for token in tokens {
+            guard !token.isEmpty else { continue }
+            var search = text.startIndex..<text.endIndex
+            while search.lowerBound < text.endIndex,
+                  let r = text.range(of: token,
+                                     options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+                                     range: search) {
+                ranges.append(r)
+                if r.upperBound == search.lowerBound {
+                    break
+                }
+                search = r.upperBound..<text.endIndex
+            }
+        }
+        return ranges
+    }
+
     private static func score(for text: String,
                               normalizedQuery: String,
                               tokens: [String],
@@ -574,6 +481,50 @@ enum ClipboardHistorySearch {
             .replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\t", with: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+/// Marks what a clipboard search matched in a row's text. Only the matches
+/// change: the rest keeps the font and color modifiers of the `Text` it goes
+/// into, so a row looks the same with and without a search.
+enum SearchHighlightText {
+    /// More than any history row shows within its line limit, even in a wide
+    /// history window. A long preview is searched and styled only this far,
+    /// so typing in a large history of long texts stays cheap.
+    static let visibleCharacters = 500
+
+    /// The part of `string` a highlighted row draws, with an ellipsis when
+    /// it is cut.
+    static func excerpt(_ string: String) -> String {
+        guard let end = string.index(string.startIndex, offsetBy: visibleCharacters, limitedBy: string.endIndex),
+              end < string.endIndex else { return string }
+        return String(string[..<end]) + "…"
+    }
+
+    /// A nil `highlightColor` keeps the text's own color, so the matches
+    /// stand out by weight alone.
+    static func highlighted(_ string: String,
+                            tokens: [String],
+                            fontSize: CGFloat,
+                            highlightColor: Color? = .accentColor,
+                            highlightWeight: Font.Weight = .semibold) -> AttributedString {
+        let visible = excerpt(string)
+        var attributed = AttributedString(visible)
+        for range in ClipboardHistorySearch.highlightRanges(in: visible, tokens: tokens) {
+            guard let attributedRange = Range(range, in: attributed) else { continue }
+            if let highlightColor { attributed[attributedRange].foregroundColor = highlightColor }
+            attributed[attributedRange].font = .system(size: fontSize, weight: highlightWeight)
+        }
+        return attributed
+    }
+
+    /// A row's text: the plain string while nothing is searched.
+    static func text(_ string: String,
+                     tokens: [String],
+                     fontSize: CGFloat,
+                     highlightColor: Color? = .accentColor) -> Text {
+        guard !tokens.isEmpty else { return Text(string) }
+        return Text(highlighted(string, tokens: tokens, fontSize: fontSize, highlightColor: highlightColor))
     }
 }
 

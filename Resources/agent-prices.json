@@ -1,18 +1,35 @@
 {
   "schema": 1,
-  "updated": "2026-09-22",
+  "updated": "2026-10-02",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
+    "https://platform.claude.com/docs/en/models/overview",
+    "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
     "https://platform.claude.com/docs/en/about-claude/model-deprecations",
+    "https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock",
+    "https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai",
+    "https://claude.com/pricing",
     "https://www.anthropic.com/glasswing",
     "https://developers.openai.com/api/docs/pricing",
     "https://developers.openai.com/api/docs/models",
-    "https://developers.openai.com/codex/models"
+    "https://developers.openai.com/api/docs/models/all",
+    "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
+    "https://developers.openai.com/api/docs/models/o3",
+    "https://developers.openai.com/api/docs/models/gpt-4-turbo-preview",
+    "https://developers.openai.com/api/docs/deprecations",
+    "https://developers.openai.com/codex/models",
+    "https://learn.chatgpt.com/docs/pricing"
   ],
   "notes": [
-    "gpt-5.6-sol and gpt-daybreak-blue-latest carry a promotional price announced through at least 2026-11-21; check them again after that date.",
+    "gpt-5.6, gpt-5.6-sol and gpt-daybreak-blue-latest carry a promotional price announced through at least 2026-11-21. Check them again after that date.",
     "gpt-daybreak-blue-latest and gpt-daybreak-red-latest are aliases of gpt-5.6-sol and gpt-5.6-cyber; follow them when they move.",
-    "claude-sonnet-4-5 and claude-sonnet-4 now have a 200K window; their long-context premium only prices older history."
+    "claude-sonnet-4-5 and claude-sonnet-4 now have a 200K window. Their long-context premium only prices older history.",
+    "o3 keeps its previous rates pending clarification. The pricing table lists 2/0.5/8 and its model page lists 1/0.25/4 for input/cache reads/output.",
+    "gpt-5.6-cyber and gpt-daybreak-red-latest keep their existing long-context premium pending clarification. The model page describes it, but the pricing table leaves long-context rates unpublished.",
+    "Pro has no monthly comparison because plan_type pro does not distinguish the published 100, 200 and 500 USD subscriptions.",
+    "Astra Ultrafast costs 6x Standard and requires app support for a separate speed tier. Schema 1 only represents Standard and Fast.",
+    "gpt-5.3-codex-spark has no published API price and remains unpriced. gpt-oss models have no OpenAI token price and are excluded."
   ],
   "claude": {
     "webSearch": 0.01,
@@ -31,6 +48,7 @@
       { "id": "claude-opus-4-5", "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWriteLong": 10 },
       { "id": "claude-opus-4-1", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75, "cacheWriteLong": 30 },
       { "id": "claude-opus-4", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75, "cacheWriteLong": 30 },
+      { "id": "claude-sonnet-5-5", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWriteLong": 4 },
       { "id": "claude-sonnet-5", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWriteLong": 4 },
       { "id": "claude-sonnet-4-6", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6 },
       { "id": "claude-sonnet-4-5", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6,
@@ -55,6 +73,8 @@
   },
   "codex": {
     "models": [
+      { "id": "gpt-6.1-sol", "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5, "fastMultiplier": 2,
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-6-astra", "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-6-sol", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "fastMultiplier": 2,
@@ -62,6 +82,8 @@
       { "id": "gpt-6-luna", "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-5.6-sol", "input": 4, "output": 20, "cacheRead": 0.4, "cacheWrite": 5, "fastMultiplier": 2,
+        "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
+      { "id": "gpt-5.6", "input": 4, "output": 20, "cacheRead": 0.4, "cacheWrite": 5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "gpt-5.6-terra", "input": 2, "output": 12, "cacheRead": 0.2, "cacheWrite": 2.5, "fastMultiplier": 2,
         "longContext": { "above": 272000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
@@ -130,6 +152,8 @@
       { "id": "gpt-4-0613", "input": 30, "output": 60, "cacheRead": 30 },
       { "id": "gpt-4-turbo", "input": 10, "output": 30, "cacheRead": 10 },
       { "id": "gpt-4-turbo-preview", "input": 10, "output": 30, "cacheRead": 10 },
+      { "id": "gpt-4-0125-preview", "input": 10, "output": 30, "cacheRead": 10 },
+      { "id": "gpt-4-1106-vision-preview", "input": 10, "output": 30, "cacheRead": 10 },
       { "id": "gpt-4", "input": 30, "output": 60, "cacheRead": 30 },
       { "id": "gpt-3.5-turbo", "input": 0.5, "output": 1.5, "cacheRead": 0.5 },
       { "id": "gpt-3.5-turbo-0125", "input": 0.5, "output": 1.5, "cacheRead": 0.5 },
@@ -140,7 +164,7 @@
     ],
     "plans": [
       { "match": "plus", "name": "Plus", "monthly": 20 },
-      { "match": "pro", "name": "Pro", "monthly": 200 }
+      { "match": "pro", "name": "Pro" }
     ]
   }
 }

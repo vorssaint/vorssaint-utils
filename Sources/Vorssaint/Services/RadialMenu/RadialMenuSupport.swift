@@ -854,6 +854,21 @@ enum RadialMenuSupport {
         return [initialProfile]
     }
 
+    /// The combinations the wheels answer to, read the way `RadialMenuService`
+    /// registers them. Before any profile is saved that is the shortcut the
+    /// first wheel migrates from, and a wheel without one claims nothing.
+    static func profileShortcuts(defaults: UserDefaults = .standard) -> [GlobalShortcut] {
+        decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles), defaults: defaults)
+            .compactMap { GlobalShortcut(storageValue: $0.shortcut) }
+    }
+
+    /// The other wheel that already opens on a combination. Two wheels on one
+    /// combination would leave one of them dead, so Settings refuses the second.
+    static func profile(using shortcut: GlobalShortcut, in profiles: [RadialMenuProfile],
+                        excluding profileID: UUID) -> RadialMenuProfile? {
+        profiles.first { $0.id != profileID && GlobalShortcut(storageValue: $0.shortcut) == shortcut }
+    }
+
     static func encodeProfiles(_ profiles: [RadialMenuProfile]) -> Data? {
         try? JSONEncoder().encode(sanitizedProfiles(profiles))
     }

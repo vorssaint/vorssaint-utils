@@ -10,6 +10,7 @@ struct NotchCalendarView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @AppStorage(DefaultsKey.notchCalendarCountdown) private var countdownForEvery = false
     /// The day the month grid or the week strip is built around.
     @State private var focus = Date()
     @State private var selectedDay: Date?
@@ -71,7 +72,15 @@ struct NotchCalendarView: View {
             // moving the strip within it keeps the loaded events.
             if !Calendar.current.isDate(previous, equalTo: date, toGranularity: .month) { calendar.showMonth(date) }
         }
-        .onDisappear { if ownsMonth { calendar.showMonth(nil) } }
+        // Escape returns from the month grid to the strip before the island closes.
+        .onChange(of: showingMonth && !showsMonth) { _, showing in
+            guard !preview else { return }
+            NotchService.shared.setPageLayer(.calendar, close: showing ? { showingMonth = false } : nil)
+        }
+        .onDisappear {
+            if ownsMonth { calendar.showMonth(nil) }
+            if !preview { NotchService.shared.setPageLayer(.calendar, close: nil) }
+        }
     }
 
     /// The month the service reads belongs to the island's own page; a preview
@@ -189,7 +198,9 @@ struct NotchCalendarView: View {
                         if selectedDay == nil { dayLabel(group.day, now: now) }
                         ForEach(group.events) { event in
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
-                                                  isNext: event.id == next?.id, text: text) {
+                                                  isNext: event.id == next?.id, text: text,
+                                                  countdown: countdownChoice(event, now: now),
+                                                  choose: { calendar.setCountdown($0, for: event) }) {
                                 openCalendar(showing: event)
                             }
                         }
@@ -198,6 +209,13 @@ struct NotchCalendarView: View {
             }
             .padding(.bottom, 2)
         }
+    }
+
+    /// Whether a timed event yet to start counts down on its own, or nil when
+    /// its menu has nothing to offer: the countdown for every event covers it.
+    private func countdownChoice(_ event: NotchCalendarEvent, now: Date) -> Bool? {
+        guard !countdownForEvery, !event.allDay, event.start > now, !event.countdownKey.isEmpty else { return nil }
+        return calendar.isChosen(event)
     }
 
     private func dayLabel(_ day: Date, now: Date) -> some View {
@@ -284,6 +302,9 @@ private struct NotchCalendarEventRow: View {
     let now: Date
     let isNext: Bool
     let text: NotchCalendarStrings
+    /// Whether the event counts down on its own; nil when it cannot.
+    let countdown: Bool?
+    let choose: (Bool) -> Void
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -295,6 +316,7 @@ private struct NotchCalendarEventRow: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
+            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
     }
 
     private var card: some View {
@@ -309,21 +331,28 @@ private struct NotchCalendarEventRow: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
                 .fixedSize(horizontal: false, vertical: true)
-            Group {
-                if event.allDay {
-                    Text(text.allDay)
-                } else if Calendar.current.isDate(event.start, inSameDayAs: day)
-                            && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
-                    Text(event.start, format: .dateTime.hour().minute())
-                        + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
-                } else {
-                    Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
-                        + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Group {
+                    if event.allDay {
+                        Text(text.allDay)
+                    } else if Calendar.current.isDate(event.start, inSameDayAs: day)
+                                && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
+                        Text(event.start, format: .dateTime.hour().minute())
+                            + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
+                    } else {
+                        Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
+                            + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
+                    }
+                }
+                .fixedSize(horizontal: false, vertical: true)
+                // The mark of an event chosen to count down on its own.
+                if countdown == true {
+                    Image(systemName: "timer")
+                        .accessibilityLabel(text.countdown)
                 }
             }
             .font(.system(size: 11)).monospacedDigit()
             .foregroundStyle(.white.opacity(0.75))
-            .fixedSize(horizontal: false, vertical: true)
             Text(event.calendar)
                 .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
             if !event.location.isEmpty {
@@ -347,6 +376,25 @@ private struct NotchCalendarEventRow: View {
                 .strokeBorder(.white.opacity(contrast == .increased ? 0.5 : ongoing ? 0.16 : 0.05), lineWidth: 0.75)
         }
         .clipped()
+    }
+}
+
+/// A timed event yet to start offers its own countdown from its menu, and
+/// to VoiceOver as an action, while the countdown for every event is off.
+private struct NotchCountdownChoice: ViewModifier {
+    let chosen: Bool?
+    let text: NotchCalendarStrings
+    let choose: (Bool) -> Void
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let chosen {
+            let title = chosen ? text.removeCountdown : text.addCountdown
+            content
+                .contextMenu { Button(title) { choose(!chosen) } }
+                .accessibilityAction(named: Text(title)) { choose(!chosen) }
+        } else {
+            content
+        }
     }
 }
 

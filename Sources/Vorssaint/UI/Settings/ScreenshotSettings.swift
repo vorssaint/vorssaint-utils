@@ -38,7 +38,12 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
+    @AppStorage(DefaultsKey.screenshotPreviewEnabled) private var previewEnabled = true
+    @AppStorage(DefaultsKey.screenshotPreviewDuration) private var previewDuration =
+        ScreenshotSupport.defaultConfirmationPreviewDuration
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.screenshotUploadShortcutEnabled) private var uploadShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotUploadDuration) private var uploadDuration = ScreenshotShareDuration.oneHour.rawValue
     @State private var showingSharedLinks = false
     @State private var showingSharePrivacy = false
 
@@ -187,7 +192,26 @@ struct ScreenshotCaptureSettings: View {
 
             Section {
                 Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
+                    .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
                 if sharingEnabled {
+                    Toggle(strings.uploadLastCapture, isOn: $uploadShortcutEnabled)
+                        .onChange(of: uploadShortcutEnabled) { _, _ in service.syncWithPreferences() }
+                    ShortcutPreferenceRow(role: .screenshotUpload,
+                                          isEnabled: uploadShortcutEnabled) {
+                        service.syncWithPreferences()
+                    }
+                    Picker(strings.uploadExpiry, selection: $uploadDuration) {
+                        ForEach(ScreenshotShareDuration.allCases) { duration in
+                            Text(duration.title(strings)).tag(duration.rawValue)
+                        }
+                    }
+                    if uploadShortcutEnabled {
+                        if service.uploadShortcutRegistrationFailed {
+                            Text(l10n.s.shortcutUnavailable)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
                     Text(strings.shareCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -250,6 +274,31 @@ struct ScreenshotCaptureSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if usesAutomaticConfirmationPreview {
+                Toggle(strings.confirmationPreviewToggle, isOn: $previewEnabled)
+                if previewEnabled {
+                    Picker(strings.confirmationPreviewDurationLabel, selection: $previewDuration) {
+                        ForEach(ScreenshotSupport.confirmationPreviewDurations, id: \.self) { seconds in
+                            if seconds == 0 {
+                                Text(strings.confirmationPreviewUntilDismissed).tag(0)
+                            } else {
+                                Text(String(format: strings.delaySecondsFormat, seconds)).tag(seconds)
+                            }
+                        }
+                    }
+                }
+                Text(strings.confirmationPreviewCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var usesAutomaticConfirmationPreview: Bool {
+        guard let action = ScreenshotDefaultAction(rawValue: defaultActionRaw) else { return false }
+        switch action {
+        case .save, .saveAndCopy, .copy: return true
+        case .none, .edit: return false
         }
     }
 

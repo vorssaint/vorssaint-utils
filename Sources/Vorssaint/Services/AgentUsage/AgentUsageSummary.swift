@@ -228,9 +228,9 @@ enum AgentUsageSummary {
         return low
     }
 
-    /// Windows start on the hour of the first request after the previous
-    /// one ended, the way the service counts them: the hour in UTC, as the
-    /// Claude app's readings are placed.
+    /// Windows start at the first request after the previous one ended and
+    /// last five hours from that moment, the renewal time the provider's own
+    /// usage page shows.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
@@ -240,8 +240,7 @@ enum AgentUsageSummary {
                 block?.totals.add(record)
                 continue
             }
-            let hour = AgentClaudeAppUsage.hour(of: record.date)
-            var next = AgentBlock(start: hour, end: hour.addingTimeInterval(blockLength), totals: AgentTotals())
+            var next = AgentBlock(start: record.date, end: record.date.addingTimeInterval(blockLength), totals: AgentTotals())
             next.totals.add(record)
             block = next
         }

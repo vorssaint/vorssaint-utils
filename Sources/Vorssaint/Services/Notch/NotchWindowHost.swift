@@ -86,6 +86,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             guard let self else { return nil }
             return self.currentGeometry.screen.midX - self.panel.frame.minX - self.canvas.convert(CGPoint.zero, to: nil).x
         }
+        canvas.setFloatingGap(geometry.floatingGap)
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
         overlaySpace?.add(panel)
@@ -130,6 +131,26 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.setOutline(enabled: enabled, color: color)
     }
 
+    /// The companion stands in the window's own layer while the island opens
+    /// or closes around it, sliding from `from` to `to`, its centre's offset
+    /// from the camera's, with its centre `baseline` below the top.
+    /// `scale` grows or shrinks it on the way, as into or out of a notice,
+    /// where it is drawn smaller. `trailsGrowth` starts it slowly, for a way
+    /// out toward an edge the island is still growing to.
+    /// `hop` lifts it in an arc on the way, as it hops back home.
+    func bridgeMascot(look: NotchMascotLook, size: CGFloat, mood: NotchMascotMood, from: CGFloat, to: CGFloat,
+                      baseline: CGFloat, duration: CFTimeInterval, scale: (from: CGFloat, to: CGFloat) = (1, 1),
+                      trailsGrowth: Bool = false, hop: CGFloat = 0) {
+        canvas.showMascotBridge(look: look, size: size, mood: mood, from: from, to: to, baseline: baseline,
+                                duration: duration, scale: scale, trailsGrowth: trailsGrowth, hop: hop)
+    }
+
+    func endMascotBridge(fading: Bool = false) { canvas.hideMascotBridge(fading: fading) }
+
+    func reactMascotBridge(_ event: NotchMascotReactionEvent, lift: CGFloat) {
+        canvas.reactMascotBridge(event, lift: lift)
+    }
+
     func hide(animated: Bool, transitionContent: NotchContentTransition = .dismiss) {
         guard isPresented else { return }
         let animate = animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
@@ -141,7 +162,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
 
     func present(size: CGSize, geometry: NotchGeometry, animated: Bool, transitionContent: NotchContentTransition = .none,
                  quickAccess: NotchQuickAccessConfiguration? = nil, revealFromHidden: Bool = false,
-                 hideWhenSettled: Bool = false, usesGlass: Bool = false) {
+                 hideWhenSettled: Bool = false, usesGlass: Bool = false, steady: Bool = false) {
+        // Choosing the capsule or the notch redraws the island at once, even
+        // at a size it already has.
+        canvas.setFloatingGap(geometry.floatingGap)
         hidesWhenSettled = hideWhenSettled
         if hideWhenSettled {
             if mouseEventsBeforeHide == nil {
@@ -179,6 +203,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         let changesFrame = revealing || (hideWhenSettled && !canAnimate) || size != targetSize
             || frame != previousFrame || (!isAnimating && panel.frame != appliedFrame)
         targetUsesGlass = usesGlass
+        if canvas.backdropPresentation.stripHeight != geometry.stripHeight {
+            canvas.backdropPresentation.stripHeight = geometry.stripHeight
+        }
         if canAnimate && changesFrame && (usesGlass || canvas.usesGlass) {
             // Glass closing into a black strip shuts as its page leaves, so the
             // empty shell never shows the windows beneath it; opening out of one
@@ -210,10 +237,15 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // reveal at the screen edge, even when reopening at that same size.
         let previousWidth = revealing ? geometry.collapsed.width : canvas.bounds.width
         let previousPath = revealing
-            ? NotchShape(attached: true, radius: 0)
+            ? NotchShape(attached: true, radius: 0, floatingGap: geometry.floatingGap)
                 .path(in: CGRect(x: 0, y: 0, width: previousWidth, height: 0)).cgPath
             : canvas.visiblePath
         let sameScreen = geometry.screen == currentGeometry.screen
+        // Where the island's centre is now, relative to the camera's; pixel
+        // rounding of a centred island is not a shift.
+        let previousShift = currentGeometry.surfaceShift
+        let drawnShift = canvas.visibleShift.map { abs($0 - previousShift) < 1 ? previousShift : $0 } ?? previousShift
+        let startShift = revealing ? 0 : drawnShift
         animationGeneration += 1
         let generation = animationGeneration
         targetSize = size
@@ -224,9 +256,20 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
 
-        let start = canvas.surfaceSize(of: previousPath)
+        let start = revealing ? canvas.surfaceSize(of: previousPath) : canvas.visibleSize ?? canvas.surfaceSize(of: previousPath)
+        // Only a width change eases steadily; anything that also grows taller
+        // keeps the island's usual springs.
+        let steady = steady && start.height == size.height
+        // Each frame's centre, from the new one, even when only the shift changes.
+        let startOffset = startShift - geometry.surfaceShift
+        let motion = NotchMotion.frames(from: start, to: size, steady: steady, offset: startOffset)
+        let offsets = motion.keyTimes.map {
+            $0 == 1 ? 0 : NotchMotion.offset(at: motion.duration * $0, from: start, to: size, start: startOffset, steady: steady)
+        }
         // Room for the swing past a larger target, and for everything already reserved.
         var envelope = NotchMotion.envelope(from: start, to: size)
+        let reach = zip(motion.sizes, offsets).map { $0.width + 2 * abs($1) }.max() ?? 0
+        envelope.width = max(envelope.width, reach.rounded(.up))
         if !revealing {
             envelope = CGSize(width: max(envelope.width, canvas.bounds.width), height: max(envelope.height, canvas.bounds.height))
         }
@@ -244,7 +287,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // installed. Until then the silhouette and its material keep the
         // shape on screen instead of showing the target for a frame.
         canvas.motionStart = start
-        defer { canvas.motionStart = nil }
+        canvas.motionStartOffset = startOffset
+        defer { canvas.motionStart = nil; canvas.motionStartOffset = 0 }
         canvas.stopMotion()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -258,8 +302,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         guard generation == animationGeneration else { CATransaction.commit(); return }
         // Each frame is the island's own silhouette at that size, so its
         // corners and shoulders stay true while the sides swing apart.
-        let motion = NotchMotion.frames(from: start, to: size)
-        let paths = motion.sizes.map(canvas.silhouettePath)
+        let paths = zip(motion.sizes, offsets).map { canvas.silhouettePath(for: $0, offset: $1) }
         // The floating controls emerge once the island reaches its size, while it still swings.
         if quickAccessConfiguration != nil {
             quickAccessContainer?.motion.setVisible(true, animated: canAnimate,
@@ -277,7 +320,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         animation.delegate = self
         animation.setValue(generation, forKey: "notchGeneration")
         isAnimating = true
-        canvas.animate(animation, from: paths.first, motion: (start, size))
+        canvas.animate(animation, from: paths.first, motion: (start, size), steady: steady, offset: startOffset)
         CATransaction.commit()
         // The window already has its new frame; its layers go out at once,
         // not at the end of this turn of the run loop, so the screen never
@@ -562,13 +605,27 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     var visibleFrame: CGRect {
-        currentGeometry.frame(for: canvas.visibleSize ?? targetSize)
+        var frame = currentGeometry.frame(for: canvas.visibleSize ?? targetSize)
+        // A moving island's centre may still be on its way to the new one;
+        // pixel rounding of one at rest is not a shift.
+        if let shift = canvas.visibleShift, abs(shift - currentGeometry.surfaceShift) >= 1 {
+            frame.origin.x += shift - currentGeometry.surfaceShift
+        }
+        return frame
     }
 
     /// The island's own surface, without the floating controls beside it.
     func containsSurface(_ screenPoint: CGPoint) -> Bool {
         guard isPresented, !concealedForMissionControl else { return false }
         return canvas.containsVisiblePoint(canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
+    }
+
+    /// Whether the silhouette the island is settling into contains a screen
+    /// point. The hover pulse resizes the island under a pointer that has not
+    /// moved; the shape still in motion would reject a click it is growing to cover.
+    func containsDestination(_ screenPoint: CGPoint) -> Bool {
+        guard isPresented, !concealedForMissionControl else { return false }
+        return canvas.containsDestinationPoint(canvas.convert(panel.convertPoint(fromScreen: screenPoint), from: nil))
     }
 
     func contains(_ screenPoint: CGPoint) -> Bool {
@@ -608,6 +665,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     var backdropProbeIndependent: Bool { canvas.backdropProbeIndependent }
     var backdropProbeFollowsSilhouette: Bool { canvas.backdropProbeFollowsSilhouette }
     var silhouetteProbePath: CGPath? { canvas.visiblePath }
+    var silhouetteProbeFloatingGap: CGFloat? { canvas.floatingGap }
+    var outlineProbeAllRound: Bool { canvas.outlineProbeAllRound }
     /// The size the running resize started from.
     var motionProbeStart: CGSize? { canvas.motionProbeStart }
     var backdropProbeContour: Path { canvas.backdropPresentation.contour }
@@ -955,9 +1014,21 @@ private final class NotchCanvas: NSView {
     var hoverChanged: ((Bool) -> Void)?
     private let silhouette = CAShapeLayer()
     private let edge = CAShapeLayer()
+    private let edgeMask = CALayer()
+    /// Nil hangs the island from the top edge; a capsule floats this far inside it.
+    private(set) var floatingGap: CGFloat?
+    /// The size the silhouette's model path was drawn for.
+    private var silhouetteSize = CGSize.zero
     private var outlineEnabled = false
     private var outlineColor = NSColor.white
     private let contentVisibility = CALayer()
+    /// The companion beside the camera while the island opens or closes
+    /// around it, kept out of the content, which fades, blurs and grows as
+    /// it arrives, so it stays sharp in its place throughout.
+    private let mascotBridge = NotchMascotHostView(frame: .zero)
+    /// Where it stands: its centre's offset from the display's centre, its
+    /// centre's height from the top, and its size.
+    private var mascotBridgeSpot: (offset: CGFloat, baseline: CGFloat, size: CGFloat)?
     private var dropActions: NotchFileDropActions?
     private var acceptingDrag = false
     private var contentSize: CGSize
@@ -984,6 +1055,8 @@ private final class NotchCanvas: NSView {
         layer?.mask = silhouette
         addSubview(backdrop)
         addSubview(host)
+        mascotBridge.isHidden = true
+        addSubview(mascotBridge)
         activationButton.isTransparent = true
         activationButton.isHidden = true
         activationButton.target = activationButton
@@ -995,7 +1068,6 @@ private final class NotchCanvas: NSView {
         edge.zPosition = 2
         // The island hangs from the top of the screen, so its outline leaves
         // that side open instead of drawing a line along the screen's edge.
-        let edgeMask = CALayer()
         edgeMask.backgroundColor = NSColor.black.cgColor
         edgeMask.frame = CGRect(x: -10_000, y: Self.outlineTopGap, width: 20_000, height: 20_000)
         edge.mask = edgeMask
@@ -1029,7 +1101,7 @@ private final class NotchCanvas: NSView {
         let increasedContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
         let color = (increasedContrast ? NSColor.white : outlineColor).withAlphaComponent(
             outlineEnabled ? (increasedContrast ? 0.85 : 0.65) : (increasedContrast ? 0.45 : 0)).cgColor
-        let lineWidth: CGFloat = outlineEnabled ? 2 : 0.5
+        let lineWidth: CGFloat = outlineEnabled ? NotchLayout.outlineWidth : 0.5
         let opacity: Float = outlineEnabled || contentSize.height > 64 ? 1 : 0
         guard edge.strokeColor != color || edge.lineWidth != lineWidth || edge.opacity != opacity else { return }
         CATransaction.begin()
@@ -1047,6 +1119,22 @@ private final class NotchCanvas: NSView {
         updateContrast()
     }
 
+    /// Switching between the capsule and the hanging outline redraws the
+    /// resting island at once. A capsule's outline goes all the way round:
+    /// it floats clear of the screen's edge.
+    func setFloatingGap(_ gap: CGFloat?) {
+        guard floatingGap != gap else { return }
+        floatingGap = gap
+        stopMotion()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        edgeMask.frame.origin.y = gap == nil ? Self.outlineTopGap : -10_000
+        CATransaction.commit()
+        backdropPresentation.floatingGap = gap ?? 0
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
     /// The inner half of the widest outline stroke, left undrawn at the top.
     static let outlineTopGap: CGFloat = 1
 
@@ -1055,6 +1143,11 @@ private final class NotchCanvas: NSView {
     var outlineProbeTopOpen: Bool {
         guard let mask = edge.mask else { return false }
         return mask.frame.minY >= edge.lineWidth / 2 && mask.frame.minY <= Self.outlineTopGap
+    }
+    /// Nothing of the outline is masked, as around a floating capsule.
+    var outlineProbeAllRound: Bool {
+        guard let mask = edge.mask else { return true }
+        return mask.frame.minY < -edge.lineWidth
     }
 
     func setFileDropActions(_ actions: NotchFileDropActions?) {
@@ -1161,16 +1254,40 @@ private final class NotchCanvas: NSView {
         return path.copy(using: &offset) ?? path
     }
 
-    /// The island's size as drawn, from the top edge.
+    /// The island's size as drawn, from the top edge: a floating capsule
+    /// still counts the menu bar around it, as its window and hover do.
     func surfaceSize(of path: CGPath) -> CGSize {
         let box = path.boundingBoxOfPath
+        guard !box.isNull else { return .zero }
+        if let floatingGap { return NotchLayout.capsuleSurface(ofBody: box, gap: floatingGap) }
         return CGSize(width: box.width, height: max(0, box.maxY))
     }
 
-    var visibleSize: CGSize? { visiblePath.map(surfaceSize) }
+    /// At rest, exactly the size the silhouette was drawn for.
+    var visibleSize: CGSize? {
+        guard let path = visiblePath else { return nil }
+        guard silhouette.animation(forKey: Self.motionKey) != nil else { return silhouetteSize }
+        return surfaceSize(of: path)
+    }
 
     func containsVisiblePoint(_ point: CGPoint) -> Bool {
-        visiblePath?.contains(point) ?? false
+        contains(point, in: visiblePath)
+    }
+
+    /// The model path already describes the size a resize is heading to.
+    func containsDestinationPoint(_ point: CGPoint) -> Bool {
+        contains(point, in: silhouette.path.map(inCanvas))
+    }
+
+    private func contains(_ point: CGPoint, in path: CGPath?) -> Bool {
+        guard let path else { return false }
+        if path.contains(point) { return true }
+        // The menu bar above a capsule is still the island's, as the top edge
+        // of a hanging one is: a click at the screen's edge opens it.
+        guard floatingGap != nil else { return false }
+        let box = path.boundingBoxOfPath
+        guard !box.isNull, box.width > 0, point.x >= box.minX, point.x <= box.maxX else { return false }
+        return point.y >= 0 && point.y <= box.minY
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1199,23 +1316,30 @@ private final class NotchCanvas: NSView {
     }
 
     /// The island's silhouette at `size`, at its place in the reserved area,
-    /// in the mask layer's own coordinates.
-    func silhouettePath(for size: CGSize) -> CGPath {
-        var translation = CGAffineTransform(translationX: islandX(size) - silhouette.frame.minX, y: 0)
-        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height))
+    /// in the mask layer's own coordinates. A moving island whose centre is
+    /// still on its way to the camera's, or away from it, is `offset` from there.
+    func silhouettePath(for size: CGSize, offset: CGFloat = 0) -> CGPath {
+        var translation = CGAffineTransform(translationX: islandX(size) + offset - silhouette.frame.minX, y: 0)
+        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height),
+                              floatingGap: floatingGap)
             .path(in: CGRect(origin: .zero, size: size)).cgPath
         return path.copy(using: &translation) ?? path
     }
 
     /// The resize the silhouette is running, to draw the material for the
     /// frame about to be shown rather than the one already on screen.
-    private var motionTimeline: (begin: CFTimeInterval, from: CGSize, to: CGSize)?
+    private var motionTimeline: (begin: CFTimeInterval, from: CGSize, to: CGSize, steady: Bool, offset: CGFloat)?
     var motionProbeStart: CGSize? { motionTimeline?.from }
 
-    func animate(_ animation: CAAnimation, from: CGPath?, motion: (from: CGSize, to: CGSize)? = nil) {
+    func animate(_ animation: CAAnimation, from: CGPath?, motion: (from: CGSize, to: CGSize)? = nil, steady: Bool = false,
+                 offset: CGFloat = 0) {
         motionStart = nil
-        motionTimeline = motion.map { (animation.beginTime > 0 ? animation.beginTime : CACurrentMediaTime(), $0.from, $0.to) }
+        motionStartOffset = 0
+        motionTimeline = motion.map {
+            (animation.beginTime > 0 ? animation.beginTime : CACurrentMediaTime(), $0.from, $0.to, steady, offset)
+        }
         silhouette.path = silhouettePath(for: contentSize)
+        silhouetteSize = contentSize
         edge.path = silhouette.path
         silhouette.add(animation, forKey: Self.motionKey)
         if let from { setBackdropContour(inCanvas(from)) }
@@ -1267,12 +1391,26 @@ private final class NotchCanvas: NSView {
     fileprivate func advanceBackdrop(to target: CFTimeInterval) {
         backdropTicks += 1
         guard let timeline = motionTimeline else { synchronizeBackdrop(); return }
-        let size = NotchMotion.size(at: max(0, target - timeline.begin), from: timeline.from, to: timeline.to)
-        setBackdropContour(inCanvas(silhouettePath(for: size)))
+        let elapsed = max(0, target - timeline.begin)
+        let size = NotchMotion.size(at: elapsed, from: timeline.from, to: timeline.to,
+                                    steady: timeline.steady)
+        let offset = NotchMotion.offset(at: elapsed, from: timeline.from, to: timeline.to, start: timeline.offset,
+                                       steady: timeline.steady)
+        setBackdropContour(inCanvas(silhouettePath(for: size, offset: offset)))
     }
 
     /// The size shown while a resize is being prepared, before its motion.
     var motionStart: CGSize?
+    /// How far that size's centre still sits from the island's new one.
+    var motionStartOffset: CGFloat = 0
+
+    /// How far the drawn island's centre sits right of the display's.
+    var visibleShift: CGFloat? {
+        guard let path = visiblePath, let centre = stageCentreX?() else { return nil }
+        let box = path.boundingBoxOfPath
+        guard !box.isNull, box.width > 0 else { return nil }
+        return box.midX - centre
+    }
 
     fileprivate func synchronizeBackdrop() {
         // Immediately use the final model path after stopping the scheduler;
@@ -1473,6 +1611,98 @@ private final class NotchCanvas: NSView {
         return CATransform3DTranslate(transform, -offset.x, -offset.y, 0)
     }
 
+    func showMascotBridge(look: NotchMascotLook, size: CGFloat, mood: NotchMascotMood, from: CGFloat, to: CGFloat,
+                          baseline: CGFloat, duration: CFTimeInterval, scale: (from: CGFloat, to: CGFloat),
+                          trailsGrowth: Bool, hop: CGFloat) {
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        // Toward an edge still growing, it starts slowly and lets the edge
+        // lead; otherwise it sets off at once and settles.
+        let timing = trailsGrowth ? CAMediaTimingFunction(controlPoints: 0.6, 0, 0.3, 1)
+            : CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+        mascotBridgeSpot = (to, baseline, size)
+        // Its layer is its own, which Core Animation would fade in and move
+        // from where it last was.
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        mascotBridge.configure(look: look, size: size, mood: mood, idles: false, reduceMotion: reduceMotion,
+                               animated: false)
+        layoutMascotBridge()
+        mascotBridge.place(at: nil, visible: nil)
+        mascotBridge.layer?.removeAnimation(forKey: "slide")
+        mascotBridge.layer?.removeAnimation(forKey: "fade")
+        mascotBridge.scale(from: scale.from, to: scale.to, duration: duration, timing: timing)
+        mascotBridge.isHidden = false
+        CATransaction.commit()
+        guard !reduceMotion, abs(from - to) > 0.25, let layer = mascotBridge.layer else { return }
+        // The little way between where the closed and the open island keep it.
+        let slide = CABasicAnimation(keyPath: "position.x")
+        slide.fromValue = from - to
+        slide.toValue = 0
+        slide.isAdditive = true
+        slide.duration = duration
+        slide.timingFunction = timing
+        layer.add(slide, forKey: "slide")
+        layer.removeAnimation(forKey: "hop")
+        guard hop > 0 else { return }
+        // Up and down again over the first part of the way, the canvas
+        // counting down from its top.
+        let arc = CAKeyframeAnimation(keyPath: "position.y")
+        arc.values = [0, -hop, 0]
+        arc.keyTimes = [0, 0.3, 0.62]
+        arc.timingFunctions = [CAMediaTimingFunction(name: .easeOut), CAMediaTimingFunction(name: .easeIn)]
+        arc.isAdditive = true
+        arc.duration = duration
+        layer.add(arc, forKey: "hop")
+    }
+
+    func reactMascotBridge(_ event: NotchMascotReactionEvent, lift: CGFloat) {
+        guard mascotBridgeSpot != nil else { return }
+        mascotBridge.react(event, lift: lift)
+    }
+
+    /// Out of sight at once, or with `fading` over a moment, for a stand-in
+    /// whose place went to something else while it was on its way.
+    func hideMascotBridge(fading: Bool = false) {
+        mascotBridgeSpot = nil
+        guard fading, !mascotBridge.isHidden, let layer = mascotBridge.layer,
+              !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { concealMascotBridge(); return }
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = layer.presentation()?.opacity ?? 1
+        fade.toValue = 0
+        fade.duration = 0.12
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        fade.fillMode = .forwards
+        fade.isRemovedOnCompletion = false
+        CATransaction.begin()
+        CATransaction.setCompletionBlock { [weak self] in
+            // Shown again meanwhile, it stays.
+            guard let self, self.mascotBridgeSpot == nil else { return }
+            self.concealMascotBridge()
+        }
+        layer.add(fade, forKey: "fade")
+        CATransaction.commit()
+    }
+
+    private func concealMascotBridge() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        mascotBridge.layer?.removeAnimation(forKey: "slide")
+        mascotBridge.layer?.removeAnimation(forKey: "hop")
+        mascotBridge.layer?.removeAnimation(forKey: "fade")
+        mascotBridge.isHidden = true
+        mascotBridge.scale(from: 1, to: 1, duration: 0)
+        CATransaction.commit()
+    }
+
+    /// Placed again whenever the canvas moves under the display's centre.
+    private func layoutMascotBridge() {
+        guard let spot = mascotBridgeSpot else { return }
+        let box = spot.size + 8
+        let centre = (stageCentreX?() ?? bounds.midX) + spot.offset
+        let frame = CGRect(x: centre - box / 2, y: spot.baseline - box / 2, width: box, height: box)
+        if mascotBridge.frame != frame { mascotBridge.frame = frame }
+    }
+
     private func endArrival() {
         arrivalGeneration += 1
         arrival = nil
@@ -1508,7 +1738,8 @@ private final class NotchCanvas: NSView {
             silhouette.frame = maskFrame
             edge.frame = maskFrame
         }
-        silhouette.path = silhouettePath(for: motionStart ?? contentSize)
+        silhouetteSize = motionStart ?? contentSize
+        silhouette.path = silhouettePath(for: silhouetteSize, offset: motionStart == nil ? 0 : motionStartOffset)
         edge.path = silhouette.path
         updateContrast()
         // Keep foreground layout fixed inside the reserved reveal area. Only
@@ -1517,6 +1748,7 @@ private final class NotchCanvas: NSView {
         hostFrame.origin.x = centre - stage.width / 2
         if host.frame != hostFrame { host.frame = hostFrame }
         contentVisibility.frame = host.bounds
+        layoutMascotBridge()
         if let arrival, arrival.width != host.layer?.bounds.width { installArrivalScale() }
         var backdropFrame = NotchStage.frame(stage, in: bounds)
         backdropFrame.origin.x = hostFrame.minX
@@ -1538,6 +1770,9 @@ final class NotchActivationButton: NSButton {
     var willPress: (() -> Void)?
     var activate: (() -> Void)?
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    // With Keyboard navigation on, a click would focus the button, and macOS
+    // draws its focus ring around the camera it sits behind.
+    override var acceptsFirstResponder: Bool { false }
     override func mouseDown(with event: NSEvent) {
         willPress?()
         super.mouseDown(with: event)

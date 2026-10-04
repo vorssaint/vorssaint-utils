@@ -25,6 +25,10 @@ struct PanelClipboardView: View {
         query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: query)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
@@ -144,9 +148,9 @@ struct PanelClipboardView: View {
             // below it. The history window shows the full, selectable text.
             HStack(alignment: .center, spacing: 7) {
                 if let color = entry.color {
-                    ClipboardColorSwatch(color: color, size: 12)
+                    ColorSwatch(color: color, size: 12)
                 }
-                Text(entry.preview)
+                SearchHighlightText.text(entry.preview, tokens: searchTokens, fontSize: 10.5)
                     .font(.system(size: 10.5))
                     .lineLimit(3)
                     .truncationMode(.tail)
@@ -160,7 +164,8 @@ struct PanelClipboardView: View {
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
+                                         tokens: searchTokens, fontSize: 10)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -173,7 +178,7 @@ struct PanelClipboardView: View {
                                             aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    Text(entry.fileNames.first ?? entry.preview)
+                    SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: searchTokens, fontSize: 10.5)
                         .font(.system(size: 10.5))
                         .lineLimit(2)
                         .truncationMode(.middle)
@@ -184,9 +189,12 @@ struct PanelClipboardView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text(entry.filePaths.count == 1
-                         ? (entry.fileNames.first ?? entry.preview)
-                         : String(format: text.fileCountFormat, entry.filePaths.count))
+                    // A count of several files is no text the search reads.
+                    SearchHighlightText.text(entry.filePaths.count == 1
+                                                ? (entry.fileNames.first ?? entry.preview)
+                                                : String(format: text.fileCountFormat, entry.filePaths.count),
+                                             tokens: entry.filePaths.count == 1 ? searchTokens : [],
+                                             fontSize: 10.5)
                         .font(.system(size: 10.5))
                         .lineLimit(2)
                         .truncationMode(.middle)
