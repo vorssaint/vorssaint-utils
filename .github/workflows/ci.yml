@@ -38,6 +38,11 @@ jobs:
       - name: Unit tests
         run: ./build.sh --test
 
+      - name: Menu bar inventory diagnostic
+        run: |
+          swiftc -warnings-as-errors Tools/MenuBarInventory.swift -o build/MenuBarInventory
+          ./build/MenuBarInventory --selftest
+
   build:
     name: Build & selftest
     runs-on: macos-26
@@ -58,3 +63,8 @@ jobs:
 
       - name: Unit tests
         run: ./build.sh --test
+
+      - name: Menu bar inventory diagnostic
+        run: |
+          swiftc -warnings-as-errors Tools/MenuBarInventory.swift -o build/MenuBarInventory
+          ./build/MenuBarInventory --selftest
