@@ -1443,6 +1443,8 @@ enum FeatureCatalogTests {
 
         suite.expect(!AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true }, boolFor: { _ in false }),
                "no alert keys means no monitor alerts")
+        suite.expect(AppFeature.mixer.symbolName == NotchModule.mixer.symbol,
+               "Features and General use the Dynamic Island Mixer’s speaker symbol")
         suite.expect(AppFeature.anyMonitorAlertEnabled(isAvailable: { _ in true },
                                                  boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "one alert on an available metric arms the alert service")
