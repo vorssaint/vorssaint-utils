@@ -127,9 +127,11 @@ enum AutoQuitSupport {
 
     /// Menu bar and background apps (LSUIElement, LSBackgroundOnly) take a
     /// Dock icon only while a window such as Settings is open. Closing that
-    /// window is not quitting the app (issue #1824).
-    static func isBackgroundApp(bundleURL: URL?) -> Bool {
-        guard let bundleURL, let bundle = Bundle(url: bundleURL) else { return false }
+    /// window is not quitting the app (issue #1824). Others declare it only so
+    /// a setting can hide their Dock icon: still in the Dock once their windows
+    /// are gone, they quit like any Dock app.
+    static func isBackgroundApp(bundleURL: URL?, isInDock: Bool) -> Bool {
+        guard !isInDock, let bundleURL, let bundle = Bundle(url: bundleURL) else { return false }
         return ["LSUIElement", "LSBackgroundOnly"].contains { key in
             (bundle.object(forInfoDictionaryKey: key) as? NSNumber)?.boolValue
                 ?? (bundle.object(forInfoDictionaryKey: key) as? NSString)?.boolValue
