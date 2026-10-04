@@ -1782,19 +1782,42 @@ enum FeatureCatalogTests {
                 && AppFeature.keepAwake.energyProfile == .idle
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
-        let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+        let brightnessEnergyKeys = [
+            DefaultsKey.brightnessKeysEnabled,
+            DefaultsKey.brightnessOSDEnabled,
+            DefaultsKey.keyboardBrightnessShortcutsEnabled,
+            DefaultsKey.brightnessKeyStep,
+        ]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
-        func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
-            UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
-            UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
-            UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+        func brightnessEnergy(
+            followsPointer: Bool = false,
+            overlay: Bool = false,
+            keyboardShortcuts: Bool = false,
+            step: BrightnessSupport.KeyStep = .standard
+        ) -> FeatureEnergyProfile {
+            UserDefaults.standard.set(
+                followsPointer,
+                forKey: DefaultsKey.brightnessKeysEnabled
+            )
+            UserDefaults.standard.set(
+                overlay,
+                forKey: DefaultsKey.brightnessOSDEnabled
+            )
+            UserDefaults.standard.set(
+                keyboardShortcuts,
+                forKey: DefaultsKey.keyboardBrightnessShortcutsEnabled
+            )
+            UserDefaults.standard.set(
+                step.rawValue,
+                forKey: DefaultsKey.brightnessKeyStep
+            )
+
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
                 && brightnessEnergy(followsPointer: true) == .keyboard
                 && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(keyboardShortcuts: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {

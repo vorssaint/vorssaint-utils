@@ -17,6 +17,8 @@ struct EnergySettings: View {
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.keyboardBrightnessShortcutsEnabled) private
+        var keyboardBrightnessShortcutsEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
@@ -353,7 +355,9 @@ struct EnergySettings: View {
                                     }
                             }
                         }
-                        if brightnessKeysEnabled || brightnessOSDEnabled
+                        if brightnessKeysEnabled
+                            || brightnessOSDEnabled
+                            || keyboardBrightnessShortcutsEnabled
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)
