@@ -118,6 +118,13 @@ enum KeepAwakeAutomationSupport {
         return calendar.date(byAdding: .day, value: 1, to: candidate) ?? candidate.addingTimeInterval(24 * 3600)
     }
 
+    /// A missing reading never counts as hot: a Mac whose sensor does not
+    /// answer keeps Keep Awake rather than losing it to a guess.
+    static func exceedsThermalLimit(celsius: Double?, limitCelsius: Int) -> Bool {
+        guard limitCelsius > 0, let celsius else { return false }
+        return celsius >= Double(limitCelsius)
+    }
+
     static func action(featureAvailable: Bool,
                        matchingConditions: Set<KeepAwakeAutomationCondition>,
                        enabledConditions: Set<KeepAwakeAutomationCondition> = [],

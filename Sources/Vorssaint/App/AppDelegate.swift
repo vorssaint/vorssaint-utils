@@ -416,6 +416,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 Notifier.post(title: strings.notifySessionEndedTitle, body: strings.notifySessionEndedBody)
             case .battery:
                 Notifier.post(title: strings.notifyBatteryTitle, body: strings.notifyBatteryBody)
+            case .thermal:
+                Notifier.post(title: strings.notifyBatteryTitle, body: strings.notifyThermalBody)
             default:
                 break
             }
