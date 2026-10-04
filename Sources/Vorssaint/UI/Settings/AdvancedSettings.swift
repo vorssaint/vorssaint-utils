@@ -18,9 +18,14 @@ struct AdvancedSettings: View {
     @State private var importFailed = false
     @State private var pendingImport: [String: Any]?
     @State private var showImportConfirm = false
+    @AppStorage(DefaultsKey.shortcutsActionsEnabled) private var shortcutsActionsEnabled = false
 
     private var backup: BackupFeatureStrings {
         FeatureStrings.backup(l10n.language)
+    }
+
+    private var shortcutsActions: ShortcutsActionsStrings {
+        FeatureStrings.shortcutsActions(l10n.language)
     }
 
     var body: some View {
@@ -66,6 +71,14 @@ struct AdvancedSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+            }
+
+            Section(shortcutsActions.sectionTitle) {
+                Toggle(shortcutsActions.toggle, isOn: $shortcutsActionsEnabled)
+                Text(shortcutsActions.caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Section(l10n.s.advancedResetSection) {

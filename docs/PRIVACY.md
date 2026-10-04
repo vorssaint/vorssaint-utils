@@ -29,7 +29,7 @@ Notification mirroring uses Accessibility to read new visible system banners. It
 
 The camera mirror starts only after an explicit action. Its frames go to the local preview and are not saved or uploaded by that feature. Closing the preview, hiding its section, disabling it or locking the Mac stops capture. Visible notch content, including the camera, appointments and notifications, can appear in screenshots or recordings when you leave notch capture visibility on.
 
-Timers and focus sessions are kept only for the current app session. Accessory alerts use local system readings. Download monitoring is limited to a folder you choose; its access bookmark stays on this Mac and is excluded from settings exports. File compression and conversion run locally, preserve originals, and save only to the destination you choose.
+Shortcuts actions, when you allow them, run on this Mac: a shortcut reaches Vorssaint through the system, and the only thing that comes back is the value you asked for, such as whether a feature is on. Nothing is uploaded. Timers and focus sessions are kept only for the current app session. Accessory alerts use local system readings. Download monitoring is limited to a folder you choose; its access bookmark stays on this Mac and is excluded from settings exports. File compression and conversion run locally, preserve originals, and save only to the destination you choose.
 
 Imported lyrics and timing adjustments are kept for only the current song in memory. Opening a different section cancels lookup work without losing that song's imported text. Observing a different song or disabling the feature clears it. The upcoming music queue comes from the local player and is not uploaded.
 
