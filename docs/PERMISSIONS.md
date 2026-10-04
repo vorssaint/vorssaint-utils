@@ -25,7 +25,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.**
 
-- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optional dismissal of the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
+- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optionally hiding the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
 - **Scroll direction inverter**, which flips the mouse wheel.
 - **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
@@ -61,7 +61,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
 
-**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
+**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it; apps you route to AirPlay are streamed from memory to the speaker you pick on your local network, through macOS's own AirPlay. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
 
 ## Microphone
 

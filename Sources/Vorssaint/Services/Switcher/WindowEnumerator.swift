@@ -68,8 +68,8 @@ enum WindowEnumerator {
         return queue
     }()
     /// Ceiling on the whole batch. The Switcher waits on its serial session
-    /// queue, which must stay bounded for later shortcuts. The six synchronous
-    /// `listWindows(for:)` Dock and preview callers still run on main, so this
+    /// queue, which must stay bounded for later shortcuts. The five synchronous
+    /// `listWindows(for:)` Dock and switcher callers still run on main, so this
     /// bound also prevents their walks from stalling main and the event taps
     /// (issues #971 and #189).
     private static let accessibilityBatchBudget: TimeInterval = 5.0
@@ -193,6 +193,17 @@ enum WindowEnumerator {
     static func listWindows(for pid: pid_t, maximumCount: Int = 12,
                             currentSpaceOnly: Bool = false,
                             marksHiddenSpaces: Bool = false) -> [SwitcherItem] {
+        listWindows(for: pid, maximumCount: maximumCount,
+                    currentSpaceOnly: currentSpaceOnly,
+                    marksHiddenSpaces: marksHiddenSpaces,
+                    snapshot: snapshot())
+    }
+
+    /// The snapshot must be taken on main before a caller moves this walk off-main.
+    static func listWindows(for pid: pid_t, maximumCount: Int = 12,
+                            currentSpaceOnly: Bool = false,
+                            marksHiddenSpaces: Bool = false,
+                            snapshot: Snapshot) -> [SwitcherItem] {
         // An entry for the app itself belongs to the switcher alone. A
         // Dock preview is opened by pointing at one app's icon,
         // so a card naming that app says nothing the pointer did not, and
@@ -208,7 +219,7 @@ enum WindowEnumerator {
                     preservingGroupedWindows: false,
                     currentSpaceOnly: currentSpaceOnly,
                     marksHiddenSpaces: marksHiddenSpaces && !currentSpaceOnly,
-                    snapshot: snapshot()).items
+                    snapshot: snapshot).items
     }
 
     private static func listWindows(filterPID: pid_t?,
@@ -680,8 +691,8 @@ enum WindowEnumerator {
         let app = AXUIElementCreateApplication(pid)
         // An app that is not servicing its run loop would hold every AX call
         // for the default timeout. The Switcher's serial session queue
-        // must stay available for later shortcuts. The six synchronous
-        // listWindows(for:) Dock and preview callers run on main, where a long
+        // must stay available for later shortcuts. The five synchronous
+        // listWindows(for:) Dock and switcher callers run on main, where a long
         // wait also stalls the event taps (issue #189).
         AXUIElementSetMessagingTimeout(app, messagingTimeout)
         var axWindows: [AXUIElement] = []
@@ -901,14 +912,20 @@ enum WindowEnumerator {
             let windowID = role == (kAXWindowRole as String)
                 ? AXWindowResolver.windowID(for: window)
                 : nil
-            let hasNormalWindowLevel = subrole == "AXUnknown"
+            let hasNormalWindowLevel = (subrole == "AXUnknown" || subrole == "AXDialog")
                 && (windowID.map(normalLevelWindowIDs.contains) ?? false)
+            // A hidden app's ordinary windows read as dialogs too (issue
+            // #2279). Only a normal-level dialog pays for the button read.
+            let canMinimize = subrole == "AXDialog" && hasNormalWindowLevel
+                && !isCancelled()
+                && hasWorkingMinimizeButton(window)
             return SwitcherSupport.isSwitchableNonstandardWindow(
                 role: role,
                 subrole: subrole,
                 fillsScreen: fillsScreen,
                 hasNormalWindowLevel: hasNormalWindowLevel,
                 acceptsUndescribedSubroles: acceptsUndescribedSubroles,
+                canMinimize: canMinimize,
                 // A borderless helper stays in the app's window list even when
                 // the app asks the window server to keep it out of cycling.
                 isExcludedFromWindowCycle: windowID
@@ -916,6 +933,14 @@ enum WindowEnumerator {
         }
         guard !isCancelled() else { return false }
         return stringAttribute(window, kAXRoleAttribute as String) == "AXWindow"
+    }
+
+    private static func hasWorkingMinimizeButton(_ window: AXUIElement) -> Bool {
+        guard let button = accessibilityWindowAttribute(window, kAXMinimizeButtonAttribute as String) else {
+            return false
+        }
+        AXUIElementSetMessagingTimeout(button, 0.35)
+        return boolAttribute(button, kAXEnabledAttribute as String)
     }
 
     private static func isFullscreenWindow(_ window: AXUIElement,

@@ -29,7 +29,7 @@ private typealias IsPlayingFunction = @convention(c) (DispatchQueue, @escaping I
 /// `RadialNowPlayingSupport.maximumArtworkBytes`, which the app applies to
 /// the decoded bytes; the bridge's pipe cap is sized from it (base64 is 4/3
 /// of the bytes) and has to move with it.
-private let maximumArtworkBytes = 12 * 1_024 * 1_024
+let maximumArtworkBytes = 12 * 1_024 * 1_024
 // Only the watch process enables this cache. Its reads run serially.
 private var watching = false
 private var previousArtwork: Data?

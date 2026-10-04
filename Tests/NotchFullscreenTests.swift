@@ -68,6 +68,8 @@ enum NotchFullscreenTests {
         func updateScreen() { screenUpdates += 1; screenUpdate?() }
         func syncVisibleConsumers() { consumerSyncs += 1 }
         func refreshPresentation(animated: Bool) { refreshes += 1 }
+        func updateFullscreenDisplays() {}
+        func syncMirrors() {}
     }
 
     static func run(_ suite: TestSuite) {

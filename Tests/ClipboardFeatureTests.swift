@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
@@ -77,11 +78,96 @@ enum ClipboardFeatureTests {
                                                     matching: "missing") == [],
                "clipboard search returns no results for unmatched terms")
 
+        // MARK: Clipboard history search tokens and highlight ranges
+
+        suite.expect(ClipboardHistorySearch.searchTokens(for: "  deploy   final  ") == ["deploy", "final"],
+                     "search tokens split query words and trim whitespace")
+        suite.expect(ClipboardHistorySearch.searchTokens(for: "   ").isEmpty,
+                     "search tokens for whitespace query is empty")
+        suite.expect(ClipboardHistorySearch.searchTokens(for: "").isEmpty,
+                     "search tokens for empty query is empty")
+
+        // Exact substring match (e.g. searching "BC" inside "ABCD")
+        let abcdRanges = ClipboardHistorySearch.highlightRanges(in: "ABCD", tokens: ["BC"])
+        suite.expect(abcdRanges.count == 1 && "ABCD"[abcdRanges[0]] == "BC",
+                     "highlight ranges finds exact substring")
+
+        // Multi-token matches
+        let deployRanges = ClipboardHistorySearch.highlightRanges(in: "Deploy checklist final", tokens: ["deploy", "final"])
+        suite.expect(deployRanges.count == 2
+                     && "Deploy checklist final"[deployRanges[0]] == "Deploy"
+                     && "Deploy checklist final"[deployRanges[1]] == "final",
+                     "highlight ranges finds multiple tokens in any order")
+
+        // Case and accent folding (precomposed and decomposed)
+        let accentRanges = ClipboardHistorySearch.highlightRanges(in: "Reunião com João", tokens: ["reuniao", "joao"])
+        suite.expect(accentRanges.count == 2
+                     && "Reunião com João"[accentRanges[0]] == "Reunião"
+                     && "Reunião com João"[accentRanges[1]] == "João",
+                     "highlight ranges folds accents and case")
+        let decomposedText = "Reunia\u{0303}o"
+        let decomposedRanges = ClipboardHistorySearch.highlightRanges(in: decomposedText, tokens: ["reuniao"])
+        suite.expect(decomposedRanges.count == 1 && decomposedText[decomposedRanges[0]] == "Reunia\u{0303}o",
+                     "highlight ranges folds decomposed accents")
+
+        // German ß / ss matching
+        let eszettRanges = ClipboardHistorySearch.highlightRanges(in: "Straße", tokens: ["strasse"])
+        suite.expect(eszettRanges.count == 1 && "Straße"[eszettRanges[0]] == "Straße",
+                     "highlight ranges matches German eszett with ss")
+
+        // Emoji / grapheme clusters
+        let emojiRanges = ClipboardHistorySearch.highlightRanges(in: "🚀 Launch satellite", tokens: ["launch"])
+        suite.expect(emojiRanges.count == 1 && "🚀 Launch satellite"[emojiRanges[0]] == "Launch",
+                     "highlight ranges handles emojis and grapheme clusters")
+
+        // Overlapping tokens
+        let overlapRanges = ClipboardHistorySearch.highlightRanges(in: "abc", tokens: ["ab", "bc"])
+        suite.expect(overlapRanges.count == 2
+                     && "abc"[overlapRanges[0]] == "ab"
+                     && "abc"[overlapRanges[1]] == "bc",
+                     "highlight ranges supports overlapping tokens")
+
+        // Edge cases: token longer than text, empty text, empty token, non-matching
+        suite.expect(ClipboardHistorySearch.highlightRanges(in: "hi", tokens: ["longerthanhi"]).isEmpty,
+                     "highlight ranges returns empty for token longer than text")
+        suite.expect(ClipboardHistorySearch.highlightRanges(in: "", tokens: ["test"]).isEmpty,
+                     "highlight ranges returns empty for empty text")
+        suite.expect(ClipboardHistorySearch.highlightRanges(in: "test", tokens: []).isEmpty,
+                     "highlight ranges returns empty for empty tokens")
+        suite.expect(ClipboardHistorySearch.highlightRanges(in: "test", tokens: ["", "  "]).isEmpty,
+                     "highlight ranges ignores empty/whitespace tokens")
+        suite.expect(ClipboardHistorySearch.highlightRanges(in: "test", tokens: ["nomatch"]).isEmpty,
+                     "highlight ranges returns empty when no tokens match")
+
+        // Only the matches change style, so the rest of a row keeps the font
+        // and color modifiers of its text.
+        typealias HighlightColor = AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute
+        typealias HighlightFont = AttributeScopes.SwiftUIAttributes.FontAttribute
+        let styled = SearchHighlightText.highlighted("Reunião com João", tokens: ["joao"], fontSize: 12)
+        let styledRuns = styled.runs.map { (String(styled[$0.range].characters), $0[HighlightColor.self], $0[HighlightFont.self]) }
+        suite.expect(styledRuns.count == 2
+                     && styledRuns[0].0 == "Reunião com " && styledRuns[0].1 == nil && styledRuns[0].2 == nil
+                     && styledRuns[1].0 == "João" && styledRuns[1].1 == Color.accentColor && styledRuns[1].2 != nil,
+                     "a highlighted row styles only its matches and leaves the rest to its text's modifiers")
+        let weightOnly = SearchHighlightText.highlighted("Reunião com João", tokens: ["joao"], fontSize: 12,
+                                                         highlightColor: nil)
+        suite.expect(weightOnly.runs.allSatisfy { $0[HighlightColor.self] == nil }
+                     && weightOnly.runs.filter { $0[HighlightFont.self] != nil }.count == 1,
+                     "without a highlight color a match keeps the text's color and changes only its weight")
+        let longPreview = String(repeating: "release notes ", count: 100)
+        let longStyled = SearchHighlightText.highlighted(longPreview, tokens: ["release"], fontSize: 12)
+        suite.expect(SearchHighlightText.excerpt(longPreview).count == SearchHighlightText.visibleCharacters + 1
+                     && SearchHighlightText.excerpt(longPreview).hasSuffix("…")
+                     && SearchHighlightText.excerpt("short") == "short"
+                     && longStyled.characters.count == SearchHighlightText.visibleCharacters + 1
+                     && longStyled.runs.filter { $0[HighlightFont.self] != nil }.count == 36,
+                     "a long preview is searched and styled only as far as a row can show")
+
         // MARK: Clipboard history color swatches
 
-        func expectColor(_ text: String, _ expected: ClipboardHistoryColor?, _ label: String,
+        func expectColor(_ text: String, _ expected: ColorValue?, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
-            let actual = ClipboardHistoryColor(text: text)
+            let actual = ColorValue(text: text)
             let matches: Bool
             if let actual, let expected {
                 matches = [(actual.red, expected.red), (actual.green, expected.green),
@@ -93,30 +179,47 @@ enum ClipboardFeatureTests {
             suite.expect(matches, "\(label): got \(String(describing: actual)), expected \(String(describing: expected))",
                          file: file, line: line)
         }
-        expectColor("#00BC7D", ClipboardHistoryColor(red: 0, green: 188 / 255, blue: 125 / 255),
+        expectColor("#00BC7D", ColorValue(red: 0, green: 188 / 255, blue: 125 / 255),
                     "six digit hex from the request reads as its color")
-        expectColor("  #ffffff\n", ClipboardHistoryColor(red: 1, green: 1, blue: 1),
+        expectColor("  #ffffff\n", ColorValue(red: 1, green: 1, blue: 1),
                     "surrounding whitespace and lowercase digits still read as a color")
-        expectColor("#f80", ClipboardHistoryColor(red: 1, green: 136 / 255, blue: 0),
+        expectColor("#f80", ColorValue(red: 1, green: 136 / 255, blue: 0),
                     "three digit hex expands each digit")
-        expectColor("#00000080", ClipboardHistoryColor(red: 0, green: 0, blue: 0, alpha: 128 / 255),
+        expectColor("#00000080", ColorValue(red: 0, green: 0, blue: 0, alpha: 128 / 255),
                     "eight digit hex carries alpha in the last pair")
-        expectColor("#f008", ClipboardHistoryColor(red: 1, green: 0, blue: 0, alpha: 136 / 255),
+        expectColor("#f008", ColorValue(red: 1, green: 0, blue: 0, alpha: 136 / 255),
                     "four digit hex carries alpha in the last digit")
-        expectColor("rgb(0, 188, 125)", ClipboardHistoryColor(red: 0, green: 188 / 255, blue: 125 / 255),
+        expectColor("rgb(0, 188, 125)", ColorValue(red: 0, green: 188 / 255, blue: 125 / 255),
                     "the color picker's rgb format reads as a color")
-        expectColor("rgba(255 0 0 / 50%)", ClipboardHistoryColor(red: 1, green: 0, blue: 0, alpha: 0.5),
+        expectColor("rgba(255 0 0 / 50%)", ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
                     "space separated rgba with a slash alpha reads as a color")
-        expectColor("hsl(120, 100%, 25%)", ClipboardHistoryColor(red: 0, green: 0.5, blue: 0),
+        expectColor("hsl(120, 100%, 25%)", ColorValue(red: 0, green: 0.5, blue: 0),
                     "the color picker's hsl format converts to rgb")
-        expectColor("hsl(-120deg 100% 50%)", ClipboardHistoryColor(red: 0, green: 0, blue: 1),
+        expectColor("hsl(-120deg 100% 50%)", ColorValue(red: 0, green: 0, blue: 1),
                     "negative hue in degrees wraps around the circle")
-        expectColor(QuickToolsSupport.colorString(red: 0.2, green: 0.4, blue: 0.6, format: .hsl),
-                    ClipboardHistoryColor(red: 0.2, green: 0.4, blue: 0.6),
+        expectColor(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .hsl),
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
                     "hsl written by the color picker reads back close to its source")
-        for text in ["00BC7D", "#12345", "#GGGGGG", "#00BC7D is the brand green", "color: #00BC7D",
+        expectColor(ColorValue.string(red: 0.2, green: 0.4, blue: 0.6, format: .swiftui),
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
+                    "SwiftUI code written by the color picker reads back as its color")
+        expectColor("Color(red:0.2,green:0.4,blue:0.6)",
+                    ColorValue(red: 0.2, green: 0.4, blue: 0.6),
+                    "compact SwiftUI code without spaces reads as a color")
+        expectColor("Color(red:1, green:0,blue: 0,opacity:0.5)",
+                    ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
+                    "SwiftUI labels read with any spacing after the colon")
+        expectColor("Color(red: 1, green: 0, blue: 0, opacity: 0.5)",
+                    ColorValue(red: 1, green: 0, blue: 0, alpha: 0.5),
+                    "SwiftUI opacity reads as alpha")
+        expectColor("Color(red: 0.2509803922, green: 0.5019607843, blue: 0.7529411765, opacity: 0.5)",
+                    ColorValue(red: 0.251, green: 0.502, blue: 0.753, alpha: 0.5),
+                    "full precision SwiftUI code from Xcode reads as a color")
+        for text in ["Color(red: 1, green: 0)", "Color(green: 0, red: 1, blue: 0)",
+                     "Color(red: 2, green: 0, blue: 0)", "Color(.red)", "Color(red:1,green:0,blue:0,)",
+                     "Color(red 1, green 0, blue 0)", "00BC7D", "#12345", "#GGGGGG", "#00BC7D is the brand green", "color: #00BC7D",
                      "rgb(256, 0, 0)", "rgb(0, 0)", "rgb(0, 0, 0, 2)", "hsl(0, 50, 50%)",
-                     "rgb(nan, 0, 0)", "#", "", String(repeating: " ", count: 80) + "#fff"] {
+                     "rgb(nan, 0, 0)", "#", "", String(repeating: " ", count: 100) + "#fff"] {
             expectColor(text, nil, "\(text.debugDescription) is not a lone color value")
         }
         suite.expect(ClipboardHistoryEntry(text: "#fff", kind: .files, filePaths: ["/tmp/#fff"]).color == nil

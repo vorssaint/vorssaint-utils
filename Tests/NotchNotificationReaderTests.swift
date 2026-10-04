@@ -11,6 +11,8 @@ enum NotchNotificationReaderTests {
         var strings: [String: String]
         var children: [Node]
         var actions: [String] = []
+        var frame = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        var removed = false
         init(_ role: String, identifier: String? = nil, value: String? = nil,
              subrole: String? = nil, children: [Node] = []) {
             strings = ["AXRole": role]
@@ -34,6 +36,9 @@ enum NotchNotificationReaderTests {
         var performed: [String] = []
         var allowClose = false
         var valueReads: [UUID] = []
+        var movable = true
+        var ignoresMove = false
+        var moves = 0
         func reading(_ operation: String, _ node: Node? = nil) throws {
             beforeRead?(operation, node)
             if failRead == operation { throw Failure.unavailable }
@@ -48,6 +53,16 @@ enum NotchNotificationReaderTests {
         func children(_ element: Node) throws -> [Node] { try reading("children", element); return element.children }
         func perform(_ action: String, on element: Node) -> Bool { performed.append(action); return pressSucceeds }
         func actions(_ element: Node) throws -> [String] { try reading("actions", element); return element.actions }
+        func frame(_ element: Node) throws -> CGRect? {
+            try reading("frame", element)
+            return element.removed ? nil : element.frame
+        }
+        func move(_ element: Node, to origin: CGPoint) -> Bool {
+            moves += 1
+            guard movable else { return false }
+            if !ignoresMove { element.frame.origin = origin }
+            return true
+        }
         func press(_ element: Node) -> Bool { presses.append(element.id); return pressSucceeds }
         func same(_ lhs: Node, _ rhs: Node) -> Bool { lhs === rhs }
         func reader() -> NotchNotificationReaderCore<Access> {
@@ -59,9 +74,14 @@ enum NotchNotificationReaderTests {
                                                                 (name: "Chat Notifications", bundleIdentifier: "test.chat")]
                                             guard let identifier = NotchNotificationSupport.sourceBundleIdentifier(for: labels, applications: applications) else { return nil }
                                             return applications.first { $0.bundleIdentifier == identifier }?.name
-                                        }, allowsNativeClose: { self.allowClose }, nativeCloseTitle: "Close")
+                                        }, allowsNativeClose: { self.allowClose }, nativeCloseTitle: "Close",
+                                        displays: { NotchNotificationReaderTests.displays })
         }
     }
+
+    /// A built-in display with a larger one to its right.
+    private static let displays = [CGRect(x: 0, y: 0, width: 1470, height: 956), CGRect(x: 1470, y: 0, width: 1920, height: 1080)]
+    private static let screens = CGRect(x: 0, y: 0, width: 3390, height: 1080)
 
     private static func card(identity: String = "request." + UUID().uuidString,
                              sender: String = "Alex", body: String = "Hello", legacy: Bool = false) -> Node {
@@ -87,6 +107,176 @@ enum NotchNotificationReaderTests {
         identity(suite)
         nativeClosing(suite)
         busyClosing(suite)
+        nativeHiding(suite)
+        hiddenWindowReturns(suite)
+    }
+
+    /// The center's window with one transient banner, read once.
+    private static func hiddenFixture() -> (access: Access, reader: NotchNotificationReaderCore<Access>, window: Node, banner: Node, id: UUID)? {
+        let access = Access(), banner = card()
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        let window = Node("AXWindow", subrole: "AXSystemDialog", children: [banner])
+        access.roots = [window]
+        let reader = access.reader()
+        guard let id = reader.read()?.items.first?.id else { return nil }
+        return (access, reader, window, banner, id)
+    }
+
+    private static func nativeHiding(_ suite: TestSuite) {
+        guard let (access, reader, window, banner, id) = hiddenFixture() else {
+            suite.expect(false, "the hiding fixture has a live banner"); return
+        }
+        let home = window.frame
+        suite.expect(reader.hideNative([id]).isEmpty && access.moves == 0,
+                     "mirroring cannot hide a native banner without a separate opt-in")
+        access.allowClose = true
+        suite.expect(reader.hideNative([]).isEmpty && access.moves == 0,
+                     "a banner the island did not show stays on screen")
+        suite.expect(reader.hideNative([id]).isEmpty && !window.frame.intersects(screens) && reader.hidesWindows
+                     && access.performed.isEmpty && access.presses.isEmpty,
+                     "a shown banner's window leaves every display without closing or opening the banner")
+        let moves = access.moves
+        suite.expect(reader.hideNative([id]).isEmpty && access.moves == moves,
+                     "a window already out of sight is not moved again")
+        suite.expect(reader.open(id) == .handedOff, "Open still reaches the hidden original")
+        window.frame.origin = CGPoint(x: 1470, y: 0)
+        suite.expect(reader.hideNative([id]).isEmpty && !window.frame.intersects(screens),
+                     "a window the center placed again is hidden again while the island shows its banner")
+        let other = card(sender: "Sam", body: "Second")
+        other.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        window.children.append(other)
+        _ = reader.read()
+        suite.expect(reader.hideNative([id]).isEmpty && window.frame.origin == CGPoint(x: 1470, y: 0) && !reader.hidesWindows,
+                     "a banner the island passed over brings its window back where the center last put it")
+        window.children = [banner]
+        banner.strings["AXSubrole"] = "AXNotificationCenterAlert"
+        let alertID = reader.read()?.items.first?.id
+        suite.expect(alertID == id && reader.hideNative([id]).isEmpty && window.frame.intersects(screens),
+                     "a persistent alert stays in sight, so its buttons and alarm remain reachable")
+        banner.strings["AXSubrole"] = "AXNotificationCenterBanner"
+        window.frame = home
+        _ = reader.read()
+        banner.children[2].strings["AXValue"] = "Changed"
+        suite.expect(reader.hideNative([id]).isEmpty && window.frame == home,
+                     "changed native content is never hidden under a stale mirrored message")
+        banner.children[2].strings["AXValue"] = "Hello"
+        access.movable = false
+        suite.expect(reader.hideNative([id]) == [id] && window.frame == home,
+                     "a window that cannot be moved reports its banner so it is closed instead")
+        access.movable = true; access.ignoresMove = true
+        suite.expect(reader.hideNative([id]) == [id] && window.frame == home && !reader.hidesWindows,
+                     "a move the window ignores is not mistaken for a hidden banner")
+    }
+
+    /// Every way out of hiding puts back only a window this reader moved, and
+    /// never over a place the center chose since.
+    private static func hiddenWindowReturns(_ suite: TestSuite) {
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            access.focused = true
+            suite.expect(reader.read() == nil && window.frame == home && !reader.hidesWindows,
+                         "opening the center brings a hidden window back")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            access.focused = true
+            suite.expect(reader.hideNative([id]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "the open center is never moved away, even with a shown banner still in it")
+            access.focused = false; access.failRead = "focused"
+            suite.expect(reader.hideNative([id]).isEmpty && window.frame == home,
+                         "an unreadable focus state never hides the window")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            access.allowClose = false
+            suite.expect(reader.hideNative([id]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "turning the option off brings a hidden window back")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            window.children = []
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && !window.frame.intersects(screens) && reader.hidesWindows,
+                         "an emptied window stays out of sight, so the banner's exit never flashes on screen")
+            access.allowed = false
+            reader.showNative()
+            suite.expect(window.frame == home && !reader.hidesWindows,
+                         "stopping puts the window back even after reading is no longer allowed")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            window.children = []
+            _ = reader.read()
+            access.failRead = "frame"
+            reader.showNative()
+            suite.expect(reader.hidesWindows && !window.frame.intersects(screens),
+                         "a window that cannot be read right now stays on the list")
+            access.failRead = nil
+            reader.showNative()
+            suite.expect(!reader.hidesWindows && window.frame == home,
+                         "the next attempt puts a window back once it can be read again")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            _ = reader.hideNative([id])
+            window.children = []
+            _ = reader.read()
+            window.removed = true
+            suite.expect(reader.hideNative([]).isEmpty && !reader.hidesWindows,
+                         "a window the center removed is forgotten")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            window.removed = true
+            suite.expect(reader.hideNative([id]) == [id] && !reader.hidesWindows,
+                         "a window without a position to move closes its banner instead")
+        }
+        // An alert naming two senders cannot be taken apart, so the island
+        // never showed it.
+        func untakenAlert() -> Node {
+            let alert = card(sender: "Sam", body: "Alarm")
+            alert.strings["AXSubrole"] = "AXNotificationCenterAlert"
+            alert.children.append(Node("AXStaticText", identifier: "title", value: "Other sender"))
+            return alert
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            window.children.append(untakenAlert())
+            _ = reader.read()
+            suite.expect(reader.hideNative([id]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a shown banner beside an alert the reader cannot take apart stays in sight")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            let home = window.frame
+            _ = reader.hideNative([id])
+            window.children = [untakenAlert()]
+            _ = reader.read()
+            suite.expect(reader.hideNative([]).isEmpty && window.frame == home && !reader.hidesWindows,
+                         "a hidden window comes back when its banner leaves an alert the reader cannot take apart")
+        }
+        if let (access, reader, window, _, id) = hiddenFixture() {
+            access.allowClose = true
+            _ = reader.hideNative([id])
+            let placed = CGRect(x: 1470, y: 0, width: 1920, height: 1080)
+            window.frame = placed
+            window.children = []
+            _ = reader.read()
+            reader.showNative()
+            suite.expect(window.frame == placed && !reader.hidesWindows,
+                         "a window the center placed again is never moved back over its new place")
+        }
     }
 
     /// The refresh before a close can spend nearly the whole traversal on a

@@ -68,6 +68,13 @@ enum NotchNotificationSupport {
     /// A brief grace avoids cutting off short alert tones when closing the
     /// original banner. This does not observe playback; longer sounds may stop.
     static let nativeCloseGrace: TimeInterval = 1.2
+    /// Moving the window that holds a banner was measured on macOS 27, where
+    /// the center keeps its banners in one window it places again each time
+    /// it shows one. Earlier versions close the original after the grace.
+    static var movesNativeWindow: Bool {
+        if #available(macOS 27, *) { return true }
+        return false
+    }
 
     /// Resolve only an unambiguous installed source. Formatting marks used by
     /// localized app labels are not part of the application's name.
@@ -150,6 +157,48 @@ enum NotchNotificationSupport {
               identifier.range(of: "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}",
                                options: .regularExpression) != nil else { return nil }
         return identifier
+    }
+}
+
+/// The banner beside the camera: the app's icon and title on one side, the
+/// message on the other. Both sides take the width the longer one needs, so
+/// a short message leaves no band of empty black at the ends, while a long
+/// one keeps the widest banner and wraps or truncates within it.
+enum NotchNotificationBannerLayout {
+    static let iconSize: CGFloat = 22
+    static let spacing: CGFloat = 8
+    static let wingRange: ClosedRange<CGFloat> = NotchNotice.minimumWing...190
+    /// The inset from the island's curved end, and a little air so the
+    /// fitted text never truncates where SwiftUI rounds its width.
+    static let inset: CGFloat = 16
+    static let air: CGFloat = 6
+    /// The fonts the banner draws with, so it is measured in the same ones.
+    static let titleFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let messageFont = NSFont.systemFont(ofSize: 11)
+
+    /// A strip tall enough for two lines wraps a long message onto a second.
+    static func messageLines(stripHeight: CGFloat) -> Int { stripHeight >= 30 ? 2 : 1 }
+
+    /// The sender and the message each take a side as wide as they need. A
+    /// message that wraps takes the width its lines need once wrapped at the
+    /// widest side, not the whole side.
+    static func wings(for content: NotchNotificationContent, wrapsMessage: Bool = false) -> NotchNoticeWings {
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            // A line or two is all the banner shows, and the widest wing is
+            // reached long before this much text.
+            (String(text.prefix(240)) as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        let title = iconSize + spacing + width(content.compactTitle, titleFont)
+        var detail = width(content.compactDetail, messageFont)
+        let room = wingRange.upperBound - inset - air
+        if wrapsMessage, detail > room {
+            let wrapped = (String(content.compactDetail.prefix(240)) as NSString).boundingRect(
+                with: CGSize(width: room, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: messageFont])
+            detail = min(room, wrapped.width.rounded(.up))
+        }
+        func fitted(_ side: CGFloat) -> CGFloat { min(wingRange.upperBound, max(wingRange.lowerBound, side + inset + air)) }
+        return NotchNoticeWings(leading: fitted(title), trailing: fitted(detail))
     }
 }
 

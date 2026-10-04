@@ -25,7 +25,7 @@ enum CommandBarUnits {
     /// is the classic trap, and it is why the parser only accepts "in" as a
     /// keyword when a real unit follows it and a number with a unit precedes
     /// it: "5 in to cm" reads the first as inches and the second as the verb.
-    private static let conversionWords: Set<String> = [
+    static let conversionWords: Set<String> = [
         "to", "in", "into", "as", "em", "para", "pra", "en", "a", "nach", "zu",
         "à", "su", "->", ">", "→",
     ]

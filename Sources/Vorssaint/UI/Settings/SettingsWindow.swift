@@ -13,9 +13,22 @@ class SettingsWindow: NSWindow {
     static func navigationMenu(language: AppLanguage) -> NSMenu {
         let strings = SettingsNavigationStrings.localized(language)
         let menu = NSMenu(title: strings.go)
-        menu.addItem(NSMenuItem(title: strings.back, action: #selector(goBack(_:)), keyEquivalent: "["))
-        menu.addItem(NSMenuItem(title: strings.forward, action: #selector(goForward(_:)), keyEquivalent: "]"))
+        // The commands other apps declare for Back and Forward, so the key macOS
+        // moves them to on this keyboard is the one the side buttons look for.
+        menu.addItem(NSMenuItem(title: strings.back, action: #selector(goBack(_:)),
+                                keyEquivalent: MouseNavigationSupport.commandCharacter(for: .back)))
+        menu.addItem(NSMenuItem(title: strings.forward, action: #selector(goForward(_:)),
+                                keyEquivalent: MouseNavigationSupport.commandCharacter(for: .forward)))
         return menu
+    }
+
+    /// The Go item for a direction, wherever `navigationMenu` sits in `mainMenu`.
+    static func navigationItem(for direction: MouseNavigationDirection, in mainMenu: NSMenu) -> NSMenuItem? {
+        let action = direction == .back ? #selector(goBack(_:)) : #selector(goForward(_:))
+        for menu in mainMenu.items.compactMap(\.submenu) {
+            if let item = menu.items.first(where: { $0.action == action }) { return item }
+        }
+        return nil
     }
 
     private var canNavigate: Bool {

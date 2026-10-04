@@ -193,10 +193,13 @@ private struct NotchQuickAccessGlassSurface: ViewModifier {
             .background {
                 if presentation.usesGlass {
                     GeometryReader { proxy in
-                        // Past the island the shade keeps the lip's tone.
-                        LinearGradient(stops: NotchSurfaceBackground.shade(openness: presentation.openness, contrast: contrast),
+                        // Past the island the shade keeps the lip's tone,
+                        // measured from the top edge as the island's own.
+                        let islandBottom = island.isEmpty ? 0 : island.boundingRect.maxY
+                        LinearGradient(stops: NotchSurfaceBackground.shade(openness: presentation.openness, contrast: contrast,
+                                                                           height: islandBottom),
                                        startPoint: .top,
-                                       endPoint: UnitPoint(x: 0.5, y: island.boundingRect.height / max(1, proxy.size.height)))
+                                       endPoint: UnitPoint(x: 0.5, y: islandBottom / max(1, proxy.size.height)))
                             .mask { drops }
                     }
                 } else {

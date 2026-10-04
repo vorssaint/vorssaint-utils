@@ -23,6 +23,12 @@ final class FeatureRuntime: ObservableObject {
     /// keys off, including the install-then-uninstall-again case.
     private var loadedThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
 
+    /// What was installed when the app came up and has not been installed
+    /// again since. A feature installed later in the session, a reinstall
+    /// included, has not had its chance yet, so it is never offered for
+    /// uninstalling as unused until the next launch.
+    private var offerableThisSession = Set(AppFeature.allCases.filter(\.isAvailable))
+
     private init() {}
 
     /// True while something that loaded this session is now uninstalled, so
@@ -104,7 +110,7 @@ final class FeatureRuntime: ObservableObject {
             && mayFlip(.notch, to: true)
             && !UserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
         let requested = firstIslandInstall
-            ? features + AppFeature.dynamicIslandExtensions.filter { !features.contains($0) }
+            ? features + AppFeature.dynamicIslandInitialExtensions.filter { !features.contains($0) }
             : features
         let savedValues = savedPreferences()
         for feature in requested where mayFlip(feature, to: available) {
@@ -112,7 +118,10 @@ final class FeatureRuntime: ObservableObject {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
             UserDefaults.standard.set(available, forKey: feature.availabilityKey)
-            if available { loadedThisSession.insert(feature) }
+            if available {
+                loadedThisSession.insert(feature)
+                offerableThisSession.remove(feature)
+            }
             Self.bindings[feature]?()
             changed = true
         }
@@ -145,7 +154,10 @@ final class FeatureRuntime: ObservableObject {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
             UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
-            if joins { loadedThisSession.insert(feature) }
+            if joins {
+                loadedThisSession.insert(feature)
+                offerableThisSession.remove(feature)
+            }
             Self.bindings[feature]?()
         }
         // Features that stayed installed still need a sync: their enable
@@ -160,6 +172,31 @@ final class FeatureRuntime: ObservableObject {
             UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         finishAvailabilityChange()
+    }
+
+    /// Installed switches that were never once turned on, for the Features
+    /// page to offer as one batch, minus the ones the person chose to keep.
+    func neverSwitchedOnFeatures() -> [AppFeature] {
+        let saved = savedPreferences()
+        let kept = Self.keptFeatures()
+        return AppFeature.neverSwitchedOn(isAvailable: \.isAvailable,
+                                          boolFor: UserDefaults.standard.bool(forKey:),
+                                          isSaved: { saved[$0] != nil })
+            .filter { offerableThisSession.contains($0) && !kept.contains($0) }
+    }
+
+    /// Stops offering these features as unused. A later one that turns out
+    /// never used is still offered, on its own merits.
+    func keep(_ features: [AppFeature]) {
+        let kept = Self.keptFeatures().union(features)
+        UserDefaults.standard.set(kept.map(\.rawValue).sorted().joined(separator: ","),
+                                  forKey: DefaultsKey.featureHubKeptFeatures)
+    }
+
+    private static func keptFeatures() -> Set<AppFeature> {
+        Set((UserDefaults.standard.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
+            .split(separator: ",")
+            .compactMap { AppFeature(rawValue: String($0)) })
     }
 
     /// Bulk install or uninstall for the hub's "all" buttons.
@@ -217,6 +254,7 @@ final class FeatureRuntime: ObservableObject {
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
+        .linearScroll: { ScrollInverter.shared.syncWithPreferences() },
         .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
@@ -330,6 +368,14 @@ final class FeatureRuntime: ObservableObject {
         .notchAgents: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
             else { AgentUsageService.shared.stop() }
+        },
+        .notchWatch: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+            else { NotchWatchService.shared.stop() }
+        },
+        // Leaving folds the wings it rests in, and coming back greets.
+        .notchMascot: {
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },

@@ -5,6 +5,65 @@ import AppKit
 import CoreGraphics
 import Foundation
 
+struct SwitcherScrollNavigation {
+    static let gestureStep: Double = 30
+    private var accumulated: Double = 0
+    private var lastTimestamp: CGEventTimestamp?
+    private var lastGesturePhaseTimestamp: CGEventTimestamp?
+    private var wasMouseWheel: Bool?
+
+    mutating func selectionDelta(for event: CGEvent) -> Int {
+        guard event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag else {
+            return 0
+        }
+        let traits = ScrollWheelEventTraits(
+            isContinuous: event.getIntegerValueField(.scrollWheelEventIsContinuous) != 0,
+            momentumPhase: event.getIntegerValueField(.scrollWheelEventMomentumPhase),
+            scrollPhase: event.getIntegerValueField(.scrollWheelEventScrollPhase),
+            scrollCount: event.getIntegerValueField(.scrollWheelEventScrollCount)
+        )
+        let phase = CGScrollPhase(rawValue: UInt32(truncatingIfNeeded: traits.scrollPhase))
+        let isMouseWheel = ScrollWheelSupport.isMouseWheel(traits, secondsSinceLastGesturePhase:
+            lastGesturePhaseTimestamp.map { Double(event.timestamp &- $0) / 1_000_000_000 })
+        if traits.scrollPhase != 0 || traits.momentumPhase != 0 {
+            lastGesturePhaseTimestamp = event.timestamp
+        }
+        // Wheel fractions survive pauses; only touch gestures have an idle timeout.
+        if wasMouseWheel != isMouseWheel || phase == .began
+            || (!isMouseWheel && lastTimestamp.map({ event.timestamp &- $0 > 250_000_000 }) == true) {
+            accumulated = 0
+        }
+        wasMouseWheel = isMouseWheel
+        lastTimestamp = event.timestamp
+        guard traits.momentumPhase == 0,
+              phase != .ended, phase != .cancelled else {
+            accumulated = 0
+            return 0
+        }
+        func movement(line: CGEventField, fixed: CGEventField, point: CGEventField) -> Double {
+            guard isMouseWheel else { return event.getDoubleValueField(point) }
+            let lines = event.getDoubleValueField(line)
+            if lines != 0 { return lines }
+            let fraction = event.getDoubleValueField(fixed)
+            if fraction != 0 { return fraction }
+            return traits.isContinuous ? event.getDoubleValueField(point) / ScrollWheelSupport.pointsPerLine : 0
+        }
+        let vertical = movement(line: .scrollWheelEventDeltaAxis1, fixed: .scrollWheelEventFixedPtDeltaAxis1,
+                                point: .scrollWheelEventPointDeltaAxis1)
+        let horizontal = movement(line: .scrollWheelEventDeltaAxis2, fixed: .scrollWheelEventFixedPtDeltaAxis2,
+                                  point: .scrollWheelEventPointDeltaAxis2)
+        let delta = abs(horizontal) > abs(vertical) ? horizontal : vertical
+        guard delta.isFinite, delta != 0 else { return 0 }
+        if accumulated * delta < 0 { accumulated = 0 }
+        accumulated += delta
+        let step = isMouseWheel ? 1 : Self.gestureStep
+        guard abs(accumulated) >= step else { return 0 }
+        // Each sample advances at most one item, without acceleration or momentum.
+        accumulated = isMouseWheel ? accumulated.truncatingRemainder(dividingBy: step) : 0
+        return delta < 0 ? 1 : -1
+    }
+}
+
 struct SwitcherCloseState: Equatable {
     let remainingItemIDs: [String]
     let selectedIndex: Int
@@ -663,6 +722,12 @@ enum SwitcherSupport {
     ///
     /// Every subrole the app did describe is left alone: a dialog, a sheet or
     /// a floating panel is filtered as before unless it fills the screen.
+    /// The one exception is a normal-level `AXDialog` that can be minimized.
+    /// AppKit gives that subrole to every window of a hidden app, and a window
+    /// that still carries it after the app is shown again (reported on macOS 26,
+    /// issue #2279) would otherwise drop out of the list. Alerts and panels read
+    /// `AXDialog` too but have no working minimize button, unless the app made
+    /// the panel miniaturizable; such a panel is listed like a window.
     ///
     /// A surface the app asked the window server to keep out of window cycling
     /// stays out of the switcher however it describes itself.
@@ -671,10 +736,14 @@ enum SwitcherSupport {
                                               fillsScreen: Bool,
                                               hasNormalWindowLevel: Bool,
                                               acceptsUndescribedSubroles: Bool,
+                                              canMinimize: Bool = false,
                                               isExcludedFromWindowCycle: Bool = false) -> Bool {
         guard role == "AXWindow", !isExcludedFromWindowCycle else { return false }
         if subrole == "AXUnknown" {
             return hasNormalWindowLevel || acceptsUndescribedSubroles || fillsScreen
+        }
+        if subrole == "AXDialog" {
+            return hasNormalWindowLevel && canMinimize
         }
         return fillsScreen && subrole == "AXFloatingWindow"
     }

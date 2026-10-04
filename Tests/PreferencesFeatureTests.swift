@@ -64,6 +64,28 @@ enum PreferencesFeatureTests {
         Defaults.migrateLiquidGlassIsland(in: glassDefaults, domainName: glassDomain)
         suite.expect(!glassDefaults.bool(forKey: DefaultsKey.notchLiquidGlassEnabled),
                "an explicit island choice survives later launches")
+        let companionDomain = "vorss.tests.companion-beta.\(UUID().uuidString)"
+        let companionDefaults = UserDefaults(suiteName: companionDomain)!
+        defer { companionDefaults.removePersistentDomain(forName: companionDomain) }
+        // Setup writes every feature's availability, the companion's as off.
+        companionDefaults.set(true, forKey: AppFeature.commandBar.availabilityKey)
+        companionDefaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
+        Defaults.installCompanionForBetaCommandBar(in: companionDefaults, isBeta: true)
+        let waitsForSetup = !companionDefaults.bool(forKey: AppFeature.notchMascot.availabilityKey)
+        companionDefaults.set(true, forKey: DefaultsKey.hasOnboarded)
+        Defaults.installCompanionForBetaCommandBar(in: companionDefaults, isBeta: false)
+        let stableUntouched = !companionDefaults.bool(forKey: AppFeature.notchMascot.availabilityKey)
+        Defaults.installCompanionForBetaCommandBar(in: companionDefaults, isBeta: true)
+        let installed = companionDefaults.bool(forKey: AppFeature.notchMascot.availabilityKey)
+            && companionDefaults.bool(forKey: DefaultsKey.notchMascotEnabled)
+        companionDefaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
+        Defaults.installCompanionForBetaCommandBar(in: companionDefaults, isBeta: true)
+        let keptOut = !companionDefaults.bool(forKey: AppFeature.notchMascot.availabilityKey)
+        companionDefaults.removeObject(forKey: DefaultsKey.notchMascotBetaInstalled)
+        companionDefaults.set(false, forKey: AppFeature.commandBar.availabilityKey)
+        let noCommandBar = !Defaults.installsCompanionForBeta(in: companionDefaults, isBeta: true)
+        suite.expect(waitsForSetup && stableUntouched && installed && keptOut && noCommandBar,
+                     "a beta installs the companion once for Command Bar users after setup, even over setup's off, and leaves it out once uninstalled")
         suite.expect(AppAppearance.sanitized(nil) == .system
                 && AppAppearance.sanitized("nonsense") == .system,
                "an unknown stored appearance falls back to the system one")
@@ -127,6 +149,27 @@ enum PreferencesFeatureTests {
                "invalid keep-awake active icon falls back to the Vorssaint glyph")
         suite.expect(KeepAwakeActiveIcon.eye.systemSymbolName == "eye.fill",
                "keep-awake eye option maps to its menu bar symbol")
+        suite.expect(registeredDefaults[DefaultsKey.menuBarIconSymbol] as? String == "",
+               "the menu bar shows the Vorssaint glyph until a symbol is chosen")
+        suite.expect(Defaults.sanitizedMenuBarIconSymbol("  bolt.fill\n") == "bolt.fill"
+                     && Defaults.sanitizedMenuBarIconSymbol(" ") == ""
+                     && Defaults.sanitizedMenuBarIconSymbol(nil) == "",
+               "a typed menu bar symbol name loses its surrounding spaces, and blank keeps the glyph")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarIconSymbol),
+               "the chosen menu bar symbol follows settings backups")
+        let symbolExists: (String) -> Bool = { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+        suite.expect(Defaults.menuBarIconSymbolToSave(typed: " bolt.fill ", opening: "", exists: symbolExists) == "bolt.fill"
+                     && Defaults.menuBarIconSymbolToSave(typed: "bolt.fil", opening: "star.fill", exists: symbolExists) == "star.fill"
+                     && Defaults.menuBarIconSymbolToSave(typed: "  ", opening: "star.fill", exists: symbolExists) == "",
+               "a typed menu bar symbol applies when this Mac has it, blank brings back the glyph, anything else keeps the opening icon")
+        let gallery = Defaults.menuBarIconGallery
+        suite.expect(gallery.count >= 30 && Set(gallery).count == gallery.count
+                     && gallery.allSatisfy { !$0.isEmpty && Defaults.sanitizedMenuBarIconSymbol($0) == $0 },
+               "the menu bar icon gallery offers many distinct symbol names")
+        suite.expect(gallery.allSatisfy(symbolExists),
+               "every symbol in the menu bar icon gallery exists on this Mac")
+        suite.expect(KeepAwakeActiveIcon.allCases.compactMap(\.systemSymbolName).allSatisfy { !gallery.contains($0) },
+               "the menu bar icon gallery leaves out Keep Awake's symbols, so an active session still stands out")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: []),
                "no online display does not count as an external display")
         suite.expect(!KeepAwakeAutomationSupport.hasExternalDisplay(builtInFlags: [true]),

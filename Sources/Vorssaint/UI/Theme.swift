@@ -58,6 +58,17 @@ extension EnvironmentValues {
 }
 
 enum PanelSurface {
+    /// Whether the menu popover hosts the panel across its whole balloon, so the
+    /// panel's own surface can reach the arrow (#1030). Only macOS 26 lays the
+    /// content out that way. On macOS 15, `hasFullSizeContent` publishes the
+    /// full-size safe area but leaves the view at its content size in the frame's
+    /// lower-left corner: the popover grows by that safe area, the panel sits off
+    /// center, and a band of system material shows along the top and right edges.
+    static var popoverHostsFullSizeContent: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+
     static func baseFill(for scheme: ColorScheme) -> Color {
         scheme == .light ? Color.white.opacity(0.68) : Color.black.opacity(0.42)
     }
@@ -117,9 +128,11 @@ func sectionTitle(_ text: String) -> some View {
 }
 
 extension View {
-    /// The rounded card background used by every panel section.
-    func panelCard(interactive: Bool = true) -> some View {
-        modifier(PanelCardModifier(interactive: interactive))
+    /// The rounded card background used by every panel section. A card
+    /// holding a list of rows is not padded: each row brings its own insets,
+    /// so hover highlights and separators can reach the card's edges.
+    func panelCard(interactive: Bool = true, padded: Bool = true) -> some View {
+        modifier(PanelCardModifier(interactive: interactive, padded: padded))
     }
 
     /// A restrained glass base for the menu panel: still translucent, but with a
@@ -132,15 +145,16 @@ extension View {
 
 private struct PanelCardModifier: ViewModifier {
     var interactive: Bool
+    var padded = true
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.notchPresentation) private var notchPresentation
 
     func body(content: Content) -> some View {
         if notchPresentation {
-            content.padding(12).modifier(NotchControlSurface(cornerRadius: 18, interactive: interactive))
+            content.padding(padded ? 12 : 0).modifier(NotchControlSurface(cornerRadius: 18, interactive: interactive))
         } else {
         content
-            .padding(10)
+            .padding(padded ? 10 : 0)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(PanelSurface.cardFill(for: colorScheme))
@@ -167,11 +181,15 @@ private struct PanelGlassSurface: View {
         // under the arrow; only this background bleeds into it. The popover clips
         // it to its own balloon, so the surface is a plain rectangle: rounding would
         // expose the system material at the corners, while stroking would duplicate
-        // the outline AppKit already draws.
+        // the outline AppKit already draws. Where the popover still insets its
+        // content, the panel is a card inside the balloon instead; see
+        // PanelSurface.popoverHostsFullSizeContent.
         if notchPresentation {
             Rectangle().fill(notchGlassSurface ? Color.clear : .black)
-        } else {
+        } else if PanelSurface.popoverHostsFullSizeContent {
             surface.ignoresSafeArea()
+        } else {
+            insetSurface
         }
     }
 
@@ -199,6 +217,18 @@ private struct PanelGlassSurface: View {
         Rectangle()
             .fill(.regularMaterial)
             .overlay(Rectangle().fill(PanelSurface.baseFill(for: colorScheme)))
+    }
+
+    /// The panel as a card inside a popover that insets its content (before
+    /// macOS 26): the balloon's rounding never reaches it there, so it carries
+    /// its own rounding and rim. Liquid Glass needs macOS 26, so this is always
+    /// the standard material.
+    private var insetSurface: some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        return shape
+            .fill(.regularMaterial)
+            .overlay(shape.fill(PanelSurface.baseFill(for: colorScheme)))
+            .overlay(shape.strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8))
     }
 }
 

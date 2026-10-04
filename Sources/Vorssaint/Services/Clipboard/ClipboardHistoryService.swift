@@ -347,10 +347,6 @@ final class ClipboardHistoryService: ObservableObject {
         save()
     }
 
-    func clearAll() {
-        clearRecent()
-    }
-
     func canMove(_ entry: ClipboardHistoryEntry, _ direction: ClipboardHistoryMoveDirection) -> Bool {
         moveDestination(for: entry, direction) != nil
     }

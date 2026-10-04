@@ -61,17 +61,13 @@ enum AgentClaudeAppUsage {
     }
 
     /// The latest reading as limit windows. The file keeps percentages, not
-    /// renewal times: a session renews five hours after the hour its use
-    /// began, which the history brackets and Claude Code's own first request
-    /// can narrow, and a week renews every seven days at the moment of the
+    /// renewal times: a session renews five hours after its first request,
+    /// which the history brackets and Claude Code's own first request can
+    /// narrow, and a week renews every seven days at the moment of the
     /// last drop the history saw.
     static func limits(from samples: [Sample], now: Date, sessionStart: Date? = nil,
                        organization: String? = nil) -> AgentLimits? {
-        // The app may be signed in to another account than Claude Code; its
-        // limits say nothing about this one.
-        let samples = organization.map { account in
-            samples.filter { $0.organization == nil || $0.organization == account }
-        } ?? samples
+        let samples = readings(samples, organization: organization)
         guard let latest = samples.last, latest.date <= now.addingTimeInterval(300),
               now.timeIntervalSince(latest.date) < 7 * 86_400 else { return nil }
         let history = samples.filter { $0.organization == latest.organization }
@@ -95,6 +91,24 @@ enum AgentClaudeAppUsage {
         return AgentLimits(provider: .claude, windows: result, observedAt: latest.date, source: .claudeApp)
     }
 
+    /// Where Claude Code's own first request places the session the newest
+    /// reading saw. Taken at that reading rather than now, so a session that
+    /// has since ended keeps its renewal instead of moving to five hours after
+    /// the reading that first saw it.
+    static func sessionStart(_ records: [AgentUsageRecord], samples: [Sample], organization: String? = nil) -> Date? {
+        guard let reading = readings(samples, organization: organization).last?.date else { return nil }
+        let recent = records.filter {
+            $0.provider == .claude && $0.date <= reading && reading.timeIntervalSince($0.date) < AgentUsageSummary.blockHistory
+        }
+        return AgentUsageSummary.currentBlock(recent, now: reading)?.start
+    }
+
+    /// The app may be signed in to another account than Claude Code; its
+    /// limits say nothing about this one.
+    private static func readings(_ samples: [Sample], organization: String?) -> [Sample] {
+        organization.map { account in samples.filter { $0.organization == nil || $0.organization == account } } ?? samples
+    }
+
     private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval) -> Date? {
         guard used > 0, var first = history.indices.last else { return nil }
         // The run of readings above zero that ends with the latest one. A drop
@@ -107,7 +121,7 @@ enum AgentClaudeAppUsage {
         let latest = history[first].date
         let earliest = first > 0 ? history[first - 1].date : latest.addingTimeInterval(-length)
         let began = start.flatMap { $0 > earliest && $0 <= latest ? $0 : nil } ?? latest
-        return hour(of: began).addingTimeInterval(length)
+        return began.addingTimeInterval(length)
     }
 
     /// The first renewal after `reading`, from the last drop the history saw.

@@ -10,6 +10,7 @@ extension AgentProvider {
         switch self {
         case .claude: return Color(red: 0.85, green: 0.47, blue: 0.34)
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
+        case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         }
     }
 }
@@ -370,7 +371,8 @@ private extension AgentProvider {
     var appIdentifiers: [String] {
         switch self {
         case .claude: return [AgentClaudeAppUsage.bundleIdentifier]
-        case .codex: return ["com.openai.codex", "com.openai.chat"]
+        case .codex: return AgentCodexServer.appIdentifiers
+        case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         }
     }
 
@@ -383,6 +385,8 @@ private extension AgentProvider {
         switch self {
         case .claude: return ["TrayIconTemplate"]
         case .codex: return ["chatgptTemplate"]
+        // The OpenCode app shows nothing in the menu bar; its icon stands in.
+        case .opencode: return []
         }
     }
 }

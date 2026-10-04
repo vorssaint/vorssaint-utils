@@ -1431,6 +1431,19 @@ enum RepositoryFeatureTests {
         }
         suite.expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+        // zsh passes a plain string to a command as one word, so the script
+        // keeps the closed-lid rule names in an array. They must be the files
+        // the app looks for, under the current name and every earlier one.
+        func sudoersRuleFiles(_ text: String) -> Set<String> {
+            Set(text.components(separatedBy: CharacterSet(charactersIn: " \n\t\"(),"))
+                .filter { $0.hasPrefix("/etc/sudoers.d/") })
+        }
+        let appRuleFiles = sudoersRuleFiles(
+            repository.source(at: "Sources/Vorssaint/Services/ShellSupport.swift"))
+        let scriptRuleFiles = sudoersRuleFiles(uninstallScriptSource.components(separatedBy: "\n")
+            .first { $0.hasPrefix("RULES=(") } ?? "")
+        suite.expect(!appRuleFiles.isEmpty && scriptRuleFiles == appRuleFiles,
+               "script uninstall looks for the same closed-lid rule files as the app: \(scriptRuleFiles.sorted())")
         // Restoring sleep used to be fired and forgotten at both exits. A
         // failure there leaves `pmset disablesleep 1` set system-wide, and
         // removal deletes the flag that launch-time recovery reads before it

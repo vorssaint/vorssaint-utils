@@ -20,9 +20,20 @@ enum NotchPresentationRefreshContract {
         struct Accessibility { var accessibilityDisplayShouldReduceMotion = false }
     }
     enum NotchPanel { static let normalLevel = 1, fullscreenLevel = 0 }
-    final class CaptureOptions {
+    enum NotificationCenter {
+        enum Name { case notchMascotRestYields }
+        static var `default` = Center()
+        struct Center {
+            var restYields = 0
+            mutating func post(name: Name, object: Any?) { restYields += 1 }
+        }
+    }
+    final class CaptureOptions: ObservableObject {
+        enum Tool { case screenshot, text }
+        @Published var selectedTool: Tool = .screenshot
         var hasFocusedControl = false
         var onSelectionProgressChange: ((Bool) -> Void)?
+        var onCaptureControlsSurfaceChange: ((CGRect, CGFloat) -> Void)?
     }
     enum UserDefaults {
         static var standard = Preferences()
@@ -114,15 +125,19 @@ enum NotchPresentationRefreshContract {
         var onPresent: ((CGSize) -> Void)?
         var usesGlass = false
         var revealFromHidden = false
+        var steady = false
         var outlineEnabled = false
         var outlineColor = NSColor.white
+        var transitions: [NotchContentTransition] = []
         func setOutline(enabled: Bool, color: NSColor) {
             outlineEnabled = enabled
             outlineColor = color
         }
         func present(size: CGSize, geometry: NotchGeometry, animated: Bool,
                      transitionContent: NotchContentTransition, quickAccess: NotchQuickAccessConfiguration?,
-                     revealFromHidden: Bool, usesGlass: Bool) {
+                     revealFromHidden: Bool, usesGlass: Bool, steady: Bool) {
+            transitions.append(transitionContent)
+            self.steady = steady
             departsContent = transitionContent == .depart
             self.usesGlass = usesGlass
             self.revealFromHidden = revealFromHidden
@@ -136,9 +151,10 @@ enum NotchPresentationRefreshContract {
         }
     }
     class State: ObservableObject {
+        var noticeFitsInPlace = false
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
-        var compactActivityCompanions: [NotchCompactActivity] = []
+        func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -154,9 +170,31 @@ enum NotchPresentationRefreshContract {
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
+        var captureClosesOnCollapse = false
+        var routesCaptures = true
+        var openedPages: [(module: NotchModule, takeFocus: Bool)] = []
+        func open(_ module: NotchModule, pinned: Bool, takeFocus: Bool, feedback: Bool) {
+            openedPages.append((module, takeFocus))
+        }
         var pinned = false
         var showingSections = false
         var showingAppPanel = false
+        var showingCommandBar = false
+        var commandBarClosings = 0
+        func commandBarDidClose() { commandBarClosings += 1 }
+        func flushMascotReaction() {}
+        func syncMascotKeepAwake() {}
+        func syncMascotAgents() {}
+        var mascotRestsInView = false
+        var mascotRestedInView = false
+        var mascotLingers = false
+        var mascotBridging = false
+        var mascotBridgeTargetShows = true
+        var bridgeEnds: [Bool] = []
+        func endMascotBridgeNow(fading: Bool = false) {
+            bridgeEnds.append(fading)
+            mascotBridging = false
+        }
         var selectedMetric: Bool?
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
@@ -167,6 +205,7 @@ enum NotchPresentationRefreshContract {
         }
         var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
         var presentedMusic: NotchCompactMusicSnapshot?
+        var heldMusic: NotchCompactMusicSnapshot?
         var departingMusic: NotchCompactMusicSnapshot?
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
@@ -178,6 +217,10 @@ enum NotchPresentationRefreshContract {
         var captureControlsSubscription: AnyCancellable?
         var captureControlsCancel: (() -> Void)?
         var captureControlsMonitors: [Any] = []
+        func installCaptureControlsClickThrough() {
+            if captureControlsMonitors.isEmpty { captureControlsMonitors = [1] }
+        }
+        func removeEventMonitors() {}
         func syncVisibleConsumers() {}
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
@@ -185,6 +228,7 @@ enum NotchPresentationRefreshContract {
         var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
+        var headerTitleWidth: CGFloat = 0
         var expandedGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
@@ -196,7 +240,10 @@ enum NotchPresentationRefreshContract {
                                          timerHasSession: session.hasSession,
                                          timerMode: session.hasSession ? session.mode : mode)
         }
+        var surfaceShift: CGFloat { 0 }
         func syncHiddenHoverMonitoring() {}
+        func schedulePointerFollow() {}
+        func syncMirrors() {}
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -212,6 +259,7 @@ enum NotchPresentationRefreshContract {
 
     static func run(_ suite: TestSuite) {
         compactMusicDepartureChecks(suite)
+        mascotYieldChecks(suite)
         UserDefaults.standard.hides = false
         UserDefaults.standard.outline = false
         defer {
@@ -249,6 +297,13 @@ enum NotchPresentationRefreshContract {
         toolbar.showingSections = true
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
                      "leaving capture editing restores the compact header layout")
+        let titled = Service()
+        titled.headerTitleWidth = 108
+        suite.expect(titled.expandedGeometry.headerCameraGap == 0 && titled.expandedGeometry.headerTopInset == 42,
+                     "a page title wider than the camera's side takes the full row below it")
+        titled.headerTitleWidth = 107
+        suite.expect(titled.expandedGeometry.headerCameraGap == 210 && titled.expandedGeometry.headerTopInset == 0,
+                     "a page title that fits keeps its place beside the camera")
         captureControlsChecks(suite)
         let picker = Service()
         picker.expanded = false
@@ -260,10 +315,20 @@ enum NotchPresentationRefreshContract {
         suite.expect(picker.windowHost!.activationRect.maxY
                      <= picker.compactActivityGeometry.compactActivitySize.height,
                      "the native open button never covers the activity choices below the strip")
+        // A song changing leaves the timer alone on the island for a moment.
         picker.compactActivities = [.timer]
         picker.refreshPresentation(animated: false)
+        suite.expect(picker.activitySelection.preferred == .music
+                     && picker.activitySelection.current(available: picker.compactActivities) == .timer,
+                     "production refresh keeps a chosen activity through a gap and shows what remains")
+        picker.compactActivities = [.timer, .music]
+        picker.refreshPresentation(animated: false)
+        suite.expect(picker.activitySelection.current(available: picker.compactActivities) == .music,
+                     "the chosen activity comes back instead of the timer")
+        picker.compactActivities = []
+        picker.refreshPresentation(animated: false)
         suite.expect(picker.activitySelection.preferred == nil,
-                     "production refresh forgets a chosen activity when it disappears")
+                     "production refresh forgets the choice once nothing is left to show")
         let fullscreen = Service()
         fullscreen.pinned = true
         fullscreen.expanded = false
@@ -341,6 +406,11 @@ enum NotchPresentationRefreshContract {
         material.expanded = true
         material.refreshPresentation(animated: false)
         suite.expect(material.windowHost?.usesGlass == true, "expanded content requests the glass backdrop")
+        material.showingCommandBar = true
+        material.refreshPresentation(animated: false)
+        suite.expect(!material.usesGlassSurface && material.windowHost?.usesGlass == false,
+                     "the Command Bar keeps the open island black, as its drop is")
+        material.showingCommandBar = false
         material.expanded = false
         material.noticeExpanded = true
         material.refreshPresentation(animated: false)
@@ -524,6 +594,39 @@ enum NotchPresentationRefreshContract {
                "an active timer on a physical camera retracts its wings and stays at menu-bar height without a menu measurement")
     }
 
+    private static func mascotYieldChecks(_ suite: TestSuite) {
+        func arrival(lingers: Bool = false, reduceMotion: Bool = false, activity: Bool = true) -> (first: Int, again: Int) {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduceMotion
+            defer { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false }
+            let service = Service()
+            service.expanded = false
+            service.mascotRestedInView = true
+            service.mascotLingers = lingers
+            service.compactActivityIsVisible = activity
+            NotificationCenter.default.restYields = 0
+            service.refreshPresentation()
+            let first = NotificationCenter.default.restYields
+            service.refreshPresentation()
+            return (first, NotificationCenter.default.restYields - first)
+        }
+        let arrived = arrival()
+        suite.expect(arrived.first == 1 && arrived.again == 0,
+                     "an activity taking the resting companion's place tells it once to fade out ahead of the strip")
+        suite.expect(arrival(lingers: true).first == 0 && arrival(reduceMotion: true).first == 0
+                     && arrival(activity: false).first == 0,
+                     "a companion staying to react, Reduce Motion or nothing arriving leaves it where it rests")
+        let bridged = Service()
+        bridged.expanded = false
+        bridged.mascotBridging = true
+        bridged.refreshPresentation()
+        let kept = bridged.bridgeEnds.isEmpty && bridged.mascotBridging
+        bridged.mascotBridgeTargetShows = false
+        bridged.refreshPresentation()
+        bridged.refreshPresentation()
+        suite.expect(kept && bridged.bridgeEnds == [true] && !bridged.mascotBridging,
+                     "a stand-in still headed for its place stays, and one whose place went to something else fades out once")
+    }
+
     private static func compactMusicDepartureChecks(_ suite: TestSuite) {
         let changed = Service()
         changed.expanded = false
@@ -542,6 +645,34 @@ enum NotchPresentationRefreshContract {
                      && changed.departingMusic?.tint?.value == 2,
                      "a track and cover changed during playback remain current through departure")
 
+        let stopped = Service()
+        stopped.expanded = false
+        stopped.presentedMusic = NotchCompactMusicSnapshot(track: 3)
+        suite.expect(stopped.lingeringMusic?.track == 3,
+                     "music that just stopped stays drawn until the refresh that lets it depart")
+        _ = stopped.compactMusicTransition(.none, animated: true)
+        suite.expect(stopped.departingMusic?.track == 3 && stopped.lingeringMusic == nil,
+                     "its departure takes over the same track, with nothing drawn in between")
+        stopped.departingMusic = nil
+        stopped.compactActivity = .music
+        stopped.compactActivityIsVisible = true
+        suite.expect(stopped.lingeringMusic == nil, "live music is drawn as itself, never as a lingering copy")
+        stopped.compactActivity = nil
+        stopped.compactActivityIsVisible = false
+        stopped.expanded = true
+        suite.expect(stopped.lingeringMusic == nil, "an open island draws its page, not a lingering song")
+
+        let resting = Service()
+        resting.expanded = false
+        resting.mascotRestsInView = true
+        resting.refreshPresentation(animated: false)
+        suite.expect(resting.mascotRestedInView,
+                     "a refresh remembers the companion resting in view, so what arrives over it can crossfade from it")
+        resting.expanded = true
+        resting.refreshPresentation(animated: false)
+        suite.expect(!resting.mascotRestedInView,
+                     "the open island hides the closed one, so nothing crossfades from a companion it does not show")
+
         let closing = Service()
         closing.expanded = false
         closing.presentedMusic = NotchCompactMusicSnapshot(track: 1)
@@ -554,6 +685,43 @@ enum NotchPresentationRefreshContract {
                      && closing.departingMusic == nil,
                      "new playback interrupts a departing track and reveals its replacement")
 
+        let held = Service()
+        held.expanded = false
+        held.presentedMusic = NotchCompactMusicSnapshot(track: 2)
+        held.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        suite.expect(held.compactMusicTransition(.none, animated: true) == .depart && held.departingMusic?.track == 1,
+                     "music that stops before a new song's notice departs as the song still on screen")
+        held.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: nil, tint: nil)
+        suite.expect(held.heldMusic == nil && held.presentedMusic == nil,
+                     "a strip hidden for another reason ends the hold, so it returns with the live song")
+        let holding = Service()
+        holding.expanded = false
+        holding.compactActivity = .music
+        holding.compactActivityIsVisible = true
+        holding.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        holding.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: nil, tint: nil)
+        suite.expect(holding.heldMusic?.track == 1 && holding.presentedMusic?.track == 2,
+                     "while the strip stays on screen, a new reading keeps the song it shows")
+        // A song held as it ended is released by the refresh that follows,
+        // even one that hides the island before it reads the strip again.
+        UserDefaults.standard.hides = true
+        let hiding = Service()
+        hiding.expanded = false
+        hiding.presentedMusic = NotchCompactMusicSnapshot(track: 1)
+        hiding.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        hiding.refreshPresentation(animated: false)
+        UserDefaults.standard.hides = false
+        let unmeasured = Service()
+        unmeasured.expanded = false
+        unmeasured.geometry = NotchGeometry(screen: CGRect(x: -1440, y: 900, width: 1440, height: 900),
+                                            safeAreaTop: 0, cameraWidth: 0)
+        unmeasured.presentedMusic = NotchCompactMusicSnapshot(track: 1)
+        unmeasured.heldMusic = NotchCompactMusicSnapshot(track: 1)
+        unmeasured.refreshPresentation(animated: false)
+        suite.expect([hiding, unmeasured].allSatisfy { $0.heldMusic == nil && $0.presentedMusic == nil
+                                                       && $0.panel?.isVisible == false },
+                     "hiding the island ends a hold, so the strip comes back with the live song")
+
         let replacement = Service()
         replacement.expanded = false
         replacement.presentedMusic = NotchCompactMusicSnapshot(track: 2)
@@ -561,6 +729,18 @@ enum NotchPresentationRefreshContract {
         replacement.compactActivityIsVisible = true
         suite.expect(replacement.compactMusicTransition(.none, animated: true) == .replace,
                      "a compact timer replaces the disappearing music with a fade")
+
+        // The picker changes the strip inside its surface, so the song chosen
+        // away is no departure for the host to fade through every choice.
+        let chosen = Service()
+        chosen.expanded = false
+        chosen.showsCompactActivityPicker = true
+        chosen.compactActivity = .music
+        chosen.compactActivityIsVisible = true
+        chosen.presentedMusic = NotchCompactMusicSnapshot(track: 2)
+        chosen.switchCompactSelection { chosen.compactActivity = .timer }
+        suite.expect(chosen.windowHost?.transitions == [NotchContentTransition.none],
+                     "choosing another activity over a song changes the strip in place, without the host's fade")
 
         let reduced = Service()
         reduced.expanded = false

@@ -59,7 +59,6 @@ final class StatusItemController {
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let clipboardPreviewAutosaveName = "VorssaintClipboardPreview"
-    private static let maxPlacementGeneration = 10_000
     private static let emptyStatusImage = NSImage()
 
     /// One separate menu bar item: a metric, or a metric with its temperature
@@ -374,7 +373,7 @@ final class StatusItemController {
         // image is only touched when some ingredient actually changed.
         let stateKey = [String(hidden), String(mainItemHidden), String(updateAvailable),
                         String(keepAwakeActive), KeepAwakeIconTint.current.rawValue,
-                        KeepAwakeActiveIcon.current.rawValue,
+                        KeepAwakeActiveIcon.current.rawValue, BlackHoleGlyph.chosenSymbolName,
                         String(micBadgeActive)].joined(separator: "|")
         guard stateKey != lastIconStateKey else { return }
         lastIconStateKey = stateKey
@@ -864,6 +863,7 @@ final class StatusItemController {
 
 /// The official mark, bundled as a template image so the idle state adapts to
 /// light and dark menu bars. Active states can use real colors for attention.
+/// A system symbol named in the menu bar settings can take the mark's place.
 enum BlackHoleGlyph {
     /// Logical size of the glyph in the menu bar, in points. Wide because the
     /// mark is ~1.97:1 and sized from its height. Tools/MakeIcon.swift writes
@@ -893,9 +893,29 @@ enum BlackHoleGlyph {
         return image
     }()
 
+    /// The symbol named in the menu bar settings, empty for the mark.
+    static var chosenSymbolName: String {
+        Defaults.sanitizedMenuBarIconSymbol(
+            UserDefaults.standard.string(forKey: DefaultsKey.menuBarIconSymbol))
+    }
+
+    /// What every state starts from: the chosen symbol, or the bundled mark
+    /// when none is chosen or this Mac has no symbol by that name.
+    static func mark(symbolName: String = BlackHoleGlyph.chosenSymbolName) -> NSImage? {
+        customMark(named: symbolName) ?? base
+    }
+
+    /// A system symbol on the canvas the active symbols use, or nil when
+    /// this Mac has no symbol by that name: a typo, or a name from a newer
+    /// macOS that came with a settings backup.
+    static func customMark(named name: String) -> NSImage? {
+        guard !name.isEmpty else { return nil }
+        return fixedSizeSymbol(named: name)
+    }
+
     static func image(active: Bool) -> NSImage? {
         let tint = KeepAwakeIconTint.current
-        guard active else { return base ?? fallback(active: false) }
+        guard active else { return mark() ?? fallback(active: false) }
         return activeImage(style: .current, tint: tint)
     }
 
@@ -905,7 +925,7 @@ enum BlackHoleGlyph {
         if let symbolName = style.systemSymbolName {
             source = fixedSizeSymbol(named: symbolName, drop: style.menuBarDrop)
         } else {
-            source = base
+            source = mark()
         }
         guard let source else { return fallback(active: tint != .none) }
         guard let color = color(for: tint) else {
@@ -985,8 +1005,8 @@ enum BlackHoleGlyph {
     /// A blue, full-strength glyph used to flag an available update. Non-template
     /// (a real color), drawn by masking blue into the glyph's shape.
     static func attentionImage() -> NSImage? {
-        guard let base else { return fallback(active: true) }
-        return tintedImage(base, color: .systemBlue) ?? fallback(active: true)
+        guard let glyph = mark() else { return fallback(active: true) }
+        return tintedImage(glyph, color: .systemBlue) ?? fallback(active: true)
     }
 
     /// The given state image with a red slashed microphone beside it, shown

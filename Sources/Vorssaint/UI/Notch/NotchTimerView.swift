@@ -181,15 +181,16 @@ struct NotchTimerView: View {
         let value = NotchTimerSupport.clockText(for: service.session, at: service.now)
         let title = service.session.cycleFinished ? text.pomodoroFinished
             : service.session.completed ? text.finished : text.phase(service.session.phase)
+        let countsDown = !service.session.countsUp
         return ViewThatFits(in: .horizontal) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(title).font(.system(size: 17, weight: .medium))
-                clock(value, size: 62)
+                clock(value, size: 62).modifier(NotchRollingDigits(value: value, countsDown: countsDown))
             }.fixedSize()
             VStack(alignment: .trailing, spacing: 0) {
                 Text(title).font(.system(size: 13, weight: .medium))
                     .lineLimit(1).minimumScaleFactor(0.7)
-                clock(value, size: 62)
+                clock(value, size: 62).modifier(NotchRollingDigits(value: value, countsDown: countsDown))
             }
         }
         .foregroundStyle(.orange)

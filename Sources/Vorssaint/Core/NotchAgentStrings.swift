@@ -52,6 +52,8 @@ struct NotchAgentStrings {
     let limitsAs: String
     let remaining: String
     let used: String
+    let limitFocus: String
+    let mostUsed: String
     let liveTitle: String
     let liveActivity: String
     let readout: String
@@ -79,6 +81,22 @@ struct NotchAgentStrings {
     let priceUpdatesHint: String
     let pricesFromFormat: String
     let valueNote: String
+    let resetsCard: String
+    let useReset: String
+    let resetConfirm: String
+    let confirmReset: String
+    let resetting: String
+    let resetDone: String
+    let resetNotNeeded: String
+    let resetTaken: String
+    let resetFailed: String
+    let resetsNone: String
+    let resetsExpiryFormat: String
+    let resetsNeedCodex: String
+    let resetsSignIn: String
+    let resetsUpdate: String
+    let resetsCheckFailed: String
+    let resetsHelp: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -92,6 +110,7 @@ struct NotchAgentStrings {
     func claudeLimitsCurrent(_ when: String) -> String { String(format: claudeLimitsCurrentFormat, when) }
     func claudeLimitsStale(_ when: String) -> String { String(format: claudeLimitsStaleFormat, when) }
     func pricesFrom(_ day: String) -> String { String(format: pricesFromFormat, day) }
+    func resetsExpiry(_ when: String) -> String { String(format: resetsExpiryFormat, when) }
 
     func period(_ period: AgentPeriod) -> String {
         switch period {
@@ -110,6 +129,7 @@ struct NotchAgentStrings {
         case .models: return modelsCard
         case .projects: return projectsCard
         case .activity: return activityCard
+        case .resets: return resetsCard
         }
     }
 
@@ -119,6 +139,14 @@ struct NotchAgentStrings {
         case .tokens: return readoutTokens
         case .cost: return apiValue.prefix(1).uppercased() + apiValue.dropFirst()
         case .limit: return readoutLimit
+        }
+    }
+
+    func limitFocus(_ focus: NotchAgentLimitFocus) -> String {
+        switch focus {
+        case .mostUsed: return mostUsed
+        case .session: return session
+        case .weekly: return weekly
         }
     }
 }
@@ -148,8 +176,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude and Codex in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code and Codex record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex and OpenCode in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex and OpenCode record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -175,7 +203,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code or Codex yet. It appears here as soon as either one works on this Mac.",
+        empty: "No usage from Claude Code, Codex or OpenCode yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         unpriced: "Some models have no known price, so this is a minimum.",
@@ -195,6 +223,8 @@ extension NotchAgentStrings {
         limitsAs: "Show limits as",
         remaining: "Left",
         used: "Used",
+        limitFocus: "Limit to show",
+        mostUsed: "Most used",
         liveTitle: "While an agent works",
         liveActivity: "Show it in the closed Dynamic Island",
         readout: "Beside the camera",
@@ -221,12 +251,28 @@ extension NotchAgentStrings {
         priceUpdates: "Keep prices up to date",
         priceUpdatesHint: "Downloads the public price list from GitHub once a day, so new models get an API value without an app update. Nothing about your usage is sent.",
         pricesFromFormat: "Price list of %@",
-        valueNote: "API value is what the same work would cost at API list prices. Plans charge a fixed price instead.")
+        valueNote: "API value is what the same work would cost at API list prices. Plans charge a fixed price instead.",
+        resetsCard: "Resets",
+        useReset: "Use a reset",
+        resetConfirm: "Reset the session and weekly limits now?",
+        confirmReset: "Reset",
+        resetting: "Resetting…",
+        resetDone: "Limits reset",
+        resetNotNeeded: "Your usage doesn’t need a reset yet",
+        resetTaken: "That reset was already used",
+        resetFailed: "Couldn’t use the reset",
+        resetsNone: "No resets available",
+        resetsExpiryFormat: "Next expires %@",
+        resetsNeedCodex: "Needs the Codex app or CLI",
+        resetsSignIn: "Sign in to Codex with a plan to see resets",
+        resetsUpdate: "Update Codex to use resets here",
+        resetsCheckFailed: "Couldn’t check resets",
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude і Codex у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code і Codex записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex і OpenCode у Dynamic Island.",
+        settingsDescription: "Читає дані про використання, які Claude Code, Codex і OpenCode записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -252,7 +298,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ від ціни %2$@",
         idle: "Неактивно",
         noActivity: "За цей період нічого немає",
-        empty: "Claude Code або Codex ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
+        empty: "Claude Code, Codex або OpenCode ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
         noCards: "Виберіть, що показувати на цій сторінці в налаштуваннях Dynamic Island.",
         unpriced: "Ціна деяких моделей невідома, тому це мінімальна оцінка.",
@@ -272,6 +318,8 @@ extension NotchAgentStrings {
         limitsAs: "Показувати ліміти як",
         remaining: "Залишок",
         used: "Використано",
+        limitFocus: "Який ліміт показувати",
+        mostUsed: "Найбільш використаний",
         liveTitle: "Поки агент працює",
         liveActivity: "Показувати в закритому Dynamic Island",
         readout: "Поруч із камерою",
@@ -298,12 +346,28 @@ extension NotchAgentStrings {
         priceUpdates: "Підтримувати ціни актуальними",
         priceUpdatesHint: "Раз на день завантажує публічний список цін із GitHub, щоб нові моделі отримували вартість API без оновлення програми. Дані про ваше використання не надсилаються.",
         pricesFromFormat: "Список цін від %@",
-        valueNote: "Вартість API показує, скільки така сама робота коштувала б за цінами API. Плани натомість мають фіксовану ціну.")
+        valueNote: "Вартість API показує, скільки така сама робота коштувала б за цінами API. Плани натомість мають фіксовану ціну.",
+        resetsCard: "Скидання",
+        useReset: "Використати скидання",
+        resetConfirm: "Скинути ліміти сеансу й тижня зараз?",
+        confirmReset: "Скинути",
+        resetting: "Скидання…",
+        resetDone: "Ліміти скинуто",
+        resetNotNeeded: "Ваше використання ще не потребує скидання",
+        resetTaken: "Це скидання вже використано",
+        resetFailed: "Не вдалося використати скидання",
+        resetsNone: "Немає доступних скидань",
+        resetsExpiryFormat: "Наступне спливає %@",
+        resetsNeedCodex: "Потрібна програма або CLI Codex",
+        resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
+        resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
+        resetsCheckFailed: "Не вдалося перевірити скидання",
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude e do Codex.",
-        settingsDescription: "Lê o uso que o Claude Code e o Codex registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex e do OpenCode.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex e o OpenCode registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -329,7 +393,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ o preço do %2$@",
         idle: "Parado",
         noActivity: "Nada neste período",
-        empty: "Ainda não há uso do Claude Code nem do Codex. Ele aparece aqui assim que um deles trabalhar neste Mac.",
+        empty: "Ainda não há uso do Claude Code, do Codex nem do OpenCode. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
         noCards: "Escolha o que esta página mostra nos ajustes do Dynamic Island.",
         unpriced: "Alguns modelos não têm preço conhecido, então este é um valor mínimo.",
@@ -349,6 +413,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostrar limites como",
         remaining: "Restante",
         used: "Usado",
+        limitFocus: "Limite exibido",
+        mostUsed: "Mais usado",
         liveTitle: "Enquanto um agente trabalha",
         liveActivity: "Mostrar no Dynamic Island fechado",
         readout: "Ao lado da câmera",
@@ -375,12 +441,28 @@ extension NotchAgentStrings {
         priceUpdates: "Manter os preços atualizados",
         priceUpdatesHint: "Baixa uma vez por dia a lista pública de preços no GitHub, para que modelos novos ganhem valor de API sem atualizar o app. Nada sobre o seu uso é enviado.",
         pricesFromFormat: "Lista de preços de %@",
-        valueNote: "Valor de API é quanto o mesmo trabalho custaria pelos preços de tabela da API. Os planos cobram um preço fixo.")
+        valueNote: "Valor de API é quanto o mesmo trabalho custaria pelos preços de tabela da API. Os planos cobram um preço fixo.",
+        resetsCard: "Redefinições",
+        useReset: "Usar uma redefinição",
+        resetConfirm: "Redefinir agora os limites da sessão e da semana?",
+        confirmReset: "Redefinir",
+        resetting: "Redefinindo…",
+        resetDone: "Limites redefinidos",
+        resetNotNeeded: "Seu uso ainda não precisa de redefinição",
+        resetTaken: "Essa redefinição já foi usada",
+        resetFailed: "Não foi possível usar a redefinição",
+        resetsNone: "Nenhuma redefinição disponível",
+        resetsExpiryFormat: "A próxima expira %@",
+        resetsNeedCodex: "Requer o app ou a CLI do Codex",
+        resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
+        resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
+        resetsCheckFailed: "Não foi possível verificar as redefinições",
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude y Codex.",
-        settingsDescription: "Lee el uso que Claude Code y Codex registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex y OpenCode.",
+        settingsDescription: "Lee el uso que Claude Code, Codex y OpenCode registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -406,7 +488,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ el precio de %2$@",
         idle: "Inactivo",
         noActivity: "Nada en este periodo",
-        empty: "Aún no hay uso de Claude Code ni de Codex. Aparece aquí en cuanto cualquiera de los dos trabaje en este Mac.",
+        empty: "Aún no hay uso de Claude Code, Codex ni de OpenCode. Aparece aquí en cuanto cualquiera de los tres trabaje en este Mac.",
         loading: "Leyendo el uso…",
         noCards: "Elige qué muestra esta página en los ajustes del Dynamic Island.",
         unpriced: "Algunos modelos no tienen precio conocido, así que es un mínimo.",
@@ -426,6 +508,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostrar límites como",
         remaining: "Restante",
         used: "Usado",
+        limitFocus: "Límite a mostrar",
+        mostUsed: "El más usado",
         liveTitle: "Mientras un agente trabaja",
         liveActivity: "Mostrarlo en el Dynamic Island cerrado",
         readout: "Junto a la cámara",
@@ -452,12 +536,28 @@ extension NotchAgentStrings {
         priceUpdates: "Mantener los precios al día",
         priceUpdatesHint: "Descarga una vez al día la lista pública de precios desde GitHub, para que los modelos nuevos tengan valor de API sin actualizar la app. No se envía nada sobre tu uso.",
         pricesFromFormat: "Lista de precios del %@",
-        valueNote: "El valor de API es lo que costaría el mismo trabajo con los precios de lista de la API. Los planes cobran un precio fijo.")
+        valueNote: "El valor de API es lo que costaría el mismo trabajo con los precios de lista de la API. Los planes cobran un precio fijo.",
+        resetsCard: "Reinicios",
+        useReset: "Usar un reinicio",
+        resetConfirm: "¿Reiniciar ahora los límites de la sesión y de la semana?",
+        confirmReset: "Reiniciar",
+        resetting: "Reiniciando…",
+        resetDone: "Límites reiniciados",
+        resetNotNeeded: "Tu uso aún no necesita un reinicio",
+        resetTaken: "Ese reinicio ya se usó",
+        resetFailed: "No se pudo usar el reinicio",
+        resetsNone: "No hay reinicios disponibles",
+        resetsExpiryFormat: "El próximo vence %@",
+        resetsNeedCodex: "Requiere la app o la CLI de Codex",
+        resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
+        resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
+        resetsCheckFailed: "No se pudieron comprobar los reinicios",
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude a Codex.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code a Codex zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex a OpenCode.",
+        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex a OpenCode zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -483,7 +583,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ ceny %2$@",
         idle: "Nečinné",
         noActivity: "V tomto období nič",
-        empty: "Zatiaľ žiadne využitie z Claude Code ani Codexu. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
+        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu ani OpenCode. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
         noCards: "V nastaveniach Dynamic Island vyberte, čo má táto stránka zobrazovať.",
         unpriced: "Pri niektorých modeloch nie je známa cena, takže ide o minimum.",
@@ -503,6 +603,8 @@ extension NotchAgentStrings {
         limitsAs: "Zobraziť limity ako",
         remaining: "Zostatok",
         used: "Využité",
+        limitFocus: "Zobrazený limit",
+        mostUsed: "Najviac využitý",
         liveTitle: "Kým agent pracuje",
         liveActivity: "Zobraziť v zatvorenom Dynamic Island",
         readout: "Vedľa kamery",
@@ -529,12 +631,28 @@ extension NotchAgentStrings {
         priceUpdates: "Udržiavať ceny aktuálne",
         priceUpdatesHint: "Raz denne stiahne verejný cenník z GitHubu, aby nové modely dostali hodnotu API aj bez aktualizácie aplikácie. O vašom využití sa neodosiela nič.",
         pricesFromFormat: "Cenník z %@",
-        valueNote: "Hodnota API je suma, ktorú by tá istá práca stála v cenníkových cenách API. Plány si namiesto toho účtujú pevnú cenu.")
+        valueNote: "Hodnota API je suma, ktorú by tá istá práca stála v cenníkových cenách API. Plány si namiesto toho účtujú pevnú cenu.",
+        resetsCard: "Obnovenia",
+        useReset: "Použiť obnovenie",
+        resetConfirm: "Obnoviť teraz limity relácie a týždňa?",
+        confirmReset: "Obnoviť",
+        resetting: "Obnovuje sa…",
+        resetDone: "Limity sa obnovili",
+        resetNotNeeded: "Vaše využitie zatiaľ obnovenie nepotrebuje",
+        resetTaken: "Toto obnovenie už bolo použité",
+        resetFailed: "Obnovenie sa nepodarilo použiť",
+        resetsNone: "Žiadne obnovenia nie sú k dispozícii",
+        resetsExpiryFormat: "Najbližšie vyprší %@",
+        resetsNeedCodex: "Vyžaduje aplikáciu alebo CLI Codex",
+        resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
+        resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
+        resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude und Codex.",
-        settingsDescription: "Liest die Nutzung, die Claude Code und Codex auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex und OpenCode.",
+        settingsDescription: "Liest die Nutzung, die Claude Code, Codex und OpenCode auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -560,7 +678,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ so viel wie %2$@",
         idle: "Inaktiv",
         noActivity: "Nichts in diesem Zeitraum",
-        empty: "Noch keine Nutzung von Claude Code oder Codex. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
+        empty: "Noch keine Nutzung von Claude Code, Codex oder OpenCode. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
         noCards: "Wähle in den Dynamic Island-Einstellungen, was diese Seite zeigt.",
         unpriced: "Für einige Modelle ist kein Preis bekannt, daher ist dies ein Mindestwert.",
@@ -580,6 +698,8 @@ extension NotchAgentStrings {
         limitsAs: "Limits anzeigen als",
         remaining: "Übrig",
         used: "Genutzt",
+        limitFocus: "Angezeigtes Limit",
+        mostUsed: "Am meisten genutzt",
         liveTitle: "Während ein Agent arbeitet",
         liveActivity: "Im geschlossenen Dynamic Island zeigen",
         readout: "Neben der Kamera",
@@ -606,12 +726,28 @@ extension NotchAgentStrings {
         priceUpdates: "Preise aktuell halten",
         priceUpdatesHint: "Lädt einmal am Tag die öffentliche Preisliste von GitHub, damit neue Modelle ohne App-Update einen API-Wert bekommen. Über deine Nutzung wird nichts gesendet.",
         pricesFromFormat: "Preisliste vom %@",
-        valueNote: "Der API-Wert ist, was dieselbe Arbeit zu API-Listenpreisen kosten würde. Pläne kosten stattdessen einen festen Preis.")
+        valueNote: "Der API-Wert ist, was dieselbe Arbeit zu API-Listenpreisen kosten würde. Pläne kosten stattdessen einen festen Preis.",
+        resetsCard: "Zurücksetzungen",
+        useReset: "Zurücksetzung nutzen",
+        resetConfirm: "Sitzungs- und Wochenlimit jetzt zurücksetzen?",
+        confirmReset: "Zurücksetzen",
+        resetting: "Wird zurückgesetzt…",
+        resetDone: "Limits zurückgesetzt",
+        resetNotNeeded: "Deine Nutzung braucht noch keine Zurücksetzung",
+        resetTaken: "Diese Zurücksetzung wurde bereits genutzt",
+        resetFailed: "Zurücksetzung konnte nicht genutzt werden",
+        resetsNone: "Keine Zurücksetzungen verfügbar",
+        resetsExpiryFormat: "Nächste läuft %@ ab",
+        resetsNeedCodex: "Erfordert die Codex-App oder Codex-CLI",
+        resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
+        resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
+        resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude et Codex.",
-        settingsDescription: "Lit l’usage que Claude Code et Codex enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex et OpenCode.",
+        settingsDescription: "Lit l’usage que Claude Code, Codex et OpenCode enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -637,7 +773,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ le prix de %2$@",
         idle: "Inactif",
         noActivity: "Rien sur cette période",
-        empty: "Aucun usage de Claude Code ou de Codex pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
+        empty: "Aucun usage de Claude Code, Codex ou d’OpenCode pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
         noCards: "Choisissez ce que montre cette page dans les réglages du Dynamic Island.",
         unpriced: "Certains modèles n’ont pas de prix connu, ce montant est donc un minimum.",
@@ -657,6 +793,8 @@ extension NotchAgentStrings {
         limitsAs: "Afficher les limites en",
         remaining: "Restant",
         used: "Utilisé",
+        limitFocus: "Limite affichée",
+        mostUsed: "La plus utilisée",
         liveTitle: "Pendant qu’un agent travaille",
         liveActivity: "L’afficher dans le Dynamic Island fermé",
         readout: "À côté de la caméra",
@@ -683,12 +821,28 @@ extension NotchAgentStrings {
         priceUpdates: "Garder les prix à jour",
         priceUpdatesHint: "Télécharge une fois par jour la liste publique des prix depuis GitHub, pour que les nouveaux modèles aient une valeur API sans mise à jour de l’app. Rien sur votre usage n’est envoyé.",
         pricesFromFormat: "Liste des prix du %@",
-        valueNote: "La valeur API est ce que le même travail coûterait aux tarifs publics de l’API. Les forfaits facturent un prix fixe.")
+        valueNote: "La valeur API est ce que le même travail coûterait aux tarifs publics de l’API. Les forfaits facturent un prix fixe.",
+        resetsCard: "Réinitialisations",
+        useReset: "En utiliser une",
+        resetConfirm: "Réinitialiser maintenant les limites de la session et de la semaine\u{00A0}?",
+        confirmReset: "Réinitialiser",
+        resetting: "Réinitialisation…",
+        resetDone: "Limites réinitialisées",
+        resetNotNeeded: "Votre usage n’a pas encore besoin d’une réinitialisation",
+        resetTaken: "Cette réinitialisation a déjà été utilisée",
+        resetFailed: "Impossible d’utiliser la réinitialisation",
+        resetsNone: "Aucune réinitialisation disponible",
+        resetsExpiryFormat: "La prochaine expire %@",
+        resetsNeedCodex: "Nécessite l’app ou la CLI Codex",
+        resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
+        resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
+        resetsCheckFailed: "Impossible de vérifier les réinitialisations",
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude e Codex.",
-        settingsDescription: "Legge l’utilizzo che Claude Code e Codex registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex e OpenCode.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex e OpenCode registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -714,7 +868,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ il prezzo di %2$@",
         idle: "Inattivo",
         noActivity: "Niente in questo periodo",
-        empty: "Ancora nessun utilizzo di Claude Code o Codex. Compare qui appena uno dei due lavora su questo Mac.",
+        empty: "Ancora nessun utilizzo di Claude Code, Codex o OpenCode. Compare qui appena uno dei tre lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
         noCards: "Scegli cosa mostra questa pagina nelle impostazioni del Dynamic Island.",
         unpriced: "Alcuni modelli non hanno un prezzo noto, quindi questo è un minimo.",
@@ -734,6 +888,8 @@ extension NotchAgentStrings {
         limitsAs: "Mostra i limiti come",
         remaining: "Rimasto",
         used: "Usato",
+        limitFocus: "Limite mostrato",
+        mostUsed: "Il più usato",
         liveTitle: "Mentre un agente lavora",
         liveActivity: "Mostralo nel Dynamic Island chiuso",
         readout: "Accanto alla fotocamera",
@@ -760,12 +916,28 @@ extension NotchAgentStrings {
         priceUpdates: "Mantieni i prezzi aggiornati",
         priceUpdatesHint: "Scarica una volta al giorno il listino prezzi pubblico da GitHub, così i nuovi modelli hanno un valore API senza aggiornare l’app. Non viene inviato nulla sul tuo utilizzo.",
         pricesFromFormat: "Listino del %@",
-        valueNote: "Il valore API è quanto costerebbe lo stesso lavoro ai prezzi di listino dell’API. I piani hanno invece un prezzo fisso.")
+        valueNote: "Il valore API è quanto costerebbe lo stesso lavoro ai prezzi di listino dell’API. I piani hanno invece un prezzo fisso.",
+        resetsCard: "Ripristini",
+        useReset: "Usa un ripristino",
+        resetConfirm: "Ripristinare ora i limiti della sessione e della settimana?",
+        confirmReset: "Ripristina",
+        resetting: "Ripristino…",
+        resetDone: "Limiti ripristinati",
+        resetNotNeeded: "Il tuo utilizzo non ha ancora bisogno di un ripristino",
+        resetTaken: "Quel ripristino è già stato usato",
+        resetFailed: "Impossibile usare il ripristino",
+        resetsNone: "Nessun ripristino disponibile",
+        resetsExpiryFormat: "Il prossimo scade %@",
+        resetsNeedCodex: "Richiede l’app o la CLI di Codex",
+        resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
+        resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
+        resetsCheckFailed: "Impossibile controllare i ripristini",
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude и Codex.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code и Codex записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex и OpenCode.",
+        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex и OpenCode записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -791,7 +963,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ от цены %2$@",
         idle: "Простой",
         noActivity: "За этот период ничего нет",
-        empty: "Пока нет данных об использовании Claude Code или Codex. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
+        empty: "Пока нет данных об использовании Claude Code, Codex или OpenCode. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
         unpriced: "Для некоторых моделей цена неизвестна, поэтому это минимальная сумма.",
@@ -811,6 +983,8 @@ extension NotchAgentStrings {
         limitsAs: "Показывать лимиты",
         remaining: "Остаток",
         used: "Использовано",
+        limitFocus: "Показ лимита",
+        mostUsed: "Наиболее использованный",
         liveTitle: "Пока агент работает",
         liveActivity: "Показывать в закрытом Dynamic Island",
         readout: "Рядом с камерой",
@@ -837,12 +1011,28 @@ extension NotchAgentStrings {
         priceUpdates: "Обновлять цены",
         priceUpdatesHint: "Раз в день загружает общедоступный прейскурант с GitHub, чтобы новые модели получали стоимость по API без обновления приложения. Сведения об использовании не отправляются.",
         pricesFromFormat: "Прейскурант от %@",
-        valueNote: "Стоимость по API показывает, сколько стоила бы та же работа по прейскуранту API. Тарифы же стоят фиксированную сумму.")
+        valueNote: "Стоимость по API показывает, сколько стоила бы та же работа по прейскуранту API. Тарифы же стоят фиксированную сумму.",
+        resetsCard: "Сбросы",
+        useReset: "Использовать сброс",
+        resetConfirm: "Сбросить лимиты сессии и недели сейчас?",
+        confirmReset: "Сбросить",
+        resetting: "Сброс…",
+        resetDone: "Лимиты сброшены",
+        resetNotNeeded: "Вашему использованию пока не нужен сброс",
+        resetTaken: "Этот сброс уже использован",
+        resetFailed: "Не удалось использовать сброс",
+        resetsNone: "Нет доступных сбросов",
+        resetsExpiryFormat: "Следующий истекает %@",
+        resetsNeedCodex: "Нужно приложение или CLI Codex",
+        resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
+        resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
+        resetsCheckFailed: "Не удалось проверить сбросы",
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
-        hubDescription: "Claude ve Codex için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code ve Codex’in bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Claude, Codex ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
+        settingsDescription: "Claude Code, Codex ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -868,7 +1058,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ fiyatının %1$@",
         idle: "Boşta",
         noActivity: "Bu dönemde bir şey yok",
-        empty: "Henüz Claude Code veya Codex kullanımı yok. İkisinden biri bu Mac’te çalışır çalışmaz burada görünür.",
+        empty: "Henüz Claude Code, Codex veya OpenCode kullanımı yok. Üçünden biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
         noCards: "Bu sayfada nelerin görüneceğini Dynamic Island ayarlarından seçin.",
         unpriced: "Bazı modellerin fiyatı bilinmediğinden bu bir alt sınırdır.",
@@ -888,6 +1078,8 @@ extension NotchAgentStrings {
         limitsAs: "Sınırları göster",
         remaining: "Kalan",
         used: "Kullanılan",
+        limitFocus: "Gösterilen sınır",
+        mostUsed: "En çok kullanılan",
         liveTitle: "Bir ajan çalışırken",
         liveActivity: "Kapalı Dynamic Island’da göster",
         readout: "Kameranın yanında",
@@ -914,12 +1106,28 @@ extension NotchAgentStrings {
         priceUpdates: "Fiyatları güncel tut",
         priceUpdatesHint: "Genel fiyat listesini günde bir kez GitHub’dan indirir; böylece yeni modeller uygulama güncellemesi olmadan API değeri alır. Kullanımınızla ilgili hiçbir şey gönderilmez.",
         pricesFromFormat: "%@ tarihli fiyat listesi",
-        valueNote: "API değeri, aynı işin API liste fiyatlarıyla tutacağı tutardır. Planlar ise sabit bir ücret alır.")
+        valueNote: "API değeri, aynı işin API liste fiyatlarıyla tutacağı tutardır. Planlar ise sabit bir ücret alır.",
+        resetsCard: "Sıfırlamalar",
+        useReset: "Sıfırlama kullan",
+        resetConfirm: "Oturum ve haftalık sınırlar şimdi sıfırlansın mı?",
+        confirmReset: "Sıfırla",
+        resetting: "Sıfırlanıyor…",
+        resetDone: "Sınırlar sıfırlandı",
+        resetNotNeeded: "Kullanımınızın henüz sıfırlanması gerekmiyor",
+        resetTaken: "Bu sıfırlama zaten kullanıldı",
+        resetFailed: "Sıfırlama kullanılamadı",
+        resetsNone: "Kullanılabilir sıfırlama yok",
+        resetsExpiryFormat: "Sonrakinin süresi %@ doluyor",
+        resetsNeedCodex: "Codex uygulaması veya CLI gerekir",
+        resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
+        resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
+        resetsCheckFailed: "Sıfırlamalar denetlenemedi",
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
-        hubDescription: "ClaudeとCodexのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude CodeとCodexがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Claude、Codex、OpenCodeのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
+        settingsDescription: "Claude Code、Codex、OpenCodeがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -945,7 +1153,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@の料金の%1$@",
         idle: "待機中",
         noActivity: "この期間の記録はありません",
-        empty: "Claude CodeとCodexの使用状況はまだありません。どちらかがこのMacで動作するとここに表示されます。",
+        empty: "Claude Code、Codex、OpenCodeの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
         noCards: "このページに表示する内容はDynamic Islandの設定で選べます。",
         unpriced: "一部のモデルは料金が不明なため、最低額を表示しています。",
@@ -965,6 +1173,8 @@ extension NotchAgentStrings {
         limitsAs: "上限の表示",
         remaining: "残り",
         used: "使用済み",
+        limitFocus: "表示する上限",
+        mostUsed: "使用率が最大",
         liveTitle: "エージェントの作業中",
         liveActivity: "閉じたDynamic Islandに表示",
         readout: "カメラの横",
@@ -991,12 +1201,28 @@ extension NotchAgentStrings {
         priceUpdates: "価格を最新に保つ",
         priceUpdatesHint: "公開価格表を1日1回GitHubからダウンロードし、新しいモデルにもアプリのアップデートなしでAPI換算額を表示します。使用状況は送信しません。",
         pricesFromFormat: "%@時点の価格表",
-        valueNote: "API換算額は、同じ作業をAPIの定価で行った場合の料金です。プランは定額です。")
+        valueNote: "API換算額は、同じ作業をAPIの定価で行った場合の料金です。プランは定額です。",
+        resetsCard: "リセット",
+        useReset: "リセットを使う",
+        resetConfirm: "セッションと週の上限を今すぐリセットしますか？",
+        confirmReset: "リセット",
+        resetting: "リセット中…",
+        resetDone: "上限をリセットしました",
+        resetNotNeeded: "まだリセットの必要はありません",
+        resetTaken: "このリセットはすでに使用されています",
+        resetFailed: "リセットを使用できませんでした",
+        resetsNone: "使えるリセットはありません",
+        resetsExpiryFormat: "次の期限：%@",
+        resetsNeedCodex: "CodexアプリまたはCLIが必要です",
+        resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
+        resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
+        resetsCheckFailed: "リセットを確認できませんでした",
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude와 Codex의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code와 Codex가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex, OpenCode의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex, OpenCode가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1022,7 +1248,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
         noActivity: "이 기간에는 기록이 없습니다",
-        empty: "아직 Claude Code나 Codex 사용량이 없습니다. 둘 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
+        empty: "아직 Claude Code, Codex, OpenCode 사용량이 없습니다. 셋 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
         unpriced: "일부 모델은 가격을 알 수 없어 최소 금액으로 표시합니다.",
@@ -1042,6 +1268,8 @@ extension NotchAgentStrings {
         limitsAs: "한도 표시 방식",
         remaining: "남은 양",
         used: "사용량",
+        limitFocus: "표시할 한도",
+        mostUsed: "가장 많이 사용",
         liveTitle: "에이전트가 작업하는 동안",
         liveActivity: "닫힌 Dynamic Island에 표시",
         readout: "카메라 옆",
@@ -1068,12 +1296,28 @@ extension NotchAgentStrings {
         priceUpdates: "가격을 최신으로 유지",
         priceUpdatesHint: "공개 가격표를 하루에 한 번 GitHub에서 내려받아, 새 모델도 앱 업데이트 없이 API 환산 금액을 표시합니다. 사용량 정보는 전송하지 않습니다.",
         pricesFromFormat: "%@ 기준 가격표",
-        valueNote: "API 환산 금액은 같은 작업을 API 정가로 계산한 비용입니다. 플랜은 정액 요금입니다.")
+        valueNote: "API 환산 금액은 같은 작업을 API 정가로 계산한 비용입니다. 플랜은 정액 요금입니다.",
+        resetsCard: "초기화",
+        useReset: "초기화 사용",
+        resetConfirm: "세션 및 주간 한도를 지금 초기화할까요?",
+        confirmReset: "초기화",
+        resetting: "초기화 중…",
+        resetDone: "한도가 초기화됨",
+        resetNotNeeded: "아직 초기화가 필요하지 않습니다",
+        resetTaken: "이 초기화는 이미 사용되었습니다",
+        resetFailed: "초기화를 사용할 수 없습니다",
+        resetsNone: "사용 가능한 초기화 없음",
+        resetsExpiryFormat: "다음 만료: %@",
+        resetsNeedCodex: "Codex 앱 또는 CLI가 필요합니다",
+        resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
+        resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
+        resetsCheckFailed: "초기화를 확인할 수 없습니다",
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude 和 Codex 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code 和 Codex 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex 和 OpenCode 的套餐额度、令牌、API 价值与正在进行的工作。",
+        settingsDescription: "读取 Claude Code、Codex 和 OpenCode 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1099,7 +1343,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 价格的 %1$@",
         idle: "空闲",
         noActivity: "此期间没有记录",
-        empty: "还没有 Claude Code 或 Codex 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
+        empty: "还没有 Claude Code、Codex 或 OpenCode 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
         noCards: "在 Dynamic Island 设置中选择此页面显示的内容。",
         unpriced: "部分模型价格未知，因此这是最低金额。",
@@ -1119,6 +1363,8 @@ extension NotchAgentStrings {
         limitsAs: "额度显示为",
         remaining: "剩余",
         used: "已用",
+        limitFocus: "显示的额度",
+        mostUsed: "用量最高",
         liveTitle: "智能体工作时",
         liveActivity: "在收起的 Dynamic Island 中显示",
         readout: "摄像头旁",
@@ -1145,12 +1391,28 @@ extension NotchAgentStrings {
         priceUpdates: "保持价格最新",
         priceUpdatesHint: "每天从 GitHub 下载一次公开价目表，新模型无需更新 App 也能显示 API 价值。不会发送任何用量信息。",
         pricesFromFormat: "%@的价目表",
-        valueNote: "API 价值是按 API 标价完成同样工作的费用。套餐则按固定价格收费。")
+        valueNote: "API 价值是按 API 标价完成同样工作的费用。套餐则按固定价格收费。",
+        resetsCard: "重置",
+        useReset: "使用一次重置",
+        resetConfirm: "现在重置会话和本周额度？",
+        confirmReset: "重置",
+        resetting: "正在重置…",
+        resetDone: "额度已重置",
+        resetNotNeeded: "当前用量还不需要重置",
+        resetTaken: "这次重置已被使用",
+        resetFailed: "无法使用重置",
+        resetsNone: "没有可用的重置",
+        resetsExpiryFormat: "下一次重置%@到期",
+        resetsNeedCodex: "需要 Codex App 或 CLI",
+        resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
+        resetsUpdate: "请更新 Codex 以在此使用重置",
+        resetsCheckFailed: "无法检查重置",
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude 與 Codex 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code 與 Codex 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex 與 OpenCode 的方案額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex 與 OpenCode 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1176,7 +1438,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有紀錄",
-        empty: "目前還沒有 Claude Code 或 Codex 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex 或 OpenCode 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1196,6 +1458,8 @@ extension NotchAgentStrings {
         limitsAs: "額度顯示為",
         remaining: "剩餘",
         used: "已用",
+        limitFocus: "顯示的額度",
+        mostUsed: "用量最高",
         liveTitle: "代理運作時",
         liveActivity: "在收合的 Dynamic Island 中顯示",
         readout: "相機旁",
@@ -1222,12 +1486,28 @@ extension NotchAgentStrings {
         priceUpdates: "保持價格最新",
         priceUpdatesHint: "每天從 GitHub 下載一次公開價目表，新模型不必更新 App 也能顯示 API 價值。不會傳送任何用量資訊。",
         pricesFromFormat: "%@的價目表",
-        valueNote: "API 價值是以 API 定價完成同樣工作的費用。方案則以固定價格收費。")
+        valueNote: "API 價值是以 API 定價完成同樣工作的費用。方案則以固定價格收費。",
+        resetsCard: "重設",
+        useReset: "使用一次重設",
+        resetConfirm: "現在重設工作階段和本週額度？",
+        confirmReset: "重設",
+        resetting: "正在重設…",
+        resetDone: "額度已重設",
+        resetNotNeeded: "目前用量還不需要重設",
+        resetTaken: "這次重設已被使用",
+        resetFailed: "無法使用重設",
+        resetsNone: "沒有可用的重設",
+        resetsExpiryFormat: "下一次重設%@到期",
+        resetsNeedCodex: "需要 Codex App 或 CLI",
+        resetsSignIn: "使用方案登入 Codex 後即可查看重設",
+        resetsUpdate: "請更新 Codex 以在此使用重設",
+        resetsCheckFailed: "無法檢查重設",
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude 與 Codex 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code 與 Codex 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex 與 OpenCode 的計劃額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex 與 OpenCode 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1253,7 +1533,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有記錄",
-        empty: "目前還沒有 Claude Code 或 Codex 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex 或 OpenCode 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1273,6 +1553,8 @@ extension NotchAgentStrings {
         limitsAs: "額度顯示為",
         remaining: "剩餘",
         used: "已用",
+        limitFocus: "顯示的額度",
+        mostUsed: "用量最高",
         liveTitle: "代理運作時",
         liveActivity: "在收合的 Dynamic Island 中顯示",
         readout: "相機旁",
@@ -1299,5 +1581,21 @@ extension NotchAgentStrings {
         priceUpdates: "保持價格最新",
         priceUpdatesHint: "每天從 GitHub 下載一次公開價目表，新模型毋須更新 App 也能顯示 API 價值。不會傳送任何用量資料。",
         pricesFromFormat: "%@的價目表",
-        valueNote: "API 價值是以 API 定價完成同樣工作的費用。計劃則以固定價格收費。")
+        valueNote: "API 價值是以 API 定價完成同樣工作的費用。計劃則以固定價格收費。",
+        resetsCard: "重設",
+        useReset: "使用一次重設",
+        resetConfirm: "現在重設工作階段和本週額度？",
+        confirmReset: "重設",
+        resetting: "正在重設…",
+        resetDone: "額度已重設",
+        resetNotNeeded: "目前用量還不需要重設",
+        resetTaken: "這次重設已被使用",
+        resetFailed: "無法使用重設",
+        resetsNone: "沒有可用的重設",
+        resetsExpiryFormat: "下一次重設%@到期",
+        resetsNeedCodex: "需要 Codex App 或 CLI",
+        resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
+        resetsUpdate: "請更新 Codex 以在此使用重設",
+        resetsCheckFailed: "無法檢查重設",
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
 }
