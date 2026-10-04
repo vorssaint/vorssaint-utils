@@ -343,6 +343,17 @@ enum WindowActivator {
             || setResult == .success
     }
 
+    @discardableResult
+    static func toggleFullScreen(windowID: CGWindowID, pid: pid_t) -> Bool {
+        guard Permissions.shared.accessibility else { return false }
+        let axApp = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(axApp, 0.35)
+        guard let axWindow = axElement(windowID: windowID, in: axApp) else { return false }
+        let isFullScreen = boolAttribute(axWindow, "AXFullScreen", default: false)
+        return AXUIElementSetAttributeValue(axWindow, "AXFullScreen" as CFString,
+                                            isFullScreen ? kCFBooleanFalse : kCFBooleanTrue) == .success
+    }
+
     static func closeWindow(windowID: CGWindowID,
                             appPID: pid_t,
                             windowOwnerPID: pid_t) -> Bool {
