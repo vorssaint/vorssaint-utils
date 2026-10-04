@@ -2013,6 +2013,31 @@ enum SwitcherModelFeatureTests {
                "numeric menu bar values may combine usage and temperature")
         suite.expect(!MenuBarMetricAppearance.bars.allowsCombinedTemperatures,
                "menu bar bars keep usage and temperature separate")
+        // MenuBarRenderer / MemoryPressure are AppKit+IOKit-backed and stay out of
+        // the metrics-tests compile set; pin the pressure-block tint shape in source.
+        let menuBarRendererSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/MenuBarRenderer.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(menuBarRendererSource.contains(
+            "static func blockTintColor(for pressure: MemoryPressure?) -> NSColor?"),
+               "memory pressure exposes a whole-block tint helper")
+        suite.expect(menuBarRendererSource.contains("case .warning, .critical: return nsColor(for: pressure)")
+                && menuBarRendererSource.contains("case .normal, .unknown: return nil"),
+               "only warning and critical pressure recolor the memory block")
+        suite.expect(menuBarRendererSource.contains(
+            "static func showsPressureDot(pressure: MemoryPressure?, styleShowsDot: Bool) -> Bool")
+                && menuBarRendererSource.contains("pressure != nil && styleShowsDot"),
+               "the pressure dot stays optional while elevated pressure can still tint")
+        suite.expect(menuBarRendererSource.contains("blockTintColor(for: pressure)"),
+               "metric and usage-bar memory blocks paint with the pressure tint")
+        suite.expect(menuBarRendererSource.contains(
+            "showsPressureDot(pressure: pressure, styleShowsDot: MemoryMenuBarStyle.current.showsDot)"),
+               "memory block layout decides the pressure dot separately from the tint")
+        suite.expect(menuBarRendererSource.contains("pressure: snapshot.memoryPressure")
+                && !menuBarRendererSource.contains(
+                    "memoryStyle.showsDot ? snapshot.memoryPressure"),
+               "memory blocks always receive pressure so warning/critical tint without the dot")
+
         suite.expectClose(MenuBarUsageBarSupport.memoryFraction(used: 3, total: 4) ?? -1, 0.75,
                     "menu bar memory bars use the current used fraction")
         suite.expect(MenuBarUsageBarSupport.memoryFraction(used: 3, total: 0) == nil,
