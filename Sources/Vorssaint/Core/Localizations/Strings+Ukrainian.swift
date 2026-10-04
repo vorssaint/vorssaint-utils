@@ -394,6 +394,7 @@ extension Strings {
         homebrewCancelOperation: "Скасувати",
         homebrewClearLog: "Очистити журнал",
         homebrewLogTitle: "Журнал",
+        homebrewViewLastLog: "Показати останній журнал",
         homebrewVersion: "Версія",
         homebrewDescription: "Тип",
         homebrewHomepage: "Відкрити сайт",

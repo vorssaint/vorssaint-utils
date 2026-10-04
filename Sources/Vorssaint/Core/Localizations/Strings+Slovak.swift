@@ -408,6 +408,7 @@ extension Strings {
         homebrewCancelOperation: "Zrušiť",
         homebrewClearLog: "Vymazať protokol",
         homebrewLogTitle: "Protokol",
+        homebrewViewLastLog: "Zobraziť posledný protokol",
         homebrewVersion: "Verzia",
         homebrewDescription: "Typ",
         homebrewHomepage: "Otvoriť webstránku",
