@@ -51,6 +51,7 @@ struct WhatsAppDownloadStrings {
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .tr: return .tr
         case .ru: return .ru
         case .de: return .de
@@ -194,6 +195,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "Do Koša presunuté súbory: %1$d (%2$@). Zlyhalo: %3$d.",
         scanFailed: "Stiahnuté sa nepodarilo skenovať. Skontrolujte Súbory a priečinky v Systémových nastaveniach.",
         manageButton: "Spravovať…"
+    )
+
+    static let pl = WhatsAppDownloadStrings(
+        title: "Pobrane pliki WhatsApp",
+        hubDescription: "Trzyma pliki z WhatsApp w folderze Pobrane rzeczy pod kontrolą",
+        intro: "Wyszukuje pliki, o których macOS potwierdza, że pochodzą z WhatsApp. Zawartość plików ani czaty nie są nigdy odczytywane.",
+        automatic: "Porządkuj automatycznie",
+        automaticCaption: "Sprawdza raz dziennie i wysyła do Kosza pasujące pliki starsze niż Twój limit.",
+        folder: "Obserwowany folder",
+        accessReady: "Pobrane rzeczy są dostępne",
+        accessDenied: "Vorssaint nie ma dostępu do folderu Pobrane rzeczy. Zezwól na to w sekcji Pliki i foldery.",
+        fileTypes: "Typy plików",
+        allTypes: "Wszystkie",
+        image: "Obrazki",
+        video: "Wideo",
+        audio: "Dźwięki i notatki głosowe",
+        document: "Dokumenty",
+        archive: "Archiwa",
+        other: "Inne",
+        retention: "Zachowaj na",
+        retentionCaption: "Ostatnio edytowane pliki odczekują pełny okres od nowa.",
+        daysFormat: "Liczba dni: %d",
+        manualIntro: "Skanuj w dowolnym momencie. Początkowy wybór uwzględnia Twoje typy i limit wieku, ale możesz przejrzeć każdy potwierdzony plik.",
+        noFiles: "W folderze Pobrane rzeczy nie znaleziono żadnych potwierdzonych plików z WhatsApp.",
+        resultsFormat: "Potwierdzone pliki: %1$d · %2$@",
+        selectRules: "Zaznacz zgodnie z moimi regułami",
+        cleanSelectedFormat: "Przenieś %1$d do Kosza · %2$@",
+        keep: "Zachowaj",
+        manageAgain: "Zarządzaj ponownie",
+        activity: "Aktywność",
+        neverRun: "Nie wykonano jeszcze żadnego porządkowania.",
+        lastRunFormat: "Ostatnie porządkowanie %@: pliki: %d · %@ · nieudane: %d",
+        nextRunFormat: "Następne automatyczne sprawdzanie %@.",
+        firstTitle: "Co z istniejącymi plikami?",
+        firstMessageFormat: "Liczba istniejących plików pasujących do Twoich reguł: %d. Wybierz, czy automatyzacja ma nimi zarządzać, czy tylko przyszłymi pobraniami.",
+        futureOnly: "Tylko przyszłe pobierania",
+        includeExisting: "Uwzględnij istniejące pliki",
+        trashNote: "Pliki są przenoszone do Kosza i można je odzyskać, dopóki go nie opróżnisz.",
+        localNote: "Sprawdzane są tylko metadane plików lokalnych. Vorssaint nigdy nie odczytuje czatów ani zawartości plików.",
+        notificationTitle: "Porządkowanie WhatsApp",
+        notificationFormat: "Przeniesiono pliki do Kosza: %1$d (%2$@). Nieudane: %3$d.",
+        scanFailed: "Nie udało się przeskanować folderu Pobrane rzeczy. Sprawdź opcję Pliki i foldery w Ustawieniach systemowych.",
+        manageButton: "Zarządzaj…"
     )
 
     static let ptBR = WhatsAppDownloadStrings(
@@ -530,6 +574,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: sk.lastRunFormat, nextRunFormat: sk.nextRunFormat,
             firstMessageFormat: sk.firstMessageFormat, localNote: sk.localNote,
             notificationFormat: sk.notificationFormat, scanFailed: sk.scanFailed, manageButton: sk.manageButton)
+        case .pl: return OperationalStrings(
+            automaticCaption: pl.automaticCaption, retentionCaption: pl.retentionCaption,
+            manualIntro: pl.manualIntro, resultsFormat: pl.resultsFormat,
+            selectRules: pl.selectRules, cleanSelectedFormat: pl.cleanSelectedFormat,
+            lastRunFormat: pl.lastRunFormat, nextRunFormat: pl.nextRunFormat,
+            firstMessageFormat: pl.firstMessageFormat, localNote: pl.localNote,
+            notificationFormat: pl.notificationFormat, scanFailed: pl.scanFailed, manageButton: pl.manageButton)
         }
     }
 

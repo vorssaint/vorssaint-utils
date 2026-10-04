@@ -60,6 +60,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -354,6 +355,53 @@ extension ScratchpadFeatureStrings {
         markLink: "Odkaz",
         formatMarks: "Formátovanie",
         textSize: "Veľkosť textu"
+    )
+
+    static let pl = ScratchpadFeatureStrings(
+        pageTitle: "Brudnopis",
+        hubDescription: "Pływające notesy na krótkotrwałe notatki",
+        panelCaption: "Szybkie notatki w osobnych kartach",
+        openButton: "Otwórz brudnopis",
+        placeholder: "Napisz cokolwiek. Zapisuje się samo.",
+        copyAll: "Kopiuj wszystko",
+        copied: "Skopiowano",
+        exportAction: "Zachowaj jako plik",
+        exportFailed: "Nie udało się zachować pliku",
+        loadFailed: "Nie udało się otworzyć Twoich notatek. Pozostały niezmienione.",
+        saveFailed: "Nie udało się zachować Twoich notatek. Skopiuj je w inne miejsce przed zakończeniem.",
+        clearAction: "Wymaż",
+        retentionTitle: "Wymaż automatycznie",
+        retentionNever: "Nigdy",
+        retentionDay: "Po dniu bez użycia",
+        retentionWeek: "Po tygodniu bez użycia",
+        retentionMonth: "Po miesiącu bez użycia",
+        retentionCaption: "Brudnopis sam się opróżni, gdy tekst pozostanie tak długo bez edycji.",
+        closeOnClickOutside: "Zamknij po kliknięciu poza",
+        keepOpen: "Zostaw otwarte",
+        backgroundOpacity: "Tło notesu",
+        backgroundTranslucent: "Półprzezroczyste",
+        backgroundOpaque: "Nieprzezroczyste",
+        newPad: "Nowy brudnopis",
+        padActions: "Czynności brudnopisu",
+        renamePad: "Zmień nazwę brudnopisu",
+        closePad: "Zamknij brudnopis",
+        saveName: "Zachowaj",
+        cancel: "Anuluj",
+        deletePadMessageFormat: "Usunąć „%@” i całą jego zawartość?",
+        padLimitFormat: "Maksymalna liczba brudnopisów: %d",
+        previewFormatting: "Pokaż formatowanie",
+        editText: "Edytuj tekst",
+        markBold: "Pogrubienie",
+        markItalic: "Kursywa",
+        markStrikethrough: "Przekreślenie",
+        markHeading: "Nagłówek",
+        markBullet: "Lista punktowana",
+        markNumbered: "Lista numerowana",
+        markQuote: "Cytat",
+        markCode: "Kod",
+        markLink: "Łącze",
+        formatMarks: "Formatowanie",
+        textSize: "Wielkość tekstu"
     )
 
     static let de = ScratchpadFeatureStrings(

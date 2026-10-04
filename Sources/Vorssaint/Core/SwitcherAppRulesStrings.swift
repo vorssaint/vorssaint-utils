@@ -23,6 +23,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -101,6 +102,17 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Len s oknami",
         hidden: "Nikdy nezobrazovať",
         caption: "Vyberte, ako sa má zobraziť každá aplikácia. Apky bez pravidla použijú voľbu vyššie."
+    )
+
+    static let pl = SwitcherAppRulesStrings(
+        listTitle: "Reguły według aplikacji",
+        addButton: "Dodaj aplikację…",
+        removeButton: "Usuń",
+        behaviorLabel: "Zachowanie przełącznika",
+        showWithoutWindows: "Pokaż również bez okien",
+        windowsOnly: "Tylko z oknami",
+        hidden: "Nigdy nie pokazuj",
+        caption: "Wybierz, jak ma się pojawiać każda aplikacja. Aplikacje bez reguły używają wyboru z góry."
     )
 
     static let de = SwitcherAppRulesStrings(

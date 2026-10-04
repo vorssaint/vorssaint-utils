@@ -763,11 +763,31 @@ enum ShelfFeatureTests {
             suite.expect(slovakStrings.form(for: count) == wanted,
                    "a language that reads the whole number asks for the right form at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+        // Polish has three forms: 1 takes .one; numbers ending in 2..4 except
+        // 12..14 take .few; all other counts (including 5..21, 25..31, 112) take .many.
+        let polishStrings = ShelfTooltipStrings(itemsFormat: "many", itemsFew: "few",
+                                                imageSingular: "one", imageFew: "few",
+                                                imagePlural: "many",
+                                                fileSingular: "one", fileFew: "few",
+                                                filePlural: "many",
+                                                noteSingular: "one", noteFew: "few",
+                                                notePlural: "many",
+                                                linkSingular: "one", linkFew: "few",
+                                                linkPlural: "many",
+                                                agreement: .polish)
+        for (count, wanted) in [(1, ShelfTooltipStrings.Form.one), (2, .few), (4, .few), (5, .many),
+                                (11, .many), (12, .many), (14, .many), (15, .many),
+                                (21, .many), (22, .few), (24, .few), (25, .many),
+                                (101, .many), (102, .few), (111, .many), (112, .many), (122, .few)] {
+            suite.expect(polishStrings.form(for: count) == wanted,
+                   "a language with Polish count agreement asks for the right form at \(count)")
+        }
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .pl, .uk]
                && AppLanguage.ru.countAgreement == .byLastDigits
                && AppLanguage.uk.countAgreement == .byLastDigits
-               && AppLanguage.sk.countAgreement == .byWholeNumber,
-               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
+               && AppLanguage.sk.countAgreement == .byWholeNumber
+               && AppLanguage.pl.countAgreement == .polish,
+               "Russian, Slovak, Polish and Ukrainian are the four languages of the sixteen that ask for the middle form, each by its own rule")
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",

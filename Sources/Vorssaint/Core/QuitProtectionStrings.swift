@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -212,6 +213,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "Použite %@ na zatvorenie",
         cancelHint: "Esc zruší",
         releaseHint: "Uvoľnením potvrdíte",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let pl = QuitProtectionStrings(
+        name: "Ochrona przed kończeniem i zamykaniem",
+        description: "Chroni ⌘Q i ⌘W przed przypadkowym naciśnięciem",
+        intro: "Skonfiguruj każdy skrót niezależnie. Oryginalna czynność przechodzi tylko po wybranym potwierdzeniu.",
+        enabled: "Chroń ten skrót",
+        enabledCaption: "Inne Skróty z klawiszem Command nadal działają normalnie.",
+        mode: "Tryb potwierdzenia",
+        hold: "Przytrzymaj, aby potwierdzić",
+        doublePress: "Dwukrotne naciśnięcie",
+        extraModifier: "Wymagaj dodatkowego modyfikatora",
+        holdDuration: "Czas przytrzymania",
+        doublePressInterval: "Interwał dwukrotnego naciśnięcia",
+        modifier: "Dodatkowy modyfikator",
+        appScope: "Aplikacje",
+        allApps: "Wszystkie aplikacje",
+        selectedOnly: "Tylko wybrane aplikacje",
+        allExceptSelected: "Wszystkie z wyjątkiem wybranych aplikacji",
+        exceptions: "Wyjątki",
+        noExceptions: "Nie wybrano żadnych aplikacji",
+        addApp: "Dodaj aplikację…",
+        feedback: "Pokazuj wizualną informację zwrotną",
+        accessibilityCaption: "Ochrona używa Dostępności do obserwowania tylko ⌘Q i ⌘W globalnie.",
+        holdQuitHUDFormat: "Przytrzymaj %@, aby zakończyć",
+        holdCloseHUDFormat: "Przytrzymaj %@, aby zamknąć",
+        doubleQuitHUDFormat: "Naciśnij %@ ponownie, aby zakończyć",
+        doubleCloseHUDFormat: "Naciśnij %@ ponownie, aby zamknąć",
+        extraQuitHUDFormat: "Użyj %@, aby zakończyć",
+        extraCloseHUDFormat: "Użyj %@, aby zamknąć",
+        cancelHint: "Esc anuluje",
+        releaseHint: "Zwolnij, aby potwierdzić",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

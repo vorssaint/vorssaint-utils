@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -149,6 +150,19 @@ extension PermissionGuideStrings {
         staleHint: "Je to v zozname už zapnuté? Táto položka patrí staršej kópii aplikácie. Začnite znova, aby ste ju nahradili.",
         startOver: "Začať znova",
         relaunch: "Reštartovať na použitie"
+    )
+
+    static let pl = PermissionGuideStrings(
+        title: "Został jeden krok",
+        stepOpen: "macOS otworzył Ustawienia systemowe na właściwej liście.",
+        stepToggle: "Włącz Vorssaint na tej liście.",
+        stepReturn: "Wróć. Ta karta zauważy to sama.",
+        waiting: "Oczekiwanie na uprawnienia…",
+        granted: "Uprawnienia przyznane!",
+        closeHelp: "Zamknij",
+        staleHint: "Już włączone na tej liście? Ten wpis należy do wcześniejszej kopii aplikacji. Zacznij od nowa, aby go zastąpić.",
+        startOver: "Zacznij od nowa",
+        relaunch: "Uruchom ponownie, aby zastosować"
     )
 
     static let de = PermissionGuideStrings(

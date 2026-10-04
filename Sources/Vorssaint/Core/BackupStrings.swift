@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -154,6 +155,20 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "Táto záloha neobsahuje nastavenia Dynamic Island. Nastavenia na tomto Macu zostanú zachované. Ak ich chcete preniesť z druhého Macu, exportujte zálohu znova vo Vorssaint 3.4 alebo novšom. Ostatné nastavenia sa importujú a aplikácia sa reštartuje.",
         importAction: "Importovať a reštartovať",
         invalidFile: "Tento súbor nie je platná záloha Vorssaint."
+    )
+
+    static let pl = BackupFeatureStrings(
+        title: "Kopia zapasowa",
+        description: "Przenieś swoją konfigurację na innego Maca: wyeksportuj wszystkie preferencje do pliku i zaimportuj je tam. Twój Brudnopis, historia funkcji Schowek, elementy funkcji Półka i uprawnienia systemowe nigdy nie opuszczają tego Maca.",
+        exportButton: "Eksportuj ustawienia…",
+        importButton: "Importuj ustawienia…",
+        exported: "Kopia zapasowa zachowana",
+        exportFailed: "Nie udało się zachować kopii zapasowej.",
+        importConfirmTitle: "Zaimportować te ustawienia?",
+        importConfirmBody: "Twoje obecne ustawienia zostaną zastąpione przez te z pliku, a aplikacja zostanie uruchomiona ponownie. Nic innego na tym Macu nie ulegnie zmianie.",
+        importMissingIslandBody: "Ta kopia zapasowa nie ma ustawień Dynamic Island. Ustawienia dla Dynamic Island na tym Macu zostaną zachowane. Wyeksportuj ponownie, używając aplikacji Vorssaint 3.4 lub nowszej na innym Macu, aby je skopiować. Inne ustawienia zostaną zaimportowane, a aplikacja uruchomi się ponownie.",
+        importAction: "Importuj i uruchom ponownie",
+        invalidFile: "Ten plik nie jest prawidłową kopią zapasową aplikacji Vorssaint."
     )
 
     static let de = BackupFeatureStrings(

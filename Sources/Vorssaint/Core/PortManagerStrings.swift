@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -64,6 +65,24 @@ extension PortManagerFeatureStrings {
     static let ru = PortManagerFeatureStrings(title: "Диспетчер портов", filter: "Фильтр по порту, процессу или PID", openFormat: "%d открыто", empty: "Прослушиваемые порты не найдены", emptyHint: "Обновите список или измените поиск.", listeningCaption: "Ваши прослушиваемые порты", kill: "Завершить", forceKill: "Завершить принудительно", loadFailed: "Не удалось прочитать список портов. Попробуйте обновить.", refresh: "Обновить", terminateFormat: "Завершить %@?", terminateMessageFormat: "Порт %d будет закрыт завершением PID %d.", hubDescription: "Просмотр активных прослушиваемых портов и, если установлен «Завершить процесс», завершение использующих их процессов", allInterfaces: "Все интерфейсы", allInterfacesHelp: "Прослушивает все сетевые интерфейсы, поэтому другие устройства в сети могут подключиться.")
     static let es = PortManagerFeatureStrings(title: "Gestor de puertos", filter: "Filtrar por puerto, proceso o PID", openFormat: "%d abiertos", empty: "No se encontraron puertos de escucha", emptyHint: "Actualiza o cambia la búsqueda.", listeningCaption: "Tus puertos de escucha", kill: "Cerrar", forceKill: "Forzar cierre", loadFailed: "No se pudieron consultar los puertos. Intenta actualizar.", refresh: "Actualizar", terminateFormat: "¿Cerrar %@?", terminateMessageFormat: "Esto cierra el puerto %d terminando el PID %d.", hubDescription: "Consulta los puertos de escucha activos y, con Finalizar Proceso instalado, finaliza los procesos que los utilizan", allInterfaces: "Todas las interfaces", allInterfacesHelp: "Escucha en todas las interfaces de red, así que otros dispositivos de la red podrían conectarse.")
     static let sk = PortManagerFeatureStrings(title: "Správca portov", filter: "Filtrovať podľa portu, procesu alebo PID", openFormat: "Otvorené: %d", empty: "Nenašli sa žiadne počúvajúce porty", emptyHint: "Skúste obnoviť alebo zmeniť vyhľadávanie.", listeningCaption: "Vaše počúvajúce porty", kill: "Ukončiť", forceKill: "Vynútiť ukončenie", loadFailed: "Nepodarilo sa načítať počúvajúce porty. Skúste obnoviť.", refresh: "Obnoviť", terminateFormat: "Ukončiť %@?", terminateMessageFormat: "Týmto sa zatvorí port %d ukončením PID %d.", hubDescription: "Zobrazte aktívne počúvajúce porty a s nainštalovanou funkciou Ukončiť proces ukončite procesy, ktoré ich používajú", allInterfaces: "Všetky rozhrania", allInterfacesHelp: "Počúva na všetkých sieťových rozhraniach, takže sa môžu pripojiť aj iné zariadenia v sieti.")
+
+    static let pl = PortManagerFeatureStrings(
+        title: "Menedżer portów",
+        filter: "Filtruj według portu, procesu lub PID",
+        openFormat: "Otwarte: %d",
+        empty: "Nie znaleziono nasłuchujących portów",
+        emptyHint: "Spróbuj odświeżyć lub zmienić kryteria wyszukiwania.",
+        listeningCaption: "Twoje nasłuchujące porty",
+        kill: "Zakończ",
+        forceKill: "Wymuś zakończenie",
+        loadFailed: "Nie udało się odczytać nasłuchujących portów. Spróbuj odświeżyć.",
+        refresh: "Odśwież",
+        terminateFormat: "Zakończyć %@?",
+        terminateMessageFormat: "To zamyka port %d poprzez zakończenie PID %d.",
+        hubDescription: "Przeglądaj aktywne porty nasłuchujące i – po zainstalowaniu funkcji Zakończ proces – kończ procesy, które z nich korzystają",
+        allInterfaces: "Wszystkie interfejsy",
+        allInterfacesHelp: "Nasłuchiwanie na każdym interfejsie sieciowym, więc inne urządzenia w sieci mogą się połączyć."
+    )
     static let de = PortManagerFeatureStrings(title: "Portverwaltung", filter: "Nach Port, Prozess oder PID filtern", openFormat: "%d offen", empty: "Keine lauschenden Ports gefunden", emptyHint: "Aktualisiere die Liste oder ändere die Suche.", listeningCaption: "Deine lauschenden Ports", kill: "Beenden", forceKill: "Sofort beenden", loadFailed: "Die Ports konnten nicht abgefragt werden. Versuche es erneut.", refresh: "Aktualisieren", terminateFormat: "%@ beenden?", terminateMessageFormat: "Port %d wird durch Beenden von PID %d geschlossen.", hubDescription: "Aktive lauschende Ports anzeigen und, wenn Prozess beenden installiert ist, die zugehörigen Prozesse beenden", allInterfaces: "Alle Schnittstellen", allInterfacesHelp: "Lauscht auf allen Netzwerkschnittstellen, daher können sich andere Geräte im Netzwerk möglicherweise verbinden.")
     static let fr = PortManagerFeatureStrings(title: "Gestionnaire de ports", filter: "Filtrer par port, processus ou PID", openFormat: "%d ouverts", empty: "Aucun port en écoute trouvé", emptyHint: "Actualisez ou modifiez votre recherche.", listeningCaption: "Vos ports en écoute", kill: "Quitter", forceKill: "Forcer l’arrêt", loadFailed: "Impossible de consulter les ports. Essayez d’actualiser.", refresh: "Actualiser", terminateFormat: "Arrêter %@ ?", terminateMessageFormat: "Le port %d sera fermé en arrêtant le PID %d.", hubDescription: "Affichez les ports en écoute actifs et, avec Forcer à quitter installé, arrêtez les processus qui les utilisent", allInterfaces: "Toutes les interfaces", allInterfacesHelp: "En écoute sur toutes les interfaces réseau, d’autres appareils du réseau peuvent donc s’y connecter.")
     static let it = PortManagerFeatureStrings(title: "Gestore porte", filter: "Filtra per porta, processo o PID", openFormat: "%d aperte", empty: "Nessuna porta in ascolto trovata", emptyHint: "Aggiorna o modifica la ricerca.", listeningCaption: "Le tue porte in ascolto", kill: "Termina", forceKill: "Termina forzatamente", loadFailed: "Impossibile leggere le porte in ascolto. Prova ad aggiornare.", refresh: "Aggiorna", terminateFormat: "Terminare %@?", terminateMessageFormat: "La porta %d verrà chiusa terminando il PID %d.", hubDescription: "Visualizza le porte in ascolto attive e, con Termina Processo installato, termina i processi che le utilizzano", allInterfaces: "Tutte le interfacce", allInterfacesHelp: "In ascolto su tutte le interfacce di rete, quindi altri dispositivi della rete potrebbero connettersi.")

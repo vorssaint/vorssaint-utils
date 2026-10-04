@@ -12,6 +12,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -32,6 +33,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -52,6 +54,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -72,6 +75,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -92,6 +96,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -128,6 +133,19 @@ struct MixerFeatureStrings {
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
     static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
     static let sk = MixerFeatureStrings(hideInactiveApps: "Skryť neaktívne aplikácie", pin: "Pripnúť navrch", unpin: "Odopnúť", moveUp: "Presunúť nahor", moveDown: "Presunúť nadol", pinFirst: "Pripnúť dopredu", moveLeft: "Presunúť doľava", moveRight: "Presunúť doprava", arrange: "Podržte Command a presuňte myšou pre zmenu poradia", actions: "Akcie")
+
+    static let pl = MixerFeatureStrings(
+        hideInactiveApps: "Ukryj nieaktywne aplikacje",
+        pin: "Przypnij na wierzchu",
+        unpin: "Odepnij",
+        moveUp: "Przenieś w górę",
+        moveDown: "Przenieś w dół",
+        pinFirst: "Przypnij na przodzie",
+        moveLeft: "Przenieś w lewo",
+        moveRight: "Przenieś w prawo",
+        arrange: "Przytrzymaj Command i przeciągnij, aby zmienić kolejność",
+        actions: "Akcje"
+    )
     static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
     static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
     static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", pinFirst: "Fissa all’inizio", moveLeft: "Sposta a sinistra", moveRight: "Sposta a destra", arrange: "Tieni premuto Command e trascina per riordinare", actions: "Azioni")
@@ -400,6 +418,15 @@ struct SettingsCategoryStrings {
         utilities: "Pomôcky",
         app: "Apka",
         appManagement: "Správa aplikácií"
+    )
+
+    static let pl = SettingsCategoryStrings(
+        essentials: "Podstawowe",
+        windowsControls: "Sterowanie oknami",
+        files: "Pliki",
+        utilities: "Narzędzia",
+        app: "Aplikacja",
+        appManagement: "Zarządzanie aplikacjami"
     )
 
     static let de = SettingsCategoryStrings(
@@ -890,6 +917,67 @@ struct ClipboardFeatureStrings {
         menuBarPreviewCaption: "Zobrazí skrátený náhľad poslednej kópie vedľa ikony. Kliknutím naň otvoríte históriu.",
         menuBarPreviewLength: "Dĺžka náhľadu",
         menuBarPreviewLengthSuffix: "znakov"
+    )
+
+    static let pl = ClipboardFeatureStrings(
+        title: "Schowek",
+        enable: "Zachowaj historię schowka",
+        caption: "Przechowuje skopiowany tekst, aby można było go użyć ponownie. Wszystko pozostaje lokalnie i może zostać wyczyszczone w dowolnym momencie.",
+        localNote: "Wszystko pozostaje na tym Macu. Bardzo duże elementy są ignorowane.",
+        skipSensitive: "Pomiń tekst, który wygląda na wrażliwy",
+        skipSensitiveCaption: "Zapobiega zachowywaniu krótkich ciągów bez spacji, które wyglądają jak hasła, tokeny lub klucze.",
+        limit: "Limit",
+        limitUnlimited: "Bez limitu",
+        showInPanel: "Pokaż w panelu",
+        shortcut: "Skrót historii",
+        shortcutCaption: "Otwiera szybkie okno z wyszukiwaniem, przypiętymi elementami i skrótami od ⌘1 do ⌘9 do wklejania do poprzedniej aplikacji.",
+        shortcutHint: "Kliknij wiersz, aby wkleić go do poprzedniej aplikacji. ⌘-kliknięcie zaznacza kilka elementów; ⌘C kopiuje bez wklejania.",
+        clickRowShortcut: "Kliknij wiersz",
+        commandClickShortcut: "⌘-kliknięcie",
+        pinned: "Przypięte",
+        recent: "Ostatnie",
+        pin: "Przypnij",
+        unpin: "Odepnij",
+        clearRecent: "Wyczyść ostatnie",
+        clearAll: "Wyczyść nieprzypięte",
+        empty: "Brak zachowanego tekstu",
+        disabled: "Włącz historię, aby zacząć zachowywać skopiowany tekst.",
+        search: "Szukaj w skopiowanym tekście",
+        copy: "Kopiuj",
+        copied: "Skopiowano",
+        delete: "Usuń element",
+        selectMultiple: "Dodaj do stosu",
+        unselectMultiple: "Usuń ze stosu",
+        selectShortcutAction: "Zaznacz",
+        pasteSelectedFormat: "Wklej %d",
+        copySelectedFormat: "Kopiuj %d",
+        clearSelection: "Wyczyść zaznaczenie",
+        moveUp: "Przenieś w górę",
+        moveDown: "Przenieś w dół",
+        noResults: "Brak wyników",
+        newestFirst: "Najnowsze najpierw",
+        active: "Zachowywanie nowego tekstu",
+        includeImagesFiles: "Zachowuj także skopiowane obrazki i pliki",
+        includeImagesFilesCaption: "Obrazki trafiają do historii, a pliki są zapamiętywane jako łącza do ich lokalizacji. Przypinaj i wklejaj je jak każdy element tekstowy.",
+        imageEntryLabel: "Obrazek",
+        fileCountFormat: "Pliki: %d",
+        pasteImageAsFile: "Wklej skopiowane obrazki jako pliki",
+        pasteImageAsFileCaption: "Gdy Finder jest aktywny, ⌘V zachowuje skopiowany obrazek jako plik PNG w bieżącej teczce.",
+        previewLabel: "Podgląd",
+        edit: "Edytuj",
+        cancel: "Anuluj",
+        save: "Zachowaj",
+        autoClearEnable: "Automatycznie czyść Schowek z opóźnieniem",
+        autoClearSecondsSuffix: "sekund",
+        autoClearOnSleep: "Czyść Schowek podczas usypiania komputera",
+        autoClearOnDisplaySleep: "Czyść Schowek podczas usypiania wyświetlacza",
+        autoClearOnScreenLock: "Czyść Schowek po zablokowaniu ekranu",
+        autoClearCaption: "Czyści tylko systemowy Schowek. Elementy już zachowane pozostają w historii.",
+        deleteSelectedFormat: "Usuń %d",
+        menuBarPreview: "Pokaż ostatnią kopię na pasku menu",
+        menuBarPreviewCaption: "Pokazuje skrócony podgląd ostatniej kopii obok ikony. Kliknij w niego, aby otworzyć historię.",
+        menuBarPreviewLength: "Długość podglądu",
+        menuBarPreviewLengthSuffix: "znaków"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -1942,6 +2030,95 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extra veľká"
     )
 
+    static let pl = WindowLayoutFeatureStrings(
+        title: "Rozkład okien",
+        caption: "Rozmieszczaj okna w sekcjach ekranu lub przesuwaj i zmieniaj ich rozmiar za pomocą gładzika lub myszy.",
+        showInPanel: "Pokaż w panelu",
+        gestureSection: "Przeciąganie okien",
+        gestureEnable: "Przesuwaj i zmieniaj rozmiar przez przeciąganie",
+        gestureCaption: "Na gładziku lub myszy przytrzymaj widoczne klawisze modyfikujące i przeciągnij w dowolnym miejscu wewnątrz okna.",
+        gestureModifiers: "Klawisze do przesuwania",
+        gestureMove: "Przeciągnij, aby przesunąć",
+        gestureResize: "Dodaj Shift i przeciągnij, aby zmienić rozmiar",
+        gestureResizeHint: "Punkt początkowy wybiera najbliższą krawędź lub róg. Na myszy przeciąganie prawym przyciskiem również zmienia rozmiar.",
+        gestureRaiseWindow: "Przenieś przeciągane okno na wierzch",
+        shortcuts: "Skróty",
+        shortcutsCaption: "Używaj globalnych skrótów do układania aktywnego okna bez otwierania panelu.",
+        permissionCaption: "Wykorzystuje ułatwienia dostępu (Dostępność) tylko do przesuwania i zmiany rozmiaru okien.",
+        noWindow: "Nie znaleziono aktywnego okna.",
+        missingPermission: "Przyznaj dostępność, aby przesuwać okna.",
+        failed: "Nie udało się przesunąć tego okna.",
+        done: "Okno ułożone.",
+        restored: "Okno przywrócone.",
+        noRestore: "Brak poprzedniego układu do przywrócenia.",
+        target: "Aktywne okno",
+        halves: "Połowy",
+        thirds: "Trzecie części",
+        quarterRows: "Ćwiartki (wiersze)",
+        quarterColumns: "Ćwiartki (kolumny)",
+        sixths: "Szóste części",
+        corners: "Rogi",
+        other: "Akcje",
+        leftHalf: "Lewa",
+        rightHalf: "Prawa",
+        topHalf: "Górna",
+        bottomHalf: "Dolna",
+        centerHalf: "Środkowa połowa",
+        leftThird: "Lewa trzecia część",
+        centerThird: "Środkowa trzecia część",
+        rightThird: "Prawa trzecia część",
+        leftTwoThirds: "Lewe dwie trzecie",
+        rightTwoThirds: "Prawe dwie trzecie",
+        centerTwoThirds: "Środkowe dwie trzecie",
+        topThird: "Górna trzecia część",
+        middleThird: "Środkowa trzecia część",
+        bottomThird: "Dolna trzecia część",
+        topTwoThirds: "Górne dwie trzecie",
+        bottomTwoThirds: "Dolne dwie trzecie",
+        topQuarter: "Górna ćwiartka",
+        upperMiddleQuarter: "Górna środkowa ćwiartka",
+        lowerMiddleQuarter: "Dolna środkowa ćwiartka",
+        bottomQuarter: "Dolna ćwiartka",
+        leftQuarter: "Lewa ćwiartka",
+        leftMiddleQuarter: "Lewa środkowa ćwiartka",
+        rightMiddleQuarter: "Prawa środkowa ćwiartka",
+        rightQuarter: "Prawa ćwiartka",
+        topLeftSixth: "Górna lewa szósta część",
+        topCenterSixth: "Górna środkowa szósta część",
+        topRightSixth: "Górna prawa szósta część",
+        bottomLeftSixth: "Dolna lewa szósta część",
+        bottomCenterSixth: "Dolna środkowa szósta część",
+        bottomRightSixth: "Dolna prawa szósta część",
+        topLeft: "Lewy górny",
+        topRight: "Prawy górny",
+        bottomLeft: "Lewy dolny",
+        bottomRight: "Prawy dolny",
+        maximize: "Maksymalizuj",
+        center: "Wyśrodkuj",
+        nextDisplay: "Następny ekran",
+        restore: "Przywróć",
+        fullScreen: "Pełny ekran",
+        previousDisplay: "Poprzedni ekran",
+        edgeSnapEnable: "Przyciągaj okna do krawędzi ekranu",
+        edgeSnapCaption: "Włącz to, wybierz podświetlone obszary poniżej, a następnie przeciągnij pasek tytułu okna do jednego z nich i upuść.",
+        edgeSnapSystemConflict: "macOS używa tych samych krawędzi. Wyłącz kafelkowanie okien w ustawieniach „Biurko i Dock”, aby Vorssaint mógł przejąć kontrolę.",
+        edgeSnapOpenSystemSettings: "Otwórz Biurko i Dock",
+        edgeSnapWaitingForSystem: "Włączone w Vorssaint. Zacznie działać natychmiast po wyłączeniu kafelkowania w macOS.",
+        marginMaximize: "Maksymalizuj z marginesem",
+        gapsSection: "Odstępy",
+        gapsCaption: "Przestrzeń między przyciągniętymi oknami, a także między oknami a krawędzią ekranu.",
+        windowGap: "Odstęp między oknami",
+        screenGap: "Odstęp od krawędzi ekranu",
+        sideRepeatCycle: "Powtarzaj „W lewo” lub „W prawo”, aby zmieniać rozmiary",
+        sideRepeatCycleCaption: "Połowa, potem dwie trzecie, następnie jedna trzecia na tym samym ekranie. Po wyłączeniu, przy więcej niż jednym ekranie, powtarzanie przenosi okno na następny ekran po tej stronie.",
+        gapNone: "Brak",
+        gapTiny: "Bardzo mały",
+        gapSmall: "Mały",
+        gapMedium: "Średni",
+        gapLarge: "Duży",
+        gapExtraLarge: "Bardzo duży"
+    )
+
     static let de = WindowLayoutFeatureStrings(
         title: "Fensterlayout",
         caption: "Ordne Fenster in Bildschirmbereiche ein oder verschiebe und skaliere sie mit Trackpad oder Maus.",
@@ -2808,6 +2985,41 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Teplota nad",
         batteryTemperatureTitle: "Horúca batéria",
         batteryTemperatureBodyFormat: "Batéria dosiahla %@."
+    )
+
+    static let pl = MonitorAlertFeatureStrings(
+        section: "Alerty",
+        caption: "Alerty włączają się po osiągnięciu wybranych limitów. Alerty o użyciu i temperaturze CPU ignorują skoki krótsze niż około 12 sekund. Ustawienie powtarzania ogranicza tylko powtarzanie tego samego alertu.",
+        notificationsDenied: "Powiadomienia dla Vorssaint są wyłączone w Ustawieniach systemowych, więc alerty nie mogą się pojawić.",
+        cpu: "Wysokie użycie CPU",
+        cpuTemperature: "Wysoka temperatura CPU",
+        memory: "Krytyczne zużycie pamięci",
+        disk: "Mało miejsca na dysku",
+        battery: "Niski poziom baterii",
+        cpuThreshold: "CPU powyżej",
+        cpuTemperatureThreshold: "Temperatura powyżej",
+        diskThreshold: "Wolne miejsce poniżej",
+        batteryThreshold: "Bateria poniżej",
+        cooldown: "Powtórz ten sam alert po",
+        cooldown2: "2 minuty",
+        cooldown5: "5 minut",
+        cooldown15: "15 minut",
+        cooldown30: "30 minut",
+        cooldown60: "1 godzina",
+        cpuTitle: "Wysokie użycie CPU",
+        cpuBodyFormat: "Użycie CPU utrzymywało się powyżej %d%% przez kilka sekund.",
+        cpuTemperatureTitle: "Wysoka temperatura procesora",
+        cpuTemperatureBodyFormat: "Temperatura procesora osiągnęła %@.",
+        memoryTitle: "Krytyczna pamięć",
+        memoryBody: "Zużycie pamięci osiągnęło poziom krytyczny.",
+        diskTitle: "Mało miejsca na dysku",
+        diskBodyFormat: "Dysk %@ ma mniej niż %d%% wolnego miejsca.",
+        batteryTitle: "Niski poziom baterii",
+        batteryBodyFormat: "Poziom baterii wynosi %d%%.",
+        batteryTemperature: "Wysoka temperatura baterii",
+        batteryTemperatureThreshold: "Temperatura powyżej",
+        batteryTemperatureTitle: "Gorąca bateria",
+        batteryTemperatureBodyFormat: "Temperatura baterii osiągnęła %@."
     )
 
     static let de = MonitorAlertFeatureStrings(

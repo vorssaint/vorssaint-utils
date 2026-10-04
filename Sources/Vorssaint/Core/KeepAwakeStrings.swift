@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -73,6 +74,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -115,6 +117,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let sk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Povoliť uspatie displeja",
         allowDisplaySleepCaption: "Udržiava Mac v bdelom stave, zatiaľ čo displej sa riadi bežným časovačom uspávania."
+    )
+
+    static let pl = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Pozwól na uśpienie ekranu",
+        allowDisplaySleepCaption: "Zapobiega uśpieniu Maca, podczas gdy ekran wygasza się zgodnie ze standardowym czasem usypiania."
     )
 
     static let de = KeepAwakeDisplaySleepStrings(
@@ -293,6 +300,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Ktorákoľvek",
         matchAll: "Všetky",
         automationCaptionAll: "Spustí sa iba vtedy, keď sú aktívne všetky vybrané podmienky."
+    )
+
+    static let pl = KeepAwakeAutomationStrings(
+        automationSection: "Automatyzacja",
+        automationCaption: "Uruchamia się, gdy aktywny jest dowolny z wybranych warunków.",
+        automationOff: "Wyłączona",
+        externalDisplayToggle: "Zewnętrzny wyświetlacz",
+        externalDisplayActive: "Aktywne podczas podłączenia zewnętrznego wyświetlacza",
+        powerToggle: "Zasilanie",
+        powerActive: "Aktywne podczas podłączenia do zasilania",
+        runningAppsToggle: "Aplikacje",
+        runningAppsActive: "Aktywne podczas działania wybranej aplikacji",
+        runningAppsListTitle: "Wybrane aplikacje",
+        runningAppsAddButton: "Dodaj aplikację…",
+        runningAppsRemoveButton: "Usuń",
+        runningAppsListCaption: "Zapobieganie usypianiu działa, dopóki otwarta jest jakakolwiek z tych aplikacji, nawet w tle.",
+        automationActive: "Aktywne, ponieważ spełniony jest automatyczny warunek",
+        pauseWhenLockedToggle: "Wstrzymaj, gdy Mac jest zablokowany",
+        pauseWhenLockedCaption: "Przestrzega normalnych reguł usypiania podczas blokady i wznawia pozostałą sesję po odblokowaniu.",
+        matchAny: "Dowolne",
+        matchAll: "Wszystkie",
+        automationCaptionAll: "Uruchamia się tylko wtedy, gdy aktywne są wszystkie wybrane warunki."
     )
 
     static let de = KeepAwakeAutomationStrings(

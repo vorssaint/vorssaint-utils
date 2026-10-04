@@ -28,7 +28,7 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytes(512), "512 B", "bytes < 1K")
         expectEqual(MetricFormat.bytes(1024), "1.0 KB", "bytes 1K")
         expectEqual(MetricFormat.bytes(1536), "1.5 KB", "bytes 1.5K")
-        // Nine of the fifteen languages here are spoken where a decimal is
+        // Ten of the sixteen languages here are spoken where a decimal is
         // written with a comma, and the panel wrote a point at everyone.
         MetricFormat.locale = Locale(identifier: "pt_BR")
         expectEqual(MetricFormat.bytes(1536), "1,5 KB", "a comma region reads its own decimal")
@@ -815,6 +815,14 @@ enum MetricsFeatureTests {
                     && !strings.menuBarLabel.isEmpty && !strings.oneConnected.isEmpty,
                          "connected device strings are complete for \(language.rawValue)")
         }
+        let plConnected = FeatureStrings.connectedDevices(.pl)
+        suite.expect(plConnected.formattedCount(1) == "1 podłączone urządzenie",
+                     "Polish connected devices count for 1")
+        suite.expect(plConnected.formattedCount(2) == "Podłączone urządzenia: 2",
+                     "Polish connected devices count for 2")
+        suite.expect(plConnected.formattedCount(5) == "Podłączone urządzenia: 5",
+                     "Polish connected devices count for 5")
+
 
         MetricFormat.locale = originalLocale
     }

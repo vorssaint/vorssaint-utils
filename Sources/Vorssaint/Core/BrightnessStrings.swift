@@ -54,6 +54,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .pl: return .pl
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -300,6 +301,45 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "Zobrazovať jas v Dynamic Island?",
         islandPromptMessage: "Dynamic Island zobrazuje zmeny jasu, len keď je v nastaveniach Displeje zapnuté „Ovládať displeje“.",
         islandPromptKeepOff: "Nechať vypnuté"
+    )
+
+    static let pl = BrightnessFeatureStrings(
+        pageTitle: "Wyświetlacze",
+        hubDescription: "Sterowanie jasnością i zasilaniem dla każdego wyświetlacza",
+        enable: "Steruj wyświetlaczami",
+        enableCaption: "Sterowanie jasnością oraz włączaniem lub wyłączaniem wbudowanego ekranu i zewnętrznych monitorów, tutaj i w panelu (Pasek menu).",
+        externalCaption: "Monitory zewnętrzne są regulowane przy użyciu tego samego protokołu, co ich własne przyciski. Gdy połączenie tego nie obsługuje, na przykład przy adapterach HDMI, suwak zamiast tego przyciemnia obraz, więc sterowanie jasnością i tak działa.",
+        noDisplays: "Nie znaleziono wyświetlacza.",
+        displayOff: "Wyłączony",
+        turnOffDisplay: "Wyłącz wyświetlacz",
+        turnOnDisplay: "Włącz wyświetlacz",
+        lastDisplayCaption: "Co najmniej jeden wyświetlacz musi pozostać włączony.",
+        switchUnavailable: "Przełączanie wyświetlaczy jest niedostępne na tym Macu.",
+        switchFailed: "Nie udało się zmienić tego wyświetlacza.",
+        openLidToEnable: "Otwórz pokrywę, aby włączyć wbudowany wyświetlacz.",
+        keysToggle: "Klawisze jasności podążają za wskaźnikiem",
+        keysCaption: "Klawisze jasności na klawiaturze zmieniają jasność wyświetlacza pod wskaźnikiem.",
+        keyStep: "Krok klawiszy jasności",
+        keyStepCaption: "Mniejsze kroki przy każdym naciśnięciu klawiszy jasności i funkcji Skróty jasności wyświetlacza.",
+        keyStepStandard: "Standardowy",
+        keyStepHalf: "Pół kroku",
+        keyStepQuarter: "Ćwierć kroku",
+        osdToggle: "Pokazuj jasność podczas regulacji",
+        osdCaption: "Pokazuje procent jasności, gdy używasz klawiszy lub suwaków jasności.",
+        displayBrightnessShortcuts: "Użyj funkcji Skróty dla jasności wyświetlacza",
+        displayBrightnessShortcutCaption: "Skróty regulują główny wyświetlacz lub wyświetlacz pod wskaźnikiem, gdy włączone jest podążanie za wskaźnikiem.",
+        displayBrightnessDecrease: "Zmniejsz jasność wyświetlacza",
+        displayBrightnessIncrease: "Zwiększ jasność wyświetlacza",
+        keyboardLight: "Podświetlenie klawiatury",
+        keyboardLightCaption: "Włącza lub wyłącza podświetlenie klawiatury.",
+        keyboardBrightnessShortcuts: "Użyj funkcji Skróty dla jasności klawiatury",
+        keyboardBrightnessDecrease: "Zmniejsz jasność klawiatury",
+        keyboardBrightnessIncrease: "Zwiększ jasność klawiatury",
+        softwareDimming: "Przyciemnij obraz",
+        extendedDimming: "Dodatkowe przyciemnianie",
+        islandPromptTitle: "Pokazywać jasność w funkcji Dynamic Island?",
+        islandPromptMessage: "Dynamic Island pokazuje zmiany jasności tylko wtedy, gdy w ustawieniach Wyświetlacze włączona jest opcja „Steruj wyświetlaczami”.",
+        islandPromptKeepOff: "Pozostaw wyłączone"
     )
 
     static let de = BrightnessFeatureStrings(

@@ -93,6 +93,24 @@ extension FeatureStrings {
             optimizeMedia: "Optimalizovať médiá",
             optimizeDropHint: "Presuňte obrázky alebo jedno video na Dynamic Island a pustite ich na Optimalizovať médiá, aby ste vybrali spôsob uloženia kópie.",
             resumeMedia: "Späť na médiá")
+        case .pl: return NotchFilesStrings(
+            archive: "Utwórz ZIP",
+            archiveHint: "Każda zaznaczona pozycja jest zachowywana jako osobny ZIP. Oryginały pozostają bez zmian.",
+            saved: "Zachowane",
+            downloadsTitle: "Pobrane",
+            downloadsDescription: "Obserwuj pliki trafiające do wybranego katalogu, bezpośrednio w Dynamic Island.",
+            downloadsHint: "Wybierz katalog, w którym przeglądarka zachowuje pobrane pliki. Tylko ten katalog jest obserwowany.",
+            chooseFolder: "Wybierz katalog…",
+            folderUnavailable: "Ten katalog jest niedostępny. Wybierz go ponownie, aby przywrócić dostęp.",
+            waiting: "Brak plików w tym katalogu",
+            inProgress: "Pobieranie",
+            totalUnknown: "Całkowita wielkość niedostępna",
+            completed: "Pobieranie zakończone",
+            clearFolder: "Zapomnij katalog",
+            optimizeMedia: "Optymalizuj multimedia",
+            optimizeDropHint: "Przeciągnij obrazki lub jedno wideo na wyspę, a następnie upuść na Optymalizuj multimedia, aby wybrać sposób zachowania kopii.",
+            resumeMedia: "Wróć do multimediów"
+        )
         case .de: return NotchFilesStrings(
             archive: "ZIP erstellen",
             archiveHint: "Jedes ausgewählte Objekt wird als eigene ZIP-Datei gesichert. Die Originale bleiben erhalten.",
