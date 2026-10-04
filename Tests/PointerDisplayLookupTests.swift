@@ -39,6 +39,7 @@ enum PointerDisplayLookupContract {
                 let image: CGImage
                 let scale: CGFloat
                 let anchorRect: CGRect
+                var appName = ""
             }
         }
         @MainActor enum ScreenshotCaptureEngine {
@@ -179,7 +180,7 @@ enum PointerDisplayLookupContract {
         Event.mouseLocation = pointer
         Capturer.ScreenshotCaptureEngine.displays = []
         let capturer = Capturer()
-        capturer.beginFullScreenCapture()
+        capturer.beginFullScreenCapture(appName: "")
         await capturer.directCaptureTask?.value
         let layout = Layout()
         layout.showDirectionalIndicator(at: pointer, action: nil)

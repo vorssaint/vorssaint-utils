@@ -1113,6 +1113,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 /// effect: clipboard, files, pins, text recognition and the close-confirm.
 final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     let model: ScreenshotEditorModel
+    /// Frontmost app when this capture's picker opened; used for %app on save.
+    private let sourceAppName: String
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
@@ -1127,6 +1129,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     init(capture: ScreenshotSelectionController.Capture) {
         model = ScreenshotEditorModel(image: capture.image, scale: capture.scale)
+        sourceAppName = capture.appName
         super.init()
     }
 
@@ -1429,7 +1432,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard let export = model.exportImage(),
               let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return }
-        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
+        let (url, consumedNumber) = ScreenshotService.saveDestination(
+            strings: strings, appName: sourceAppName)
         do {
             try data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)

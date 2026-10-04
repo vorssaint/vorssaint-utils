@@ -661,6 +661,48 @@ enum ScreenshotFeatureTests {
             suite.expect(ScreenshotSupport.expandSaveSubfolder("../up//./%y", date: patternDate)
                    == "up/26",
                    "dot, dot-dot and empty components never escape the base folder")
+            suite.expect(ScreenshotSupport.expandSaveSubfolder("%app/%y", date: patternDate, appName: "Safari")
+                         == "Safari/26",
+                         "%app becomes a subfolder from the app in front at capture")
+            suite.expect(ScreenshotSupport.expandSaveSubfolder("%app", date: patternDate, appName: "My/App:Notes")
+                         == "My-App-Notes",
+                         "slashes and colons in an app name stay one path component")
+            suite.expect(ScreenshotSupport.expandSaveSubfolder("%app", date: patternDate, appName: "") == "",
+                         "a missing app name drops the %app component instead of creating a folder")
+            suite.expect(ScreenshotSupport.expandFileNamePattern("%app-%#", date: patternDate, number: 3, appName: "Notes")
+                         == "Notes-3",
+                         "file names can include the same %app token")
+            suite.expect(ScreenshotSupport.expandedFileNameNeedsDefault(
+                          ScreenshotSupport.expandFileNamePattern("%app", date: patternDate, number: 0, appName: "")),
+                         "a bare %app with no app falls back to the default name")
+            suite.expect(!ScreenshotSupport.expandedFileNameNeedsDefault(
+                          ScreenshotSupport.expandFileNamePattern("%app-%#", date: patternDate, number: 3, appName: "")),
+                         "punctuation plus a number from %# is kept as a real name")
+            suite.expect(!ScreenshotSupport.expandedFileNameNeedsDefault(
+                          ScreenshotSupport.expandFileNamePattern("%#", date: patternDate, number: 3, appName: "")),
+                         "a digit-only %# pattern keeps the numbered name")
+            suite.expect(!ScreenshotSupport.expandedFileNameNeedsDefault(
+                          ScreenshotSupport.expandFileNamePattern("%y%mo%d", date: patternDate, number: 0, appName: "")),
+                         "a date-only pattern keeps the expanded digits")
+            suite.expect(!ScreenshotSupport.expandedFileNameNeedsDefault(
+                          ScreenshotSupport.expandFileNamePattern("%app-%#", date: patternDate, number: 3, appName: "Notes")),
+                         "a filled %app keeps the expanded file name")
+            let latestImage = URL(fileURLWithPath: "/tmp/cache/LatestScreenshot.png")
+            suite.expect(ScreenshotSupport.lastCaptureAppNameURL(beside: latestImage)
+                         == URL(fileURLWithPath: "/tmp/cache/LatestScreenshot.txt"),
+                         "the latest screenshot's app is stored beside its PNG")
+            suite.expect(ScreenshotSupport.lastCaptureAppName(from: Data("Safari\n".utf8)) == "Safari"
+                         && ScreenshotSupport.lastCaptureAppName(from: nil) == ""
+                         && ScreenshotSupport.lastCaptureAppName(from: Data([0xFF, 0xFE])) == "",
+                         "Edit latest screenshot reads back the app it was taken in, or none")
+            suite.expect(ScreenshotSupport.captureAppName(frontmostBundleID: "com.apple.Safari",
+                                                          frontmostName: "Safari",
+                                                          ownBundleID: "com.vorssaint.utils") == "Safari",
+                         "a foreign frontmost app is kept")
+            suite.expect(ScreenshotSupport.captureAppName(frontmostBundleID: "com.vorssaint.utils",
+                                                          frontmostName: "Vorssaint",
+                                                          ownBundleID: "com.vorssaint.utils") == "",
+                         "this app's own overlay is not stamped as the capture app")
             suite.expect(ScreenshotSupport.expandFileNamePattern("Shot %d at %h.%mi.%s",
                                                            date: patternDate, number: 0)
                    == "Shot 24 at 15.04.09",

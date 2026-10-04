@@ -19,6 +19,7 @@ enum ScreenshotScrollingCaptureTests {
             let image: CGImage
             let scale: CGFloat
             let anchorRect: CGRect
+            var appName = ""
         }
     }
     @MainActor enum ScreenshotCaptureEngine {

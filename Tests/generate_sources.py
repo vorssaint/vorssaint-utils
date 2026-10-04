@@ -1290,7 +1290,7 @@ def main():
           + declaration(screens, "    static var withMenuBar:")
           + "}\nextension PointerDisplayLookupContract.Capturer {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
-                        "    private func beginFullScreenCapture()").replace("private func", "func", 1)
+                        "    private func beginFullScreenCapture(appName: String)").replace("private func", "func", 1)
           + "}\nextension PointerDisplayLookupContract.Bridge {\n"
           + declaration(bridge, "    struct Topology {")
           + declaration(bridge, "    static func visibleSpace(near")

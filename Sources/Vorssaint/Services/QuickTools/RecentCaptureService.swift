@@ -226,7 +226,8 @@ final class RecentCaptureService: ObservableObject {
             anchorX: Double(capture.anchorRect.origin.x),
             anchorY: Double(capture.anchorRect.origin.y),
             anchorWidth: Double(capture.anchorRect.width),
-            anchorHeight: Double(capture.anchorRect.height))
+            anchorHeight: Double(capture.anchorRect.height),
+            appName: capture.appName.isEmpty ? nil : capture.appName)
         let image = capture.image
         let scale = capture.scale
 
@@ -302,7 +303,8 @@ final class RecentCaptureService: ObservableObject {
                 anchorX: nil,
                 anchorY: nil,
                 anchorWidth: nil,
-                anchorHeight: nil)
+                anchorHeight: nil,
+                appName: nil)
             self.prepend(entry)
         }
     }
@@ -398,7 +400,10 @@ final class RecentCaptureService: ObservableObject {
             width: entry.anchorWidth ?? 0,
             height: entry.anchorHeight ?? 0)
         return ScreenshotSelectionController.Capture(
-            image: image, scale: CGFloat(scale), anchorRect: anchor)
+            image: image,
+            scale: CGFloat(scale),
+            anchorRect: anchor,
+            appName: entry.appName ?? "")
     }
 
     private func pruneMissingEntries() {

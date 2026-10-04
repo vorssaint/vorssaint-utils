@@ -41,6 +41,7 @@ enum ScreenshotScrollingCapture {
                         includePointer: Bool,
                         hideVorssaintWindows: Bool,
                         protectedWindowIDs: Set<CGWindowID>,
+                        appName: String = "",
                         finishSignal: FinishSignal,
                         onProgress: @escaping @MainActor (Int) -> Void) async -> Result {
         do {
@@ -86,6 +87,7 @@ enum ScreenshotScrollingCapture {
                         slices: slices,
                         footerSlice: footerSlice,
                         region: region,
+                        appName: appName,
                         hasUnmatchedContent: hasUnmatchedContent)
                 }
                 if now - startedAt
@@ -94,6 +96,7 @@ enum ScreenshotScrollingCapture {
                     return completed(slices: slices,
                                      footerSlice: footerSlice,
                                      region: region,
+                                     appName: appName,
                                      result: .limited)
                 }
 
@@ -111,7 +114,7 @@ enum ScreenshotScrollingCapture {
                       let currentSample = sample(current)
                 else {
                     return completed(slices: slices, footerSlice: footerSlice,
-                                     region: region, result: .partial)
+                                     region: region, appName: appName, result: .partial)
                 }
                 try Task.checkCancellation()
                 lastCaptureAt = ProcessInfo.processInfo.systemUptime
@@ -189,6 +192,7 @@ enum ScreenshotScrollingCapture {
                         return completed(slices: slices,
                                          footerSlice: footerSlice,
                                          region: region,
+                                         appName: appName,
                                          result: .limited)
                     }
                     guard let strip = copiedStrip(from: current,
@@ -205,6 +209,7 @@ enum ScreenshotScrollingCapture {
                         return completed(slices: slices,
                                          footerSlice: footerSlice,
                                          region: region,
+                                         appName: appName,
                                          result: .limited)
                     }
                     if fixedBottomPixels > 0, !establishingContent {
@@ -248,16 +253,19 @@ enum ScreenshotScrollingCapture {
     private static func completedByUser(slices: [CGImage],
                                         footerSlice: CGImage?,
                                         region: RecorderSupport.Region,
+                                        appName: String,
                                         hasUnmatchedContent: Bool) -> Result {
         guard hasUnmatchedContent else {
             return completed(slices: slices,
                              footerSlice: footerSlice,
                              region: region,
+                             appName: appName,
                              result: .success)
         }
         return completed(slices: slices,
                          footerSlice: footerSlice,
                          region: region,
+                         appName: appName,
                          result: .partial)
     }
 
@@ -270,6 +278,7 @@ enum ScreenshotScrollingCapture {
     private static func completed(slices: [CGImage],
                                   footerSlice: CGImage?,
                                   region: RecorderSupport.Region,
+                                  appName: String,
                                   result: CompletedResult) -> Result {
         guard !Task.isCancelled else { return .cancelled }
         let completedSlices = footerSlice.map { slices + [$0] } ?? slices
@@ -280,7 +289,8 @@ enum ScreenshotScrollingCapture {
         let capture = ScreenshotSelectionController.Capture(
             image: image,
             scale: region.scale,
-            anchorRect: region.anchorRect)
+            anchorRect: region.anchorRect,
+            appName: appName)
         switch result {
         case .success: return .success(capture)
         case .partial: return .partial(capture)

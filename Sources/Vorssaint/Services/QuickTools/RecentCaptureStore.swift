@@ -20,6 +20,9 @@ struct RecentCaptureEntry: Codable, Equatable, Identifiable {
     let anchorY: Double?
     let anchorWidth: Double?
     let anchorHeight: Double?
+    /// Frontmost app when the capture picker opened; kept so a reopen from
+    /// history still expands %app correctly.
+    let appName: String?
 
     var recordingURL: URL? {
         guard let recordingPath else { return nil }
