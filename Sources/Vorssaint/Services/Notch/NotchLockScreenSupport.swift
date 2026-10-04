@@ -88,8 +88,9 @@ enum NotchLockScreenLayout {
     static func clockBottom(screenHeight: CGFloat) -> CGFloat { max(236, screenHeight * 0.247) }
     static let rowGap: CGFloat = 18
     static let rowHeight: CGFloat = 30
-    /// From the bottom of the display to the player.
-    static let loginClearance: CGFloat = 250
+    // Reduced from 250 → 190: seats the player pane naturally above the
+    // profile picture / login controls rather than floating mid-screen.
+    static let loginClearance: CGFloat = 190
     /// The player's room, with space around its pane for the cover's glow.
     static let playerWidth: CGFloat = 460
     static let paneWidth: CGFloat = 404

@@ -148,17 +148,18 @@ struct NotchLockScreenPlayer: View {
 
     var body: some View {
         let shown = model.showsMusic(music.playback)
-        ZStack {
+        ZStack(alignment: .bottom) {
             if shown, let playback = music.playback {
                 ViewThatFits(in: .vertical) {
                     player(playback, artwork: 112)
                     player(playback, artwork: 84)
                     compact(playback)
                 }
+                .padding(.bottom, 24)
                 .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
             }
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: size.width, height: size.height, alignment: .bottom)
         .animation(reduceMotion ? nil : .smooth(duration: 0.5), value: shown)
     }
 
