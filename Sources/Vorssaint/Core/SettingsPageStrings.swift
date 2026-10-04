@@ -36,6 +36,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .nl: return .nl
         }
     }
 }
@@ -234,5 +235,18 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "每個視窗一張預覽，包括已縮到最小的視窗。",
         switcherLayoutIcons: "大圖示",
         switcherLayoutSimple: "簡單列表"
+    )
+
+    static let nl = SettingsPageStrings(
+        energyDescription: "Houd de Mac wakker, bedien je beeldschermen en bespaar batterij.",
+        monitorDescription: "Wat de menubalk en het paneel over je Mac tonen, en wanneer je een waarschuwing krijgt.",
+        mouseDescription: "Geef het scrollwiel, de zijknoppen en het trackpad nieuwe taken.",
+        switcherDescription: "Wissel op jouw manier tussen apps en vensters.",
+        dockTitle: "Dock",
+        dockDescription: "Bekijk de vensters van een app via het Dock-symbool en kies wat een klik erop doet.",
+        switcherLayoutWindows: "Venstervoorvertoningen",
+        switcherLayoutWindowsCaption: "Eén voorvertoning per venster, geminimaliseerde vensters inbegrepen.",
+        switcherLayoutIcons: "Grote symbolen",
+        switcherLayoutSimple: "Eenvoudige lijst"
     )
 }

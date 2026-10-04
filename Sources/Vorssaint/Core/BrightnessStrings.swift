@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -105,6 +106,45 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "Show brightness in the Dynamic Island?",
         islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
         islandPromptKeepOff: "Keep Off"
+    )
+
+    static let nl = BrightnessFeatureStrings(
+        pageTitle: "Beeldschermen",
+        hubDescription: "Helderheid en aan/uit-bediening voor elk beeldscherm",
+        enable: "Beeldschermen bedienen",
+        enableCaption: "Bediening van helderheid en aan/uit voor het ingebouwde scherm en externe monitoren, hier en in het menubalkpaneel.",
+        externalCaption: "Externe monitoren worden aangepast via hetzelfde protocol als hun eigen knoppen. Als de verbinding dit niet kan doorgeven, zoals bij HDMI-adapters, dimt de schuifregelaar in plaats daarvan het beeld, zodat helderheidsregeling in beide gevallen werkt.",
+        noDisplays: "Geen beeldscherm gevonden.",
+        displayOff: "Uit",
+        turnOffDisplay: "Beeldscherm uitschakelen",
+        turnOnDisplay: "Beeldscherm inschakelen",
+        lastDisplayCaption: "Er moet minstens één beeldscherm aan blijven.",
+        switchUnavailable: "Beeldscherm aan/uit schakelen is niet beschikbaar op deze Mac.",
+        switchFailed: "Kon dit beeldscherm niet wijzigen.",
+        openLidToEnable: "Open het deksel om het ingebouwde beeldscherm in te schakelen.",
+        keysToggle: "Helderheidstoetsen volgen de aanwijzer",
+        keysCaption: "De helderheidstoetsen op het toetsenbord passen het beeldscherm onder de aanwijzer aan.",
+        keyStep: "Stappen voor helderheidstoetsen",
+        keyStepCaption: "Kleinere stappen bij elke druk op de helderheidstoetsen en de sneltoetsen voor schermhelderheid.",
+        keyStepStandard: "Standaard",
+        keyStepHalf: "Halve stappen",
+        keyStepQuarter: "Kwartstappen",
+        osdToggle: "Toon helderheid tijdens aanpassen",
+        osdCaption: "Toont het helderheidspercentage wanneer je de helderheidstoetsen of schuifregelaars gebruikt.",
+        displayBrightnessShortcuts: "Sneltoetsen voor beeldschermhelderheid gebruiken",
+        displayBrightnessShortcutCaption: "Sneltoetsen passen het hoofdbeeldscherm aan, of het beeldscherm onder de aanwijzer als het volgen van de aanwijzer aan staat.",
+        displayBrightnessDecrease: "Beeldschermhelderheid verlagen",
+        displayBrightnessIncrease: "Beeldschermhelderheid verhogen",
+        keyboardLight: "Toetsenbordverlichting",
+        keyboardLightCaption: "Schakelt de toetsenbordverlichting in of uit.",
+        keyboardBrightnessShortcuts: "Sneltoetsen voor toetsenbordhelderheid gebruiken",
+        keyboardBrightnessDecrease: "Toetsenbordhelderheid verlagen",
+        keyboardBrightnessIncrease: "Toetsenbordhelderheid verhogen",
+        softwareDimming: "Beeld dimmen",
+        extendedDimming: "Extra dimmen",
+        islandPromptTitle: "Helderheid tonen in het Dynamic Island?",
+        islandPromptMessage: "Het Dynamic Island toont helderheidswijzigingen alleen als “Beeldschermen bedienen” aan staat in de instellingen van Beeldschermen.",
+        islandPromptKeepOff: "Uit laten"
     )
 
     static let ptBR = BrightnessFeatureStrings(

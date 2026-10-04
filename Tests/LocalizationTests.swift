@@ -6,7 +6,7 @@ import Foundation
 enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
-        (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
+        (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.nl, .nl), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
     ]
 

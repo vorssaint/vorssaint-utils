@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vorssaint-utils}",
+            "name": "Debug Vorssaint",
+            "target": "Vorssaint",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Vorssaint"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:vorssaint-utils}",
+            "name": "Release Vorssaint",
+            "target": "Vorssaint",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Vorssaint"
+        }
+    ]
+}

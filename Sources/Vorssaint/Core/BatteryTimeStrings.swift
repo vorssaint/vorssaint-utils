@@ -27,6 +27,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -36,6 +37,12 @@ extension BatteryTimeFeatureStrings {
         title: "Battery time remaining",
         systemEstimate: "System estimate",
         calculating: "Calculating…"
+    )
+
+    static let nl = BatteryTimeFeatureStrings(
+        title: "Resterende batterijduur",
+        systemEstimate: "Systeemschatting",
+        calculating: "Berekenen…"
     )
 
     static let ptBR = BatteryTimeFeatureStrings(

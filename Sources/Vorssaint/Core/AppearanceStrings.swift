@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -39,6 +40,14 @@ extension AppearanceStrings {
         system: "System",
         light: "Light",
         dark: "Dark",
+        liquidGlass: "Liquid Glass"
+    )
+
+    static let nl = AppearanceStrings(
+        label: "Weergave",
+        system: "Systeem",
+        light: "Licht",
+        dark: "Donker",
         liquidGlass: "Liquid Glass"
     )
 

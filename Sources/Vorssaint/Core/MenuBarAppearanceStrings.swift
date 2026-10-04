@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -50,6 +51,19 @@ extension MenuBarAppearanceStrings {
         highColor: "High color",
         mediumFrom: "Medium from",
         highFrom: "High from"
+    )
+
+    static let nl = MenuBarAppearanceStrings(
+        label: "Gebruiksweergave",
+        values: "Waarden",
+        bars: "Balken",
+        caption: "Balken gelden voor CPU-, GPU-, geheugen- en schijfgebruik. Andere waarden blijven numeriek.",
+        customize: "Balkkleuren en grenzen",
+        normalColor: "Normale kleur",
+        mediumColor: "Gemiddelde kleur",
+        highColor: "Hoge kleur",
+        mediumFrom: "Gemiddeld vanaf",
+        highFrom: "Hoog vanaf"
     )
 
     static let ptBR = MenuBarAppearanceStrings(

@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -46,6 +47,17 @@ extension RecentCaptureStrings {
         open: "Open",
         remove: "Remove from history",
         clear: "Clear history"
+    )
+
+    static let nl = RecentCaptureStrings(
+        title: "Recente opnames",
+        empty: "Maak een schermafbeelding of bewaar een opname om ze hier te vinden.",
+        screenshot: "Schermafbeelding",
+        recording: "Opname",
+        restore: "Herstellen",
+        open: "Openen",
+        remove: "Verwijderen uit geschiedenis",
+        clear: "Geschiedenis wissen"
     )
 
     static let ptBR = RecentCaptureStrings(

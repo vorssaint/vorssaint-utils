@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint gebruikt Automatisering om bestanden te verplaatsen, items naar de Prullenmand te sturen, gevraagde opdrachten te openen en het afspelen in je media-apps te bedienen.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint gebruikt het geluid van elke app om het volume ervan in de mixer aan te passen, de muziekbalken van Dynamic Island te laten bewegen en het geluid van de Mac op te nemen in de schermopnames die je start. Er verlaat niets je Mac.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint gebruikt Bluetooth alleen om het batterijniveau van verbonden randapparaten uit te lezen. Er verlaat niets je Mac.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint neemt je microfoon alleen op wanneer je die inschakelt voor een schermopname. Het geluid blijft op je Mac, tenzij je ervoor kiest om een tijdelijke link te maken.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint toont je camera alleen in het voorvertoningsvenster dat je opent, zodat je kunt zien hoe je eruitziet vóór een gesprek. Er wordt niets opgenomen en niets verlaat je Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint controleert lokale metagegevens in Downloads om alleen door jou gekozen bevestigde WhatsApp-bestanden te bekijken, te ordenen of naar de Prullenmand te verplaatsen. De Opschoner zoekt ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een bestemmingsmap die je uitdrukkelijk kiest. De Opschoner zoekt ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een bestemmingsmap die je uitdrukkelijk kiest. De Opschoner zoekt ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een bestemmingsmap die je uitdrukkelijk kiest. De Opschoner zoekt ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een bestemmingsmap die je uitdrukkelijk kiest. De Opschoner zoekt ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSCalendarsFullAccessUsageDescription" = "Toon je komende afspraken in de notch. Agenda-activiteiten blijven op deze Mac.";

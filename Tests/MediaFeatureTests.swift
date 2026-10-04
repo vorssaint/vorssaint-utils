@@ -253,7 +253,8 @@ enum MediaFeatureTests {
 
         let sizeTargetStrings: [(String, Strings)] = [
             ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
-            ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
+            ("sk", .sk), ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
+            ("nl", .nl), ("uk", .uk),
             ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
         ]
         for (name, strings) in sizeTargetStrings {

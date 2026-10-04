@@ -110,6 +110,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Полиця заповнена",
                 fullBody: "Вкладення збереглося, але на полиці більше немає місця.",
                 okButton: "OK")
+        case .nl:
+            return .init(
+                failedTitle: "Kan bijlage niet toevoegen",
+                failedBody: "Het bestand is nooit volledig op de Shelf bewaard.",
+                fullTitle: "Shelf is vol",
+                fullBody: "De bijlage is bewaard, maar er is geen ruimte meer op de Shelf.",
+                okButton: "OK")
         }
     }
 }

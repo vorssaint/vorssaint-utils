@@ -212,6 +212,23 @@ extension FeatureStrings {
             optimizeMedia: "미디어 최적화",
             optimizeDropHint: "이미지 또는 동영상 하나를 아일랜드로 드래그한 뒤 미디어 최적화에 놓으면 사본 저장 방식을 선택할 수 있습니다.",
             resumeMedia: "미디어로 돌아가기")
+        case .nl: return NotchFilesStrings(
+            archive: "ZIP maken",
+            archiveHint: "Elk geselecteerd item wordt als een apart ZIP-bestand bewaard. De originelen blijven ongewijzigd.",
+            saved: "Bewaard",
+            downloadsTitle: "Downloads",
+            downloadsDescription: "Zie bestanden binnenkomen in een map die je kiest, direct in het Dynamic Island.",
+            downloadsHint: "Kies de map waarin je browser downloads bewaart. Alleen die map wordt in de gaten gehouden.",
+            chooseFolder: "Map kiezen…",
+            folderUnavailable: "Deze map is niet beschikbaar. Kies hem opnieuw om de toegang te herstellen.",
+            waiting: "Geen bestanden in deze map",
+            inProgress: "Bezig met downloaden",
+            totalUnknown: "Totale grootte niet beschikbaar",
+            completed: "Download voltooid",
+            clearFolder: "Map vergeten",
+            optimizeMedia: "Media optimaliseren",
+            optimizeDropHint: "Sleep afbeeldingen of één video naar het eiland en zet ze neer op Media optimaliseren om te kiezen hoe je een kopie bewaart.",
+            resumeMedia: "Terug naar media")
         case .zhHans: return NotchFilesStrings(
             archive: "创建 ZIP",
             archiveHint: "每个所选项目单独保存为 ZIP。原始文件保持不变。",

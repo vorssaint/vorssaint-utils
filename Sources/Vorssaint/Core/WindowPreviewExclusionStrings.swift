@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .nl: return .nl
         }
     }
 }
@@ -40,6 +41,14 @@ extension WindowPreviewExclusionStrings {
         addButton: "Add an app…",
         removeButton: "Remove",
         caption: "Window thumbnails stop while one of these apps is in front."
+    )
+
+    static let nl = WindowPreviewExclusionStrings(
+        sectionTitle: "Vensterminiaturen",
+        listTitle: "Pauzeren in deze apps",
+        addButton: "App toevoegen…",
+        removeButton: "Verwijderen",
+        caption: "Vensterminiaturen stoppen zolang een van deze apps op de voorgrond is."
     )
 
     static let ptBR = WindowPreviewExclusionStrings(

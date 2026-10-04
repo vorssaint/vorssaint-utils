@@ -902,6 +902,7 @@ enum MediaSupport {
         case "uk": return ["uk-UA", "en-US"]
         case "zh-Hans": return ["zh-Hans", "en-US"]
         case "zh-TW", "zh-HK": return ["zh-Hant", "en-US"]
+        case "nl": return ["nl-NL", "en-US"]
         default: return ["en-US"]
         }
     }
