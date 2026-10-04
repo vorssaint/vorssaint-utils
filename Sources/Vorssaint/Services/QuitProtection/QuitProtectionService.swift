@@ -21,7 +21,7 @@ final class QuitProtectionService: ObservableObject {
         let switcherSessionGeneration: UInt64
     }
 
-    private static let syntheticMarker: Int64 = 0x5652535341494E54
+    private static let syntheticMarker = OwnKeyEvent.quitProtectionMarker
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var activationObserver: NSObjectProtocol?
@@ -607,7 +607,10 @@ final class QuitProtectionService: ObservableObject {
             swallowShortcut = nil
             return
         }
-        if QuitProtectionSupport.usesNativeQuitRequest(for: shortcut),
+        let targetApp = targetProcessIdentifier.flatMap(NSRunningApplication.init(processIdentifier:))
+        let targetBundleIdentifier = targetApp?.bundleIdentifier ?? frontmostBundleIdentifier
+        if QuitProtectionSupport.usesNativeQuitRequest(for: shortcut,
+                                                      bundleIdentifier: targetBundleIdentifier),
            requestQuit(targetProcessIdentifier: targetProcessIdentifier) {
             return
         }

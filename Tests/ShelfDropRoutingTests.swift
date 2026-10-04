@@ -61,9 +61,12 @@ enum ShelfDropRoutingContract {
         var targetsMediaDrop = false
         var pinned = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 32, cameraWidth: 180)
+        var expandedGeometry: NotchGeometry { geometry }
         var surfaceSize: CGSize { geometry.expandedSize(module: .files) }
         var opened: [NotchModule] = []
+        var reactions: [NotchMascotReaction] = []
         func refreshPresentation() {}
+        func reactMascot(_ reaction: NotchMascotReaction, patience: TimeInterval = 8) { reactions.append(reaction) }
         func open(_ module: NotchModule, pinned: Bool = false, takeFocus: Bool = true) {
             opened.append(module)
             if pinned { self.pinned = true }
@@ -126,6 +129,8 @@ enum ShelfDropRoutingTests {
                 suite.expect(notch.opened == (accepted ? [.files] : [])
                        && notch.heldDrag == !accepted && notch.dragPlaceholder == !accepted,
                        "only accepted deliveries open files and release the island placeholder")
+                suite.expect(notch.reactions == (accepted ? [.celebrate] : []),
+                       "the companion cheers only a file that landed")
                 suite.expect(!canvas.finishDrop(board), "one gesture cannot deliver twice")
 
                 let dockDrop = Context.NSDraggingInfo(draggingPasteboard: board,

@@ -14,13 +14,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -95,6 +97,8 @@ struct NotchAgentsView: View {
                                 shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
         case .activity:
             NotchAgentActivityCard(snapshot: snapshot, text: text)
+        case .resets:
+            NotchAgentResetsCard(now: now, text: text)
         }
     }
 }
@@ -243,8 +247,8 @@ private struct NotchAgentLimitsCard: View {
         return parts.joined(separator: " · ")
     }
 
-    /// Without a recent reading from the Claude app, the session still starts
-    /// and ends on the hour of its first request, so the window itself is known.
+    /// Without a recent reading from the Claude app, the session still ends
+    /// five hours after its first request, so the window itself is known.
     @ViewBuilder private var estimate: some View {
         if provider == .claude, let block = snapshot.claudeBlock {
             let length = block.end.timeIntervalSince(block.start)
@@ -270,6 +274,43 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
+        } else if provider == .opencode {
+            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+            if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
+                let costText: String = {
+                    if todayUsage.unpriced > 0 {
+                        return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
+                    }
+                    return AgentFormat.cost(todayUsage.cost)
+                }()
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        Text(costText)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+                    HStack(spacing: 4) {
+                        Text(AgentFormat.tokens(todayUsage.tokens.total))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                        if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
+                            Text("· \(AgentFormat.percent(rate)) \(text.cached(""))".trimmingCharacters(in: .whitespaces))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
@@ -692,5 +733,167 @@ private struct NotchAgentActivityCard: View {
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
         byCost ? AgentFormat.cost(totals.cost) : AgentFormat.tokens(totals.tokens.total)
+    }
+}
+
+// MARK: Resets
+
+/// Codex's banked resets: how many the account holds, when the next one
+/// expires, and a use that asks first. Cancel takes the place of the button
+/// that asked, so a double click never spends one.
+private struct NotchAgentResetsCard: View {
+    let now: Date
+    let text: NotchAgentStrings
+    @ObservedObject private var resets = AgentCodexResetService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @State private var confirming = false
+    @Environment(\.locale) private var locale
+
+    private let tint = AgentProvider.codex.tint
+
+    /// What a use did stays on the card for a minute.
+    private var finished: AgentCodexResetService.Finished? {
+        resets.finished.flatMap { now.timeIntervalSince($0.date) < 60 ? $0 : nil }
+    }
+
+    var body: some View {
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: text.resetsCard, symbol: NotchAgentCard.resets.symbol, tint: tint,
+                                     provider: .codex) {
+                    if let summary = resets.summary, summary.available > 0 {
+                        NotchAgentChip(text: summary.available.formatted(.number.locale(locale)), tint: tint)
+                    } else if resets.checking {
+                        ProgressView().controlSize(.mini)
+                    }
+                }
+                content
+            }
+        }
+        .help(text.resetsHelp)
+        .onAppear { resets.refreshIfStale() }
+        // A count that changed while the question was open asks again.
+        .onChange(of: resets.summary?.available) { _, _ in confirming = false }
+    }
+
+    @ViewBuilder private var content: some View {
+        if resets.redeeming {
+            HStack(spacing: 5) {
+                ProgressView().controlSize(.mini)
+                line(text.resetting)
+            }
+        } else if confirming, let summary = resets.summary, summary.available > 0 {
+            action(text.resetConfirm, emphasized: true) {
+                pill(FeatureStrings.clipboard(l10n.language).cancel, prominent: false) { confirming = false }
+                pill(text.confirmReset) {
+                    confirming = false
+                    resets.redeem()
+                }
+            }
+        } else if let finished {
+            if finished.outcome == nil, let summary = resets.summary, summary.available > 0 {
+                // Trying again repeats the same use, which never spends a second reset.
+                VStack(alignment: .leading, spacing: 0) {
+                    outcome(nil)
+                    Spacer(minLength: 4)
+                    useButton
+                }
+            } else {
+                outcome(finished.outcome)
+            }
+        } else if resets.summary == nil, let failure = resets.failure {
+            action(message(failure)) {
+                pill(FeatureStrings.notchMusicExtras(l10n.language).retry, prominent: false) {
+                    resets.refresh(searchingShell: failure == .missing)
+                }
+            }
+        } else if let summary = resets.summary {
+            if summary.available > 0 {
+                // A reset a day from expiring is worth using soon.
+                let soon = summary.nextExpiry.map { $0.timeIntervalSince(now) < 86_400 } ?? false
+                action(summary.nextExpiry.map(expiry) ?? "", tint: soon ? .orange : nil) { useButton }
+            } else {
+                line(text.resetsNone)
+            }
+        }
+    }
+
+    private var useButton: some View {
+        pill(text.useReset, symbol: "arrow.counterclockwise") { confirming = true }
+    }
+
+    /// A line above the card's buttons, which keep to its bottom edge.
+    private func action<Buttons: View>(_ message: String, emphasized: Bool = false, tint: Color? = nil,
+                                       @ViewBuilder buttons: () -> Buttons) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !message.isEmpty {
+                Text(message)
+                    .font(.system(size: 10.5, weight: emphasized ? .medium : .regular))
+                    .foregroundStyle(tint.map { AnyShapeStyle($0) }
+                                     ?? (emphasized ? AnyShapeStyle(.white.opacity(0.9)) : AnyShapeStyle(.secondary)))
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 4)
+            HStack(spacing: 6) { buttons() }
+        }
+    }
+
+    private func expiry(_ date: Date) -> String {
+        text.resetsExpiry(date.formatted(.relative(presentation: .named).locale(locale)))
+    }
+
+    @ViewBuilder private func outcome(_ outcome: AgentCodexServer.Outcome?) -> some View {
+        switch outcome {
+        case .reset?:
+            line(text.resetDone, symbol: "checkmark.circle.fill", tint: .green)
+        case .nothingToReset?:
+            line(text.resetNotNeeded, symbol: "info.circle.fill", tint: .secondary)
+        case .alreadyRedeemed?:
+            line(text.resetTaken, symbol: "info.circle.fill", tint: .secondary)
+        case .noCredit?:
+            line(text.resetsNone)
+        case nil:
+            line(text.resetFailed, symbol: "exclamationmark.circle.fill", tint: .orange)
+        }
+    }
+
+    private func message(_ failure: AgentCodexServer.Failure) -> String {
+        switch failure {
+        case .missing: return text.resetsNeedCodex
+        case .needsSignIn: return text.resetsSignIn
+        case .outdated: return text.resetsUpdate
+        case .unreachable, .refused: return text.resetsCheckFailed
+        }
+    }
+
+    private func line(_ message: String, symbol: String? = nil, tint: Color = .secondary) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            if let symbol { Image(systemName: symbol).foregroundStyle(tint) }
+            Text(message).foregroundStyle(symbol == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.white.opacity(0.9)))
+        }
+        .font(.system(size: 10.5, weight: .medium))
+        .lineLimit(2)
+        .minimumScaleFactor(0.85)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func pill(_ title: String, symbol: String? = nil, prominent: Bool = true,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 3) {
+                if let symbol { Image(systemName: symbol).imageScale(.small) }
+                // A narrow island shrinks a long label before cutting it.
+                Text(title).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundStyle(prominent ? AnyShapeStyle(tint) : AnyShapeStyle(.white.opacity(0.85)))
+            .padding(.horizontal, 9)
+            .frame(height: 20)
+            .background(prominent ? tint.opacity(0.2) : .white.opacity(0.1), in: Capsule(style: .continuous))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 10))
     }
 }

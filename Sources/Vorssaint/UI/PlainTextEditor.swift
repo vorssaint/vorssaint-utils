@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
 
 /// An AppKit text view configured as a pure plain-text surface: no smart
@@ -16,8 +17,24 @@ struct PlainTextEditor: NSViewRepresentable {
     /// `lineFragmentPadding` sits inside the inset and is set on the text
     /// container below rather than assumed, so this stays the source of
     /// the number instead of a copy of AppKit's default.
-    static let fontSize: CGFloat = 13
+    static let defaultFontSize: CGFloat = 13
     static let lineFragmentPadding: CGFloat = 5
+
+    /// The point size this editor draws at. Callers that overlay their own
+    /// text pass the same number rather than the default, or the placeholder
+    /// stops sitting on the first line as soon as the size is changed.
+    var fontSize: CGFloat = PlainTextEditor.defaultFontSize
+
+    /// Whether the keyboard is in a find bar's search field rather than in
+    /// the text it searches, so Esc can put the search away before the pad.
+    static func findBarHasKeyboard(in window: NSWindow?) -> Bool {
+        guard let field = window?.firstResponder as? NSTextView, field.isFieldEditor,
+              let control = field.delegate as? NSView else { return false }
+        return sequence(first: control, next: \.superview).contains { view in
+            guard let bar = (view as? NSScrollView)?.findBarView else { return false }
+            return control.isDescendant(of: bar)
+        }
+    }
 
     @Binding var text: String
     /// Character offsets rather than String.Index: an index computed
@@ -30,18 +47,25 @@ struct PlainTextEditor: NSViewRepresentable {
     /// one from something that changes will not see it re-applied.
     var textColor: NSColor?
     var textContainerInset: NSSize?
+    /// Turns on AppKit's own find bar: the real Command-F, with its counter,
+    /// its highlighting and Command-G, none of which is worth rewriting.
+    var usesFindBar = false
     /// Handed the text view once, for callers that need to reach it later.
     var onCreate: ((NSTextView) -> Void)?
 
     init(text: Binding<String>,
+         fontSize: CGFloat = PlainTextEditor.defaultFontSize,
          selectedRange: Binding<Range<Int>?>? = nil,
          textColor: NSColor? = nil,
          textContainerInset: NSSize? = nil,
+         usesFindBar: Bool = false,
          onCreate: ((NSTextView) -> Void)? = nil) {
         self._text = text
+        self.fontSize = fontSize
         self.selectedRange = selectedRange
         self.textColor = textColor
         self.textContainerInset = textContainerInset
+        self.usesFindBar = usesFindBar
         self.onCreate = onCreate
     }
 
@@ -52,7 +76,7 @@ struct PlainTextEditor: NSViewRepresentable {
         scroll.autohidesScrollers = true
         guard let textView = scroll.documentView as? NSTextView else { return scroll }
         textView.drawsBackground = false
-        textView.font = .systemFont(ofSize: Self.fontSize)
+        textView.font = .systemFont(ofSize: fontSize)
         textView.textContainer?.lineFragmentPadding = Self.lineFragmentPadding
         textView.allowsUndo = true
         textView.isRichText = false
@@ -65,6 +89,10 @@ struct PlainTextEditor: NSViewRepresentable {
         textView.isAutomaticLinkDetectionEnabled = false
         textView.isAutomaticDataDetectionEnabled = false
         textView.smartInsertDeleteEnabled = false
+        if usesFindBar {
+            textView.usesFindBar = true
+            textView.isIncrementalSearchingEnabled = true
+        }
         if let textColor {
             textView.textColor = textColor
         }
@@ -76,14 +104,23 @@ struct PlainTextEditor: NSViewRepresentable {
         // synchronously, and makeNSView runs inside SwiftUI's update pass,
         // where writing state is undefined behavior.
         textView.delegate = context.coordinator
+        context.coordinator.installLineMoveMonitor(for: textView)
         onCreate?(textView)
         return scroll
     }
 
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        coordinator.removeLineMoveMonitor()
+    }
+
     func updateNSView(_ nsView: NSScrollView, context: Context) {
-        guard let textView = nsView.documentView as? NSTextView,
-              textView.string != text,
-              !textView.hasMarkedText() else { return }
+        guard let textView = nsView.documentView as? NSTextView else { return }
+        // Size is a preference and can change under a view that is already up,
+        // so it is applied before the text guard below rather than after it.
+        if textView.font?.pointSize != fontSize {
+            textView.font = .systemFont(ofSize: fontSize)
+        }
+        guard textView.string != text, !textView.hasMarkedText() else { return }
         // Setting .string posts a selection notification, and answering it
         // here would write state from inside a view update.
         context.coordinator.isApplyingExternalText = true
@@ -103,10 +140,56 @@ struct PlainTextEditor: NSViewRepresentable {
         private let text: Binding<String>
         private let selectedRange: Binding<Range<Int>?>?
         var isApplyingExternalText = false
+        private weak var textView: NSTextView?
+        private var lineMoveMonitor: Any?
 
         init(text: Binding<String>, selectedRange: Binding<Range<Int>?>?) {
             self.text = text
             self.selectedRange = selectedRange
+        }
+
+        /// Option-Up/Down moves the current line (or every line a selection
+        /// touches) past its neighbor, as in most code editors. AppKit has
+        /// no default key binding for it, so it is caught here rather than
+        /// through a selector NSTextView would otherwise never resolve.
+        func installLineMoveMonitor(for textView: NSTextView) {
+            self.textView = textView
+            lineMoveMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+                guard let self, let textView = self.textView,
+                      event.window === textView.window,
+                      textView.window?.firstResponder === textView,
+                      !textView.hasMarkedText(),
+                      event.modifierFlags.intersection([.command, .option, .shift, .control]) == .option
+                else { return event }
+                let direction: PlainTextLineMover.Direction
+                switch Int(event.keyCode) {
+                case kVK_UpArrow: direction = .up
+                case kVK_DownArrow: direction = .down
+                default: return event
+                }
+                return self.moveLine(direction, in: textView) ? nil : event
+            }
+        }
+
+        func removeLineMoveMonitor() {
+            if let lineMoveMonitor {
+                NSEvent.removeMonitor(lineMoveMonitor)
+                self.lineMoveMonitor = nil
+            }
+        }
+
+        private func moveLine(_ direction: PlainTextLineMover.Direction, in textView: NSTextView) -> Bool {
+            guard let result = PlainTextLineMover.moving(direction,
+                                                         in: textView.string,
+                                                         selection: textView.selectedRange())
+            else { return false }
+            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
+            guard textView.shouldChangeText(in: fullRange, replacementString: result.text) else { return false }
+            textView.textStorage?.replaceCharacters(in: fullRange, with: result.text)
+            textView.didChangeText()
+            textView.setSelectedRange(result.selection)
+            textView.scrollRangeToVisible(result.selection)
+            return true
         }
 
         func textDidChange(_ notification: Notification) {

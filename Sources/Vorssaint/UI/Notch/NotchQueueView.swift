@@ -24,13 +24,14 @@ struct NotchQueueView: View {
             if service.queueActionFailed {
                 Text(text.actionFailed).font(.caption).foregroundStyle(.orange)
             }
-            if let queue = service.upcoming, !queue.items.isEmpty {
+            if let queue = service.upcoming, !service.upcomingRows.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(queue.items) { item in
+                        ForEach(service.upcomingRows) { item in
                             HStack(spacing: 10) {
                                 Text("\(item.offset)").font(.caption).monospacedDigit()
                                     .foregroundStyle(.secondary).frame(width: 20)
+                                NotchArtwork(image: service.upcomingArtwork[item.id], size: 34)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(item.title).font(.callout.weight(.medium)).lineLimit(1)
                                     if !item.artist.isEmpty { Text(item.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
@@ -41,7 +42,7 @@ struct NotchQueueView: View {
                                             .frame(width: 28, height: 28).contentShape(Circle())
                                     }
                                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                                    .disabled(service.queueActionPending)
+                                    .disabled(service.queueActionPending || service.upcomingIsHeld)
                                     .help(text.playNow).accessibilityLabel("\(text.playNow): \(item.title)")
                                 }
                             }.padding(.vertical, 8)

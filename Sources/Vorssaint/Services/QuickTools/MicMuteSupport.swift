@@ -12,7 +12,8 @@ enum MicMuteSupport {
     /// not a microphone, and muting one would silence the very thing it is
     /// rendering or reading; a private aggregate is still listed to the
     /// process that created it, so every device list skips them by name.
-    static let ownDeviceNames: Set<String> = ["Vorssaint Mixer", "Vorssaint Island Levels", "Vorssaint Recorder"]
+    static let ownDeviceNames: Set<String> = ["Vorssaint Mixer", "Vorssaint AirPlay", "Vorssaint Island Levels",
+                                              "Vorssaint Recorder"]
 
     /// The level a device falls back to when nothing was ever saved for it:
     /// loud enough to be usable, quiet enough not to startle.

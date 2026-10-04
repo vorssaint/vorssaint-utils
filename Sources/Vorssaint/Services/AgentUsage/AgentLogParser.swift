@@ -10,12 +10,20 @@ import Foundation
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
+    /// A later chunk can identify the model of an already-counted request.
+    case usageModel(key: String, model: String)
     case limits(AgentLimits)
     case plan(String, observedAt: Date)
     case turnBegan(Date)
+    /// Model and folder context known before usage is reported.
+    case turnContext(model: String, project: String)
     /// Work continues; nil when the line was not worth decoding for its time.
     case turnActive(Date?)
+    /// A step ended expecting the agent to go on; unless work follows soon,
+    /// the agent stopped there and its turn is over.
+    case turnSettled(Date)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    case reset(Date)
 }
 
 /// Per-file context carried from line to line.
@@ -30,6 +38,38 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// Copilot shutdown counters are cumulative for the life of a session.
+    var copilotTotals: [String: AgentTokens] = [:]
+    /// Counted requests by model; the empty key holds unresolved attribution.
+    var copilotRequests: [String: Int] = [:]
+    var copilotRequestModels: [String: String] = [:]
+    var copilotReportedRequests: [String: Int] = [:]
+    var copilotTurnID: String?
+    var copilotFinalResponse = false
+    /// The parent session when a database row belongs to a subagent.
+    var parentSession = ""
+    /// OpenCode stores all sessions in one database, tracking per-session state.
+    var openCodeSessions: [String: OpenCodeSessionState] = [:]
+}
+
+/// Per-session turn and model tracking for OpenCode databases.
+struct OpenCodeSessionState: Equatable {
+    var project = ""
+    var model = ""
+    var turnOpen = false
+    var turnStarted: Date?
+    var activeUserMessageID = ""
+    /// The newest moment the session's rows tell of.
+    var lastActivity: Date?
+    /// When a step ended expecting the loop to go on, until a row follows.
+    var settledAt: Date?
+    /// The reply being written, until it completes.
+    var writingReplyID = ""
+    /// When the prompt the session answers now was written.
+    var activePromptDate: Date?
+    var seenUserMessageIDs: Set<String> = []
+    var completedAssistantMessageIDs: Set<String> = []
+    var completedUserMessageIDs: Set<String> = []
 }
 
 enum AgentLogParser {
@@ -43,6 +83,30 @@ enum AgentLogParser {
             return memmem(base, bytes.count, needle.utf8Start, needle.utf8CodeUnitCount) != nil
         }
     }
+
+    /// The first `"type":"…"` value at or after `start`, and where it ends.
+    /// A Codex rollout line writes its own type before its payload, and an
+    /// event's payload opens with the event's type, so the search stops
+    /// within the first hundred bytes instead of crossing tool output or
+    /// compacted history that can run to tens of megabytes per line.
+    static func firstType(_ line: Data, from start: Int = 0) -> (name: String, end: Int)? {
+        let key: StaticString = #""type":""#
+        return line.withUnsafeBytes { bytes in
+            guard let base = bytes.baseAddress, start < bytes.count,
+                  let found = memmem(base + start, bytes.count - start, key.utf8Start, key.utf8CodeUnitCount)
+            else { return nil }
+            let value = base.distance(to: found) + key.utf8CodeUnitCount
+            // Type names are short identifiers.
+            let limit = min(bytes.count, value + 64)
+            guard value < limit, let quote = memchr(base + value, 0x22, limit - value) else { return nil }
+            let end = base.distance(to: UnsafeRawPointer(quote))
+            return (String(decoding: UnsafeRawBufferPointer(rebasing: bytes[value..<end]), as: UTF8.self), end + 1)
+        }
+    }
+
+    private static let codexEvents: Set<String> = [
+        "token_count", "task_started", "task_complete", "turn_aborted", "thread_settings_applied",
+    ]
 
     private static func object(_ line: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: line)) as? [String: Any]
@@ -146,15 +210,12 @@ enum AgentLogParser {
     // MARK: Codex
 
     static func parseCodex(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        let record = contains(line, #""type":"token_usage_record""#)
-        let event = !record && contains(line, #""type":"event_msg""#)
-        let context = !record && !event
-            && (contains(line, #""type":"turn_context""#) || contains(line, #""type":"session_meta""#))
-        guard record || event || context else { return [] }
-        if event, !contains(line, #""type":"token_count""#), !contains(line, #""type":"task_started""#),
-           !contains(line, #""type":"task_complete""#), !contains(line, #""type":"turn_aborted""#),
-           !contains(line, #""type":"thread_settings_applied""#) {
-            return []
+        guard let kind = firstType(line) else { return [] }
+        switch kind.name {
+        case "token_usage_record", "turn_context", "session_meta": break
+        case "event_msg":
+            guard let event = firstType(line, from: kind.end), codexEvents.contains(event.name) else { return [] }
+        default: return []
         }
         guard let json = object(line), let payload = json["payload"] as? [String: Any] else { return [] }
         let date = timestamp(json["timestamp"]) ?? now
@@ -254,6 +315,247 @@ enum AgentLogParser {
             tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)
     }
 
+    // MARK: OpenCode
+
+    /// OpenCode starts the next step the moment a step's tools return, so
+    /// a turn that goes this long without one after a step ended has stopped,
+    /// as when a permission was rejected or a question dismissed.
+    static let openCodeSettle: TimeInterval = 30
+
+    static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard contains(line, #""role":""#) || contains(line, #""type":"reset""#) else { return [] }
+        guard let json = object(line) else { return [] }
+        if json["type"] as? String == "reset" {
+            state.openCodeSessions.removeAll()
+            state.turnOpen = false
+            return [.reset(now)]
+        }
+        guard let role = json["role"] as? String else { return [] }
+        let id = json["id"] as? String ?? ""
+        let session = json["session_id"] as? String ?? ""
+        let sessionID = session.isEmpty ? state.session : native(session)
+        state.session = sessionID
+        state.parentSession = json["parent_session_id"] as? String ?? ""
+
+        var sessionState = state.openCodeSessions[sessionID] ?? OpenCodeSessionState()
+
+        let cwd = (json["path"] as? [String: Any])?["cwd"] as? String ?? json["directory"] as? String ?? ""
+        if !cwd.isEmpty {
+            sessionState.project = projectName(cwd)
+        }
+
+        let timeCreated = (json["time"] as? [String: Any])?["created"] ?? json["time_created"]
+        let date = seconds(timeCreated) ?? now
+        // A session quiet this long with no reply being written starts its
+        // next prompt as a task of its own, so what it kept to tell its rows
+        // apart can go. Sessions are looked over only as a new one appears.
+        if state.openCodeSessions[sessionID] == nil {
+            state.openCodeSessions = state.openCodeSessions.filter { _, kept in
+                !kept.writingReplyID.isEmpty
+                    || date.timeIntervalSince(kept.lastActivity ?? date) < NotchAgentSupport.idleTurn
+            }
+        }
+        let lastActivity = sessionState.lastActivity
+        sessionState.lastActivity = max(lastActivity ?? date, date)
+
+        switch role {
+        case "user":
+            if !id.isEmpty {
+                // A prompt read again, as when its summary is saved, is no new one.
+                if sessionState.seenUserMessageIDs.contains(id) { return [] }
+                remember(id, in: &sessionState.seenUserMessageIDs)
+                sessionState.activeUserMessageID = id
+            }
+            // OpenCode writes prompts of its own in the middle of a task: the
+            // request that starts a compaction, the follow up after one, the
+            // summary after a command's subtask. A prompt sent while it works
+            // joins the running loop too, so inside a turn each is activity.
+            var entries: [AgentLogEntry] = []
+            // A prompt that arrives after the session went quiet is a task of
+            // its own: the one before stopped without a word, as when a tool
+            // call was rejected, and nothing finished. While a reply is still
+            // being written, as through a long command, the prompt joins it.
+            let quiet: Bool
+            if let settled = sessionState.settledAt {
+                quiet = date.timeIntervalSince(settled) >= openCodeSettle
+            } else if sessionState.writingReplyID.isEmpty, let lastActivity {
+                quiet = date.timeIntervalSince(lastActivity) >= NotchAgentSupport.idleTurn
+            } else {
+                quiet = false
+            }
+            sessionState.settledAt = nil
+            sessionState.activePromptDate = date
+            if sessionState.turnOpen && !quiet {
+                entries.append(.turnActive(date))
+            } else {
+                if sessionState.turnOpen {
+                    entries.append(.turnEnded(lastActivity, completed: false, duration: nil))
+                }
+                sessionState.turnOpen = true
+                sessionState.turnStarted = date
+                entries.append(.turnBegan(date))
+            }
+            let userModel = json["model_id"] as? String
+                ?? json["modelID"] as? String
+                ?? (json["model"] as? [String: Any])?["modelID"] as? String
+                ?? (json["model"] as? [String: Any])?["id"] as? String
+                ?? json["model"] as? String
+            if let userModel, !userModel.isEmpty {
+                sessionState.model = native(userModel)
+            }
+            state.openCodeSessions[sessionID] = sessionState
+            state.project = sessionState.project
+            state.model = sessionState.model
+            state.turnOpen = true
+            return entries
+
+        case "assistant":
+            let rawModel = json["model_id"] as? String
+                ?? json["modelID"] as? String
+                ?? (json["model"] as? [String: Any])?["modelID"] as? String
+                ?? (json["model"] as? [String: Any])?["id"] as? String
+                ?? json["model"] as? String
+            if let rawModel, !rawModel.isEmpty {
+                sessionState.model = native(rawModel)
+            }
+            let tokensDict = json["tokens"] as? [String: Any] ?? [:]
+            let input = int(tokensDict["input"])
+            let output = int(tokensDict["output"])
+            let reasoning = int(tokensDict["reasoning"])
+            let cacheDict = tokensDict["cache"] as? [String: Any] ?? [:]
+            let cacheRead = int(cacheDict["read"])
+            let cacheWrite = int(cacheDict["write"])
+            let tokens = AgentTokens(input: input, cacheWrite: cacheWrite, cacheRead: cacheRead,
+                                     output: output + reasoning, reasoning: reasoning)
+            let billable = AgentBillable(tokens: tokens)
+            let priced = AgentPricing.cost(billable, model: sessionState.model)
+            let recordedCost = (json["cost"] as? NSNumber)?.doubleValue
+            let reportedCostVal = recordedCost ?? 0
+            // A model the list does not know costs what OpenCode recorded.
+            // Local and free models record zero, which stays an estimate so
+            // a price the list learns later still applies.
+            let cost: Double?
+            let isReported: Bool
+            if let calculated = priced.cost {
+                cost = calculated
+                isReported = false
+            } else if let recordedCost {
+                cost = recordedCost
+                isReported = recordedCost > 0
+            } else {
+                cost = nil
+                isReported = false
+            }
+
+            let parentID = json["parentID"] as? String ?? ""
+            let isAlreadyCompleted = (!id.isEmpty && sessionState.completedAssistantMessageIDs.contains(id))
+                || (!parentID.isEmpty && sessionState.completedUserMessageIDs.contains(parentID))
+            let matchesActivePrompt = parentID.isEmpty || parentID == sessionState.activeUserMessageID
+
+            let timeCompleted = (json["time"] as? [String: Any])?["completed"]
+            let completed = seconds(timeCompleted)
+            let hasError = json["error"].map { !($0 is NSNull) } ?? false
+            let finish = json["finish"] as? String
+            if let completed { sessionState.lastActivity = max(sessionState.lastActivity ?? completed, completed) }
+            // A step that starts after the last one settled is the loop going on.
+            if let settled = sessionState.settledAt, date >= settled { sessionState.settledAt = nil }
+
+            var entries: [AgentLogEntry] = []
+            // OpenCode completes each reply before it answers a prompt sent
+            // meanwhile. A reply to a newer prompt while an older one never
+            // completed means OpenCode stopped in the middle of it, as when
+            // it was killed, and the newer prompt started a task of its own.
+            if !id.isEmpty, !sessionState.writingReplyID.isEmpty, sessionState.writingReplyID != id,
+               sessionState.turnOpen, !parentID.isEmpty, parentID == sessionState.activeUserMessageID,
+               let prompt = sessionState.activePromptDate, let started = sessionState.turnStarted, prompt > started {
+                entries.append(.turnEnded(nil, completed: false, duration: nil))
+                entries.append(.turnBegan(prompt))
+                sessionState.turnStarted = prompt
+            }
+            if completed == nil && finish == nil && !hasError && !id.isEmpty {
+                sessionState.writingReplyID = id
+            } else if sessionState.writingReplyID == id {
+                sessionState.writingReplyID = ""
+            }
+            if !isAlreadyCompleted && matchesActivePrompt && !sessionState.turnOpen {
+                sessionState.turnOpen = true
+                sessionState.turnStarted = date
+                entries.append(.turnBegan(date))
+            }
+            // A reply is saved before its answer arrives, and a shell command
+            // run from the prompt, the reply that hands work to a subtask and
+            // a request that failed or was stopped never hold any usage.
+            if tokens.total > 0 || reportedCostVal > 0 {
+                let key = "opencode:\(sessionID):\(id.isEmpty ? "\(date.timeIntervalSince1970)" : id)"
+                let record = AgentUsageRecord(
+                    provider: .opencode, date: date, model: sessionState.model, project: sessionState.project,
+                    session: sessionID, tokens: tokens, cost: cost, savings: priced.savings,
+                    reportedCost: isReported
+                )
+                entries.append(.usage(key: key, record: record, billable: billable))
+            }
+
+            // OpenCode's loop goes on after tool calls, after a reply that
+            // still holds calls whatever its finish says, and after the
+            // summary of a compaction it started on its own. Any other finish
+            // stops it, as does an error or a reply that completes without a
+            // finish, like a shell command's.
+            let ends: Bool
+            if hasError {
+                ends = true
+            } else if let finish {
+                ends = !["tool-calls", "unknown"].contains(finish)
+                    && json["tool_calls"] as? Bool != true && json["auto_compaction"] as? Bool != true
+            } else {
+                ends = completed != nil
+            }
+
+            if ends {
+                if !isAlreadyCompleted && matchesActivePrompt && sessionState.turnOpen {
+                    let endDate = completed ?? seconds(json["time_updated"]) ?? date
+                    var duration: TimeInterval?
+                    if let turnStarted = sessionState.turnStarted {
+                        if endDate >= turnStarted {
+                            duration = endDate.timeIntervalSince(turnStarted)
+                        }
+                    } else if endDate >= date {
+                        duration = endDate.timeIntervalSince(date)
+                    }
+                    sessionState.turnOpen = false
+                    sessionState.turnStarted = nil
+                    sessionState.activeUserMessageID = ""
+                    sessionState.settledAt = nil
+                    entries.append(.turnEnded(endDate, completed: !hasError, duration: duration))
+                }
+                if !id.isEmpty { remember(id, in: &sessionState.completedAssistantMessageIDs) }
+                if !parentID.isEmpty { remember(parentID, in: &sessionState.completedUserMessageIDs) }
+            } else if !isAlreadyCompleted && matchesActivePrompt {
+                // A step that completed hands over to the next one at once,
+                // unless the loop stopped there.
+                if let completed, sessionState.turnOpen {
+                    sessionState.settledAt = completed
+                    entries.append(.turnSettled(completed))
+                } else {
+                    entries.append(.turnActive(date))
+                }
+            }
+            state.openCodeSessions[sessionID] = sessionState
+            state.project = sessionState.project
+            state.model = sessionState.model
+            state.turnOpen = sessionState.turnOpen
+            return entries
+
+        default:
+            return []
+        }
+    }
+
+    /// Keeps a bounded number of message ids a session has settled.
+    private static func remember(_ id: String, in ids: inout Set<String>) {
+        if ids.count > 100 { ids.removeFirst() }
+        ids.insert(id)
+    }
+
     /// Input counts include what came from the cache.
     static func codexTokens(_ usage: [String: Any]) -> AgentTokens {
         let input = int(usage["input_tokens"])
@@ -261,6 +563,187 @@ enum AgentLogParser {
         let written = min(input - cached, int(usage["cache_write_input_tokens"]))
         return AgentTokens(input: input - cached - written, cacheWrite: written, cacheRead: cached,
                            output: int(usage["output_tokens"]), reasoning: int(usage["reasoning_output_tokens"]))
+    }
+
+    // MARK: GitHub Copilot
+
+    /// Copilot CLI and the GitHub Copilot app share an append-only event log.
+    /// Only session context, turn boundaries and cumulative model counters are
+    /// decoded; prompts, replies, reasoning and tool arguments are ignored.
+    static func parseCopilot(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard let envelope = AgentLogObject(line), let type = envelope.string("type"),
+              copilotEvent(type), let data = envelope.object("data") else { return [] }
+        let agent = envelope.string("agentId").flatMap { $0.isEmpty ? nil : $0 }
+        let root = agent == nil
+        // Subagents share the root log. Their responses count as activity,
+        // but their lifecycle and model changes never change the root task.
+        guard root || type == "assistant.message" else { return [] }
+        let date = timestamp(envelope.value("timestamp")) ?? now
+        switch type {
+        case "user.message", "assistant.turn_start":
+            state.copilotFinalResponse = false
+            state.copilotTurnID = type == "assistant.turn_start" ? data.string("turnId") : nil
+            if let model = data.string("model"), !model.isEmpty { state.model = native(model) }
+            let entry: AgentLogEntry = state.turnOpen ? .turnActive(date) : .turnBegan(date)
+            state.turnOpen = true
+            return [entry, .turnContext(model: state.model, project: state.project)]
+        case "assistant.message":
+            // A subagent can choose a different model; missing metadata is
+            // unknown, not evidence that it used the root's selected model.
+            let model = data.string("model").flatMap { $0.isEmpty ? nil : native($0) } ?? (root ? state.model : "")
+            var entries = copilotActivity(data, envelope: envelope, agent: agent, model: model,
+                                          date: date, state: &state)
+            guard root else { return entries }
+            state.model = model
+            // Each tool iteration has its own turn_end. Only an iteration
+            // delivering a final response can finish the person's task.
+            state.copilotFinalResponse = !data.hasItems("toolRequests")
+                && !["thinking", "commentary"].contains(data.string("phase") ?? "")
+            if state.turnOpen {
+                entries += [.turnContext(model: state.model, project: state.project), .turnActive(date)]
+            }
+            return entries
+        case "assistant.turn_end":
+            guard state.turnOpen,
+                  state.copilotTurnID == nil || state.copilotTurnID == data.string("turnId") else { return [] }
+            guard state.copilotFinalResponse else { return [.turnActive(date)] }
+            state.turnOpen = false
+            state.copilotFinalResponse = false
+            return [.turnEnded(date, completed: true, duration: nil)]
+        case "session.start":
+            if let session = data.string("sessionId"), !session.isEmpty {
+                state.session = native(session)
+            }
+            if let model = data.string("selectedModel"), !model.isEmpty {
+                state.model = native(model)
+            }
+            if let context = data.object("context"),
+               let path = ["gitRoot", "cwd", "repository"].compactMap({ context.string($0) }).first(where: { !$0.isEmpty }) {
+                state.project = projectName(path)
+            }
+            return []
+        case "session.context_changed":
+            if let path = ["gitRoot", "cwd", "repository"].compactMap({ data.string($0) }).first(where: { !$0.isEmpty }) {
+                state.project = projectName(path)
+            }
+            return state.turnOpen ? [.turnContext(model: state.model, project: state.project)] : []
+        case "session.model_change":
+            if let model = data.string("newModel"), !model.isEmpty { state.model = native(model) }
+            return state.turnOpen ? [.turnContext(model: state.model, project: state.project)] : []
+        case "abort":
+            guard state.turnOpen else { return [] }
+            state.turnOpen = false
+            state.copilotFinalResponse = false
+            return [.turnEnded(date, completed: false, duration: nil)]
+        case "session.shutdown":
+            var entries = copilotUsage(data.value("modelMetrics") as? [String: Any], event: envelope.string("id"),
+                                       date: date, state: &state)
+            if state.turnOpen {
+                state.turnOpen = false
+                entries.append(.turnEnded(date, completed: false, duration: nil))
+            }
+            return entries
+        default:
+            return []
+        }
+    }
+
+    static func copilotEvent(_ type: String) -> Bool {
+        ["user.message", "assistant.turn_start", "assistant.message", "assistant.turn_end",
+         "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
+    }
+
+    private static func copilotActivity(_ data: AgentLogObject, envelope: AgentLogObject, agent: String?,
+                                        model: String, date: Date, state: inout AgentLogState) -> [AgentLogEntry] {
+        let call = data.string("apiCallId").flatMap { $0.isEmpty ? nil : $0 }
+        let message = data.string("messageId").flatMap { $0.isEmpty ? nil : $0 }
+            ?? envelope.string("id") ?? String(date.timeIntervalSince1970)
+        // Each API call can emit several messages. Older logs lack apiCallId,
+        // so they retain message-level deduplication. Namespace IDs by kind
+        // and agent so independent calls cannot collide with those fallbacks.
+        let request = (agent.map { "agent:\($0)" } ?? "root") + ":"
+            + (call.map { "api:\($0)" } ?? "message:\(message)")
+        let key = "copilot:\(state.session):\(request):activity"
+        if let previous = state.copilotRequestModels[request] {
+            guard previous.isEmpty, !model.isEmpty else { return [] }
+            state.copilotRequestModels[request] = model
+            state.copilotRequests[previous, default: 0] -= 1
+            state.copilotRequests[model, default: 0] += 1
+            return [.usageModel(key: key, model: model)]
+        }
+        state.copilotRequestModels[request] = model
+        state.copilotRequests[model, default: 0] += 1
+        return [.usage(key: key, record: AgentUsageRecord(
+            provider: .copilot, date: date, model: model, project: state.project, session: state.session,
+            tokens: AgentTokens(), cost: 0, savings: 0), billable: AgentBillable(isAggregate: true))]
+    }
+
+    private static func copilotUsage(_ metrics: [String: Any]?, event: String?, date: Date,
+                                     state: inout AgentLogState) -> [AgentLogEntry] {
+        guard let metrics else { return [] }
+        var growth: [String: AgentTokens] = [:]
+        for (model, value) in metrics {
+            guard let metric = value as? [String: Any] else { continue }
+            let total = copilotTokens(metric)
+            growth[model] = tokenGrowth(total, after: state.copilotTotals[model])
+            state.copilotTotals[model] = total
+            let reported = int((metric["requests"] as? [String: Any])?["count"])
+            state.copilotReportedRequests[model] = max(state.copilotReportedRequests[model, default: 0],
+                                                       max(reported, total.total > 0 ? 1 : 0))
+        }
+        let deficits = state.copilotReportedRequests
+            .map { (model: $0.key, count: max(0, $0.value - state.copilotRequests[$0.key, default: 0])) }
+        let unresolved = state.copilotRequests["", default: 0]
+        var missing = max(0, deficits.reduce(0) { $0 + $1.count } - unresolved)
+        var requests: [String: Int] = [:]
+        // Unknown responses can cover any model's deficit, but only once
+        // across the whole session. Attribute only the excess that must be
+        // this model; retain ambiguous requests in the unknown bucket.
+        for deficit in deficits {
+            let certain = max(0, deficit.count - unresolved)
+            requests[deficit.model] = certain
+            missing -= certain
+        }
+        if missing > 0 { requests["", default: 0] += missing }
+        var entries: [AgentLogEntry] = []
+        for model in Set(growth.keys).union(requests.keys).sorted() {
+            let tokens = growth[model] ?? AgentTokens()
+            let count = requests[model, default: 0]
+            state.copilotRequests[model, default: 0] += count
+            guard tokens.total > 0 || count > 0 else { continue }
+            let billable = AgentBillable(tokens: tokens, isAggregate: true)
+            let name = native(model)
+            let priced = AgentPricing.cost(billable, model: name)
+            let checkpoint = event.flatMap { $0.isEmpty ? nil : native($0) }
+                ?? String(date.timeIntervalSince1970)
+            entries.append(.usage(key: "copilot:\(state.session):\(checkpoint):\(name)", record: AgentUsageRecord(
+                provider: .copilot, date: date, model: name, project: state.project, session: state.session,
+                requests: count, tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+        }
+        return entries
+    }
+
+    private static func copilotTokens(_ metric: [String: Any]) -> AgentTokens {
+        let details = metric["tokenDetails"] as? [String: Any] ?? [:]
+        let usage = metric["usage"] as? [String: Any] ?? [:]
+        func count(_ detail: String, _ fallback: String) -> Int {
+            if let value = (details[detail] as? [String: Any])?["tokenCount"] { return int(value) }
+            return int(usage[fallback])
+        }
+        return AgentTokens(input: count("input", "inputTokens"),
+                           cacheWrite: count("cache_write", "cacheWriteTokens"),
+                           cacheRead: count("cache_read", "cacheReadTokens"),
+                           output: count("output", "outputTokens"),
+                           reasoning: int(usage["reasoningTokens"]))
+    }
+
+    private static func tokenGrowth(_ total: AgentTokens, after previous: AgentTokens?) -> AgentTokens {
+        guard let previous, total.total >= previous.total else { return total }
+        return AgentTokens(input: max(0, total.input - previous.input),
+                           cacheWrite: max(0, total.cacheWrite - previous.cacheWrite),
+                           cacheRead: max(0, total.cacheRead - previous.cacheRead),
+                           output: max(0, total.output - previous.output),
+                           reasoning: max(0, total.reasoning - previous.reasoning))
     }
 
     /// Codex logs a reading for each allowance: the main one under "codex",
@@ -272,21 +755,36 @@ enum AgentLogParser {
         return id.isEmpty || id == "codex"
     }
 
+    /// The names a log gives a window's figures; Codex's server spells the
+    /// same ones in camel case.
+    typealias WindowKeys = (used: String, minutes: String, resets: String, individual: String, remaining: String)
+    static let logWindowKeys: WindowKeys = ("used_percent", "window_minutes", "resets_at",
+                                            "individual_limit", "remaining_percent")
+
     /// Windows are told apart by their length, never by their slot: an
-    /// account can report only its weekly window, and in either slot.
-    static func codexWindows(_ limits: [String: Any], observed: Date) -> [AgentLimitWindow]? {
+    /// account can report only its weekly window, and in either slot. A
+    /// Business account can leave both slots empty and report its allowance
+    /// as the share left of its own limit instead.
+    static func codexWindows(_ limits: [String: Any], observed: Date,
+                             keys: WindowKeys = logWindowKeys) -> [AgentLimitWindow]? {
         var windows: [AgentLimitWindow] = []
         for slot in ["primary", "secondary"] {
             guard let window = limits[slot] as? [String: Any],
-                  let used = (window["used_percent"] as? NSNumber)?.doubleValue, used.isFinite else { continue }
-            let minutes = (window["window_minutes"] as? NSNumber)?.intValue
-            var resets = seconds(window["resets_at"])
+                  let used = (window[keys.used] as? NSNumber)?.doubleValue, used.isFinite else { continue }
+            let minutes = (window[keys.minutes] as? NSNumber)?.intValue
+            var resets = seconds(window[keys.resets])
             if resets == nil, let delay = (window["resets_in_seconds"] as? NSNumber)?.doubleValue, delay.isFinite {
                 resets = observed.addingTimeInterval(max(0, delay))
             }
             windows.append(AgentLimitWindow(id: "codex.\(minutes.map(String.init) ?? slot)",
                                             kind: kind(minutes: minutes), minutes: minutes, scope: nil,
                                             usedPercent: min(100, max(0, used)), resetsAt: resets))
+        }
+        if windows.isEmpty, let individual = limits[keys.individual] as? [String: Any],
+           let remaining = (individual[keys.remaining] as? NSNumber)?.doubleValue, remaining.isFinite {
+            windows.append(AgentLimitWindow(id: "codex.individual", kind: .other, minutes: nil, scope: nil,
+                                            usedPercent: min(100, max(0, 100 - remaining)),
+                                            resetsAt: seconds(individual[keys.resets])))
         }
         return windows.sorted { ($0.minutes ?? .max) < ($1.minutes ?? .max) }
     }

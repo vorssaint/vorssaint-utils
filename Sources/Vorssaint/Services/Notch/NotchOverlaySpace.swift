@@ -16,12 +16,17 @@ import AppKit
 /// be destroyed under it, or the window would have none and never show
 /// again. The symbols are resolved at runtime; without them the island keeps
 /// sliding with the desktop, as before.
+///
+/// Given an absolute level, the Space is drawn with the system's own layers
+/// instead: at the level of its lock screen notifications, over the lock
+/// screen itself.
 final class NotchOverlaySpace {
     private typealias ConnectionID = UInt32
     private typealias CreateFunction = @convention(c) (ConnectionID, Int32, CFDictionary?) -> UInt64
     private typealias SpacesFunction = @convention(c) (ConnectionID, CFArray) -> Int32
     private typealias WindowsFunction = @convention(c) (ConnectionID, CFArray, CFArray) -> Void
     private typealias DestroyFunction = @convention(c) (ConnectionID, UInt64) -> Void
+    private typealias LevelFunction = @convention(c) (ConnectionID, UInt64, Int32) -> Int32
 
     private struct Bridge {
         let connection: ConnectionID
@@ -31,6 +36,7 @@ final class NotchOverlaySpace {
         let add: WindowsFunction
         let remove: WindowsFunction
         let destroy: DestroyFunction
+        let setLevel: LevelFunction?
     }
 
     private static let bridge: Bridge? = {
@@ -49,7 +55,8 @@ final class NotchOverlaySpace {
                       hide: unsafeBitCast(hide, to: SpacesFunction.self),
                       add: unsafeBitCast(add, to: WindowsFunction.self),
                       remove: unsafeBitCast(remove, to: WindowsFunction.self),
-                      destroy: unsafeBitCast(destroy, to: DestroyFunction.self))
+                      destroy: unsafeBitCast(destroy, to: DestroyFunction.self),
+                      setLevel: symbol("CGSSpaceSetAbsoluteLevel").map { unsafeBitCast($0, to: LevelFunction.self) })
     }()
 
     private let bridge: Bridge
@@ -57,11 +64,17 @@ final class NotchOverlaySpace {
     private var windows = Set<Int>()
     private var closed = false
 
-    init?() {
+    init?(absoluteLevel: Int32? = nil) {
         guard let bridge = Self.bridge else { return nil }
         // Any flag but 1 makes Finder draw the desktop icons in this Space.
         let space = bridge.create(bridge.connection, 1, nil)
         guard space != 0 else { return nil }
+        if let absoluteLevel {
+            guard let setLevel = bridge.setLevel, setLevel(bridge.connection, space, absoluteLevel) == 0 else {
+                bridge.destroy(bridge.connection, space)
+                return nil
+            }
+        }
         self.bridge = bridge
         self.space = space
         _ = bridge.show(bridge.connection, [NSNumber(value: space)] as CFArray)

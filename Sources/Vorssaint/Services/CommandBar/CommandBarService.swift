@@ -129,6 +129,18 @@ final class CommandBarService: ObservableObject {
     /// is set.
     @Published private(set) var isCompactHome = false
 
+    /// Where the open bar shows: its own window, a window the Dynamic Island
+    /// drops below itself, or inside the open island.
+    @Published private(set) var presentation = CommandBarPresentation.window
+
+    /// True while a file search or a saved script is still answering what
+    /// was typed. The companion thinks meanwhile.
+    @Published private(set) var awaitsAnswers = false
+
+    /// The companion's face as the bar goes back into the island: a wink
+    /// goodbye, or determined once something ran.
+    var farewell = NotchMascotMood.wink
+
     private let hotkey = QuickToolHotkey(id: 20)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
@@ -157,6 +169,7 @@ final class CommandBarService: ObservableObject {
     private var windowEntries: [CommandBarEntry] = [] { didSet { foldedSections[.windows] = nil } }
     private var quitEntries: [CommandBarEntry] = [] { didSet { foldedSections[.quit] = nil } }
     private var uninstallEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallApps] = nil } }
+    private var uninstallableAppIDs: Set<String> = []
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
@@ -209,6 +222,12 @@ final class CommandBarService: ObservableObject {
     /// has not moved must not steal the selection from the keyboard.
     private var lastPointerLocation = NSPoint.zero
     private var panelScreen: NSRect?
+    /// The island's panel while the bar is open inside it.
+    private weak var islandHost: NSPanel?
+    /// Where the drop leaves the island, read as the bar takes the keyboard.
+    private var dropSource: CGRect?
+    /// Keys typed before the field was drawn, kept in order for it.
+    private var pendingKeys: [NSEvent] = []
     /// The selected row's id, so a rebuilt list keeps the selection on the
     /// same command instead of on the same position.
     private var selectedID: String?
@@ -247,10 +266,16 @@ final class CommandBarService: ObservableObject {
         syncRowHotkeys()
         if available {
             // Build the one view tree after launch, outside the keystroke that
-            // asks to see it for the first time.
+            // asks to see it for the first time, and lay it out: a window draws
+            // itself before it first appears, and keys typed meanwhile would
+            // still reach the app in front.
             DispatchQueue.main.async { [weak self] in
                 guard AppFeature.commandBar.isAvailable, let self else { return }
-                _ = self.ensurePanel()
+                let panel = self.ensurePanel()
+                if !panel.isVisible {
+                    panel.contentViewController?.view.layoutSubtreeIfNeeded()
+                    panel.display()
+                }
             }
         }
         if !available {
@@ -276,6 +301,7 @@ final class CommandBarService: ObservableObject {
             normalizedByID = [:]
             entriesByStableKey = [:]
             cachedApps = []
+            uninstallableAppIDs = []
             pendingAppShortcut.cancel()
             windowsLoadedAt = nil
             rows = []
@@ -293,7 +319,7 @@ final class CommandBarService: ObservableObject {
     }
 
     var isVisible: Bool {
-        panel?.isVisible == true
+        panel?.isVisible == true || presentation == .island
     }
 
     func toggle() {
@@ -307,6 +333,11 @@ final class CommandBarService: ObservableObject {
     private func show(promptingFor stableKey: String?) {
         guard AppFeature.commandBar.isAvailable else { return }
         let panel = ensurePanel()
+        // The window that shows the bar takes the keyboard before anything is
+        // prepared, so keys typed right after the shortcut wait in this app
+        // for the field instead of reaching the app in front.
+        let reopening = isVisible
+        if !reopening { claimKeyboard(with: panel) }
         if AppFeature.textSnippets.isAvailable {
             TextSnippetService.shared.setCommandBarVisible(true)
         }
@@ -316,7 +347,7 @@ final class CommandBarService: ObservableObject {
         query = ""
         refreshResults()
         adoptASCIIInputSource()
-        present(panel)
+        present(panel, reopening: reopening)
         // Ordering the prepared panel is the keystroke path. Home is filled on
         // the next main-loop turn, when a close or newer opening can supersede it.
         DispatchQueue.main.async { [weak self] in
@@ -351,6 +382,8 @@ final class CommandBarService: ObservableObject {
         lastRankedQuery = nil
         activeCategory = nil
         isPeekingHome = false
+        farewell = .wink
+        pendingKeys = []
         return id
     }
 
@@ -389,15 +422,123 @@ final class CommandBarService: ObservableObject {
         loadUninstallSelectionEntries(for: id)
     }
 
-    private func present(_ panel: NSPanel) {
+    /// Decides where the bar shows and gives that window the keyboard,
+    /// unseen until the bar is ready in it.
+    private func claimKeyboard(with panel: NSPanel) {
+        CommandBarDroplet.shared.cancel()
+        dropSource = nil
+        let style = NotchMascotSupport.commandBarStyle()
+        if style == .island, let host = NotchService.shared.presentCommandBar() {
+            islandHost = host
+            presentation = .island
+            NotchService.shared.setMascotInBar(false)
+            return
+        }
+        dropSource = style == .droplet ? NotchService.shared.commandBarDropSource() : nil
+        presentation = dropSource == nil ? .window : .droplet
+        // A drop takes the bar's shape on the way back, so the window goes at
+        // once instead of fading over it. Out of the island the bar is flat
+        // black like the island, with no shadow to appear as the drop hands
+        // over or to vanish as it folds back.
+        panel.animationBehavior = dropSource == nil ? .default : .none
+        panel.hasShadow = dropSource == nil
+        // Only a drop takes the companion out of the island.
+        if dropSource == nil { NotchService.shared.setMascotInBar(false) }
+        panel.alphaValue = 0
+        panel.orderFrontRegardless()
+        panel.makeKey()
+    }
+
+    private func present(_ panel: NSPanel, reopening: Bool) {
+        if presentation == .island, let host = islandHost {
+            installMonitors(for: host)
+            // SwiftUI draws the bar into the island on its next pass, and
+            // its field takes the keyboard when it appears.
+            focusField(in: host)
+            return
+        }
+        if presentation == .droplet, let island = dropSource {
+            installMonitors(for: panel)
+            guard !reopening else { focusField(in: panel); return }
+            hang(panel, below: island)
+            focusField(in: panel)
+            // Still unseen: what is typed while the drop falls lands in the field.
+            CommandBarDroplet.shared.drop(from: island, into: panel.frame, look: NotchMascotSupport.look()) {
+                [weak self, weak panel] in
+                guard let self, let panel, self.presentation == .droplet, panel.isVisible else { return }
+                panel.alphaValue = 1
+            }
+            return
+        }
+        presentation = .window
         position(panel)
         installMonitors(for: panel)
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         panel.makeKey()
+        focusField(in: panel)
+    }
+
+    /// Below the island, centred on it, where the drop lands.
+    private func hang(_ panel: NSPanel, below island: CGRect) {
+        panel.contentViewController?.view.layoutSubtreeIfNeeded()
+        let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: CommandBarView.width, height: 380)
+        let screen = NSScreen.screens.first { $0.frame.contains(CGPoint(x: island.midX, y: island.maxY - 1)) }?
+            .visibleFrame ?? NSScreen.pointerVisibleFrame
+        panelScreen = screen
+        let x = min(max(island.midX - size.width / 2, screen.minX + 16), screen.maxX - 16 - size.width)
+        let top = island.minY - CommandBarDropletMotion.landingGap
+        panel.setFrame(NSRect(x: x, y: max(screen.minY + 16, top - size.height), width: size.width, height: size.height),
+                       display: true)
+    }
+
+    /// The field takes the keyboard the moment the bar is ordered in, so the
+    /// first keys typed after the shortcut land in it instead of going nowhere
+    /// while SwiftUI gets around to its focus.
+    @discardableResult
+    private func focusField(in window: NSWindow) -> Bool {
+        if let editor = window.firstResponder as? NSTextView, editor.isFieldEditor { return true }
+        window.contentView?.layoutSubtreeIfNeeded()
+        guard let field = Self.editableField(in: window.contentView) else { return false }
+        return window.makeFirstResponder(field)
+    }
+
+    private static func editableField(in view: NSView?) -> NSTextField? {
+        guard let view, !view.isHidden else { return nil }
+        if let field = view as? NSTextField, field.isEditable, field.isEnabled { return field }
+        for subview in view.subviews {
+            if let field = editableField(in: subview) { return field }
+        }
+        return nil
+    }
+
+    /// The bar's field is on screen: it takes the keyboard and the keys
+    /// typed before it was drawn.
+    func barDidAppear() {
+        DispatchQueue.main.async { [weak self] in self?.deliverPendingKeys() }
+    }
+
+    private func deliverPendingKeys() {
+        guard !pendingKeys.isEmpty || presentation == .island,
+              let window = presentation == .island ? islandHost : panel, window.isVisible,
+              focusField(in: window) else { return }
+        let keys = pendingKeys
+        pendingKeys = []
+        keys.forEach(window.sendEvent)
+    }
+
+    /// The island closed around the bar on its own, from a click away or a
+    /// page opened in its place.
+    func islandDidClose() {
+        guard presentation == .island else { return }
+        hide()
     }
 
     func hide() {
+        // Cleared first, so the island closing under the bar does not close it again.
+        let presented = presentation
+        presentation = .window
+        let dropped = presented == .droplet ? panel?.frame : nil
         if AppFeature.textSnippets.isAvailable {
             TextSnippetService.shared.setCommandBarVisible(false)
         }
@@ -418,6 +559,12 @@ final class CommandBarService: ObservableObject {
         restoreSuspendedInputSource()
         removeMonitors()
         panel?.orderOut(nil)
+        awaitsAnswers = false
+        pendingKeys = []
+        if let dropped {
+            CommandBarDroplet.shared.retract(from: dropped, look: NotchMascotSupport.look(), mood: farewell)
+        }
+        if presented == .island { NotchService.shared.dismissCommandBar() }
         // Leaving mid-review through this path (global shortcut, outside
         // click) skipped the reset stepBack() does for the same mode -
         // AppUninstaller kept its selected target and scanned checklist,
@@ -586,18 +733,65 @@ final class CommandBarService: ObservableObject {
 
     /// Binds (or with nil clears) one row's own combination and registers it
     /// straight away, so the key works before the bar is even closed.
+    /// A combination macOS answers is refused here, since the bar has nowhere
+    /// to ask; Settings asks first through `rowShortcutTakeOverOffer`.
     @discardableResult
     func setRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) -> String? {
         guard AppFeature.commandBar.isAvailable else { return nil }
-        if let shortcut, let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        let takeOverKey = CommandBarRowShortcuts.takeOverKey(for: entry.stableKey)
+        guard let shortcut else {
+            SystemShortcutTakeover.setTakeOver(takeOverKey, false)
+            storeRowShortcut(nil, for: entry)
+            return nil
+        }
+        if let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        switch rowTakeOverDecision(shortcut, for: entry) {
+        case .offer:
+            return String(format: L10n.shared.s.shortcutConflictFormat, "macOS")
+        case .save(let clearTakeOver):
+            if clearTakeOver { SystemShortcutTakeover.setTakeOver(takeOverKey, false) }
+        }
+        storeRowShortcut(shortcut, for: entry)
+        return nil
+    }
+
+    /// Whether Settings should offer to take this combination over from macOS
+    /// instead of saving it: true only when nothing but macOS stands in its
+    /// way, the same point every other shortcut field makes the offer.
+    func rowShortcutTakeOverOffer(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> Bool {
+        guard AppFeature.commandBar.isAvailable,
+              rowShortcutIssue(shortcut, for: entry) == nil else { return false }
+        return rowTakeOverDecision(shortcut, for: entry) == .offer
+    }
+
+    /// The user accepted the offer: keep the take-over choice, then save
+    /// exactly what a save writes. Registering claims the key from macOS.
+    func takeOverRowShortcut(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
+        guard AppFeature.commandBar.isAvailable else { return nil }
+        if let message = rowShortcutIssue(shortcut, for: entry) { return message }
+        SystemShortcutTakeover.setTakeOver(CommandBarRowShortcuts.takeOverKey(for: entry.stableKey), true)
+        storeRowShortcut(shortcut, for: entry)
+        return nil
+    }
+
+    private func rowTakeOverDecision(_ shortcut: GlobalShortcut,
+                                     for entry: CommandBarEntry) -> RecorderTakeOverDecision {
+        CommandBarRowShortcuts.takeOverDecision(
+            shortcut, for: entry.stableKey, in: rowShortcuts,
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(shortcut),
+            isTakenOver: SystemShortcutTakeover.isTakenOver)
+    }
+
+    private func storeRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) {
         let next = CommandBarRowShortcuts.setting(shortcut, for: entry.stableKey, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
         refreshAfterPreferenceChange()
-        return nil
     }
 
+    /// Every Vorssaint-side reason to refuse a combination. Whether macOS
+    /// answers it is asked afterwards, so a row can offer to take it over.
     private func rowShortcutIssue(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) -> String? {
         let strings = L10n.shared.s
         let text = FeatureStrings.commandBar(L10n.shared.language)
@@ -611,9 +805,6 @@ final class CommandBarService: ObservableObject {
         }
         if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: nil) {
             return String(format: strings.shortcutConflictFormat, role.title(strings))
-        }
-        if shortcut.conflictsWithSystemShortcut {
-            return String(format: strings.shortcutConflictFormat, "macOS")
         }
         if AppFeature.windowLayout.isAvailable,
            let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
@@ -636,10 +827,8 @@ final class CommandBarService: ObservableObject {
             hotkey.onPress = { [weak self] in self?.runRow(withStableKey: key) }
             // A combination another app already holds is refused by the system.
             // Saying so beats a row that shows a key it will never answer to.
-            // Row combinations live inside one dictionary, so a claim is
-            // named by the row it belongs to.
             if !hotkey.sync(enabled: true, shortcut: shortcut,
-                            storageKey: "\(DefaultsKey.commandBarRowShortcuts).\(key)") {
+                            storageKey: CommandBarRowShortcuts.takeOverKey(for: key)) {
                 refused.insert(key)
             }
             rowHotkeys.append(hotkey)
@@ -1152,7 +1341,9 @@ final class CommandBarService: ObservableObject {
                                                   runningBundleIDs: bundleIDs,
                                                   runningPaths: paths,
                                                   bar: bar)
-        uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps, bar: bar)
+        uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps,
+                                                              uninstallable: uninstallableAppIDs,
+                                                              bar: bar)
         if index { indexEntries() }
     }
 
@@ -1255,6 +1446,8 @@ final class CommandBarService: ObservableObject {
              .capturingShortcut:
             setCompactHome(false)
         }
+        let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
+        if awaitsAnswers != awaiting { awaitsAnswers = awaiting }
         refreshPanelLayout()
     }
 
@@ -1657,15 +1850,20 @@ final class CommandBarService: ObservableObject {
                                     + (pinnedKeys.contains(entry.stableKey)
                                         ? CommandBarPreferences.pinTieBreak : 0))
         }
-        let ranked = CommandBarSearch.rankedIndexes(candidates: candidates, matching: effectiveQuery)
+        let ranked = CommandBarSearch.featureOrdered(
+            CommandBarSearch.rankedIndexes(candidates: candidates, matching: effectiveQuery),
+            id: { pool[$0].id }, priority: { candidates[$0].priority })
 
         // A fact about the Mac only shows when it was asked for by name:
         // "st" must not answer "Storage" over what the person meant.
         let firstToken = foldedQuery.split(separator: " ").first.map(String.init) ?? ""
 
+        // A color typed on its own is placed once the rest of the list is
+        // known; a conversion asked for with "to" leads like any answer.
+        let colorPreview = answer?.id == "color.preview" ? answer : nil
         var counts: [String: Int] = [:]
         var result: [CommandBarEntry] = []
-        if let answer { result.append(answer) }
+        if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
         for index in ranked {
@@ -1681,6 +1879,11 @@ final class CommandBarService: ObservableObject {
             }
             result.append(entry)
             if result.count >= 12 { break }
+        }
+        if let colorPreview {
+            result.insert(colorPreview, at: CommandBarSearch.colorPreviewIndex(
+                rowTitles: result.map(\.title), query: trimmed))
+            if result.count > 12 { result.removeLast() }
         }
         return result
     }
@@ -1797,7 +2000,7 @@ final class CommandBarService: ObservableObject {
                     self?.confirmForceQuit(running, name: app.name)
                 })
             }
-            if AppFeature.uninstaller.isAvailable, !app.isSystem {
+            if AppFeature.uninstaller.isAvailable, UninstallerSupport.selection(for: app.url) != nil {
                 actions.append(RowAction(id: "uninstallApp",
                                          title: String(format: bar.uninstallAppFormat, app.name),
                                          symbolName: "trash") { [weak self] in
@@ -2083,9 +2286,13 @@ final class CommandBarService: ObservableObject {
         KillProcessService.shared.killTree(process, force: false)
     }
 
+    /// The row is offered only for an app the shared checks accept, so the
+    /// one way `select` still says no is a removal already running. The page
+    /// opens on that removal instead of the bar closing on nothing.
     private func openUninstaller(for url: URL) {
         hide()
-        AppUninstaller.shared.select(appURL: url)
+        let uninstaller = AppUninstaller.shared
+        guard uninstaller.select(appURL: url) || uninstaller.isRemoving else { return }
         SettingsRouter.shared.page = .uninstaller
         appDelegate()?.openSettingsWindow()
     }
@@ -2458,7 +2665,12 @@ final class CommandBarService: ObservableObject {
             entry.run(value)
             return
         }
+        farewell = .happy
         hide()
+        // Back in the island it hops for what was run, unless the command
+        // gives it a reaction of its own, which takes this one's place: it
+        // waits a moment for one, as Keep Awake's arrives just after.
+        NotchService.shared.reactMascot(.celebrate, after: 0.3)
         entry.run(value)
     }
 
@@ -2550,15 +2762,22 @@ final class CommandBarService: ObservableObject {
     private func loadAppsIfNeeded(for id: UUID) {
         guard AppFeature.commandBar.isAvailable, !appsLoading else { return }
         appsLoading = true
+        let listsUninstallable = AppFeature.uninstaller.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
                 spotlightPaths: Self.spotlightApplicationPaths()))
+            // The uninstall browse offers only what the uninstaller will
+            // take, and its check reads the disk for every app.
+            let uninstallable = listsUninstallable
+                ? UninstallerSupport.acceptedApplicationIDs(apps) : []
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.appsLoading = false
                 guard AppFeature.commandBar.isAvailable else { return }
                 self.cachedApps = apps
+                self.uninstallableAppIDs = uninstallable
                 self.rebuildRunningEntries()
                 if let key = self.pendingAppShortcut.take(in: self.rowShortcuts,
                                                           isAvailable: AppFeature.commandBar.isAvailable) {
@@ -2741,7 +2960,7 @@ final class CommandBarService: ObservableObject {
             }
             let killStrings = FeatureStrings.killProcess(L10n.shared.language)
             self.killProcessEntries = CommandBarCatalog.killProcessEntries(
-                KillProcessService.shared.entries, killStrings: killStrings)
+                KillProcessService.shared.sortedEntries, killStrings: killStrings)
             self.indexEntries()
             self.refreshResults()
         }
@@ -3026,7 +3245,7 @@ final class CommandBarService: ObservableObject {
     func resetPanelPosition() {
         UserDefaults.standard.removeObject(forKey: DefaultsKey.commandBarPositionOffset)
         hasCustomPosition = false
-        guard let panel, panel.isVisible else { return }
+        guard let panel, panel.isVisible, presentation == .window else { return }
         position(panel, animated: true)
     }
 
@@ -3193,6 +3412,14 @@ final class CommandBarService: ObservableObject {
                 // what looks like an ordinary search.
                 if case .confirm = self.mode { self.stepBack() }
                 if case .naming = self.mode { self.aliasWarning = nil }
+                // A key typed before the field took the keyboard goes to it, or
+                // waits for it while the island is still drawing the bar.
+                if !(panel.firstResponder is NSTextView), !self.focusField(in: panel),
+                   self.presentation == .island {
+                    self.pendingKeys.append(event)
+                    DispatchQueue.main.async { self.deliverPendingKeys() }
+                    return nil
+                }
                 return event
             }
         }

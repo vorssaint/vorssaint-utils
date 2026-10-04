@@ -68,11 +68,10 @@ struct NotchPlaybackSource: Equatable {
         // source is playing. Without a track, the automatic order fills in.
         if let selection, let chosen = available.first(where: { $0.selection == selection }) { return chosen }
         let music = available.filter(\.isMusicApp)
-        // In the opt-in mode, other apps still need system ownership or an
-        // existing follow relationship before automatic selection.
-        let other = includeOtherPlayers ? available.filter {
-            !$0.isMusicApp && ($0.pid == systemPID || $0.pid == previousPID)
-        } : []
+        // Registered clients can be playing while macOS still remembers a
+        // paused music app as its system player. The opt-in follows their live
+        // playback too; ownership only breaks a tie between eligible clients.
+        let other = includeOtherPlayers ? available.filter { !$0.isMusicApp } : []
         for candidates in [music.filter(\.isPlaying), other.filter(\.isPlaying), music] {
             if let previous = candidates.first(where: { $0.pid == previousPID }) { return previous }
             if let current = candidates.first(where: { $0.pid == systemPID }) { return current }

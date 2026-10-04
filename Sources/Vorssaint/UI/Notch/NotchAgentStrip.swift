@@ -8,22 +8,30 @@ import SwiftUI
 /// as the reading, and both sit at the ends, where the island shows.
 struct NotchAgentStrip: View {
     @ObservedObject var service: NotchService
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
-    private var live: [AgentLiveSession] { usage.snapshot.live }
-    private var working: [AgentProvider] {
+    private func working(_ live: [AgentLiveSession]) -> [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
 
     var body: some View {
+        // The last agent stopping empties the list before the strip has left.
+        NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty) { strip(live: $0) }
+    }
+
+    @ViewBuilder private func strip(live: [AgentLiveSession]) -> some View {
         // Resolve layout once per presentation update. The timeline captures
         // these values, so ticking the clock never remeasures the island or
         // walks the preferences for every font, inset and frame.
-        let geometry = service.compactActivityGeometry
-        let working = working
+        let geometry = displayGeometry ?? service.compactActivityGeometry
+        let working = working(live)
         let tint = working.first?.tint ?? .white
         let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
         let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
@@ -33,7 +41,7 @@ struct NotchAgentStrip: View {
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 HStack(spacing: 1) {
                     if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
@@ -45,11 +53,11 @@ struct NotchAgentStrip: View {
                 .contentShape(Rectangle())
             }
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.open(.agents) } label: {
+            Button { service.openActivity(.agents) } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
                         NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                            let text = reading(at: date)
+                            let text = reading(at: date, live: live)
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
@@ -77,15 +85,18 @@ struct NotchAgentStrip: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
-        .accessibilityValue(reading(at: Date()))
+        .accessibilityValue(reading(at: Date(), live: live))
         .accessibilityAddTraits(.isButton)
-        .accessibilityAction { service.open(.agents) }
+        .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
-    private func reading(at now: Date) -> String {
-        NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+    private func reading(at now: Date, live: [AgentLiveSession]) -> String {
+        var snapshot = usage.snapshot
+        snapshot.live = live
+        return NotchAgentSupport.stripReading(snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
+                                              display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                              focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
     }
 }
 
@@ -106,12 +117,14 @@ struct NotchAgentReadoutTimeline<Content: View>: View {
     }
 }
 
-/// The resting island's wings: the allowance closest to running out, as a
-/// ring and a number, or today's API value when no allowance is known.
+/// The resting island's wings: the chosen allowance, by default the one
+/// closest to running out, as a ring and a number, or today's API value when
+/// no allowance is known.
 struct NotchAgentRestingWing: View {
     let leading: Bool
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -121,22 +134,16 @@ struct NotchAgentRestingWing: View {
 
     @ViewBuilder private func content(now: Date) -> some View {
         let snapshot = usage.snapshot
-        let candidates = snapshot.limits.compactMap { provider, limits in
-            AgentLimitSupport.binding(limits, now: now).map { (provider: provider, window: $0) }
-        }
-        let focus = candidates.max {
-            $0.window.usedPercent != $1.window.usedPercent ? $0.window.usedPercent < $1.window.usedPercent
-                : $0.provider.rawValue > $1.provider.rawValue
-        }
+        let limit = NotchAgentSupport.restingLimit(snapshot, focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
         let used = display == NotchAgentLimitDisplay.used.rawValue
-        if let focus {
-            let tint = agentLimitTint(focus.provider, usedFraction: focus.window.usedFraction)
+        if let limit {
+            let tint = agentLimitTint(limit.provider, usedFraction: limit.window.usedFraction)
             if leading {
-                NotchAgentRing(value: used ? focus.window.usedFraction : focus.window.remainingFraction,
+                NotchAgentRing(value: used ? limit.window.usedFraction : limit.window.remainingFraction,
                                tint: tint, lineWidth: 2)
                     .frame(width: 11, height: 11)
             } else {
-                Text(AgentFormat.percent(used ? focus.window.usedFraction : focus.window.remainingFraction))
+                Text(AgentFormat.percent(used ? limit.window.usedFraction : limit.window.remainingFraction))
                     .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
                     .lineLimit(1)

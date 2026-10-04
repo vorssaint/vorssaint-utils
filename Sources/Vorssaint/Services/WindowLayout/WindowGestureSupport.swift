@@ -416,17 +416,37 @@ enum WindowEdgeSnapSupport {
     static var isSystemTilingEnabled: Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
-        return systemTilingEnabled { key in
-            guard defaults.object(forKey: key) != nil else { return nil }
-            return defaults.bool(forKey: key)
-        }
+        return systemTilingEnabled(
+            valueFor: { key in
+                guard defaults.object(forKey: key) != nil else { return nil }
+                return defaults.bool(forKey: key)
+            },
+            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+        )
     }
 
     /// The system's edge tiling choices arrive enabled when their preference
     /// has never been written. Keeping this pure makes the conflict gate
     /// testable without changing somebody's desktop settings.
-    static func systemTilingEnabled(valueFor: (String) -> Bool?) -> Bool {
-        systemTilingKeys.contains { valueFor($0) ?? true }
+    ///
+    /// When displays span (Separate Spaces off) those switches are greyed
+    /// out and the system's own tiling is inert, even if a key was written
+    /// as enabled. The warning's instruction is unreachable then (issue #1079).
+    static func systemTilingEnabled(valueFor: (String) -> Bool?,
+                                    displaysSpan: Bool = false) -> Bool {
+        if displaysSpan { return false }
+        return systemTilingKeys.contains { valueFor($0) ?? true }
+    }
+
+    /// Separate Spaces off is the only configuration where displays span.
+    /// An absent preference is Apple's default: one Space per display.
+    static func displaysSpan(_ value: Bool?) -> Bool {
+        value ?? false
+    }
+
+    private static func spacesPreference(_ key: String) -> Bool? {
+        guard let defaults = UserDefaults(suiteName: "com.apple.spaces") else { return nil }
+        return defaults.object(forKey: key).map { _ in defaults.bool(forKey: key) }
     }
 
     static var isSystemTopWindowOverviewDragEnabled: Bool {

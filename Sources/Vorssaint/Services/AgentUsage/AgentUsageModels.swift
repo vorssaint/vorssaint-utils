@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex
+    case claude, codex, opencode, copilot
 
     var id: String { rawValue }
 
@@ -14,6 +14,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .claude: return "Claude"
         case .codex: return "Codex"
+        case .opencode: return "OpenCode"
+        case .copilot: return "GitHub Copilot"
         }
     }
 
@@ -21,8 +23,13 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         switch self {
         case .claude: return "sparkle"
         case .codex: return "chevron.left.forwardslash.chevron.right"
+        case .opencode: return "terminal"
+        case .copilot: return "infinity"
         }
     }
+
+    /// Whether the provider records a plan allowance in its local logs.
+    var reportsLimits: Bool { self != .copilot }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -63,12 +70,30 @@ struct AgentUsageRecord: Equatable {
     let model: String
     let project: String
     let session: String
+    /// Model requests represented by this record; checkpoints may hold several.
+    let requests: Int
     var tokens: AgentTokens
     /// What the response would cost at API list prices, in US dollars. Nil
     /// when the model has no known price.
     var cost: Double?
     /// What cache reads saved against paying the full input price.
     var savings: Double
+    /// Whether cost was reported directly by the provider rather than derived from list pricing.
+    var reportedCost: Bool = false
+
+    init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false) {
+        self.provider = provider
+        self.date = date
+        self.model = model
+        self.project = project
+        self.session = session
+        self.requests = requests
+        self.tokens = tokens
+        self.cost = cost
+        self.savings = savings
+        self.reportedCost = reportedCost
+    }
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -96,6 +121,8 @@ struct AgentLimits: Equatable {
         case claudeApp
         /// Copied by the agent into its session log with each response.
         case sessionLog
+        /// Asked of the agent on request, which checks the account itself.
+        case account
     }
 
     let provider: AgentProvider

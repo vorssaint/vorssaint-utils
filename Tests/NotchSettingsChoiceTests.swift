@@ -37,6 +37,7 @@ enum NotchSettingsChoiceTests {
                 (agents.finishAfter, AnyView(FinishAfter(language: language)), indentedColumn),
                 (agents.limitAt, AnyView(LimitAt(language: language)), indentedColumn),
                 (agents.budget, AnyView(Budget(language: language)), column),
+                (agents.limitFocus, AnyView(LimitFocus(language: language)), column),
             ]
             for (title, row, textColumn) in menus {
                 let overflow = problems(row, width: narrowest, textColumn: textColumn)

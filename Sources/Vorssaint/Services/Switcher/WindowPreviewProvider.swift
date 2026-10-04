@@ -63,8 +63,9 @@ final class WindowPreviewProvider {
     /// window's capture, so each backing window is captured once.
     func refreshPreviews(for items: [SwitcherItem],
                          maxPixelSize: CGFloat = defaultMaxPixelSize,
+                         excludedAppsKey: String,
                          onUpdate: @escaping (CGWindowID, CGImage) -> Void) {
-        guard Permissions.shared.screenRecording, !Self.captureIsPaused else {
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused(excludedAppsKey: excludedAppsKey) else {
             cancel()
             return
         }
@@ -102,7 +103,7 @@ final class WindowPreviewProvider {
             var pending: [PreviewTarget] = []
             for target in targets {
                 guard !Task.isCancelled else { return }
-                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                 guard !captureIsPaused else { return }
                 let capturedImage = await Self.captureViaWindowServer(target.id)
                 guard !Task.isCancelled else { return }
@@ -150,7 +151,7 @@ final class WindowPreviewProvider {
             }
             guard !pending.isEmpty else { return }
 
-            let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+            let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
             guard !captureIsPaused else { return }
 
             guard let content = try? await SCShareableContent.excludingDesktopWindows(false,
@@ -160,7 +161,7 @@ final class WindowPreviewProvider {
 
             for target in pending {
                 guard !Task.isCancelled else { return }
-                let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                 guard !captureIsPaused else { return }
                 guard let scWindow = scWindows[target.id]
                     ?? Self.bestWindowMatch(for: target, in: content.windows) else { continue }
@@ -429,26 +430,45 @@ final class WindowPreviewProvider {
         warmTask = nil
     }
 
+    /// The activated app's windows are listed here, off the main thread. A
+    /// slow app can hold that Accessibility walk for seconds, which must not
+    /// tie up a thread Swift's tasks share.
+    private static let warmEnumerationQueue = DispatchQueue(label: "com.vorssaint.preview.warm-enumeration",
+                                                            qos: .utility)
+
     /// Waits for the stage/space transition to settle, then captures the
     /// activated app's windows. Never prunes: warming only adds fresh entries.
     private func scheduleWarm(pid: pid_t) {
-        guard Permissions.shared.screenRecording, !Self.captureIsPaused else { return }
+        // Only the switcher warms, so its own paused apps apply.
+        let excludedAppsKey = DefaultsKey.switcherPreviewExcludedApps
+        guard Permissions.shared.screenRecording, !Self.captureIsPaused(excludedAppsKey: excludedAppsKey) else { return }
         pendingWarmPid = pid
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
             guard let self,
                   self.pendingWarmPid == pid,
                   self.activationToken != nil,
-                  !Self.captureIsPaused
+                  !Self.captureIsPaused(excludedAppsKey: excludedAppsKey)
             else { return }
             self.pendingWarmPid = nil
-            let items = WindowEnumerator.listWindows(for: pid)
-            guard !items.isEmpty else { return }
             warmTask?.cancel()
-            warmTask = Task(priority: .utility) { [weak self] in
+            // Taken here, on the main queue, before the task starts.
+            let snapshot = WindowEnumerator.snapshot()
+            // Detached: this closure runs on the main queue, so a plain Task
+            // would inherit the main actor, and the alpha check, the Stage
+            // Manager strip rectification and the downscaled copy of every
+            // window below would run on the main thread after each activation.
+            // The listing itself stays on the warm enumeration queue.
+            warmTask = Task.detached(priority: .utility) { [weak self] in
                 guard let self else { return }
+                let items = await withCheckedContinuation { continuation in
+                    Self.warmEnumerationQueue.async {
+                        continuation.resume(returning: WindowEnumerator.listWindows(for: pid, snapshot: snapshot))
+                    }
+                }
+                guard !items.isEmpty, !Task.isCancelled else { return }
                 for item in items {
                     guard !Task.isCancelled, let id = item.previewWindowID else { continue }
-                    let captureIsPaused = await MainActor.run { Self.captureIsPaused }
+                    let captureIsPaused = await MainActor.run { Self.captureIsPaused(excludedAppsKey: excludedAppsKey) }
                     guard !captureIsPaused else { return }
                     let capturedImage = await Self.captureViaWindowServer(id, waitingForOtherCaptures: false)
                     guard !Task.isCancelled else { return }
@@ -486,9 +506,9 @@ final class WindowPreviewProvider {
         }
     }
 
-    private static var captureIsPaused: Bool {
+    private static func captureIsPaused(excludedAppsKey: String) -> Bool {
         let excluded = Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.windowPreviewExcludedApps) ?? [])
+            UserDefaults.standard.stringArray(forKey: excludedAppsKey) ?? [])
         return SwitcherSupport.shouldPausePreviewCapture(
             frontmostBundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier,
             excludedBundleIdentifiers: excluded)

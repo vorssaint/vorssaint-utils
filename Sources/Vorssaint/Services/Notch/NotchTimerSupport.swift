@@ -251,6 +251,15 @@ enum NotchTimerSupport {
         session.countsUp ? stopwatchText(session.reading(at: now)) : clockText(session.reading(at: now))
     }
 
+    /// What a clock's digits roll on. The closed island can show a clock for
+    /// hours, and rolling every second kept it animating a third of the time,
+    /// at about ten times the energy of a clock that changes in place. There
+    /// the seconds change in place and the rest rolls: "12:04" rolls as "12".
+    static func rollingValue(_ value: String, everySecond: Bool) -> String {
+        guard !everySecond, let colon = value.lastIndex(of: ":") else { return value }
+        return String(value[..<colon])
+    }
+
     static func compactText(for session: NotchTimerSession, at now: TimeInterval, locale: Locale) -> String {
         let reading = session.reading(at: now)
         if session.countsUp { return compactStopwatchText(reading) }

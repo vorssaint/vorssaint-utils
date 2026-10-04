@@ -6,7 +6,7 @@ import AppKit
 /// Production routing and lifecycle with controlled event delivery, never posted input.
 enum NotchScreenEdgeClickTests {
     final class Panel { var isVisible = true; var ignoresMouseEvents = false }
-    final class Host { var acceptsPoint = true; func contains(_ point: CGPoint) -> Bool { acceptsPoint } }
+    final class Host { var acceptsPoint = true; func containsDestination(_ point: CGPoint) -> Bool { acceptsPoint } }
     enum NSScreen {
         static var withMenuBar: Screen? = Screen()
         struct Screen { let frame = CGRect(x: 0, y: 0, width: 1470, height: 956) }
@@ -43,7 +43,11 @@ enum NotchScreenEdgeClickTests {
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
         var compactActivityGeometry: NotchGeometry { geometry }
-        var surfaceSize: CGSize { peeking ? geometry.expanded : compactActivityIsVisible ? geometry.compactActivitySize : geometry.collapsed }
+        var hoverEmphasized = false
+        var surfaceSize: CGSize {
+            let size = peeking ? geometry.expanded : compactActivityIsVisible ? geometry.compactActivitySize : geometry.collapsed
+            return hoverEmphasized ? NotchHoverEmphasis.size(from: size, geometry: geometry) : size
+        }
         var screenEdgeClickMonitors: [Any] = []
         var screenEdgePressArea: CGRect?
         var hoverWork: DispatchWorkItem?
@@ -75,9 +79,9 @@ enum NotchScreenEdgeClickTests {
                 send(.leftMouseDown, CGPoint(x: top.x, y: top.y + 0.5)); send(.leftMouseUp, top)
                 send(.leftMouseDown, top, window: service.panel); send(.leftMouseUp, top)
                 suite.expect(service.openings == 0, "release-only, nearby menus, lower clicks and native notch clicks never cause duplicate opening")
-                send(.leftMouseDown, top); send(.leftMouseDragged, top); send(.leftMouseUp, top)
+                send(.leftMouseDown, top); send(.leftMouseDragged, CGPoint(x: screen.minX, y: screen.maxY)); send(.leftMouseUp, top)
                 send(.leftMouseDown, top); send(.leftMouseUp, CGPoint(x: screen.minX, y: screen.maxY))
-                suite.expect(service.openings == 0, "dragging or releasing outside cancels an edge click")
+                suite.expect(service.openings == 0, "dragging off the island or releasing outside cancels an edge click")
                 service.windowHost?.acceptsPoint = false
                 send(.leftMouseDown, top); send(.leftMouseUp, top)
                 service.windowHost?.acceptsPoint = true
@@ -112,6 +116,30 @@ enum NotchScreenEdgeClickTests {
                    && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                    "leaving an eligible presentation cancels the press and removes every monitor")
         }
+        let steady = Service()
+        steady.syncScreenEdgeClicks()
+        let edge = CGPoint(x: steady.geometry.screen.midX, y: steady.geometry.screen.maxY)
+        steady.handleScreenEdgeClick(.leftMouseDown, at: edge, isNotchWindow: false)
+        steady.handleScreenEdgeClick(.leftMouseDragged, at: edge, isNotchWindow: false)
+        steady.handleScreenEdgeClick(.leftMouseDragged, at: CGPoint(x: edge.x + 3, y: edge.y - 2), isNotchWindow: false)
+        steady.handleScreenEdgeClick(.leftMouseUp, at: edge, isNotchWindow: false)
+        suite.expect(steady.openings == 1,
+               "the drag a press at the screen's edge reports, within the island, keeps the click")
+        steady.removeScreenEdgeClickMonitors()
+        let late = Service()
+        late.geometry = NotchGeometry(screen: late.geometry.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 64)
+        late.syncScreenEdgeClicks()
+        guard let resting = late.screenEdgeClickArea else { suite.expect(false, "a resting island takes edge clicks"); return }
+        let centre = CGPoint(x: resting.midX, y: resting.maxY)
+        late.handleScreenEdgeClick(.leftMouseDown, at: centre, isNotchWindow: false)
+        // The entry is reported after the press, so the pulse lands before the release.
+        late.hoverEmphasized = true
+        guard let pulsed = late.screenEdgeClickArea else { suite.expect(false, "a pulsing island takes edge clicks"); return }
+        // Released where only the grown island reaches.
+        late.handleScreenEdgeClick(.leftMouseUp, at: CGPoint(x: pulsed.maxX - 4, y: pulsed.maxY), isNotchWindow: false)
+        suite.expect(pulsed.maxX - 4 > resting.maxX && late.openings == 1,
+                     "a click the hover pulse grows under still opens the island")
+        late.removeScreenEdgeClickMonitors()
         let service = Service()
         service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
         service.compactActivityIsVisible = true
@@ -124,5 +152,19 @@ enum NotchScreenEdgeClickTests {
         service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
         suite.expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
                "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
+        // A capsule floats below the top edge; the menu bar above it still
+        // opens it, and the capsule itself takes its own clicks.
+        for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {
+            let capsule = Service()
+            capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                             silhouette: .capsule)
+            capsule.syncScreenEdgeClicks()
+            let point = CGPoint(x: capsule.geometry.screen.midX, y: capsule.geometry.screen.maxY - depth)
+            capsule.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
+            capsule.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
+            suite.expect(capsule.openings == (opens ? 1 : 0),
+                         "a click \(depth) points below the top edge \(opens ? "opens" : "leaves") a floating capsule")
+            capsule.removeScreenEdgeClickMonitors()
+        }
     }
 }

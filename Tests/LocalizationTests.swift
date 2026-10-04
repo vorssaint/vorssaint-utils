@@ -81,6 +81,7 @@ enum LocalizationTests {
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),
                 ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
                 ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
+                ("graphScale", { GraphScaleStrings.localized($0) }),
                 ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
                 ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
             ]

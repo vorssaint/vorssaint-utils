@@ -76,6 +76,7 @@ enum CommandBarFeatureTests {
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)
+        CommandBarKillProcessOrderContract.run(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
@@ -245,6 +246,17 @@ enum CommandBarFeatureTests {
                                         keywords: clipboardClearKeywords,
                                         query: "clear clipboard"),
                "the clipboard clear action stays findable by its English name in a non-Latin locale")
+        for language in AppLanguage.allCases {
+            let clipboard = FeatureStrings.clipboard(language)
+            let keywords = [clipboard.title, ClipboardFeatureStrings.enUS.title,
+                            ClipboardFeatureStrings.enUS.clearRecent,
+                            clipboard.recent, ClipboardFeatureStrings.enUS.recent,
+                            clipboard.clearRecentKeywords,
+                            ClipboardFeatureStrings.enUS.clearRecentKeywords].joined(separator: " ")
+            suite.expect(CommandBarSearch.matches(title: clipboard.clearRecent, keywords: keywords,
+                                                  query: clipboard.clearRecentKeywords),
+                   "the clipboard clear action keeps its former \(language) name as a search term")
+        }
         let clipboardActionsCode = commandBarCatalogLines.firstIndex {
             isCodeLine($0) && $0.contains("if AppFeature.clipboardHistory.isAvailable {")
         }.map {
@@ -295,6 +307,18 @@ enum CommandBarFeatureTests {
                    "the retry after a refresh looks for the display the command started on, found \(set) and \(BrightnessHost.Sound.beeps) beeps")
         }
         BrightnessHost.Service.shared.onRefresh = nil
+        let volumeActionCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("id: \"action.volume\"")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("id: \"action.soundMute\"") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        suite.expect(volumeActionCode.contains("QuickToolHUD.show(")
+                && volumeActionCode.components(separatedBy: "QuickToolHUD.show(")[0]
+                    .contains("NotchSupport.routes(.volume), NotchService.shared.showVolume(level) { return }"),
+               "volume from the bar reports in Dynamic Island when it can, and floats its confirmation only otherwise")
 
         // MARK: Compact mode, what an empty field shows
         suite.expect(CommandBarHome.showsBrowseList(compact: false, hasCategory: false, isPeeking: false),
@@ -530,6 +554,21 @@ enum CommandBarFeatureTests {
                "the bar borrows the ASCII layout through the shared TIS selection")
         suite.expect(commandBarServiceSource.contains("restoreSuspendedInputSource"),
                "closing the bar gives the suspended input source back")
+        suite.expect(commandBarServiceSource.range(
+                of: #"AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil"#,
+                options: .regularExpression) != nil,
+               "the uninstall row is offered only for an app the uninstaller will take")
+        suite.expect(commandBarServiceSource.contains("uninstaller.select(appURL: url) || uninstaller.isRemoving"),
+               "the uninstall row still opens the page on a removal already running")
+        suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
+                && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
+               "the uninstall browse lists only the apps the background scan saw the uninstaller accept")
+        let uninstallCatalogSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(uninstallCatalogSource.contains("uninstallable.contains($0.id)")
+                && uninstallCatalogSource.contains("UninstallerSupport.selection(for: url) != nil"),
+               "the uninstall browse and the Finder selection row offer only apps the uninstaller will take")
         let asciiSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/CommandBarSettings.swift",
             encoding: .utf8)) ?? ""
@@ -724,6 +763,60 @@ enum CommandBarFeatureTests {
         suite.expect(upperRight == CGPoint(x: -576, y: 504)
                 && lowerLeft == CGPoint(x: -1424, y: 16),
                "the command bar stays fully inside a screen on both axes")
+
+        // MARK: Command bar color conversion
+
+        for (input, expected) in [
+            ("#a2b3b4 to rgb", "rgb(162, 179, 180)"),
+            ("#A2B3B4 in HSL", "hsl(183, 11%, 67%)"),
+            ("rgb(0, 188, 125) to hex", "#00BC7D"),
+            ("rgb(255 0 0) as hsl", "hsl(0, 100%, 50%)"),
+            ("hsl(120, 100%, 25%) to rgb", "rgb(0, 128, 0)"),
+            ("#fff to rgba", "rgba(255, 255, 255, 1)"),
+            ("#fff to hsla", "hsla(0, 0%, 100%, 1)"),
+            ("rgba(255, 0, 0, 0.5) to hex", "#FF000080"),
+            ("#00000080 to rgb", "rgba(0, 0, 0, 0.502)"),
+            ("hsla(0, 100%, 50%, 25%) to hsl", "hsla(0, 100%, 50%, 0.25)"),
+            ("#f80 nach rgb", "rgb(255, 136, 0)"),
+            ("#336699 to swift", "Color(red: 0.200, green: 0.400, blue: 0.600)"),
+            ("rgba(255, 0, 0, 0.5) to SwiftUI", "Color(red: 1.000, green: 0.000, blue: 0.000, opacity: 0.500)"),
+            ("Color(red: 0.200, green: 0.400, blue: 0.600) to hex", "#336699"),
+            ("Color(red: 1.000, green: 0.000, blue: 0.000, opacity: 0.500) to rgb", "rgba(255, 0, 0, 0.5)"),
+            ("Color(red:0.2,green:0.4,blue:0.6) to hex", "#336699"),
+            ("#00000001 to rgba", "rgba(0, 0, 0, 0.004)"),
+            ("#000000fe to rgba", "rgba(0, 0, 0, 0.996)"),
+        ] {
+            suite.expect(CommandBarColors.convert(input)?.formatted == expected,
+                         "\(input) converts to \(expected), got \(String(describing: CommandBarColors.convert(input)?.formatted))")
+        }
+        for input in ["#a2b3b4", "#a2b3b4 to", "#a2b3b4 rgb", "#a2b3b4 to cmyk", "a2b3b4 to rgb",
+                      "brand #a2b3b4 to rgb", "rgb(300, 0, 0) to hex", "5 km to mi",
+                      String(repeating: " ", count: 110) + "#fff to rgb"] {
+            suite.expect(CommandBarColors.convert(input) == nil,
+                         "\(input.debugDescription) is not a color conversion")
+        }
+        let alphaLosses = (0...255).flatMap { byte in
+            let hex = String(format: "#336699%02X", byte)
+            return ["rgba", "hsla", "swift"].compactMap { target -> String? in
+                let there = CommandBarColors.convert(hex + " to " + target)?.formatted
+                let back = there.flatMap { CommandBarColors.convert($0 + " to hex")?.formatted }
+                // An opaque color comes back without the alpha pair.
+                let expected = byte == 255 ? "#336699" : hex
+                return back == expected ? nil : "\(hex) → \(there ?? "nil") → \(back ?? "nil")"
+            }
+        }
+        suite.expect(alphaLosses.isEmpty,
+                     "every 8-bit alpha survives a trip through rgba, hsla and SwiftUI back to hex: \(alphaLosses.prefix(4))")
+        suite.expect(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex) == "#FF0000"
+                     && ColorValue.string(red: 1, green: 0, blue: 0, alpha: 0.5, format: .swiftui)
+                        == "Color(red: 1.000, green: 0.000, blue: 0.000, opacity: 0.500)",
+                     "alpha is written only when asked for")
+        suite.expect(CommandBarSearch.colorPreviewIndex(rowTitles: [], query: "#2139") == 0
+                     && CommandBarSearch.colorPreviewIndex(rowTitles: ["Safari", "Notes"], query: "#cafe") == 0,
+                     "a color typed on its own leads when nothing on the list spells it")
+        suite.expect(CommandBarSearch.colorPreviewIndex(rowTitles: ["Fix #2139 crash"], query: "#2139") == 1
+                     && CommandBarSearch.colorPreviewIndex(rowTitles: ["#CAFE"], query: "#cafe") == 1,
+                     "a row that spells the typed color keeps Return, the swatch sits under it")
 
         // MARK: Command bar unit conversion
 
@@ -1084,6 +1177,39 @@ enum CommandBarFeatureTests {
                "usage boost reorders equally good matches")
         suite.expect(CommandBarSearch.rankedIndexes(candidates: boosted, matching: "capturar") == [0],
                "a boost never resurrects a non-match")
+        let awakeRows = [
+            ("settings.feature.keepAwake", "Keep Awake"),
+            ("action.keepAwake.15", "Keep awake for 15 minutes"),
+            ("action.keepAwake.30", "Keep awake for 30 minutes"),
+            ("action.keepAwake", "Enable keep awake"),
+        ]
+        let awakeCandidates = awakeRows.enumerated().map { CommandBarCandidate(index: $0.offset, title: $0.element.1) }
+        let awakeIDs = awakeRows.map(\.0)
+        suite.expect(CommandBarSearch.rankedIndexes(candidates: awakeCandidates, matching: "keep awake") == [0, 1, 2, 3],
+               "by title alone the Settings page named like the feature leads and the switch comes last")
+        suite.expect(CommandBarSearch.featureOrdered(
+                CommandBarSearch.rankedIndexes(candidates: awakeCandidates, matching: "keep awake"),
+                id: { awakeIDs[$0] }, priority: { _ in 0 }) == [3, 1, 2, 0],
+               "a feature's switch leads its presets, and its Settings page follows them")
+        let mixedIDs = ["settings.feature.micMute", "app.safari", "action.micMute", "action.keepAwake"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { mixedIDs[$0] }, priority: { _ in 0 })
+                == [2, 1, 0, 3],
+               "a feature's rows trade places among their own slots and nothing else moves")
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { mixedIDs[$0] }, priority: { $0 == 0 ? 400 : 0 })
+                == [0, 1, 2, 3],
+               "a row chosen by name or habit keeps the place it ranked")
+        let habitIDs = ["action.keepAwake", "settings.feature.keepAwake", "action.keepAwake.15", "action.keepAwake.30"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { habitIDs[$0] }, priority: { $0 == 0 ? 300 : 0 })
+                == [0, 2, 3, 1],
+               "a switch run often keeps its place, and its presets still come before its Settings page")
+        let switchIDs = ["settings.notchMascot", "app.companion", "toggle.notchMascot", "settings.setting.panelConfiguration"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2, 3], id: { switchIDs[$0] }, priority: { _ in 0 })
+                == [2, 1, 0, 3],
+               "a feature's switch leads the page of its own named like it, and nothing else moves")
+        let pairIDs = ["toggle.scrollInverter.horizontal", "settings.mouse", "toggle.scrollInverter.vertical"]
+        suite.expect(CommandBarSearch.featureOrdered([0, 1, 2], id: { pairIDs[$0] }, priority: { _ in 0 })
+                == [0, 1, 2],
+               "two switches of one feature keep the order they ranked in, beside a page that is not theirs")
         suite.expect(CommandBarSearch.rankedIndexes(candidates: barCandidates, matching: " ").isEmpty,
                "a blank query ranks nothing; suggestions handle it")
         let typoCandidates = [
@@ -1197,6 +1323,39 @@ enum CommandBarFeatureTests {
                "a bare letter is never taken from every app on the Mac")
         suite.expect(CommandBarRowShortcuts.decode(CommandBarRowShortcuts.encode(bound)) == bound,
                "the bindings survive a round trip through storage")
+
+        // ⌃⌘D is Look Up (symbolic hotkey 70), which System Settings does not
+        // list: an app row must offer to take it over, as a window layout row
+        // does, instead of refusing it outright.
+        let lookUp = GlobalShortcut(keyCode: 2, modifiers: [.control, .command])
+        let lookUpLive = [LiveSystemShortcut(id: 70, shortcut: lookUp, enabled: true)]
+        let lookUpIsMacOS = SystemShortcutTakeoverSupport.conflictsWithMacOS(
+            lookUp, liveEntries: lookUpLive, symbolicHotKeys: nil, held: [])
+        let rowTakeOverKey = CommandBarRowShortcuts.takeOverKey(for: "app.bundle.a")
+        suite.expect(lookUpIsMacOS
+                && CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.a", in: [:],
+                                                           conflictsWithMacOS: lookUpIsMacOS,
+                                                           isTakenOver: { _ in false }) == .offer,
+               "an app shortcut macOS still answers is offered for take-over, not refused")
+        suite.expect(CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.a",
+                                                             in: ["app.bundle.a": lookUp],
+                                                             conflictsWithMacOS: true,
+                                                             isTakenOver: { $0 == rowTakeOverKey })
+                == .save(clearTakeOver: false)
+                && CommandBarRowShortcuts.takeOverDecision(lookUp, for: "app.bundle.b",
+                                                           in: ["app.bundle.a": lookUp],
+                                                           conflictsWithMacOS: true,
+                                                           isTakenOver: { $0 == rowTakeOverKey }) == .offer,
+               "an app row keeps the key it took over, and another row's take-over is not its own")
+        let lookUpOff = [LiveSystemShortcut(id: 70, shortcut: lookUp, enabled: false)]
+        suite.expect(CommandBarRowShortcuts.takeOverDecision(
+                    lookUp, for: "app.bundle.a", in: [:],
+                    conflictsWithMacOS: SystemShortcutTakeoverSupport.conflictsWithMacOS(
+                        lookUp, liveEntries: lookUpOff, symbolicHotKeys: nil, held: []),
+                    isTakenOver: { $0 == rowTakeOverKey }) == .save(clearTakeOver: true),
+               "a key macOS has switched off saves at once and drops a stale take-over")
+        suite.expect(rowTakeOverKey == "\(DefaultsKey.commandBarRowShortcuts).app.bundle.a",
+               "an app row's take-over is kept under the name its hotkey is claimed with")
         let emojiBinding = CommandBarRowShortcuts.setting(
             commandPeriod, for: CommandBarPreferences.emojiBrowserRowID, in: [:])
         suite.expect(CommandBarRowShortcuts.key(for: commandPeriod, in: emojiBinding)
@@ -2120,5 +2279,70 @@ enum CommandBarAppSortContract {
                                             shortcuts: ["safari": same, "mail": same], pins: [])
         suite.expect(tied.prefix(2).map(\.key) == ["mail", "safari"],
                      "equal shortcuts fall back to the name in either direction")
+    }
+}
+
+/// Runs the production Command Bar process load against a process list whose
+/// raw order matches none of the Kill Process page's sorts.
+enum CommandBarKillProcessOrderContract {
+    enum Preferences {
+        static var standard: Preferences.Type { Self.self }
+        static func bool(forKey: String) -> Bool { true }
+    }
+    enum Feature {
+        case killProcess
+        var isAvailable: Bool { true }
+    }
+    struct Lifecycle {
+        func acceptsHomeUpdates(_ id: UUID, isVisible: Bool) -> Bool { true }
+    }
+    struct Entry {
+        let pid: pid_t
+        let name: String
+        let cpuPercent: Double
+        let memoryBytes: Double
+    }
+    enum Catalog {
+        static func killProcessEntries(_ processes: [Entry], killStrings: KillProcessFeatureStrings) -> [String] {
+            processes.map(\.name)
+        }
+    }
+    final class Processes {
+        typealias KillProcessEntry = Entry
+        enum SortBy { case cpu, memory, name, pid }
+        static let shared = Processes()
+        var entries: [Entry] = []
+        var sortBy = SortBy.cpu
+        var sortAscending = false
+        func refresh(_ completion: @escaping () -> Void) { completion() }
+    }
+    class Fixture {
+        typealias UserDefaults = Preferences
+        typealias AppFeature = Feature
+        typealias KillProcessService = Processes
+        typealias CommandBarCatalog = Catalog
+        var killProcessEntries: [String] = []
+        var killProcessEntriesLoading = false
+        var presentationLifecycle = Lifecycle()
+        var presentationID = UUID()
+        var isVisible = true
+        func indexEntries() {}
+        func refreshResults() {}
+    }
+    static func run(_ suite: TestSuite) {
+        let processes = Processes.shared
+        processes.entries = [Entry(pid: 30, name: "Mail", cpuPercent: 5, memoryBytes: 900),
+                             Entry(pid: 10, name: "Xcode", cpuPercent: 1, memoryBytes: 100),
+                             Entry(pid: 20, name: "Browser", cpuPercent: 40, memoryBytes: 500)]
+        for (sort, ascending, expected) in [(Processes.SortBy.cpu, false, ["Browser", "Mail", "Xcode"]),
+                                            (.memory, false, ["Mail", "Browser", "Xcode"]),
+                                            (.name, true, ["Browser", "Mail", "Xcode"])] {
+            processes.sortBy = sort
+            processes.sortAscending = ascending
+            let service = Service()
+            service.loadKillProcessEntries(for: service.presentationID)
+            suite.expect(service.killProcessEntries == expected,
+                         "the Command Bar lists processes in the Kill Process page's \(sort) order, found \(service.killProcessEntries)")
+        }
     }
 }

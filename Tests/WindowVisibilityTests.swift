@@ -23,7 +23,17 @@ enum WindowVisibilityTests {
         let view = WindowVisibilityView(frame: container.bounds)
         var changes: [Bool] = []
         view.onChange = { changes.append($0) }
-        func flush() { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        // A fixed 10 ms delay can expire before the main queue runs on a busy
+        // CI runner. Drain the work queued by the visibility change instead.
+        func flush() {
+            var drained = false
+            DispatchQueue.main.async { drained = true }
+            let deadline = Date().addingTimeInterval(1)
+            while !drained && Date() < deadline {
+                RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+            }
+            expect(drained, "visibility callbacks finish on the main queue")
+        }
         view.reportVisibility()
         flush()
         expect(changes == [false], "unattached previews are suspended")
