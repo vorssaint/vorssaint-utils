@@ -172,6 +172,11 @@ enum MetricFormat {
         return "\(number(value, unit: unit)) \(unit)"
     }
 
+    static func memoryBytesTwoDecimals(_ bytes: UInt64) -> String {
+        let (value, unit) = scale(Double(bytes))
+        return String(format: "%.2f %@", locale: Self.locale, value, unit)
+    }
+
     static func diskBytes(_ bytes: UInt64) -> String {
         let units = ["B", "KB", "MB", "GB", "TB", "PB"]
         var value = max(0, Double(bytes))
