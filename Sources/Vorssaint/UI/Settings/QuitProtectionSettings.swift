@@ -24,7 +24,20 @@ struct QuitProtectionSettings: View {
     @AppStorage(DefaultsKey.quitProtectionCloseScope) private var closeScope = QuitProtectionScope.all.rawValue
     @AppStorage(DefaultsKey.quitProtectionCloseShowFeedback) private var closeShowFeedback = true
 
+    @AppStorage(DefaultsKey.touchIDGuardEnabled) private var touchIDEnabled = false
+    @AppStorage(DefaultsKey.touchIDGuardMode) private var touchIDMode = TouchIDGuardMode.hold.rawValue
+    @AppStorage(DefaultsKey.touchIDGuardHoldDurationMs) private var touchIDHoldDuration = TouchIDGuardSupport.defaultHoldDurationMilliseconds
+
+    @AppStorage(DefaultsKey.lockShortcutGuardEnabled) private var lockEnabled = false
+    @AppStorage(DefaultsKey.lockShortcutGuardMode) private var lockMode = LockShortcutGuardMode.hold.rawValue
+    @AppStorage(DefaultsKey.lockShortcutGuardHoldDurationMs) private var lockHoldDuration = LockShortcutGuardSupport.defaultHoldDurationMilliseconds
+    @AppStorage(DefaultsKey.lockShortcutGuardDoubleIntervalMs) private var lockDoubleInterval = LockShortcutGuardSupport.defaultDoublePressIntervalMilliseconds
+    @AppStorage(DefaultsKey.lockShortcutGuardShowFeedback) private var lockShowFeedback = true
+
+    @AppStorage(DefaultsKey.touchIDGuardShowFeedback) private var touchIDShowFeedback = true
+
     @State private var pickerShortcut: QuitProtectionShortcut?
+    @State private var touchIDCanMeasureHold = TouchIDGuardService.canMeasureHold
 
     private var strings: QuitProtectionStrings {
         FeatureStrings.quitProtection(l10n.language)
@@ -58,7 +71,15 @@ struct QuitProtectionSettings: View {
                             scope: $closeScope,
                             showFeedback: $closeShowFeedback)
 
-            if (quitEnabled || closeEnabled) && !permissions.accessibility {
+            lockShortcutSection
+            // A Mac without the built-in button has nothing for it to guard.
+            if TouchIDGuardService.builtInButtonID != nil {
+                touchIDSection
+            }
+
+            // The lock shortcut guard is a registered hotkey and needs no
+            // permission; the button guard and the quit guards are taps.
+            if (quitEnabled || closeEnabled || touchIDEnabled) && !permissions.accessibility {
                 Section(strings.accessibilityCaption) {
                     PermissionRow(kind: .accessibility)
                 }
@@ -75,7 +96,113 @@ struct QuitProtectionSettings: View {
                 return InstalledApps.installedBundleApplications(excluding: excluded)
             })
         }
-        .onAppear { service.syncWithPreferences() }
+        .onAppear {
+            service.syncWithPreferences()
+            TouchIDGuardService.shared.syncWithPreferences()
+            LockShortcutGuardService.shared.syncWithPreferences()
+        }
+    }
+
+    /// Command-Q protection confirming with Control owns Control-Command-Q.
+    private var quitProtectionOwnsLockShortcut: Bool {
+        LockShortcutGuardSupport.quitProtectionOwnsShortcut(
+            quitEnabled: quitEnabled,
+            quitMode: QuitProtectionSupport.modeFor(quitMode),
+            extraModifier: QuitProtectionSupport.extraModifierFor(quitExtraModifier))
+    }
+
+    @ViewBuilder
+    private var lockShortcutSection: some View {
+        let mode = LockShortcutGuardSupport.modeFor(lockMode)
+        Section(LockShortcutGuardSupport.symbol) {
+            Toggle(strings.enabled, isOn: $lockEnabled)
+                .onChange(of: lockEnabled) { _, _ in LockShortcutGuardService.shared.syncWithPreferences() }
+                .onChange(of: quitProtectionOwnsLockShortcut) { _, _ in
+                    LockShortcutGuardService.shared.syncWithPreferences()
+                }
+            Text(strings.lockShortcutCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if quitProtectionOwnsLockShortcut {
+                Text(strings.lockShortcutOwnedByQuit)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            Picker(strings.mode, selection: $lockMode) {
+                Text(strings.hold).tag(LockShortcutGuardMode.hold.rawValue)
+                Text(strings.doublePress).tag(LockShortcutGuardMode.doublePress.rawValue)
+            }
+
+            if mode == .hold {
+                Slider(value: $lockHoldDuration,
+                       in: LockShortcutGuardSupport.holdDurationRange,
+                       step: 50) {
+                    Text(strings.holdDuration)
+                } minimumValueLabel: {
+                    Text("250 ms").font(.caption2)
+                } maximumValueLabel: {
+                    Text("2 s").font(.caption2)
+                }
+                Text("\(Int(lockHoldDuration.rounded())) ms")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Slider(value: $lockDoubleInterval,
+                       in: LockShortcutGuardSupport.doublePressIntervalRange,
+                       step: 50) {
+                    Text(strings.doublePressInterval)
+                } minimumValueLabel: {
+                    Text("200 ms").font(.caption2)
+                } maximumValueLabel: {
+                    Text("1.5 s").font(.caption2)
+                }
+                Text("\(Int(lockDoubleInterval.rounded())) ms")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Toggle(strings.feedback, isOn: $lockShowFeedback)
+        }
+    }
+
+    @ViewBuilder
+    private var touchIDSection: some View {
+        let mode = TouchIDGuardSupport.modeFor(touchIDMode)
+        Section(strings.touchIDTitle) {
+            Toggle(strings.touchIDEnabled, isOn: $touchIDEnabled)
+                .onChange(of: touchIDEnabled) { _, _ in TouchIDGuardService.shared.syncWithPreferences() }
+            Text(strings.touchIDEnabledCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker(strings.mode, selection: $touchIDMode) {
+                Text(strings.hold).tag(TouchIDGuardMode.hold.rawValue)
+                Text(strings.touchIDIgnore).tag(TouchIDGuardMode.ignore.rawValue)
+            }
+            .onChange(of: touchIDMode) { _, _ in TouchIDGuardService.shared.syncWithPreferences() }
+
+            if mode == .hold {
+                Slider(value: $touchIDHoldDuration,
+                       in: TouchIDGuardSupport.holdDurationRange,
+                       step: 50) {
+                    Text(strings.holdDuration)
+                } minimumValueLabel: {
+                    Text("400 ms").font(.caption2)
+                } maximumValueLabel: {
+                    Text("2 s").font(.caption2)
+                }
+                Text("\(Int(touchIDHoldDuration.rounded())) ms")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(strings.feedback, isOn: $touchIDShowFeedback)
+                if !touchIDCanMeasureHold {
+                    Text(strings.touchIDHoldUnavailable)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
+        }
     }
 
     @ViewBuilder

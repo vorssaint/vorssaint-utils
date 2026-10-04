@@ -151,16 +151,11 @@ final class QuickTogglesService: ObservableObject {
 
     // MARK: - Screen
 
-    /// The same immediate lock as the system's own shortcut. The symbol is
-    /// resolved lazily and guarded; when it is unavailable the screen saver
-    /// path stands in (with a password required, it locks too).
+    /// The same immediate lock as the system's own shortcut, shared with the
+    /// lock shortcut guard.
     func lockScreen() {
         guard available else { return }
-        if let lock = Self.lockScreenFunction {
-            _ = lock()
-        } else {
-            startScreenSaver()
-        }
+        ScreenLock.lockNow()
     }
 
     func turnDisplayOff() {
@@ -360,15 +355,6 @@ final class QuickTogglesService: ObservableObject {
                                                                options: []) else { return true }
         return urls.contains { $0.path == url.path }
     }
-
-    /// SACLockScreenImmediate from the login framework, resolved once and
-    /// guarded: a missing symbol just means the screen saver fallback.
-    private static let lockScreenFunction: (@convention(c) () -> Int32)? = {
-        let path = "/System/Library/PrivateFrameworks/login.framework/login"
-        guard let handle = dlopen(path, RTLD_LAZY),
-              let symbol = dlsym(handle, "SACLockScreenImmediate") else { return nil }
-        return unsafeBitCast(symbol, to: (@convention(c) () -> Int32).self)
-    }()
 
     private typealias AppearanceGet = @convention(c) () -> Bool
     private typealias AppearanceSet = @convention(c) (Bool) -> Void
