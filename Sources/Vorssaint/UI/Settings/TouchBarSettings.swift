@@ -9,6 +9,7 @@ struct TouchBarSettings: View {
     @AppStorage(DefaultsKey.touchBarShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.touchBarShowMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.touchBarShowClipboard) private var showClipboard = true
+    @AppStorage(DefaultsKey.touchBarShowSystemMetrics) private var showSystemMetrics = true
     @State private var order = TouchBarControl.ordered
     @State private var dragging: TouchBarControl?
 
@@ -43,6 +44,8 @@ struct TouchBarSettings: View {
         .onChange(of: enabled) { _, _ in refreshTouchBar() }
         .onChange(of: showKeepAwake) { _, _ in refreshTouchBar() }
         .onChange(of: showMicMute) { _, _ in refreshTouchBar() }
+        .onChange(of: showClipboard) { _, _ in refreshTouchBar() }
+        .onChange(of: showSystemMetrics) { _, _ in refreshTouchBar() }
     }
 
     private func visibilityBinding(for control: TouchBarControl) -> Binding<Bool> {
@@ -53,6 +56,8 @@ struct TouchBarSettings: View {
             return $showMicMute
         case .clipboard:
             return $showClipboard
+        case .systemMetrics:
+            return $showSystemMetrics
         }
     }
 
@@ -71,6 +76,7 @@ private struct TouchBarControlRow: View {
         case .keepAwake: return "Keep Awake"
         case .micMute: return "Microphone Mute"
         case .clipboard: return "Clipboard"
+        case .systemMetrics: return "System Metrics"
         }
     }
 
@@ -79,6 +85,7 @@ private struct TouchBarControlRow: View {
         case .keepAwake: return "cup.and.saucer"
         case .micMute: return "mic.fill"
         case .clipboard: return "doc.on.clipboard"
+        case .systemMetrics: return "chart.bar.fill"
         }
     }
 

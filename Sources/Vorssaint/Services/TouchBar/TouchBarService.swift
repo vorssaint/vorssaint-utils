@@ -13,12 +13,15 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.mic-mute")
     private static let clipboardItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.clipboard")
+    private static let systemMetricsItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.system-metrics")
 
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
 
     private weak var keepAwakeButton: NSButton?
     private weak var micMuteButton: NSButton?
+    private weak var systemMetricsLabel: NSTextField?
     private var cancellables = Set<AnyCancellable>()
 
     private override init() {
@@ -37,6 +40,12 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 self?.updateMicMuteButton()
             }
             .store(in: &cancellables)
+        SystemMonitor.shared.$snapshot
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] snapshot in
+                self?.updateSystemMetricsLabel(snapshot)
+            }
+            .store(in: &cancellables)
     }
 
     func syncWithPreferences() {
@@ -45,6 +54,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
             && UserDefaults.standard.bool(forKey: DefaultsKey.touchBarEnabled)
 
         isActive = shouldBeActive
+
+        let metricsVisible = shouldBeActive
+            && TouchBarControl.visibleOrdered.contains(.systemMetrics)
+        SystemMonitor.shared.setTouchBarNeeds(
+            metricsVisible
+                ? SystemMonitorPanelNeeds(cpu: true, memory: true)
+                : .none
+        )
 
         if shouldBeActive {
             touchBar = makeTouchBar()
@@ -64,6 +81,8 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 return Self.micMuteItemIdentifier
             case .clipboard:
                 return Self.clipboardItemIdentifier
+            case .systemMetrics:
+                return Self.systemMetricsItemIdentifier
             }
         }
         return bar
@@ -83,9 +102,23 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         case Self.clipboardItemIdentifier:
             return makeClipboardItem(identifier: identifier)
 
+        case Self.systemMetricsItemIdentifier:
+            return makeSystemMetricsItem(identifier: identifier)
+
         default:
             return nil
         }
+    }
+
+    private func makeSystemMetricsItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        let label = NSTextField(labelWithString: "CPU --% · RAM --%")
+        label.alignment = .center
+        systemMetricsLabel = label
+        item.view = label
+        return item
     }
 
     private func makeClipboardItem(
@@ -160,6 +193,20 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
             systemSymbolName: symbol,
             accessibilityDescription: "Microphone Mute"
         ) ?? NSImage()
+    }
+
+    private func updateSystemMetricsLabel(_ snapshot: SystemSnapshot) {
+        let cpu = snapshot.cpuUsage.map { "\(Int(($0 * 100).rounded()))%" } ?? "--%"
+        let ram: String
+        if let used = snapshot.memoryUsed,
+           let total = snapshot.memoryTotal,
+           total > 0 {
+            ram = "\(Int((Double(used) / Double(total) * 100).rounded()))%"
+        } else {
+            ram = "--%"
+        }
+
+        systemMetricsLabel?.stringValue = "CPU \(cpu) · RAM \(ram)"
     }
 
     private func updateKeepAwakeButton() {
