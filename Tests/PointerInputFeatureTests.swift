@@ -999,6 +999,50 @@ enum PointerInputFeatureTests {
         focusFollowsMouseState.reset()
         suite.expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
+        // Command-Tab away from the window under the pointer: the pointer
+        // moved just before or while Command went down, so the check waited
+        // for the release, and the release is also when the chosen app comes
+        // forward.
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 120, y: 20), at: 20)
+        focusFollowsMouseState.applicationDidActivate(processID: 2_002, at: 20.6)
+        suite.expect(!focusFollowsMouseState.hasPendingEvaluation
+                && focusFollowsMouseState.nextEvaluation(at: 21, delayMilliseconds: 250) == nil,
+               "movement from before a keyboard app switch cannot pull focus back to the window under the pointer")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 130, y: 20), at: 22)
+        let staleHoverLookup = focusFollowsMouseState.nextEvaluation(at: 22.25, delayMilliseconds: 250)
+        focusFollowsMouseState.applicationDidActivate(processID: 2_002, at: 22.26)
+        suite.expect(staleHoverLookup.map(focusFollowsMouseState.isCurrent) == false,
+               "a window lookup still in flight when another app comes forward cannot focus afterwards")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 140, y: 20), at: 23)
+        suite.expect(focusFollowsMouseState.nextEvaluation(at: 23.25, delayMilliseconds: 250)?.point
+                == CGPoint(x: 140, y: 20),
+               "hover follows the pointer again as soon as it moves after an app switch")
+        focusFollowsMouseState.hoverWillActivate(processID: 1_001, at: 23.26)
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 150, y: 20), at: 23.28)
+        focusFollowsMouseState.applicationDidActivate(processID: 1_001, at: 23.3)
+        suite.expect(focusFollowsMouseState.nextEvaluation(at: 23.6, delayMilliseconds: 250)?.point
+                == CGPoint(x: 150, y: 20),
+               "the activation hover asked for keeps movement made while it lands")
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 160, y: 20), at: 23.7)
+        focusFollowsMouseState.applicationDidActivate(processID: 1_001, at: 23.8)
+        suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "hover's own activation is excused once, not every later switch to that app")
+        focusFollowsMouseState.hoverWillActivate(processID: 1_001, at: 26)
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 170, y: 20), at: 30)
+        focusFollowsMouseState.applicationDidActivate(processID: 1_001, at: 30.1)
+        suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "a hover activation that never landed does not excuse a later switch to that app")
+        focusFollowsMouseState.hoverWillActivate(processID: 1_001, at: 31)
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 180, y: 20), at: 31.02)
+        focusFollowsMouseState.applicationDidActivate(processID: 2_002, at: 31.05)
+        suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "another app coming forward while hover's activation is in flight still discards old movement")
+        focusFollowsMouseState.hoverWillActivate(processID: 1_001, at: 32)
+        focusFollowsMouseState.reset()
+        focusFollowsMouseState.recordMovement(to: CGPoint(x: 190, y: 20), at: 32.1)
+        focusFollowsMouseState.applicationDidActivate(processID: 1_001, at: 32.2)
+        suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
+               "a hover activation requested before a reset does not excuse a switch made after it")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
@@ -1028,6 +1072,14 @@ enum PointerInputFeatureTests {
         suite.expect(focusFollowsMouseServiceSource.contains(
                 "!SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)"),
                "focus follows mouse never hands a window on a hidden Space to the activator, which would travel")
+        // A token is removed only by the center that issued it. One left
+        // behind keeps answering app switches, and twice once hover restarts.
+        suite.expect(focusFollowsMouseServiceSource.components(separatedBy: "workspaceCenter.addObserver(").count
+                == focusFollowsMouseServiceSource.components(
+                    separatedBy: "workspaceObservers.append(workspaceCenter.addObserver(").count
+                && focusFollowsMouseServiceSource.contains(
+                    "workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)"),
+               "focus follows mouse removes its workspace observers from the workspace notification center")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a

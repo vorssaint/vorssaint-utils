@@ -12,6 +12,7 @@ final class FocusFollowsMouseService {
     private var timer: Timer?
     private var mouseMonitor: Any?
     private var observers: [NSObjectProtocol] = []
+    private var workspaceObservers: [NSObjectProtocol] = []
     private var state = FocusFollowsMouseState()
     private var delayMilliseconds = FocusFollowsMouseSupport.defaultDelayMilliseconds
     private var isRunning = false
@@ -46,6 +47,8 @@ final class FocusFollowsMouseService {
         mouseMonitor = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
+        workspaceObservers.forEach(NSWorkspace.shared.notificationCenter.removeObserver)
+        workspaceObservers.removeAll()
         isRunning = false
     }
 
@@ -65,12 +68,18 @@ final class FocusFollowsMouseService {
         self.mouseMonitor = mouseMonitor
 
         let workspaceCenter = NSWorkspace.shared.notificationCenter
-        observers.append(workspaceCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
-                                                      object: nil, queue: .main) { [weak self] _ in
+        workspaceObservers.append(workspaceCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                                              object: nil, queue: .main) { [weak self] _ in
             self?.resetMovement()
         })
-        observers.append(workspaceCenter.addObserver(forName: NSWorkspace.didWakeNotification,
-                                                      object: nil, queue: .main) { [weak self] _ in
+        workspaceObservers.append(workspaceCenter.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                                              object: nil, queue: .main) { [weak self] notification in
+            guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey]
+                    as? NSRunningApplication else { return }
+            self?.applicationDidActivate(app.processIdentifier)
+        })
+        workspaceObservers.append(workspaceCenter.addObserver(forName: NSWorkspace.didWakeNotification,
+                                                              object: nil, queue: .main) { [weak self] _ in
             self?.resetMovement()
         })
         observers.append(NotificationCenter.default.addObserver(
@@ -99,6 +108,18 @@ final class FocusFollowsMouseService {
         state.reset()
         timer?.invalidate()
         timer = nil
+    }
+
+    private func applicationDidActivate(_ processID: pid_t) {
+        // The activator may pass through Vorssaint on its way to the target.
+        if processID == ProcessInfo.processInfo.processIdentifier, ActivationHandoff.isHandingOff {
+            return
+        }
+        state.applicationDidActivate(processID: processID, at: ProcessInfo.processInfo.systemUptime)
+        if !state.hasPendingEvaluation {
+            timer?.invalidate()
+            timer = nil
+        }
     }
 
     /// Nothing held down: no mouse button pressed and no modifier. Asked
@@ -159,6 +180,8 @@ final class FocusFollowsMouseService {
                       // travels between desktops.
                       !SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)
                 else { return }
+                self.state.hoverWillActivate(processID: target.processID,
+                                             at: ProcessInfo.processInfo.systemUptime)
                 WindowActivator.activate(pid: target.processID,
                                          windowID: target.windowID,
                                          appName: app.localizedName ?? "",

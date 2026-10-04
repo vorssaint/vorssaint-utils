@@ -7,6 +7,8 @@ import Foundation
 enum FocusFollowsMouseSupport {
     static let defaultDelayMilliseconds = 250
     static let delayRange = 100...1_000
+    /// How long an activation hover requested may take to be reported.
+    static let hoverActivationWindow: TimeInterval = 1
 
     static func sanitizedDelay(_ milliseconds: Int) -> Int {
         min(max(milliseconds, delayRange.lowerBound), delayRange.upperBound)
@@ -70,6 +72,8 @@ struct FocusFollowsMouseState: Equatable {
     private(set) var movedAt: TimeInterval = 0
     private(set) var generation: UInt64 = 0
     private var evaluatedGeneration: UInt64?
+    private var hoverActivatedProcessID: pid_t?
+    private var hoverActivatedAt: TimeInterval = 0
 
     var hasPendingEvaluation: Bool {
         point != nil && evaluatedGeneration != generation
@@ -86,6 +90,7 @@ struct FocusFollowsMouseState: Equatable {
         point = nil
         generation &+= 1
         evaluatedGeneration = nil
+        hoverActivatedProcessID = nil
     }
 
     mutating func nextEvaluation(at time: TimeInterval,
@@ -100,5 +105,26 @@ struct FocusFollowsMouseState: Equatable {
 
     func isCurrent(_ evaluation: FocusFollowsMouseEvaluation) -> Bool {
         evaluation.generation == generation
+    }
+
+    /// Hover is about to bring this app forward itself, so the activation
+    /// that follows is its own and says nothing about the pointer.
+    mutating func hoverWillActivate(processID: pid_t, at time: TimeInterval) {
+        hoverActivatedProcessID = processID
+        hoverActivatedAt = time
+    }
+
+    /// An app came forward. Unless hover asked for it, the user chose that
+    /// app another way: Command-Tab, the Dock, a click, a launcher. Movement
+    /// recorded before that choice must not answer it. A check held back
+    /// while Command was down would otherwise run the moment the key is
+    /// released, find the pointer still over the window being left and pull
+    /// focus straight back to it. Hover resumes with the next movement.
+    mutating func applicationDidActivate(processID: pid_t, at time: TimeInterval) {
+        let isHoverActivation = hoverActivatedProcessID == processID
+            && time - hoverActivatedAt <= FocusFollowsMouseSupport.hoverActivationWindow
+        hoverActivatedProcessID = nil
+        guard !isHoverActivation else { return }
+        reset()
     }
 }
