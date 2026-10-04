@@ -205,6 +205,8 @@ struct WindowLayoutSettings: View {
                     actionRow(.marginMaximize)
                     actionRow(.fullScreen)
                     actionRow(.center)
+                    actionRow(.makeLarger)
+                    actionRow(.makeSmaller)
                     actionRow(.previousDisplay)
                     actionRow(.nextDisplay)
                     actionRow(.restore)
