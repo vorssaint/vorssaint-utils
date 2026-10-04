@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
+import ImageIO
 
 enum NotchMusicExtrasTests {
     private static func lyricScheduleContracts(_ suite: TestSuite) {
@@ -53,8 +55,132 @@ enum NotchMusicExtrasTests {
                "resuming or seeking back schedules the next verse from the new playback position")
     }
 
+    /// Zen and Firefox publish no cover, so the island reads the saved session
+    /// for the playing tab and derives YouTube's thumbnail from its address.
+    private static func browserArtworkContracts(_ suite: TestSuite) {
+        let session = Data("""
+            {"windows":[{"tabs":[
+              {"index":2,"entries":[{"url":"https://www.youtube.com/watch?v=aaaaaaaaaaa","title":"Old video - YouTube"},
+                                    {"url":"https://www.youtube.com/watch?v=1PxhTfmEyQ8&t=42","title":"(3) My favorite browser is (kind of) dead - YouTube"}]},
+              {"index":1,"entries":[{"url":"https://www.google.com/search?q=browser","title":"My favorite browser is (kind of) dead - Google Search"}]},
+              {"index":1,"entries":[{"url":"https://music.youtube.com/watch?v=8_fkyx42kL0&list=RDAMVM","title":"she likes spring, I prefer winter | YouTube Music"}]}
+            ]}]}
+            """.utf8)
+        // One LZ4 sequence of literals only. Its token says 15, the extra
+        // length bytes carry the rest, and the bytes themselves follow.
+        let literals = [UInt8](session)
+        var block: [UInt8] = [0xF0]
+        var remaining = literals.count - 15
+        while remaining >= 255 { block.append(255); remaining -= 255 }
+        block.append(UInt8(remaining))
+        block += literals
+        let size = UInt32(literals.count)
+        let container = Data(Array("mozLz40\0".utf8) + (0..<4).map { UInt8(truncatingIfNeeded: size >> (8 * $0)) } + block)
+        suite.expect(NotchBrowserArtworkSupport.decodeMozLZ4(container) == session,
+               "a Mozilla session container decodes to its JSON")
+        suite.expect(NotchBrowserArtworkSupport.decodeMozLZ4(Data("mozLz40\0".utf8) + Data([0, 0, 0, 0, 0])) == nil
+                && NotchBrowserArtworkSupport.decodeMozLZ4(Data("not a session".utf8)) == nil
+                && NotchBrowserArtworkSupport.decodeMozLZ4(container.dropLast(4)) == nil,
+               "an empty, foreign or truncated session reads as nothing")
+
+        let tabs = NotchBrowserArtworkSupport.openTabs(inSession: session)
+        suite.expect(tabs.count == 3 && tabs[0].title.hasPrefix("(3) My favorite"),
+               "each tab reads as the page it shows now, not its back history")
+        suite.expect(NotchBrowserArtworkSupport.artworkURLs(forTrack: "My favorite browser is (kind of) dead", in: tabs)
+                .map(\.absoluteString) == ["https://i.ytimg.com/vi/1PxhTfmEyQ8/maxresdefault.jpg",
+                                           "https://i.ytimg.com/vi/1PxhTfmEyQ8/mqdefault.jpg"],
+               "the playing video's tab gives its full thumbnail first, ahead of a search for the same title")
+        suite.expect(NotchBrowserArtworkSupport.artworkURLs(forTrack: "she likes spring, I prefer winter", in: tabs)
+                .first?.absoluteString == "https://i.ytimg.com/vi/8_fkyx42kL0/maxresdefault.jpg"
+                && NotchBrowserArtworkSupport.artworkURLs(forTrack: "Midnight City", in: tabs).isEmpty,
+               "YouTube Music tabs give their song's cover and an unknown track gives none")
+
+        let page = { (address: String) in
+            NotchBrowserArtworkSupport.thumbnailURLs(forPage: URL(string: address)!).first?.absoluteString
+        }
+        suite.expect(page("https://youtu.be/1PxhTfmEyQ8?si=x") == "https://i.ytimg.com/vi/1PxhTfmEyQ8/maxresdefault.jpg"
+                && page("https://m.youtube.com/shorts/1PxhTfmEyQ8") != nil
+                && page("https://www.youtube.com/live/1PxhTfmEyQ8") != nil
+                && page("https://www.youtube.com/watch?v=short") == nil
+                && page("https://www.youtube.com/watch?v=1PxhTfmEy/8") == nil
+                && page("https://www.youtube.com/@channel") == nil
+                && page("https://evil.example/watch?v=1PxhTfmEyQ8") == nil
+                && page("file:///watch?v=1PxhTfmEyQ8") == nil,
+               "only a well-formed YouTube video address yields a thumbnail address")
+
+        suite.expect(NotchBrowserArtworkSupport.centreSquare(width: 1280, height: 720)
+                    == CGRect(x: 280, y: 0, width: 720, height: 720)
+                && NotchBrowserArtworkSupport.centreSquare(width: 640, height: 480)
+                    == CGRect(x: 80, y: 0, width: 480, height: 480)
+                && NotchBrowserArtworkSupport.centreSquare(width: 300, height: 400)
+                    == CGRect(x: 0, y: 50, width: 300, height: 300),
+               "a YouTube Music thumbnail crops to its square album art without the side bars")
+        let search = NotchBrowserArtworkSupport.appleMusicSearchURL(title: "less of you", artist: "keshi", country: "PH")
+        let searchItems = search.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems } ?? []
+        suite.expect(search?.host == "itunes.apple.com"
+                && searchItems.contains(URLQueryItem(name: "term", value: "keshi less of you"))
+                && searchItems.contains(URLQueryItem(name: "country", value: "PH"))
+                && NotchBrowserArtworkSupport.appleMusicSearchURL(title: "less of you", artist: nil, country: nil) == nil
+                && NotchBrowserArtworkSupport.appleMusicSearchURL(title: "x", artist: "y", country: "bogus")
+                    .map { $0.absoluteString.contains("country=US") } == true,
+               "the Apple search names the artist and the song, and never runs on a title alone")
+        let appleReply = Data("""
+            {"resultCount":3,"results":[
+              {"trackName":"Skeletons (Piano Version)","artistName":"thepianokid",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/piano.jpg/100x100bb.jpg"},
+              {"trackName":"less of you","artistName":"thepianokid",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/cover.jpg/100x100bb.jpg"},
+              {"trackName":"Less Of You","artistName":"keshi",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/83/20UMGIM13994.rgb.jpg/100x100bb.jpg"}
+            ]}
+            """.utf8)
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: appleReply, title: "less of you", artist: "keshi")?
+                    .absoluteString == "https://is1-ssl.mzstatic.com/image/thumb/Music114/v4/83/20UMGIM13994.rgb.jpg/600x600bb.jpg",
+               "the Apple result with the same song and artist gives its 600-pixel album art")
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: appleReply, title: "skeletons", artist: "keshi") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(
+                    inSearch: appleReply, title: "My favorite browser is (kind of) dead", artist: "Theo - t3.gg") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: Data("{}".utf8), title: "a", artist: "b") == nil,
+               "a piano version, a cover by someone else or a YouTube video never borrows an album's art")
+        func jpeg(side: Int) -> Data {
+            let context = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                    space: CGColorSpaceCreateDeviceRGB(),
+                                    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            let output = NSMutableData()
+            let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+            CGImageDestinationFinalize(destination)
+            return output as Data
+        }
+        suite.expect(NotchBrowserArtworkSupport.needsCover(nil)
+                && NotchBrowserArtworkSupport.needsCover(jpeg(side: 60))
+                && NotchBrowserArtworkSupport.needsCover(Data("not an image".utf8))
+                && !NotchBrowserArtworkSupport.needsCover(jpeg(side: 720)),
+               "the 60-pixel cover Zen sends for YouTube Music gets replaced, a full-size one stays")
+        let track = RadialNowPlayingSnapshot(title: "Song", artist: "Artist", album: nil, artworkData: nil,
+                                            appBundleIdentifier: "app.zen-browser.zen", appPID: 7)
+        let playback = NotchPlayback(track: track, isPlaying: true, elapsed: 12, duration: 180, rate: 1,
+                                     sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: true,
+                                     itemIdentifier: "item", canSkipNext: true)
+        let covered = playback.withArtwork(Data([1, 2, 3]))
+        suite.expect(covered.track.artworkData == Data([1, 2, 3])
+                && covered.track.title == "Song" && covered.track.appPID == 7
+                && covered.elapsed == 12 && covered.canSeek && covered.itemIdentifier == "item"
+                && covered.canSkipNext == true
+                && NotchMusicIdentity(covered) == NotchMusicIdentity(playback),
+               "a cover found from the tab changes nothing else about the playback")
+        let folders = NotchBrowserArtworkSupport.profileFolders
+        suite.expect(folders["app.zen-browser.zen"] == "zen/Profiles"
+                && folders["org.mozilla.firefox"] == "Firefox/Profiles"
+                && ["com.apple.Music", "com.spotify.client", "com.google.Chrome", "com.apple.Safari"]
+                    .allSatisfy { folders[$0] == nil }
+                && folders.values.allSatisfy { $0.hasSuffix("/Profiles") },
+               "the cover lookup only reads the sessions of Firefox-family browsers")
+    }
+
     static func run(_ suite: TestSuite) {
         lyricScheduleContracts(suite)
+        browserArtworkContracts(suite)
         NotchMusicHardeningTests.run(suite)
         let track = RadialNowPlayingSnapshot(title: "A & B + C", artist: "Artist / Example", album: "Studio Recording",
                                             artworkData: nil, appBundleIdentifier: "org.example.player", appPID: 42)
