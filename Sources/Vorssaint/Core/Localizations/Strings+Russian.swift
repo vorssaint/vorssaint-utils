@@ -608,6 +608,8 @@ extension Strings {
         preciseVolumeRollerCaption: "Преобразует колесики и клавиши громкости в меньшие системные шаги.",
         preciseVolumeRollerTapFailed: "Не удалось отслеживать клавиши громкости.",
         soundOutputSwitcherTitle: "Переключатель выхода",
+        soundOutputOSDEnable: "Показывать устройство вывода",
+        soundOutputConfirmationSound: "Звук при смене выхода горячей клавишей",
         soundOutputSwitcherEnable: "Переключать выходы горячей клавишей",
         soundOutputSwitcherCaption: "Выберите выходы и используйте сочетание клавиш, чтобы перейти к следующему доступному.",
         soundOutputSwitcherDevices: "Выходы в цикле",
