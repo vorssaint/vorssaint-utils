@@ -318,7 +318,12 @@ enum NotchAgentTests {
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        _ = feed(claudeUser(#"<local-command-caveat>Caveat: local commands</local-command-caveat>"#, meta: true))
+        _ = feed(claudeUser(#"<command-name>/clear</command-name>"#))
+        _ = feed(line(#"{"type":"system","subtype":"local_command","content":"<local-command-stdout></local-command-stdout>","isMeta":false}"#))
+        suite.expect(store.live.isEmpty && !state.turnOpen, "command output on a system line ends the turn too")
         _ = feed(claudeUser())
+        suite.expect(store.live.count == 1, "a prompt after a local command starts a turn")
         suite.expect(feed(claudeAssistant(id: "msg_4", request: "req_4", model: "<synthetic>", stop: "stop_sequence",
                                           time: "2026-09-21T23:44:40.000Z")).isEmpty && store.live.isEmpty,
                      "an error written in place of a reply ends the turn without a finish notice")
