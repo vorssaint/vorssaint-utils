@@ -8,6 +8,9 @@ enum TouchBarControl: String, CaseIterable, Hashable {
     case micMute
     case clipboard
     case systemMetrics
+    case media
+    case quickLauncher
+    case killProcess
 
     var visibilityKey: String {
         switch self {
@@ -19,6 +22,12 @@ enum TouchBarControl: String, CaseIterable, Hashable {
             return DefaultsKey.touchBarShowClipboard
         case .systemMetrics:
             return DefaultsKey.touchBarShowSystemMetrics
+        case .media:
+            return DefaultsKey.touchBarShowMedia
+        case .quickLauncher:
+            return DefaultsKey.touchBarShowQuickLauncher
+        case .killProcess:
+            return DefaultsKey.touchBarShowKillProcess
         }
     }
 

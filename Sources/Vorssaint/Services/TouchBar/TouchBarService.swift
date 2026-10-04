@@ -15,6 +15,12 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.clipboard")
     private static let systemMetricsItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.system-metrics")
+    private static let mediaItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.media")
+    private static let quickLauncherItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.quick-launcher")
+    private static let killProcessItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.kill-process")
 
     private(set) var isActive = false
     private(set) var touchBar: NSTouchBar?
@@ -22,6 +28,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private weak var keepAwakeButton: NSButton?
     private weak var micMuteButton: NSButton?
     private weak var systemMetricsLabel: NSTextField?
+    private weak var mediaToggleButton: NSButton?
     private var cancellables = Set<AnyCancellable>()
 
     private override init() {
@@ -46,6 +53,13 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 self?.updateSystemMetricsLabel(snapshot)
             }
             .store(in: &cancellables)
+
+        NotchMusicService.shared.$playback
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] playback in
+                self?.updateMediaToggleButton(isPlaying: playback?.isPlaying ?? false)
+            }
+            .store(in: &cancellables)
     }
 
     func syncWithPreferences() {
@@ -62,6 +76,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 ? SystemMonitorPanelNeeds(cpu: true, memory: true)
                 : .none
         )
+
+        let mediaVisible = shouldBeActive
+            && TouchBarControl.visibleOrdered.contains(.media)
+        if mediaVisible {
+            NotchMusicService.shared.start(for: .touchBar)
+        } else {
+            NotchMusicService.shared.stop(for: .touchBar)
+        }
 
         if shouldBeActive {
             touchBar = makeTouchBar()
@@ -83,6 +105,12 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 return Self.clipboardItemIdentifier
             case .systemMetrics:
                 return Self.systemMetricsItemIdentifier
+            case .media:
+                return Self.mediaItemIdentifier
+            case .quickLauncher:
+                return Self.quickLauncherItemIdentifier
+            case .killProcess:
+                return Self.killProcessItemIdentifier
             }
         }
         return bar
@@ -105,9 +133,97 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         case Self.systemMetricsItemIdentifier:
             return makeSystemMetricsItem(identifier: identifier)
 
+        case Self.mediaItemIdentifier:
+            return makeMediaItem(identifier: identifier)
+
+        case Self.quickLauncherItemIdentifier:
+            return makeQuickLauncherItem(identifier: identifier)
+
+        case Self.killProcessItemIdentifier:
+            return makeKillProcessItem(identifier: identifier)
+
         default:
             return nil
         }
+    }
+
+    private func makeKillProcessItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        let button = NSButton(
+            title: "💀",
+            target: self,
+            action: #selector(showKillProcess(_:))
+        )
+        button.isBordered = false
+        item.view = button
+        return item
+    }
+
+    private func makeQuickLauncherItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+        let button = NSButton(
+            image: NSImage(
+                systemSymbolName: "square.grid.2x2",
+                accessibilityDescription: "Quick Launcher"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(showQuickLauncher(_:))
+        )
+        button.imagePosition = .imageOnly
+        button.isBordered = false
+        item.view = button
+        return item
+    }
+
+    private func makeMediaItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+
+        let previous = NSButton(
+            image: NSImage(
+                systemSymbolName: "backward.end.fill",
+                accessibilityDescription: "Previous"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(mediaPrevious(_:))
+        )
+
+        let toggle = NSButton(
+            image: NSImage(
+                systemSymbolName: "play.fill",
+                accessibilityDescription: "Play/Pause"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(mediaToggle(_:))
+        )
+
+        mediaToggleButton = toggle
+
+        let next = NSButton(
+            image: NSImage(
+                systemSymbolName: "forward.end.fill",
+                accessibilityDescription: "Next"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(mediaNext(_:))
+        )
+
+        for button in [previous, toggle, next] {
+            button.imagePosition = .imageOnly
+            button.isBordered = false
+        }
+
+        let stack = NSStackView(views: [previous, toggle, next])
+        stack.orientation = .horizontal
+        stack.spacing = 4
+
+        item.view = stack
+        return item
     }
 
     private func makeSystemMetricsItem(
@@ -195,6 +311,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         ) ?? NSImage()
     }
 
+    private func updateMediaToggleButton(isPlaying: Bool) {
+        let symbol = isPlaying ? "pause.fill" : "play.fill"
+        mediaToggleButton?.image = NSImage(
+            systemSymbolName: symbol,
+            accessibilityDescription: "Play/Pause"
+        ) ?? NSImage()
+    }
+
     private func updateSystemMetricsLabel(_ snapshot: SystemSnapshot) {
         let cpu = snapshot.cpuUsage.map { "\(Int(($0 * 100).rounded()))%" } ?? "--%"
         let ram: String
@@ -215,6 +339,27 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
     private func updateMicMuteButton() {
         micMuteButton?.image = micMuteImage()
+    }
+
+    @objc private func showKillProcess(_ sender: NSButton) {
+        SettingsRouter.shared.request(FeatureSettingsDestination(.killProcess))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+    }
+
+    @objc private func showQuickLauncher(_ sender: NSButton) {
+        QuickLauncherService.shared.show()
+    }
+
+    @objc private func mediaPrevious(_ sender: NSButton) {
+        NotchMusicService.shared.send(.previous)
+    }
+
+    @objc private func mediaToggle(_ sender: NSButton) {
+        NotchMusicService.shared.send(.toggle)
+    }
+
+    @objc private func mediaNext(_ sender: NSButton) {
+        NotchMusicService.shared.send(.next)
     }
 
     @objc private func toggleClipboard(_ sender: NSButton) {
