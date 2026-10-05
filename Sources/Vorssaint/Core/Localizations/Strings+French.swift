@@ -997,7 +997,7 @@ extension Strings {
         cleanerNotifDenied: "Les notifications de Vorssaint sont désactivées dans le système.",
         cleanerNotifOpenSettings: "Ouvrir les réglages de notifications…",
         launchAtLoginNeedsApplications: "L’app s’exécute depuis un emplacement qui ne permet pas l’ouverture à la connexion. Glissez Vorssaint dans le dossier Applications, ouvrez l’app depuis ce dossier et réactivez l’option.",
-        launchAtLoginNeedsApproval: "L’élément d’ouverture est enregistré, mais macOS demande encore une autorisation. Dans Réglages Système › Général › Ouverture et extensions, vérifiez Vorssaint dans «\u{00A0}Ouvrir à la session\u{00A0}» et «\u{00A0}Autoriser en arrière-plan\u{00A0}».",
+        launchAtLoginNeedsApproval: "L’élément d’ouverture est enregistré, mais macOS demande encore votre autorisation. Dans les Réglages Système, autorisez Vorssaint à s’ouvrir à la connexion et à s’exécuter en arrière-plan.",
         ocrRemoveLineBreaksToggle: "Supprimer les sauts de ligne",
         ocrRemoveLineBreaksCaption: "Supprime les sauts de ligne afin que le texte copié soit collé en un seul paragraphe.",
         ocrQRToggle: "Lire les codes QR",

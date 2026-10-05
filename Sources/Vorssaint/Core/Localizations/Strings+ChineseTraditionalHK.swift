@@ -998,7 +998,7 @@ extension Strings {
         cleanerNotifDenied: "Vorssaint 的通知在系統中已關閉。",
         cleanerNotifOpenSettings: "打開通知設定…",
         launchAtLoginNeedsApplications: "App 正從無法在登入時開啟的位置執行。請將 Vorssaint 拖到「應用程式」檔案夾，從那裡開啟後再重新開啟此選項。",
-        launchAtLoginNeedsApproval: "登入項目已註冊，但 macOS 仍需要許可。請打開「系統設定 › 一般 › 登入項目與延伸功能」，檢查 Vorssaint 的「登入時打開」和「允許在背景執行」設定。",
+        launchAtLoginNeedsApproval: "登入項目已註冊，但 macOS 仍需要許可。請在「系統設定」中允許 Vorssaint 在登入時打開並在背景執行。",
         ocrRemoveLineBreaksToggle: "移除換行",
         ocrRemoveLineBreaksCaption: "移除識別文字中的換行，讓拷貝的內容貼上為單一段落。",
         ocrQRToggle: "讀取 QR 碼",

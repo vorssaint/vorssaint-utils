@@ -997,7 +997,7 @@ extension Strings {
         cleanerNotifDenied: "Vorssaint の通知がシステムでオフになっています。",
         cleanerNotifOpenSettings: "通知設定を開く…",
         launchAtLoginNeedsApplications: "ログイン時に開けない場所からアプリが実行されています。Vorssaintをアプリケーションフォルダにドラッグし、そこから開いてもう一度オンにしてください。",
-        launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、macOSの許可がまだ必要です。「システム設定 › 一般 › ログイン項目と機能拡張」で、Vorssaintの「ログイン時に開く」と「バックグラウンドでの実行を許可」の両方を確認してください。",
+        launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、macOSの許可がまだ必要です。「システム設定」で、Vorssaintがログイン時に開き、バックグラウンドで実行できるように許可してください。",
         ocrRemoveLineBreaksToggle: "改行を削除",
         ocrRemoveLineBreaksCaption: "認識したテキストの改行を取り除き、1つの段落としてペーストします。",
         ocrQRToggle: "QRコードを読み取る",

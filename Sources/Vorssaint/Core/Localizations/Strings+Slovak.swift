@@ -997,7 +997,7 @@ extension Strings {
         cleanerNotifDenied: "Hlásenia Vorssaintu sú v systéme vypnuté.",
         cleanerNotifOpenSettings: "Otvoriť nastavenia hlásení…",
         launchAtLoginNeedsApplications: "Aplikácia beží z miesta, z ktorého sa nedá otvárať po prihlásení. Potiahnite Vorssaint do priečinka Aplikácie, otvorte ho odtiaľ a znova to zapnite.",
-        launchAtLoginNeedsApproval: "Položka po prihlásení je zaregistrovaná, ale macOS ešte vyžaduje povolenie. V Systémové nastavenia › Všeobecné › Položky a rozšírenia spúšťané pri prihlásení skontrolujte Vorssaint v častiach „Otvoriť po prihlásení“ aj „Povoliť na pozadí“.",
+        launchAtLoginNeedsApproval: "Položka po prihlásení je zaregistrovaná, ale macOS ešte vyžaduje vaše povolenie. V Systémových nastaveniach povoľte, aby sa Vorssaint otváral po prihlásení a bežal na pozadí.",
         ocrRemoveLineBreaksToggle: "Odstrániť zalomenia riadkov",
         ocrRemoveLineBreaksCaption: "Odstráni zalomenia riadkov, takže skopírovaný text sa vloží ako jeden odsek.",
         ocrQRToggle: "Čítať QR kódy",

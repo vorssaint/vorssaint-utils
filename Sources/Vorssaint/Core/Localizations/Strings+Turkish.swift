@@ -997,7 +997,7 @@ extension Strings {
         cleanerNotifDenied: "Vorssaint bildirimleri sistemde kapalı.",
         cleanerNotifOpenSettings: "Bildirim ayarlarını aç…",
         launchAtLoginNeedsApplications: "Uygulama, oturum açılırken açılmaya izin vermeyen bir konumdan çalışıyor. Vorssaint’i Uygulamalar klasörüne sürükleyin, oradan açın ve bu seçeneği yeniden açın.",
-        launchAtLoginNeedsApproval: "Giriş ögesi kayıtlı, ancak macOS hâlâ onay gerektiriyor. Sistem Ayarları › Genel › Giriş Ögeleri ve Uzantılar bölümünde Vorssaint için hem “Oturum açılırken aç” hem de “Arka planda izin ver” ayarlarını kontrol edin.",
+        launchAtLoginNeedsApproval: "Giriş ögesi kayıtlı, ancak macOS hâlâ onayınızı bekliyor. Sistem Ayarları’nda Vorssaint’in oturum açılırken açılmasına ve arka planda çalışmasına izin verin.",
         ocrRemoveLineBreaksToggle: "Satır sonlarını kaldır",
         ocrRemoveLineBreaksCaption: "Satır sonlarını kaldırarak kopyalanan metnin tek paragraf olarak yapıştırılmasını sağlar.",
         ocrQRToggle: "QR kodlarını oku",

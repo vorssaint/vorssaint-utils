@@ -997,7 +997,7 @@ extension Strings {
         cleanerNotifDenied: "Las notificaciones de Vorssaint están desactivadas en el sistema.",
         cleanerNotifOpenSettings: "Abrir ajustes de notificaciones…",
         launchAtLoginNeedsApplications: "La app se está ejecutando desde un lugar que no permite abrirse al iniciar sesión. Arrastra Vorssaint a la carpeta Aplicaciones, ábrelo desde ahí y actívalo de nuevo.",
-        launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero macOS aún necesita autorización. En Ajustes del Sistema › General › Ítems de inicio y extensiones, comprueba Vorssaint en “Abrir al iniciar sesión” y “Permitir en segundo plano”.",
+        launchAtLoginNeedsApproval: "El ítem de inicio está registrado, pero macOS aún necesita tu autorización. En Ajustes del Sistema, permite que Vorssaint se abra al iniciar sesión y funcione en segundo plano.",
         ocrRemoveLineBreaksToggle: "Eliminar saltos de línea",
         ocrRemoveLineBreaksCaption: "Elimina los saltos de línea para que el texto copiado se pegue como un solo párrafo.",
         ocrQRToggle: "Leer códigos QR",

@@ -998,7 +998,7 @@ extension Strings {
         cleanerNotifDenied: "시스템에서 Vorssaint 알림이 꺼져 있습니다.",
         cleanerNotifOpenSettings: "알림 설정 열기…",
         launchAtLoginNeedsApplications: "로그인 시 열 수 없는 위치에서 앱이 실행되고 있습니다. Vorssaint를 응용 프로그램 폴더로 드래그한 다음 거기에서 열고 이 옵션을 다시 켜 주세요.",
-        launchAtLoginNeedsApproval: "로그인 항목은 등록되었지만 macOS의 승인이 아직 필요합니다. 시스템 설정 › 일반 › 로그인 항목 및 확장 프로그램에서 Vorssaint의 ‘로그인 시 열기’와 ‘백그라운드에서 허용’ 설정을 모두 확인해 주세요.",
+        launchAtLoginNeedsApproval: "로그인 항목은 등록되었지만 macOS의 승인이 아직 필요합니다. 시스템 설정에서 Vorssaint가 로그인 시 열리고 백그라운드에서 실행되도록 허용해 주세요.",
         ocrRemoveLineBreaksToggle: "줄바꿈 제거",
         ocrRemoveLineBreaksCaption: "인식한 텍스트의 줄바꿈을 제거하여 한 문단으로 붙여 넣습니다.",
         ocrQRToggle: "QR 코드 읽기",

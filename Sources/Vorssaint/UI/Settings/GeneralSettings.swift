@@ -9,7 +9,10 @@ struct GeneralSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var appearance = AppAppearanceController.shared
     @ObservedObject private var hotkeys = HotkeyManager.shared
-    @State private var loginRegistration: LaunchAtLoginSupport.Registration = .off
+    // Seeded from the stored choice so the switch does not flash off while
+    // the status read is still on its way.
+    @State private var loginRegistration: LaunchAtLoginSupport.Registration =
+        UserDefaults.standard.bool(forKey: DefaultsKey.launchAtLoginWanted) ? .enabled : .off
     @State private var loginError: String?
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
