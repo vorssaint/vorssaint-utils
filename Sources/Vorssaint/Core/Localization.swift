@@ -344,6 +344,7 @@ struct Strings {
     let middleClickEnable: String
     let middleClickEnableCaption: String
     let middleClickDragConflict: String
+    let middleClickNoTrackpad: String
     let middleClickTapPicker: String
     let middleClickTapOff: String
     let middleClickTapThreeFingers: String
@@ -567,6 +568,9 @@ struct Strings {
     let homebrewNoPackages: String
     let homebrewDependencies: String
     let homebrewGroupDependencies: String
+    let homebrewOrphans: String
+    let homebrewOrphansNote: String
+    let homebrewDependencyUpdatesFormat: String
     let homebrewNoSelection: String
     let homebrewDetailsTitle: String
     let homebrewInstall: String
@@ -986,7 +990,6 @@ struct Strings {
     let monitorShowPeripheralBattery: String
     let peripheralBatteryNoDevices: String
     let monitorGraphsSection: String
-    let monitorGraphsCaption: String
 
     // MARK: Update notification + onboarding menu bar setup
     let updateBannerTitle: String
@@ -1265,6 +1268,8 @@ struct Strings {
     let focusFollowsMouseName: String
     let focusFollowsMouseCaption: String
     let focusFollowsMouseDelay: String
+    let focusFollowsMouseRaise: String
+    let focusFollowsMouseWaitForStop: String
     let switcherMinimizedPlacementLabel: String
     let switcherTreatHiddenAppsLikeMinimized: String
     let switcherMinimizedPlacementNormal: String
@@ -1289,6 +1294,8 @@ struct Strings {
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
     let shelfShortcutFinderSelectionCaption: String
+    let spacesOrderName: String
+    let spacesOrderCaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -1428,7 +1435,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Desinstalar o Vorssaint?",
         advancedUninstallConfirmBody: "O Vorssaint vai limpar as permissões, apagar as preferências e ir para a Lixeira, e então fechar. Esta ação não pode ser desfeita pelo app, mas ele fica na Lixeira até você esvaziá-la.",
         advancedUninstallFailedTitle: "A desinstalação parou",
-        advancedUninstallFailedBody: "O Vorssaint não conseguiu restaurar uma configuração do sistema que ele mudou: repouso, velocidade das ventoinhas ou aceleração do mouse. Nada foi removido. Tente de novo e permita o pedido de senha, se ele aparecer.",
+        advancedUninstallFailedBody: "O Vorssaint não conseguiu restaurar uma configuração do sistema que ele mudou: repouso, velocidade das ventoinhas, aceleração do mouse ou ordem dos Espaços. Nada foi removido. Tente de novo e permita o pedido de senha, se ele aparecer.",
 
         launchAtLogin: "Iniciar junto com o Mac",
         languageLabel: "Idioma",
@@ -1465,10 +1472,11 @@ extension Strings {
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
-        middleClickSection: "Botão do meio",
+        middleClickSection: "Botão do meio no trackpad",
         middleClickEnable: "Clique com três dedos vira botão do meio",
         middleClickEnableCaption: "Pressionar o trackpad com três dedos funciona como o clique da rodinha do mouse: abre links em nova aba, fecha abas e tudo mais que o botão do meio faz.",
-        middleClickDragConflict: "O arrastar com três dedos do macOS está ativado e usa esse mesmo gesto. Desative-o nos Ajustes do Sistema em Acessibilidade, Controle do Cursor, Opções do Trackpad, e o clique do meio vai funcionar.",
+        middleClickDragConflict: "O arrastar com três dedos do macOS está ativado e usa três dedos, então clique com quatro dedos para o clique do meio. Para usar três, desative-o nos Ajustes do Sistema em Acessibilidade, Controle do Cursor, Opções do Trackpad.",
+        middleClickNoTrackpad: "Não é possível ler os toques no trackpad. Conecte um trackpad compatível.",
         middleClickTapPicker: "Toque leve também clica",
         middleClickTapOff: "Desligado",
         middleClickTapThreeFingers: "3 dedos",
@@ -1489,11 +1497,11 @@ extension Strings {
         micUnmuteName: "Reativar microfone",
         micMuteCaption: "Corta o microfone do Mac com um clique ou atalho, valendo para qualquer app.",
         micMutedHUD: "Microfone silenciado",
-        micUnmutedHUD: "Microfone reativado",
+        micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
         micUnmutePartialHUD: "Alguns microfones continuam silenciados",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
-        micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus.",
+        micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus enquanto este recurso o silencia.",
         pastePlainName: "Colar como texto puro",
         pastePlainCaption: "Cola o que foi copiado sem cores, fontes ou formatação. O conteúdo original continua no clipboard.",
         launcherName: "Painel rápido",
@@ -1504,7 +1512,7 @@ extension Strings {
         launcherAddSection: "Adicionar de volta",
         launcherKeysHint: "Setas navegam, Enter abre, 1 a 9 abrem direto",
 
-        switcherSection: "Alternador de apps",
+        switcherSection: "Alternador de janelas",
         switcherEnable: "Usar o alternador do Vorssaint",
         switcherEnableCaption: "Troque de app ou janela, inclusive janelas minimizadas e várias janelas do mesmo app.",
         switcherUsageHint: "Segure o atalho para navegar; solte para ativar a janela. Shift ou ← volta; W fecha a janela; Q encerra o app; Esc cancela.",
@@ -1514,7 +1522,7 @@ extension Strings {
         switcherSimpleModeCaption: "Mostra ícones de apps e títulos das janelas, sem previews nem captura da tela pelo alternador.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Janelas",
-        switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor de apps aberto, pula entre as janelas do app selecionado.",
+        switcherWindowShortcutCaption: "Abre um seletor das janelas do app em primeiro plano. Com o seletor aberto, pula entre as janelas do app selecionado.",
         switcherTakeOverSystemShortcuts: "Substituir ⌘Tab e ⌘` do macOS",
         switcherTakeOverSystemShortcutsCaption: "Desativa os atalhos correspondentes de apps e janelas do macOS somente enquanto o alternador do Vorssaint estiver ativo. Todos os apps abertos continuam acessíveis.",
         switcherAppearanceDelay: "Atraso de exibição",
@@ -1623,7 +1631,7 @@ extension Strings {
         uninstallerCancel: "Cancelar",
         uninstallerConfirmationExpired: "Esta confirmação não é mais válida. Revise os itens atuais e confirme de novo.",
         uninstallerDoneTitle: "Pronto!",
-        uninstallerFreedFormat: "%@ recuperados",
+        uninstallerFreedFormat: "%@ removidos",
         uninstallerSomeFailed: "Alguns itens não puderam ser movidos para a Lixeira.",
         uninstallerFailedNeedsFDA: "Os dados de apps em área restrita só podem ser movidos com Acesso Total ao Disco. A senha de administrador não substitui essa permissão.",
         uninstallerFailedMoreFormat: "e mais %d",
@@ -1686,6 +1694,9 @@ extension Strings {
         homebrewNoPackages: "Nenhum pacote encontrado",
         homebrewDependencies: "Dependências",
         homebrewGroupDependencies: "Agrupar dependências",
+        homebrewOrphans: "Não são mais necessárias",
+        homebrewOrphansNote: "Instaladas como dependências, mas nenhum pacote instalado precisa mais delas.",
+        homebrewDependencyUpdatesFormat: "Atualizações de dependências: %d",
         homebrewNoSelection: "Selecione um pacote instalado ou pesquise um novo.",
         homebrewDetailsTitle: "Detalhes do pacote",
         homebrewInstall: "Instalar",
@@ -2084,7 +2095,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Bateria dos periféricos",
         peripheralBatteryNoDevices: "Nenhum periférico encontrado",
         monitorGraphsSection: "Gráficos",
-        monitorGraphsCaption: "Escolha quais métricas mostram um gráfico ao longo do tempo.",
 
         updateBannerTitle: "Atualização disponível",
         updateBannerAction: "Atualizar",
@@ -2350,8 +2360,10 @@ extension Strings {
         shelfEdgeToggle: "Abrir perto de uma borda da tela",
         shelfEdgeCaption: "Ao arrastar um arquivo para perto da borda da tela, a área espia para dentro. Solte ali, ou puxe de volta e ela recua.",
         focusFollowsMouseName: "Foco ao passar o mouse",
-        focusFollowsMouseCaption: "Coloca em foco e traz para frente a janela sob o ponteiro após uma breve pausa.",
+        focusFollowsMouseCaption: "Coloca em foco a janela sob o ponteiro.",
         focusFollowsMouseDelay: "Atraso ao passar o mouse",
+        focusFollowsMouseRaise: "Trazer a janela para frente",
+        focusFollowsMouseWaitForStop: "Esperar o ponteiro parar",
         switcherMinimizedPlacementLabel: "Janelas minimizadas",
         switcherTreatHiddenAppsLikeMinimized: "Tratar apps ocultos como janelas minimizadas",
         switcherMinimizedPlacementNormal: "Ordem normal",
@@ -2375,7 +2387,9 @@ extension Strings {
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
-        shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre."
+        shelfShortcutFinderSelectionCaption: "Com o Finder em primeiro plano, o atalho abre a área temporária já com os arquivos selecionados. Sem seleção, ela abre como sempre.",
+        spacesOrderName: "Manter os Espaços em ordem fixa",
+        spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança."
     )
 }
 
@@ -2516,7 +2530,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Uninstall Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint will clear its permissions, remove its preferences and move to the Trash, then quit. This can’t be undone from the app, but it stays in the Trash until you empty it.",
         advancedUninstallFailedTitle: "Uninstall stopped",
-        advancedUninstallFailedBody: "Vorssaint could not put back a system setting it changed: sleep, fan speed or mouse acceleration. Nothing was removed. Try again and allow the password request if it appears.",
+        advancedUninstallFailedBody: "Vorssaint could not put back a system setting it changed: sleep, fan speed, mouse acceleration or Space order. Nothing was removed. Try again and allow the password request if it appears.",
 
         launchAtLogin: "Launch at login",
         languageLabel: "Language",
@@ -2538,8 +2552,8 @@ extension Strings {
         configuring: "Configuring…",
         sudoersFailed: "Couldn’t turn on closed-lid mode. Try again.",
         clamshellExplanation: "“Keep going with the lid closed” fully disables sleep while “Keep awake” is active and is reverted automatically when the session ends or the app quits. Prefer using it plugged in.",
-        dimScreenOnLidCloseTitle: "Dim the screen to zero",
-        dimScreenOnLidCloseCaption: "Dims the screen when the lid closes and brings the brightness back when it opens.",
+        dimScreenOnLidCloseTitle: "Dim the display to zero",
+        dimScreenOnLidCloseCaption: "Dims the display when the lid closes and brings the brightness back when it opens.",
 
         scrollSection: "Scrolling",
         invertMouseScroll: "Invert mouse scrolling",
@@ -2553,10 +2567,11 @@ extension Strings {
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
-        middleClickSection: "Middle click",
+        middleClickSection: "Trackpad middle click",
         middleClickEnable: "Three-finger click acts as middle click",
         middleClickEnableCaption: "Pressing the trackpad with three fingers works like a mouse wheel click: open links in a new tab, close tabs and everything else the middle button does.",
-        middleClickDragConflict: "macOS three-finger drag is turned on and uses this same gesture. Turn it off in System Settings under Accessibility, Pointer Control, Trackpad Options, and the middle click will work.",
+        middleClickDragConflict: "macOS three-finger drag is turned on and uses three fingers, so click with four fingers for the middle click. To use three, turn three-finger drag off in System Settings under Accessibility, Pointer Control, Trackpad Options.",
+        middleClickNoTrackpad: "Can’t read trackpad touches. Connect a supported trackpad.",
         middleClickTapPicker: "A light tap also clicks",
         middleClickTapOff: "Off",
         middleClickTapThreeFingers: "3 fingers",
@@ -2577,11 +2592,11 @@ extension Strings {
         micUnmuteName: "Unmute microphone",
         micMuteCaption: "Cuts the Mac’s microphone with a click or shortcut, across every app.",
         micMutedHUD: "Microphone muted",
-        micUnmutedHUD: "Microphone back on",
+        micUnmutedHUD: "Mute off",
         micMutePartialHUD: "Some microphones could not be muted",
         micUnmutePartialHUD: "Some microphones are still muted",
         micMuteMenuBarToggle: "Show in the menu bar while muted",
-        micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar.",
+        micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar while this feature mutes it.",
         pastePlainName: "Paste as plain text",
         pastePlainCaption: "Pastes what you copied without colors, fonts or formatting. The original stays on the clipboard.",
         launcherName: "Quick panel",
@@ -2592,7 +2607,7 @@ extension Strings {
         launcherAddSection: "Add back",
         launcherKeysHint: "Arrows navigate, Enter opens, 1 to 9 open directly",
 
-        switcherSection: "App switcher",
+        switcherSection: "Window switcher",
         switcherEnable: "Use the Vorssaint switcher",
         switcherEnableCaption: "Switch between apps and windows, including minimized windows and multiple windows from the same app.",
         switcherUsageHint: "Hold the shortcut to navigate; release to activate the window. Shift or ← goes back; W closes the window; Q quits the app; Esc cancels.",
@@ -2602,7 +2617,7 @@ extension Strings {
         switcherSimpleModeCaption: "Shows app icons and window titles, without previews or screen capture by the switcher.",
         switcherShortcutHintApps: "Apps",
         switcherShortcutHintWindows: "Windows",
-        switcherWindowShortcutCaption: "Opens a switcher for the frontmost app’s windows. While the Apps switcher is open, jumps between the selected app’s windows.",
+        switcherWindowShortcutCaption: "Opens a switcher for the frontmost app’s windows. While the switcher is open, jumps between the selected app’s windows.",
         switcherTakeOverSystemShortcuts: "Replace macOS ⌘Tab and ⌘`",
         switcherTakeOverSystemShortcutsCaption: "Disables the matching macOS app and window shortcuts only while Vorssaint’s switcher is active. All running apps stay reachable.",
         switcherAppearanceDelay: "Appearance delay",
@@ -2711,7 +2726,7 @@ extension Strings {
         uninstallerCancel: "Cancel",
         uninstallerConfirmationExpired: "This confirmation is no longer valid. Review the current items and confirm again.",
         uninstallerDoneTitle: "Done!",
-        uninstallerFreedFormat: "%@ recovered",
+        uninstallerFreedFormat: "%@ removed",
         uninstallerSomeFailed: "Some items couldn’t be moved to the Trash.",
         uninstallerFailedNeedsFDA: "Sandboxed app data can only be moved with Full Disk Access. The administrator password does not stand in for it.",
         uninstallerFailedMoreFormat: "and %d more",
@@ -2774,6 +2789,9 @@ extension Strings {
         homebrewNoPackages: "No packages found",
         homebrewDependencies: "Dependencies",
         homebrewGroupDependencies: "Group dependencies",
+        homebrewOrphans: "No longer needed",
+        homebrewOrphansNote: "Installed as dependencies, but no installed package needs them any more.",
+        homebrewDependencyUpdatesFormat: "Dependency updates: %d",
         homebrewNoSelection: "Select an installed package or search for a new one.",
         homebrewDetailsTitle: "Package details",
         homebrewInstall: "Install",
@@ -3172,7 +3190,6 @@ extension Strings {
         monitorShowPeripheralBattery: "Peripheral battery",
         peripheralBatteryNoDevices: "No devices found",
         monitorGraphsSection: "Graphs",
-        monitorGraphsCaption: "Choose which metrics show a graph over time.",
 
         updateBannerTitle: "Update available",
         updateBannerAction: "Update",
@@ -3438,8 +3455,10 @@ extension Strings {
         shelfEdgeToggle: "Open near a screen edge",
         shelfEdgeCaption: "Drag a file toward the screen edge to peek the shelf in. Drop it there, or pull back and it retreats.",
         focusFollowsMouseName: "Focus follows mouse",
-        focusFollowsMouseCaption: "Focuses and raises the window under the pointer after a short pause.",
+        focusFollowsMouseCaption: "Focuses the window under the pointer.",
         focusFollowsMouseDelay: "Hover delay",
+        focusFollowsMouseRaise: "Bring the window to the front",
+        focusFollowsMouseWaitForStop: "Wait for the pointer to stop",
         switcherMinimizedPlacementLabel: "Minimized windows",
         switcherTreatHiddenAppsLikeMinimized: "Treat hidden apps like minimized windows",
         switcherMinimizedPlacementNormal: "Normal ordering",
@@ -3447,9 +3466,9 @@ extension Strings {
         switcherMinimizedPlacementHidden: "Hide",
         switcherShowFullscreenWindows: "Show fullscreen windows",
         switcherScreenPlacementLabel: "Show on",
-        switcherScreenPlacementPointer: "Screen with the pointer",
-        switcherScreenPlacementMenuBar: "Screen with the menu bar",
-        switcherScreenPlacementActiveWindow: "Screen with the active window",
+        switcherScreenPlacementPointer: "Display with the pointer",
+        switcherScreenPlacementMenuBar: "Display with the menu bar",
+        switcherScreenPlacementActiveWindow: "Display with the active window",
         switcherScreenPlacementCaption: "Which display the switcher opens on when more than one is connected.",
         switcherCurrentDisplayOnly: "Show only the current display",
         switcherCurrentDisplayOnlyCaption: "Lists only windows on the display under the pointer. If that display has no windows, the switcher does not open.",
@@ -3463,6 +3482,8 @@ extension Strings {
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
-        shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual."
+        shelfShortcutFinderSelectionCaption: "With Finder in front, the shortcut opens the shelf with the selected files already in it. With nothing selected, it opens as usual.",
+        spacesOrderName: "Keep Spaces in a fixed order",
+        spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change."
     )
 }

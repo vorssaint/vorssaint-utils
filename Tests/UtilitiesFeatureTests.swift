@@ -72,8 +72,35 @@ enum UtilitiesFeatureTests {
                 && !PortManagerSupport.listensOnAllInterfaces(""),
                "an endpoint without a host part is not marked")
 
+        // MARK: Port manager browser destinations (issue #1787)
+
+        for (address, expected) in [
+            ("*:3000", "http://localhost:3000"),
+            ("0.0.0.0:3000", "http://127.0.0.1:3000"),
+            ("[::]:3000", "http://[::1]:3000"),
+            ("127.0.0.1:3000", "http://127.0.0.1:3000"),
+            ("[::1]:3000", "http://[::1]:3000"),
+            ("192.168.1.20:3000", "http://192.168.1.20:3000"),
+            ("[fe80::1%en0]:3000", "http://[fe80::1%25en0]:3000"),
+        ] {
+            let entries = PortManagerSupport.parseLsof("p321\ncServer\nPTCP\nn\(address)\n")
+            suite.expect(entries.first.flatMap { PortManagerSupport.browserURL(for: $0) }?.absoluteString == expected,
+                   "opening \(address) uses a reachable HTTP destination and preserves IPv6 scope")
+        }
+        let udp = PortManagerSupport.parseLsof("p321\ncServer\nPUDP\nn*:5353\n")
+        suite.expect(udp.count == 1 && udp.first.flatMap { PortManagerSupport.browserURL(for: $0) } == nil,
+               "UDP rows retain copy actions but have no browser destination")
+        for (address, port) in [("", 3000), ("127.0.0.1", 3000), (":3000", 3000), ("*:0", 0), ("*:65536", 65536)] {
+            let entry = PortManagerEntry(port: port, protocolName: "TCP", address: address,
+                                         pid: 321, processName: "Server", startedAt: nil)
+            suite.expect(PortManagerSupport.browserURL(for: entry) == nil,
+                   "an incomplete endpoint or invalid port has no browser destination")
+        }
+
         for lang in AppLanguage.allCases {
             let strings = FeatureStrings.portManager(lang)
+            suite.expect(!strings.copyPort.isEmpty && !strings.copyAddress.isEmpty,
+                   "port row copy actions have labels in \(lang)")
             suite.expect(!strings.hubDescription.isEmpty,
                    "port manager has a non-empty hub description for \(lang)")
             suite.expect(!strings.allInterfaces.isEmpty && !strings.allInterfacesHelp.isEmpty

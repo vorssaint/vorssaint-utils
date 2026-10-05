@@ -314,7 +314,8 @@ struct SystemSection: View {
                               color: .accentColor,
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 breakdownList(for: .cpu)
             } else if editing, cpuAvailable {
@@ -328,7 +329,8 @@ struct SystemSection: View {
                               color: PanelMetricColor.cyan(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 breakdownList(for: .gpu)
             } else if editing, gpuAvailable {
@@ -452,7 +454,8 @@ struct SystemSection: View {
                               color: PanelMetricColor.mint(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 breakdownList(for: .memory)
             }

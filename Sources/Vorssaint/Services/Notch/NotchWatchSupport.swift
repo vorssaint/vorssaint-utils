@@ -39,6 +39,16 @@ enum NotchWatchOutcome: Equatable {
     case shows(String)
     case reached(String)
     case closed
+
+    /// How the companion takes the news in its notice: wide-eyed at a
+    /// change, glad when the wait is over, puzzled when the window went.
+    var mascotReaction: NotchMascotReaction {
+        switch self {
+        case .changed: return .perk
+        case .settled, .shows, .reached: return .celebrate
+        case .closed: return .confused
+        }
+    }
 }
 
 /// Follows one area reading after reading and decides when its condition

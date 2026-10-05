@@ -57,8 +57,19 @@ final class AgentUsageStore {
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                add(record, billable: billable, key: key, source: file, turn: tracksTurns ? file : parent,
-                    subagent: !tracksTurns)
+                // Copilot exposes response activity and session-wide token
+                // totals, neither of which measures the current root task.
+                let turn = provider == .copilot ? nil : tracksTurns ? file : parent
+                add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
+            case .usageModel(let key, let model):
+                guard let position = index[key], records[position].model.isEmpty else { continue }
+                let old = records[position]
+                records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
+                    project: old.project, session: old.session, requests: old.requests,
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                // Incremental token updates keep the same model; attribution
+                // changes instead rebuild model buckets from the records.
+                summary.invalidate()
             case .limits(let reading):
                 updateLimits(reading)
             case .plan(let plan, let date):
@@ -78,6 +89,17 @@ final class AgentUsageStore {
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
+            case .turnContext(let model, let project):
+                guard tracksTurns else { continue }
+                if var turn = turns[file] {
+                    if !model.isEmpty { turn.model = model }
+                    if !project.isEmpty { turn.project = project }
+                    turns[file] = turn
+                } else if var turn = waiting[file] {
+                    if !model.isEmpty { turn.model = model }
+                    if !project.isEmpty { turn.project = project }
+                    waiting[file] = turn
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
@@ -177,6 +199,7 @@ final class AgentUsageStore {
             combined.webSearches = max(combined.webSearches, billable.webSearches)
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
+            combined.isAggregate = combined.isAggregate || billable.isAggregate
             let priced = AgentPricing.cost(combined, model: old.model)
             let newCost: Double?
             let isReported: Bool
@@ -416,7 +439,7 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -432,6 +455,17 @@ struct AgentLogRoot: Equatable {
     var exists: Bool {
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
+    }
+
+    /// Discovery and live file events admit the same provider-specific logs.
+    func accepts(_ path: String) -> Bool {
+        let prefix = url.path + "/"
+        guard path.hasPrefix(prefix) else { return false }
+        if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        guard path.hasSuffix(".jsonl") else { return false }
+        guard provider == .copilot else { return true }
+        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
     }
 }
 
@@ -640,6 +674,13 @@ enum AgentLogReader {
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
+        func include(_ url: URL, from root: AgentLogRoot) {
+            guard root.accepts(url.path),
+                  let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                  let modified = values.contentModificationDate, modified >= horizon else { return }
+            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            found.append((url.path, root.provider, modified, subagent))
+        }
         for root in roots where root.exists {
             // OpenCode keeps its database beside the snapshots, clones and
             // logs of its data folder, which are never walked.
@@ -650,13 +691,20 @@ enum AgentLogReader {
                 }
                 continue
             }
+            // A Copilot session can contain a complete workspace checkout,
+            // databases and checkpoints. Its log has one fixed shallow path;
+            // recursively walking the workspace can delay the first snapshot
+            // indefinitely on a large repository.
+            if root.provider == .copilot {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
-                guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                      let modified = values.contentModificationDate, modified >= horizon else { continue }
-                let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
-                found.append((url.path, root.provider, modified, subagent))
+                include(url, from: root)
             }
         }
         return found.sorted { $0.subagent != $1.subagent ? $1.subagent : $0.modified < $1.modified }
@@ -668,7 +716,8 @@ enum AgentLogReader {
     /// A database has no files to leave out, so its first read starts at
     /// `horizon` instead.
     static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast,
-                             shouldContinue: () -> Bool = { true }, line: (Data) -> Void) {
+                             shouldContinue: () -> Bool = { true },
+                             including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
@@ -695,14 +744,30 @@ enum AgentLogReader {
             let read: Bool = autoreleasepool {
                 guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { return false }
                 cursor.offset += UInt64(chunk.count)
-                split(chunk, cursor: cursor, line: line)
+                split(chunk, cursor: cursor, including: including, line: line)
                 return true
             }
             guard read else { break }
         }
     }
 
-    private static func split(_ chunk: Data, cursor: AgentLogCursor, line: (Data) -> Void) {
+    /// Skip unrelated payloads before copying a line. Only top-level event
+    /// types count, including in whitespace-formatted logs or nested results.
+    static func copilotHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
+        guard let type = AgentLogObject(buffer, range: range)?.string("type") else { return false }
+        return AgentLogParser.copilotEvent(type)
+    }
+
+    /// Streams every structural event so responses keep their original date
+    /// and model, and the final turn state is restored. The line filter keeps
+    /// unrelated workspace output from being copied or decoded.
+    static func readCopilotHistory(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
+                                   line: (Data) -> Void) {
+        readAppended(cursor, shouldContinue: shouldContinue, including: copilotHistoryLine, line: line)
+    }
+
+    private static func split(_ chunk: Data, cursor: AgentLogCursor,
+                              including: ((Data, Range<Int>) -> Bool)?, line: (Data) -> Void) {
         var buffer = cursor.pending
         buffer.append(chunk)
         var start = 0
@@ -725,7 +790,9 @@ enum AgentLogReader {
                 cursor.discarding = false
                 continue
             }
-            if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
+            if !range.isEmpty, range.count <= maximumLine, including?(buffer, range) != false {
+                line(buffer.subdata(in: range))
+            }
         }
         // Once a line is oversized, scan only for its terminator. Retaining
         // subsequent fragments would rebuild a buffer we can never deliver.

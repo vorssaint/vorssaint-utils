@@ -34,7 +34,6 @@ struct RadialMenuVisualCanvas: View {
     private let canvasHeight: CGFloat = 330
     private let wheelDiameter: CGFloat = 250
     private let ringRadius: CGFloat = 92
-    private let chipSize: CGFloat = 44
     private let hubDiameter: CGFloat = 68
     private let deadZoneRadius: CGFloat = 36
 
