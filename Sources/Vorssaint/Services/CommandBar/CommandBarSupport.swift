@@ -336,6 +336,51 @@ enum CommandBarSearch {
             .map(\.index)
     }
 
+    /// A feature's own rows keep one order whatever their titles score: its
+    /// main command, then its presets, then its Settings page. Ranked by title
+    /// alone, the page named exactly like the feature led, the presets that
+    /// start with its name came next, and the switch the person came for was
+    /// last. The rows trade places among the slots they already hold, so
+    /// nothing else moves, and a row chosen on purpose, by a name or a habit,
+    /// keeps its place while the rest still keep their order around it.
+    /// A feature's generated switch counts as its main command, and a page
+    /// of its own, named as the feature is, as its Settings page.
+    /// `id` and `priority` read a candidate by its index.
+    static func featureOrdered(_ ranked: [Int], id: (Int) -> String, priority: (Int) -> Int) -> [Int] {
+        // The feature a row belongs to, and its turn among that feature's rows.
+        func role(_ id: String) -> (feature: Substring, turn: Int)? {
+            if id.hasPrefix("settings.feature.") { return (id.dropFirst("settings.feature.".count), 2) }
+            if id.hasPrefix("settings.") {
+                let page = id.dropFirst("settings.".count)
+                return page.contains(".") ? nil : (page, 2)
+            }
+            if id.hasPrefix("toggle.") {
+                let name = id.dropFirst("toggle.".count)
+                return (name.split(separator: ".", maxSplits: 1).first ?? name, 0)
+            }
+            guard id.hasPrefix("action.") else { return nil }
+            let name = id.dropFirst("action.".count)
+            guard let dot = name.firstIndex(of: ".") else { return (name, 0) }
+            return (name[..<dot], 1)
+        }
+        var slots: [Substring: [Int]] = [:]
+        for (position, index) in ranked.enumerated() where priority(index) == 0 {
+            guard let role = role(id(index)) else { continue }
+            slots[role.feature, default: []].append(position)
+        }
+        var result = ranked
+        for positions in slots.values where positions.count > 1 {
+            let members = positions.map { ranked[$0] }
+            // Rows with the same turn keep the order they ranked in.
+            let ordered = members.enumerated().sorted {
+                let first = role(id($0.element))?.turn ?? 0, second = role(id($1.element))?.turn ?? 0
+                return first != second ? first < second : $0.offset < $1.offset
+            }.map(\.element)
+            for (slot, index) in zip(positions, ordered) { result[slot] = index }
+        }
+        return result
+    }
+
     /// Broad text quality is compared before passive signals such as usage and
     /// source preference. Explicit aliases and learned query choices arrive as
     /// priority instead, because they record what the person actually meant.

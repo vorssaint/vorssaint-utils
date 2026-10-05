@@ -82,6 +82,9 @@ final class CommandBarFileSearch {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.debounce, execute: workItem)
     }
 
+    /// A search waits out its debounce or is going.
+    var isAwaiting: Bool { pendingWorkItem != nil || !inFlight.isEmpty }
+
     private func execute(query: String, scopes: [String], patterns: [String],
                          cancellationGeneration runCancellationGeneration: Int) {
         guard let expression = CommandBarFileSearchSupport.expression(for: query) else { return }

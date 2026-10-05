@@ -37,7 +37,7 @@ struct SettingsDirectoryItem: Identifiable {
 enum SettingsDirectory {
     /// Shared pages whose tools cover the page without a separate overview row.
     private static let toolOnlyPages: Set<SettingsPage> = [
-        .energy, .mouse, .switcher, .dock, .cutPaste, .quickTools, .screenshot,
+        .energy, .mouse, .switcher, .dock, .clipboard, .cutPaste, .quickTools, .screenshot,
     ]
 
     /// Keep the directory's destinations, but show the most useful groups
@@ -92,8 +92,11 @@ enum SettingsDirectory {
             default: return item.destination.page == .monitor
             }
         }
+        // The companion lives in the island, and its settings in a tab of the
+        // island's page rather than a row of their own.
+        let islandPages: Set<SettingsSidebarItem.ID> = [.page(.notch)]
         let island = grouped.first(where: { $0.id == 4 })?.items.filter {
-            $0.id == .page(.notch)
+            islandPages.contains($0.id)
         } ?? []
         let sound: [SettingsSidebarItem] = essentials.items.filter { item in
             item.destination.page == .general
@@ -103,18 +106,25 @@ enum SettingsDirectory {
         let energy: [SettingsSidebarItem] = essentials.items.filter {
             $0.destination.page == .energy
         }
+        func rows(_ id: Int) -> [SettingsSidebarItem] {
+            grouped.first(where: { $0.id == id })?.items ?? []
+        }
+        let byGroup = SettingsSidebarSupport.featureGroupRows(
+            windowsControls: rows(1), utilities: rows(4).filter {
+                !islandPages.contains($0.id) && $0.id != .page(.notchMascot)
+            })
         let featured = [
             SettingsSidebarSection(id: 0, title: categories.essentials,
                                    items: Array(core.prefix(3)) + island + Array(core.dropFirst(3))),
-            SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound),
+            SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities),
+            SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound + byGroup.sound),
             SettingsSidebarSection(id: 7, title: hub.groupEnergyDisplay, items: energy),
+            SettingsSidebarSection(id: 1, title: hub.groupWindowsDock, items: byGroup.windowsDock),
+            SettingsSidebarSection(id: 8, title: hub.groupMouseKeyboard, items: byGroup.mouseKeyboard),
+            SettingsSidebarSection(id: 2, title: categories.files, items: rows(2) + byGroup.files),
         ]
-        let utilities = grouped.filter { $0.id == 4 }.map { section in
-            SettingsSidebarSection(id: section.id, title: section.title,
-                                   items: section.items.filter { $0.id != .page(.notch) })
-        }
-        let remaining = grouped.filter { $0.id != 0 && $0.id != 4 }
-        return [featured[0]] + utilities + featured.dropFirst().filter { !$0.items.isEmpty } + remaining
+        let remaining = grouped.filter { ![0, 1, 2, 4].contains($0.id) }
+        return [featured[0]] + featured.dropFirst().filter { !$0.items.isEmpty } + remaining
     }
 
     static func sidebarItems(_ s: Strings,
@@ -218,7 +228,9 @@ enum SettingsDirectory {
                                                             s.scrollHorizontalModifierLabel]),
                                         (.middleClick, [s.middleClickTapPicker]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
-                                                              s.focusFollowsMouseDelay]),
+                                                              s.focusFollowsMouseDelay,
+                                                              s.focusFollowsMouseRaise,
+                                                              s.focusFollowsMouseWaitForStop]),
                                         (.smoothScroll, [s.smoothScrollName]),
                                         (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
                                         (.mouseAcceleration, [s.mouseAccelerationName]),
@@ -258,6 +270,7 @@ enum SettingsDirectory {
                                         (.dockClick, [FeatureStrings.hub(language).titleDockClick,
                                                       s.dockClickMinimize, s.dockClickHide,
                                                       s.dockClickCycleWindows]),
+                                        (.spacesOrder, [s.spacesOrderName]),
                                        ]),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
@@ -350,7 +363,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchEditor(language).hideMenuBarIcon,
                                                  FeatureStrings.notchActivities(language).keepAwakeActivity,
                                                  "notch", "camera", "music", "clipboard",
-                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "AI", "tokens",
+                                                 FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
                                                  FeatureStrings.notchAgents(language).resetsCard,
                                                  FeatureStrings.notchLockScreen(language).title,
                                                  FeatureStrings.notchLockScreen(language).sounds]
@@ -359,6 +372,10 @@ enum SettingsDirectory {
                                           + (NotchSupport.hasDisplayWithoutNotch
                                              ? [FeatureStrings.notch(language).withoutNotch,
                                                 FeatureStrings.notch(language).capsuleFit] : [])),
+                SettingsDirectoryItem(page: .notchMascot,
+                                      title: FeatureStrings.notchMascot(language).title,
+                                      icon: AppFeature.notchMascot.symbolName,
+                                      keywords: FeatureStrings.notchMascot(language).searchKeywords),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",

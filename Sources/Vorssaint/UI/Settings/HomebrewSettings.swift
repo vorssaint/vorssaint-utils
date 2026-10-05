@@ -285,15 +285,15 @@ struct HomebrewSettings: View {
         }
     }
 
+    @ViewBuilder
     private var installedPackagesSection: some View {
-        let visible = filteredInstalled
-        let folded = HomebrewDependencyGraph.display(visible,
+        let folded = HomebrewDependencyGraph.display(filteredInstalled,
                                                       installed: homebrew.installed,
                                                       groupDependencies: homebrewGroupDependencies)
-        return packageSection(l10n.s.homebrewInstalled, count: visible.count) {
+        packageSection(l10n.s.homebrewInstalled, count: filteredInstalled.count) {
             if homebrew.isLoadingInstalled {
                 loadingRow(l10n.s.homebrewLoading)
-            } else if folded.rows.isEmpty {
+            } else if folded.rows.isEmpty && folded.orphans.isEmpty {
                 packageMessage(l10n.s.homebrewNoPackages)
             } else {
                 LazyVStack(alignment: .leading, spacing: 4) {
@@ -321,7 +321,8 @@ struct HomebrewSettings: View {
                             .accessibilityLabel("\(l10n.s.homebrewDependencies): \(package.displayName)")
                             .accessibilityValue(isExpanded ? l10n.s.disclosureExpanded : l10n.s.disclosureCollapsed)
                             .accessibilityHidden(dependencies.isEmpty)
-                            packageRow(package)
+                            packageRow(package,
+                                       dependencyUpdates: dependencies.filter(\.hasUpdateAvailable).count)
                         }
                         if isExpanded {
                             ForEach(dependencies) { dependency in
@@ -329,6 +330,16 @@ struct HomebrewSettings: View {
                                     .padding(.leading, 28)
                             }
                         }
+                    }
+                }
+            }
+        }
+        if !homebrew.isLoadingInstalled && !folded.orphans.isEmpty {
+            packageSection(l10n.s.homebrewOrphans, count: folded.orphans.count) {
+                packageMessage(l10n.s.homebrewOrphansNote)
+                LazyVStack(alignment: .leading, spacing: 4) {
+                    ForEach(folded.orphans) { package in
+                        packageRow(package)
                     }
                 }
             }
@@ -387,7 +398,7 @@ struct HomebrewSettings: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func packageRow(_ package: HomebrewPackage) -> some View {
+    private func packageRow(_ package: HomebrewPackage, dependencyUpdates: Int = 0) -> some View {
         HStack(spacing: 8) {
             Button {
                 homebrew.select(package)
@@ -407,6 +418,12 @@ struct HomebrewSettings: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
+                    if dependencyUpdates > 0 {
+                        Text(String(format: l10n.s.homebrewDependencyUpdatesFormat, dependencyUpdates))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
                     if let popularity = package.popularity {
                         popularityBadge(popularity)
                     }
@@ -691,10 +708,6 @@ struct HomebrewSettings: View {
             .padding(.vertical, 2)
             .background(Capsule().fill(Color.accentColor.opacity(0.12)))
             .help(popularityDescription(popularity))
-    }
-
-    private func updateHelp(_ update: HomebrewPackageUpdate) -> String {
-        "\(l10n.s.homebrewUpdateAvailableBadge): \(update.versionSummary)"
     }
 
     private func popularityDescription(_ popularity: HomebrewPopularity) -> String {

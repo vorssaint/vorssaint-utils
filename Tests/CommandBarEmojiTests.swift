@@ -43,7 +43,13 @@ enum CommandBarEmojiContract {
             EmojiQueryHabits.prepare(query, key: key, cache: &cache)
         }
     }
+    final class NotchService {
+        static let shared = NotchService()
+        var reactions: [NotchMascotReaction] = []
+        func reactMascot(_ reaction: NotchMascotReaction, after delay: TimeInterval = 0) { reactions.append(reaction) }
+    }
     final class Service {
+        typealias NotchService = CommandBarEmojiContract.NotchService
         typealias CommandBarEntry = CommandBarEmojiContract.CommandBarEntry
         typealias UserDefaults = CommandBarEmojiContract.UserDefaults
         typealias CommandBarCatalog = CommandBarEmojiContract.Catalog
@@ -62,6 +68,7 @@ enum CommandBarEmojiContract {
         var queryWhenRun = ""
         var selectionWhenRun = ""
         var selectedText = ""
+        var farewell = NotchMascotMood.idle
         func hide() { isVisible = false; query = ""; savedQuery = "" }
     }
 
@@ -148,11 +155,14 @@ enum CommandBarEmojiContract {
         defaults.removeObject(forKey: DefaultsKey.commandBarUsage)
         let row = Catalog.emojiEntries(bar: .enUS).first { $0.id == thumbID }!
         let normal = Service()
+        NotchService.shared.reactions = []
         normal.finish(row, value: nil)
         suite.expect(CommandBarUsage.decode(defaults.string(forKey: DefaultsKey.commandBarUsage))[thumbID]?.count == 1
                      && normal.queryMemory.boost(query: "thumb", id: thumbID) == 1
                      && !normal.isVisible,
                      "normal insertion still records usage and learning once before closing")
+        suite.expect(normal.farewell == .happy && NotchService.shared.reactions == [.celebrate],
+                     "a command run from the bar sends the companion home smiling, to hop for it")
         let shortcut = Service()
         shortcut.isVisible = false
         shortcut.query = ""
@@ -173,7 +183,10 @@ enum CommandBarEmojiContract {
         transient.keepsBarOpen = true
         let before = defaults.string(forKey: DefaultsKey.commandBarUsage)
         let open = Service()
+        NotchService.shared.reactions = []
         open.finish(transient, value: nil)
+        suite.expect(NotchService.shared.reactions.isEmpty,
+                     "a command that keeps the bar open sends the companion nowhere")
         suite.expect(open.isVisible && open.queryMemoryStep == 0
                      && defaults.string(forKey: DefaultsKey.commandBarUsage) == before,
                      "non-learning rows and commands that keep the bar open retain their behavior")

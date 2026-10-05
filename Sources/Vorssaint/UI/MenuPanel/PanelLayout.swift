@@ -37,7 +37,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return "moon.zzz.fill"
         case .brightness: return "display.2"
-        case .mixer: return "slider.horizontal.3"
+        case .mixer: return "speaker.wave.2"
         case .system: return "cpu"
         case .network: return "network"
         case .disk: return "internaldrive"
@@ -94,7 +94,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
                                  .cameraPreview, .scratchpad, .commandBar, .portManager]
         case .controls: return [.scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
                                 .finderCutPaste, .autoQuit,
-                                .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick,
+                                .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick, .spacesOrder,
                                 .middleClick, .textSnippets, .superKey, .radialMenu, .mouseClickDebounce, .notch]
         case .toggles: return [.quickToggles, .micMute]
         case .wallpaper: return [.wallpaper]

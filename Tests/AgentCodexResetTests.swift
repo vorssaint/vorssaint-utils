@@ -146,10 +146,11 @@ enum AgentCodexResetTests {
 
     /// Answers each question by its method, with a notification, a request
     /// of its own and a line that is not JSON along the way, the way the real
-    /// server can interleave them. `STAND_IN` picks the account it plays.
+    /// server can interleave them. `STAND_IN` picks the account it plays. It
+    /// runs only as the server started without Codex's plugins.
     private static let standIn = #"""
         #!/bin/sh
-        [ "$1" = "app-server" ] || exit 2
+        [ "$#" = 3 ] && [ "$1" = "-c" ] && [ "$2" = "features.plugins=false" ] && [ "$3" = "app-server" ] || exit 2
         [ "$STAND_IN" = "exits" ] && exit 0
         while IFS= read -r line; do
           [ "$STAND_IN" = "silent" ] && continue
@@ -193,6 +194,12 @@ enum AgentCodexResetTests {
             AgentCodexServer.environment(for: server, searchPath: nil,
                                          base: ["PATH": "/usr/bin:/bin", "STAND_IN": mode])
         }
+
+        let quiet = AgentCodexConversation(server, environment: environment("plan"), timeout: 5)
+        let introduced = quiet?.start()
+        quiet?.end()
+        suite.expect(introduced.map { if case .success = $0 { return true }; return false } == true,
+                     "a conversation starts Codex's server with its plugins off")
 
         let checked = AgentCodexServer.check(server, environment: environment("plan"))
         let summary = try? checked.get()

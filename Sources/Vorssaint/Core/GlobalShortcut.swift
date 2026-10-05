@@ -814,7 +814,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
-        case .switcher: return strings.switcherSection
+        case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
@@ -1129,4 +1129,37 @@ extension GlobalShortcut {
 
     /// The placeholder a system entry carries when it has no key assigned.
     private static let noKeyCode: Int64 = 0xFFFF
+}
+
+/// Opt-in recording for held chords. A key press disqualifies the current
+/// chord, so releasing modifiers after an invalid key cannot save a new trigger.
+struct ModifierShortcutRecording {
+    private var candidate: GlobalShortcutModifiers = []
+    private var waitingForRelease = false
+
+    mutating func keyPressed() {
+        candidate = []
+        waitingForRelease = true
+    }
+
+    mutating func flagsChanged(_ modifiers: GlobalShortcutModifiers,
+                               hasUnsupportedModifier: Bool = false) -> GlobalShortcutModifiers? {
+        if hasUnsupportedModifier {
+            keyPressed()
+            return nil
+        }
+        if modifiers.isEmpty {
+            let captured = candidate
+            candidate = []
+            waitingForRelease = false
+            return captured.isEmpty ? nil : captured
+        }
+        guard !waitingForRelease else { return nil }
+        // Remember a chord that was actually held, never the union of keys
+        // pressed at different times. Keep it while its keys are released.
+        if modifiers.rawValue.nonzeroBitCount > candidate.rawValue.nonzeroBitCount {
+            candidate = modifiers
+        }
+        return nil
+    }
 }
