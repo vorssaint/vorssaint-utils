@@ -15,6 +15,15 @@ enum NotchWatchTests {
         fingerprintContracts(suite)
         gateContracts(suite)
         readingLoopContracts(suite)
+        companionContracts(suite)
+    }
+
+    private static func companionContracts(_ suite: TestSuite) {
+        suite.expect(NotchWatchOutcome.changed.mascotReaction == .perk
+                     && [NotchWatchOutcome.settled, .shows("Done"), .reached("100%")]
+                        .allSatisfy { $0.mascotReaction == .celebrate }
+                     && NotchWatchOutcome.closed.mascotReaction == .confused,
+                     "the companion is wide-eyed at a change, glad when the wait is over, puzzled when the window goes")
     }
 
     private static func readingContracts(_ suite: TestSuite) {

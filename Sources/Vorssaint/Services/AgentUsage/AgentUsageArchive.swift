@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 1
+    private static let format = 2
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -110,6 +110,7 @@ enum AgentUsageArchive {
             let same = entry.billable.tokens == entry.record.tokens
             body.bool(same)
             if !same { body.tokens(entry.billable.tokens) }
+            body.bool(entry.billable.isAggregate)
             body.int(entry.billable.longCacheWrite)
             body.bool(entry.billable.fast)
             body.bool(entry.billable.domestic)
@@ -187,6 +188,7 @@ enum AgentUsageArchive {
                 let record = try reader.record()
                 let same = try reader.bool()
                 let billable = AgentBillable(tokens: same ? record.tokens : try reader.tokens(),
+                                             isAggregate: try reader.bool(),
                                              longCacheWrite: try reader.amount(), fast: try reader.bool(),
                                              domestic: try reader.bool(), webSearches: try reader.amount())
                 var sources: [String] = []
@@ -256,6 +258,14 @@ enum AgentUsageArchive {
             if let value { write(&self, value) }
         }
 
+        mutating func dictionary<Value>(_ values: [String: Value], _ write: (inout Writer, Value) -> Void) {
+            count(values.count)
+            for key in values.keys.sorted() {
+                string(key)
+                if let value = values[key] { write(&self, value) }
+            }
+        }
+
         mutating func provider(_ value: AgentProvider) { string(value.rawValue) }
 
         mutating func tokens(_ value: AgentTokens) {
@@ -268,6 +278,7 @@ enum AgentUsageArchive {
             string(value.model)
             string(value.project)
             string(value.session)
+            int(value.requests)
             tokens(value.tokens)
             optional(value.cost) { $0.double($1) }
             double(value.savings)
@@ -311,6 +322,12 @@ enum AgentUsageArchive {
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
             bool(value.fast)
+            dictionary(value.copilotTotals) { $0.tokens($1) }
+            dictionary(value.copilotRequests) { $0.int($1) }
+            dictionary(value.copilotRequestModels) { $0.string($1) }
+            dictionary(value.copilotReportedRequests) { $0.int($1) }
+            optional(value.copilotTurnID) { $0.string($1) }
+            bool(value.copilotFinalResponse)
         }
     }
 
@@ -392,6 +409,16 @@ enum AgentUsageArchive {
             try bool() ? try read(&self) : nil
         }
 
+        mutating func dictionary<Value>(_ read: (inout Reader) throws -> Value) throws -> [String: Value] {
+            var values: [String: Value] = [:]
+            for _ in 0..<(try count()) {
+                let key = try string()
+                guard values[key] == nil else { throw Malformed() }
+                values[key] = try read(&self)
+            }
+            return values
+        }
+
         mutating func provider() throws -> AgentProvider {
             guard let provider = AgentProvider(rawValue: try string()) else { throw Malformed() }
             return provider
@@ -412,7 +439,8 @@ enum AgentUsageArchive {
 
         mutating func record() throws -> AgentUsageRecord {
             AgentUsageRecord(provider: try provider(), date: try date(), model: try string(), project: try string(),
-                             session: try string(), tokens: try tokens(), cost: try optional { try $0.double() },
+                             session: try string(), requests: try amount(),
+                             tokens: try tokens(), cost: try optional { try $0.double() },
                              savings: try double())
         }
 
@@ -444,8 +472,15 @@ enum AgentUsageArchive {
         }
 
         mutating func state() throws -> AgentLogState {
-            AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                          sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+            var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
+                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+            value.copilotTotals = try dictionary { try $0.tokens() }
+            value.copilotRequests = try dictionary { try $0.amount() }
+            value.copilotRequestModels = try dictionary { try $0.string() }
+            value.copilotReportedRequests = try dictionary { try $0.amount() }
+            value.copilotTurnID = try optional { try $0.string() }
+            value.copilotFinalResponse = try bool()
+            return value
         }
     }
 }

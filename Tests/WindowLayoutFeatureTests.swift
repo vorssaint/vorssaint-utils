@@ -13,6 +13,210 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        WindowDirectionalModifierRuntimeTests.run(suite)
+        let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
+        suite.expect(modifierTrigger?.displayString == "⌃⌘"
+                && modifierTrigger?.storageValue == "modifiers:control+command",
+                     "pointer layout reloads a modifier-only trigger without inventing a key")
+
+        for first: GlobalShortcutModifiers in [.control, .command] {
+            for remaining: GlobalShortcutModifiers in [.control, .command] {
+                var recording = ModifierShortcutRecording()
+                suite.expect(recording.flagsChanged(first) == nil
+                    && recording.flagsChanged([.control, .command]) == nil
+                    && recording.flagsChanged(remaining) == nil
+                    && recording.flagsChanged([]) == [.control, .command],
+                    "modifier recorder captures the held chord after either press/release order")
+            }
+        }
+        for first: GlobalShortcutModifiers in [.control, .command] {
+            for remaining: GlobalShortcutModifiers in [.control, .command] {
+                var hold = WindowDirectionalModifierHold(expected: [.control, .command])
+                suite.expect(hold.update(first) == .none
+                    && hold.update([.control, .command]) == .begin
+                    && hold.update([.control, .command]) == .none
+                    && hold.update(remaining) == .finish
+                    && hold.update([]) == .none,
+                    "modifier pointer layout begins once and finishes on either required-key release")
+            }
+        }
+        for shortcut in [GlobalShortcut.windowDirectionalDefault,
+                         GlobalShortcut(keyCode: Int64(kVK_F1), modifiers: [])] {
+            let trigger = WindowDirectionalTrigger(storageValue: shortcut.storageValue)
+            suite.expect(trigger == .key(shortcut) && trigger?.storageValue == shortcut.storageValue,
+                         "pointer layout keeps existing key-based shortcut storage")
+        }
+        for value in ["modifiers:", "modifiers:shift", "modifiers:control",
+                      "modifiers:shift+command", "modifiers:fn", "modifiers:control+",
+                      "modifiers:control+unknown"] {
+            suite.expect(WindowDirectionalTrigger(storageValue: value) == nil,
+                         "invalid modifier trigger is rejected: \(value)")
+        }
+        let shiftedOption: GlobalShortcutModifiers = [.shift, .option]
+        let controlCommand: GlobalShortcutModifiers = [.control, .command]
+        let shiftedOptionCommand: GlobalShortcutModifiers = [.shift, .option, .command]
+        suite.expect(!GlobalShortcutModifiers.command.isValidWindowDirectionalTrigger
+                && !shiftedOption.isValidWindowDirectionalTrigger
+                && controlCommand.isValidWindowDirectionalTrigger
+                && shiftedOptionCommand.isValidWindowDirectionalTrigger,
+            "modifier-only pointer layout requires two primary modifiers")
+        suite.expect(GlobalShortcut(storageValue: "modifiers:control+command") == nil,
+                     "ordinary global shortcuts do not accept modifier-only triggers")
+        var interruptedRecording = ModifierShortcutRecording()
+        _ = interruptedRecording.flagsChanged([.control, .command])
+        interruptedRecording.keyPressed()
+        suite.expect(interruptedRecording.flagsChanged(.command) == nil
+            && interruptedRecording.flagsChanged([]) == nil,
+            "releasing modifiers after a key never overwrites the recorded key or saves an invalid attempt")
+        _ = interruptedRecording.flagsChanged([.control, .command])
+        suite.expect(interruptedRecording.flagsChanged([]) == [.control, .command],
+                     "a fresh modifier chord can be recorded after an invalid key attempt")
+        var fnRecording = ModifierShortcutRecording()
+        _ = fnRecording.flagsChanged([.control, .command], hasUnsupportedModifier: true)
+        suite.expect(fnRecording.flagsChanged([.control, .command]) == nil
+            && fnRecording.flagsChanged([]) == nil,
+            "an unsupported Fn chord never saves just its supported modifiers")
+        var changingRecording = ModifierShortcutRecording()
+        _ = changingRecording.flagsChanged([.control, .command])
+        _ = changingRecording.flagsChanged(.command)
+        _ = changingRecording.flagsChanged([.option, .command])
+        suite.expect(changingRecording.flagsChanged([]) == [.control, .command],
+                     "recording never combines modifiers that were not held together")
+        var cancelledHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = cancelledHold.update([.control, .command])
+        cancelledHold.cancel()
+        suite.expect(cancelledHold.update(.command) == .none
+            && cancelledHold.update([.control, .command]) == .none
+            && cancelledHold.update([]) == .none
+            && cancelledHold.update([.control, .command]) == .begin,
+            "cancellation waits for a fresh chord and never finishes a cancelled placement")
+        var extraModifierHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = extraModifierHold.update([.control, .command])
+        suite.expect(extraModifierHold.update([.control, .command, .shift]) == .cancel
+            && extraModifierHold.update([.control, .command]) == .none
+            && extraModifierHold.update([]) == .none
+            && extraModifierHold.update([.control, .command]) == .begin,
+            "extra modifiers cancel pointer layout until the chord is released")
+        var releasedExtraHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        suite.expect(releasedExtraHold.update([.control, .option]) == .cancel
+            && releasedExtraHold.update(.control) == .none
+            && releasedExtraHold.update([.control, .command]) == .none
+            && releasedExtraHold.update([]) == .none
+            && releasedExtraHold.update([.control, .command]) == .begin,
+            "releasing an extra modifier cannot turn the same physical hold into a trigger")
+        var initiallyHeld = WindowDirectionalModifierHold(expected: [.control, .command],
+                                                          initiallyHeld: [.control, .command])
+        suite.expect(initiallyHeld.update([.control, .command]) == .none
+            && initiallyHeld.update(.command) == .none
+            && initiallyHeld.update([]) == .none
+            && initiallyHeld.update([.control, .command]) == .begin,
+            "enabling or resuming pointer layout does not activate an already-held chord")
+        var releasedHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = releasedHold.update([.control, .command])
+        suite.expect(releasedHold.update(.command) == .finish
+            && releasedHold.update([.control, .command]) == .none
+            && releasedHold.update([]) == .none
+            && releasedHold.update([.control, .command]) == .begin,
+            "a finished gesture needs a fresh chord before starting again")
+
+        var pendingShortcutHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        let pendingBegin = pendingShortcutHold.update([.control, .command])
+        let pendingGeneration = pendingShortcutHold.generation
+        suite.expect(pendingBegin == .begin
+            && pendingShortcutHold.cancelForKeyPress()
+            && pendingShortcutHold.generation != pendingGeneration
+            && pendingShortcutHold.update(.command) == .none
+            && pendingShortcutHold.update([]) == .none,
+            "a normal shortcut invalidates a deferred modifier start before release can place a window")
+        var partialShortcutHold = WindowDirectionalModifierHold(expected: [.control, .command])
+        _ = partialShortcutHold.update(.control)
+        suite.expect(partialShortcutHold.cancelForKeyPress()
+            && partialShortcutHold.update([.control, .command]) == .none
+            && partialShortcutHold.update([]) == .none
+            && partialShortcutHold.update([.control, .command]) == .begin,
+            "a key press during a partial chord blocks activation until every modifier is released")
+        pendingShortcutHold = WindowDirectionalModifierCancellation.preserveHold.applied(
+            to: pendingShortcutHold)
+        suite.expect(pendingShortcutHold.update([.control, .command]) == .begin,
+            "late session cleanup preserves completed releases so the next fresh chord starts")
+
+        let observedTypes: [CGEventType] = [.flagsChanged, .keyDown, .leftMouseDown, .leftMouseUp,
+                                            .rightMouseDown, .rightMouseUp, .otherMouseDown,
+                                            .otherMouseUp, .scrollWheel]
+        let passiveMask = WindowDirectionalModifierTapSupport.eventMask
+        suite.expect(WindowDirectionalModifierTapSupport.options == .listenOnly
+                && passiveMask.nonzeroBitCount == observedTypes.count
+                && observedTypes.allSatisfy { passiveMask & (CGEventMask(1) << $0.rawValue) != 0 },
+            "idle modifier observation retains ordered cancellation without filtering input or observing movement")
+        suite.expect(!WindowDirectionalModifierInputPolicy.canBegin(
+                mouseButtonPressed: true, pointerInputSinceArm: false)
+                && !WindowDirectionalModifierInputPolicy.canBegin(
+                    mouseButtonPressed: false, pointerInputSinceArm: true)
+                && WindowDirectionalModifierInputPolicy.canBegin(
+                    mouseButtonPressed: false, pointerInputSinceArm: false),
+            "a modifier trigger never begins after an app-owned mouse press, click or scroll")
+        for type in [CGEventType.scrollWheel, .leftMouseDown, .rightMouseDown,
+                     .otherMouseDown, .keyDown] {
+            suite.expect(WindowDirectionalModifierInputPolicy.cancelsAndPassesThrough(type),
+                "modifier trigger cancels and passes through native input type \(type.rawValue)")
+        }
+        suite.expect(!WindowDirectionalModifierInputPolicy.cancelsAndPassesThrough(.mouseMoved)
+                && !WindowDirectionalModifierInputPolicy.cancelsAndPassesThrough(.flagsChanged),
+            "pointer aiming and modifier releases remain part of the layout gesture")
+        let pointerSnapshot = WindowDirectionalModifierPointerSnapshot(
+            leftMouseDown: 1, rightMouseDown: 2, otherMouseDown: 3, scrollWheel: 4)
+        suite.expect(!pointerSnapshot.hasPointerInput(since: pointerSnapshot)
+                && WindowDirectionalModifierPointerSnapshot(
+                    leftMouseDown: 1, rightMouseDown: 2, otherMouseDown: 3, scrollWheel: 5
+                ).hasPointerInput(since: pointerSnapshot),
+            "pointer counters invalidate a deferred modifier start after quick input completes")
+        var startupSnapshot = pointerSnapshot
+        var startupOrder: [String] = []
+        let interruptedStartup = WindowDirectionalModifierStartupGuard.resolve(
+            armedAt: pointerSnapshot,
+            currentSnapshot: { startupSnapshot },
+            mouseButtonPressed: { false },
+            startObserving: {
+                startupOrder.append("observe")
+                return true
+            },
+            lookupTarget: {
+                startupOrder.append("lookup")
+                startupSnapshot = WindowDirectionalModifierPointerSnapshot(
+                    leftMouseDown: 2, rightMouseDown: 2,
+                    otherMouseDown: 3, scrollWheel: 4)
+                return "target"
+            })
+        let cancelledDuringLookup: Bool
+        if case .cancelled = interruptedStartup { cancelledDuringLookup = true }
+        else { cancelledDuringLookup = false }
+        suite.expect(cancelledDuringLookup
+                && startupOrder == ["observe", "lookup"]
+                && WindowDirectionalModifierInputPolicy.cancelsAndPassesThrough(.leftMouseDown),
+            "pointer input during deferred target lookup cancels startup and remains pass-through")
+        startupSnapshot = pointerSnapshot
+        let uninterruptedStartup = WindowDirectionalModifierStartupGuard.resolve(
+            armedAt: pointerSnapshot,
+            currentSnapshot: { startupSnapshot },
+            mouseButtonPressed: { false },
+            startObserving: { true },
+            lookupTarget: { "target" })
+        let resolvedStartup: Bool
+        if case .ready("target") = uninterruptedStartup { resolvedStartup = true }
+        else { resolvedStartup = false }
+        suite.expect(resolvedStartup,
+            "deferred modifier startup proceeds when pointer custody stays unchanged")
+        let deferredModifierWork = DispatchSemaphore(value: 0)
+        WindowDirectionalModifierTapSupport.afterCallback { deferredModifierWork.signal() }
+        let modifierWorkWasDeferred = deferredModifierWork.wait(timeout: .now()) == .timedOut
+        let modifierWorkDeadline = Date().addingTimeInterval(0.2)
+        var modifierWorkRan = false
+        while !modifierWorkRan, Date() < modifierWorkDeadline {
+            RunLoop.current.run(until: min(modifierWorkDeadline, Date().addingTimeInterval(0.005)))
+            modifierWorkRan = deferredModifierWork.wait(timeout: .now()) == .success
+        }
+        suite.expect(modifierWorkWasDeferred && modifierWorkRan,
+            "modifier target lookup and placement begin only after the input callback returns")
         // The native full screen action, wired like the sixths: real strings,
         // a stable id, and no system-wide key claimed until someone asks.
         suite.expect(WindowLayoutAction.allCases.contains(.fullScreen)
@@ -91,6 +295,7 @@ enum WindowLayoutFeatureTests {
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
+                    && !layoutStrings.marginPerEdge.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
                     && !layoutStrings.quarterRows.isEmpty
@@ -822,6 +1027,39 @@ enum WindowLayoutFeatureTests {
                                                               visibleFrame: visibleFrame)
         suite.expect(marginMaximizeTarget == CGRect(x: 72, y: 83, width: 1296, height: 774),
                "window layout margin maximize keeps five percent on every usable edge")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutMarginPercent] as? Double == 5,
+               "existing installations retain the five percent maximize margin")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, marginPercent: 10)
+                == CGRect(x: 144, y: 126, width: 1152, height: 688),
+               "custom maximize margin uses each visible dimension independently")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, marginPercent: 0) == visibleFrame,
+               "zero maximize margin fills the usable display")
+        let marginPortraitFrame = CGRect(x: -1000, y: -300, width: 1000, height: 1600)
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: marginPortraitFrame, marginPercent: 25)
+                == CGRect(x: -750, y: 100, width: 500, height: 800),
+               "maximum margin stays centered on a portrait display with a negative origin")
+        suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                              visibleFrame: visibleFrame, windowGap: 64,
+                                              screenGap: 32, marginPercent: 10)
+                == CGRect(x: 144, y: 126, width: 1152, height: 688),
+               "custom maximize margin is independent of tiling gaps")
+        for action in WindowLayoutAction.allCases where action != .marginMaximize {
+            suite.expect(WindowLayoutGeometry.rect(for: action, current: currentWindow,
+                                                  visibleFrame: visibleFrame, marginPercent: 25)
+                    == WindowLayoutGeometry.rect(for: action, current: currentWindow,
+                                                 visibleFrame: visibleFrame),
+                   "custom maximize margin leaves \(action.rawValue) unchanged")
+        }
+        for (input, expected) in [(-10.0, 0.0), (80.0, 25.0), (.nan, 5.0), (.infinity, 5.0)] {
+            suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                                  visibleFrame: visibleFrame, marginPercent: input)
+                    == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
+                                                 visibleFrame: visibleFrame, marginPercent: expected),
+                   "invalid stored maximize margin \(input) uses a supported size")
+        }
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 320, y: 220, width: 800, height: 500),
                "window layout center preserves current size and centers inside the visible frame")

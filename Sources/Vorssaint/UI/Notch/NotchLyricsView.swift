@@ -27,13 +27,22 @@ struct NotchLyricsView: View {
                         importButton
                         Text(text.offset).foregroundStyle(.secondary)
                         Spacer(minLength: 0)
-                        Button { service.adjustOffset(by: -0.25) } label: { Image(systemName: "minus") }
+                        // Hit the whole timing row height, not just the thin symbol.
+                        Button { service.adjustOffset(by: -0.25) } label: {
+                            Image(systemName: "minus")
+                                .frame(width: 24, height: 18)
+                                .contentShape(Rectangle())
+                        }
                             .help(text.earlier).accessibilityLabel(text.earlier)
                         Button { service.resetOffset() } label: {
                             Text(service.offset, format: .number.sign(strategy: .always()).precision(.fractionLength(2)))
                                 .monospacedDigit().frame(minWidth: 44)
                         }.help(text.reset).accessibilityLabel(text.reset)
-                        Button { service.adjustOffset(by: 0.25) } label: { Image(systemName: "plus") }
+                        Button { service.adjustOffset(by: 0.25) } label: {
+                            Image(systemName: "plus")
+                                .frame(width: 24, height: 18)
+                                .contentShape(Rectangle())
+                        }
                             .help(text.later).accessibilityLabel(text.later)
                     }
                     .font(.caption).buttonStyle(.borderless)

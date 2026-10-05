@@ -25,31 +25,42 @@ struct NotchMirrorView: View {
         let geometry = mirror.geometry
         let size = mirror.size
         if let activity = mirror.activity {
-            if geometry.floats {
-                switch activity {
-                case .timer: NotchCapsuleTimerStrip(service: service, size: size, displayGeometry: geometry)
-                case .watch: NotchCapsuleWatchStrip(service: service, size: size, displayGeometry: geometry)
-                case .downloads: NotchCapsuleDownloadStrip(service: service, size: size, displayGeometry: geometry)
-                case .agents: NotchCapsuleAgentStrip(service: service, size: size, displayGeometry: geometry)
-                case .calendar: NotchCapsuleCalendarStrip(service: service, size: size, displayGeometry: geometry)
-                case .music: NotchCapsuleMusicStrip(service: service, size: size, displayGeometry: geometry)
-                case .keepAwake: NotchCapsuleKeepAwakeStrip(service: service, size: size, displayGeometry: geometry)
-                }
-            } else {
-                switch activity {
-                case .timer: NotchTimerStrip(service: service, displayGeometry: mirror.strip)
-                case .watch: NotchWatchStrip(service: service, displayGeometry: mirror.strip)
-                case .downloads: NotchDownloadStrip(service: service, displayGeometry: mirror.strip)
-                case .agents: NotchAgentStrip(service: service, displayGeometry: mirror.strip)
-                case .calendar: NotchCalendarStrip(service: service, displayGeometry: mirror.strip)
-                case .music: NotchMusicStrip(service: service, displayGeometry: mirror.strip)
-                case .keepAwake: NotchKeepAwakeStrip(service: service, displayGeometry: mirror.strip)
-                }
-            }
+            activityStrip(activity, geometry: geometry, size: size)
+                .modifier(NotchMascotActivityVisit(
+                    service: service,
+                    track: service.mascotOn
+                        ? NotchMascotSupport.track(overActivity: geometry.floats ? geometry : mirror.strip, size: size,
+                                                   side: service.mascotSide)
+                        : nil))
         } else if geometry.floats {
             NotchCapsuleRestingView(service: service, size: size, displayGeometry: geometry)
         } else {
             NotchRestingStrip(service: service, displayGeometry: geometry)
+        }
+    }
+
+    @ViewBuilder private func activityStrip(_ activity: NotchCompactActivity, geometry: NotchGeometry,
+                                            size: CGSize) -> some View {
+        if geometry.floats {
+            switch activity {
+            case .timer: NotchCapsuleTimerStrip(service: service, size: size, displayGeometry: geometry)
+            case .watch: NotchCapsuleWatchStrip(service: service, size: size, displayGeometry: geometry)
+            case .downloads: NotchCapsuleDownloadStrip(service: service, size: size, displayGeometry: geometry)
+            case .agents: NotchCapsuleAgentStrip(service: service, size: size, displayGeometry: geometry)
+            case .calendar: NotchCapsuleCalendarStrip(service: service, size: size, displayGeometry: geometry)
+            case .music: NotchCapsuleMusicStrip(service: service, size: size, displayGeometry: geometry)
+            case .keepAwake: NotchCapsuleKeepAwakeStrip(service: service, size: size, displayGeometry: geometry)
+            }
+        } else {
+            switch activity {
+            case .timer: NotchTimerStrip(service: service, displayGeometry: mirror.strip)
+            case .watch: NotchWatchStrip(service: service, displayGeometry: mirror.strip)
+            case .downloads: NotchDownloadStrip(service: service, displayGeometry: mirror.strip)
+            case .agents: NotchAgentStrip(service: service, displayGeometry: mirror.strip)
+            case .calendar: NotchCalendarStrip(service: service, displayGeometry: mirror.strip)
+            case .music: NotchMusicStrip(service: service, displayGeometry: mirror.strip)
+            case .keepAwake: NotchKeepAwakeStrip(service: service, displayGeometry: mirror.strip)
+            }
         }
     }
 }
