@@ -538,9 +538,10 @@ enum NotchDestinationContract {
         defaults.set(false, forKey: DefaultsKey.notchReturnHome)
     }
 
-    /// The lock screen follows the island's own teardown and return, so what
-    /// it starts is never stopped under it, and the padlock plays only for a
-    /// lock or unlock made at the Mac.
+    /// The lock screen follows the island's own teardown, so what it starts is
+    /// never stopped under it. On unlock it starts leaving before the island
+    /// returns and stops nothing the island takes back. The padlock plays only
+    /// for a lock or unlock made at the Mac.
     private static func lockScreenContracts(defaults: UserDefaults, suite: TestSuite) {
         defer {
             NotchLockScreenService.shared = LockScreen()
@@ -556,8 +557,12 @@ enum NotchDestinationContract {
         suite.expect(order == ["sync after 1 teardowns, 0 returns"] && lockScreen.syncs.last?.showsLockScreen == true,
                      "the lock screen takes over after the island has stopped its own sources")
         service.updateSession { $0.locked = false }
-        suite.expect(order.last == "sync after 1 teardowns, 1 returns" && lockScreen.syncs.last?.canPresent == true,
-                     "on unlock the island takes its sources back before the lock screen leaves")
+        // The first sync is the scene leaving: canPresent tells it to stop
+        // none of the sources the island is about to take back.
+        suite.expect(order == ["sync after 1 teardowns, 0 returns", "sync after 1 teardowns, 0 returns",
+                               "sync after 1 teardowns, 1 returns"]
+                     && lockScreen.syncs.count == 3 && lockScreen.syncs.dropFirst().allSatisfy { !$0.locked && $0.canPresent },
+                     "on unlock the lock screen starts leaving before the island returns and stops nothing it takes back")
         suite.expect(lockScreen.sounds == [true, false], "locking and unlocking at the Mac each play their padlock")
         service.updateSession { $0.displaysSleeping = true }
         service.updateSession { $0.locked = true }

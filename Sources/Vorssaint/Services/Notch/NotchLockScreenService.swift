@@ -9,9 +9,10 @@ import SwiftUI
 /// The island over the lock screen: music on a pane of Liquid Glass between
 /// the clock and the login controls, the activities as a line under the
 /// clock, the padlock at the camera, and the padlock sounds. The
-/// island drives it from its own session state, after it has handled the
-/// same change: its teardown on locking stops the sources this service then
-/// restarts, and on unlocking it takes them back before the scene leaves.
+/// island drives it from its own session state. On locking it follows the
+/// island's teardown, which stops the sources this service then restarts.
+/// On unlocking the scene starts leaving before the island comes back, and
+/// stops none of the sources the island takes back.
 final class NotchLockScreenService {
     static let shared = NotchLockScreenService()
 
@@ -196,7 +197,10 @@ final class NotchLockScreenService {
         scene.forEach { Self.fadeOut($0, after: 0, completion: finished) }
         if let island {
             model.padlockOpen = true
-            Self.fadeOut(island, after: 0.55, completion: finished)
+            // The island comes back on this turn and holds the main thread, so
+            // the padlock is first seen opening once that is done. Its time
+            // starts there, or the island would fade while the padlock opens.
+            DispatchQueue.main.async { Self.fadeOut(island, after: 0.55, completion: finished) }
         }
     }
 

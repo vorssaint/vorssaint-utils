@@ -715,7 +715,10 @@ private final class NotchHoverExitView: NSView {
     }
 
     private func check() {
-        guard let window, !window.convertToScreen(convert(bounds, to: nil)).contains(NSEvent.mouseLocation) else { return }
+        // The pointer on a screen's top row reports y == maxY, which
+        // `contains` excludes and NSMouseInRect keeps.
+        guard let window,
+              !NSMouseInRect(NSEvent.mouseLocation, window.convertToScreen(convert(bounds, to: nil)), false) else { return }
         exited?()
     }
 }
