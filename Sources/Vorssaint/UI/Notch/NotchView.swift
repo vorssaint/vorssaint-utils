@@ -19,6 +19,20 @@ struct NotchView: View {
 
     var body: some View {
         surface
+            // An activity arriving over the resting companion fades in as the
+            // companion fades out, and one ending fades back into it, instead
+            // of cutting from one to the other in a frame. A song leaving has its
+            // own departure. A companion that stays to react is drawn over the
+            // new strip where it stood, so the swap under it is left
+            // unanimated: two of it crossfading in one place would dim it.
+            .transaction(value: service.compactActivity) { transaction in
+                guard !reduceMotion, !service.mascotLingers else { return }
+                let arrives = service.compactActivity != nil && service.mascotJustRested
+                let leaves = service.compactActivity == nil && service.mascotAtRest
+                    && service.departingMusic == nil && service.lingeringMusic == nil
+                guard arrives || leaves else { return }
+                transaction.animation = .easeInOut(duration: NotchMascotMotion.restCrossfade)
+            }
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
             .foregroundStyle(.white)
             // The window server leaves Liquid Glass out of its hit test, so a
@@ -26,8 +40,8 @@ struct NotchView: View {
             // the page stops scrolling between cards and the island loses
             // focus. A fill too faint to see keeps the surface in this window,
             // as the black backdrop does.
-            .background(shape.fill(Color.black.opacity(0.01)))
-            .contentShape(shape)
+            .background(shape.offset(x: service.surfaceShift).fill(Color.black.opacity(0.01)))
+            .contentShape(shape.offset(x: service.surfaceShift))
             // The backdrop is a separate, non-interactive hosting view. Claim
             // empty space here so clicks and wheel events stay in this window.
             .onTapGesture { }
@@ -80,9 +94,35 @@ struct NotchView: View {
                 NotchCaptureControlsView(options: options, service: service, layout: service.captureControlsLayout)
             }
         } else if service.expanded {
-            expanded
+            if service.showingCommandBar {
+                commandBarPage
+            } else {
+                expanded
+                    // The companion beside the camera watches the pointer go
+                    // over the island.
+                    .onContinuousHover { phase in
+                        guard service.mascotResidentShows else { return }
+                        switch phase {
+                        case .active: NotificationCenter.default.post(name: .notchMascotPointerMoved, object: nil)
+                        case .ended: NotificationCenter.default.post(name: .notchMascotPointerLeft, object: nil)
+                        }
+                    }
+                    .overlay(alignment: .top) { residentMascot }
+            }
         } else if service.dragPlaceholder {
-            Label(text.dropHint, systemImage: "tray.and.arrow.down")
+            Group {
+                if service.mascotOn {
+                    // The companion stands by the hint and watches the file come.
+                    HStack(spacing: 8) {
+                        NotchMascotView(look: NotchMascotSupport.look(), size: 20, followsDrag: true)
+                            .frame(width: 20, height: 20)
+                            .accessibilityHidden(true)
+                        Text(text.dropHint)
+                    }
+                } else {
+                    Label(text.dropHint, systemImage: "tray.and.arrow.down")
+                }
+            }
                 .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
                 .frame(maxWidth: .infinity, minHeight: 52)
                 .overlay {
@@ -111,10 +151,13 @@ struct NotchView: View {
                                                    size: service.notice == nil ? service.capsuleNoticeSurface(notice)
                                                        : service.surfaceSize)
                         } else {
-                            NotchNoticeView(notice: notice, geometry: service.geometry)
+                            NotchNoticeView(notice: notice, geometry: service.geometry, hidesMascot: service.mascotBridging)
                         }
                     }
-                    .contentShape(Rectangle())
+                    // Beside a camera the notice reaches further toward its
+                    // wider side, and takes clicks all the way to its end.
+                    .contentShape(Rectangle().offset(x: floats ? 0
+                        : service.geometry.noticeShift(notice.wings(in: service.geometry))))
                 }
                 // A floating capsule lights up under the pointer. Beside a
                 // camera the wash would outline the housing, so the notch keeps
@@ -160,9 +203,13 @@ struct NotchView: View {
                 // Hover grows the capsule around its strip, as it grows the
                 // notch around its wings. Drawn at the grown size, a song's
                 // cover and bars jumped out at once while the shape still grew.
-                activityStrip(activity, size: service.compactStripSize(for: activity, companion: service.compactCompanion))
+                let strip = service.compactStripSize(for: activity, companion: service.compactCompanion)
+                activityStrip(activity, size: strip)
+                    .modifier(NotchMascotActivityVisit(service: service,
+                                                       track: service.mascotTrack(overActivityStrip: strip)))
+                    .transition(companionSwap)
             }
-        } else if let departingMusic = service.departingMusic {
+        } else if let departingMusic = service.departingMusic ?? service.lingeringMusic {
             Group {
                 if floats { NotchCapsuleMusicStrip(service: service, snapshot: departingMusic) }
                 else { NotchMusicStrip(service: service, snapshot: departingMusic) }
@@ -171,15 +218,19 @@ struct NotchView: View {
             .accessibilityHidden(true)
         } else if floats {
             NotchCapsuleRestingView(service: service, size: service.surfaceSize)
-                .transition(.opacity)
+                .transition(companionSwap)
         } else {
             compact
-                .transition(.opacity)
+                .transition(companionSwap)
         }
     }
 
     /// The island floats as a capsule, whose strips run end to end.
     private var floats: Bool { service.geometry.floats }
+
+    /// A strip and the companion at rest swap through black, where a
+    /// crossfade would show it half faded over the strip's text.
+    private var companionSwap: AnyTransition { service.mascotAtRest ? .notchFadeThrough : .opacity }
 
     /// `size` is the capsule's; a hanging strip keeps the camera's geometry.
     @ViewBuilder private func activityStrip(_ activity: NotchCompactActivity, size: CGSize) -> some View {
@@ -194,19 +245,51 @@ struct NotchView: View {
             case .keepAwake: NotchCapsuleKeepAwakeStrip(service: service, size: size)
             }
         } else {
+            // Handed down, the wings stay as they were drawn while a strip
+            // whose activity just ended leaves, instead of following the
+            // service to an island with no activity, where they are empty.
+            let geometry = service.compactActivityGeometry
             switch activity {
-            case .timer: NotchTimerStrip(service: service)
-            case .watch: NotchWatchStrip(service: service)
-            case .downloads: NotchDownloadStrip(service: service)
-            case .agents: NotchAgentStrip(service: service)
-            case .calendar: NotchCalendarStrip(service: service)
-            case .music: NotchMusicStrip(service: service)
-            case .keepAwake: NotchKeepAwakeStrip(service: service)
+            case .timer: NotchTimerStrip(service: service, displayGeometry: geometry)
+            case .watch: NotchWatchStrip(service: service, displayGeometry: geometry)
+            case .downloads: NotchDownloadStrip(service: service, displayGeometry: geometry)
+            case .agents: NotchAgentStrip(service: service, displayGeometry: geometry)
+            case .calendar: NotchCalendarStrip(service: service, displayGeometry: geometry)
+            case .music: NotchMusicStrip(service: service, displayGeometry: geometry)
+            case .keepAwake: NotchKeepAwakeStrip(service: service, displayGeometry: geometry)
             }
         }
     }
 
     private var compact: some View { NotchRestingStrip(service: service) }
+
+    /// Open beside a camera, the companion stays where it rested closed, and
+    /// plays there what happens while the island is open.
+    @ViewBuilder private var residentMascot: some View {
+        if service.mascotResidentShows {
+            let track = service.mascotResidentTrack(surfaceWidth: service.expandedSize.width)
+            // Moved to the camera's other side, it crosses behind the camera here too.
+            NotchMascotTrackView(look: NotchMascotSupport.look(), track: track, rests: true,
+                                 visit: service.mascotVisit.flatMap { $0.kind == .cross ? $0 : nil },
+                                 mood: service.mascotRestingMood, reaction: service.mascotReaction, followsIsland: true)
+                .frame(width: track.width, height: track.height)
+                // The window's own layer shows it while the island opens around it.
+                .opacity(service.mascotBridging ? 0 : 1)
+                .animation(nil, value: service.mascotBridging)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+        }
+    }
+
+    /// The Command Bar in the open island: its field below the camera, its
+    /// list below the field, and the island as tall as the two.
+    private var commandBarPage: some View {
+        CommandBarView(presentation: .island)
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateCommandBarHeight($0) }
+            .padding(.top, service.geometry.safeContentTop)
+            .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+    }
 
     private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
 
@@ -589,11 +672,14 @@ private extension UpdateService.State {
 
 /// The closed island at rest beside a camera: the wings with the charge,
 /// the song or the AI allowance the person chose, when the menus leave room.
+/// The companion rests in a wing when nothing else is there, and walks
+/// through on its visits.
 struct NotchRestingStrip: View {
     @ObservedObject var service: NotchService
     /// Another display's strip, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
 
@@ -603,50 +689,91 @@ struct NotchRestingStrip: View {
         min(16, NotchLayout.shoulder(height: geometry.stripHeight) + NotchLayout.compactEdgeGap)
     }
 
+    /// A visit walks over what the island rests with, which steps aside
+    /// meanwhile. Reacting in its own wing, it takes only that one, as over
+    /// an activity, and the other side stays in view.
+    private func wingStepsAside(_ side: NotchMascotSide) -> Bool {
+        guard service.mascotStepsAside, !service.mascotAtRest else { return false }
+        return service.mascotVisit?.kind.takesOnlyItsWing != true || side == service.mascotSide
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
-            if service.idleContent != .none, geometry.restingWingWidth > 0 {
-                Group {
-                    switch service.idleContent {
-                    case .music:
-                        if let artwork = music.artwork {
-                            Image(nsImage: artwork).resizable().scaledToFill()
-                                .frame(width: min(22, geometry.stripHeight - 6), height: min(22, geometry.stripHeight - 6))
-                                .clipShape(RoundedRectangle(cornerRadius: 5))
+        ZStack {
+            HStack(spacing: 0) {
+                if service.idleContent != .none, geometry.restingWingWidth > 0 {
+                    // Each wing keeps its width even when it has nothing to
+                    // show, or the other one slides toward the camera.
+                    ZStack(alignment: .trailing) {
+                        Color.clear
+                        switch service.idleContent {
+                        case .music:
+                            if let artwork = music.artwork {
+                                Image(nsImage: artwork).resizable().scaledToFill()
+                                    .frame(width: min(22, geometry.stripHeight - 6), height: min(22, geometry.stripHeight - 6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 5))
+                            }
+                        case .battery:
+                            Image(systemName: "battery.100percent").font(.system(size: 12))
+                                .padding(.leading, restingBatteryInset)
+                        case .agents:
+                            NotchAgentRestingWing(leading: true)
+                                .padding(.leading, restingBatteryInset)
+                        case .none: EmptyView()
                         }
-                    case .battery:
-                        Image(systemName: "battery.100percent").font(.system(size: 12))
-                            .padding(.leading, restingBatteryInset)
-                    case .agents:
-                        NotchAgentRestingWing(leading: true)
-                            .padding(.leading, restingBatteryInset)
-                    case .none: EmptyView()
                     }
-                }.frame(width: geometry.restingWingWidth, alignment: .trailing)
-                Color.clear.frame(width: geometry.cameraWidth)
-                Group {
-                    switch service.idleContent {
-                    case .music:
-                        if music.playback?.isPlaying == true {
-                            NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                                   tint: music.artworkTint?.color ?? .white)
-                        }
-                    case .battery:
-                        if let percent = service.power.chargePercent {
-                            Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
-                                .lineLimit(1)
+                    .frame(width: geometry.restingWingWidth)
+                    .opacity(wingStepsAside(.left) ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.left))
+                    Color.clear.frame(width: geometry.cameraWidth)
+                    ZStack(alignment: .leading) {
+                        Color.clear
+                        switch service.idleContent {
+                        case .music:
+                            if music.playback?.isPlaying == true {
+                                NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
+                                                       tint: music.artworkTint?.color ?? .white)
+                            }
+                        case .battery:
+                            if let percent = service.power.chargePercent {
+                                Text("\(percent)%").font(.system(size: 9, weight: .medium)).monospacedDigit()
+                                    .lineLimit(1)
+                                    .padding(.trailing, restingBatteryInset)
+                            }
+                        case .agents:
+                            NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
+                        case .none: EmptyView()
                         }
-                    case .agents:
-                        NotchAgentRestingWing(leading: false)
-                            .padding(.trailing, restingBatteryInset)
-                    case .none: EmptyView()
                     }
-                }.frame(width: geometry.restingWingWidth, alignment: .leading)
-            } else { Color.clear }
+                    .frame(width: geometry.restingWingWidth)
+                    .opacity(wingStepsAside(.right) ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.right))
+                } else { Color.clear }
+            }
+            if service.mascotShows(on: geometry) {
+                NotchMascotTrackView(look: NotchMascotSupport.look(),
+                                     track: NotchMascotSupport.track(stripWidth: geometry.collapsed.width,
+                                                                     stripHeight: geometry.stripHeight,
+                                                                     wing: geometry.restingWingWidth,
+                                                                     cameraWidth: geometry.cameraWidth, floats: false,
+                                                                     bodyHeight: geometry.stripBodyHeight,
+                                                                     side: service.mascotSide),
+                                     rests: service.mascotAtRest, visit: service.mascotVisit,
+                                     mood: service.mascotRestingMood, reaction: service.mascotReaction,
+                                     yieldsToActivities: true)
+                    .frame(width: geometry.collapsed.width, height: geometry.stripHeight)
+                    // The window's own layer shows it while the island closes around it.
+                    .opacity(service.mascotBridging && displayGeometry == nil ? 0 : 1)
+                    .animation(nil, value: service.mascotBridging)
+                    .allowsHitTesting(false)
+            }
         }
         .foregroundStyle(.white.opacity(0.9))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The strip stays in its band at the top: hover grows the island
+        // around it, and centring it in the taller shape dropped it half
+        // the growth in one frame.
+        .frame(height: geometry.stripHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
         .accessibilityHidden(true)
     }

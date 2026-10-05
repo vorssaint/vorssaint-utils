@@ -15,7 +15,8 @@ struct NotchCompactMusicSnapshot {
 struct NotchMusicStrip: View {
     @ObservedObject var service: NotchService
     var snapshot: NotchCompactMusicSnapshot? = nil
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared

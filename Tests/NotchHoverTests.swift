@@ -66,6 +66,7 @@ enum NotchHoverTests {
     /// The strip's track by title; the real snapshot also holds its cover and geometry.
     struct NotchCompactMusicSnapshot: Equatable { let title: String }
     class State {
+        var noticeFitsInPlace = false
         func schedulePointerFollow() {}
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -127,6 +128,10 @@ enum NotchHoverTests {
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
         var refreshes = 0, menuSpaceSyncs = 0
         func refreshPresentation() { refreshes += 1; updateBounds() }
+        func mascotNoticeBridgeStart(for incoming: NotchNotice) -> CGFloat? { nil }
+        func bridgeMascotIntoNotice(_ shown: NotchNotice, from: CGFloat) {}
+        func mascotNoticeBridgeBackStart(from ending: NotchNotice?) -> CGFloat? { nil }
+        func bridgeMascotHome(from: CGFloat) {}
         func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
@@ -958,6 +963,15 @@ enum NotchHoverTests {
         leave(interrupted)
         DispatchQueue.main.advance(0.2)
         expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
+
+        // A new reading of the same level only fits its width; another notice
+        // takes its place the usual way.
+        let reading = fixture(false)
+        let full = NotchNotice(event: .volume, title: "Volume", detail: "100%", symbol: "speaker.wave.3.fill", level: 1)
+        let bright = NotchNotice(event: .brightness, title: "Brightness", detail: "100%", symbol: "sun.max.fill", level: 1)
+        expect(reading.show(volume) && !reading.noticeFitsInPlace, "a level shown on its own arrives the usual way")
+        expect(reading.show(full) && reading.noticeFitsInPlace, "a new reading of the same level eases to its width in place")
+        expect(reading.show(bright) && !reading.noticeFitsInPlace, "another kind of notice replaces it the usual way")
 
         // A burst keeps the banner's width, so the island does not resize
         // with each message and a banner held near its end stays in reach.
