@@ -3,6 +3,7 @@
 
 import AVFoundation
 import CoreMedia
+import VideoToolbox
 
 /// Writes the master file a recording produces: the pixels exactly as they
 /// were on screen, plus one track per sound source. Nothing is composited
@@ -58,6 +59,7 @@ final class RecorderWriter {
                                           frameRate: frameRate,
                                           codec: .hevc)
         let resolved = writer.canApply(outputSettings: settings, forMediaType: .video)
+            && Self.hevcEncodes(width: width, height: height)
             ? settings
             : Self.videoSettings(width: width,
                                  height: height,
@@ -102,6 +104,41 @@ final class RecorderWriter {
     }
 
     // MARK: - Settings
+
+    /// `canApply` accepts HEVC for sizes the machine's encoder then rejects on
+    /// the first frame (-12902 on some Intel Macs for small frames), which
+    /// fails the whole file. Encoding one blank frame is the only reliable test.
+    static func hevcEncodes(width: Int, height: Int) -> Bool {
+        var session: VTCompressionSession?
+        guard VTCompressionSessionCreate(allocator: nil, width: Int32(width), height: Int32(height),
+                                         codecType: kCMVideoCodecType_HEVC, encoderSpecification: nil,
+                                         imageBufferAttributes: nil, compressedDataAllocator: nil,
+                                         outputCallback: nil, refcon: nil,
+                                         compressionSessionOut: &session) == noErr,
+              let session else { return false }
+        defer { VTCompressionSessionInvalidate(session) }
+        var frame: CVPixelBuffer?
+        guard CVPixelBufferCreate(nil, width, height, kCVPixelFormatType_32BGRA, nil, &frame) == noErr,
+              let frame else { return false }
+        let produced = Locked(false)
+        var flags = VTEncodeInfoFlags()
+        guard VTCompressionSessionEncodeFrame(session, imageBuffer: frame, presentationTimeStamp: .zero,
+                                              duration: .invalid, frameProperties: nil,
+                                              infoFlagsOut: &flags, outputHandler: { status, _, sample in
+            produced.set(status == noErr && sample != nil)
+        }) == noErr else { return false }
+        guard VTCompressionSessionCompleteFrames(session, untilPresentationTimeStamp: .invalid) == noErr
+        else { return false }
+        return produced.value
+    }
+
+    private final class Locked: @unchecked Sendable {
+        private let lock = NSLock()
+        private var stored: Bool
+        init(_ value: Bool) { stored = value }
+        var value: Bool { lock.lock(); defer { lock.unlock() }; return stored }
+        func set(_ value: Bool) { lock.lock(); stored = value; lock.unlock() }
+    }
 
     private static func videoSettings(width: Int,
                                       height: Int,

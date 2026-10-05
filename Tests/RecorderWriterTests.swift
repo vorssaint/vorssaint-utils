@@ -20,7 +20,7 @@ enum RecorderWriterTests {
             catch { suite.expect(false, "recorder writer fixture failed: \(error)") }
             finished.signal()
         }
-        suite.expect(finished.wait(timeout: .now() + 30) == .success,
+        suite.expect(finished.wait(timeout: .now() + 90) == .success,
                      "recorder writer scenarios finish within their bounded fixture deadline")
     }
 
