@@ -984,7 +984,8 @@ final class CommandBarService: ObservableObject {
             // category the list still has rows for.
             let hidden = hiddenCache
             return catalog.contains {
-                CommandBarPreferences.isActionRow($0.id) && !hidden.contains($0.stableKey)
+                CommandBarPreferences.isActionRow($0.id, disabled: disabledCache)
+                    && !hidden.contains($0.stableKey)
             }
         case .settingsPages, .snippets, .folders, .links:
             // Asked once per chip on every pass with an empty field, so it
@@ -1011,7 +1012,9 @@ final class CommandBarService: ObservableObject {
         let rows: [CommandBarEntry]
         switch source {
         case .actions:
-            rows = catalog.filter { CommandBarPreferences.isActionRow($0.id) }
+            rows = catalog.filter {
+                CommandBarPreferences.isActionRow($0.id, disabled: disabledCache)
+            }
         case .apps: rows = appEntries
         case .macSettings: rows = macSettingsEntries
         case .windows: rows = windowEntries

@@ -135,7 +135,13 @@ enum CommandBarPreferences {
     }
 
     static func isEnabled(_ source: CommandBarSource, disabledRaw: String) -> Bool {
-        source.isAlwaysOn || !disabledSources(from: disabledRaw).contains(source)
+        isEnabled(source, disabled: disabledSources(from: disabledRaw))
+    }
+
+    /// The same rule the empty bar and the search pool apply, over a set the
+    /// caller already holds rather than a string it would have to parse again.
+    static func isEnabled(_ source: CommandBarSource, disabled: Set<CommandBarSource>) -> Bool {
+        source.isAlwaysOn || !disabled.contains(source)
     }
 
     /// The source a row belongs to, decided by its id. Rows with no prefix of
@@ -152,6 +158,15 @@ enum CommandBarPreferences {
     /// is that category's name.
     static func isActionRow(_ id: String) -> Bool {
         source(ofRowID: id) == .actions || actionBrowseRowIDs.contains(id)
+    }
+
+    /// Whether the Actions browse list shows this row, with the source rule
+    /// the empty bar and the search pool already apply. A row that opens
+    /// another category leads to that category's name, so with the category
+    /// switched off the row is the only place left that can still run it, and
+    /// that is exactly what the empty bar and the search pool refuse.
+    static func isActionRow(_ id: String, disabled: Set<CommandBarSource>) -> Bool {
+        isActionRow(id) && isEnabled(source(ofRowID: id), disabled: disabled)
     }
 
     /// What a kind of row is worth before a single letter of it is read.
