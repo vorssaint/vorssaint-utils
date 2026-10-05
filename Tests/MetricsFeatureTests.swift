@@ -282,6 +282,32 @@ enum MetricsFeatureTests {
                "peripheral battery rounds numeric values")
         suite.expect(PeripheralBatterySupport.percent(from: 140) == nil,
                "peripheral battery ignores invalid percentages")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: UInt64.max)) == nil,
+               "peripheral battery returns nil rather than trapping on a huge device number")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: Double.greatestFiniteMagnitude)) == nil,
+               "peripheral battery returns nil rather than trapping on the largest finite number")
+        suite.expect(PeripheralBatterySupport.percent(from: "1e300") == nil,
+               "peripheral battery returns nil rather than trapping on an absurd percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: 55) == 55,
+               "peripheral battery keeps an integer percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: "80") == 80,
+               "peripheral battery parses a bare percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.6)) == 43,
+               "peripheral battery rounds a fractional percentage up")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.4)) == 42,
+               "peripheral battery rounds a fractional percentage down")
+        suite.expect(PeripheralBatterySupport.percent(from: -5) == nil,
+               "peripheral battery ignores a negative percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: 0) == 0,
+               "peripheral battery keeps an empty battery as zero rather than nil")
+        suite.expect(PeripheralBatterySupport.percent(from: 100) == 100,
+               "peripheral battery keeps a full battery")
+        suite.expect(PeripheralBatterySupport.percent(from: Double.nan) == nil,
+               "peripheral battery ignores a not-a-number reading")
+        suite.expect(PeripheralBatterySupport.percent(from: "abc") == nil,
+               "peripheral battery ignores unreadable text")
+        suite.expect(PeripheralBatterySupport.percent(from: nil) == nil,
+               "peripheral battery ignores a missing value")
         let usageMouse = [["DeviceUsagePage": 1, "DeviceUsage": 2]]
         suite.expect(PeripheralBatterySupport.kind(product: "Wireless Device",
                                              primaryUsagePage: nil,
