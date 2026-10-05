@@ -431,9 +431,7 @@ final class ScreenshotSelectionController {
             case kVK_Escape:
                 self.finish(.cancelled)
             case kVK_Return, kVK_ANSI_KeypadEnter:
-                if self.acceptsWindowClick {
-                    self.captureFullDisplayUnderMouse()
-                }
+                self.confirmSelectionWithKeyboard()
             case kVK_Space:
                 if let panel = self.panelUnderMouse(), panel.overlayView.isDragging {
                     // Holding Space moves the in-progress selection.
@@ -507,10 +505,13 @@ final class ScreenshotSelectionController {
         }
     }
 
-    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat, stepped: Bool) {
+    fileprivate func adjustLoupeZoom(by scrollDelta: CGFloat,
+                                     stepped: Bool,
+                                     isContinuous: Bool) {
         loupeZoom = stepped
             ? ScreenshotSupport.captureLoupeSteppedZoom(loupeZoom, adjustedBy: scrollDelta)
-            : ScreenshotSupport.captureLoupeZoom(loupeZoom, adjustedBy: scrollDelta)
+            : ScreenshotSupport.captureLoupeFastZoom(loupeZoom, adjustedBy: scrollDelta,
+                                                     isContinuous: isContinuous)
     }
 
     /// C copies the color under the pointer in the configured picker format
@@ -603,6 +604,19 @@ final class ScreenshotSelectionController {
 
     // MARK: - Confirmations (called by the views)
 
+    private func confirmSelectionWithKeyboard() {
+        if isPickingColor {
+            guard acceptsCaptureInput, !panels.contains(where: { $0.overlayView.isDragging }),
+                  let panel = panelUnderMouse() else { return }
+            let location = currentPointerLocation ?? NSEvent.mouseLocation
+            let point = CGPoint(x: location.x - panel.screenFrame.minX,
+                                y: panel.screenFrame.maxY - location.y)
+            confirmColor(at: point, on: panel)
+        } else if acceptsWindowClick {
+            captureFullDisplayUnderMouse()
+        }
+    }
+
     /// The surfaces stop answering the pointer the instant a picture starts
     /// being taken. They are either about to leave the screen or already gone,
     /// and the rest of the gesture must not begin a second capture.
@@ -689,14 +703,16 @@ final class ScreenshotSelectionController {
         }
         Task { @MainActor [weak self] in
             guard let self else { return }
-            guard let image = await ScreenshotCaptureEngine.captureWindow(
+            // A composite with an attached dialog may be captured at another
+            // display's scale than this panel's; record the one it has.
+            guard let capture = await ScreenshotCaptureEngine.captureWindow(
                 windowID, scale: panel.pixelScale) else {
                 self.finish(.failed)
                 return
             }
             self.finish(.captured(Capture(
-                image: image,
-                scale: panel.pixelScale,
+                image: capture.image,
+                scale: capture.scale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: frame,
                     screenFrame: panel.screenFrame))))
@@ -1192,7 +1208,8 @@ private final class ScreenshotOverlayView: NSView {
         }
         controller.adjustLoupeZoom(
             by: wheelDelta,
-            stepped: stepped)
+            stepped: stepped,
+            isContinuous: event.hasPreciseScrollingDeltas)
     }
 
     override func mouseDown(with event: NSEvent) {

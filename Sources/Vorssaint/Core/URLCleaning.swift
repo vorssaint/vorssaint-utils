@@ -136,36 +136,42 @@ enum URLCleaning {
 
     static func clean(_ text: String, rules: Rules = .none) -> Result? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var components = URLComponents(string: trimmed),
+        guard !trimmed.contains(where: \.isWhitespace),
+              let components = URLComponents(string: trimmed),
               let scheme = components.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),
-              let host = components.host else {
+              let host = components.host,
+              components.url != nil else {
             return nil
         }
 
+        // URLComponents validates the link and supplies its host, but can
+        // re-encode existing escapes when a query also contains literal Unicode.
+        // Slice the original text by scalars so combining marks cannot hide
+        // a query delimiter inside a Character.
+        let scalars = trimmed.unicodeScalars
+        let fragmentStart = scalars.firstIndex(of: "#") ?? scalars.endIndex
+        guard let queryStart = scalars[..<fragmentStart].firstIndex(of: "?") else {
+            return Result(url: trimmed, removed: [])
+        }
+        let query = scalars[scalars.index(after: queryStart)..<fragmentStart]
         var removed: [String] = []
-        if let query = components.percentEncodedQuery, !query.isEmpty {
-            let matcher = Self.matcher(for: host, rules: rules)
-            // The query is filtered in the spelling it arrived in and the
-            // survivors are joined back from their own bytes, so cleaning is a
-            // pure deletion. Reading `queryItems` instead would decode every
-            // pair and write it back through a much wider allowed set, and a
-            // value that survived the filter came out respelled — even when
-            // nothing was removed at all, which left the caller rewriting a
-            // link it had no reason to touch.
-            let kept = query.split(separator: "&", omittingEmptySubsequences: false)
-                .filter { pair in
-                    let name = Self.decodedName(ofEncodedPair: pair)
-                    guard matcher.matches(name) else { return true }
-                    if !removed.contains(name) { removed.append(name) }
-                    return false
-                }
-            if !removed.isEmpty {
-                components.percentEncodedQuery = kept.isEmpty ? nil : kept.joined(separator: "&")
+        let matcher = Self.matcher(for: host, rules: rules)
+        let kept = query.split(separator: "&", omittingEmptySubsequences: false)
+            .filter { pair in
+                let name = Self.decodedName(ofRawPair: pair)
+                guard matcher.matches(name) else { return true }
+                if !removed.contains(name) { removed.append(name) }
+                return false
             }
+        guard !removed.isEmpty else {
+            return Result(url: trimmed, removed: [])
         }
 
-        guard let url = components.url?.absoluteString else { return nil }
+        let survivingQuery = kept.map { String($0) }.joined(separator: "&")
+        let url = String(scalars[..<queryStart])
+            + (kept.isEmpty ? "" : "?" + survivingQuery)
+            + String(scalars[fragmentStart...])
         return Result(url: url, removed: removed)
     }
 
@@ -251,7 +257,7 @@ enum URLCleaning {
     /// an escape that will not decode at all falls back to the raw text, and
     /// even that is matched as written — `utm_%ff` still answers to the
     /// `utm_` prefix.
-    private static func decodedName(ofEncodedPair pair: Substring) -> String {
+    private static func decodedName(ofRawPair pair: String.UnicodeScalarView.SubSequence) -> String {
         let raw = String(pair.prefix { $0 != "=" })
         guard raw.contains("%") else { return raw }
         return raw.removingPercentEncoding ?? raw

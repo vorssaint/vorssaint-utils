@@ -201,6 +201,10 @@ struct PanelPortManagerView: View {
         .padding(.vertical, 4)
         .padding(.horizontal, 6)
         .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+        .contentShape(Rectangle())
+        .contextMenu {
+            PortManagerRowActions(entry: entry, language: l10n.language)
+        }
     }
 
     /// The alert would hang from the island as a sheet; there it asks on its own.

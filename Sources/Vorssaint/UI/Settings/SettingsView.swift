@@ -537,6 +537,7 @@ struct SettingsView: View {
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
+        case .notchMascot: NotchMascotSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings(focus: router.destination.sectionAnchor)
@@ -872,6 +873,14 @@ struct ReleaseNotesSettings: View {
 struct SupportSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var donateThanksText: String {
+        let thanks = l10n.s.donateThanks
+        return colorScheme == .dark
+            ? thanks.replacingOccurrences(of: "🖤", with: "🤍")
+            : thanks
+    }
 
     var body: some View {
         ScrollView {
@@ -970,7 +979,7 @@ struct SupportSettings: View {
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
                 )
 
-                Text(l10n.s.donateThanks)
+                Text(donateThanksText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

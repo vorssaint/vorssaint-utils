@@ -72,6 +72,11 @@ enum NotchDestinationContract {
         var expanded = false
         var showingAppPanel = false
         var showingSections = false
+        var showingCommandBar = false
+        var commandBarClosings = 0
+        func commandBarDidClose() { commandBarClosings += 1 }
+        func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }
+        func bridgeMascot(from: CGFloat, opening: Bool) {}
         var sectionQuery = ""
         var sectionRow = 0
         var highlightedSection: NotchModule?
@@ -123,6 +128,17 @@ enum NotchDestinationContract {
         scratchpadContracts(defaults: defaults, suite: suite)
         reopeningContracts(defaults: defaults, suite: suite)
         stepBackContracts(suite)
+        // A page opened while the Command Bar is in the island takes its place.
+        let barHost = Service()
+        barHost.expanded = true
+        barHost.showingCommandBar = true
+        barHost.modules = NotchSupport.modules(in: defaults)
+        barHost.open(.controls)
+        suite.expect(barHost.expanded && !barHost.showingCommandBar && barHost.selected == .controls
+                     && barHost.commandBarClosings == 1,
+                     "opening a page in place of the Command Bar closes the bar once")
+        barHost.open(.controls)
+        suite.expect(barHost.commandBarClosings == 1, "opening a page without the bar leaves the bar alone")
         for resting in [NotchIdleContent.none, .music] {
             defaults.set(resting.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)

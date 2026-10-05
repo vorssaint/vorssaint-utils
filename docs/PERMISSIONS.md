@@ -7,7 +7,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Permission | Optional | Powers |
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
-| Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
+| Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
@@ -48,6 +48,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
 **What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+
+The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
 **If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 

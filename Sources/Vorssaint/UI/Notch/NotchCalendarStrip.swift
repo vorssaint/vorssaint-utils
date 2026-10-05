@@ -9,7 +9,8 @@ import SwiftUI
 /// takes the title's side and the event keeps its dot and clock.
 struct NotchCalendarStrip: View {
     @ObservedObject var service: NotchService
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -19,7 +20,13 @@ struct NotchCalendarStrip: View {
     private var usesFullRow: Bool { geometry.compactActivityUsesFooter || geometry.compactActivityWingWidth == 0 }
 
     var body: some View {
-        if let countdown = calendar.countdown {
+        // An event ending moves the countdown on, or clears it, before the
+        // strip has left.
+        NotchStripHold(calendar.countdown, shows: service.compactActivity == .calendar) { content($0) }
+    }
+
+    @ViewBuilder private func content(_ countdown: NotchCalendarCountdown?) -> some View {
+        if let countdown {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let displayTitle = Self.displayTitle(countdown.event, untitled: text.untitled)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
