@@ -39,6 +39,7 @@ extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -88,6 +89,38 @@ extension FeedbackStrings {
         commandFeature: "Suggest a feature",
         commandSubtitle: "Send feedback",
         diagnosticsChannelLabel: "Update channel"
+    )
+
+    static let pl = FeedbackStrings(
+        sectionTitle: "Informacja zwrotna",
+        sectionCaption: "Wyślij raport o błędzie lub pomysł na funkcję bezpośrednio do osoby odpowiedzialnej za Vorssaint.",
+        openButton: "Wyślij opinię",
+        windowTitle: "Wyślij opinię",
+        bugTitle: "Błąd",
+        featureTitle: "Pomysł na funkcję",
+        messageLabel: "Czym chciałbyś się podzielić?",
+        bugPlaceholder: "Powiedz mi, co się stało i czego się spodziewałeś.",
+        featurePlaceholder: "Opisz pomysł i w jaki sposób miałby pomóc.",
+        charactersFormat: "%d o długości 2000 znaków",
+        includeDiagnostics: "Uwzględnij szczegóły techniczne",
+        includeDiagnosticsCaption: "Dodaje tylko szczegóły techniczne pokazane poniżej. Nie obejmuje logów.",
+        whatSentTitle: "Co zostanie wysłane",
+        whatSentBasic: "Wybrana przez Ciebie kategoria i tekst powyżej.",
+        whatSentDiagnostics: "Szczegóły techniczne poniżej.",
+        privacyNote: "Żadne imię i nazwisko, konto, adres e-mail, identyfikator urządzenia, dzienniki, zrzuty ekranu, pliki ani zawartość schowka nie są uwzględniane. Twój publiczny adres IP jest tymczasowo przetwarzany w celu ochrony przed nadużyciami i nie jest dołączany do opinii.",
+        retentionNote: "Po dostarczeniu tekst pozostaje w prywatnych kanałach wsparcia do czasu, aż właściciel usługi go usunie. Niedostarczona kopia jest trwale usuwana po 7 dniach.",
+        sendButton: "Wyślij opinię",
+        sending: "Wysyłanie…",
+        sentTitle: "Opinia została wysłana",
+        sentCaption: "Dziękuję. Nie wysłano żadnych informacji kontaktowych, więc nie otrzymasz bezpośredniej odpowiedzi.",
+        unavailableError: "Nie udało się połączyć. Sprawdź swoje połączenie internetowe i spróbuj ponownie.",
+        rateLimitError: "Zbyt wiele zgłoszeń z tej sieci. Spróbuj ponownie później.",
+        genericError: "Nie można teraz wysłać opinii.",
+        done: "Gotowe",
+        commandBug: "Zgłoś błąd",
+        commandFeature: "Zaproponuj funkcję",
+        commandSubtitle: "Wyślij opinię",
+        diagnosticsChannelLabel: "Kanał aktualizacji"
     )
 
     static let ptBR = FeedbackStrings(

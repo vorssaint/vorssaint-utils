@@ -19,6 +19,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Shelf is full",
                 fullBody: "The attachment finished saving but there is no room left on the shelf.",
                 okButton: "OK")
+        case .pl:
+            return .init(
+                failedTitle: "Nie udało się dodać załącznika",
+                failedBody: "Plik nigdy nie zakończył się zapisywaniem na półce.",
+                fullTitle: "Półka jest pełna",
+                fullBody: "Zapisywanie załącznika zostało zakończone, ale na półce nie ma już miejsca.",
+                okButton: "OK")
         case .ptBR:
             return .init(
                 failedTitle: "Não foi possível adicionar o anexo",

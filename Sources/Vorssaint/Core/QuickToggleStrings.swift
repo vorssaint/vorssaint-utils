@@ -38,6 +38,7 @@ extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -83,6 +84,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
         actionFailed: "Could not complete."
+    )
+
+    static let pl = QuickToggleFeatureStrings(
+        pageTitle: "Szybkie przełączniki",
+        hubDescription: "Działania jednym kliknięciem, takie jak tryb ciemny i Kosz",
+        panelCaption: "Akcje systemowe jednym kliknięciem w panelu paska menu i w panelu szybkiego dostępu.",
+        darkModeToDark: "Przełącz na tryb ciemny",
+        darkModeToLight: "Przełącz na tryb jasny",
+        darkModeCaption: "Zmienia wygląd całego systemu.",
+        emptyTrashTitle: "Opróżnij Kosz",
+        emptyTrashCaption: "Usuwa wszystko z Kosza.",
+        emptyTrashConfirmTitle: "Opróżnić kosz?",
+        emptyTrashConfirmMessage: "Wszystkie elementy w Koszu zostaną usunięte. Tego nie można cofnąć.",
+        emptyTrashConfirmButton: "Opróżnij Kosz",
+        ejectTitle: "Wysuń wszystkie dyski",
+        ejectCaption: "Bezpiecznie wysuwa każdy dysk zewnętrzny.",
+        hiddenFilesShow: "Pokaż ukryte pliki",
+        hiddenFilesHide: "Ukryj ukryte pliki",
+        desktopIconsHide: "Ukryj ikony pulpitu",
+        desktopIconsShow: "Pokaż ikony pulpitu",
+        finderRestartCaption: "Finder uruchamia się ponownie, aby go zastosować.",
+        lockScreenTitle: "Zablokuj ekran",
+        lockScreenCaption: "Prosi o zwrot hasła.",
+        displayOffTitle: "Wyłącz wyświetlacz",
+        displayOffCaption: "Komputer Mac działa z wyłączonym wyświetlaczem.",
+        screenSaverTitle: "Uruchom wygaszacz ekranu",
+        screenSaverCaption: "Uruchamia się natychmiast, na każdym wyświetlaczu.",
+        actionFailed: "Nie udało się ukończyć."
     )
 
     static let ptBR = QuickToggleFeatureStrings(

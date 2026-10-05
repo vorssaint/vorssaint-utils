@@ -345,6 +345,10 @@ struct ShelfTooltipStrings {
         switch agreement {
         case .oneAndMany:
             return magnitude == 1 ? .one : .many
+        case .polish:
+            if magnitude == 1 { return .one }
+            if (12...14).contains(magnitude % 100) { return .many }
+            return (2...4).contains(magnitude % 10) ? .few : .many
         case .byWholeNumber:
             if magnitude == 1 { return .one }
             return (2...4).contains(magnitude) ? .few : .many

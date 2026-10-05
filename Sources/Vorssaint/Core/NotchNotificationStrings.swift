@@ -32,6 +32,18 @@ extension FeatureStrings {
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
             hideSystemBannerHint: "Hide the original while the Dynamic Island shows it.")
+        case .pl: return NotchNotificationStrings(
+            title: "Powiadomienia",
+            description: "Nowe powiadomienia systemowe w Dynamic Island.",
+            privacy: "Pokaż tylko nowe widoczne banery. Wiadomości pozostają w pamięci i są usuwane po zablokowaniu lub wyłączeniu tego Maca.",
+            empty: "Tutaj pojawią się nowe powiadomienia",
+            waiting: "Oczekiwanie na usługę powiadomień systemowych",
+            open: "Otwórz",
+            dismiss: "Zamknij",
+            clearAll: "Wyczyść wszystko",
+            unavailable: "To powiadomienie nie może już akceptować tej akcji.",
+            hideSystemBanner: "Ukryj baner systemowy",
+            hideSystemBannerHint: "Ukryj oryginał, gdy Dynamic Island go pokaże.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",

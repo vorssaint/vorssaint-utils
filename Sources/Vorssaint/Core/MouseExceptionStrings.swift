@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func mouseExceptions(_ language: AppLanguage) -> MouseExceptionStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -67,6 +68,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
         captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
         pausedSuperKey: "Paused while a selected app is open"
+    )
+
+    static let pl = MouseExceptionStrings(
+        listTitle: "Aplikacje wykluczone",
+        addButton: "Dodaj aplikację…",
+        removeButton: "Usuń",
+        captionSmoothScroll: "W tych aplikacjach koło zachowuje proste kroki, w przypadku aplikacji, które czytają je na swój własny sposób, takich jak narzędzia 3D i narzędzia do projektowania.",
+        captionLinearScroll: "Koło utrzymuje tempo, jakie zapewnia macOS w tych aplikacjach, grach i narzędziach 3D, które same liczą nacięcia.",
+        captionScrollDirection: "Koło utrzymuje kierunek nadany przez macOS w tych aplikacjach.",
+        captionNavigation: "Przyciski boczne wykonują to samo, co te aplikacje już z nimi robią.",
+        captionButtonShortcuts: "Twoje dodatkowe przyciski myszy milczą w tych aplikacjach, a prasa zamiast nich dociera do nich.",
+        captionMiddleClick: "W tych aplikacjach kliknięcie trzema palcami pozostaje normalnym kliknięciem.",
+        captionFocusFollowsMouse: "Najechanie kursorem nie zmienia ostrości ani nie podnosi okna w tych aplikacjach.",
+        captionSuperKey: "Gdy dowolna z tych aplikacji jest otwarta, nawet w tle, Super Key wstrzymuje się, a wybrany klawisz działa normalnie.",
+        pausedSuperKey: "Wstrzymano, gdy wybrana aplikacja jest otwarta"
     )
 
     static let ptBR = MouseExceptionStrings(

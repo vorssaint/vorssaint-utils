@@ -55,6 +55,7 @@ extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -119,6 +120,53 @@ extension ScratchpadFeatureStrings {
         markLink: "Link",
         formatMarks: "Formatting",
         textSize: "Text size"
+    )
+
+    static let pl = ScratchpadFeatureStrings(
+        pageTitle: "Notatnik",
+        hubDescription: "Pływające podkładki do krótkotrwałych notatek",
+        panelCaption: "Szybkie notatki w osobnych zakładkach",
+        openButton: "Otwórz notatnik",
+        placeholder: "Pisz swobodnie. Tekst zapisuje się automatycznie.",
+        copyAll: "Skopiuj wszystko",
+        copied: "Skopiowano",
+        exportAction: "Zapisz jako plik",
+        exportFailed: "Nie udało się zapisać pliku",
+        loadFailed: "Nie można otworzyć notatek. Pozostały bez zmian.",
+        saveFailed: "Nie udało się zapisać Twoich notatek. Skopiuj je gdzie indziej, zanim opuścisz program.",
+        clearAction: "Wyczyść",
+        retentionTitle: "Jasne samo w sobie",
+        retentionNever: "Nigdy",
+        retentionDay: "Po dniu nieużywania",
+        retentionWeek: "Po tygodniu nieużywania",
+        retentionMonth: "Po miesiącu nieużywany",
+        retentionCaption: "Podkładka opróżnia się, gdy tekst jest tak długi bez edycji.",
+        closeOnClickOutside: "Zamknij, gdy kliknę na zewnątrz",
+        keepOpen: "Zachowaj otwarte",
+        backgroundOpacity: "Tło notatnika",
+        backgroundTranslucent: "Przeświecający",
+        backgroundOpaque: "Nieprzejrzysty",
+        newPad: "Nowa notatka",
+        padActions: "Działania w notatniku",
+        renamePad: "Zmień nazwę notatnika",
+        closePad: "Zamknij notatnik",
+        saveName: "Zapisz",
+        cancel: "Anuluj",
+        deletePadMessageFormat: "Usunąć „%@” i wszystko, co się w nim znajduje?",
+        padLimitFormat: "Możesz przechowywać aż do zdrapek %d",
+        previewFormatting: "Pokaż formatowanie",
+        editText: "Edytuj tekst",
+        markBold: "Pogrubiony",
+        markItalic: "Kursywa",
+        markStrikethrough: "Przekreślenie",
+        markHeading: "Nagłówek",
+        markBullet: "Lista punktowana",
+        markNumbered: "Lista numerowana",
+        markQuote: "Cytat",
+        markCode: "Kod",
+        markLink: "Link",
+        formatMarks: "Formatowanie",
+        textSize: "Rozmiar tekstu"
     )
 
     static let ptBR = ScratchpadFeatureStrings(

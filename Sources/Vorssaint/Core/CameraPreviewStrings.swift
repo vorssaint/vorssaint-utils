@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func cameraPreview(_ language: AppLanguage) -> CameraPreviewFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -49,6 +50,18 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "No camera detected",
         permName: "Camera",
         permExplain: "Shows your camera only in the preview window, so you can check how you look before a call. Nothing is recorded or leaves your Mac."
+    )
+
+    static let pl = CameraPreviewFeatureStrings(
+        pageTitle: "Podgląd kamery",
+        hubDescription: "Otwiera pływające lustro z aparatem",
+        panelCaption: "Zanim zadzwonisz, sprawdź jak wyglądasz",
+        openButton: "Otwórz podgląd",
+        cameraMenuLabel: "Kamera",
+        deniedMessage: "Dostęp do kamery dla Vorssaint jest wyłączony w Ustawieniach systemu.",
+        noCameraMessage: "Nie wykryto kamery",
+        permName: "Kamera",
+        permExplain: "Pokazuje Twoją kamerę tylko w oknie podglądu, dzięki czemu możesz sprawdzić jak wyglądasz przed rozmową. Nic nie jest nagrywane ani nie opuszcza komputera Mac."
     )
 
     static let ptBR = CameraPreviewFeatureStrings(

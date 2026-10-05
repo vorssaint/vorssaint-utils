@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func finderRename(_ language: AppLanguage) -> FinderRenameFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -42,6 +43,15 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Use a shortcut to rename",
         caption: "The shortcut only acts in Finder and leaves text fields alone. F2 works as a regular key; on keyboards where it controls brightness, use Fn-F2 or choose another shortcut.",
         shortcutLabel: "Rename"
+    )
+
+    static let pl = FinderRenameFeatureStrings(
+        pageTitle: "Skróty Findera",
+        hubTitle: "Zmień nazwę skrótu",
+        hubDescription: "Zmień nazwę wybranego pliku lub folderu za pomocą wybranego skrótu.",
+        enableLabel: "Użyj skrótu, aby zmienić nazwę",
+        caption: "Skrót działa tylko w Finder i pozostawia same pola tekstowe. F2 działa jak zwykły klawisz; na klawiaturach, na których steruje jasnością, użyj Fn-F2 lub wybierz inny skrót.",
+        shortcutLabel: "Zmień nazwę"
     )
 
     static let ptBR = FinderRenameFeatureStrings(

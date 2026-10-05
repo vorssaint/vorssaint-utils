@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func windowLayoutIgnoredApps(_ language: AppLanguage) -> WindowLayoutIgnoredAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -35,6 +36,8 @@ extension FeatureStrings {
 
 extension WindowLayoutIgnoredAppsStrings {
     static let enUS = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignore apps", listTitle: "Pause in these apps", addButton: "Add an app…", removeButton: "Remove", caption: "Window Layout does not use mouse or keyboard input while one of these apps is focused.")
+
+    static let pl = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignoruj ​​aplikacje", listTitle: "Wstrzymaj w tych aplikacjach", addButton: "Dodaj aplikację…", removeButton: "Usuń", caption: "Układ okna nie korzysta z myszy ani klawiatury, gdy aktywna jest jedna z tych aplikacji.")
     static let ptBR = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignorar apps", listTitle: "Pausar nestes apps", addButton: "Adicionar app…", removeButton: "Remover", caption: "O Layout de janelas não usa entrada do mouse ou teclado enquanto um destes apps está em foco.")
     static let tr = WindowLayoutIgnoredAppsStrings(sectionTitle: "Yoksayılacak uygulamalar", listTitle: "Bu uygulamalarda duraklat", addButton: "Uygulama ekle…", removeButton: "Kaldır", caption: "Bu uygulamalardan biri odaktayken Pencere yerleşimi fare veya klavye girdisini kullanmaz.")
     static let ru = WindowLayoutIgnoredAppsStrings(sectionTitle: "Игнорируемые приложения", listTitle: "Приостанавливать в этих приложениях", addButton: "Добавить приложение…", removeButton: "Удалить", caption: "Раскладка окон не использует мышь или клавиатуру, пока одно из этих приложений в фокусе.")

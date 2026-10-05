@@ -24,6 +24,13 @@ extension FeatureStrings {
             sounds: "Lock and unlock sounds",
             soundsHint: "Play the macOS padlock sound when your Mac locks and unlocks.",
             working: "Working")
+        case .pl: return NotchLockScreenStrings(
+            title: "Zablokuj ekran",
+            show: "Pokaż na ekranie blokady",
+            showHint: "Muzyka i działania Dynamic Island, takie jak licznik czasu, agenci AI, pliki do pobrania i następne wydarzenie, pojawiają się nad polem hasła. Każdy, kto widzi Twój ekran, może je przeczytać.",
+            sounds: "Dźwięki blokowania i odblokowywania",
+            soundsHint: "Odtwarzaj dźwięk kłódki macOS podczas blokowania i odblokowywania komputera Mac.",
+            working: "Pracujący")
         case .ptBR: return NotchLockScreenStrings(
             title: "Tela Bloqueada",
             show: "Mostrar na Tela Bloqueada",

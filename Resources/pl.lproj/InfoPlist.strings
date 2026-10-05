@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint używa Automatyzacji do przenoszenia plików, przenoszenia elementów do Kosza, wykonywania wybranych poleceń i sterowania odtwarzaniem w aplikacjach multimedialnych.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint korzysta z dźwięku poszczególnych aplikacji, aby regulować ich głośność w mikserze, animować słupki muzyki w Dynamic Island i dodawać dźwięk Maca do uruchamianych nagrań ekranu. Żadne dane nie opuszczają Maca.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint korzysta z Bluetooth wyłącznie do odczytywania poziomu baterii podłączonych akcesoriów. Żadne dane nie opuszczają Maca.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint nagrywa mikrofon tylko wtedy, gdy włączysz go podczas nagrywania ekranu. Dźwięk pozostaje na Macu, chyba że zdecydujesz się utworzyć tymczasowy link.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint wyświetla obraz z kamery wyłącznie w otwartym przez Ciebie oknie podglądu, aby umożliwić sprawdzenie wyglądu przed rozmową. Obraz nie jest nagrywany ani wysyłany poza Maca.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint sprawdza lokalne metadane w folderze Pobrane, aby weryfikować, porządkować lub przenosić do Kosza wyłącznie wybrane i potwierdzone pliki z WhatsAppa. Narzędzie czyszczenia szuka też pozostawionych zrzutów ekranu, jeśli zapisujesz je w tym folderze.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint porządkuje potwierdzone pliki pobrane z WhatsAppa w wybranym przez Ciebie folderze docelowym. Narzędzie czyszczenia szuka też pozostawionych zrzutów ekranu, jeśli zapisujesz je w tym folderze.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint porządkuje potwierdzone pliki pobrane z WhatsAppa w wybranym przez Ciebie folderze docelowym. Narzędzie czyszczenia szuka też pozostawionych zrzutów ekranu, jeśli zapisujesz je w tym folderze.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint porządkuje potwierdzone pliki pobrane z WhatsAppa w wybranym przez Ciebie folderze docelowym. Narzędzie czyszczenia szuka też pozostawionych zrzutów ekranu, jeśli zapisujesz je w tym folderze.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint porządkuje potwierdzone pliki pobrane z WhatsAppa w wybranym przez Ciebie folderze docelowym. Narzędzie czyszczenia szuka też pozostawionych zrzutów ekranu, jeśli zapisujesz je w tym folderze.";
+"NSCalendarsFullAccessUsageDescription" = "Wyświetlaj nadchodzące wydarzenia u góry ekranu. Dane kalendarza pozostają na tym Macu.";
