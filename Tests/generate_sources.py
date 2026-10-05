@@ -139,7 +139,15 @@ def main():
               "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
               "    private func restoreManagedDisplayIfHeadless(",
               "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
-              "    private func displaysWokeUp("])
+              "    private func displaysWokeUp(", "    private func syncAutomaticBuiltInDisplay(",
+              "    private func disableBuiltInDisplayIfReady(",
+              "    private func cancelWakeDisableChecks(", "    private func displaysWillSleep(",
+              "    private func checkWakeDisable(", "    private func scheduleWakeDisableCheck(",
+              "    private func screensChanged(",
+              "    private static func drawableDisplayIDs(",
+              "    private static func exposesDisplayControls(",
+              "    private static func displayParticipatesInDesktop("]).replace(
+                  "func commitDisplayToggle(", "@discardableResult\n    func commitDisplayToggle(")
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"

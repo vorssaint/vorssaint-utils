@@ -16,6 +16,7 @@ struct EnergySettings: View {
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.automaticallyDisableBuiltInDisplay) private var automaticallyDisableBuiltInDisplay = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
@@ -306,6 +307,14 @@ struct EnergySettings: View {
                     }
             }
             if brightnessEnabled {
+                SettingsRow(symbol: "laptopcomputer", title: strings.automaticBuiltInDisplay,
+                            caption: strings.automaticBuiltInDisplayCaption) {
+                    Toggle(strings.automaticBuiltInDisplay, isOn: $automaticallyDisableBuiltInDisplay)
+                        .labelsHidden()
+                        .onChange(of: automaticallyDisableBuiltInDisplay) { _, _ in
+                            BrightnessService.shared.syncWithPreferences()
+                        }
+                }
                 Divider()
                 if brightness.displays.isEmpty {
                     Text(strings.noDisplays)

@@ -15,23 +15,58 @@ enum DisplayRestorationTests {
     static let kIOGeneralInterest = "IOGeneralInterest"
     static let KERN_SUCCESS: Int32 = 0
 
+    struct DispatchTime {
+        let seconds: TimeInterval
+        var uptimeNanoseconds: UInt64 { UInt64(seconds * 1_000_000_000) }
+        static func now() -> DispatchTime { DispatchTime(seconds: DispatchQueue.main.now) }
+        static func + (lhs: DispatchTime, rhs: TimeInterval) -> DispatchTime {
+            DispatchTime(seconds: lhs.seconds + rhs)
+        }
+    }
     final class Queue {
-        var jobs: [() -> Void] = []
-        func async(execute work: @escaping () -> Void) { jobs.append(work) }
+        var now: TimeInterval = 0
+        var jobs: [(time: TimeInterval, work: () -> Void)] = []
+        func async(execute work: @escaping () -> Void) { jobs.append((now, work)) }
+        func async(execute work: DispatchWorkItem) {
+            async { if !work.isCancelled { work.perform() } }
+        }
         func asyncAfter(deadline: DispatchTime, execute work: DispatchWorkItem) {
-            jobs.append { if !work.isCancelled { work.perform() } }
+            jobs.append((deadline.seconds, { if !work.isCancelled { work.perform() } }))
+        }
+        func runReady() {
+            var count = 0
+            while let index = jobs.indices.filter({ jobs[$0].time <= now })
+                .min(by: { jobs[$0].time < jobs[$1].time }) {
+                count += 1
+                precondition(count < 100, "recovery must not loop on its own notifications")
+                jobs.remove(at: index).work()
+            }
+        }
+        func advance(by interval: TimeInterval) {
+            let target = now + interval
+            while let next = jobs.map(\.time).min(), next <= target {
+                now = max(now, next)
+                runReady()
+            }
+            now = target
+            runReady()
         }
         func drain() {
             var count = 0
-            while !jobs.isEmpty {
+            while let next = jobs.map(\.time).min() {
                 count += 1
-                precondition(count < 20, "recovery must not loop on its own notifications")
-                jobs.removeFirst()()
+                precondition(count < 100, "delayed work must terminate")
+                advance(by: max(0, next - now))
             }
         }
     }
     enum DispatchQueue { static var main = Queue() }
     enum Hardware {
+        static var topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        static var asleep = Set<UInt32>()
+        static var info: [UInt32: NSDictionary] = [:]
+        static var onComplete: (() -> Void)?
+        static var mirrors: [UInt32: UInt32] = [:]
         static var lid: Bool? = true
         static var succeeds = true
         static var transactions = 0
@@ -91,6 +126,8 @@ enum DisplayRestorationTests {
     enum DisplayConfigurationBridge {
         static var configureEnabled: ((Int, UInt32, Bool) -> Int32)? = { _, _, _ in 0 }
     }
+    static func CGDisplayMirrorsDisplay(_ id: UInt32) -> UInt32 { Hardware.mirrors[id] ?? 0 }
+    static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { Hardware.asleep.contains(id) ? 1 : 0 }
     static func CGDisplayIsBuiltin(_ id: UInt32) -> UInt32 { id == 1 ? 1 : 0 }
     static func CGBeginDisplayConfiguration(_ reference: inout Int?) -> CGError {
         Hardware.transactions += 1
@@ -99,6 +136,7 @@ enum DisplayRestorationTests {
     }
     static func CGCancelDisplayConfiguration(_ reference: Int) {}
     static func CGCompleteDisplayConfiguration(_ reference: Int, _ option: CGConfigureOption) -> CGError {
+        Hardware.onComplete?()
         Hardware.callback?()
         return Hardware.succeeds ? .success : .failure
     }
@@ -125,6 +163,12 @@ enum DisplayRestorationTests {
 
     class Fixture {
         static let log = Logger(subsystem: "vorssaint.tests", category: "restoration")
+        var automaticallyDisabledDisplayID: UInt32?
+        var builtInDisplayManualOverride = false
+        var observedAutomaticLidClosed: Bool?
+        var automaticPolicySuspended = false
+        var automaticDisplayPolicyEnabled = false
+        static func currentTopology() -> BrightnessSupport.DisplayTopology { Hardware.topology }
         var deferredRestoration = BrightnessSupport.DeferredDisplayRestoration()
         var lidNotificationPort: IONotificationPortRef?
         var lidNotification: io_object_t = 0
@@ -141,22 +185,34 @@ enum DisplayRestorationTests {
         var refreshes = 0
         var running = false
         var wakeObserversInstalled = false
+        var rebuildDebounce: DispatchWorkItem?
+        var wakeDisableDeadline: DispatchTime?
+        var wakeDisablePoll: DispatchWorkItem?
+        var wakeDisableScreenCheck: DispatchWorkItem?
+        var wakeDisablePollingStopped = false
+        var wakeDisableFailed = false
+        static let wakeDisablePollInterval: TimeInterval = 0.1
         var wakeRebuild: DispatchWorkItem?
         static let wakeSettleDelay: TimeInterval = 3
         static func lidClosed() -> Bool? { Hardware.lidRead?() ?? Hardware.lid }
-        static func displayInfoDictionary(_ id: UInt32) -> NSDictionary? { nil }
+        static func displayInfoDictionary(_ id: UInt32) -> NSDictionary? { Hardware.info[id] }
         static func displayFingerprint(_ id: UInt32) -> String {
             Hardware.fingerprints[id] ?? "0:0:0"
         }
         static func displayName(_ id: UInt32, info: NSDictionary?, screenNames: [UInt32: String]) -> String {
             "Display"
         }
-        func refresh(force: Bool = false) { refreshes += 1 }
+        func refresh(force: Bool = false) {
+            if running && !automaticPolicySuspended {
+                refreshes += 1
+            }
+        }
         func installWakeObservers() { wakeObserversInstalled = true }
         func removeWakeObservers() {
             wakeObserversInstalled = false
             wakeRebuild?.cancel()
             wakeRebuild = nil
+            (self as? BrightnessService)?.cancelWakeDisableChecks()
         }
 
     }
@@ -165,6 +221,11 @@ enum DisplayRestorationTests {
         func make() -> BrightnessService {
             DispatchQueue.main = Queue()
             UserDefaults.standard = UserDefaults()
+            Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+            Hardware.asleep = []
+            Hardware.info = [:]
+            Hardware.onComplete = nil
+            Hardware.mirrors = [:]
             Hardware.lid = true
             Hardware.succeeds = true
             Hardware.transactions = 0
@@ -720,6 +781,134 @@ enum DisplayRestorationTests {
                          "a display number that reads \(unknown) never retires the saved row and recovery")
         }
 
+        service = make()
+        service.running = true
+        Hardware.lid = false
+        service.displays = [BrightnessDisplay(id: 1, isActive: true), BrightnessDisplay(id: 2, isActive: true)]
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 0, "automatic display disconnection is off by default")
+        service.automaticDisplayPolicyEnabled = true
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 1 && service.managedDisabledIDs == [1]
+                     && service.automaticallyDisabledDisplayID == 1,
+                     "automatic policy disconnects the built-in panel through a real display transaction")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [2], active: [2])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 1, "its own screen notification does not repeat the disconnect")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [], active: [])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
+                     && service.automaticallyDisabledDisplayID == nil,
+                     "unplugging the last external restores the automatically disconnected panel")
+
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.syncAutomaticBuiltInDisplay()
+        service.commitDisplayToggle(BrightnessDisplay(id: 1), enabled: true)
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 4 && service.builtInDisplayManualOverride,
+                     "manual power-on overrides automation while docked")
+        service.automaticPolicySuspended = true
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [], active: [])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.builtInDisplayManualOverride, "sleep topology gaps preserve the manual override")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 4, "wake preserves the manual power-on override")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1], active: [1])
+        service.syncAutomaticBuiltInDisplay()
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 5 && service.managedDisabledIDs == [1],
+                     "undocking resets the manual override for the next connection")
+        service.automaticDisplayPolicyEnabled = false
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 6 && service.managedDisabledIDs.isEmpty,
+                     "turning automation off restores the panel it owns")
+        service.commitDisplayToggle(BrightnessDisplay(id: 1, isActive: true), enabled: false)
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 7 && service.managedDisabledIDs == [1],
+                     "turning automation off leaves manually powered-off displays alone")
+
+        service = make()
+        service.running = true
+        service.automaticDisplayPolicyEnabled = true
+        service.displays = [BrightnessDisplay(id: 1, isActive: true), BrightnessDisplay(id: 2, isActive: true)]
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 0, "closed lid never triggers an automatic disconnect")
+        Hardware.lid = false
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 0, "an inactive external display cannot strand the desktop")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        Hardware.succeeds = false
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.automaticallyDisabledDisplayID == nil && service.managedDisabledIDs.isEmpty,
+                     "a failed disconnect does not acquire automatic ownership")
+        Hardware.succeeds = true
+        service.syncAutomaticBuiltInDisplay()
+        Hardware.lid = true
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [], active: [])
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.deferredRestoration.ids == [1], "unplugging with a closed lid defers restoration")
+        Hardware.lid = false
+        Hardware.callback?()
+        DispatchQueue.main.drain()
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.managedDisabledIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
+                     "opening the lid finishes automatic restoration without rebooting")
+
+        service = make()
+        service.running = true
+        service.automaticDisplayPolicyEnabled = true
+        Hardware.lid = false
+        service.displays = [BrightnessDisplay(id: 1, isActive: true), BrightnessDisplay(id: 2, isActive: true)]
+        service.syncAutomaticBuiltInDisplay()
+        // macOS can reintroduce the panel during unlock or wake with the
+        // same display IDs; the settled rebuild must reapply the policy.
+        service.displaysWokeUp()
+        suite.expect(Hardware.transactions == 2, "wake reactivation is disabled before settling")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [2], active: [2])
+        DispatchQueue.main.drain()
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs == [1],
+                     "wake reapplies automatic disconnection if macOS reactivates the panel")
+        Hardware.lid = true
+        service.commitDisplayToggle(BrightnessDisplay(id: 1), enabled: true)
+        suite.expect(service.builtInDisplayManualOverride && service.automaticallyDisabledDisplayID == nil,
+                     "a manual power-on deferred behind the lid overrides automation")
+        Hardware.lid = false
+        Hardware.callback?()
+        DispatchQueue.main.drain()
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.managedDisabledIDs.isEmpty,
+                     "opening the lid honors deferred manual power-on with an external still connected")
+
+        // Replay the live Mac's topology: external is the mirror source,
+        // built-in is online but absent from CGGetActiveDisplayList.
+        service = make()
+        service.running = true
+        service.automaticDisplayPolicyEnabled = true
+        Hardware.lid = false
+        Hardware.mirrors = [1: 2]
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [2])
+        service.displays = Hardware.topology.online.sorted().filter {
+            BrightnessService.exposesDisplayControls($0)
+        }.map {
+            BrightnessDisplay(id: $0, isActive: BrightnessService.displayParticipatesInDesktop(
+                $0, active: Hardware.topology.active))
+        }
+        suite.expect(service.displays.contains { $0.id == 1 && $0.isActive },
+                     "a mirrored built-in display has a power-off control")
+        let mirroredDrawable = BrightnessService.drawableDisplayIDs(
+            online: Hardware.topology.online, active: Hardware.topology.active)
+        suite.expect(BrightnessSupport.canDisableDisplay(drawableDisplayIDs: mirroredDrawable, target: 1),
+                     "manual power-off is available for the built-in mirror destination")
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 1 && service.managedDisabledIDs == [1],
+                     "automatic policy disconnects an online mirrored built-in panel omitted from the active list")
+
         // The built-in's number never passes to another monitor, so an odd
         // reading while it is off cannot retire its row or its recovery.
         service = make()
@@ -731,5 +920,181 @@ enum DisplayRestorationTests {
         suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
                      "the built-in display comes back even when it reads as another monitor while off")
+
+        func makeWake() -> BrightnessService {
+            let service = make()
+            service.running = true
+            service.automaticDisplayPolicyEnabled = true
+            Hardware.lid = false
+            // No brightness rows: eligibility must come from fresh CG topology.
+            Hardware.onComplete = {
+                if Hardware.succeeds {
+                    Hardware.topology = BrightnessSupport.DisplayTopology(online: [2], active: [2])
+                }
+            }
+            return service
+        }
+        service = makeWake()
+        service.displaysWokeUp()
+        suite.expect(Hardware.transactions == 1 && service.refreshes == 0
+                     && service.automaticallyDisabledDisplayID == 1
+                     && UserDefaults.standard.stored == [1],
+                     "ready external disables immediately without waiting for brightness rows or probing")
+        DispatchQueue.main.advance(by: 1)
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 1.99)
+        suite.expect(service.automaticPolicySuspended && service.refreshes == 0,
+                     "paired notifications preserve the first wake deadline")
+        DispatchQueue.main.advance(by: 0.01)
+        suite.expect(!service.automaticPolicySuspended && service.refreshes == 1
+                     && service.wakeDisableDeadline == nil,
+                     "brightness rebuild runs at the original three-second deadline")
+
+        for usesScreenEvent in [true, false] {
+            service = makeWake()
+            Hardware.asleep = [2]
+            service.displaysWokeUp()
+            DispatchQueue.main.advance(by: 0.25)
+            suite.expect(Hardware.transactions == 0, "sleeping external does not permit early disabling")
+            Hardware.asleep = []
+            if usesScreenEvent {
+                service.screensChanged()
+                service.screensChanged()
+                suite.expect(Hardware.transactions == 0, "screen changes defer transactions to the next main turn")
+                DispatchQueue.main.runReady()
+            } else {
+                DispatchQueue.main.advance(by: 0.1)
+            }
+            suite.expect(Hardware.transactions == 1 && service.refreshes == 0,
+                         "late external disables on a coalesced screen event or within 100 ms")
+            DispatchQueue.main.advance(by: 0.5)
+            suite.expect(Hardware.transactions == 1 && service.refreshes == 0,
+                         "successful early disable stops polling and preserves the brightness settle delay")
+        }
+
+        for reason in ["sleeping", "inactive", "offline", "virtual", "AirPlay", "disabled", "closed", "unknown", "off", "override", "pending"] {
+            service = makeWake()
+            switch reason {
+            case "sleeping": Hardware.asleep = [2]
+            case "inactive": Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1])
+            case "offline": Hardware.topology = BrightnessSupport.DisplayTopology(online: [1], active: [1, 2])
+            case "virtual": Hardware.info[2] = ["kCGDisplayIsVirtualDevice": true]
+            case "AirPlay": Hardware.info[2] = ["kCGDisplayIsAirPlay": true]
+            case "disabled": service.managedDisabledIDs = [2]
+            case "closed": Hardware.lid = true
+            case "unknown": Hardware.lid = nil
+            case "off": service.automaticDisplayPolicyEnabled = false
+            case "override": service.builtInDisplayManualOverride = true
+            case "pending": service.pendingDisplayIDs = [1]
+            default: break
+            }
+            service.displaysWokeUp()
+            service.screensChanged()
+            DispatchQueue.main.advance(by: 2.99)
+            suite.expect(Hardware.transactions == 0, "early wake refuses \(reason) eligibility")
+        }
+
+        service = makeWake()
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1], active: [1])
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 0.23)
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.screensChanged()
+        DispatchQueue.main.runReady()
+        suite.expect(Hardware.transactions == 1 && service.refreshes == 0,
+                     "a newly online external disables using its screen event before the next poll")
+
+        service = makeWake()
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1], active: [1])
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 3)
+        suite.expect(Hardware.transactions == 0 && service.wakeDisablePoll == nil
+                     && service.wakeDisableDeadline == nil && service.refreshes == 1,
+                     "no external ends bounded polling and still rebuilds brightness at three seconds")
+
+        service = makeWake()
+        Hardware.asleep = [2]
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 0.05)
+        service.displaysWillSleep()
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 0.1)
+        Hardware.asleep = []
+        DispatchQueue.main.advance(by: 0.1)
+        suite.expect(Hardware.transactions == 1 && service.automaticPolicySuspended,
+                     "a fresh wake starts a new retry window after cancellation")
+
+        service = makeWake()
+        service.builtInDisplayManualOverride = true
+        service.managedDisabledIDs = [1]
+        service.automaticallyDisabledDisplayID = 1
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [], active: [])
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 0.2)
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(service.builtInDisplayManualOverride && service.automaticallyDisabledDisplayID == 1
+                     && Hardware.transactions == 0,
+                     "transient empty wake topology neither restores nor clears manual choices")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.screensChanged()
+        DispatchQueue.main.runReady()
+        suite.expect(Hardware.transactions == 0 && service.builtInDisplayManualOverride,
+                     "manual override survives external reconnect within wake window")
+
+        for cancellation in ["sleep", "stop", "preference"] {
+            service = makeWake()
+            Hardware.asleep = [2]
+            service.displaysWokeUp()
+            service.screensChanged()
+            switch cancellation {
+            case "sleep": service.displaysWillSleep()
+            case "stop": service.running = false; service.removeWakeObservers()
+            default:
+                service.automaticDisplayPolicyEnabled = false
+                service.syncAutomaticBuiltInDisplay()
+            }
+            Hardware.asleep = []
+            DispatchQueue.main.advance(by: 0.2)
+            suite.expect(Hardware.transactions == 0 && service.wakeDisableDeadline == nil
+                         && service.wakeDisablePoll == nil && service.wakeDisableScreenCheck == nil,
+                         "\(cancellation) cancels queued immediate and polling wake checks")
+        }
+
+        service = makeWake()
+        Hardware.succeeds = false
+        service.displaysWokeUp()
+        service.screensChanged()
+        DispatchQueue.main.advance(by: 0.5)
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 2.49)
+        suite.expect(Hardware.transactions == 1 && service.automaticallyDisabledDisplayID == nil
+                     && service.wakeDisablePoll == nil,
+                     "transaction failure stops early retries including paired notifications and screen events")
+        Hardware.succeeds = true
+        DispatchQueue.main.advance(by: 0.01)
+        service.syncAutomaticBuiltInDisplay()
+        suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs == [1],
+                     "settled policy retries a failed early transaction")
+
+        service = makeWake()
+        Hardware.onComplete = { [weak service] in
+            Hardware.topology = BrightnessSupport.DisplayTopology(online: [2], active: [2])
+            service?.screensChanged()
+            service?.screensChanged()
+        }
+        service.displaysWokeUp()
+        DispatchQueue.main.runReady()
+        suite.expect(Hardware.transactions == 1, "inline transaction notifications do not duplicate or reenter disabling")
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.screensChanged()
+        service.screensChanged()
+        DispatchQueue.main.runReady()
+        suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs == [1],
+                     "screen event disables a reactivated panel after polling has stopped")
+        DispatchQueue.main.advance(by: 3)
+        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        service.scheduleWakeDisableCheck()
+        DispatchQueue.main.runReady()
+        suite.expect(Hardware.transactions == 2, "early screen checks stop at the wake deadline")
     }
 }
