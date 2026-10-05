@@ -2276,6 +2276,7 @@ extension RecorderFeatureStrings {
         folderChoose: "اختيار…",
         moreOptions: "خيارات أخرى",
         copyButton: "نسخ",
+        copyGIFButton: "نسخ بصيغة GIF",
         saveButton: "حفظ",
         discardButton: "حذف",
         copiedHUD: "تم نسخ التسجيل",

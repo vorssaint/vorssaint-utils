@@ -159,6 +159,5 @@ extension AppearanceStrings {
         system: "النظام",
         light: "فاتح",
         dark: "داكن",
-        liquidGlass: "الزجاج السائل"
-    )
+        liquidGlass: "Liquid Glass")
 }
