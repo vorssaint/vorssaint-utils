@@ -208,6 +208,8 @@ struct NotchMascotSettings: View {
                         }
                     }
                 }
+                // The camera's sides, so the left one stays on the left.
+                .unmirroredLayout()
                 .padding(.leading, settingsRowTextInset)
             }
             switchRow("eye.slash", text.hidesWhenIdle, caption: text.hidesWhenIdleHint, isOn: $hidesWhenIdle)
@@ -502,6 +504,9 @@ private struct NotchMascotStage: View {
                 }
                 .clipShape(model.shape(height: island.height))
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.4), value: awake)
+                // The island as it sits on screen: the companion on the
+                // camera's side it was given, in any language.
+                .unmirroredLayout()
             if let caption {
                 Label(caption.title, systemImage: caption.symbol)
                     .font(.caption.weight(.semibold))

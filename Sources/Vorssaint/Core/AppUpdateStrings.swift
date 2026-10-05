@@ -887,7 +887,7 @@ extension AppUpdateStrings {
         includeStoreToggle: "تضمين تطبيقات App Store",
         includeStoreCaption: "يتحقق من إصدارات المتجر باستخدام منطقة هذا الـ Mac. وتثبّت Apple هذه التحديثات.",
         packageMissing: "Homebrew غير مثبَّت، لذا لا يمكن تحديث التطبيقات من هنا بعد.",
-        notificationBodyFormat: "%@ تطبيقات لها إصدار أحدث.",
+        notificationBodyFormat: "تطبيقات لها إصدار أحدث: %@",
         notificationBodyOne: "تطبيق واحد له إصدار أحدث.",
         showInPanel: "الإظهار في اللوحة",
         homebrewBadge: "Homebrew",

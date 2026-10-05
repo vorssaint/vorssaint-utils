@@ -52,6 +52,9 @@ enum LocalizationTests {
         suite.expect(month == "setembro", "month and weekday names stay in the app's language")
         suite.expect(AppLanguage.enUS.formattingLocale(system: Locale(identifier: "de_DE")).firstDayOfWeek == .monday,
                      "the first day of the week follows the region")
+        suite.expect(clock(.ar, "en_US").contains("11:05") && clock(.ar, "ar_SA@numbers=latn").contains("11:05"),
+                     "Arabic keeps the Western digits the system uses, like the counts beside them")
+        suite.expect(clock(.ar, "ar_SA").contains("١١:٠٥"), "Arabic-Indic digits chosen for the Mac are kept")
     }
 
     static func run(_ suite: TestSuite) {
@@ -69,19 +72,39 @@ enum LocalizationTests {
                      "disk picker uses a dedicated label and complete option names")
         suite.expect(AppLanguage.allCases.filter(\.isRightToLeft) == [.ar],
                      "Arabic is the only right-to-left interface language")
+        let additional: [(String, (AppLanguage) -> Any)] = [
+            ("imageConverter", { MediaImageConverterStrings.localized($0) }),
+            ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
+            ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
+            ("graphScale", { GraphScaleStrings.localized($0) }),
+            ("notchLowBattery", { NotchLowBatteryStrings.localized($0) }),
+            ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
+            ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
+        ]
         // Arabic makes a noun agree with the number in front of it in forms no
         // single string can hold, so a count goes behind a label instead. What
         // may still follow a bare number is a preposition or a unit
         // abbreviation, which do not inflect. The shelf tooltip picks its own
-        // form through the count rule and is left out.
+        // form through the count rule and is left out. Every Arabic catalog is
+        // read, nested ones too, since a feature catalog holds counts as well.
+        func texts(_ value: Any, path: String) -> [(String, String)] {
+            Mirror(reflecting: value).children.flatMap { child -> [(String, String)] in
+                let name = path + "." + (child.label ?? "")
+                if let text = child.value as? String { return [(name, text)] }
+                return texts(child.value, path: name)
+            }
+        }
         let agreeing = try! NSRegularExpression(pattern: "%(\\d+\\$)?l{0,2}d ([\\x{0600}-\\x{06FF}/]+)")
         let invariant: Set<String> = ["من", "إلى", "د", "ث", "ي", "دورة/د", "إطار/ث"]
-        for (name, value) in fields(Strings.ar) where !name.hasPrefix("shelfTooltip") {
-            let range = NSRange(value.startIndex..., in: value)
-            for match in agreeing.matches(in: value, range: range) {
-                let word = Range(match.range(at: 2), in: value).map { String(value[$0]) } ?? ""
-                suite.expect(invariant.contains(word),
-                             "Arabic \(name) puts a bare number in front of “\(word)”")
+        let arabic = [("strings", Strings.ar as Any)] + (factories + additional).map { ($0.0, $0.1(.ar)) }
+        for (catalog, value) in arabic {
+            for (name, text) in texts(value, path: catalog) where !name.contains(".shelfTooltip") {
+                let range = NSRange(text.startIndex..., in: text)
+                for match in agreeing.matches(in: text, range: range) {
+                    let word = Range(match.range(at: 2), in: text).map { String(text[$0]) } ?? ""
+                    suite.expect(invariant.contains(word),
+                                 "Arabic \(name) puts a bare number in front of “\(word)”")
+                }
             }
         }
         for (language, strings) in languages {
@@ -94,15 +117,6 @@ enum LocalizationTests {
                              "disk picker translates every field in \(language.rawValue)")
             }
             check(strings, against: Strings.enUS, name: "strings/\(language.rawValue)", suite: suite)
-            let additional: [(String, (AppLanguage) -> Any)] = [
-                ("imageConverter", { MediaImageConverterStrings.localized($0) }),
-                ("directionalLayout", { WindowDirectionalStrings.localized($0) }),
-                ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
-                ("graphScale", { GraphScaleStrings.localized($0) }),
-                ("notchLowBattery", { NotchLowBatteryStrings.localized($0) }),
-                ("downloadOrganizer", { WhatsAppOrganizerStrings.localized($0) }),
-                ("shelfDelivery", { ShelfPromiseDeliveryStrings.localized($0) }),
-            ]
             for (name, factory) in factories + additional {
                 check(factory(language), against: factory(.enUS),
                       name: "\(name)/\(language.rawValue)", suite: suite)

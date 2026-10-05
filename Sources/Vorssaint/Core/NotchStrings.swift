@@ -1585,6 +1585,6 @@ extension NotchStrings {
         quickAccessRight: "يمين",
         translucentBackground: "خلفية شفافة",
         translucentBackgroundHint: "عند فتحها، تُضبّب الجزيرة الديناميكية ما خلفها بخامة النظام نفسها.",
-        translucentBackgroundGlassHint: "الزجاج السائل مفعّل، فتستخدمه الجزيرة الديناميكية بدلًا من ذلك.")
+        translucentBackgroundGlassHint: "مع تفعيل Liquid Glass، تستخدمه الجزيرة الديناميكية بدلًا من ذلك.")
 
 }

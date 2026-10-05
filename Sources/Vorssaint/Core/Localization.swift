@@ -91,13 +91,15 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     }
 
     /// Dates and times in this language, arranged the way System Settings
-    /// asks: region, 12- or 24-hour clock and first day of the week. A locale
-    /// made from the language alone would bring that language's own clock.
+    /// asks: region, 12- or 24-hour clock, first day of the week and digits.
+    /// A locale made from the language alone would bring that language's own
+    /// clock, and Arabic its own digits beside counts that stay Western.
     func formattingLocale(system: Locale = .autoupdatingCurrent) -> Locale {
         var components = Locale.Components(identifier: rawValue)
         components.region = system.region
         components.hourCycle = system.hourCycle
         components.firstDayOfWeek = system.firstDayOfWeek
+        components.numberingSystem = system.numberingSystem
         return Locale(components: components)
     }
 

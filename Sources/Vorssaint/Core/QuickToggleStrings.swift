@@ -495,7 +495,7 @@ extension QuickToggleFeatureStrings {
         hiddenFilesHide: "إخفاء الملفات المخفية",
         desktopIconsHide: "إخفاء أيقونات سطح المكتب",
         desktopIconsShow: "إظهار أيقونات سطح المكتب",
-        finderRestartCaption: "يُعاد تشغيل Finder لتطبيق ذلك.",
+        finderRestartCaption: "يُعاد تشغيل فايندر لتطبيق ذلك.",
         lockScreenTitle: "قفل الشاشة",
         lockScreenCaption: "يطلب كلمة السر للعودة.",
         displayOffTitle: "إيقاف الشاشة",

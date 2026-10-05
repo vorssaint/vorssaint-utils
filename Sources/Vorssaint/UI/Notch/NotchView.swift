@@ -14,6 +14,7 @@ struct NotchView: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.layoutDirection) private var layoutDirection
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
 
     var body: some View {
@@ -42,8 +43,8 @@ struct NotchView: View {
             // stops scrolling between cards and the island loses focus. A fill
             // too faint to see takes hit tests and keeps the surface in this
             // window, as the opaque black of a black island does.
-            .background(shape.offset(x: service.surfaceShift).fill(Color.black.opacity(0.01)))
-            .contentShape(shape.offset(x: service.surfaceShift))
+            .background(shape.offset(x: layoutShift).fill(Color.black.opacity(0.01)))
+            .contentShape(shape.offset(x: layoutShift))
             // The backdrop is a separate, non-interactive hosting view. Claim
             // empty space here so SwiftUI keeps the taps that land on it. This
             // draws nothing, so it does not hold a click in this window at the
@@ -76,6 +77,12 @@ struct NotchView: View {
 
     private var shape: NotchShape {
         NotchShape.island(height: service.surfaceSize.height, geometry: service.geometry)
+    }
+
+    /// `surfaceShift` is measured rightward on screen, and a mirrored layout
+    /// reads an offset the other way.
+    private var layoutShift: CGFloat {
+        layoutDirection == .rightToLeft ? -service.surfaceShift : service.surfaceShift
     }
 
     @ViewBuilder private var surface: some View {
@@ -662,8 +669,13 @@ struct NotchRestingStrip: View {
     @AppStorage(DefaultsKey.notchLowBatteryEarly) private var earlyBatteryWarning = false
     @AppStorage(DefaultsKey.notchLowBatteryEarlyThreshold) private var earlyBatteryThreshold = NotchSupport.defaultEarlyBatteryThreshold
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
+    /// The camera's side the first wing is drawn on. The wings follow the
+    /// reading order, while the companion keeps the side it was given.
+    private var leadingWing: NotchMascotSide { layoutDirection == .rightToLeft ? .right : .left }
+    private var trailingWing: NotchMascotSide { layoutDirection == .rightToLeft ? .left : .right }
 
     private var batteryTint: Color {
         NotchRestingBattery.tint(for: service.power, tint: lowBatteryTint, threshold: lowBatteryThreshold,
@@ -712,8 +724,8 @@ struct NotchRestingStrip: View {
                         }
                     }
                     .frame(width: geometry.restingWingWidth)
-                    .opacity(wingStepsAside(.left) ? 0 : 1)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.left))
+                    .opacity(wingStepsAside(leadingWing) ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(leadingWing))
                     Color.clear.frame(width: geometry.cameraWidth)
                     ZStack(alignment: .leading) {
                         Color.clear
@@ -737,8 +749,8 @@ struct NotchRestingStrip: View {
                         }
                     }
                     .frame(width: geometry.restingWingWidth)
-                    .opacity(wingStepsAside(.right) ? 0 : 1)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.right))
+                    .opacity(wingStepsAside(trailingWing) ? 0 : 1)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(trailingWing))
                 } else { Color.clear }
             }
             if service.mascotShows(on: geometry) {

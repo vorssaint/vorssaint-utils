@@ -1770,6 +1770,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "إضافة ملف شخصي",
         duplicateProfileButton: "تكرار الملف الشخصي",
         deleteProfileButton: "حذف الملف الشخصي",
+        deleteProfileConfirmFormat: "حذف “%@”؟",
+        deleteProfileConfirmMessage: "ستُزال إجراءاته واختصاره وزر الماوس ونقرة الأصابع الأربعة. ولا يمكن التراجع عن ذلك.",
         profileNameLabel: "اسم الملف الشخصي",
         profileColorLabel: "اللون",
         profileShortcutLabel: "الاختصار",
@@ -1805,5 +1807,6 @@ extension RadialMenuFeatureStrings {
         showListButton: "العرض كقائمة",
         hideListButton: "إخفاء القائمة",
         trackpadTapLabel: "الفتح بنقرة أربعة أصابع",
-        trackpadTapConflict: "النقر الأوسط يستخدم نقرة الأصابع الأربعة أصلًا، فلا تفتح النقرة هذه العجلة.")
+        trackpadTapConflict: "النقر الأوسط يستخدم نقرة الأصابع الأربعة أصلًا، فلا تفتح النقرة هذه العجلة.",
+        profileNoTrigger: "اختيار ملف شخصي هنا يتيح تحريره فقط. امنح هذا الملف اختصارًا أو زر ماوس أو نقرة الأصابع الأربعة أدناه لفتحه.")
 }

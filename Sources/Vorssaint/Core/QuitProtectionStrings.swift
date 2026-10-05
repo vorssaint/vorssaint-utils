@@ -620,7 +620,7 @@ extension QuitProtectionStrings {
         allApps: "كل التطبيقات",
         selectedOnly: "التطبيقات المحددة فقط",
         allExceptSelected: "كل التطبيقات عدا المحددة",
-        exceptions: "الاستثناءات",
+        exceptions: "التطبيقات المحددة",
         noExceptions: "لم يتم تحديد أي تطبيق",
         addApp: "إضافة تطبيق…",
         feedback: "إظهار تأكيد مرئي",

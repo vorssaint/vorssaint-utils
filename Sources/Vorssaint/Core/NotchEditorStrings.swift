@@ -1150,7 +1150,8 @@ extension FeatureStrings {
             cameraSummary: "مرآة تتفقّد بها مظهرك قبل أي مكالمة.",
             downloadsSummary: "التنزيلات الجارية وتلك التي انتهت للتو.",
             scratchpadSummary: "ملاحظات سريعة تحفظ نفسها.",
-            agentsSummary: "استخدام Claude Code وCodex وحدودهما وتكاليفهما.")
+            agentsSummary: "استخدام Claude Code وCodex وOpenCode وGitHub Copilot وحدودها وتكاليفها.",
+            watchSummary: "أي جزء من نافذة، يُقرأ مباشرةً، مع تنبيه عند تغيّره.")
         }
     }
 }

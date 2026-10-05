@@ -516,6 +516,7 @@ extension FeatureStrings {
             resume: "متابعة",
             finished: "انتهى الوقت",
             soundEnabled: "تشغيل صوت عند انتهاء الوقت",
+            hideTimerCountdown: "إخفاء العد التنازلي للمؤقّت",
             camera: "مرآة الكاميرا",
             cameraUnavailable: "تعذّر تشغيل الكاميرا. حاول فتحها مجددًا.",
             cameraHint: "افتح مرآة مباشرة هنا. وتتوقف الكاميرا عند مغادرتك هذا العرض.",
