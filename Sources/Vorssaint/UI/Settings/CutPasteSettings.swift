@@ -57,20 +57,20 @@ struct CutPasteSettings: View {
                 }
                 .settingsSectionAnchor(.finderCutPaste)
 
+                Section(l10n.s.cutPasteHowTitle) {
+                    howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
+                    howRow(keys: ["⌘", "V"], text: l10n.s.cutPasteStep2)
+                    Text(l10n.s.cutPasteTextNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section {
                     Toggle(l10n.s.forwardDeleteTrash, isOn: $forwardDeleteTrash)
                         .onChange(of: forwardDeleteTrash) { _, _ in
                             FinderCutPaste.shared.syncWithPreferences()
                         }
                     Text(l10n.s.forwardDeleteTrashCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Section(l10n.s.cutPasteHowTitle) {
-                    howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
-                    howRow(keys: ["⌘", "V"], text: l10n.s.cutPasteStep2)
-                    Text(l10n.s.cutPasteTextNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -127,7 +127,7 @@ struct CutPasteSettings: View {
             if needsAccessibility, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
-                    if AppFeature.finderCutPaste.isAvailable, enabled || forwardDeleteTrash {
+                    if AppFeature.finderCutPaste.isAvailable, enabled {
                         Text(l10n.s.cutPasteAutomationNote)
                             .font(.caption)
                             .foregroundStyle(.secondary)

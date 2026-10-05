@@ -265,7 +265,7 @@ extension Strings {
         cutPasteShowHUD: "Kayan paneli göster",
         cutPasteShowHUDCaption: "Finder etkinken kesilen dosyaları içeren kayan bir gösterge görüntüler.",
         forwardDeleteTrash: "⌦ tuşuyla Çöp Sepeti’ne taşı",
-        forwardDeleteTrashCaption: "Finder’da ⌦ seçili öğeleri Çöp Sepeti’ne taşır, ⌘⌫ çalışmaya devam eder. Ayrı bir ⌦ tuşu olmayan klavyelerde fn+⌫ ile üretilir.",
+        forwardDeleteTrashCaption: "Finder’da ⌦ seçili öğeleri Çöp Sepeti’ne taşır, ⌘⌫ çalışmaya devam eder. Ayrı bir ⌦ tuşu olmayan klavyelerde Fn-⌫ ile üretilir.",
         cutPasteHowTitle: "Nasıl kullanılır",
         cutPasteStep1: "Finder’da öğeleri seç ve kesmek için ⌘X’e bas.",
         cutPasteStep2: "Hedef klasörü aç ve oraya taşımak için ⌘V’ye bas.",

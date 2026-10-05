@@ -9364,7 +9364,7 @@ struct MetricsTests {
             keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
             flags: []),
                "the key is left alone while the preference is off")
-        // A portable Mac has no dedicated ⌦ and sends the keystroke as Fn+⌫
+        // A portable Mac has no dedicated ⌦ and sends the keystroke as Fn-⌫
         // with the Fn bit still set, so counting Fn among the foreign
         // modifiers would switch the feature off on every laptop.
         expect(FinderTrashKeySupport.claimsKey(
@@ -15671,8 +15671,11 @@ struct MetricsTests {
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
         expect(activeSet(.automationFinder, on: [DefaultsKey.finderForwardDeleteTrash])
-                == [.finderCutPaste, .uninstaller, .quickToggles],
-               "trashing with the forward delete key engages the shared Finder feature")
+                == [.uninstaller, .quickToggles],
+               "trashing with the forward delete key never asks Finder for anything")
+        expect(activeSet(.accessibility, on: [DefaultsKey.finderForwardDeleteTrash])
+                .contains(.finderCutPaste),
+               "trashing with the forward delete key still needs accessibility")
         expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")

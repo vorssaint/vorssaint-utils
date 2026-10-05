@@ -332,6 +332,11 @@ extension AppFeature {
             let keys = feature.enabledKeys
             guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
+            case (.finderCutPaste, .automationFinder):
+                // The forward delete key only rewrites a keystroke and never
+                // asks Finder for anything.
+                return boolFor(DefaultsKey.finderCutPasteEnabled)
+                    || boolFor(DefaultsKey.finderPasteImageAsFile)
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
             case (.radialMenu, .accessibility):

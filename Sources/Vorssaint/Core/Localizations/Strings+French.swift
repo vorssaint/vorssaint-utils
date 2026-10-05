@@ -265,7 +265,7 @@ extension Strings {
         cutPasteShowHUD: "Afficher le panneau flottant",
         cutPasteShowHUDCaption: "Affiche un indicateur flottant avec les fichiers coupés lorsque le Finder est actif.",
         forwardDeleteTrash: "Placer dans la corbeille avec la touche ⌦",
-        forwardDeleteTrashCaption: "Dans le Finder, ⌦ place les éléments sélectionnés dans la corbeille et ⌘⌫ continue de fonctionner. Les claviers sans touche ⌦ dédiée la produisent avec fn+⌫.",
+        forwardDeleteTrashCaption: "Dans le Finder, ⌦ place les éléments sélectionnés dans la corbeille et ⌘⌫ continue de fonctionner. Les claviers sans touche ⌦ dédiée la produisent avec Fn-⌫.",
         cutPasteHowTitle: "Comment l’utiliser",
         cutPasteStep1: "Sélectionnez des éléments dans le Finder et appuyez sur ⌘X pour les couper.",
         cutPasteStep2: "Ouvrez le dossier de destination et appuyez sur ⌘V pour les y déplacer.",

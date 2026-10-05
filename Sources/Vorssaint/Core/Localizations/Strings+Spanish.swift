@@ -265,7 +265,7 @@ extension Strings {
         cutPasteShowHUD: "Mostrar panel flotante",
         cutPasteShowHUDCaption: "Muestra un indicador flotante con los archivos cortados mientras el Finder está activo.",
         forwardDeleteTrash: "Mover a la Papelera con la tecla ⌦",
-        forwardDeleteTrashCaption: "En el Finder, ⌦ mueve los elementos seleccionados a la Papelera y ⌘⌫ sigue funcionando. Los teclados sin una tecla ⌦ propia la producen con fn+⌫.",
+        forwardDeleteTrashCaption: "En el Finder, ⌦ mueve los elementos seleccionados a la Papelera y ⌘⌫ sigue funcionando. Los teclados sin una tecla ⌦ propia la producen con Fn-⌫.",
         cutPasteHowTitle: "Cómo se usa",
         cutPasteStep1: "Selecciona ítems en el Finder y pulsa ⌘X para cortarlos.",
         cutPasteStep2: "Abre la carpeta de destino y pulsa ⌘V para moverlos allí.",

@@ -266,7 +266,7 @@ extension Strings {
         cutPasteShowHUD: "顯示浮動面板",
         cutPasteShowHUDCaption: "Finder 處於啟動狀態時，顯示包含已剪下檔案的浮動提示。",
         forwardDeleteTrash: "用 ⌦ 鍵移至垃圾桶",
-        forwardDeleteTrashCaption: "在 Finder 中，⌦ 會將所選項目移至垃圾桶，⌘⌫ 仍然可用。沒有獨立 ⌦ 鍵的鍵盤請按 fn+⌫。",
+        forwardDeleteTrashCaption: "在 Finder 中，⌦ 會將所選項目移至垃圾桶，⌘⌫ 仍然可用。沒有獨立 ⌦ 鍵的鍵盤請按 Fn-⌫。",
         cutPasteHowTitle: "使用方法",
         cutPasteStep1: "在 Finder 中選取項目，按 ⌘X 剪下。",
         cutPasteStep2: "開啟目的地資料夾，按 ⌘V 移到該處。",

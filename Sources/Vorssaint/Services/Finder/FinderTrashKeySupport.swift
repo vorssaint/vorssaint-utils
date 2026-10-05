@@ -12,7 +12,7 @@ enum FinderTrashKeySupport {
     /// to reach the app that owns it.
     ///
     /// Fn is deliberately not in the set. A MacBook has no dedicated ⌦, and
-    /// produces the keystroke as Fn+⌫ with the Fn bit still set, so counting
+    /// produces the keystroke as Fn-⌫ with the Fn bit still set, so counting
     /// it here would switch the feature off on every portable Mac.
     private static let foreignModifiers: CGEventFlags = [
         .maskCommand, .maskControl, .maskAlternate, .maskShift,
