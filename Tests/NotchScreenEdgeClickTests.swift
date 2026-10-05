@@ -52,7 +52,9 @@ enum NotchScreenEdgeClickTests {
         var screenEdgePressArea: CGRect?
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
-        var openings = 0
+        var compactActivity: NotchCompactActivity?
+        var openings = 0, countdownOpenings = 0
+        func openCountdownEvent() { countdownOpenings += 1; expanded = true }
     }
 
     static func run(_ suite: TestSuite) {
@@ -152,6 +154,14 @@ enum NotchScreenEdgeClickTests {
         service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
         suite.expect(service.openings == 1 && service.screenEdgeClickMonitors.isEmpty,
                "clicking the top edge opens a simulated notch exactly once and stops its closed-state monitors")
+        let countdown = Service()
+        countdown.compactActivity = .calendar
+        countdown.syncScreenEdgeClicks()
+        let countdownPoint = CGPoint(x: countdown.geometry.screen.midX, y: countdown.geometry.screen.maxY)
+        countdown.handleScreenEdgeClick(.leftMouseDown, at: countdownPoint, isNotchWindow: false)
+        countdown.handleScreenEdgeClick(.leftMouseUp, at: countdownPoint, isNotchWindow: false)
+        suite.expect(countdown.countdownOpenings == 1 && countdown.openings == 0,
+                     "clicking the top edge over an event countdown opens on its event")
         // A capsule floats below the top edge; the menu bar above it still
         // opens it, and the capsule itself takes its own clicks.
         for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {

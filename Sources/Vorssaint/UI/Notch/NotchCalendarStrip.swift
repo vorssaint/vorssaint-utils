@@ -35,7 +35,7 @@ struct NotchCalendarStrip: View {
                         paired(countdown, companion: companion, title: displayTitle, remaining: remaining,
                                now: context.date)
                     } else {
-                        Button { service.openActivity(.calendar) } label: {
+                        Button { service.openCountdownEvent() } label: {
                             Group {
                                 if usesFullRow {
                                     fullRow(countdown, title: displayTitle, remaining: remaining)
@@ -133,7 +133,7 @@ struct NotchCalendarStrip: View {
             .accessibilityLabel(NotchCompanionMark.label(companion, language: l10n.language))
             .accessibilityHint(FeatureStrings.notch(l10n.language).open)
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.openActivity(.calendar) } label: {
+            Button { service.openCountdownEvent() } label: {
                 Self.clockMark(countdown, remaining: remaining)
                     .padding(.trailing, footer ? rowInset : geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0))
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,

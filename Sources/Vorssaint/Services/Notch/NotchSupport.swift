@@ -425,7 +425,7 @@ enum NotchLayout {
     /// Square artwork, its gap, the three compact transport buttons, and
     /// horizontal padding. Track titles truncate within the remaining space.
     static func musicCardMinimumWidth(height: CGFloat) -> CGFloat {
-        max(40, height - 24) + 12 + 120 + 24
+        max(40, height - 24) + 12 + 132 + 24
     }
 
     /// The home page: one row of cards (playback and levels) over a rail of

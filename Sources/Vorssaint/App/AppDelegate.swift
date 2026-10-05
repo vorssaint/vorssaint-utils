@@ -524,13 +524,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                         anchor: resolvePanelAnchor(for: button, window: window))
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self, weak button] in
-            guard let self,
-                  let button,
+            guard let self else {
+                MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+                return
+            }
+            guard let button,
                   self.popover.isShown,
                   self.metricAnchorSwitchSerial > 0,
                   MenuPanelFocus.shared.activeMetric == detailKind else {
-                self?.popoverIsSwitchingAnchor = false
+                self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+                // A close in this window, like a second click on the same
+                // metric, ran while switching, so popoverDidClose kept these.
+                if !self.popover.isShown {
+                    self.statusController.setMicBadgeHeld(false)
+                    self.releasePanelResources()
+                    self.endPanelActivationTracking()
+                }
                 return
             }
             // The pinned anchor is the yardstick; a reported frame the system
@@ -871,6 +881,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             removePopoverDismissMonitor()
             popoverIsSwitchingAnchor = false
             MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+            // A close during the show ran while switching, so popoverDidClose
+            // kept these for a panel that is not coming back.
+            if !popover.isShown {
+                statusController.setMicBadgeHeld(false)
+                releasePanelResources()
+                endPanelActivationTracking()
+            }
             return false
         }
         configurePopoverWindow(popoverWindow)

@@ -231,6 +231,9 @@ enum DefaultsKey {
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
+    // Identity saved before disabling each display, kept separate so older
+    // versions can still read the repair list of display numbers.
+    static let displaysSwitchedOffFingerprints = "displaysSwitchedOffFingerprints"
     // Set while a start is under way and cleared once the app has run
     // healthily for a while, or when it is quit properly. Found still set at
     // the next start, it means the previous one died on the way up.

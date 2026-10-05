@@ -446,7 +446,16 @@ struct NotchView: View {
         }
         .frame(height: service.expandedGeometry.headerRowHeight)
         .contentShape(Rectangle())
-        .onHover { headerHovered = $0 }
+        // Each move reports, not only a crossing. After the watch below hides
+        // the actions, SwiftUI may still count the pointer as inside and would
+        // never report it entering again.
+        .onContinuousHover { phase in
+            switch phase {
+            case .active: if !headerHovered { headerHovered = true }
+            case .ended: headerHovered = false
+            }
+        }
+        .background { NotchHoverExitWatch(active: headerHovered) { headerHovered = false } }
         .onAppear { UpdateService.shared.checkIfStale() }
         // Collapsing under the pointer takes the row away without a final
         // hover(false); the next opening starts with the actions out of sight.
@@ -654,6 +663,63 @@ struct NotchView: View {
             case .watch: NotchWatchView(size: pageSize)
             }
         }
+    }
+}
+
+/// AppKit reports hover from the moves the island's window receives, and the
+/// window server sends it none over the window's clear pixels. A pointer that
+/// left the header across them, above a floating capsule or toward the side
+/// buttons, was never reported gone, so the row's actions stayed in view.
+/// While the row reads as hovered, every move is checked against it here.
+private struct NotchHoverExitWatch: NSViewRepresentable {
+    let active: Bool
+    let exited: () -> Void
+
+    func makeNSView(context: Context) -> NotchHoverExitView { NotchHoverExitView() }
+    func updateNSView(_ view: NotchHoverExitView, context: Context) {
+        view.exited = exited
+        view.watch(active)
+    }
+    static func dismantleNSView(_ view: NotchHoverExitView, coordinator: ()) { view.watch(false) }
+}
+
+private final class NotchHoverExitView: NSView {
+    var exited: (() -> Void)?
+    private var monitors: [Any] = []
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setAccessibilityElement(false)
+    }
+    required init?(coder: NSCoder) { nil }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    deinit { monitors.forEach(NSEvent.removeMonitor) }
+
+    /// Nothing is watched at rest.
+    func watch(_ active: Bool) {
+        guard active else {
+            monitors.forEach(NSEvent.removeMonitor)
+            monitors.removeAll()
+            return
+        }
+        guard monitors.isEmpty else { return }
+        // A drag moves the pointer without mouse-moved events.
+        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in self?.check() }) {
+            monitors.append(token)
+        }
+        if let token = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+            self?.check()
+            return event
+        }) { monitors.append(token) }
+    }
+
+    private func check() {
+        // The pointer on a screen's top row reports y == maxY, which
+        // `contains` excludes and NSMouseInRect keeps.
+        guard let window,
+              !NSMouseInRect(NSEvent.mouseLocation, window.convertToScreen(convert(bounds, to: nil)), false) else { return }
+        exited?()
     }
 }
 

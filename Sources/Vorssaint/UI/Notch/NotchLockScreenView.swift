@@ -143,6 +143,9 @@ struct NotchLockScreenPlayer: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// What a tap on play or pause asked for, shown at once as the island's
+    /// own player shows it, until the player says so.
+    @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     private var accent: Color { music.artworkTint?.color ?? .white }
 
@@ -160,6 +163,18 @@ struct NotchLockScreenPlayer: View {
         }
         .frame(width: size.width, height: size.height)
         .animation(reduceMotion ? nil : .smooth(duration: 0.5), value: shown)
+        // A second tap before the player answers asks for the state after it,
+        // so only the player reaching what was asked ends the early word.
+        .onChange(of: music.playback?.isPlaying) {
+            if music.playback?.isPlaying == requestedPlaying { requestedPlaying = nil }
+        }
+        .onChange(of: music.playback?.track) { requestedPlaying = nil }
+        // A player that never answers leaves the button as it was.
+        .task(id: requestedPlaying) {
+            guard requestedPlaying != nil else { return }
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if !Task.isCancelled { requestedPlaying = nil }
+        }
     }
 
     private func player(_ playback: NotchPlayback, artwork: CGFloat) -> some View {
@@ -220,8 +235,8 @@ struct NotchLockScreenPlayer: View {
             if !music.lacksTrackSkipping(.previous) {
                 button("backward.fill", size: 22, title: text.mediaPrevious, command: .previous, playback: playback)
             }
-            button(playback.isPlaying ? "pause.fill" : "play.fill", size: 30, title: text.mediaPlayPause,
-                   command: .toggle, playback: playback)
+            button((requestedPlaying ?? playback.isPlaying) ? "pause.fill" : "play.fill", size: 30,
+                   title: text.mediaPlayPause, command: .toggle, playback: playback)
             if !music.lacksTrackSkipping(.next) {
                 button("forward.fill", size: 22, title: text.mediaNext, command: .next, playback: playback)
             }
@@ -231,7 +246,13 @@ struct NotchLockScreenPlayer: View {
 
     private func button(_ symbol: String, size: CGFloat, title: String, command: NotchMusicService.Command,
                         playback: NotchPlayback) -> some View {
-        Button { music.send(command, context: playback.commandContext) } label: {
+        Button {
+            let playing = requestedPlaying ?? playback.isPlaying
+            // Only a player the island writes to directly answers fast enough
+            // to show its word early. A slower path waits for the player.
+            if music.send(command, context: playback.commandContext), command == .toggle,
+               playback.canSendCommandsDirectly { requestedPlaying = !playing }
+        } label: {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white)

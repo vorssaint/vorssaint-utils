@@ -251,6 +251,8 @@ enum NotchPresentationRefreshContract {
         }
         func removeHiddenHoverMonitors() {}
         func toggle() { expanded.toggle() }
+        var countdownOpenings = 0
+        func openCountdownEvent() { countdownOpenings += 1; expanded = true }
         func collapse() { expanded = false }
         var edgeClicksEnabled = false
         func syncScreenEdgeClicks() { edgeClicksEnabled = true }
@@ -354,6 +356,25 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
+        let countdown = Service()
+        countdown.expanded = false
+        countdown.compactActivityIsVisible = true
+        countdown.compactActivity = .calendar
+        countdown.refreshPresentation(animated: false)
+        countdown.windowHost?.activate?()
+        suite.expect(countdown.countdownOpenings == 1 && countdown.expanded,
+                     "clicking the camera beside an event countdown opens on its event")
+        countdown.collapse()
+        countdown.compactActivity = .timer
+        countdown.refreshPresentation(animated: false)
+        countdown.windowHost?.activate?()
+        suite.expect(countdown.countdownOpenings == 1 && countdown.expanded,
+                     "the camera beside another activity opens the island as before")
+        countdown.compactActivity = .calendar
+        countdown.refreshPresentation(animated: false)
+        countdown.windowHost?.activate?()
+        suite.expect(countdown.countdownOpenings == 1 && !countdown.expanded,
+                     "the open island's close button still closes it while an event counts down")
         let fullscreenSimulated = Service()
         fullscreenSimulated.expanded = false
         fullscreenSimulated.geometry = NotchGeometry(screen: fullscreenSimulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0,

@@ -25,7 +25,7 @@ Dynamic Island adds a companion, an integrated Command Bar and Watch, while AI A
 - In the open capsule, the header's buttons now sit as far from the top edge as the page does from the bottom, so the title no longer crowds the top.
 - With Liquid Glass on, the open island keeps its page over black, so text from a window behind it no longer reads through, and the glass shows along its lower edge. Menus opened from the island's buttons, such as ··· and the output device chooser, use the island's dark look.
 - On macOS 15 and later, a page taller than the island fades at the top and bottom where more follows, and rows that run past the side, such as recent captures and notifications, fade at that edge instead of ending in a hard line.
-- Choosing another activity in the closed island slides the highlight to it and changes the strip in place instead of fading the whole island. Play and pause change at once for players the island controls directly.
+- Choosing another activity in the closed island slides the highlight to it and changes the strip in place instead of fading the whole island. Play and pause change at once for players the island controls directly, on the Lock Screen too.
 - The Downloads page without a folder explains what it does and offers a Choose Folder… button, or a Downloads switch while Downloads is off, instead of a bare checkbox.
 - Up next shows each song's cover when the player shares one, and the list no longer blanks out for a moment on next or previous.
 - On the Clipboard page, Return or Enter pastes the first entry before any arrow is pressed, as the history window does. Without Accessibility it copies the entry.
@@ -63,6 +63,7 @@ Dynamic Island adds a companion, an integrated Command Bar and Watch, while AI A
 - Pasting or copying an entry from Clipboard history moves it to the top of the recent entries, as copying the same content again elsewhere already did. Pinned entries keep their place and their ⌘1 to ⌘9 shortcuts, and the island and menu bar panel lists follow the copied entry.
 
 ### Fixed
+- Displays switched off in Vorssaint keep their power-on control when macOS briefly reports them as active. A different monitor that takes over the connection is not switched on in place of the original, even after a restart, and a display that could not be switched back on is tried again when the screens wake.
 - Clipboard history reopens at the top and searches large histories more efficiently.
 - Clipboard history preserves copied lists of links instead of turning them into one invalid link or keeping only the first.
 - URL cleaning removes tracking parameters without rewriting the remaining parts of the link. Links with nothing to remove stay unchanged.
@@ -90,9 +91,12 @@ Dynamic Island adds a companion, an integrated Command Bar and Watch, while AI A
 - Dynamic Island keeps the current song on screen while a web player loads the next one, instead of briefly showing another player's paused song. With the New track indicator on, a new song appears in the indicator before the compact island, even when it takes a while to load.
 - With Automatically include videos and other apps on, Dynamic Island switches to a browser that starts playing even while macOS still points to a paused music app.
 - Lyrics are also found for songs whose player reports no album. The timing adjustment buttons are easier to click.
+- Dynamic Island shows play and pause the way the player reports them, also for players that update their playback rate late. A paused song no longer shows as playing, play or pause works on the first press, and the timeline no longer runs while the player is paused.
 - A Dynamic Island opened by hover now closes when the pointer leaves quickly past one of its floating buttons, such as the music button below it, instead of staying open until the pointer comes back.
 - The closed Dynamic Island no longer stays enlarged after the pointer passes over it quickly, such as on the way to a display above it.
-- With Open on hover selected, Dynamic Island waits at its resting size for the configured delay and opens directly, without first playing the hover preview animation. Leaving and returning starts the full delay again, even when AppKit misses the tracking exit. Thanks to fuck713 for the report.
+- With Expand on hover selected, Dynamic Island stays at its resting size while the pointer waits over it and then opens directly, without growing first. Leaving and coming back starts the activation time again, even after a quick pass up to a display above.
+- The buttons in the open Dynamic Island's header, such as Pin and Settings, hide again when the pointer leaves the header quickly, instead of staying in view until it comes back.
+- As the Mac unlocks, the Lock Screen's player and activities leave with the lock screen instead of staying over the desktop for about a second.
 - When Dynamic Island opens on a click, a click at the top edge of the screen while the island grows under the pointer now opens it instead of doing nothing.
 - With Keyboard navigation on in System Settings, clicking Dynamic Island no longer leaves a focus ring around the camera.
 - The AI Agents page shows the 5-hour session renewing five hours after its first request, as the provider's usage page does, instead of up to an hour later.
@@ -112,7 +116,7 @@ Dynamic Island adds a companion, an integrated Command Bar and Watch, while AI A
 - Radial Menu settings say when the profile being edited has nothing that opens it. A mouse button now belongs to one wheel, so giving it to another wheel moves it there instead of leaving that wheel unable to open.
 
 ### Contributors
-Thanks to @0mgABear, @69grcv8vfm-sys, @acicovic, @adhvikrayaprolu, @adnn-alc, @AlirezaBs, @ashwanthbalakrishnan5, @asim-sde, @Bald-M, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @bmrtfm, @Borisserz, @bravest-cat, @claude, @dc0dr, @dreammissnot, @elliotnev27, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @georgebnov, @gorillasuti, @hartra344, @IanHollow, @ilim-cell, @iltonandrew, @itsalexcoman, @JamesOBrien2, @jd4386, @kushalvora, @LeChaEgg, @liambennett1223-jpg, @mikeknight85, @nickciava98, @niukanen1, @nzc0der, @oecer, @oskarsss, @ozanuslan, @PathGao, @Qarru, @renan-tiberio, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @schnyders, @shlok1806, @sim-pez, @tenbux, @theafox, @thitiwats, @tobyadams87, @trac3r00, @yuzu-octopus and @ywu73. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
+Thanks to @0mgABear, @69grcv8vfm-sys, @acicovic, @adhvikrayaprolu, @adnn-alc, @AlirezaBs, @ashwanthbalakrishnan5, @asim-sde, @Bald-M, @bebricoOOOOOOf, @benjaminbelloeil, @benjaminbrtrd, @bmrtfm, @Borisserz, @bravest-cat, @claude, @dc0dr, @dreammissnot, @elliotnev27, @emreertunc, @EugeneCarldotme, @Ffinnis, @frieddeli, @Frozen0wl, @fuck713, @georgebnov, @gorillasuti, @hartra344, @IanHollow, @ilim-cell, @iltonandrew, @itsalexcoman, @JamesOBrien2, @jd4386, @kushalvora, @LeChaEgg, @liambennett1223-jpg, @mikeknight85, @nickciava98, @niukanen1, @nzc0der, @oecer, @oskarsss, @ozanuslan, @PathGao, @Qarru, @renan-tiberio, @Retr0MrWave, @ruvelro, @sagnikonly, @samanyudas, @sarat03, @schnyders, @Shlok-gupta08, @shlok1806, @sim-pez, @tenbux, @theafox, @thitiwats, @tobyadams87, @trac3r00, @Yahddyyp, @yuzu-octopus and @ywu73. Feedback: Barbel Design, Emanuele Frasca, Pinea and the/master.
 
 ## [3.4.1-beta.1] - 2026-09-29
 

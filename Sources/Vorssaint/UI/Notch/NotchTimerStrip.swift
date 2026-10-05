@@ -38,7 +38,10 @@ struct NotchTimerStrip: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            Button { service.openActivity(companion?.module ?? .timer) } label: {
+            Button {
+                if companion == .calendar { service.openCountdownEvent() }
+                else { service.openActivity(companion?.module ?? .timer) }
+            } label: {
                 Group {
                     if geometry.compactActivityWingWidth >= 28 {
                         if let companion {

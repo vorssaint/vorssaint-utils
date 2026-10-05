@@ -325,10 +325,13 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
                 && !backupKeys.contains(DefaultsKey.displaysSwitchedOff)
+                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints)
                 && !backupKeys.contains(DefaultsKey.screenshotSharingDeveloperEndpoint),
                "backup never carries private content, live state or machine markers")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOff] == nil,
                "a display switched off is a repair note for this machine, not a setting")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOffFingerprints] == nil,
+               "saved display identities stay in machine recovery state, not registered preferences")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.startupDidNotFinish] == nil,
                "a start that did not finish is a note for this machine, not a setting")
 

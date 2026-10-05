@@ -82,7 +82,7 @@ enum NotchMirrorContract {
         var hidesUntilHover = false, coversMenus = true, showsInCaptures = true
         var outlineEnabled = false, hidesInFullscreen = false
         let openTitle = "Open"
-        var opened = 0, collapses = 0
+        var opened = 0, collapses = 0, countdownOpenings = 0
         var moves: [CGDirectDisplayID] = []
         var made: [Host] = []
 
@@ -109,6 +109,7 @@ enum NotchMirrorContract {
         }
         func collapse() { collapses += 1; expanded = false; peeking = false }
         func open() { opened += 1; expanded = true }
+        func openCountdownEvent() { countdownOpenings += 1; expanded = true }
         func move(to screen: NSScreen) { displayID = screen.notchDisplayID; moves.append(screen.notchDisplayID) }
     }
 
@@ -222,6 +223,11 @@ enum NotchMirrorContract {
         service.mirrors[2]?.host.activate?()
         service.canFollowPointer = true
         suite.expect(service.opened == opened, "a notice or a drag keeps the island where it is")
+        service.compactActivity = .calendar
+        service.mirrors[2]?.host.activate?()
+        service.compactActivity = nil
+        suite.expect(service.countdownOpenings == 1 && service.opened == opened,
+                     "clicking a copy of an event countdown opens on its event")
 
         // Unplugging a display closes its copy; leaving the choice closes them all.
         service.displayID = 1

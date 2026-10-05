@@ -129,11 +129,17 @@ def main():
           + "extension DisplayRestorationTests {\nfinal class BrightnessService: Fixture {\n"
           + declaration(brightness, "    enum DisplayControlFailure:")
           + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private static func restorationDisplayFingerprint(",
+              "    private static func rememberDisplaySwitchedOff(",
+              "    private static func forgetDisplaySwitchedOff(",
               "    private static func configureDisplay(", "    private func restoreDisplay(",
+              "    private func canRestoreDisplay(",
               "    private func syncLidObserver(", "    private func restoreDeferredDisplays(",
               "    private func restoreManagedDisplays(", "    func restoreDisplaysLeftOff(",
               "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
-              "    private func restoreManagedDisplayIfHeadless("])
+              "    private func restoreManagedDisplayIfHeadless(",
+              "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
+              "    private func displaysWokeUp("])
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
@@ -328,6 +334,16 @@ def main():
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"
+    write("DockPreviewPosition.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension DockPreviewPositionTests.Service {\n"
+          + "".join(declaration(dock, prefix, scope="final class DockPreviewService:")
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func handleMouseMoved(",
+                                   "    private func currentZone(",
+                                   "    private func showPanel(",
+                                   "    private func resizePanelForCurrentWindows()",
+                                   "    private func clampedPanelFrame("])
+          + "}\n")
     write("DockPreviewFrameRetry.swift", "import Foundation\nextension DockPreviewFrameRestorationTests {\n"
           + declaration("Sources/Vorssaint/Services/DockPreview/DockPreviewFrameRestoration.swift",
                         "    private static func restore(").replace("private static func", "static func", 1)
@@ -512,11 +528,14 @@ def main():
           + declaration(playback_adapter, "    static func validatedTarget(")
           + declaration(playback_adapter, "    static func readInfo(")
           + declaration(playback_adapter, "    static func supportedCommands(")
+          + declaration(playback_adapter, "    static func readPlaybackState(")
           + declaration(playback_adapter, "    private static func currentPlayerPID(").replace("private static", "static", 1)
           + declaration(playback_adapter, "    static func send(")
           + declaration(playback_adapter, "    private static func makeTarget(").replace("private static", "static", 1)
           + declaration(adapter_entry, "private func sendPlaybackCommand(").replace("private func", "static func", 1)
           + declaration(adapter_entry, "func encodedReply(").replace("func encodedReply", "static func encodedReply", 1)
+          + declaration(adapter_entry, "func playbackPosition(").replace("func playbackPosition", "static func playbackPosition", 1)
+          + declaration(adapter_entry, "func settlePosition(").replace("func settlePosition", "static func settlePosition", 1)
           + "}\n")
     usage = "Sources/Vorssaint/Services/SystemMonitor/ProcessUsageService.swift"
     write("ProcessForceQuit.swift", "import Darwin\nimport Foundation\n"
@@ -793,6 +812,7 @@ def main():
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
           + declaration(notch, "    func openActivity(")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")
+          + declaration(notch, "    func openCountdownEvent()")
           + declaration(notch, "    var reopeningModule:")
           + declaration(notch, "    private func updateSession(").replace("private func", "func", 1)
               .replace("AppFeature.mixer.isAvailable", "AppFeature.mixer.isAvailable(in: ReviewDefaults.current)")
