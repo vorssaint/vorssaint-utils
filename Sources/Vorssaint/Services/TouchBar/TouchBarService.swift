@@ -350,7 +350,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     }
 
     @objc private func showKillProcess(_ sender: NSButton) {
-        SettingsRouter.shared.request(FeatureSettingsDestination(.killProcess))
+        if AppFeature.killProcess.isAvailable {
+            SettingsRouter.shared.request(FeatureSettingsDestination(.killProcess))
+        } else {
+            SettingsRouter.shared.request(
+                FeatureSettingsDestination(.features),
+                targetFeature: .killProcess
+            )
+        }
         (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
