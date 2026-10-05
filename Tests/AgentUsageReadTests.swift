@@ -145,6 +145,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .cursor: break
                 }
             }
             if provider == .copilot {
