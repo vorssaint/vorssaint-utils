@@ -63,6 +63,14 @@ enum NotchMusicVisibilityTests {
         var peeking = false
         var showingAppPanel = false
         var showingSections = false
+        var showingCommandBar = false
+        var commandBarClosings = 0
+        var commandBarSurfaceSize = CGSize(width: 616, height: 132)
+        var mascotVisible = false
+        func mascotShows(on geometry: NotchGeometry) -> Bool {
+            mascotVisible && (geometry.floats || geometry.restingWingWidth > 0)
+        }
+        func commandBarDidClose() { commandBarClosings += 1 }
         var selected: NotchModule = .controls
         var selectedMetric: Metric?
         var modules: [NotchModule] = []
@@ -119,6 +127,8 @@ enum NotchMusicVisibilityTests {
         func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
         func removeEventMonitors() {}
+        func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }
+        func bridgeMascot(from: CGFloat, opening: Bool) {}
         func clearCapture() {
             captureClose = nil
             captureClosesOnCollapse = false
@@ -343,10 +353,13 @@ enum NotchMusicVisibilityTests {
         suite.expect(service.compactActivity == .downloads, "Nothing for resting music preserves active downloads")
         let notice = NotchNotice(event: .accessory, title: "Wireless Headphones", detail: "Connected", symbol: "headphones")
         service.notice = notice
-        suite.expect(service.surfaceSize == service.geometry.noticeSize(wingWidth: notice.preferredWingWidth)
-               && service.surfaceSize.width > service.geometry.notice.width,
-               "a device notice widens the actual presentation beyond the compact level indicator")
+        suite.expect(service.surfaceSize == service.geometry.noticeSize(wings: notice.wings(in: service.geometry))
+               && service.surfaceSize.width > service.geometry.notice.width
+               && service.surfaceShift == service.geometry.noticeShift(notice.wings(in: service.geometry))
+               && service.surfaceShift < 0,
+               "a device notice widens the actual presentation toward its longer name")
         service.notice = nil
+        suite.expect(service.surfaceShift == 0, "the island returns to the camera's centre once the notice ends")
         suite.expect(service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                "dismissing a device notice restores the underlying activity's width")
         service.hasKeepAwakeActivity = true
@@ -363,5 +376,40 @@ enum NotchMusicVisibilityTests {
         suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
                      && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
                      "an event beside music takes the wings its pair needs, and alone keeps room for its title")
+
+        // The companion takes the wings beside the camera only at rest.
+        let resting = Service()
+        resting.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                         cameraWidth: 180, menuBarHeight: 32, compactSideRoom: 100)
+        defaults.set(NotchIdleContent.none.rawValue, forKey: DefaultsKey.notchIdleContent)
+        let bare = resting.geometry.restingSize(showsContent: false)
+        suite.expect(resting.surfaceSize == bare, "without the companion the bare island keeps to the camera")
+        resting.mascotVisible = true
+        suite.expect(resting.surfaceSize == resting.geometry.collapsed && resting.surfaceSize.width > bare.width,
+                     "the resting companion opens both wings, so it sits beside the camera and never under it")
+        resting.hasTimerActivity = true
+        suite.expect(resting.surfaceSize == resting.compactActivityGeometry.compactActivitySize,
+                     "an activity takes the island's room from the companion")
+        resting.hasTimerActivity = false
+        resting.geometry.compactSideRoom = 20
+        suite.expect(resting.surfaceSize == resting.geometry.restingSize(showsContent: false),
+                     "menus that leave no wings keep the companion out instead of under the camera")
+
+        // The Command Bar inside the island takes its own size and closes with it.
+        let bar = Service()
+        bar.expanded = true
+        bar.showingCommandBar = true
+        suite.expect(bar.surfaceSize == bar.commandBarSurfaceSize, "the open island fits the Command Bar inside it")
+        bar.collapse()
+        suite.expect(!bar.showingCommandBar && !bar.expanded && bar.commandBarClosings == 1,
+                     "closing the island closes the Command Bar inside it once")
+        bar.collapse()
+        suite.expect(bar.commandBarClosings == 1, "closing an island without the bar leaves the bar alone")
+        bar.expanded = true
+        bar.showingCommandBar = true
+        bar.selected = .camera
+        bar.modules = [.camera]
+        bar.syncVisibleConsumers()
+        suite.expect(!reader.running, "the bar covering a page keeps that page's readers stopped")
     }
 }

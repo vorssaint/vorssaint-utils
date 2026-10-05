@@ -49,7 +49,9 @@ enum ShelfDropRoutingContract {
             deliveredItems = additions
             return accepts
         }
+        var interactionNotes = 0
         func dockDidAccept() { dockCompletions += 1 }
+        func noteInteraction() { interactionNotes += 1 }
     }
     class NotchState {
         var acceptsUserInteraction = true
@@ -64,7 +66,9 @@ enum ShelfDropRoutingContract {
         var expandedGeometry: NotchGeometry { geometry }
         var surfaceSize: CGSize { geometry.expandedSize(module: .files) }
         var opened: [NotchModule] = []
+        var reactions: [NotchMascotReaction] = []
         func refreshPresentation() {}
+        func reactMascot(_ reaction: NotchMascotReaction, patience: TimeInterval = 8) { reactions.append(reaction) }
         func open(_ module: NotchModule, pinned: Bool = false, takeFocus: Bool = true) {
             opened.append(module)
             if pinned { self.pinned = true }
@@ -127,6 +131,8 @@ enum ShelfDropRoutingTests {
                 suite.expect(notch.opened == (accepted ? [.files] : [])
                        && notch.heldDrag == !accepted && notch.dragPlaceholder == !accepted,
                        "only accepted deliveries open files and release the island placeholder")
+                suite.expect(notch.reactions == (accepted ? [.celebrate] : []),
+                       "the companion cheers only a file that landed")
                 suite.expect(!canvas.finishDrop(board), "one gesture cannot deliver twice")
 
                 let dockDrop = Context.NSDraggingInfo(draggingPasteboard: board,
@@ -134,6 +140,16 @@ enum ShelfDropRoutingTests {
                 suite.expect(shelf.accept(draggingInfo: dockDrop) == accepted
                        && shelf.dockCompletions == (accepted ? 1 : 0),
                        "the separate dock keeps its completion behavior through the shared receiver")
+
+                // A promised file is delivered asynchronously; noteInteraction()
+                // has to run at drop time or an edge peek can retract before it arrives.
+                let notesBefore = shelf.interactionNotes
+                let panelDrop = Context.NSDraggingInfo(draggingPasteboard: board,
+                                                      draggingDestinationWindow: Context.Window())
+                suite.expect(shelf.accept(draggingInfo: panelDrop) == accepted
+                       && shelf.interactionNotes == notesBefore + (accepted ? 1 : 0)
+                       && shelf.dockCompletions == (accepted ? 1 : 0),
+                       "an accepted panel drop notes interaction at drop time, before delivery")
             }
         }
         for revoked in 0..<5 {

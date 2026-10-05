@@ -290,9 +290,9 @@ enum AgentUsageArchiveTests {
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
             ("AgentUsageStore.Saved.Record", labels(sampleRecord), ["key", "record", "billable", "sources"]),
             ("AgentUsageRecord", labels(sampleRecord.record),
-             ["provider", "date", "model", "project", "session", "tokens", "cost", "savings", "reportedCost"]),
+             ["provider", "date", "model", "project", "session", "requests", "tokens", "cost", "savings", "reportedCost"]),
             ("AgentBillable", labels(sampleRecord.billable),
-             ["tokens", "longCacheWrite", "fast", "domestic", "webSearches"]),
+             ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt"]),
@@ -304,8 +304,9 @@ enum AgentUsageArchiveTests {
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),
-             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast", "parentSession",
-              "openCodeSessions"])
+             ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
+              "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
+              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,

@@ -15,13 +15,14 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -562,7 +563,9 @@ private struct NotchAgentTrendCard: View {
 
     private func caption(byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost)
+            // A pointed-at bar reads its tokens beside its cost.
+            let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
+            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
         }
         return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }

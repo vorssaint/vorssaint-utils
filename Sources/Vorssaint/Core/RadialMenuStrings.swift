@@ -67,6 +67,8 @@ struct RadialMenuFeatureStrings {
     let addProfileButton: String
     let duplicateProfileButton: String
     let deleteProfileButton: String
+    let deleteProfileConfirmFormat: String
+    let deleteProfileConfirmMessage: String
     let profileNameLabel: String
     let profileColorLabel: String
     let profileShortcutLabel: String
@@ -103,6 +105,7 @@ struct RadialMenuFeatureStrings {
     let hideListButton: String
     let trackpadTapLabel: String
     let trackpadTapConflict: String
+    let profileNoTrigger: String
 }
 
 extension FeatureStrings {
@@ -192,6 +195,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Add profile",
         duplicateProfileButton: "Duplicate profile",
         deleteProfileButton: "Delete profile",
+        deleteProfileConfirmFormat: "Delete “%@”?",
+        deleteProfileConfirmMessage: "Its actions, shortcut, mouse button and four-finger tap will be removed. This can’t be undone.",
         profileNameLabel: "Profile name",
         profileColorLabel: "Color",
         profileShortcutLabel: "Shortcut",
@@ -227,7 +232,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Show as list",
         hideListButton: "Hide list",
         trackpadTapLabel: "Open with a four-finger tap",
-        trackpadTapConflict: "Middle click already uses the four-finger tap, so the tap does not open this wheel."
+        trackpadTapConflict: "Middle click already uses the four-finger tap, so the tap does not open this wheel.",
+        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it."
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -294,6 +300,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Adicionar perfil",
         duplicateProfileButton: "Duplicar perfil",
         deleteProfileButton: "Excluir perfil",
+        deleteProfileConfirmFormat: "Excluir “%@”?",
+        deleteProfileConfirmMessage: "As ações, o atalho, o botão do mouse e o toque de quatro dedos deste perfil serão removidos. Isso não pode ser desfeito.",
         profileNameLabel: "Nome do perfil",
         profileColorLabel: "Cor",
         profileShortcutLabel: "Atalho",
@@ -329,7 +337,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Mostrar em lista",
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir com um toque de quatro dedos",
-        trackpadTapConflict: "O botão do meio já usa o toque de quatro dedos, então o toque não abre esta roda."
+        trackpadTapConflict: "O botão do meio já usa o toque de quatro dedos, então o toque não abre esta roda.",
+        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo."
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -396,6 +405,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Profil ekle",
         duplicateProfileButton: "Profili çoğalt",
         deleteProfileButton: "Profili sil",
+        deleteProfileConfirmFormat: "“%@” silinsin mi?",
+        deleteProfileConfirmMessage: "Bu profilin eylemleri, kısayolu, fare düğmesi ve dört parmakla dokunması kaldırılacak. Bu işlem geri alınamaz.",
         profileNameLabel: "Profil adı",
         profileColorLabel: "Renk",
         profileShortcutLabel: "Kısayol",
@@ -431,7 +442,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Liste olarak göster",
         hideListButton: "Listeyi gizle",
         trackpadTapLabel: "Dört parmakla dokunarak aç",
-        trackpadTapConflict: "Dört parmakla dokunma zaten orta tıklamaya ayrılmış, bu yüzden dokunma bu çarkı açmaz."
+        trackpadTapConflict: "Dört parmakla dokunma zaten orta tıklamaya ayrılmış, bu yüzden dokunma bu çarkı açmaz.",
+        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin."
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -498,6 +510,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Добавить профиль",
         duplicateProfileButton: "Дублировать профиль",
         deleteProfileButton: "Удалить профиль",
+        deleteProfileConfirmFormat: "Удалить «%@»?",
+        deleteProfileConfirmMessage: "Действия, сочетание клавиш, кнопка мыши и касание четырьмя пальцами этого профиля будут удалены. Это нельзя отменить.",
         profileNameLabel: "Название профиля",
         profileColorLabel: "Цвет",
         profileShortcutLabel: "Сочетание клавиш",
@@ -533,7 +547,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Показать списком",
         hideListButton: "Скрыть список",
         trackpadTapLabel: "Открывать касанием четырьмя пальцами",
-        trackpadTapConflict: "Касание четырьмя пальцами уже занято средней кнопкой, поэтому оно не открывает это колесо."
+        trackpadTapConflict: "Касание четырьмя пальцами уже занято средней кнопкой, поэтому оно не открывает это колесо.",
+        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами."
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -600,6 +615,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Añadir perfil",
         duplicateProfileButton: "Duplicar perfil",
         deleteProfileButton: "Eliminar perfil",
+        deleteProfileConfirmFormat: "¿Eliminar “%@”?",
+        deleteProfileConfirmMessage: "Se eliminarán las acciones, el atajo, el botón del ratón y el toque de cuatro dedos de este perfil. No se puede deshacer.",
         profileNameLabel: "Nombre del perfil",
         profileColorLabel: "Color",
         profileShortcutLabel: "Atajo",
@@ -635,7 +652,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Mostrar como lista",
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir con un toque de cuatro dedos",
-        trackpadTapConflict: "El clic central ya usa el toque de cuatro dedos, así que el toque no abre esta rueda."
+        trackpadTapConflict: "El clic central ya usa el toque de cuatro dedos, así que el toque no abre esta rueda.",
+        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo."
     )
 
     static let sk = RadialMenuFeatureStrings(
@@ -702,6 +720,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Pridať profil",
         duplicateProfileButton: "Duplikovať profil",
         deleteProfileButton: "Vymazať profil",
+        deleteProfileConfirmFormat: "Vymazať „%@“?",
+        deleteProfileConfirmMessage: "Jeho akcie, skratka, tlačidlo myši a ťuknutie štyrmi prstami sa odstránia. Túto akciu nie je možné vrátiť späť.",
         profileNameLabel: "Názov profilu",
         profileColorLabel: "Farba",
         profileShortcutLabel: "Skratka",
@@ -737,7 +757,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Zobraziť ako zoznam",
         hideListButton: "Skryť zoznam",
         trackpadTapLabel: "Otvoriť ťuknutím štyrmi prstami",
-        trackpadTapConflict: "Stredné kliknutie už používa ťuknutie štyrmi prstami, takže toto ťuknutie koleso neotvorí."
+        trackpadTapConflict: "Stredné kliknutie už používa ťuknutie štyrmi prstami, takže toto ťuknutie koleso neotvorí.",
+        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami."
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -804,6 +825,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Profil hinzufügen",
         duplicateProfileButton: "Profil duplizieren",
         deleteProfileButton: "Profil löschen",
+        deleteProfileConfirmFormat: "„%@“ löschen?",
+        deleteProfileConfirmMessage: "Aktionen, Kurzbefehl, Maustaste und Vier-Finger-Tippen dieses Profils werden entfernt. Das lässt sich nicht widerrufen.",
         profileNameLabel: "Profilname",
         profileColorLabel: "Farbe",
         profileShortcutLabel: "Kurzbefehl",
@@ -839,7 +862,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Als Liste anzeigen",
         hideListButton: "Liste ausblenden",
         trackpadTapLabel: "Mit Vier-Finger-Tippen öffnen",
-        trackpadTapConflict: "Der Mittelklick nutzt bereits das Vier-Finger-Tippen, daher öffnet das Tippen dieses Rad nicht."
+        trackpadTapConflict: "Der Mittelklick nutzt bereits das Vier-Finger-Tippen, daher öffnet das Tippen dieses Rad nicht.",
+        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen."
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -906,6 +930,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Ajouter un profil",
         duplicateProfileButton: "Dupliquer le profil",
         deleteProfileButton: "Supprimer le profil",
+        deleteProfileConfirmFormat: "Supprimer «\u{00A0}%@\u{00A0}»\u{00A0}?",
+        deleteProfileConfirmMessage: "Les actions, le raccourci, le bouton de la souris et le toucher à quatre doigts de ce profil seront supprimés. Cette action est irréversible.",
         profileNameLabel: "Nom du profil",
         profileColorLabel: "Couleur",
         profileShortcutLabel: "Raccourci",
@@ -941,7 +967,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Afficher sous forme de liste",
         hideListButton: "Masquer la liste",
         trackpadTapLabel: "Ouvrir d’un toucher à quatre doigts",
-        trackpadTapConflict: "Le clic du milieu utilise déjà le toucher à quatre doigts, donc ce toucher n’ouvre pas cette roue."
+        trackpadTapConflict: "Le clic du milieu utilise déjà le toucher à quatre doigts, donc ce toucher n’ouvre pas cette roue.",
+        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir."
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -1008,6 +1035,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Aggiungi profilo",
         duplicateProfileButton: "Duplica profilo",
         deleteProfileButton: "Elimina profilo",
+        deleteProfileConfirmFormat: "Eliminare “%@”?",
+        deleteProfileConfirmMessage: "Azioni, abbreviazione, pulsante del mouse e tocco a quattro dita di questo profilo verranno rimossi. L’operazione non può essere annullata.",
         profileNameLabel: "Nome del profilo",
         profileColorLabel: "Colore",
         profileShortcutLabel: "Abbreviazione",
@@ -1043,7 +1072,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "Mostra come elenco",
         hideListButton: "Nascondi elenco",
         trackpadTapLabel: "Apri con un tocco a quattro dita",
-        trackpadTapConflict: "Il clic centrale usa già il tocco a quattro dita, quindi il tocco non apre questa ruota."
+        trackpadTapConflict: "Il clic centrale usa già il tocco a quattro dita, quindi il tocco non apre questa ruota.",
+        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo."
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -1110,6 +1140,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "プロファイルを追加",
         duplicateProfileButton: "プロファイルを複製",
         deleteProfileButton: "プロファイルを削除",
+        deleteProfileConfirmFormat: "「%@」を削除しますか？",
+        deleteProfileConfirmMessage: "このプロファイルのアクション、ショートカット、マウスボタン、4本指のタップが削除されます。この操作は取り消せません。",
         profileNameLabel: "プロファイル名",
         profileColorLabel: "カラー",
         profileShortcutLabel: "ショートカット",
@@ -1145,7 +1177,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "リストとして表示",
         hideListButton: "リストを非表示",
         trackpadTapLabel: "4本指のタップで開く",
-        trackpadTapConflict: "4本指のタップは中クリックで使用中のため、このホイールは開きません。"
+        trackpadTapConflict: "4本指のタップは中クリックで使用中のため、このホイールは開きません。",
+        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -1212,6 +1245,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "프로필 추가",
         duplicateProfileButton: "프로필 복제",
         deleteProfileButton: "프로필 삭제",
+        deleteProfileConfirmFormat: "‘%@’ 프로필을 삭제할까요?",
+        deleteProfileConfirmMessage: "이 프로필의 동작, 단축키, 마우스 버튼, 네 손가락 탭이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
         profileNameLabel: "프로필 이름",
         profileColorLabel: "색상",
         profileShortcutLabel: "단축키",
@@ -1247,7 +1282,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "목록으로 표시",
         hideListButton: "목록 숨기기",
         trackpadTapLabel: "네 손가락 탭으로 열기",
-        trackpadTapConflict: "네 손가락 탭은 이미 가운데 클릭에 사용 중이므로 이 휠을 열지 않습니다."
+        trackpadTapConflict: "네 손가락 탭은 이미 가운데 클릭에 사용 중이므로 이 휠을 열지 않습니다.",
+        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요."
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -1314,6 +1350,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "添加配置",
         duplicateProfileButton: "复制配置",
         deleteProfileButton: "删除配置",
+        deleteProfileConfirmFormat: "删除“%@”？",
+        deleteProfileConfirmMessage: "此配置的动作、快捷键、鼠标按钮和四指轻点将被移除。此操作无法撤销。",
         profileNameLabel: "配置名称",
         profileColorLabel: "颜色",
         profileShortcutLabel: "快捷键",
@@ -1349,7 +1387,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "显示为列表",
         hideListButton: "隐藏列表",
         trackpadTapLabel: "用四指轻点打开",
-        trackpadTapConflict: "四指轻点已用于中键点按，因此不会打开这个转盘。"
+        trackpadTapConflict: "四指轻点已用于中键点按，因此不会打开这个转盘。",
+        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -1416,6 +1455,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "新增設定檔",
         duplicateProfileButton: "複製設定檔",
         deleteProfileButton: "刪除設定檔",
+        deleteProfileConfirmFormat: "刪除「%@」？",
+        deleteProfileConfirmMessage: "此設定檔的動作、快速鍵、滑鼠按鈕和四指輕點將被移除。此操作無法復原。",
         profileNameLabel: "設定檔名稱",
         profileColorLabel: "顏色",
         profileShortcutLabel: "快速鍵",
@@ -1451,7 +1492,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "顯示為列表",
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
-        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。"
+        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -1518,6 +1560,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "新增設定檔",
         duplicateProfileButton: "複製設定檔",
         deleteProfileButton: "刪除設定檔",
+        deleteProfileConfirmFormat: "刪除「%@」？",
+        deleteProfileConfirmMessage: "此設定檔的動作、快捷鍵、滑鼠按鈕和四指輕點將被移除。此操作無法復原。",
         profileNameLabel: "設定檔名稱",
         profileColorLabel: "顏色",
         profileShortcutLabel: "快捷鍵",
@@ -1553,7 +1597,8 @@ extension RadialMenuFeatureStrings {
         showListButton: "顯示為列表",
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
-        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。"
+        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。"
     )
     static let uk = RadialMenuFeatureStrings(
         pageTitle: "Радіальне меню",
@@ -1619,6 +1664,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Додати профіль",
         duplicateProfileButton: "Дублювати профіль",
         deleteProfileButton: "Видалити профіль",
+        deleteProfileConfirmFormat: "Видалити «%@»?",
+        deleteProfileConfirmMessage: "Його дії, клавіатурне скорочення, кнопку миші та дотик чотирма пальцями буде видалено. Цю дію не можна скасувати.",
         profileNameLabel: "Назва профілю",
         profileColorLabel: "Колір",
         profileShortcutLabel: "Клавіатурне скорочення",
@@ -1654,6 +1701,7 @@ extension RadialMenuFeatureStrings {
         showListButton: "Показати списком",
         hideListButton: "Сховати список",
         trackpadTapLabel: "Відкривати дотиком чотирма пальцями",
-        trackpadTapConflict: "Дотик чотирма пальцями вже зайнятий середньою кнопкою, тому він не відкриває це колесо."
+        trackpadTapConflict: "Дотик чотирма пальцями вже зайнятий середньою кнопкою, тому він не відкриває це колесо.",
+        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями."
     )
 }

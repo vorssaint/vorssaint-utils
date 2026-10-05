@@ -65,9 +65,9 @@ struct MenuBarMetricsPreview: View {
                 .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
                 .filter { !$0.isEmpty }
             : []
-        // The steady state of the hide option: a pending update or a muted
-        // microphone brings the real icon back, and the preview does not
-        // pretend to know about either.
+        // The steady state of the hide option: a pending update, a running
+        // Keep Awake or a muted microphone brings the real icon back, and the
+        // preview does not pretend to know about any of them.
         let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
 
         HStack(spacing: 12) {

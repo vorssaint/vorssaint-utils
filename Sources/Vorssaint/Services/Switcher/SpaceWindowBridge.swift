@@ -286,6 +286,56 @@ enum SpaceWindowBridge {
         return postEventRecord(&psn, &record) == .success
     }
 
+    /// Hands the keyboard to a window and leaves the stacking order alone,
+    /// with the focus handoff window managers use for this. Within the app
+    /// already in front, the window server moves focus only once the old
+    /// window hears it lost focus and the new one that it gained it. Some apps
+    /// miss the pair when it arrives at once, so the second half waits 40 ms
+    /// without blocking the main thread. If the hover is no longer current
+    /// when it ends, the old window gets its focus back only if it still
+    /// verifiably holds it.
+    static func focusWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t,
+                                  replacing focusedWindowID: CGWindowID?,
+                                  while isCurrent: @escaping () -> Bool,
+                                  completion: @escaping (Bool) -> Void) {
+        guard isCurrent() else {
+            completion(false)
+            return
+        }
+        guard let focusedWindowID else {
+            completion(frontWindow(windowID, ownerPID: ownerPID))
+            return
+        }
+        postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            guard isCurrent() else {
+                if FocusFollowsMouseSupport.shouldRestoreFocus(
+                    to: focusedWindowID,
+                    reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
+                    appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
+                    postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
+                }
+                completion(false)
+                return
+            }
+            postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+            completion(frontWindow(windowID, ownerPID: ownerPID))
+        }
+    }
+
+    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) {
+        guard let processForPID, let postEventRecord else { return }
+        var psn = ProcessSerialNumber()
+        guard processForPID(ownerPID, &psn) == noErr else { return }
+        var targetID = windowID
+        var record = [UInt8](repeating: 0, count: 0x100)
+        record[0x04] = 0xf8 // declared record length
+        record[0x08] = 0x0d
+        record[0x8a] = gained ? 0x01 : 0x02
+        withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
+        _ = postEventRecord(&psn, &record)
+    }
+
     // MARK: - The user's "move a space" shortcut
 
     private typealias HotKeyValueFunction =

@@ -201,6 +201,8 @@ enum LocalizationFeatureContractTests {
                    "\(prefix) Dock Preview quit-on-close labels are present without em dash")
             suite.expect(!strings.switcherShortcutHintApps.isEmpty, "\(prefix) App Switcher app shortcut hint is present")
             suite.expect(!strings.switcherShortcutHintWindows.isEmpty, "\(prefix) App Switcher window shortcut hint is present")
+            suite.expect(GlobalShortcutRole.switcher.title(strings) != strings.switcherSection,
+                   "\(prefix) the cross-app switcher shortcut is named for apps, not after the window switcher")
             suite.expect(!strings.networkApps.isEmpty, "\(prefix) network app usage title is present")
             suite.expect(!strings.networkAppsIdle.isEmpty, "\(prefix) network app idle text is present")
             suite.expect(!strings.monitorOpenActivityMonitor.isEmpty

@@ -14,6 +14,25 @@ struct PortManagerEntry: Identifiable, Equatable {
 }
 
 enum PortManagerSupport {
+    static func browserURL(for entry: PortManagerEntry) -> URL? {
+        guard entry.protocolName == "TCP", (1...65535).contains(entry.port),
+              let separator = entry.address.lastIndex(of: ":") else { return nil }
+        let host = String(entry.address[..<separator])
+        guard !host.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = "http"
+        // Wildcard binds are not destinations. Preserve the address family
+        // when it is known, and a specific bind when localhost cannot reach it.
+        switch host {
+        case "*": components.host = "localhost"
+        case "0.0.0.0": components.host = "127.0.0.1"
+        case "[::]", "::": components.host = "[::1]"
+        default: components.host = host
+        }
+        components.port = entry.port
+        return components.url
+    }
+
     /// Whether an lsof endpoint such as `*:3000` or `127.0.0.1:3000` is bound
     /// to every interface rather than one specific address. A wildcard bind
     /// accepts connections from other machines on the network unless a

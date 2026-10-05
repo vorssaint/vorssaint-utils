@@ -140,24 +140,20 @@ struct PowerSection: View {
             peripheralBatteryRows
         case .system:
             if pwrSystem, let watts = power?.systemWatts {
-                if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
-                    HStack(spacing: 8) {
-                        row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
-                            label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
-                            visible: $pwrSystem, editing: false)
-                            .fixedSize(horizontal: true, vertical: false)
-                        Sparkline(values: monitor.snapshot.systemPowerHistory,
-                                  color: PanelMetricColor.orange(for: colorScheme),
-                                  showsZeroBaseline: true)
-                            .frame(height: 26)
-                        if editing {
-                            PanelInlineHideButton(isVisible: $pwrSystem)
-                        }
-                    }
-                } else {
+                VStack(alignment: .leading, spacing: 6) {
                     row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
                         label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
                         visible: $pwrSystem, editing: editing)
+                    if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
+                        let peak = MetricFormat.graphCeiling(monitor.snapshot.systemPowerHistory.max() ?? 0,
+                                                             unitStep: 1000)
+                        Sparkline(values: monitor.snapshot.systemPowerHistory,
+                                  color: PanelMetricColor.orange(for: colorScheme),
+                                  maxValue: peak,
+                                  showsZeroBaseline: true)
+                            .frame(height: 30)
+                            .graphCeilingLabel(MetricFormat.watts(peak))
+                    }
                 }
             } else if editing && !pwrSystem {
                 PanelHiddenItemRow(title: l10n.s.powerSystem,
@@ -251,7 +247,8 @@ struct PowerSection: View {
                               color: PanelMetricColor.green(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 EnergyAppsBreakdown()
             }

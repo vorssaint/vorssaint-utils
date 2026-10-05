@@ -368,6 +368,28 @@ enum UpdateFeatureTests {
                 for: menuBarDestination,
                 in: generalRows + [menuBarRow]) == .setting(.panelConfiguration),
             "General and its menu bar editor keep distinct sidebar selections")
+        func pageRow(_ page: SettingsPage) -> SettingsSidebarItem {
+            SettingsSidebarItem(id: .page(page), destination: FeatureSettingsDestination(page),
+                                title: "\(page)", icon: "")
+        }
+        let groupedRows = SettingsSidebarSupport.featureGroupRows(
+            windowsControls: [pageRow(.windowLayout), pageRow(.autoQuit), pageRow(.quitProtection)]
+                + [SettingsSidebarItem(id: .feature(.scrollInverter),
+                                       destination: AppFeature.scrollInverter.settingsDestination,
+                                       title: "Scroll", icon: "")],
+            utilities: quickToolRows + [pageRow(.urlCleaner), pageRow(.keyDebounce),
+                                        pageRow(.superKey), pageRow(.textSnippets),
+                                        pageRow(.radialMenu)])
+        suite.expect(groupedRows.windowsDock.map(\.id) == [.page(.windowLayout), .page(.autoQuit)]
+                && groupedRows.mouseKeyboard.map(\.id) == [
+                    .page(.quitProtection), .feature(.scrollInverter), .page(.keyDebounce),
+                    .page(.superKey), .page(.textSnippets)]
+                && groupedRows.files.map(\.id) == [.page(.urlCleaner)]
+                && groupedRows.sound.map(\.id) == [.feature(.micMute)]
+                && groupedRows.utilities.map(\.id) == [
+                    .feature(.quickLauncher), .feature(.scratchpad), .feature(.cleaningMode),
+                    .page(.radialMenu)],
+               "sidebar rows follow the Features page groups and other utilities stay put")
         let scratchpadOnlyRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
             preferredFeatures: quickToolFeatures, includePage: false,
@@ -1326,6 +1348,14 @@ enum UpdateFeatureTests {
         suite.expect(AppUpdatesSupport.compare("2026.723.1724", "2026.714.1952") == .orderedDescending
                 && AppUpdatesSupport.compare("00123", "123") == .orderedSame,
                "leading zeros never decide a comparison")
+        suite.expect(AppUpdatesSupport.compare("1.0Beta", "1.0beta") == .orderedSame
+                && AppUpdatesSupport.compare("1.0beta", "1.0Beta") == .orderedSame
+                && !AppUpdatesSupport.isNewer("1.0Beta", than: "1.0beta")
+                && !AppUpdatesSupport.isNewer("1.0beta", than: "1.0Beta"),
+               "a version spelled with different case is the same release, so neither side reports as newer")
+        suite.expect(AppUpdatesSupport.compare("2.0", "1.9") == .orderedDescending
+                && AppUpdatesSupport.compare("2024.1", "2024.10") == .orderedAscending,
+               "folding case into a tie still leaves a genuinely newer version ranked above the older one")
         suite.expect(!AppUpdatesSupport.isNewer("1.9a", than: "1.10")
                 && AppUpdatesSupport.isNewer("1.10", than: "1.9a")
                 && !AppUpdatesSupport.isNewer("3.5beta", than: "3.5")

@@ -157,6 +157,15 @@ final class NotchNotificationService: ObservableObject {
         trimIcons()
     }
 
+    /// Empties the island's inbox only; Notification Center keeps its own.
+    /// An opening in flight still needs its message, so it waits for it.
+    func clearAll() {
+        guard openingID == nil else { return }
+        inbox.clear()
+        unavailableID = nil
+        trimIcons()
+    }
+
     /// The island shows this banner, so its original can leave the screen.
     func hideNative(_ id: UUID) {
         guard monitoring, NotchNotificationSupport.dismissesNative(),
