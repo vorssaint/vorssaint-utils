@@ -197,6 +197,12 @@ enum NotchActivityTests {
         session.cancel()
         session.start(mode: .timer, minutes: Int.max, now: 0)
         suite.expect(session.duration == 10_800, "corrupt duration input stays within three hours")
+        suite.expect(NotchTimerSupport.timerMinutes(60) == 60 && NotchTimerSupport.timerMinutes(Int.max) == 180
+               && NotchTimerSupport.timerMinutes(Int.min) == 1,
+               "a remembered duration restored from a backup stays between a minute and three hours")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerMinutes] as? Int == 15
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerMinutes),
+               "the timer's duration is registered and travels with settings backups")
         suite.expect(NotchTimerSupport.clockText(0.01) == "00:01" && NotchTimerSupport.clockText(-1) == "00:00"
                && NotchTimerSupport.clockText(.nan) == "00:00", "display rounds up and safely handles invalid remaining time")
         let clockCases: [(TimeInterval, String)] = [
@@ -865,6 +871,32 @@ enum NotchActivityTests {
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
                && NotchAccessorySupport.isEnabled(in: defaults), "installed timer, camera and accessory activity start enabled")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHideTimerCountdown] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchHideTimerCountdown),
+               "timer countdown visibility keeps its existing default and travels in settings backups")
+        suite.expect(NotchTimerSupport.showsActivity(hasSession: true, in: defaults)
+               && !NotchTimerSupport.showsActivity(hasSession: false, in: defaults),
+               "only an active session contributes a visible timer activity by default")
+        defaults.set(true, forKey: DefaultsKey.notchHideTimerCountdown)
+        suite.expect(!NotchTimerSupport.showsActivity(hasSession: true, in: defaults)
+               && NotchTimerSupport.isEnabled(in: defaults),
+               "hiding the countdown leaves the timer enabled for session controls and completion")
+        var session = NotchTimerSession()
+        session.start(mode: .pomodoro, minutes: 25, now: 0)
+        let visible = NotchSupport.compactActivities(
+            timer: NotchTimerSupport.showsActivity(hasSession: session.hasSession, in: defaults),
+            downloads: false, agents: false, calendar: false, music: true)
+        var selection = NotchActivitySelection()
+        selection.select(.timer, available: [.timer, .music])
+        suite.expect(visible == [.music] && selection.current(available: visible) == .music,
+               "hiding a selected Pomodoro countdown lets music take the closed island")
+        suite.expect(NotchNotificationSupport.isEnabled(in: defaults),
+               "hiding the timer leaves notifications enabled")
+        suite.expect(session.isRunning && session.finishIfDue(at: 25 * 60) && session.canStartNext,
+               "a hidden Pomodoro still completes and offers its next phase")
+        defaults.set(false, forKey: DefaultsKey.notchHideTimerCountdown)
+        suite.expect(NotchTimerSupport.showsActivity(hasSession: session.hasSession, in: defaults),
+               "showing the countdown again restores the existing session's activity")
         let preferenceKeys = [DefaultsKey.notchTimerEnabled, DefaultsKey.notchCameraEnabled, DefaultsKey.notchAccessoriesEnabled]
         for key in preferenceKeys { defaults.set(false, forKey: key) }
         suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults)

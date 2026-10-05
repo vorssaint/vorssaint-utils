@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import IOKit
 import VMStatisticsCompat
 
 enum PointerInputFeatureTests {
@@ -951,9 +952,13 @@ enum PointerInputFeatureTests {
 
         suite.expect(FocusFollowsMouseSupport.sanitizedDelay(0)
                 == FocusFollowsMouseSupport.delayRange.lowerBound
-                && FocusFollowsMouseSupport.sanitizedDelay(2_000)
+                && FocusFollowsMouseSupport.sanitizedDelay(4_000)
                 == FocusFollowsMouseSupport.delayRange.upperBound,
                "focus follows mouse clamps a damaged delay preference")
+        for delay in [100, 250, 1_000, 2_000, 2_500, 3_000] {
+            suite.expect(FocusFollowsMouseSupport.sanitizedDelay(delay) == delay,
+                   "focus follows mouse preserves a supported delay of \(delay) ms")
+        }
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: nil, targetAppIsFrontmost: true),
                "hover leaves the active app alone when its focused window cannot be read")
@@ -968,6 +973,18 @@ enum PointerInputFeatureTests {
                 targetWindowID: 42, focusedWindowID: focusedWindowID, targetAppIsFrontmost: false),
                    "hover can activate a background app regardless of its last focused window")
         }
+        suite.expect(FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 42, appIsFrontmost: true),
+               "a canceled handoff gives focus back to the window that still holds it")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: nil, appIsFrontmost: true),
+               "a canceled handoff restores nothing when the focused window cannot be read")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 43, appIsFrontmost: true),
+               "a canceled handoff leaves focus on a window the user clicked")
+        suite.expect(!FocusFollowsMouseSupport.shouldRestoreFocus(
+            to: 42, reportedFocusedWindowID: 42, appIsFrontmost: false),
+               "a canceled handoff leaves focus alone once another app is in front")
         var focusFollowsMouseState = FocusFollowsMouseState()
         suite.expect(!focusFollowsMouseState.hasPendingEvaluation,
                "focus follows mouse starts without work to poll")
@@ -998,12 +1015,97 @@ enum PointerInputFeatureTests {
         focusFollowsMouseState.reset()
         suite.expect(focusFollowsMouseState.point == nil && !focusFollowsMouseState.hasPendingEvaluation,
                "space and wake resets discard the old pointer target")
+        var dwellState = FocusFollowsMouseState()
+        dwellState.recordMovement(to: CGPoint(x: 10, y: 10), at: 20, windowID: 1)
+        dwellState.recordMovement(to: CGPoint(x: 30, y: 10), at: 20.2, windowID: 1)
+        let dwellFocus = dwellState.nextEvaluation(at: 20.25, delayMilliseconds: 250)
+        suite.expect(dwellFocus?.point == CGPoint(x: 30, y: 10),
+               "without a raise, moving within a window does not restart the delay")
+        dwellState.recordMovement(to: CGPoint(x: 50, y: 10), at: 20.3, windowID: 1)
+        suite.expect(!dwellState.hasPendingEvaluation && dwellFocus.map(dwellState.isCurrent) == true,
+               "without a raise, moving within a window neither asks again nor cancels the lookup")
+        if let dwellFocus { dwellState.finishEvaluation(dwellFocus, succeeded: true) }
+        dwellState.recordMovement(to: CGPoint(x: 60, y: 10), at: 20.35, windowID: 1)
+        suite.expect(!dwellState.hasPendingEvaluation
+                && dwellState.nextEvaluation(at: 20.38, delayMilliseconds: 250) == nil,
+               "a completed focus needs no further lookup while the pointer stays in its window")
+        dwellState.recordMovement(to: CGPoint(x: 70, y: 10), at: 20.4, windowID: 2)
+        suite.expect(dwellState.nextEvaluation(at: 20.6, delayMilliseconds: 250) == nil
+                && dwellState.nextEvaluation(at: 20.65, delayMilliseconds: 250)?.point
+                    == CGPoint(x: 70, y: 10),
+               "without a raise, entering another window restarts the delay")
+
+        var cancelledFocusState = FocusFollowsMouseState()
+        cancelledFocusState.recordMovement(to: CGPoint(x: 10, y: 10), at: 30, windowID: 1)
+        let cancelledFocus = cancelledFocusState.nextEvaluation(at: 30.3, delayMilliseconds: 250)
+        if let cancelledFocus { cancelledFocusState.finishEvaluation(cancelledFocus, succeeded: false) }
+        suite.expect(cancelledFocus != nil && !cancelledFocusState.hasPendingEvaluation
+                && cancelledFocusState.nextEvaluation(at: 31, delayMilliseconds: 250) == nil,
+               "a failed lookup or canceled handoff does not poll again without movement")
+        cancelledFocusState.recordMovement(to: CGPoint(x: 20, y: 10), at: 31, windowID: 1)
+        suite.expect(cancelledFocusState.hasPendingEvaluation
+                && cancelledFocusState.nextEvaluation(at: 31.1, delayMilliseconds: 250) == nil,
+               "movement in the same window rearms a canceled focus with a fresh delay")
+        let retriedFocus = cancelledFocusState.nextEvaluation(at: 31.3, delayMilliseconds: 250)
+        suite.expect(retriedFocus?.point == CGPoint(x: 20, y: 10)
+                && cancelledFocus.map(cancelledFocusState.isCurrent) == false
+                && retriedFocus.map(cancelledFocusState.isCurrent) == true,
+               "retrying a canceled focus uses the latest pointer and rejects the old attempt")
+
+        var movingFocusState = FocusFollowsMouseState()
+        movingFocusState.recordMovement(to: CGPoint(x: 10, y: 10), at: 40, windowID: 1)
+        let movingFocus = movingFocusState.nextEvaluation(at: 40.3, delayMilliseconds: 250)
+        movingFocusState.recordMovement(to: CGPoint(x: 20, y: 10), at: 40.4, windowID: 1)
+        movingFocusState.recordMovement(to: CGPoint(x: 30, y: 10), at: 40.5, windowID: 1)
+        suite.expect(movingFocusState.nextEvaluation(at: 40.6, delayMilliseconds: 250) == nil,
+               "movement during a focus lookup never launches another lookup alongside it")
+        if let movingFocus { movingFocusState.finishEvaluation(movingFocus, succeeded: false) }
+        suite.expect(movingFocusState.hasPendingEvaluation
+                && movingFocusState.nextEvaluation(at: 40.7, delayMilliseconds: 250) == nil,
+               "canceling a lookup preserves movement that arrived while it was running")
+        let movedRetry = movingFocusState.nextEvaluation(at: 40.8, delayMilliseconds: 250)
+        suite.expect(movedRetry?.point == CGPoint(x: 30, y: 10)
+                && movedRetry.map(movingFocusState.isCurrent) == true,
+               "movement during a canceled handoff retries with the latest position after its delay")
+        let retryInFlight = movingFocusState
+        if let movingFocus {
+            movingFocusState.finishEvaluation(movingFocus, succeeded: true)
+            movingFocusState.finishEvaluation(movingFocus, succeeded: false)
+        }
+        suite.expect(movingFocusState == retryInFlight,
+               "late completion from an older focus attempt cannot finish or cancel its replacement")
+
+        movingFocusState.recordMovement(to: CGPoint(x: 70, y: 10), at: 41, windowID: 2)
+        let nextWindowState = movingFocusState
+        if let movedRetry { movingFocusState.finishEvaluation(movedRetry, succeeded: false) }
+        suite.expect(movingFocusState == nextWindowState && movingFocusState.hasPendingEvaluation,
+               "canceling an old window lookup leaves the new window's delay intact")
+        let beforeStop = movingFocusState.nextEvaluation(at: 41.3, delayMilliseconds: 250)
+        movingFocusState.reset()
+        if let beforeStop { movingFocusState.finishEvaluation(beforeStop, succeeded: false) }
+        suite.expect(beforeStop != nil && movingFocusState.point == nil
+                && !movingFocusState.hasPendingEvaluation,
+               "a canceled handoff after stop or reset cannot rearm focus work")
+        var longDelayFocusState = FocusFollowsMouseState()
+        longDelayFocusState.recordMovement(to: CGPoint(x: 40, y: 70), at: 20)
+        suite.expect(longDelayFocusState.nextEvaluation(at: 21, delayMilliseconds: 3_000) == nil
+                && longDelayFocusState.nextEvaluation(at: 22.99, delayMilliseconds: 3_000) == nil
+                && longDelayFocusState.hasPendingEvaluation,
+               "a three-second focus delay does not activate the window early")
+        suite.expect(longDelayFocusState.nextEvaluation(at: 23, delayMilliseconds: 3_000)?.point
+                == CGPoint(x: 40, y: 70),
+               "a three-second focus delay evaluates the window once the full delay passes")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
                "focus follows mouse ships off with a safe delay")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseDelay),
                "focus follows mouse preferences follow settings backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseRaise] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseWaitForStop] as? Bool == true
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseRaise)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.focusFollowsMouseWaitForStop),
+               "focus follows mouse keeps raising and waiting for the pointer to stop by default, and backs up both")
         let focusFollowsMouseServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/FocusFollowsMouse/FocusFollowsMouseService.swift",
             encoding: .utf8)) ?? ""
@@ -1027,6 +1129,9 @@ enum PointerInputFeatureTests {
         suite.expect(focusFollowsMouseServiceSource.contains(
                 "!SpaceWindowBridge.isParkedOnHiddenSpace(target.windowID)"),
                "focus follows mouse never hands a window on a hidden Space to the activator, which would travel")
+        suite.expect(focusFollowsMouseServiceSource.contains(
+                "WindowActivator.supersedePendingActivations(for: target.processID)"),
+               "focus without raise stops the passes a switcher jump left pending, as the raising path does")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
@@ -1382,6 +1487,8 @@ enum PointerInputFeatureTests {
                "auto-repeat never forces a manual maximize/minimize override")
         suite.expect(WindowDirectionalGestureSupport.shouldApplyKeyboardManualOverride(isAutorepeat: false),
                "a distinct Space, Return, or Up tap still maximizes while the ring is open")
+
+        MiddleClickTrackpadContract.run(suite)
 
         // MARK: Middle click tap (issue #161)
 
@@ -3260,8 +3367,18 @@ enum PointerInputFeatureTests {
                 .joined(separator: "\n")
             suite.expect(code.contains("SessionActivity.shared.onChange"),
                    "\(tapOwner) rebuilds its tap when the session comes back")
-            let rearm = code.components(separatedBy: "tapDisabledByTimeout")
-                .dropFirst().first?.components(separatedBy: "return").first ?? ""
+            let timeoutClause = code.components(separatedBy: "tapDisabledByTimeout")
+                .dropFirst().first ?? ""
+            var rearm = ""
+            var depth = 0
+            for character in timeoutClause {
+                if character == "{" { depth += 1 }
+                if depth > 0 { rearm.append(character) }
+                if character == "}" {
+                    depth -= 1
+                    if depth == 0 { break }
+                }
+            }
             suite.expect(rearm.contains("SessionActivity.shared.isActive"),
                    "\(tapOwner) does not re-arm a disabled tap into a switched-away session")
             if tapOwner.contains("MouseNavigation")
@@ -3408,6 +3525,18 @@ enum PointerInputFeatureTests {
         suite.expect(QuitProtectionSupport.usesNativeQuitRequest(for: .quit)
                 && !QuitProtectionSupport.usesNativeQuitRequest(for: .close),
                "quit confirmation asks the target app to terminate while close stays a window shortcut")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam"),
+               "a compatibility target sends synthetic keystrokes instead of native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam.helper"),
+               "an unverified helper keeps using native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.steam"),
+               "a same-named unrelated app keeps using native terminate")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.editor"),
+               "an ordinary app continues using native terminate requests")
 
         suite.expect(QuitProtectionSupport.scopeAllows(.all, bundleIdentifier: nil, exceptions: []),
                "all-app scope protects even an app without a bundle identifier")
@@ -3563,5 +3692,178 @@ private final class PointerInputTestClock {
 
     func advance(by interval: TimeInterval) {
         lock.withLock { value += interval }
+    }
+}
+
+/// Runs the production lifecycle and notification callbacks with IOKit,
+/// MultitouchSupport and the event tap replaced by doubles.
+enum MiddleClickTrackpadContract {
+    static let middleClickContactCallback = "contact"
+    enum Multitouch {
+        static var devices: CFArray?
+        static func deviceList() -> CFArray? { devices }
+        static func register(_ device: UnsafeMutableRawPointer, _ callback: String?) {}
+        static func start(_ device: UnsafeMutableRawPointer) {}
+        static func stop(_ device: UnsafeMutableRawPointer) {}
+    }
+    enum PointerTapRunLoop {
+        static func remove(_ source: CFRunLoopSource, invalidating port: Int?) {}
+    }
+    enum EventTap {
+        static func tapEnable(tap: Int, enable: Bool) {}
+    }
+    enum Workspace {
+        static let shared = WorkspaceState()
+        struct WorkspaceState { let notificationCenter = NotificationCenter() }
+    }
+    enum IO {
+        struct Registration {
+            let notification: String
+            let callback: (UnsafeMutableRawPointer?, io_iterator_t) -> Void
+            let context: UnsafeMutableRawPointer?
+            let iterator: io_iterator_t
+        }
+        static var registrations: [Registration] = []
+        static var armed: Set<io_iterator_t> = []
+        static var released: [io_object_t] = []
+        static var destroyedPorts = 0
+        static var calls = 0
+        static var failAt: Int?
+        static func reset() {
+            registrations = []; armed = []; released = []
+            destroyedPorts = 0; calls = 0; failAt = nil
+        }
+        static func IONotificationPortCreate(_ port: mach_port_t) -> Int? { 1 }
+        static func IONotificationPortSetDispatchQueue(_ port: Int, _ queue: DispatchQueue) {}
+        static func IOServiceMatching(_ name: String) -> String { name }
+        static func IOServiceAddMatchingNotification(
+            _ port: Int, _ notification: String, _ matching: String,
+            _ callback: @escaping (UnsafeMutableRawPointer?, io_iterator_t) -> Void,
+            _ context: UnsafeMutableRawPointer?, _ iterator: inout io_iterator_t
+        ) -> kern_return_t {
+            calls += 1
+            if calls == failAt { return kIOReturnError }
+            iterator = io_iterator_t(calls)
+            registrations.append(Registration(notification: notification, callback: callback,
+                                               context: context, iterator: iterator))
+            return KERN_SUCCESS
+        }
+        static func IOIteratorNext(_ iterator: io_iterator_t) -> io_object_t {
+            armed.insert(iterator)
+            return 0
+        }
+        static func IOObjectRelease(_ object: io_object_t) { released.append(object) }
+        static func IONotificationPortDestroy(_ port: Int) {
+            destroyedPorts += 1
+            registrations = []
+        }
+        static func emit(_ notification: String) {
+            for registration in registrations where registration.notification == notification
+                && armed.remove(registration.iterator) != nil {
+                registration.callback(registration.context, registration.iterator)
+            }
+        }
+    }
+    class Fixture {
+        typealias CFMachPort = Int
+        typealias CGEvent = EventTap
+        typealias NSWorkspace = Workspace
+        typealias MiddleClickService = Service
+        var deviceList: CFArray?
+        var touchDeviceMissing = false
+        var isRunning = false
+        var tap: Int? = 1
+        var runLoopSource: CFRunLoopSource?
+        var observers: [Any] = []
+        var hotplugPort: Int?
+        var hotplugIterators: [io_iterator_t] = []
+        let tapStateLock = NSLock()
+        let stateLock = NSLock()
+        var lastTransformEnd: TimeInterval?
+        var suppressedButtonSequence = false
+        var fingerCount = 0
+        var lastFrameUptime: TimeInterval = 0
+        var fingerCountSince: TimeInterval = 0
+        func releaseHeldMiddleButton() {}
+        func resetTapCandidateLocked() {}
+    }
+
+    static func run(_ suite: TestSuite) {
+        IO.reset()
+        let service = Service()
+        Multitouch.devices = nil
+        service.startMultitouch()
+        service.installHotplugObserver()
+        service.installHotplugObserver()
+        suite.expect(service.touchDeviceMissing,
+                     "a started middle click without a touch device tells Settings the trackpad cannot be read")
+        suite.expect(Set(IO.registrations.map(\.notification))
+                        == [kIOFirstMatchNotification, kIOTerminatedNotification] && IO.calls == 2,
+                     "one observer is armed for arrivals and one for removals, without duplicate registration")
+        Multitouch.devices = [NSObject()] as CFArray
+        IO.emit(kIOFirstMatchNotification)
+        suite.expect(!service.touchDeviceMissing, "a touch device clears the missing trackpad warning")
+        IO.emit(kIOTerminatedNotification)
+        suite.expect(!service.touchDeviceMissing && service.deviceList != nil,
+                     "removing one device keeps the warning off when another trackpad remains")
+        Multitouch.devices = nil
+        IO.emit(kIOTerminatedNotification)
+        suite.expect(service.touchDeviceMissing && service.deviceList == nil,
+                     "removing the last trackpad runs the production callback and brings the warning back")
+        Multitouch.devices = [NSObject()] as CFArray
+        IO.emit(kIOFirstMatchNotification)
+        suite.expect(!service.touchDeviceMissing, "reconnecting a trackpad clears the warning again")
+        Multitouch.devices = nil
+        IO.emit(kIOFirstMatchNotification)
+        suite.expect(service.touchDeviceMissing,
+                     "an arrival delivered after a removal reads the current device list, not the old event")
+        let delayed = IO.registrations.first!
+        service.stop()
+        delayed.callback(delayed.context, delayed.iterator)
+        suite.expect(!service.touchDeviceMissing && service.deviceList == nil,
+                     "pausing middle click clears the warning and ignores queued device callbacks")
+        suite.expect(IO.released == [1, 2] && IO.destroyedPorts == 1
+                        && service.hotplugPort == nil && service.hotplugIterators.isEmpty,
+                     "stopping releases both notification iterators and their port")
+        for failure in [1, 2] {
+            IO.reset()
+            IO.failAt = failure
+            let unavailable = Service()
+            unavailable.installHotplugObserver()
+            suite.expect(unavailable.hotplugPort == nil && unavailable.hotplugIterators.isEmpty
+                            && IO.destroyedPorts == 1 && IO.released == (failure == 2 ? [1] : []),
+                         "a failed notification registration releases every resource already acquired")
+            unavailable.stop()
+        }
+        IO.reset()
+
+        let panel = Panel()
+        panel.middleClick.touchDeviceMissing = true
+        panel.middleClick.systemDragGestureConflict = true
+        suite.expect(panel.middleClickCaption == Strings.enUS.middleClickNoTrackpad,
+                     "the quick controls row says the trackpad cannot be read, ahead of the drag conflict")
+        panel.middleClick.touchDeviceMissing = false
+        suite.expect(panel.middleClickCaption == Strings.enUS.middleClickDragConflict,
+                     "the quick controls row falls back to the drag conflict once a trackpad is read")
+        panel.permissions.accessibility = false
+        panel.middleClick.touchDeviceMissing = true
+        suite.expect(panel.middleClickCaption.hasPrefix(Strings.enUS.permissionRequired),
+                     "a missing Accessibility grant still comes first")
+        panel.middleClickEnabled = false
+        suite.expect(panel.middleClickCaption == Strings.enUS.middleClickEnableCaption,
+                     "a disabled middle click does not show a missing-trackpad warning")
+    }
+
+    class PanelFixture {
+        struct Localizer { let s = Strings.enUS }
+        struct PermissionState { var accessibility = true }
+        final class MiddleClickState {
+            var touchDeviceMissing = false
+            var systemDragGestureConflict = false
+        }
+        let l10n = Localizer()
+        var permissions = PermissionState()
+        let middleClick = MiddleClickState()
+        var middleClickEnabled = true
     }
 }

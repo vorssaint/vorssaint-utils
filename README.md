@@ -90,6 +90,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Dock Preview.** Hover over Dock icons to preview windows across desktops. Switch, close, move or snap them from the preview.
 - **Dock clicks.** Click an active app's Dock icon to minimize, hide or cycle through its windows.
 - **Maximize windows.** Use the green button to fill the screen without creating another Space.
+- **Fixed Space order.** Keep Spaces in the order you set instead of rearranging them by recent use. Turning it off restores your previous setting.
 - **Quit on close.** Quit selected apps when their last window closes.
 - **Quit and close protection.** Prevent accidental ⌘Q or ⌘W with a hold, double press or extra modifier, per app.
 
@@ -132,7 +133,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **AI agents.** Follow Claude, Codex and OpenCode in the Dynamic Island: plan limits and when they reset, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too.
+- **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.

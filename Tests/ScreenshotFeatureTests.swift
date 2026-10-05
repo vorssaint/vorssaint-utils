@@ -263,6 +263,62 @@ enum ScreenshotFeatureTests {
             placed: CGRect(x: 4, y: 2, width: 8, height: 6), packed: packedWindow,
             coverage: attachedCoverage(windowAt: CGPoint(x: 4, y: 2))) == CGRect(x: 4, y: 2, width: 8, height: 6),
                "an overlapping placement still follows where the window was drawn")
+        let straddlingParent = CGRect(x: 1200, y: 100, width: 800, height: 600)
+        suite.expect(ScreenshotCapturePolicy.compositeRect(for: straddlingParent, in: straddlingParent, scale: 2)
+                == CGRect(x: 0, y: 0, width: 1600, height: 1200)
+                && ScreenshotCapturePolicy.compositeRect(
+                    for: CGRect(x: 1400, y: 128, width: 400, height: 200), in: straddlingParent, scale: 2)
+                == CGRect(x: 400, y: 744, width: 800, height: 400),
+               "a sheet on a window spanning two displays lands at its place under the title bar")
+        let layerFrame = CGRect(x: 1200, y: 100, width: 800, height: 600)
+        suite.expect(ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                              frame: layerFrame, scale: 2)
+                && ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1601, imageHeight: 1199,
+                                                            frame: layerFrame, scale: 2),
+               "a whole window buffer covers its frame, allowing a pixel of rounding")
+        suite.expect(!ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1552, imageHeight: 1200,
+                                                               frame: layerFrame, scale: 2)
+                && !ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1164,
+                                                             frame: layerFrame, scale: 2),
+               "a buffer a few percent short, clipped at a display edge, drops the layer instead of stretching it")
+        suite.expect(ScreenshotCapturePolicy.layerScale(imageWidth: 800, imageHeight: 600, frame: layerFrame,
+                                                        candidates: [1, 2]) == 1
+                && ScreenshotCapturePolicy.layerScale(imageWidth: 1600, imageHeight: 1200, frame: layerFrame,
+                                                      candidates: [1, 2]) == 2
+                && ScreenshotCapturePolicy.layerScale(imageWidth: 1552, imageHeight: 1200, frame: layerFrame,
+                                                      candidates: [1, 2]) == nil,
+               "the clicked window's buffer sets one display scale for every layer, and a clipped one sets none")
+        // A 1x display with a 2x display connected: the composite's scale is
+        // the one its target layer was captured at, which the caller records
+        // in place of the clicked display's so sizes and exports match pixels.
+        let mixedScales: [CGFloat] = [1, 2]
+        suite.expect(ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (800, 600), frame: layerFrame, candidates: mixedScales) == .buffer(scale: 1)
+                && ScreenshotCapturePolicy.compositeTargetCapture(
+                    buffer: (1600, 1200), frame: layerFrame, candidates: mixedScales) == .buffer(scale: 2),
+               "a whole window-server buffer on mixed displays reports the scale its pixels were drawn at")
+        let mixedRecapture = ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (776, 600), frame: layerFrame, candidates: mixedScales)
+        suite.expect(mixedRecapture == .recapture(scale: 2)
+                && ScreenshotCapturePolicy.compositeTargetCapture(
+                    buffer: nil, frame: layerFrame, candidates: mixedScales) == .recapture(scale: 2),
+               "a clipped or missing buffer on mixed displays is recaptured at the finest scale")
+        if let mixedRecapture {
+            let canvas = ScreenshotCapturePolicy.compositeRect(for: layerFrame, in: layerFrame,
+                                                               scale: mixedRecapture.scale)
+            suite.expect(mixedRecapture.scale == 2
+                    && ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                                frame: layerFrame, scale: mixedRecapture.scale)
+                    && !ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                                 frame: layerFrame, scale: 1)
+                    && canvas.size == CGSize(width: 1600, height: 1200),
+                   "the recaptured composite reports 2x, matching its pixels, not the clicked 1x display")
+        } else {
+            suite.expect(false, "the recaptured composite reports 2x, matching its pixels, not the clicked 1x display")
+        }
+        suite.expect(ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (1600, 1200), frame: layerFrame, candidates: []) == nil,
+               "with no display scale known there is no composite to report")
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet, capturedWindow])
             == ScreenshotCapturePolicy.AttachedCapturePlan(
@@ -316,7 +372,7 @@ enum ScreenshotFeatureTests {
         suite.expect(captureEngineSource.contains("$0.frame.intersects(plan.bounds)")
                 && captureEngineSource.contains("hits.count == 1")
                 && !captureEngineSource.contains(".contains(plan.bounds)"),
-               "a window straddling two displays falls back to the single-window capture instead of a one-display slice")
+               "the one-display crop declines a window straddling two displays instead of taking a one-display slice")
 
         let geometricAttachment = ScreenshotCapturePolicy.AttachedCapturePlan(
             windowIDs: [1, 6, 2], bounds: capturedWindow.frame)
@@ -2632,6 +2688,27 @@ enum ScreenshotFeatureTests {
         }
         suite.expectClose(steppedLoupeZoom, ScreenshotSupport.captureLoupeMinZoom,
                     "all stepped magnifier levels are reversible without dead notches")
+        var plainFastZoom = ScreenshotSupport.captureLoupeMinZoom
+        var plainFastNotches = 0
+        while plainFastZoom < ScreenshotSupport.captureLoupeMaxZoom, plainFastNotches < 20 {
+            plainFastZoom = ScreenshotSupport.captureLoupeFastZoom(
+                plainFastZoom, adjustedBy: 1, isContinuous: false)
+            plainFastNotches += 1
+        }
+        suite.expect(plainFastNotches <= 6,
+               "fast zoom on a plain wheel crosses the range in a few notches, not one level each")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1,
+                                                                 isContinuous: true), 1.15,
+                    "fast zoom keeps its per-packet factor for a smoothed wheel")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(4, adjustedBy: -1,
+                                                                 isContinuous: false),
+                    4 / (1.15 * 1.15 * 1.15),
+                    "fast zoom on a plain wheel zooms back out at the same pace")
+        // A scroll tool can write three lines per notch; the notch keeps its pace.
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 3,
+                                                                 isContinuous: false),
+                    ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1, isContinuous: false),
+                    "a plain notch carrying three lines lands where a one-line notch does")
         var fastLoupeZoom: CGFloat = 1
         for _ in 0..<6 {
             fastLoupeZoom = ScreenshotSupport.captureLoupeZoom(
@@ -3129,6 +3206,7 @@ enum ScreenshotFeatureTests {
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
+        RadialMenuProfileDeletionContract.run(suite)
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuShortcut] as? String
                 == "control+option+command:49",
                "the default radial menu shortcut is control option command space")
@@ -3211,5 +3289,37 @@ enum ScreenshotFeatureTests {
                 == [.screenshot, .colorPicker],
                "capture roles are reordered for display and other roles fall away")
         GlobalShortcut.refreshLayoutLabels()
+    }
+}
+
+/// Runs the production profile deletion from Settings with its view state
+/// held by a plain fixture.
+enum RadialMenuProfileDeletionContract {
+    class Fixture {
+        var profiles: [RadialMenuProfile] = []
+        var selectedProfileID: UUID?
+        var openSubmenuID: UUID?
+        var dragging: RadialMenuItem?
+        var persisted = 0
+        func persist() { persisted += 1 }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let settings = Settings()
+        let first = RadialMenuProfile(name: "First")
+        let second = RadialMenuProfile(name: "Second")
+        let third = RadialMenuProfile(name: "Third")
+        settings.profiles = [first, second, third]
+        settings.selectedProfileID = third.id
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.map(\.id) == [second.id, third.id] && settings.persisted == 1,
+                     "the confirmed profile is deleted even after the selection moved to another one")
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.count == 2 && settings.persisted == 1,
+                     "a confirmation for a profile that is already gone deletes nothing")
+        settings.deleteProfile(id: second.id)
+        settings.deleteProfile(id: third.id)
+        suite.expect(settings.profiles.map(\.id) == [third.id] && settings.selectedProfileID == third.id,
+                     "the last profile is never deleted and stays selected")
     }
 }

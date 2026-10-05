@@ -517,9 +517,11 @@ final class AppVolumeMixer: ObservableObject {
             let value = min(1, max(0, volume))
             adjustment.volume = value
             systemOutputVolume = value
-            if value > 0, systemOutputMuted != nil {
-                adjustment.muted = false
-                systemOutputMuted = false
+            // Many outputs still play faintly at a scalar of zero; macOS mutes
+            // there, so do the same.
+            if systemOutputMuted != nil, muted == nil {
+                adjustment.muted = value == 0
+                systemOutputMuted = value == 0
             }
         }
         if let muted { adjustment.muted = muted; systemOutputMuted = muted }
