@@ -79,6 +79,7 @@ extension View {
 
 private struct GraphCeilingLabel: ViewModifier {
     @AppStorage(DefaultsKey.monitorGraphScale) private var visible = true
+    @Environment(\.layoutDirection) private var layoutDirection
     let text: String
 
     func body(content: Content) -> some View {
@@ -94,8 +95,10 @@ private struct GraphCeilingLabel: ViewModifier {
                     }
                     .allowsHitTesting(false)
                 }
-                // Over the oldest samples, so the newest stay clear.
-                .overlay(alignment: .topLeading) {
+                // Over the oldest samples, so the newest stay clear. A graph
+                // keeps its time running left to right in every language, so
+                // in a right-to-left one they sit at the trailing edge.
+                .overlay(alignment: layoutDirection == .rightToLeft ? .topTrailing : .topLeading) {
                     Text(text)
                         .font(.system(size: 9))
                         .monospacedDigit()

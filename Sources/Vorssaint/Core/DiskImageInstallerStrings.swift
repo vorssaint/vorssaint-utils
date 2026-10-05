@@ -412,7 +412,7 @@ extension DiskImageInstallerStrings {
         verificationFailedBody: "تعذّر على هذا الـ Mac التحقق من التطبيق، لذا لم يُثبَّت شيء.",
         alreadyInstalledBodyFormat: "%@ موجود أصلًا في “التطبيقات”.",
         trashDownloadOption: "نقل ملف التنزيل إلى المهملات",
-        revealAppOption: "إظهار التطبيق المثبّت في Finder",
+        revealAppOption: "إظهار التطبيق المثبّت في فايندر",
         installedKeptDownloadBodyFormat: "%@ جاهز في %@. أُخرجت صورة القرص وأُبقي على ملف تنزيلها.",
         installingFormat: "جارٍ تثبيت %@…")
 }

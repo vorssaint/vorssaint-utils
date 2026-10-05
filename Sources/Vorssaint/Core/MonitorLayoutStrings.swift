@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -107,5 +108,10 @@ extension MonitorLayoutFeatureStrings {
     static let uk = MonitorLayoutFeatureStrings(
         shared: "Показники та сповіщення",
         networkSpeedUnit: "Одиниця швидкості мережі"
+    )
+
+    static let ar = MonitorLayoutFeatureStrings(
+        shared: "القراءات والتنبيهات",
+        networkSpeedUnit: "وحدة سرعة الشبكة"
     )
 }

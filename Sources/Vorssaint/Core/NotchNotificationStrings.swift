@@ -208,6 +208,7 @@ extension FeatureStrings {
             waiting: "في انتظار خدمة إشعارات النظام",
             open: "فتح",
             dismiss: "تجاهل",
+            clearAll: "مسح الكل",
             unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
             hideSystemBanner: "إخفاء راية النظام",
             hideSystemBannerHint: "يُخفي الراية الأصلية بينما تعرضها الجزيرة الديناميكية.")
