@@ -27,7 +27,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
     private weak var keepAwakeButton: NSButton?
     private weak var micMuteButton: NSButton?
-    private weak var systemMetricsLabel: NSTextField?
+    private weak var systemMetricsButton: NSButton?
     private weak var mediaToggleButton: NSButton?
     private var cancellables = Set<AnyCancellable>()
 
@@ -230,10 +230,14 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem {
         let item = NSCustomTouchBarItem(identifier: identifier)
-        let label = NSTextField(labelWithString: "CPU --% · RAM --%")
-        label.alignment = .center
-        systemMetricsLabel = label
-        item.view = label
+        let button = NSButton(
+            title: "CPU --% · RAM --%",
+            target: self,
+            action: #selector(showMemoryMetric(_:))
+        )
+        button.isBordered = false
+        systemMetricsButton = button
+        item.view = button
         return item
     }
 
@@ -330,7 +334,11 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
             ram = "--%"
         }
 
-        systemMetricsLabel?.stringValue = "CPU \(cpu) · RAM \(ram)"
+        systemMetricsButton?.title = "CPU \(cpu) · RAM \(ram)"
+    }
+
+    @objc private func showMemoryMetric(_ sender: NSButton) {
+        (NSApp.delegate as? AppDelegate)?.showMemoryMetricPanel()
     }
 
     private func updateKeepAwakeButton() {

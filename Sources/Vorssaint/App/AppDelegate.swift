@@ -480,6 +480,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         statusController?.containsStatusItem(at: point) == true
     }
 
+    func showMemoryMetricPanel() {
+        guard let button = statusController?.button else { return }
+        showMetricPanel(for: .memory, anchoredTo: button)
+    }
+
     private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
         let detailKind = metric.detailKind
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback,
