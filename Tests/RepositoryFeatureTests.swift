@@ -823,9 +823,9 @@ enum RepositoryFeatureTests {
         suite.expect(flatWithUpdate.rows.map(\.id) == withUpdate.map(\.id)
                      && flatWithUpdate.rows.first?.name == "shared-lib",
                      "Homebrew flat mode keeps update-first ordering and includes dependencies as top-level rows")
-        suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b"]
+        suite.expect(updateFolded.rows.map(\.name) == ["app-a", "example/tap/app-b", "cask-app"]
                      && updateFolded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
-                     "Homebrew keeps a reached dependency with an update as its own first row and under its parent, found \(updateFolded.rows.map(\.name))")
+                     "Homebrew keeps a dependency with an update under its parents and moves those parents up, found \(updateFolded.rows.map(\.name))")
         let orphanUpdate = HomebrewPackageOrdering.updatesFirst(dependencyPackages.map { package in
             var package = package
             if package.name == "orphan-lib" {
@@ -835,8 +835,9 @@ enum RepositoryFeatureTests {
             return package
         })
         let orphanUpdateFolded = HomebrewDependencyGraph.fold(orphanUpdate, installed: orphanUpdate)
-        suite.expect(orphanUpdateFolded.rows.first?.name == "orphan-lib" && orphanUpdateFolded.orphans.isEmpty,
-                     "Homebrew keeps an orphan with an update as the first row, found \(orphanUpdateFolded.rows.map(\.name))")
+        suite.expect(orphanUpdateFolded.orphans.map(\.name) == ["orphan-lib"]
+                     && !orphanUpdateFolded.rows.contains { $0.name == "orphan-lib" },
+                     "Homebrew keeps an orphan with an update in the unneeded group, found \(orphanUpdateFolded.rows.map(\.name))")
         let formulaOnly = dependencyPackages.filter { $0.kind == .formula }
         let flatFormulaOnly = HomebrewDependencyGraph.display(formulaOnly,
                                                               installed: dependencyPackages,

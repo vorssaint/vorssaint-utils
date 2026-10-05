@@ -814,7 +814,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
-        case .switcher: return strings.switcherSection
+        case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle

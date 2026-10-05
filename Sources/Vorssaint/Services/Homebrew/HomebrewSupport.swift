@@ -134,10 +134,10 @@ enum HomebrewDependencyGraph {
     /// Splits installed packages into rows the person asked for and, under
     /// each, the installed dependencies it reaches. Only packages in `visible`
     /// become rows, so a filter never hides a dependency whose parent it hid.
-    /// A dependency nothing visible reaches, or one with a pending update,
-    /// stays a row of its own so every update keeps its place at the top.
-    /// A dependency no installed package needs any more is an orphan, listed
-    /// apart unless it has an update.
+    /// A dependency nothing visible reaches stays a row of its own. One with a
+    /// pending update stays under its parents, and those parents move up with
+    /// the packages that have updates. A dependency no installed package needs
+    /// any more is an orphan, listed apart with its update if it has one.
     static func fold(_ visible: [HomebrewPackage],
                      installed: [HomebrewPackage]) -> (rows: [HomebrewPackage],
                                                        dependencies: [String: [HomebrewPackage]],
@@ -171,12 +171,15 @@ enum HomebrewDependencyGraph {
             }
             reached.formUnion(found.map(\.id))
         }
-        let rows = visible.filter {
-            $0.installedOnRequest != false || $0.hasUpdateAvailable
-                || (needed.contains($0.id) && !reached.contains($0.id))
+        let listed = visible.filter {
+            $0.installedOnRequest != false || (needed.contains($0.id) && !reached.contains($0.id))
         }
+        let hasUpdates: (HomebrewPackage) -> Bool = { package in
+            package.hasUpdateAvailable || dependencies[package.id]?.contains(where: \.hasUpdateAvailable) == true
+        }
+        let rows = listed.filter(hasUpdates) + listed.filter { !hasUpdates($0) }
         let orphans = visible.filter {
-            $0.installedOnRequest == false && !$0.hasUpdateAvailable && !needed.contains($0.id)
+            $0.installedOnRequest == false && !needed.contains($0.id)
         }
         return (rows, dependencies, orphans)
     }

@@ -515,9 +515,9 @@ enum CommandBarCatalog {
                 subtitle: enabled
                     ? String(format: bar.argumentRangeFormat, 0, 100)
                     : area(.brightness),
-                // The Displays page name doubles as a synonym, so the words
-                // of both surfaces land here.
-                keywords: FeatureStrings.brightness(language).pageTitle,
+                // The Displays page name and the everyday word for the screen
+                // both find this row, so "screen 40" still sets brightness.
+                keywords: FeatureStrings.brightness(language).pageTitle + " " + bar.brightnessKeywords,
                 icon: .symbol("sun.max"),
                 trouble: enabled ? nil
                     : .needsSetup(featureTitle: FeatureStrings.brightness(language).pageTitle,

@@ -321,7 +321,8 @@ struct HomebrewSettings: View {
                             .accessibilityLabel("\(l10n.s.homebrewDependencies): \(package.displayName)")
                             .accessibilityValue(isExpanded ? l10n.s.disclosureExpanded : l10n.s.disclosureCollapsed)
                             .accessibilityHidden(dependencies.isEmpty)
-                            packageRow(package)
+                            packageRow(package,
+                                       dependencyUpdates: dependencies.filter(\.hasUpdateAvailable).count)
                         }
                         if isExpanded {
                             ForEach(dependencies) { dependency in
@@ -397,7 +398,7 @@ struct HomebrewSettings: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func packageRow(_ package: HomebrewPackage) -> some View {
+    private func packageRow(_ package: HomebrewPackage, dependencyUpdates: Int = 0) -> some View {
         HStack(spacing: 8) {
             Button {
                 homebrew.select(package)
@@ -417,6 +418,12 @@ struct HomebrewSettings: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
+                    if dependencyUpdates > 0 {
+                        Text(String(format: l10n.s.homebrewDependencyUpdatesFormat, dependencyUpdates))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                            .lineLimit(1)
+                    }
                     if let popularity = package.popularity {
                         popularityBadge(popularity)
                     }
