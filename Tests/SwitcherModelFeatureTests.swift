@@ -2515,6 +2515,27 @@ enum SwitcherModelFeatureTests {
                      && keepAwakeHoldCode.contains("refresh()")
                      && statusControllerSource.contains("heldKeepAwakeSignal ?? currentKeepAwakeSignal"),
                "starting or stopping Keep Awake from an open panel does not bring the glyph back under it")
+        // popoverDidClose keeps the hold while the panel switches anchors, so
+        // a switch that ends with the panel closed has to release it itself.
+        // Otherwise the glyph ignores Keep Awake until the next panel closes.
+        // Each failure branch is sliced at its own closing brace.
+        for (header, guardEnd, branchEnd, condition, label) in [
+            ("private func reanchorMetricPopover(", "activeMetric == detailKind else {",
+             "\n            }", "if !self.popover.isShown {", "closes while moving between metric items"),
+            ("private func useStablePopoverPositioningViewIfNeeded(", "view.window else {",
+             "\n        }", "if !popover.isShown {", "does not come back on its stable anchor"),
+        ] {
+            let switchCode = stripCommentLines((statusAnchorAppDelegateSource
+                .components(separatedBy: header).last ?? "")
+                .components(separatedBy: "\n    }").first ?? "")
+            let releaseCode = ((switchCode.components(separatedBy: guardEnd).dropFirst().first ?? "")
+                .components(separatedBy: branchEnd).first ?? "")
+                .components(separatedBy: condition).dropFirst().first ?? ""
+            suite.expect(releaseCode.contains("statusController.setMicBadgeHeld(false)")
+                         && releaseCode.contains("releasePanelResources()")
+                         && releaseCode.contains("endPanelActivationTracking()"),
+                   "a panel that \(label) releases the held glyph, its resources and activation tracking")
+        }
         suite.expect(MenuBarSpacingSupport.shouldHideStatusIcon(optionEnabled: true, separateMetrics: false,
                                                           metricsEnabled: true, renderedTitleLength: 12,
                                                           mustShowForSignal: false),
@@ -3212,56 +3233,6 @@ enum SwitcherModelFeatureTests {
                                                        orientation: .right)
         suite.expect(rightFrame.maxX < 1360,
                "Dock Preview right panel sits to the left of the Dock")
-        let hiddenLeftFrame = DockPreviewSupport.panelFrameWhenDockHidden(
-            leftFrame, screenVisibleFrame: screen, orientation: .left)
-        suite.expect(hiddenLeftFrame.minX == screen.minX + DockPreviewSupport.edgePadding
-               && hiddenLeftFrame.minY == leftFrame.minY,
-               "Dock Preview fills a left auto-hidden Dock's vacated edge without jumping vertically")
-        let hiddenRightFrame = DockPreviewSupport.panelFrameWhenDockHidden(
-            rightFrame, screenVisibleFrame: screen, orientation: .right)
-        suite.expect(hiddenRightFrame.maxX == screen.maxX - DockPreviewSupport.edgePadding
-               && hiddenRightFrame.minY == rightFrame.minY,
-               "Dock Preview fills a right auto-hidden Dock's vacated edge without jumping vertically")
-        let hiddenBottomFrame = DockPreviewSupport.panelFrameWhenDockHidden(
-            bottomFrame, screenVisibleFrame: screen, orientation: .bottom)
-        suite.expect(hiddenBottomFrame.minY == screen.minY + DockPreviewSupport.edgePadding
-               && hiddenBottomFrame.minX == bottomFrame.minX,
-               "Dock Preview fills a bottom auto-hidden Dock's vacated edge without jumping horizontally")
-        let resizedDockFrame = DockPreviewSupport.panelFrame(
-            anchor: iconBottom,
-            panelSize: DockPreviewSupport.panelSize(itemCount: 1,
-                                                    screenVisibleFrame: screen,
-                                                    isPinned: false),
-            screenVisibleFrame: screen,
-            orientation: .bottom
-        )
-        let expectedResizedEdgeFrame = DockPreviewSupport.panelFrameWhenDockHidden(
-            resizedDockFrame, screenVisibleFrame: screen, orientation: .bottom)
-        suite.expect(DockPreviewSupport.resizedPanelFrame(
-                resizedDockFrame,
-                didReattachForSession: true,
-                screenVisibleFrame: screen,
-                orientation: .bottom) == expectedResizedEdgeFrame,
-               "resizing a reattached Dock Preview keeps it at the vacated screen edge")
-        suite.expect(!DockPreviewSupport.shouldStartDockVisibilityTimer(
-                hasActiveTimer: false,
-                didReattachForSession: true,
-                autohide: true),
-               "a reattached Dock Preview does not re-arm its visibility watcher")
-        // Both complements, so neither helper can be mutated into a constant
-        // and stay green: an always-edge frame would strand a panel that was
-        // never reattached, and an always-false watcher would never fire once.
-        suite.expect(DockPreviewSupport.resizedPanelFrame(
-                resizedDockFrame,
-                didReattachForSession: false,
-                screenVisibleFrame: screen,
-                orientation: .bottom) == resizedDockFrame,
-               "a preview that never reattached keeps resizing to the Dock-anchored frame")
-        suite.expect(DockPreviewSupport.shouldStartDockVisibilityTimer(
-                hasActiveTimer: false,
-                didReattachForSession: false,
-                autohide: true),
-               "an auto-hiding Dock still arms the visibility watcher the first time")
         let dockPreviewServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift",
             encoding: .utf8)) ?? ""
@@ -3269,24 +3240,9 @@ enum SwitcherModelFeatureTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        suite.expect(dockPreviewServiceCode.contains("startDockVisibilityTimerIfNeeded()")
-               && dockPreviewServiceCode.contains("CGWindowListCopyWindowInfo(.optionOnScreenOnly")
-               && dockPreviewServiceCode.contains("DockPreviewSupport.panelFrameWhenDockHidden("),
-               "an entered auto-hide Dock Preview follows the Dock's live window to the vacated edge")
         suite.expect(dockPreviewServiceCode.contains("if accepted { self?.endSession() }")
                 && dockPreviewServiceCode.contains("if accepted { self?.closePreviewPanel() }"),
                "an accepted app quit closes both hover and pinned previews immediately")
-        // The jump is the Dock's thickness, an order of magnitude past
-        // panelStayMargin, so a pointer that never moved would otherwise read as
-        // outside the panel on its next twitch and dismiss the preview.
-        suite.expect(dockPreviewServiceCode.contains("reattachGraceFrame = frame")
-               && dockPreviewServiceCode.contains("reattachGraceFrame?.insetBy("),
-               "the frame a reattached Dock Preview left behind keeps counting until the pointer reaches the new one")
-        // The tap this service owns is served by the main run loop, so an
-        // animated setFrame would queue every mouse event behind the slide.
-        suite.expect(!dockPreviewServiceCode.contains("setFrame(edgeFrame, display: true, animate: true)")
-               && dockPreviewServiceCode.contains("clampedPanelFrame(DockPreviewSupport.panelFrameWhenDockHidden("),
-               "a reattached Dock Preview lands clamped, without animating the main run loop")
         let corridor = DockPreviewSupport.hoverCorridor(iconFrame: iconBottom,
                                                         panelFrame: bottomFrame,
                                                         orientation: .bottom)

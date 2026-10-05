@@ -225,6 +225,83 @@ enum CommandBarFeatureTests {
             "macSettings", "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
             "selection", "links", "files", "killProcess",
         ], "source ids are stable (they persist inside the disabled list)")
+        // The four rows that open another category are built as the app's
+        // own actions, but they carry that category's prefix, so a filter on
+        // the prefix alone drops them: the same rows turn up in the empty bar
+        // and in typed search, which never ask for a source, and nothing in
+        // the bar says the Actions list is narrower.
+        let actionEntriesCode = commandBarCatalogLines.firstIndex {
+            isCodeLine($0) && $0.contains("private static func actionEntries(")
+        }.map {
+            commandBarCatalogLines[$0...]
+                .prefix { !$0.contains("private static func settingsEntries(") }
+                .filter(isCodeLine)
+                .joined(separator: "\n")
+        } ?? ""
+        let actionBrowseIDs: Set<String> = [
+            CommandBarPreferences.emojiBrowserRowID,
+            CommandBarPreferences.killProcessBrowserRowID,
+            "uninstall.browse", "uninstall.finder",
+        ]
+        suite.expect(CommandBarPreferences.actionBrowseRowIDs == actionBrowseIDs
+                && actionEntriesCode.contains("id: \"uninstall.browse\"")
+                && actionEntriesCode.contains("id: \"uninstall.finder\"")
+                && actionEntriesCode.contains("id: CommandBarPreferences.emojiBrowserRowID")
+                && actionEntriesCode.contains("id: CommandBarPreferences.killProcessBrowserRowID"),
+               "the app's own actions build all four rows that open another category, and the actions list names every one of them")
+        suite.expect(Set(actionBrowseIDs.map(CommandBarPreferences.source(ofRowID:)))
+                    == [.uninstallApps, .emoji, .killProcess]
+                && actionBrowseIDs.allSatisfy(CommandBarPreferences.isActionRow),
+               "a row is filed under the category it opens, so the actions list has to admit a navigation row by name and not by prefix")
+        suite.expect(CommandBarPreferences.isActionRow("action.cleaner")
+                && !CommandBarPreferences.isActionRow("app.Safari")
+                && !CommandBarPreferences.isActionRow("settings.appearance")
+                && !CommandBarPreferences.isActionRow("emoji.grin"),
+               "naming the navigation rows widens the actions list to them alone and leaves every other category exactly where it was")
+        // A navigation row is the app's own action, but what it opens is a
+        // category the person may have switched off. The empty bar and the
+        // search pool both drop a row whose source is off, so the Actions
+        // list has to drop it with them, or the one surface that still offers
+        // it is the one that can run it.
+        let emojiSwitchedOff = CommandBarPreferences.disabledSources(from: "emoji")
+        suite.expect(!CommandBarPreferences.isActionRow(
+                    CommandBarPreferences.emojiBrowserRowID, disabled: emojiSwitchedOff)
+                && CommandBarPreferences.isActionRow(
+                    CommandBarPreferences.emojiBrowserRowID, disabled: []),
+               "the row that opens the emoji browser leaves the actions list while emoji is switched off, and returns when it is switched back on")
+        let killSwitchedOff = CommandBarPreferences.disabledSources(from: "killProcess")
+        suite.expect(!CommandBarPreferences.isActionRow(
+                    CommandBarPreferences.killProcessBrowserRowID, disabled: killSwitchedOff)
+                && CommandBarPreferences.isActionRow("action.cleaner", disabled: killSwitchedOff),
+               "the row that opens the kill process browser leaves the actions list while that source is switched off, and an action of the app's own cannot be switched off")
+        suite.expect(actionBrowseIDs.allSatisfy {
+            CommandBarPreferences.isActionRow($0, disabled: emojiSwitchedOff)
+                || CommandBarPreferences.isActionRow($0, disabled: killSwitchedOff)
+        } && !actionBrowseIDs.contains {
+            CommandBarPreferences.isActionRow(
+                $0, disabled: CommandBarPreferences.disabledSources(
+                    from: "uninstallApps,emoji,killProcess"))
+        },
+               "a navigation row whose destination is still on stays in the actions list, and a category whose navigation rows are all switched off is left with nothing to show")
+        // The rule above only reaches the bar if the Actions list and its chip
+        // both ask it with the sources the person switched off. Each body ends
+        // at the next declaration, so a renamed or moved site fails here
+        // instead of passing on some other part of the file.
+        let actionsServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter(isCodeLine)
+            .joined(separator: "\n")
+        for function in ["categoryHasContent", "categoryContent"] {
+            let parts = (actionsServiceCode
+                .components(separatedBy: "private func \(function)(").last ?? "")
+                .components(separatedBy: "\n    private func ")
+            suite.expect(parts.count > 1
+                    && (parts.first ?? "").contains(
+                        "CommandBarPreferences.isActionRow($0.id, disabled: disabledCache)"),
+                   "\(function) answers the actions list with the sources the person switched off, the same ones the empty bar and search drop")
+        }
         suite.expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
