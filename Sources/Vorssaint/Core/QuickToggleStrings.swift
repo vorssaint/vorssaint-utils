@@ -79,7 +79,7 @@ extension QuickToggleFeatureStrings {
         lockScreenTitle: "Lock the screen",
         lockScreenCaption: "Asks for the password to come back.",
         displayOffTitle: "Turn off the display",
-        displayOffCaption: "The Mac keeps running with the screen off.",
+        displayOffCaption: "The Mac keeps running with the display off.",
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
         actionFailed: "Could not complete."
@@ -387,7 +387,7 @@ extension QuickToggleFeatureStrings {
         lockScreenTitle: "锁定屏幕",
         lockScreenCaption: "返回时需要输入密码。",
         displayOffTitle: "关闭显示器",
-        displayOffCaption: "屏幕关闭后 Mac 继续运行。",
+        displayOffCaption: "显示器关闭后 Mac 继续运行。",
         screenSaverTitle: "启动屏幕保护程序",
         screenSaverCaption: "在所有显示器上立即启动。",
         actionFailed: "无法完成。"

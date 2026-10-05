@@ -167,7 +167,7 @@ enum NotchNotificationSupport {
 enum NotchNotificationBannerLayout {
     static let iconSize: CGFloat = 22
     static let spacing: CGFloat = 8
-    static let wingRange: ClosedRange<CGFloat> = 88...190
+    static let wingRange: ClosedRange<CGFloat> = NotchNotice.minimumWing...190
     /// The inset from the island's curved end, and a little air so the
     /// fitted text never truncates where SwiftUI rounds its width.
     static let inset: CGFloat = 16
@@ -176,15 +176,29 @@ enum NotchNotificationBannerLayout {
     static let titleFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
     static let messageFont = NSFont.systemFont(ofSize: 11)
 
-    static func wing(for content: NotchNotificationContent) -> CGFloat {
+    /// A strip tall enough for two lines wraps a long message onto a second.
+    static func messageLines(stripHeight: CGFloat) -> Int { stripHeight >= 30 ? 2 : 1 }
+
+    /// The sender and the message each take a side as wide as they need. A
+    /// message that wraps takes the width its lines need once wrapped at the
+    /// widest side, not the whole side.
+    static func wings(for content: NotchNotificationContent, wrapsMessage: Bool = false) -> NotchNoticeWings {
         func width(_ text: String, _ font: NSFont) -> CGFloat {
             // A line or two is all the banner shows, and the widest wing is
             // reached long before this much text.
             (String(text.prefix(240)) as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
         let title = iconSize + spacing + width(content.compactTitle, titleFont)
-        let detail = width(content.compactDetail, messageFont)
-        return min(wingRange.upperBound, max(wingRange.lowerBound, max(title, detail) + inset + air))
+        var detail = width(content.compactDetail, messageFont)
+        let room = wingRange.upperBound - inset - air
+        if wrapsMessage, detail > room {
+            let wrapped = (String(content.compactDetail.prefix(240)) as NSString).boundingRect(
+                with: CGSize(width: room, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: messageFont])
+            detail = min(room, wrapped.width.rounded(.up))
+        }
+        func fitted(_ side: CGFloat) -> CGFloat { min(wingRange.upperBound, max(wingRange.lowerBound, side + inset + air)) }
+        return NotchNoticeWings(leading: fitted(title), trailing: fitted(detail))
     }
 }
 

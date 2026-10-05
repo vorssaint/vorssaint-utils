@@ -26,9 +26,7 @@ enum WindowActivator {
                          handoffSourcePID: pid_t? = nil,
                          sourceWindowID: CGWindowID? = nil,
                          sourceWindowOwnerPID: pid_t? = nil) {
-        let generation = beginActivation(for: item.pid)
-        cancelPendingMinimizeRestore()
-        SpaceHop.cancelPending()
+        let generation = supersedePendingActivations(for: item.pid)
 
         if item.pid == ProcessInfo.processInfo.processIdentifier {
             activateOwnWindow(item)
@@ -451,6 +449,13 @@ enum WindowActivator {
         }
     }
 
+    static func supersedePendingActivations(for pid: pid_t) -> UInt64 {
+        let generation = beginActivation(for: pid)
+        cancelPendingMinimizeRestore()
+        SpaceHop.cancelPending()
+        return generation
+    }
+
     private static func beginActivation(for pid: pid_t) -> UInt64 {
         activationLock.withLock {
             activationGeneration &+= 1
@@ -463,7 +468,7 @@ enum WindowActivator {
         activationLock.withLock { activationGenerationsByPID[pid] ?? 0 }
     }
 
-    private static func isCurrentActivation(_ generation: UInt64) -> Bool {
+    static func isCurrentActivation(_ generation: UInt64) -> Bool {
         activationLock.withLock {
             SwitcherSupport.isCurrentActivationGeneration(
                 generation,
@@ -624,28 +629,6 @@ enum WindowActivator {
 
     fileprivate static func cancelPendingMinimizeRestore(_ restore: SwitcherWindowMinimizeRestore) {
         guard pendingMinimizeRestore === restore else { return }
-        cancelPendingMinimizeRestore()
-    }
-
-    fileprivate static func restoreSourceAfterTargetMinimize(_ restore: SwitcherWindowMinimizeRestore) {
-        guard pendingMinimizeRestore === restore else { return }
-        let reportedFrontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let frontmostPID = reportedFrontmostPID == restore.targetWindowOwnerPID
-            ? restore.targetPID
-            : reportedFrontmostPID
-        guard SwitcherSupport.shouldRestoreSourceAfterTargetMinimize(targetPID: restore.targetPID,
-                                                                     sourcePID: restore.sourcePID,
-                                                                     frontmostPID: frontmostPID,
-                                                                     targetIsMinimized: true,
-                                                                     frontmostMatchesTargetBundle: restore.matchesTargetBundle(frontmostPID),
-                                                                     frontmostCanBeSystemPromotion: restore.minimizeIntentObserved),
-              activateSource(pid: restore.sourcePID,
-                             windowID: restore.sourceWindowID,
-                             windowOwnerPID: restore.sourceWindowOwnerPID) else {
-            cancelPendingMinimizeRestore()
-            return
-        }
-
         cancelPendingMinimizeRestore()
     }
 

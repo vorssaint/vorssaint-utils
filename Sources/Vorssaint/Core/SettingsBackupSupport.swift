@@ -100,6 +100,10 @@ enum SettingsBackupSupport {
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
         DefaultsKey.dockPreviewRestoreAutohide,
+        // The Space arrangement setting to put back, and a Dock restart still
+        // owed, belong to this Mac's Dock.
+        DefaultsKey.spacesOrderRestore,
+        DefaultsKey.spacesOrderRestartPending,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
@@ -141,6 +145,9 @@ enum SettingsBackupSupport {
         DefaultsKey.notchDownloadsFolderBookmark,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
+        DefaultsKey.recorderSaveFolder,
+        DefaultsKey.screenshotSaveFolder,
+        DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,

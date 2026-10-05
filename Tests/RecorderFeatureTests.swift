@@ -93,9 +93,10 @@ enum RecorderFeatureTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderGIFSize)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderMicrophone)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderAutomaticZoom)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSharingEnabled)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSaveFolder),
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSharingEnabled),
                "dedicated capture shortcuts and recorder settings travel in backups")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSaveFolder),
+               "the chosen recording save folder does not travel in backups, being authority on one Mac")
         suite.expect(RecorderSupport.exceptedOwnWindowIDs(
             ownWindowIDs: [1, 2, 3], protectedWindowIDs: [2, 4]) == [1, 3],
                "recording keeps existing ordinary app windows but never its protected chrome")

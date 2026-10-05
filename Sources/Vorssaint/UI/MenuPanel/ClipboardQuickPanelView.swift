@@ -117,13 +117,13 @@ struct ClipboardQuickPanelView: View {
                     // than the placement work a lazy stack does per tick.
                     Group {
                         if filtered.count <= Self.eagerRowLimit {
-                            VStack(alignment: .leading, spacing: 0) { sections }
+                            VStack(alignment: .leading, spacing: 0) { topAnchor; sections }
                         } else {
-                            LazyVStack(alignment: .leading, spacing: 0) { sections }
+                            LazyVStack(alignment: .leading, spacing: 0) { topAnchor; sections }
                         }
                     }
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
+                    .padding(.bottom, Self.listVerticalInset)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .background(ScrollBounceDisabler())
@@ -136,6 +136,12 @@ struct ClipboardQuickPanelView: View {
                 .onChange(of: history.quickQuery) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
+                // The window is only hidden between uses, so without this it
+                // reopens wherever it was scrolled, while the selection and
+                // ⌘1 to ⌘9 already start from the top rows.
+                .onChange(of: history.quickWindowPresentationID) { _, _ in
+                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                }
             }
         }
     }
@@ -143,6 +149,17 @@ struct ClipboardQuickPanelView: View {
     /// Emits the header and rows straight into the enclosing lazy stack. If
     /// wrapped, the whole section becomes one lazy unit and builds every row.
     private static let eagerRowLimit = 300
+
+    private static let listVerticalInset: CGFloat = 6
+
+    /// Above the first section's header, which scrolling to the first row
+    /// would leave cut off. It is the list's top inset itself, so scrolling
+    /// it to the top lands exactly where a first open starts.
+    private static let topAnchorID = "clipboard-list-top"
+
+    private var topAnchor: some View {
+        Color.clear.frame(height: Self.listVerticalInset).id(Self.topAnchorID)
+    }
 
     @ViewBuilder
     private var sections: some View {
