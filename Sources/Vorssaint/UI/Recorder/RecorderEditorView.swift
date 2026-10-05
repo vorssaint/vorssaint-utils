@@ -110,12 +110,31 @@ struct RecorderEditorView: View {
                 .buttonStyle(RecorderToolbarButtonStyle())
                 .disabled(model.isExporting)
                 .screenshotSafeHelp("⌥⌘C")
-                Button(action: controller.copyVideo) {
-                    Label(strings.copyButton, systemImage: "doc.on.doc")
+                HStack(spacing: 0) {
+                    Button(action: controller.copyVideo) {
+                        Label(strings.copyButton, systemImage: "doc.on.doc")
+                    }
+                    .buttonStyle(RecorderToolbarSplitPartStyle())
+                    .screenshotSafeHelp("⌘C")
+                    Menu {
+                        Button(strings.copyGIFButton, action: controller.copyGIF)
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .menuStyle(.button)
+                    .menuIndicator(.hidden)
+                    .buttonStyle(RecorderToolbarSplitPartStyle(compact: true))
+                    .screenshotSafeHelp(strings.copyGIFButton)
+                    .accessibilityLabel(strings.copyGIFButton)
                 }
-                .buttonStyle(RecorderToolbarButtonStyle())
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
                 .disabled(model.isExporting)
-                .screenshotSafeHelp("⌘C")
             }
 
             if sharingEnabled {
@@ -437,6 +456,8 @@ struct RecorderEditorView: View {
 
             Spacer()
 
+            RecorderExportSpeedControl(model: model)
+
             Menu {
                 Picker(strings.qualityLabel, selection: qualityBinding) {
                     Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
@@ -500,6 +521,8 @@ struct RecorderEditorView: View {
 
     /// Saving keeps the picture visible: a scrim over the whole editor says
     /// "this is hard for me", and it is not.
+    /// In a narrow window the band squeezes this chip; the bar gives way
+    /// first, so the words never wrap letter by letter.
     private var exportProgressChip: some View {
         HStack(spacing: 8) {
             if model.exportPhase == .uploading {
@@ -509,15 +532,17 @@ struct RecorderEditorView: View {
             } else {
                 ProgressView(value: model.exportProgress)
                     .progressViewStyle(.linear)
-                    .frame(width: 110)
+                    .frame(minWidth: 24, idealWidth: 110, maxWidth: 110)
             }
             Text(exportProgressLabel)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color(white: 0.8))
+                .fixedSize()
             Button(strings.cancelButton) { model.cancelExport() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 11))
                 .foregroundStyle(Color.accentColor)
+                .fixedSize()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -738,6 +763,23 @@ private struct RecorderToolbarButtonStyle: ButtonStyle {
                                   lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+/// Two independently clickable parts inside the same recorder-toolbar shell.
+/// The primary copy action and its menu keep separate hit targets without
+/// giving up the toolbar's pressed fill, typography or dimensions.
+private struct RecorderToolbarSplitPartStyle: ButtonStyle {
+    var compact = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Color.primary)
+            .padding(.horizontal, compact ? 0 : 10)
+            .frame(width: compact ? 30 : nil, height: 30)
+            .background(Color.white.opacity(configuration.isPressed ? 0.11 : 0.055))
+            .contentShape(Rectangle())
     }
 }
 

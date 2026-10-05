@@ -310,6 +310,10 @@ enum WindowDirectionalAction: Equatable {
 enum WindowDirectionalGestureSupport {
     static let activationDistance: CGFloat = 28
 
+    static func appKitPoint(fromQuartz point: CGPoint, menuBarScreenTopY: CGFloat) -> CGPoint {
+        CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
+    }
+
     static func action(from origin: CGPoint,
                        to point: CGPoint,
                        activationDistance: CGFloat = activationDistance) -> WindowDirectionalAction? {
@@ -329,6 +333,14 @@ enum WindowDirectionalGestureSupport {
         if degrees >= 202.5 && degrees < 247.5 { return .bottomLeft }
         if degrees >= 247.5 && degrees < 292.5 { return .bottomHalf }
         return .bottomRight
+    }
+
+    /// Holding the ring open keeps keys auto-repeating. Those repeats must not
+    /// force maximize/minimize, or the default ⌃⌥Space binding fights the
+    /// pointer aim (#1566). The event is still swallowed so repeats do not
+    /// leak to the front app.
+    static func shouldApplyKeyboardManualOverride(isAutorepeat: Bool) -> Bool {
+        !isAutorepeat
     }
 }
 
@@ -408,17 +420,37 @@ enum WindowEdgeSnapSupport {
     static var isSystemTilingEnabled: Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
-        return systemTilingEnabled { key in
-            guard defaults.object(forKey: key) != nil else { return nil }
-            return defaults.bool(forKey: key)
-        }
+        return systemTilingEnabled(
+            valueFor: { key in
+                guard defaults.object(forKey: key) != nil else { return nil }
+                return defaults.bool(forKey: key)
+            },
+            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+        )
     }
 
     /// The system's edge tiling choices arrive enabled when their preference
     /// has never been written. Keeping this pure makes the conflict gate
     /// testable without changing somebody's desktop settings.
-    static func systemTilingEnabled(valueFor: (String) -> Bool?) -> Bool {
-        systemTilingKeys.contains { valueFor($0) ?? true }
+    ///
+    /// When displays span (Separate Spaces off) those switches are greyed
+    /// out and the system's own tiling is inert, even if a key was written
+    /// as enabled. The warning's instruction is unreachable then (issue #1079).
+    static func systemTilingEnabled(valueFor: (String) -> Bool?,
+                                    displaysSpan: Bool = false) -> Bool {
+        if displaysSpan { return false }
+        return systemTilingKeys.contains { valueFor($0) ?? true }
+    }
+
+    /// Separate Spaces off is the only configuration where displays span.
+    /// An absent preference is Apple's default: one Space per display.
+    static func displaysSpan(_ value: Bool?) -> Bool {
+        value ?? false
+    }
+
+    private static func spacesPreference(_ key: String) -> Bool? {
+        guard let defaults = UserDefaults(suiteName: "com.apple.spaces") else { return nil }
+        return defaults.object(forKey: key).map { _ in defaults.bool(forKey: key) }
     }
 
     static var isSystemTopWindowOverviewDragEnabled: Bool {
@@ -638,5 +670,271 @@ enum WindowEdgeSnapSupport {
         let dx = max(frame.minX - point.x, 0, point.x - frame.maxX)
         let dy = max(frame.minY - point.y, 0, point.y - frame.maxY)
         return dx * dx + dy * dy
+    }
+}
+
+/// The pointer layout mode also accepts a held modifier chord. Ordinary global
+/// shortcuts retain their key requirement and their existing storage format.
+enum WindowDirectionalTrigger: Equatable {
+    case key(GlobalShortcut)
+    case modifiers(GlobalShortcutModifiers)
+
+    init?(storageValue: String) {
+        if storageValue.hasPrefix("modifiers:") {
+            let tokens = storageValue.dropFirst("modifiers:".count).split(separator: "+", omittingEmptySubsequences: false)
+            var modifiers: GlobalShortcutModifiers = []
+            for token in tokens {
+                switch token {
+                case "control": modifiers.insert(.control)
+                case "option": modifiers.insert(.option)
+                case "shift": modifiers.insert(.shift)
+                case "command": modifiers.insert(.command)
+                default: return nil
+                }
+            }
+            guard modifiers.isValidWindowDirectionalTrigger else { return nil }
+            self = .modifiers(modifiers)
+        } else {
+            guard let shortcut = GlobalShortcut(storageValue: storageValue) else { return nil }
+            self = .key(shortcut)
+        }
+    }
+
+    var storageValue: String {
+        switch self {
+        case .key(let shortcut): return shortcut.storageValue
+        case .modifiers(let modifiers): return "modifiers:" + modifiers.storageTokens.joined(separator: "+")
+        }
+    }
+
+    var displayString: String {
+        switch self {
+        case .key(let shortcut): return shortcut.displayString
+        case .modifiers(let modifiers): return modifiers.keyCaps.joined()
+        }
+    }
+}
+
+extension GlobalShortcutModifiers {
+    /// A bare Command, Option or Control chord collides with ordinary app
+    /// shortcuts and modifier-clicks. Shift may join a trigger, but it does
+    /// not make a single primary modifier safe on its own.
+    var isValidWindowDirectionalTrigger: Bool {
+        intersection([.control, .option, .command]).rawValue.nonzeroBitCount >= 2
+    }
+}
+
+/// Passive policy for the modifier chord that arms pointer layout. Modifier
+/// changes and shortcut-cancelling keys are observed without holding the event
+/// while the main queue looks up or places a window.
+enum WindowDirectionalModifierTapSupport {
+    static let options: CGEventTapOptions = .listenOnly
+    static let eventMask: CGEventMask = {
+        let events: [CGEventType] = [.flagsChanged, .keyDown, .leftMouseDown, .leftMouseUp,
+                                     .rightMouseDown, .rightMouseUp, .otherMouseDown,
+                                     .otherMouseUp, .scrollWheel]
+        return events.reduce(CGEventMask(0)) { mask, event in
+            mask | (CGEventMask(1) << event.rawValue)
+        }
+    }()
+
+    static func afterCallback(_ work: @escaping () -> Void) {
+        DispatchQueue.main.async { work() }
+    }
+}
+
+/// Native modifier-click, scroll and keyboard input always wins over a
+/// modifier-only pointer layout. Kept pure so input custody stays covered
+/// without manufacturing system-wide events in tests.
+enum WindowDirectionalModifierInputPolicy {
+    static func canBegin(mouseButtonPressed: Bool,
+                         pointerInputSinceArm: Bool) -> Bool {
+        !mouseButtonPressed && !pointerInputSinceArm
+    }
+
+    static func cancelsAndPassesThrough(_ type: CGEventType) -> Bool {
+        switch type {
+        case .scrollWheel, .leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown: return true
+        default: return false
+        }
+    }
+}
+
+/// Button history follows the same passive stream as the chord. A button
+/// released before a delayed callback still counts as held at the chord's press.
+struct WindowDirectionalModifierButtons {
+    private(set) var mask: UInt32 = 0
+    var isPressed: Bool { mask != 0 }
+
+    static func current() -> Self {
+        var state = Self()
+        for index in 0..<32 {
+            if let button = CGMouseButton(rawValue: UInt32(index)),
+               CGEventSource.buttonState(.combinedSessionState, button: button) {
+                state.mask |= UInt32(1) << index
+            }
+        }
+        return state
+    }
+
+    mutating func observe(_ type: CGEventType, buttonNumber: Int64) {
+        let button: Int64
+        let isDown: Bool
+        switch type {
+        case .leftMouseDown: (button, isDown) = (0, true)
+        case .leftMouseUp: (button, isDown) = (0, false)
+        case .rightMouseDown: (button, isDown) = (1, true)
+        case .rightMouseUp: (button, isDown) = (1, false)
+        case .otherMouseDown: (button, isDown) = (buttonNumber, true)
+        case .otherMouseUp: (button, isDown) = (buttonNumber, false)
+        default: return
+        }
+        guard (0..<32).contains(button) else { return }
+        let bit = UInt32(1) << Int(button)
+        if isDown { mask |= bit } else { mask &= ~bit }
+    }
+}
+
+/// Event-source counters catch a quick click or scroll that completes while
+/// the main queue is still waiting to start the deferred gesture. Reading the
+/// counters also catches input that arrives during synchronous target lookup.
+struct WindowDirectionalModifierPointerSnapshot: Equatable {
+    let leftMouseDown: UInt32
+    let rightMouseDown: UInt32
+    let otherMouseDown: UInt32
+    let scrollWheel: UInt32
+
+    static func current() -> Self {
+        Self(
+            leftMouseDown: CGEventSource.counterForEventType(
+                .combinedSessionState, eventType: .leftMouseDown),
+            rightMouseDown: CGEventSource.counterForEventType(
+                .combinedSessionState, eventType: .rightMouseDown),
+            otherMouseDown: CGEventSource.counterForEventType(
+                .combinedSessionState, eventType: .otherMouseDown),
+            scrollWheel: CGEventSource.counterForEventType(
+                .combinedSessionState, eventType: .scrollWheel)
+        )
+    }
+
+    func hasPointerInput(since earlier: Self) -> Bool {
+        self != earlier
+    }
+}
+
+enum WindowDirectionalModifierStartupOutcome<Value> {
+    case ready(Value)
+    case cancelled
+    case observationFailed
+    case targetUnavailable
+}
+
+/// Orders the active observation and custody checks around target lookup. The
+/// injected seams let tests introduce pointer input at either race boundary
+/// without posting real system events.
+enum WindowDirectionalModifierStartupGuard {
+    static func resolve<Value>(
+        armedAt: WindowDirectionalModifierPointerSnapshot?,
+        currentSnapshot: () -> WindowDirectionalModifierPointerSnapshot,
+        mouseButtonPressed: () -> Bool,
+        startObserving: () -> Bool,
+        isCurrent: () -> Bool = { true },
+        lookupTarget: () -> Value?
+    ) -> WindowDirectionalModifierStartupOutcome<Value> {
+        func canContinue() -> Bool {
+            guard isCurrent() else { return false }
+            let pointerInputSinceArm = armedAt.map {
+                currentSnapshot().hasPointerInput(since: $0)
+            } ?? false
+            return WindowDirectionalModifierInputPolicy.canBegin(
+                mouseButtonPressed: mouseButtonPressed(),
+                pointerInputSinceArm: pointerInputSinceArm)
+        }
+
+        guard canContinue() else { return .cancelled }
+        guard startObserving() else { return .observationFailed }
+        guard canContinue() else { return .cancelled }
+        guard let target = lookupTarget() else { return .targetUnavailable }
+        guard canContinue() else { return .cancelled }
+        return .ready(target)
+    }
+}
+
+/// A modifier chord starts once, finishes on its first required-key release,
+/// and cannot restart until all its keys are up. Extra modifiers cancel it.
+struct WindowDirectionalModifierOwnership: Equatable {
+    let registrationID: UUID
+    let generation: UInt64
+}
+
+struct WindowDirectionalModifierHold {
+    enum Decision { case none, begin, finish, cancel }
+    let expected: GlobalShortcutModifiers
+    private let registrationID = UUID()
+    var ownership: WindowDirectionalModifierOwnership {
+        WindowDirectionalModifierOwnership(registrationID: registrationID, generation: generation)
+    }
+    private(set) var generation: UInt64 = 0
+    private var active = false
+    private var waitingForRelease: Bool
+    private var held: GlobalShortcutModifiers
+
+    init(expected: GlobalShortcutModifiers, initiallyHeld: GlobalShortcutModifiers = []) {
+        self.expected = expected
+        held = initiallyHeld
+        waitingForRelease = !initiallyHeld.isEmpty
+    }
+
+    mutating func cancel() {
+        generation &+= 1
+        active = false
+        waitingForRelease = true
+    }
+
+    mutating func cancelForKeyPress() -> Bool {
+        cancelForInput()
+    }
+
+    mutating func cancelForInput() -> Bool {
+        guard active || !held.isEmpty else { return false }
+        cancel()
+        return true
+    }
+
+    mutating func update(_ held: GlobalShortcutModifiers) -> Decision {
+        self.held = held
+        if active {
+            guard held == expected else {
+                let released = !held.isSuperset(of: expected)
+                cancel()
+                waitingForRelease = !held.isEmpty
+                return released ? .finish : .cancel
+            }
+        } else if waitingForRelease {
+            waitingForRelease = !held.isEmpty
+        } else if !held.subtracting(expected).isEmpty {
+            // Once an unrelated modifier joins this physical hold, releasing
+            // it must not turn the remainder into a fresh trigger chord.
+            cancel()
+            waitingForRelease = !held.isEmpty
+            return .cancel
+        } else if held == expected {
+            generation &+= 1
+            active = true
+            return .begin
+        }
+        return .none
+    }
+}
+
+enum WindowDirectionalModifierCancellation {
+    case cancelHold
+    case preserveHold
+
+    func applied(to hold: WindowDirectionalModifierHold) -> WindowDirectionalModifierHold {
+        guard self == .cancelHold else { return hold }
+        var cancelled = hold
+        cancelled.cancel()
+        return cancelled
     }
 }

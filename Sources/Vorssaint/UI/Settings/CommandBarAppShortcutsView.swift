@@ -14,6 +14,8 @@ struct CommandBarAppShortcutsView: View {
     @State private var query = ""
     @State private var filter = AppFilter.all
     @State private var message: String?
+    @State private var pendingTakeOver: (entry: CommandBarEntry, shortcut: GlobalShortcut)?
+    @State private var sortOrder = [AppColumnOrder(column: .name)]
 
     private enum AppFilter { case all, pinned, shortcuts }
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
@@ -61,8 +63,8 @@ struct CommandBarAppShortcutsView: View {
                 .fixedSize()
             }
 
-            Table(apps) {
-                TableColumn(text.sourceApps) { entry in
+            Table(apps, sortOrder: $sortOrder) {
+                TableColumn(text.sourceApps, sortUsing: AppColumnOrder(column: .name)) { entry in
                     HStack(spacing: 8) {
                         if let path = entry.revealPath {
                             Image(nsImage: CommandBarIconCache.icon(forPath: path))
@@ -78,18 +80,18 @@ struct CommandBarAppShortcutsView: View {
                 }
                 .width(min: 150, ideal: 210)
 
-                TableColumn(text.appAliasLabel) { entry in
+                TableColumn(text.appAliasLabel, sortUsing: AppColumnOrder(column: .alias)) { entry in
                     CommandBarAppAliasField(entry: entry, savedAlias: aliases[entry.stableKey] ?? "",
                                             text: text) { report($0, for: entry) }
                 }
                 .width(min: 110, ideal: 150)
 
-                TableColumn(text.appShortcutLabel) { entry in
+                TableColumn(text.appShortcutLabel, sortUsing: AppColumnOrder(column: .shortcut)) { entry in
                     shortcutField(for: entry, shortcut: shortcuts[entry.stableKey])
                 }
                 .width(180)
 
-                TableColumn(text.pinnedTitle) { entry in
+                TableColumn(text.pinnedTitle, sortUsing: AppColumnOrder(column: .pinned)) { entry in
                     let pinned = pins.contains(entry.stableKey)
                     Button {
                         service.togglePin(entry)
@@ -121,6 +123,20 @@ struct CommandBarAppShortcutsView: View {
                 }
             }
 
+            if let pendingTakeOver {
+                SystemShortcutTakeOverOffer(
+                    shortcut: pendingTakeOver.shortcut,
+                    onAccept: {
+                        self.pendingTakeOver = nil
+                        report(service.takeOverRowShortcut(pendingTakeOver.shortcut, for: pendingTakeOver.entry),
+                               for: pendingTakeOver.entry)
+                    },
+                    onDismiss: {
+                        self.pendingTakeOver = nil
+                        report(String(format: l10n.s.shortcutConflictFormat, "macOS"), for: pendingTakeOver.entry)
+                    })
+            }
+
             HStack(alignment: .center, spacing: 16) {
                 Text(message ?? text.shortcutCaptureHint)
                     .font(.caption)
@@ -148,13 +164,17 @@ struct CommandBarAppShortcutsView: View {
         let entries = service.appEntries.reversed()
         let unique = CommandBarSearch.firstOccurrences(of: entries.map(\.stableKey))
         let candidates = Array(entries)
-        return unique.map { candidates[$0] }.filter { entry in
+        let visible = unique.map { candidates[$0] }.filter { entry in
             let included = filter == .all
                 || (filter == .pinned && pins.contains(entry.stableKey))
                 || (filter == .shortcuts && shortcuts[entry.stableKey] != nil)
             return included && (query.isEmpty || CommandBarSearch.normalized(
                 "\(entry.title) \(entry.keywords) \(aliases[entry.stableKey] ?? "")").contains(query))
-        }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        }
+        let order = sortOrder.first ?? AppColumnOrder(column: .name)
+        return CommandBarAppSort.sorted(visible, by: order.column, ascending: order.order == .forward,
+                                        title: \.title, key: \.stableKey,
+                                        aliases: aliases, shortcuts: shortcuts, pins: pins)
     }
 
     private func shortcutField(for entry: CommandBarEntry, shortcut: GlobalShortcut?) -> some View {
@@ -166,9 +186,9 @@ struct CommandBarAppShortcutsView: View {
                 emptyTitle: shortcut == nil ? text.appShortcutRecord : nil,
                 clearAction: { report(service.setRowShortcut(nil, for: entry), for: entry) },
                 notCapturedAction: { report(l10n.s.shortcutNotCaptured, for: entry) },
-                recordingChanged: { if $0 { message = nil } },
+                recordingChanged: { if $0 { message = nil; pendingTakeOver = nil } },
                 invalidAction: { report(l10n.s.shortcutInvalid, for: entry) },
-                captureAction: { report(service.setRowShortcut($0, for: entry), for: entry) })
+                captureAction: { record($0, for: entry) })
                 .frame(width: 140)
                 .accessibilityLabel("\(entry.title): \(text.appShortcutLabel)")
             if service.refusedRowShortcutKeys.contains(entry.stableKey) {
@@ -188,8 +208,35 @@ struct CommandBarAppShortcutsView: View {
         }
     }
 
+    /// The offer is the last word on a combination, as in every other
+    /// shortcut field: it only appears once nothing but macOS is in the way.
+    private func record(_ shortcut: GlobalShortcut, for entry: CommandBarEntry) {
+        pendingTakeOver = nil
+        if service.rowShortcutTakeOverOffer(shortcut, for: entry) {
+            message = nil
+            pendingTakeOver = (entry, shortcut)
+            return
+        }
+        report(service.setRowShortcut(shortcut, for: entry), for: entry)
+    }
+
     private func report(_ error: String?, for entry: CommandBarEntry) {
         message = error.map { "\(entry.title): \($0)" }
+    }
+}
+
+private struct AppColumnOrder: SortComparator {
+    let column: CommandBarAppSort.Column
+    var order: SortOrder = .forward
+
+    func compare(_ lhs: CommandBarEntry, _ rhs: CommandBarEntry) -> ComparisonResult {
+        let result = lhs.title.localizedStandardCompare(rhs.title)
+        guard order == .reverse else { return result }
+        switch result {
+        case .orderedAscending: return .orderedDescending
+        case .orderedDescending: return .orderedAscending
+        case .orderedSame: return .orderedSame
+        }
     }
 }
 

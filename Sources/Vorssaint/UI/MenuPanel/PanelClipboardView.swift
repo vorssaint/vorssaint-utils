@@ -10,6 +10,10 @@ struct PanelClipboardView: View {
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @State private var query = ""
     @State private var copiedID: UUID?
+    /// Counts copies, so the list also follows an entry copied again while
+    /// it still carries the tick.
+    @State private var copyCount = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var onClose: () -> Void
 
@@ -23,6 +27,10 @@ struct PanelClipboardView: View {
 
     private var canReorderEntries: Bool {
         query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var searchTokens: [String] {
+        ClipboardHistorySearch.searchTokens(for: query)
     }
 
     var body: some View {
@@ -107,16 +115,25 @@ struct PanelClipboardView: View {
         } else if filteredEntries.isEmpty {
             emptyState(text.noResults)
         } else {
-            ScrollView {
-                // Lazy: a large history would otherwise build every row, and
-                // decode every image thumbnail, each time the panel opens.
-                LazyVStack(alignment: .leading, spacing: 7) {
-                    ForEach(filteredEntries) { entry in
-                        entryRow(entry)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    // Lazy: a large history would otherwise build every row, and
+                    // decode every image thumbnail, each time the panel opens.
+                    LazyVStack(alignment: .leading, spacing: 7) {
+                        ForEach(filteredEntries) { entry in
+                            entryRow(entry)
+                                .id(entry.id)
+                        }
                     }
                 }
+                .frame(maxHeight: 260)
+                // A copied recent entry moves to the top, so the list follows
+                // it and the tick stays in view.
+                .onChange(of: copyCount) { _, _ in
+                    guard let id = copiedID else { return }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                }
             }
-            .frame(maxHeight: 260)
         }
     }
 
@@ -142,37 +159,39 @@ struct PanelClipboardView: View {
             // the selection renderer, which lays the whole preview out and
             // ignores the line limit, so a long entry paints over the rows
             // below it. The history window shows the full, selectable text.
-            Text(entry.preview)
-                .font(.system(size: 10.5))
-                .lineLimit(3)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .center, spacing: 7) {
+                if let color = entry.color {
+                    ColorSwatch(color: color, size: 12)
+                }
+                SearchHighlightText.text(entry.preview, tokens: searchTokens, fontSize: 10.5)
+                    .font(.system(size: 10.5))
+                    .lineLimit(3)
+                    .truncationMode(.tail)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
             HStack(alignment: .center, spacing: 7) {
-                if let name = entry.imageFile,
-                   let thumbnail = ClipboardImageStore.thumbnail(named: name) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                if let name = entry.imageFile {
+                    ClipboardThumbnailImage(source: .stored(name: name),
+                                            aspectRatio: entry.imageAspectRatio)
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
-                Text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
+                SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
+                                         tokens: searchTokens, fontSize: 10)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
         case .files:
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path),
-               let thumbnail = ClipboardImageStore.fileThumbnail(atPath: path) {
+               ClipboardImageStore.isImageFile(atPath: path) {
                 HStack(alignment: .center, spacing: 7) {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
+                    ClipboardThumbnailImage(source: .file(path: path),
+                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
                         .frame(maxWidth: 110, maxHeight: 40)
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    Text(entry.fileNames.first ?? entry.preview)
+                    SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: searchTokens, fontSize: 10.5)
                         .font(.system(size: 10.5))
                         .lineLimit(2)
                         .truncationMode(.middle)
@@ -183,9 +202,12 @@ struct PanelClipboardView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                    Text(entry.filePaths.count == 1
-                         ? (entry.fileNames.first ?? entry.preview)
-                         : String(format: text.fileCountFormat, entry.filePaths.count))
+                    // A count of several files is no text the search reads.
+                    SearchHighlightText.text(entry.filePaths.count == 1
+                                                ? (entry.fileNames.first ?? entry.preview)
+                                                : String(format: text.fileCountFormat, entry.filePaths.count),
+                                             tokens: entry.filePaths.count == 1 ? searchTokens : [],
+                                             fontSize: 10.5)
                         .font(.system(size: 10.5))
                         .lineLimit(2)
                         .truncationMode(.middle)
@@ -233,12 +255,32 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
+                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    Button { history.editImage(entry) } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help(text.edit)
+                    .accessibilityLabel(text.edit)
+                }
                 Button {
+                    // A copied recent entry moves to the top, so the second
+                    // click of a double click would copy whichever entry took
+                    // its place.
+                    if let event = NSApp.currentEvent, [.leftMouseDown, .leftMouseUp].contains(event.type),
+                       event.clickCount > 1 { return }
                     // The tick means "it is on the clipboard", so it waits for
                     // the write instead of announcing one still queued behind
                     // a stalled pasteboard provider.
                     history.copy(entry) { copied in
-                        if copied { copiedID = entry.id }
+                        if copied {
+                            copiedID = entry.id
+                            copyCount += 1
+                        } else {
+                            NSSound.beep()
+                        }
                     }
                 } label: {
                     Label(copiedID == entry.id ? text.copied : text.copy,

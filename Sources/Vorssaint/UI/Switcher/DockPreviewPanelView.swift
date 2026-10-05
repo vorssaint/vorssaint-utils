@@ -452,8 +452,7 @@ private struct DockPreviewCard: View {
                 }
             }
             .frame(width: DockPreviewSupport.cardThumbnailWidth,
-                   height: DockPreviewSupport.cardThumbnailHeight
-                       + (minimalPreviews ? DockPreviewSupport.cardTitleHeight + DockPreviewSupport.cardTitleSpacing : 0))
+                   height: DockPreviewSupport.cardThumbnailHeight)
 
             if !minimalPreviews { titleBand }
         }

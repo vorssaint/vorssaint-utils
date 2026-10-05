@@ -36,6 +36,23 @@ enum SpaceWindowBridge {
         return unsafeBitCast(symbol, to: GetWindowTagsFunction.self)
     }()
 
+    private typealias WindowIsOrderedInFunction =
+        @convention(c) (ConnectionID, CGWindowID, UnsafeMutablePointer<UInt8>) -> CGError
+    private static let windowIsOrderedIn: WindowIsOrderedInFunction? = {
+        guard let symbol = symbol("CGSWindowIsOrderedIn") else { return nil }
+        return unsafeBitCast(symbol, to: WindowIsOrderedInFunction.self)
+    }()
+
+    /// Unlike on-screen visibility, ordering survives a move to another desktop.
+    /// A dismissed surface can retain its desktop assignment without being ordered.
+    /// Keep an unavailable query distinct from an explicit ordered-out answer.
+    static func isWindowOrderedIn(_ windowID: CGWindowID) -> Bool? {
+        guard connection != 0, let windowIsOrderedIn else { return nil }
+        var ordered: UInt8 = 0
+        guard windowIsOrderedIn(connection, windowID, &ordered) == .success else { return nil }
+        return ordered != 0
+    }
+
     // MARK: - Space membership
 
     private typealias CopySpacesFunction =
@@ -80,6 +97,15 @@ enum SpaceWindowBridge {
             let spaces: [UInt64]
             let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
+        }
+
+        /// With separate Spaces, only the island's display controls visibility.
+        /// A shared Space applies to every display even if its UUID is absent.
+        func isFullscreen(on displayID: CGDirectDisplayID, separateSpaces: Bool) -> Bool {
+            let candidates = separateSpaces ? displays.filter { $0.displayID == displayID } : displays
+            return candidates.contains { display in
+                display.currentSpace.map { display.fullscreenSpaces.contains($0) } == true
+            }
         }
 
         /// Displays in order.
@@ -157,7 +183,7 @@ enum SpaceWindowBridge {
     /// on without moving anything rather than guessing at a destination.
     static func visibleSpace(near pointer: CGPoint) -> UInt64? {
         guard let topology = topology() else { return nil }
-        let screen = NSScreen.screens.first { $0.frame.contains(pointer) } ?? NSScreen.main
+        let screen = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) } ?? NSScreen.main
         if let number = (screen?.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
             .uint32Value,
            let display = topology.displays.first(where: { $0.displayID == number }) {
@@ -230,25 +256,83 @@ enum SpaceWindowBridge {
     /// window as the one that comes up front, marked as user-initiated. Older
     /// macOS also travels to the window's Space; current macOS ignores the
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
-    /// The follow-up record pair makes the window key without clicking any of
-    /// its content (the synthetic click points just outside the frame).
-    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) {
-        guard let setFrontProcess, let processForPID else { return }
+    /// The follow-up record is a lone press that makes the window key without
+    /// clicking any of its content. It has no release, so no control can ever
+    /// be activated, and it aims far past the bottom-right of any window. A
+    /// point just outside the frame lands on the invisible resize border, and
+    /// the repeated focus pass then finished a resize that dragged the
+    /// window's top-left corner to the screen's own. An all-ones (NaN) point
+    /// is turned back into (0, 0) by some apps, which then click whatever sits
+    /// at their top-left corner; a far positive point keeps any such fallback
+    /// on the opposite corner.
+    /// Returns false when the window server did not take the request, so the
+    /// caller can fall back to app-level activation.
+    @discardableResult
+    static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
+        guard let setFrontProcess, let processForPID, let postEventRecord else { return false }
         var psn = ProcessSerialNumber()
-        guard processForPID(ownerPID, &psn) == noErr else { return }
+        guard processForPID(ownerPID, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
-        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return }
-        guard let postEventRecord else { return }
+        guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return false }
         var targetID = windowID
-        var clickPoint = CGPoint(x: -1, y: -1)
         var record = [UInt8](repeating: 0, count: 0x100)
         record[0x04] = 0xf8 // declared record length
         record[0x3a] = 0x10
         withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
-        withUnsafeBytes(of: &clickPoint) { record.replaceSubrange(0x20..<0x20 + $0.count, with: $0) }
-        record[0x08] = 0x01 // left mouse down…
-        _ = postEventRecord(&psn, &record)
-        record[0x08] = 0x02 // …then up: the pair makes the window key
+        // Window-relative location, far past the bottom-right of any window.
+        var farPoint = CGPoint(x: 300_000, y: 300_000)
+        withUnsafeBytes(of: &farPoint) { record.replaceSubrange(0x20..<0x20 + $0.count, with: $0) }
+        record[0x08] = 0x01 // left mouse down alone makes the window key
+        return postEventRecord(&psn, &record) == .success
+    }
+
+    /// Hands the keyboard to a window and leaves the stacking order alone,
+    /// with the focus handoff window managers use for this. Within the app
+    /// already in front, the window server moves focus only once the old
+    /// window hears it lost focus and the new one that it gained it. Some apps
+    /// miss the pair when it arrives at once, so the second half waits 40 ms
+    /// without blocking the main thread. If the hover is no longer current
+    /// when it ends, the old window gets its focus back only if it still
+    /// verifiably holds it.
+    static func focusWithoutRaise(_ windowID: CGWindowID, ownerPID: pid_t,
+                                  replacing focusedWindowID: CGWindowID?,
+                                  while isCurrent: @escaping () -> Bool,
+                                  completion: @escaping (Bool) -> Void) {
+        guard isCurrent() else {
+            completion(false)
+            return
+        }
+        guard let focusedWindowID else {
+            completion(frontWindow(windowID, ownerPID: ownerPID))
+            return
+        }
+        postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
+            guard isCurrent() else {
+                if FocusFollowsMouseSupport.shouldRestoreFocus(
+                    to: focusedWindowID,
+                    reportedFocusedWindowID: WindowActivator.focusedWindowID(for: ownerPID),
+                    appIsFrontmost: NSWorkspace.shared.frontmostApplication?.processIdentifier == ownerPID) {
+                    postFocusRecord(focusedWindowID, ownerPID: ownerPID, gained: true)
+                }
+                completion(false)
+                return
+            }
+            postFocusRecord(windowID, ownerPID: ownerPID, gained: true)
+            completion(frontWindow(windowID, ownerPID: ownerPID))
+        }
+    }
+
+    private static func postFocusRecord(_ windowID: CGWindowID, ownerPID: pid_t, gained: Bool) {
+        guard let processForPID, let postEventRecord else { return }
+        var psn = ProcessSerialNumber()
+        guard processForPID(ownerPID, &psn) == noErr else { return }
+        var targetID = windowID
+        var record = [UInt8](repeating: 0, count: 0x100)
+        record[0x04] = 0xf8 // declared record length
+        record[0x08] = 0x0d
+        record[0x8a] = gained ? 0x01 : 0x02
+        withUnsafeBytes(of: &targetID) { record.replaceSubrange(0x3c..<0x3c + $0.count, with: $0) }
         _ = postEventRecord(&psn, &record)
     }
 

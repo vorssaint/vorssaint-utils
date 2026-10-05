@@ -20,15 +20,133 @@ struct MonitorAlertsControls: View {
     @AppStorage(DefaultsKey.monitorAlertDiskFreePercent) private var alertDiskFreePercent = 10
     @AppStorage(DefaultsKey.monitorAlertBatteryPercent) private var alertBatteryPercent = 15
     @AppStorage(DefaultsKey.monitorAlertCooldownMinutes) private var alertCooldown = 15
+    @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
     private var text: MonitorAlertFeatureStrings {
         FeatureStrings.monitorAlerts(l10n.language)
     }
 
+    private var selectedTemperatureUnit: TemperatureUnit {
+        TemperatureUnit(rawValue: temperatureUnit) ?? .celsius
+    }
+
+    private func formattedTemperature(_ celsius: Int) -> String {
+        MetricFormat.temperature(Double(celsius), unit: selectedTemperatureUnit)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 7 : 8) {
+        // The panel keeps its compact checkbox list; Settings draws one label
+        // per alert, with its limit on the label's options half.
+        Group {
+            if compact {
+                checklist
+            } else {
+                tiles
+            }
+        }
+        .onAppear {
+            sanitizeAlertValues()
+            refreshNotificationStatus()
+        }
+        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
+    }
+
+    private var tiles: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: monitorTokenColumns, spacing: 8) {
+                if AppFeature.monitorCPU.isAvailable {
+                    alertToken(text.cpu, symbol: "cpu", isOn: $alertCPU,
+                               limit: .init(label: text.cpuThreshold, value: $alertCPUThreshold,
+                                            range: 50...100, step: 5, formatValue: { "\($0)%" }))
+                    alertToken(text.cpuTemperature, symbol: "thermometer.medium", isOn: $alertCPUTemperature,
+                               limit: .init(label: text.cpuTemperatureThreshold, value: $alertCPUTemperatureThreshold,
+                                            range: 70...105, step: 5, formatValue: formattedTemperature))
+                }
+                if AppFeature.monitorMemory.isAvailable {
+                    alertToken(text.memory, symbol: "memorychip", isOn: $alertMemory, limit: nil)
+                }
+                if AppFeature.monitorDisk.isAvailable {
+                    alertToken(text.disk, symbol: "internaldrive", isOn: $alertDisk,
+                               limit: .init(label: text.diskThreshold, value: $alertDiskFreePercent,
+                                            range: 5...30, step: 5, formatValue: { "\($0)%" }))
+                }
+                if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
+                    alertToken(text.batteryTemperature, symbol: "thermometer.high", isOn: $alertBatteryTemperature,
+                               limit: .init(label: text.batteryTemperatureThreshold,
+                                            value: $alertBatteryTemperatureThreshold,
+                                            range: 30...50, step: 5, formatValue: formattedTemperature))
+                    alertToken(text.battery, symbol: "battery.25percent", isOn: $alertBattery,
+                               limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
+                                            range: 5...50, step: 5, formatValue: { "\($0)%" }))
+                }
+            }
+            .monitorTokenGroup()
+            // One interval for every alert, each timed on its own, so it sits
+            // outside the alerts box rather than under the last of them.
+            SettingsRow(symbol: "bell.badge", title: text.cooldown) {
+                cooldownPicker
+                    .labelsHidden()
+                    .fixedSize()
+            }
+            .disabled(!anyAlertEnabled)
+            if notificationsDenied, anyAlertEnabled {
+                Text(text.notificationsDenied)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text(text.caption)
-                .font(compact ? .system(size: 9.5) : .caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private struct Limit {
+        let label: String
+        let value: Binding<Int>
+        let range: ClosedRange<Int>
+        let step: Int
+        let formatValue: (Int) -> String
+    }
+
+    /// One alert as a label, with the limit it fires at on its options half.
+    private func alertToken(_ title: String, symbol: String, isOn: Binding<Bool>, limit: Limit?) -> some View {
+        MonitorToken(symbol: symbol, title: title, included: isOn,
+                     options: limit.map { limit in
+                         AnyView(Stepper(value: limit.value, in: limit.range, step: limit.step) {
+                             Text("\(limit.label) \(limit.formatValue(limit.value.wrappedValue))").monospacedDigit()
+                         })
+                     },
+                     optionsSummary: limit.map { $0.formatValue($0.value.wrappedValue) } ?? "")
+    }
+
+    private var cooldownPicker: some View {
+        Picker(text.cooldown, selection: $alertCooldown) {
+            Text(text.cooldown2).tag(2)
+            Text(text.cooldown5).tag(5)
+            Text(text.cooldown15).tag(15)
+            Text(text.cooldown30).tag(30)
+            Text(text.cooldown60).tag(60)
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var checklist: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(text.caption)
+                .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if AppFeature.monitorCPU.isAvailable {
@@ -41,7 +159,7 @@ struct MonitorAlertsControls: View {
                 }
                 Toggle(text.cpuTemperature, isOn: $alertCPUTemperature)
                 if alertCPUTemperature {
-                    Stepper("\(text.cpuTemperatureThreshold) \(alertCPUTemperatureThreshold) °C",
+                    Stepper("\(text.cpuTemperatureThreshold) \(formattedTemperature(alertCPUTemperatureThreshold))",
                             value: $alertCPUTemperatureThreshold,
                             in: 70...105,
                             step: 5)
@@ -62,7 +180,7 @@ struct MonitorAlertsControls: View {
             if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
                 Toggle(text.batteryTemperature, isOn: $alertBatteryTemperature)
                 if alertBatteryTemperature {
-                    Stepper("\(text.batteryTemperatureThreshold) \(alertBatteryTemperatureThreshold) °C",
+                    Stepper("\(text.batteryTemperatureThreshold) \(formattedTemperature(alertBatteryTemperatureThreshold))",
                             value: $alertBatteryTemperatureThreshold,
                             in: 30...50,
                             step: 5)
@@ -76,44 +194,21 @@ struct MonitorAlertsControls: View {
                 }
             }
             if anyAlertEnabled {
-                Picker(text.cooldown, selection: $alertCooldown) {
-                    Text(text.cooldown2).tag(2)
-                    Text(text.cooldown5).tag(5)
-                    Text(text.cooldown15).tag(15)
-                    Text(text.cooldown30).tag(30)
-                    Text(text.cooldown60).tag(60)
-                }
-                .pickerStyle(.menu)
+                cooldownPicker
             }
             // Alerts silently cannot fire when macOS notifications are denied
             // for the app; without this line that state is invisible (the
             // user just never hears anything).
             if notificationsDenied, anyAlertEnabled {
                 Text(text.notificationsDenied)
-                    .font(compact ? .system(size: 9.5) : .caption)
+                    .font(.system(size: 9.5))
                     .foregroundStyle(.orange)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .toggleStyle(.checkbox)
-        .controlSize(compact ? .small : .regular)
-        .font(compact ? .system(size: 10.5) : .body)
-        .onAppear {
-            sanitizeAlertValues()
-            refreshNotificationStatus()
-        }
-        .onChange(of: alertCPU) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertCPUTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBatteryTemperature) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
-        .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
-        .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
+        .controlSize(.small)
+        .font(.system(size: 10.5))
     }
 
     private var anyAlertEnabled: Bool {

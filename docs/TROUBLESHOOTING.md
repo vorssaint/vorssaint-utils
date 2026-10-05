@@ -35,11 +35,45 @@ This one feeds window titles and thumbnails in the switcher and Dock Preview. If
 
 ### System Audio Recording
 
-This one powers per app volume and output routing in the mixer. If the mixer says it needs permission, open System Settings, Privacy and Security, Screen and System Audio Recording, and switch Vorssaint on. Audio is processed only for the local mixer.
+This permission is used by the mixer, the optional live equalizer and system audio capture for recordings. If a feature asks for it, open System Settings, Privacy and Security, Screen and System Audio Recording, and switch Vorssaint on. See the [permissions guide](PERMISSIONS.md#system-audio-recording) for what each feature does with the audio.
 
 ### Automation
 
 Finder cut and paste, the uninstaller and Homebrew's Terminal handoff may ask for Automation. If a Finder move or Terminal handoff does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for the app it needs to control.
+
+## Clipboard history does not copy or paste
+
+First check whether a fresh copy appears in history. History must be enabled,
+and copies from excluded apps or marked as concealed are not saved. Compare
+copy-only followed by Command-V with automatic paste. If only automatic paste
+fails, check Accessibility and the app that should receive the paste.
+
+A failed history copy sounds the system alert and does not trigger automatic
+paste. A request also fails after five seconds, or if another history copy is
+still pending. Expired requests that have not started are skipped. A write
+already in progress can still change the clipboard; it cannot be rolled back.
+
+If another app stops answering a clipboard read, history waits for that read
+to end instead of adding more reads behind it. The deadline does not unblock
+macOS. If copying fresh text does not restore history, quit and reopen the
+source app and Vorssaint. Include the source app and macOS version in a report;
+do not include private clipboard content.
+
+## Homebrew and your shell startup files
+
+Homebrew inside Vorssaint uses the proxy and `HOMEBREW_*` settings your shell
+exports, so it reaches the same servers as Terminal. To find them, Vorssaint
+starts your login shell once per launch, the way Terminal does, which reads
+`~/.zprofile` and `~/.zshrc`. Because Vorssaint starts it, a startup file that
+reads a protected folder asks for access in Vorssaint's name.
+
+During that run `VORSSAINT_RESOLVING_ENVIRONMENT` is set to `1`. A startup file
+can check it to skip work that only makes sense in a terminal window, such as
+starting a multiplexer or a slow prompt:
+
+```sh
+[[ -n $VORSSAINT_RESOLVING_ENVIRONMENT ]] && return
+```
 
 ## Resetting permissions
 

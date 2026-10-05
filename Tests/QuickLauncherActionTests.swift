@@ -2,11 +2,32 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import Carbon.HIToolbox
 
 /// The generated members are the real tile model, activation method and icon
 /// methods. Only their environment is replaced: no windows, taps or capture.
 enum QuickLauncherContract {
     static var events: [String] = []
+    static var cameraInNotch = false
+    enum ReviewDefaults { static var current: UserDefaults! }
+    enum QuickLauncherService { static let columns = 3 }
+    struct NSEvent {
+        struct ModifierFlags: OptionSet {
+            let rawValue: Int
+            static let command = Self(rawValue: 1)
+            static let control = Self(rawValue: 2)
+            static let option = Self(rawValue: 4)
+            static let shift = Self(rawValue: 8)
+        }
+        let keyCode: UInt16
+        var modifierFlags: ModifierFlags = []
+        var window: Window?
+    }
+    final class Window { var firstResponder: AnyObject? }
+    final class NSTextView {
+        var composing = false
+        func hasMarkedText() -> Bool { composing }
+    }
 
     struct State {
         var isActive = false
@@ -39,6 +60,11 @@ enum QuickLauncherContract {
         func capture() { events.append(name + ".capture") }
         func pick() { events.append(name + ".pick") }
         func show() { events.append(name + ".show") }
+        func showInNotchIfEnabled() -> Bool {
+            guard name == "camera", cameraInNotch else { return false }
+            events.append("camera.notch")
+            return true
+        }
         func showHistoryWindow() { events.append(name + ".showHistoryWindow") }
         func activate() { events.append(name + ".activate") }
     }
@@ -54,6 +80,16 @@ enum QuickLauncherContract {
     enum CleaningModeManager { static let shared = Spy(name: "cleaning") }
 
     static func run(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.quick-launcher-presentation"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        ReviewDefaults.current = defaults
+        defer {
+            ReviewDefaults.current = nil
+            defaults.removePersistentDomain(forName: domain)
+        }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        cameraInNotch = false
         let cases: [(QuickLauncherItem, AppFeature, String?, Double?)] = [
             (.keepAwake, .keepAwake, "keepAwake.toggle", nil),
             (.micMute, .micMute, "micMute.toggle", nil),
@@ -106,6 +142,13 @@ enum QuickLauncherContract {
             suite.expect(events.isEmpty && launcher.activeUtility == nil,
                          "editing \(item) never activates it")
         }
+        events.removeAll()
+        DispatchQueue.main.jobs.removeAll()
+        cameraInNotch = true
+        Launcher().run(.cameraPreview)
+        suite.expect(events == ["camera.notch", "hide"] && DispatchQueue.main.jobs.isEmpty,
+                     "an embedded camera switches the notch before hiding the launcher, without a close-and-reopen delay")
+        cameraInNotch = false
         var tile = Tile()
         suite.expect(tile.display(.screenRecorder) == ("record.circle", false),
                      "an idle recording tile offers recording")
@@ -114,5 +157,91 @@ enum QuickLauncherContract {
                      "an active recording tile offers stopping and shows its active state")
         suite.expect(QuickLauncherItem.allCases.allSatisfy { !tile.display($0).0.isEmpty },
                      "every tile has an icon")
+        presentationContracts(suite)
+        compositionContracts(suite)
+        railContracts(suite)
+    }
+
+    private static func presentationContracts(_ suite: TestSuite) {
+        let launcher = Launcher()
+        let oldPresentation = launcher.presentationID
+        launcher.isEditing = true
+        launcher.editingOptionsItem = .clipboard
+        launcher.prepareForPresentation()
+        suite.expect(launcher.presentationID != oldPresentation && !launcher.isEditing
+                     && launcher.editingOptionsItem == nil && launcher.selectedIndex == 0,
+                     "a new presentation resets edit controls and selects its first available tile")
+        events.removeAll()
+        let enter = NSEvent(keyCode: UInt16(kVK_Return))
+        suite.expect(launcher.handlePanelKey(enter) == nil && events == ["keepAwake.toggle"],
+                     "Return activates the first item immediately after presentation")
+        for item in [QuickLauncherItem.urlCleaner, .homebrew, .uninstaller, .media] {
+            launcher.activeUtility = item
+            launcher.prepareForPresentation()
+            suite.expect(launcher.activeUtility == item,
+                         "reopening preserves the working utility while its feature remains installed")
+            ReviewDefaults.current.set(false, forKey: item.feature.availabilityKey)
+            launcher.editingOptionsItem = item
+            launcher.refreshAvailability()
+            suite.expect(launcher.activeUtility == nil && launcher.editingOptionsItem == nil,
+                         "removing a feature clears both its hosted utility and its edit options")
+            launcher.activeUtility = item
+            launcher.prepareForPresentation()
+            suite.expect(launcher.activeUtility == nil,
+                         "a utility removed while the island was closed cannot return on reopening")
+            events.removeAll()
+            launcher.run(item)
+            suite.expect(launcher.activeUtility == nil && events.isEmpty,
+                         "a stale tile action cannot activate a removed feature")
+            ReviewDefaults.current.set(true, forKey: item.feature.availabilityKey)
+        }
+        launcher.candidates = []
+        launcher.prepareForPresentation()
+        events.removeAll()
+        suite.expect(launcher.selectedIndex == nil && launcher.handlePanelKey(enter) == nil && events.isEmpty,
+                     "an empty launcher has no imaginary initial action")
+    }
+
+    /// Each Esc step, reached while a utility's field holds an input method
+    /// that is still composing: none may take the key from it.
+    private static func compositionContracts(_ suite: TestSuite) {
+        let field = NSTextView()
+        let window = Window()
+        window.firstResponder = field
+        let escape = NSEvent(keyCode: UInt16(kVK_Escape), window: window)
+        let steps: [(name: String, open: (Launcher) -> Void, closed: (Launcher) -> Bool)] = [
+            ("the hosted utility", { $0.activeUtility = .homebrew }, { $0.activeUtility == nil }),
+            ("the options card", { $0.isEditing = true; $0.editingOptionsItem = .clipboard },
+             { $0.editingOptionsItem == nil && $0.isEditing }),
+            ("edit mode", { $0.isEditing = true }, { !$0.isEditing }),
+            ("the launcher", { _ in }, { _ in events == ["hide"] }),
+        ]
+        for step in steps {
+            let launcher = Launcher()
+            step.open(launcher)
+            events.removeAll()
+            field.composing = true
+            suite.expect(launcher.handlePanelKey(escape) != nil && !step.closed(launcher) && events.isEmpty,
+                         "a composing input method keeps Esc from closing \(step.name)")
+            field.composing = false
+            suite.expect(launcher.handlePanelKey(escape) == nil && step.closed(launcher),
+                         "Esc closes \(step.name) once composition ends")
+        }
+    }
+
+    /// Hover and the arrows both select, but only the arrows move the
+    /// island's rail: scrolling to a hovered tile slid the next one under the
+    /// pointer, and the rail kept going.
+    private static func railContracts(_ suite: TestSuite) {
+        let launcher = Launcher()
+        launcher.prepareForPresentation()
+        suite.expect(launcher.keyboardIndex == 0, "a new presentation starts the rail at its first tile")
+        launcher.select(launcher.visibleItems[3])
+        suite.expect(launcher.selectedIndex == 3 && launcher.keyboardIndex == nil,
+                     "hovering a tile selects it without scrolling the rail")
+        let right = NSEvent(keyCode: UInt16(kVK_RightArrow))
+        suite.expect(launcher.handlePanelKey(right, flow: .columns(rows: 2)) == nil
+                     && launcher.selectedIndex == 5 && launcher.keyboardIndex == 5,
+                     "an arrow moves on from the hovered tile and scrolls the rail to the new one")
     }
 }

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import UniformTypeIdentifiers
 
 enum URLCleaning {
     private static let trackedParameters: Set<String> = [
@@ -28,9 +29,9 @@ enum URLCleaning {
         "spotify.com": ["si"],
         // Reddit's share sheet routes through branch.io, whose deep link fields
         // start with a literal `$`. Links often carry them percent-encoded as
-        // `%24…`, but only the decoded spelling is listed: names arrive here
-        // from `URLComponents.queryItems`, which has already decoded them.
-        // ClearURLs lists both because it matches the raw query with regex.
+        // `%24…`, but only the decoded spelling is listed: `decodedName` decodes
+        // the name half of each pair before the rules see it. ClearURLs lists
+        // both because it matches the raw query with regex.
         "reddit.com": [
             "correlation_id", "ref_campaign", "ref_source", "rdt", "share_id",
             "_branch_match_id", "$deep_link", "$3p", "$original_url",
@@ -48,7 +49,7 @@ enum URLCleaning {
         ],
         "xiaohongshu.com": [
             "xhsshare", "author_share", "xsec_source", "share_from_user_hidden",
-            "shareRedId", "share_id", "exSource", "app_version", "app_platform",
+            "shareredid", "share_id", "exsource", "app_version", "app_platform",
             "apptime", "appuid",
         ],
     ]
@@ -135,25 +136,42 @@ enum URLCleaning {
 
     static func clean(_ text: String, rules: Rules = .none) -> Result? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var components = URLComponents(string: trimmed),
+        guard !trimmed.contains(where: \.isWhitespace),
+              let components = URLComponents(string: trimmed),
               let scheme = components.scheme?.lowercased(),
               (scheme == "http" || scheme == "https"),
-              let host = components.host else {
+              let host = components.host,
+              components.url != nil else {
             return nil
         }
 
+        // URLComponents validates the link and supplies its host, but can
+        // re-encode existing escapes when a query also contains literal Unicode.
+        // Slice the original text by scalars so combining marks cannot hide
+        // a query delimiter inside a Character.
+        let scalars = trimmed.unicodeScalars
+        let fragmentStart = scalars.firstIndex(of: "#") ?? scalars.endIndex
+        guard let queryStart = scalars[..<fragmentStart].firstIndex(of: "?") else {
+            return Result(url: trimmed, removed: [])
+        }
+        let query = scalars[scalars.index(after: queryStart)..<fragmentStart]
         var removed: [String] = []
-        if let items = components.queryItems {
-            let matcher = Self.matcher(for: host, rules: rules)
-            let kept = items.filter { item in
-                guard matcher.matches(item.name) else { return true }
-                if !removed.contains(item.name) { removed.append(item.name) }
+        let matcher = Self.matcher(for: host, rules: rules)
+        let kept = query.split(separator: "&", omittingEmptySubsequences: false)
+            .filter { pair in
+                let name = Self.decodedName(ofRawPair: pair)
+                guard matcher.matches(name) else { return true }
+                if !removed.contains(name) { removed.append(name) }
                 return false
             }
-            components.queryItems = kept.isEmpty ? nil : kept
+        guard !removed.isEmpty else {
+            return Result(url: trimmed, removed: [])
         }
 
-        guard let url = components.url?.absoluteString else { return nil }
+        let survivingQuery = kept.map { String($0) }.joined(separator: "&")
+        let url = String(scalars[..<queryStart])
+            + (kept.isEmpty ? "" : "?" + survivingQuery)
+            + String(scalars[fragmentStart...])
         return Result(url: url, removed: removed)
     }
 
@@ -231,6 +249,20 @@ enum URLCleaning {
         return value
     }
 
+    /// The name half of one percent-encoded `name=value` pair, decoded so a
+    /// tracker a link spells as `%75tm_source` or `%24deep_link` is still the
+    /// name the rules list. A pair carrying no `=` is a bare flag, so the
+    /// whole pair is its name and is matched like any other: a lone
+    /// `utm_source` goes, which is what the link dropping the pair meant. Only
+    /// an escape that will not decode at all falls back to the raw text, and
+    /// even that is matched as written — `utm_%ff` still answers to the
+    /// `utm_` prefix.
+    private static func decodedName(ofRawPair pair: String.UnicodeScalarView.SubSequence) -> String {
+        let raw = String(pair.prefix { $0 != "=" })
+        guard raw.contains("%") else { return raw }
+        return raw.removingPercentEncoding ?? raw
+    }
+
     private struct Matcher {
         let names: Set<String>
         let matchesUTMPrefix: Bool
@@ -280,5 +312,61 @@ enum URLCleaning {
             .split(whereSeparator: { $0 == "," || $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    // MARK: - Automatic rewrite
+
+    /// Whether the clipboard can be rewritten with a cleaned link without
+    /// losing anything the user copied. The rewrite keeps only the text and
+    /// the URL, so it is allowed when every type on the pasteboard is text, a
+    /// link, or an app's private note about the copy, and refused when the
+    /// pasteboard also carries content of its own: a picture, a file or a
+    /// promise to deliver one, a document. A link next to such content is only
+    /// its textual fallback (a browser's "Copy Image" also carries the image
+    /// URL as text). A copy an app marked concealed or transient is not an
+    /// ordinary copy either, and is left alone.
+    static func canRewritePasteboard(types: [String]) -> Bool {
+        guard !types.isEmpty else { return false }
+        return types.allSatisfy(typeSurvivesRewrite)
+    }
+
+    private static let plainPasteboardTypes: Set<String> = [
+        "public.utf8-plain-text", "public.url", "public.url-name",
+        "NSStringPboardType", "NSURLPboardType",
+    ]
+
+    /// Marks from the nspasteboard.org convention: concealed is a password
+    /// manager handing over a secret, transient is content about to be put
+    /// back by whoever placed it.
+    private static let untouchablePasteboardTypes: Set<String> = [
+        "org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+    ]
+
+    /// A file being copied or promised, under the names that are not types
+    /// the system knows and would otherwise pass as private notes.
+    private static let filePasteboardTypes: Set<String> = [
+        "NSFilenamesPboardType",
+        "com.apple.NSFilePromiseItemMetaData",
+        "Apple files promise pasteboard type",
+    ]
+
+    private static func typeSurvivesRewrite(_ rawValue: String) -> Bool {
+        if plainPasteboardTypes.contains(rawValue) { return true }
+        if untouchablePasteboardTypes.contains(rawValue) || filePasteboardTypes.contains(rawValue) {
+            return false
+        }
+        // Unknown to the system, or a dynamic stand-in for a legacy name: an
+        // app's private note about the copy, such as a browser's source page
+        // or a messaging app's reference to the message. The text does not
+        // depend on it, and real content always comes with a type of its own
+        // next to it.
+        guard let type = UTType(rawValue), type.isDeclared else { return true }
+        if type.conforms(to: .fileURL) { return false }
+        // Formatted text of the same link: dropped by the rewrite, and
+        // nothing is lost that the cleaned link does not say better. An RTFD
+        // with an attachment would put an attachment mark in the plain text,
+        // which is then no longer a link to clean.
+        return type.conforms(to: .text) || type.conforms(to: .url)
+            || type.conforms(to: .rtfd) || type.conforms(to: .flatRTFD)
     }
 }

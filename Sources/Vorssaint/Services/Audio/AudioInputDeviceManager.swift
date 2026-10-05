@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AudioToolbox
 import Combine
 import CoreAudio
 import Foundation
@@ -10,6 +11,7 @@ struct MixerInputDevice: Identifiable, Equatable {
     let uid: String
     let name: String
     let isDefault: Bool
+    let priorityTier: MixerRoutingSupport.PriorityTier
     fileprivate let audioObjectID: AudioObjectID
 }
 
@@ -23,6 +25,7 @@ final class AudioInputDeviceManager: ObservableObject {
     @Published private(set) var preferredInputDeviceUID: String?
     @Published private(set) var currentInputDeviceUID: String?
     @Published private(set) var effectiveInputDeviceUID: String?
+    @Published private(set) var inputVolume: Double?
     @Published private(set) var preferredUnavailable = false
     @Published private(set) var lastError: String?
 
@@ -30,6 +33,11 @@ final class AudioInputDeviceManager: ObservableObject {
     /// Stored so stop() can remove the HAL listeners when the mixer leaves
     /// the hub.
     private var globalListeners: [AudioObjectPropertySelector] = []
+    private var volumeDeviceID: AudioObjectID?
+    private var volumeListenerAddresses: [AudioObjectPropertyAddress] = []
+    private var volumeRefreshGeneration = 0
+    private let volumeWriteLock = NSLock()
+    private var volumeWriteLifetime = UUID()
     private var applyingPreferred = false
     private var refreshPending = false
     private var lastListenerRefreshAt: CFAbsoluteTime = 0
@@ -42,19 +50,24 @@ final class AudioInputDeviceManager: ObservableObject {
     /// for as long as the audio daemon holds the device, and that is exactly
     /// the moment the listeners fire.
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.audioinput.hal", qos: .userInitiated)
-    /// The system input as it was before this app first pointed it somewhere
-    /// else, and the device it was pointed at. Choosing a microphone here
-    /// changes a system setting, so switching the feature off or quitting puts
-    /// the original back.
+    /// The system input before the singular preferred-microphone behavior
+    /// changed it, and the device that behavior applied. Priority selections
+    /// clear this pair and become the new system choice instead of a temporary
+    /// override that stop() would undo.
     private var inputDeviceBeforeOverride: String?
     private var appliedInputDeviceUID: String?
+    /// True while Audio device priority is steering the input: the singular
+    /// preferred-input enforcement steps aside so the two do not fight.
+    private(set) var inputPriorityIsActive = false
 
     private init() {}
 
     /// The microphone selector lives in the mixer panel section, so it
     /// follows the mixer's hub availability.
     func syncWithPreferences() {
-        if AppFeature.mixer.isAvailable {
+        inputPriorityIsActive = AppFeature.audioPriority.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.audioPriorityInputEnabled)
+        if AppFeature.mixer.isAvailable || AppFeature.audioPriority.isAvailable {
             start()
         } else {
             stop()
@@ -73,7 +86,15 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     func stop() {
-        restoreOriginalInputDevice()
+        removeVolumeListeners()
+        // Priority selections are meant to survive a quit and the next
+        // launch. Only the singular preferred-microphone override is restored.
+        if !inputPriorityIsActive {
+            restoreOriginalInputDevice()
+        } else {
+            inputDeviceBeforeOverride = nil
+            appliedInputDeviceUID = nil
+        }
         guard listenerInstalled else { return }
         listenerInstalled = false
         // A sweep already reading the HAL must not publish into a manager that
@@ -92,10 +113,27 @@ final class AudioInputDeviceManager: ObservableObject {
         if !inputDevices.isEmpty { inputDevices = [] }
         if preferredUnavailable { preferredUnavailable = false }
         if lastError != nil { lastError = nil }
+        if inputVolume != nil { inputVolume = nil }
+        inputPriorityIsActive = false
+    }
+
+    func setInputPriorityActive(_ active: Bool) {
+        guard inputPriorityIsActive != active else { return }
+        inputPriorityIsActive = active
+        refresh.discardInFlight()
+        if listenerInstalled { refreshAndApply() }
     }
 
     func setPreferredInputDeviceUID(_ uid: String?) {
+        volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
         let sanitized = Defaults.sanitizedPreferredInputDeviceUID(uid)
+        // While priority owns input selection, the picker follows the actual
+        // current device. Keep the dormant single preferred choice untouched
+        // so it can resume when priority is disabled.
+        if inputPriorityIsActive {
+            if let sanitized { setCurrentInputDeviceUID(sanitized) }
+            return
+        }
         if let sanitized {
             UserDefaults.standard.set(sanitized, forKey: DefaultsKey.preferredInputDevice)
         } else {
@@ -109,6 +147,69 @@ final class AudioInputDeviceManager: ObservableObject {
         refreshAndApply()
     }
 
+    /// Points the system input at a concrete device without changing the
+    /// dormant preferred-microphone setting. A successful selection becomes
+    /// the new persistent system choice, so it also supersedes any restoration
+    /// record left by the singular preferred-microphone behavior. The HAL write
+    /// runs off-main: a device connecting or disappearing is exactly when
+    /// CoreAudio may block.
+    func setCurrentInputDeviceUID(_ uid: String) {
+        volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
+        guard listenerInstalled,
+              uid != currentInputDeviceUID,
+              let device = inputDevices.first(where: { $0.uid == uid }) else { return }
+        refresh.discardInFlight()
+        halQueue.async { [weak self] in
+            let status = Self.setDefaultInputDevice(device.audioObjectID)
+            DispatchQueue.main.async {
+                guard let self, self.listenerInstalled else { return }
+                if status == noErr {
+                    self.inputDeviceBeforeOverride = nil
+                    self.appliedInputDeviceUID = nil
+                    if self.lastError != nil { self.lastError = nil }
+                } else {
+                    let message = "OSStatus \(status)"
+                    if self.lastError != message { self.lastError = message }
+                }
+                // Do not claim the device synchronously. The HAL may publish
+                // the new default a moment later; this refresh is the source
+                // of truth for the picker and priority-list highlight.
+                self.refreshAndApply()
+            }
+        }
+    }
+
+    func setInputVolume(_ volume: Double) {
+        guard listenerInstalled, volume.isFinite,
+              let muteLifetime = MicMuteService.shared.inputVolumeAdjustmentLifetime,
+              let uid = effectiveInputDeviceUID,
+              let device = inputDevices.first(where: { $0.uid == uid }),
+              volumeDeviceID == device.audioObjectID, inputVolume != nil else { return }
+        let clamped = min(max(volume, 0), 1)
+        let lifetime = volumeWriteLock.withLock { volumeWriteLifetime }
+        volumeRefreshGeneration &+= 1
+        if inputVolume != clamped { inputVolume = clamped }
+        halQueue.async { [weak self] in
+            guard let self else { return }
+            // Serialize with mute itself, including a mute requested while
+            // this adjustment was waiting for the audio device.
+            MicMuteService.shared.withUnmutedInput(lifetime: muteLifetime) {
+                guard self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }),
+                      Self.defaultInputDeviceUID() == uid else { return }
+                var deviceUID: CFString = "" as CFString
+                guard Self.read(device.audioObjectID, kAudioDevicePropertyDeviceUID, &deviceUID),
+                      deviceUID as String == uid,
+                      self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return }
+                _ = Self.setInputVolume(Float32(clamped), for: device.audioObjectID)
+            }
+            DispatchQueue.main.async {
+                guard self.volumeWriteLock.withLock({ self.volumeWriteLifetime == lifetime }) else { return }
+                // Success may still mean a rounded or ignored adjustment.
+                self.scheduleVolumeRefresh(for: device.audioObjectID)
+            }
+        }
+    }
+
     /// The smallest possible answer to a change: the system decides which
     /// thread this arrives on, so it only asks the main thread for a refresh
     /// and returns. The reading that follows happens away from the main
@@ -118,6 +219,14 @@ final class AudioInputDeviceManager: ObservableObject {
         guard let client else { return noErr }
         let manager = Unmanaged<AudioInputDeviceManager>.fromOpaque(client).takeUnretainedValue()
         DispatchQueue.main.async { manager.scheduleListenerRefresh() }
+        return noErr
+    }
+
+    private static let volumeListenerCallback: AudioObjectPropertyListenerProc = {
+        device, _, _, client in
+        guard let client else { return noErr }
+        let manager = Unmanaged<AudioInputDeviceManager>.fromOpaque(client).takeUnretainedValue()
+        DispatchQueue.main.async { manager.scheduleVolumeRefresh(for: device) }
         return noErr
     }
 
@@ -168,6 +277,9 @@ final class AudioInputDeviceManager: ObservableObject {
         let savedUID: String?
         let inputDeviceBeforeOverride: String?
         let mayApplyPreferred: Bool
+        let priorityIsActive: Bool
+        let preferredInputIsActive: Bool
+        let volumeGeneration: Int
     }
 
     /// Everything one sweep read from the HAL, handed back to the main thread.
@@ -176,6 +288,8 @@ final class AudioInputDeviceManager: ObservableObject {
         let currentUID: String?
         let devices: [MixerInputDevice]
         let resolution: MixerInputRouteResolution
+        let inputVolume: Double?
+        let volumeGeneration: Int
         /// Non-nil when this sweep actually pointed the system input at the
         /// preferred device; the write has already happened on the HAL.
         let applied: AppliedInput?
@@ -200,7 +314,10 @@ final class AudioInputDeviceManager: ObservableObject {
             savedUID: Defaults.sanitizedPreferredInputDeviceUID(
                 UserDefaults.standard.string(forKey: DefaultsKey.preferredInputDevice)),
             inputDeviceBeforeOverride: inputDeviceBeforeOverride,
-            mayApplyPreferred: !applyingPreferred)
+            mayApplyPreferred: !applyingPreferred && !inputPriorityIsActive,
+            priorityIsActive: inputPriorityIsActive,
+            preferredInputIsActive: AppFeature.mixer.isAvailable,
+            volumeGeneration: volumeRefreshGeneration)
 
         halQueue.async { [weak self] in
             let snapshot = Self.readSnapshot(request)
@@ -216,18 +333,26 @@ final class AudioInputDeviceManager: ObservableObject {
         let currentUID = defaultInputDeviceUID()
         let devices = inputDevices(defaultUID: currentUID)
         let availableUIDs = Set(devices.map(\.uid))
-        let resolution = MixerRoutingSupport.resolveInputDevice(preferredUID: savedUID,
-                                                                availableUIDs: availableUIDs,
-                                                                currentUID: currentUID)
+        let resolution = MixerRoutingSupport.resolveInputDevice(
+            preferredUID: savedUID,
+            availableUIDs: availableUIDs,
+            currentUID: currentUID,
+            priorityIsActive: request.priorityIsActive,
+            preferredInputIsActive: request.preferredInputIsActive)
 
         guard resolution.shouldApplyPreferred,
               request.mayApplyPreferred,
               let savedUID,
               let device = devices.first(where: { $0.uid == savedUID }) else {
+            let volume = resolution.effectiveUID
+                .flatMap { uid in devices.first(where: { $0.uid == uid }) }
+                .flatMap { inputVolume(for: $0.audioObjectID) }
             return RefreshSnapshot(savedUID: savedUID,
                                    currentUID: currentUID,
                                    devices: devices,
                                    resolution: resolution,
+                                   inputVolume: volume.map(Double.init),
+                                   volumeGeneration: request.volumeGeneration,
                                    applied: nil)
         }
 
@@ -239,6 +364,8 @@ final class AudioInputDeviceManager: ObservableObject {
                                currentUID: currentUID,
                                devices: devices,
                                resolution: resolution,
+                               inputVolume: inputVolume(for: device.audioObjectID).map(Double.init),
+                               volumeGeneration: request.volumeGeneration,
                                applied: AppliedInput(device: device,
                                                      status: status,
                                                      deviceBeforeOverride: before))
@@ -273,7 +400,8 @@ final class AudioInputDeviceManager: ObservableObject {
         if currentInputDeviceUID != snapshot.currentUID {
             currentInputDeviceUID = snapshot.currentUID
         }
-        if effectiveInputDeviceUID != snapshot.resolution.effectiveUID {
+        let effectiveDeviceChanged = effectiveInputDeviceUID != snapshot.resolution.effectiveUID
+        if effectiveDeviceChanged {
             effectiveInputDeviceUID = snapshot.resolution.effectiveUID
         }
         if preferredUnavailable != snapshot.resolution.selectedUnavailable {
@@ -281,6 +409,19 @@ final class AudioInputDeviceManager: ObservableObject {
         }
         if inputDevices != snapshot.devices {
             inputDevices = snapshot.devices
+        }
+        let effectiveDeviceID = snapshot.resolution.effectiveUID
+            .flatMap { uid in snapshot.devices.first(where: { $0.uid == uid })?.audioObjectID }
+        // Rewiring listeners invalidates pending control reads. Capture the
+        // sweep's validity first so that initial wiring cannot invalidate the
+        // volume value discovered by this same sweep. A stale read is still
+        // useful when it belongs to a newly selected device: it must replace
+        // the old device's level while a slider drag is in flight.
+        let sweepVolumeIsCurrent = volumeRefreshGeneration == snapshot.volumeGeneration
+        let volumeDeviceChanged = volumeDeviceID != effectiveDeviceID
+        updateVolumeListeners(for: effectiveDeviceID)
+        if (sweepVolumeIsCurrent || effectiveDeviceChanged || volumeDeviceChanged), inputVolume != snapshot.inputVolume {
+            inputVolume = snapshot.inputVolume
         }
 
         guard let applied = snapshot.applied else { return }
@@ -320,6 +461,7 @@ final class AudioInputDeviceManager: ObservableObject {
                              uid: $0.uid,
                              name: $0.name,
                              isDefault: $0.uid == device.uid,
+                             priorityTier: $0.priorityTier,
                              audioObjectID: $0.audioObjectID)
         }
         if inputDevices != updated {
@@ -360,6 +502,160 @@ final class AudioInputDeviceManager: ObservableObject {
                                           nil,
                                           UInt32(MemoryLayout<AudioObjectID>.size),
                                           &nextDeviceID)
+    }
+
+    private static let inputVolumeSelectors: [AudioObjectPropertySelector] = [
+        kAudioHardwareServiceDeviceProperty_VirtualMainVolume,
+        kAudioDevicePropertyVolumeScalar,
+    ]
+
+    private static func mainInputVolumeAddresses() -> [AudioObjectPropertyAddress] {
+        inputVolumeSelectors.map { selector in
+            AudioObjectPropertyAddress(mSelector: selector,
+                                       mScope: kAudioDevicePropertyScopeInput,
+                                       mElement: kAudioObjectPropertyElementMain)
+        }
+    }
+
+    private static func channelInputVolumeAddresses(for deviceID: AudioObjectID) -> [AudioObjectPropertyAddress] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
+                                                mScope: kAudioDevicePropertyScopeInput,
+                                                mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size) == noErr,
+              size >= UInt32(MemoryLayout<AudioBufferList>.size) else { return [] }
+        let storage = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { storage.deallocate() }
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, storage) == noErr else { return [] }
+        let buffers = UnsafeMutableAudioBufferListPointer(storage.assumingMemoryBound(to: AudioBufferList.self))
+        let channelCount = buffers.reduce(0) { $0 + Int($1.mNumberChannels) }
+        guard channelCount > 0 else { return [] }
+        return (1...channelCount).map { channel in
+            AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                       mScope: kAudioDevicePropertyScopeInput,
+                                       mElement: AudioObjectPropertyElement(channel))
+        }
+    }
+
+    private func updateVolumeListeners(for deviceID: AudioObjectID?) {
+        guard volumeDeviceID != deviceID else { return }
+        removeVolumeListeners()
+        guard let deviceID else { return }
+
+        // The active device is also needed for explicit read-back when a
+        // driver cannot install notifications.
+        volumeDeviceID = deviceID
+        let addresses = Self.mainInputVolumeAddresses() + Self.channelInputVolumeAddresses(for: deviceID)
+        for var address in addresses where Self.isSettable(deviceID, &address) {
+            guard AudioObjectAddPropertyListener(deviceID,
+                                                 &address,
+                                                 Self.volumeListenerCallback,
+                                                 listenerClient) == noErr else { continue }
+            volumeListenerAddresses.append(address)
+        }
+    }
+
+    private func removeVolumeListeners() {
+        volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
+        volumeRefreshGeneration &+= 1
+        guard let deviceID = volumeDeviceID else {
+            volumeListenerAddresses.removeAll()
+            return
+        }
+        for var address in volumeListenerAddresses {
+            AudioObjectRemovePropertyListener(deviceID,
+                                              &address,
+                                              Self.volumeListenerCallback,
+                                              listenerClient)
+        }
+        volumeListenerAddresses.removeAll()
+        volumeDeviceID = nil
+    }
+
+    private func scheduleVolumeRefresh(for deviceID: AudioObjectID) {
+        guard listenerInstalled, volumeDeviceID == deviceID else { return }
+        volumeRefreshGeneration &+= 1
+        let generation = volumeRefreshGeneration
+        // A drag can emit several property notifications for each step. Read
+        // once after the burst, and never let an older read replace newer UI.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            guard let self,
+                  self.listenerInstalled,
+                  self.volumeDeviceID == deviceID,
+                  self.volumeRefreshGeneration == generation else { return }
+            self.halQueue.async { [weak self] in
+                let volume = Self.inputVolume(for: deviceID).map(Double.init)
+                DispatchQueue.main.async {
+                    guard let self,
+                          self.listenerInstalled,
+                          self.volumeDeviceID == deviceID,
+                          self.volumeRefreshGeneration == generation else { return }
+                    if self.inputVolume != volume { self.inputVolume = volume }
+                }
+            }
+        }
+    }
+
+    private static func isSettable(_ deviceID: AudioObjectID,
+                                   _ address: inout AudioObjectPropertyAddress) -> Bool {
+        guard AudioObjectHasProperty(deviceID, &address) else { return false }
+        var settable = DarwinBoolean(false)
+        return AudioObjectIsPropertySettable(deviceID, &address, &settable) == noErr
+            && settable.boolValue
+    }
+
+    private static func inputVolume(for deviceID: AudioObjectID) -> Float32? {
+        for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
+            var volume = Float32(0)
+            var size = UInt32(MemoryLayout<Float32>.size)
+            if AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr {
+                return volume
+            }
+        }
+
+        // Some input devices expose writable gain only on their individual
+        // channels. Represent those controls with their mean so they remain
+        // visible and editable through the single slider.
+        let channelVolumes = channelInputVolumeAddresses(for: deviceID).compactMap { address -> Float32? in
+            var address = address
+            guard isSettable(deviceID, &address) else { return nil }
+            var volume = Float32(0)
+            var size = UInt32(MemoryLayout<Float32>.size)
+            guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &volume) == noErr else {
+                return nil
+            }
+            return volume
+        }
+        guard !channelVolumes.isEmpty else { return nil }
+        return channelVolumes.reduce(0, +) / Float32(channelVolumes.count)
+    }
+
+    private static func setInputVolume(_ volume: Float32, for deviceID: AudioObjectID) -> Bool {
+        let clamped = min(max(volume, 0), 1)
+        // Prefer a master control and stop at the first successful selector so
+        // devices exposing both master and channels keep their channel balance.
+        for var address in mainInputVolumeAddresses() where isSettable(deviceID, &address) {
+            var nextVolume = clamped
+            if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
+                                          UInt32(MemoryLayout<Float32>.size),
+                                          &nextVolume) == noErr {
+                return true
+            }
+        }
+
+        // With no usable master, every writable channel must be updated or a
+        // channel-only microphone would remain partially unchanged.
+        var applied = false
+        for var address in channelInputVolumeAddresses(for: deviceID) where isSettable(deviceID, &address) {
+            var nextVolume = clamped
+            if AudioObjectSetPropertyData(deviceID, &address, 0, nil,
+                                          UInt32(MemoryLayout<Float32>.size),
+                                          &nextVolume) == noErr {
+                applied = true
+            }
+        }
+        return applied
     }
 
     private static func inputDevices(defaultUID: String?) -> [MixerInputDevice] {
@@ -403,12 +699,16 @@ final class AudioInputDeviceManager: ObservableObject {
             let name = read(deviceID, kAudioObjectPropertyName, &nameRef)
                 ? nameRef as String
                 : uid
-            guard name != "Vorssaint Mixer" else { continue }
+            guard !MicMuteSupport.isOwnDevice(name: name) else { continue }
+            var transportType: UInt32 = 0
+            _ = read(deviceID, kAudioDevicePropertyTransportType, &transportType)
 
             devices.append(MixerInputDevice(id: uid,
                                             uid: uid,
                                             name: name,
                                             isDefault: uid == defaultUID,
+                                            priorityTier: MixerRoutingSupport.PriorityTier(
+                                                transportType: transportType),
                                             audioObjectID: deviceID))
         }
 

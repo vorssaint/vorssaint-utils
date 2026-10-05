@@ -72,6 +72,79 @@ enum StatusItemAnchorSupport {
         return frame.width > 0 && frame.height <= 0
     }
 
+    /// Bound recovery even if the system immediately closes the panel again.
+    static let panelReopenCooldown: TimeInterval = 1
+
+    /// currentEvent can outlive its dispatch. Only a fresh click delivered to
+    /// this panel permits recovery; keys, other windows and old events do not.
+    static func shouldReopenPanel(closedByApp: Bool,
+                                  lastFrame: CGRect?,
+                                  panelWindowNumber: Int?,
+                                  event: NSEvent?,
+                                  secondsSinceLastReopen: TimeInterval,
+                                  uptime: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+        guard !closedByApp,
+              secondsSinceLastReopen > panelReopenCooldown,
+              let lastFrame, let panelWindowNumber, panelWindowNumber > 0,
+              let event, event.windowNumber == panelWindowNumber,
+              event.type == .leftMouseDown || event.type == .leftMouseUp
+                || event.type == .rightMouseDown || event.type == .rightMouseUp,
+              (0...0.25).contains(uptime - event.timestamp) else { return false }
+        return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
+    }
+
+    /// Opening the panel activates Vorssaint so its controls take keys, which
+    /// makes it the frontmost app for as long as nothing else claims focus.
+    /// Once the panel is gone, the app that was in front before it opened gets
+    /// activation back, but only when the person dismissed the panel with
+    /// nothing taking over, and has not moved on meanwhile: another app is
+    /// already in front, or one of Vorssaint's own windows (Settings,
+    /// Feedback, an editor) took focus from the panel.
+    static func shouldReturnActivation(to sourcePID: pid_t?,
+                                       ownPID: pid_t,
+                                       frontmostPID: pid_t?,
+                                       ownWindowIsKey: Bool,
+                                       closeReason: PanelCloseReason?) -> Bool {
+        guard closeReason?.dismissesWithoutTakeover == true,
+              let sourcePID, sourcePID > 0, sourcePID != ownPID,
+              frontmostPID == ownPID else { return false }
+        return !ownWindowIsKey
+    }
+
+    /// Whether handing activation back would pull the person to another
+    /// desktop. The app in front can have its windows only on a desktop that
+    /// is not showing, for example after a switch to an empty desktop before
+    /// the panel opened, and activating it then travels back there. Each entry
+    /// lists the Spaces of one of the app's windows. A window on no Space is a
+    /// leftover surface and does not count, so an app with no windows open
+    /// still gets activation back, and so does one whenever the visible Spaces
+    /// are unknown.
+    static func handbackWouldSwitchDesktop(windowSpaces: [[UInt64]],
+                                           visibleSpaces: Set<UInt64>?) -> Bool {
+        guard let visibleSpaces else { return false }
+        let windows = windowSpaces.filter { !$0.isEmpty }
+        return !windows.isEmpty && windows.allSatisfy {
+            SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: $0, visibleSpaces: visibleSpaces)
+        }
+    }
+
+    /// The app to hand activation back to after a change seen while the panel
+    /// is open. The panel joins every desktop and stays up when Vorssaint
+    /// deactivates, so the person can move on without closing it. Another app
+    /// becoming active replaces the remembered one; Vorssaint itself taking
+    /// activation back (a click in the panel) keeps it. A desktop switch drops
+    /// it, since activating it later would travel back to the desktop it is on.
+    static func panelActivationSource<App>(after change: PanelActivationChange<App>,
+                                           current: App?,
+                                           isOwnApp: (App) -> Bool) -> App? {
+        switch change {
+        case .activeSpaceChanged:
+            return nil
+        case .appActivated(let app):
+            return isOwnApp(app) ? current : app
+        }
+    }
+
     /// Where an open panel belongs for a cached anchor: centered on the
     /// anchor's horizontal middle with its top edge held, so content that
     /// grows or shrinks (switching panel tabs) extends downward instead of
@@ -98,4 +171,32 @@ enum StatusItemAnchorSupport {
                       width: size.width,
                       height: size.height)
     }
+}
+
+/// Why the menu bar panel closed. Only a plain dismissal hands activation back
+/// to the app that was in front: an action starts its work right after the
+/// close (often opening another app), and an outside click can land on
+/// something that does not take activation, such as another menu bar item.
+enum PanelCloseReason {
+    /// Esc while the panel has focus.
+    case escape
+    /// A click on the status item (or its metric item) that owns the panel.
+    case statusItem
+    /// A click the dismissal monitors saw outside the panel.
+    case outsideClick
+    /// A panel row or button that closes the panel on its way to other work.
+    case action
+
+    var dismissesWithoutTakeover: Bool {
+        switch self {
+        case .escape, .statusItem: return true
+        case .outsideClick, .action: return false
+        }
+    }
+}
+
+/// What can happen to the remembered app while the panel stays open.
+enum PanelActivationChange<App> {
+    case activeSpaceChanged
+    case appActivated(App)
 }

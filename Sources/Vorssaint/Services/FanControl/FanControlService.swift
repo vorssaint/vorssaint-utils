@@ -53,6 +53,8 @@ final class FanControlService: ObservableObject {
     }
 
     static func recoverIfNeeded() {
+        // Re-applying supersedes the recovery: a start that fails restores too.
+        if let configuration = resumableConfiguration, shared.resume(configuration) { return }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded) else { return }
         shared.restoreAutomatic()
     }
@@ -63,6 +65,7 @@ final class FanControlService: ObservableObject {
                 restoreAutomatic()
             }
         } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
             restoreThenUnregister()
         }
     }
@@ -130,7 +133,7 @@ final class FanControlService: ObservableObject {
             return
         }
         if configuration.mode == .system {
-            restoreAutomatic()
+            returnToSystem()
             return
         }
         guard accessState == .enabled else { authorize(); return }
@@ -156,6 +159,7 @@ final class FanControlService: ObservableObject {
             }
             self.apply(response)
             if response.succeeded, response.snapshot.isCooling {
+                self.rememberForResume(configuration)
                 self.startTimerIfNeeded()
             } else {
                 self.restoreAutomatic(supersedingCurrentRequest: false,
@@ -167,6 +171,12 @@ final class FanControlService: ObservableObject {
 
     func restoreAutomatic() {
         restoreAutomatic(supersedingCurrentRequest: false)
+    }
+
+    /// The user's own return to System, the one stop a resume must honor.
+    func returnToSystem() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
+        restoreAutomatic()
     }
 
     private func restoreAutomatic(supersedingCurrentRequest: Bool,
@@ -223,6 +233,34 @@ final class FanControlService: ObservableObject {
         connection = nil
     }
 
+    /// Remember whether the attempted uninstall is removing a registration
+    /// that must be restored if the app remains installed.
+    static var hasRegisteredHelperForRemoval: Bool {
+        switch appService.status {
+        case .notRegistered, .notFound: return false
+        case .enabled, .requiresApproval: return true
+        @unknown default: return true
+        }
+    }
+
+    /// A failed permission reset leaves the app installed after the helper was
+    /// removed. Try to restore its registration and report whether it can run;
+    /// macOS may require approval again even when registration succeeds.
+    static func restoreRegistrationAfterFailedRemoval() -> Bool {
+        let service = appService
+        if service.status == .notRegistered || service.status == .notFound {
+            try? service.register()
+        }
+        let status = service.status
+        if status == .enabled || status == .requiresApproval {
+            UserDefaults.standard.set(helperVersion, forKey: DefaultsKey.fanControlHelperVersion)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
+        }
+        DispatchQueue.main.async { shared.refresh() }
+        return status == .enabled
+    }
+
     /// Used by the complete-uninstall path from its background queue. The
     /// daemon is removed only after it confirms automatic control, so teardown
     /// can never kill the recovery mechanism while a manual session remains.
@@ -276,6 +314,60 @@ final class FanControlService: ObservableObject {
         } catch {
             return false
         }
+    }
+
+    // MARK: - Resume
+
+    /// Turning resume on keeps the control already running; turning it off
+    /// forgets it, so no later restart brings back an old choice.
+    func resumePreferenceDidChange() {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.fanControlResume) else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
+            return
+        }
+        // Only the control running now is kept, never an older one left
+        // behind, for example by a restored backup.
+        if snapshot.isCooling, let configuration = snapshot.configuration {
+            rememberForResume(configuration)
+        } else {
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
+        }
+    }
+
+    /// The manual speed or curve to bring back when the app opens or the Mac
+    /// wakes, while resume is on and the user has not returned to System.
+    private static var resumableConfiguration: FanControlConfiguration? {
+        // Picking System in the card is a return to System too, even when a
+        // safety stop had already handed the fans back and left no button.
+        guard AppFeature.fanControl.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.fanControlResume),
+              UserDefaults.standard.string(forKey: DefaultsKey.fanControlMode)
+                != FanControlMode.system.rawValue else { return nil }
+        return FanControlConfiguration.decodeResume(
+            UserDefaults.standard.string(forKey: DefaultsKey.fanControlResumeConfiguration) ?? "")
+    }
+
+    /// A resume never asks for approval or opens System Settings: without an
+    /// enabled helper the fans stay with the system until the user acts.
+    private func resume(_ configuration: FanControlConfiguration) -> Bool {
+        refreshAccessState()
+        guard accessState == .enabled, !Self.helperAwaitsRegistration else { return false }
+        applyConfiguration(configuration)
+        return true
+    }
+
+    /// An update brought a helper other than the registered one. Kept control
+    /// would hold the recovery flag that blocks its registration swap, so a
+    /// resume waits for Fan Control to open and register it first.
+    private static var helperAwaitsRegistration: Bool {
+        let installed = UserDefaults.standard.string(forKey: DefaultsKey.fanControlHelperVersion) ?? ""
+        return !installed.isEmpty && installed != helperVersion
+    }
+
+    private func rememberForResume(_ configuration: FanControlConfiguration) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.fanControlResume),
+              let stored = FanControlConfiguration.encodeResume(configuration) else { return }
+        UserDefaults.standard.set(stored, forKey: DefaultsKey.fanControlResumeConfiguration)
     }
 
     // MARK: - Requests
@@ -560,6 +652,8 @@ final class FanControlService: ObservableObject {
         timer = nil
         connection?.invalidate()
         connection = nil
+        // A resume waits for the next wake, which only these observers see.
+        guard Self.resumableConfiguration == nil else { return }
         stopObservingSystemState()
     }
 
@@ -586,6 +680,7 @@ final class FanControlService: ObservableObject {
     }
 
     @objc private func workspaceDidWake() {
+        if let configuration = Self.resumableConfiguration, resume(configuration) { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.fanControlRecoveryNeeded) {
             restoreAutomatic(supersedingCurrentRequest: true)
         } else if panelIsVisible {

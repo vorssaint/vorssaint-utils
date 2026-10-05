@@ -67,7 +67,7 @@ struct DiskIOCounters: Equatable {
 /// it compiles and runs standalone in the unit-test target (`./build.sh --test`).
 enum MetricFormat {
     /// Numbers follow the reader's region, not the app's language: macOS keeps
-    /// those two settings apart, and seven of the thirteen languages here are
+    /// those two settings apart, and nine of the fifteen languages here are
     /// spoken where a decimal is written with a comma. Held in one place so a
     /// test can pin it and stay honest on a machine set to any region.
     static var locale: Locale = .current
@@ -154,6 +154,16 @@ enum MetricFormat {
         var value = max(0, bytes)
         var index = 0
         while value >= 1024, index < units.count - 1 {
+            value /= 1024
+            index += 1
+        }
+        // A value that only crosses 1024 once the number is rounded still reads
+        // as the larger unit, so promoting only before rounding labelled a
+        // megabyte "1,024 KB". `bytesPerSecCompact` already re-checks for this;
+        // doing it here keeps every byte rate one unit apart in name and value.
+        // Under ten the decimal is kept and can never reach 1024, and at the
+        // last unit there is nothing left to promote into.
+        while index < units.count - 1, value.rounded() >= 1024, index == 0 || value >= 10 {
             value /= 1024
             index += 1
         }
@@ -246,6 +256,19 @@ enum MetricFormat {
     }
 
     // MARK: Watts & percentages
+
+    /// The top of an auto-scaled graph: the peak rounded up to 1, 2 or 5 of a
+    /// unit, so its label reads "2.0 MB/s" and it only moves when the traffic
+    /// crosses a step. `unitStep` is 1024 for byte rates and 1000 for watts.
+    static func graphCeiling(_ peak: Double, unitStep: Double) -> Double {
+        for power in 0..<6 {
+            for step in [1.0, 2, 5, 10, 20, 50, 100, 200, 500] {
+                let ceiling = step * pow(unitStep, Double(power))
+                if ceiling >= peak { return ceiling }
+            }
+        }
+        return peak
+    }
 
     /// Power, e.g. "8.5 W" / "23 W" (one decimal under 10, none above).
     static func watts(_ value: Double) -> String {

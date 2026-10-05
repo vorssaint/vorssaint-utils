@@ -216,7 +216,7 @@ enum MenuBarSpacingSupport {
     /// - `separateMetrics` keeps the glyph when metrics live in their own
     ///   status items and the main one would otherwise be empty.
     /// - `mustShowForSignal` brings the glyph back while it carries a signal
-    ///   (update available, mic muted indicator).
+    ///   (update available, a running Keep Awake, mic muted indicator).
     static func shouldHideStatusIcon(optionEnabled: Bool,
                                      separateMetrics: Bool,
                                      metricsEnabled: Bool,
@@ -227,6 +227,13 @@ enum MenuBarSpacingSupport {
             && metricsEnabled
             && renderedTitleLength > 0
             && !mustShowForSignal
+    }
+
+    /// Whether a running Keep Awake session needs the glyph that metrics
+    /// hide: the tinted or swapped glyph is the session's only mark there.
+    /// Untinted, the app's own mark looks the same idle and active.
+    static func keepAwakeSignals(active: Bool, tint: KeepAwakeIconTint, style: KeepAwakeActiveIcon) -> Bool {
+        active && (tint != .none || style != .vorssaint)
     }
 
     /// Whether the whole main status item may hide in the separate-items
@@ -245,6 +252,18 @@ enum MenuBarSpacingSupport {
             && metricItemsShown > 0
             && renderedTitleLength == 0
             && !mustShowForSignal
+    }
+
+    /// Whether Dynamic Island takes the glyph's place (user request). The
+    /// island itself opens Settings and the panel, so the glyph may go for as
+    /// long as the island runs. If the island hides in fullscreen, the icon
+    /// returns for access to the app even when both options were saved before
+    /// this behavior existed. Signals also bring it back, and text the main
+    /// item carries (metrics, a countdown) keeps the item.
+    static func islandHidesStatusIcon(in defaults: UserDefaults, hiddenInFullscreen: Bool = false) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchHidesMenuBarIcon)
+            && NotchSupport.isEnabled(in: defaults)
+            && !hiddenInFullscreen
     }
 
     /// How many refreshes in a row a metric may render nothing before its item
@@ -331,6 +350,17 @@ enum StatusItemPlacementSupport {
         defaults.set(nextGen, forKey: DefaultsKey.statusItemPlacementGeneration)
         let nextName = mainAutosaveName(in: defaults)
         clearAllRememberedState(of: nextName, in: defaults)
+    }
+
+    /// Whether a status item's window frame says the icon is actually in a
+    /// menu bar. Intersecting a screen is not enough: an item macOS declines
+    /// to place at all (macOS 26 with the app switched off under System
+    /// Settings > Menu Bar > "Allow in the Menu Bar") keeps its window at the
+    /// bottom-left origin of the main display, sized like a real item, which
+    /// intersects that screen and used to pass for "appeared" (#1394). Only a
+    /// frame sitting in the menu bar band of an attached screen counts.
+    static func isPlacedStatusFrame(_ frame: CGRect, screenFrames: [CGRect]) -> Bool {
+        StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
     }
 
     /// While macOS is still settling a newborn status window, recovery must

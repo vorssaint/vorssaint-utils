@@ -198,7 +198,8 @@ final class RecorderExporter {
         let keepsAnyAudio = document.keepsSystemAudio || document.keepsMicrophone
         guard let result = await RecorderComposition.build(from: asset,
                                                            ranges: ranges,
-                                                           includesAudio: keepsAnyAudio),
+                                                           includesAudio: keepsAnyAudio,
+                                                           playbackSpeed: document.exportTiming.speed),
               let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
         let timeline = result.asset
@@ -253,7 +254,8 @@ final class RecorderExporter {
             frameRate: outputFrameRate,
             composer: composer,
             sourceSize: sourceSize,
-            outputSize: outputSize)
+            outputSize: outputSize,
+            playbackSpeed: document.exportTiming.speed)
         else { return .readFailed }
 
         guard let reader = try? AVAssetReader(asset: timeline),
@@ -282,6 +284,11 @@ final class RecorderExporter {
                 ])
             output.audioMix = RecorderComposition.audioMix(trackIDs: result.audioTrackIDs,
                                                            document: document)
+            if document.exportTiming.speed != 1 {
+                // Decode scaled audio edits at their new duration while
+                // preserving speech pitch, rather than relabeling PCM times.
+                output.audioTimePitchAlgorithm = .spectral
+            }
             output.alwaysCopiesSampleData = false
             if reader.canAdd(output) {
                 reader.add(output)
@@ -558,7 +565,8 @@ final class RecorderExporter {
         let ranges = document.keptRanges(duration: duration)
         guard let result = await RecorderComposition.build(from: asset,
                                                            ranges: ranges,
-                                                           includesAudio: false),
+                                                           includesAudio: false,
+                                                           playbackSpeed: document.exportTiming.speed),
               let timelineVideo = try? await result.asset.loadTracks(withMediaType: .video).first
         else { return .readFailed }
         let timeline = result.asset
@@ -595,15 +603,22 @@ final class RecorderExporter {
                 frameRate: RecorderSupport.sanitizedFrameRate(frameRate),
                 composer: composer,
                 sourceSize: sourceSize,
-                outputSize: canvas)
+                outputSize: canvas,
+                playbackSpeed: document.exportTiming.speed)
             else { return .readFailed }
             generator.videoComposition = composition
         }
 
-        guard let sink = CGImageDestinationCreateWithURL(destination as CFURL,
-                                                         UTType.gif.identifier as CFString,
-                                                         frameCount,
-                                                         nil)
+        // Encoded in memory and written out only once it is whole. Given a
+        // URL, ImageIO writes through a hidden file of its own beside it, and
+        // a cancel before the end leaves that file behind in the person's
+        // folder. The frames are held until the end either way, and the
+        // finished GIF is much smaller than they are.
+        let encoded = NSMutableData()
+        guard let sink = CGImageDestinationCreateWithData(encoded as CFMutableData,
+                                                          UTType.gif.identifier as CFString,
+                                                          frameCount,
+                                                          nil)
         else { return .writeFailed }
         CGImageDestinationSetProperties(sink, [
             kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
@@ -621,10 +636,7 @@ final class RecorderExporter {
         ] as CFDictionary
 
         for index in 0..<frameCount {
-            if cancelled.isCancelled {
-                try? FileManager.default.removeItem(at: destination)
-                return .cancelled
-            }
+            if cancelled.isCancelled { return .cancelled }
             let seconds = min(outputDuration, Double(index) / Double(fps))
             let time = CMTime(seconds: seconds, preferredTimescale: 600)
             guard let frame = try? await generator.image(at: time).image else { continue }
@@ -632,7 +644,12 @@ final class RecorderExporter {
             progress(min(0.99, Double(index + 1) / Double(frameCount)))
         }
 
-        guard CGImageDestinationFinalize(sink) else {
+        guard CGImageDestinationFinalize(sink) else { return .writeFailed }
+        // A cancel that arrived while the GIF was finalized writes nothing.
+        if cancelled.isCancelled { return .cancelled }
+        do {
+            try encoded.write(to: destination)
+        } catch {
             try? FileManager.default.removeItem(at: destination)
             return .writeFailed
         }

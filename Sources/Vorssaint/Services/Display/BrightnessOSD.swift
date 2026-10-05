@@ -19,6 +19,9 @@ enum BrightnessOSD {
             }
             return
         }
+        if NotchSupport.routes(.brightness), NotchService.shared.showBrightness(brightness) {
+            return
+        }
         guard let screen = NSScreen.screens.first(where: {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
                 .uint32Value == displayID
@@ -102,9 +105,9 @@ enum BrightnessOSD {
 
     private static func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = NSPanel(contentRect: .zero,
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = OverlayPanel(contentRect: .zero,
+                                 styleMask: [.borderless, .nonactivatingPanel],
+                                 backing: .buffered, defer: false)
         panel.level = .screenSaver
         panel.isOpaque = false
         panel.backgroundColor = .clear

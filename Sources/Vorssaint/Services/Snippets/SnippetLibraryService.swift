@@ -41,7 +41,8 @@ final class SnippetLibraryService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.snippetLibraryEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.snippetLibraryShortcut,
                                             fallback: .snippetLibraryDefault)
-        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut)
+        shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
+                                                  storageKey: DefaultsKey.snippetLibraryShortcut)
         if !enabled { hide() }
         if isVisible {
             reloadSnippets()
@@ -216,7 +217,7 @@ final class SnippetLibraryService: ObservableObject {
 
     /// Borderless panels refuse key status by default, and the library needs
     /// it for the search field, arrows and Esc.
-    private final class KeyableLibraryPanel: NSPanel {
+    private final class KeyableLibraryPanel: OverlayPanel {
         override var canBecomeKey: Bool { true }
     }
 

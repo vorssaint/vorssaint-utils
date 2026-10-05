@@ -67,6 +67,8 @@ struct RadialMenuFeatureStrings {
     let addProfileButton: String
     let duplicateProfileButton: String
     let deleteProfileButton: String
+    let deleteProfileConfirmFormat: String
+    let deleteProfileConfirmMessage: String
     let profileNameLabel: String
     let profileColorLabel: String
     let profileShortcutLabel: String
@@ -101,6 +103,9 @@ struct RadialMenuFeatureStrings {
     let resetActionsConfirmMessage: String
     let showListButton: String
     let hideListButton: String
+    let trackpadTapLabel: String
+    let trackpadTapConflict: String
+    let profileNoTrigger: String
 }
 
 extension FeatureStrings {
@@ -111,6 +116,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -119,6 +125,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -188,6 +195,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Add profile",
         duplicateProfileButton: "Duplicate profile",
         deleteProfileButton: "Delete profile",
+        deleteProfileConfirmFormat: "Delete “%@”?",
+        deleteProfileConfirmMessage: "Its actions, shortcut, mouse button and four-finger tap will be removed. This can’t be undone.",
         profileNameLabel: "Profile name",
         profileColorLabel: "Color",
         profileShortcutLabel: "Shortcut",
@@ -215,13 +224,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Fetching icon…",
         fetchFaviconSuccess: "Icon downloaded",
         fetchFaviconError: "Could not find a website icon",
-        mouseTriggerRequirement: "Only extra mouse buttons work here. With a trackpad or a mouse without extra buttons, use the keyboard shortcut above.",
+        mouseTriggerRequirement: "Only extra mouse buttons work here. With a mouse without extra buttons, use the keyboard shortcut above. With a trackpad, you can also use the four-finger tap below.",
         canvasHint: "Click a button to choose what it starts, or to remove it. Drag a button to move it.",
         resetActionsButton: "Reset",
         resetActionsConfirm: "Reset actions",
         resetActionsConfirmMessage: "Restore the default actions for this profile? Custom actions will be replaced.",
         showListButton: "Show as list",
-        hideListButton: "Hide list"
+        hideListButton: "Hide list",
+        trackpadTapLabel: "Open with a four-finger tap",
+        trackpadTapConflict: "Middle click already uses the four-finger tap, so the tap does not open this wheel.",
+        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it."
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -288,6 +300,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Adicionar perfil",
         duplicateProfileButton: "Duplicar perfil",
         deleteProfileButton: "Excluir perfil",
+        deleteProfileConfirmFormat: "Excluir “%@”?",
+        deleteProfileConfirmMessage: "As ações, o atalho, o botão do mouse e o toque de quatro dedos deste perfil serão removidos. Isso não pode ser desfeito.",
         profileNameLabel: "Nome do perfil",
         profileColorLabel: "Cor",
         profileShortcutLabel: "Atalho",
@@ -315,13 +329,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Buscando ícone…",
         fetchFaviconSuccess: "Ícone baixado",
         fetchFaviconError: "Não foi possível encontrar o ícone do site",
-        mouseTriggerRequirement: "Só botões extras do mouse funcionam aqui. Com um trackpad ou um mouse sem botões extras, use o atalho de teclado acima.",
+        mouseTriggerRequirement: "Só botões extras do mouse funcionam aqui. Com um mouse sem botões extras, use o atalho de teclado acima. Com um trackpad, você também pode usar o toque de quatro dedos abaixo.",
         canvasHint: "Clique em um botão para escolher sua ação ou removê-lo. Arraste para mover de lugar.",
         resetActionsButton: "Redefinir",
         resetActionsConfirm: "Redefinir ações",
         resetActionsConfirmMessage: "Restaurar as ações padrão deste perfil? As ações personalizadas serão substituídas.",
         showListButton: "Mostrar em lista",
-        hideListButton: "Ocultar lista"
+        hideListButton: "Ocultar lista",
+        trackpadTapLabel: "Abrir com um toque de quatro dedos",
+        trackpadTapConflict: "O botão do meio já usa o toque de quatro dedos, então o toque não abre esta roda.",
+        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo."
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -388,6 +405,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Profil ekle",
         duplicateProfileButton: "Profili çoğalt",
         deleteProfileButton: "Profili sil",
+        deleteProfileConfirmFormat: "“%@” silinsin mi?",
+        deleteProfileConfirmMessage: "Bu profilin eylemleri, kısayolu, fare düğmesi ve dört parmakla dokunması kaldırılacak. Bu işlem geri alınamaz.",
         profileNameLabel: "Profil adı",
         profileColorLabel: "Renk",
         profileShortcutLabel: "Kısayol",
@@ -415,13 +434,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Simge getiriliyor…",
         fetchFaviconSuccess: "Simge indirildi",
         fetchFaviconError: "Web sitesi simgesi bulunamadı",
-        mouseTriggerRequirement: "Burada yalnızca ek fare düğmeleri çalışır. İzleme dörtgeni veya ek düğmesi olmayan bir fareyle yukarıdaki klavye kestirmesini kullanın.",
+        mouseTriggerRequirement: "Burada yalnızca ek fare düğmeleri çalışır. Ek düğmesi olmayan bir fareyle yukarıdaki klavye kestirmesini kullanın. İzleme dörtgeniyle aşağıdaki dört parmakla dokunmayı da kullanabilirsiniz.",
         canvasHint: "Başlatacağı eylemi seçmek veya kaldırmak için bir düğmeye tıklayın. Taşımak için sürükleyin.",
         resetActionsButton: "Sıfırla",
         resetActionsConfirm: "Eylemleri sıfırla",
         resetActionsConfirmMessage: "Bu profil için saptanmış eylemler geri yüklensin mi? Özel eylemler değiştirilecek.",
         showListButton: "Liste olarak göster",
-        hideListButton: "Listeyi gizle"
+        hideListButton: "Listeyi gizle",
+        trackpadTapLabel: "Dört parmakla dokunarak aç",
+        trackpadTapConflict: "Dört parmakla dokunma zaten orta tıklamaya ayrılmış, bu yüzden dokunma bu çarkı açmaz.",
+        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin."
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -488,6 +510,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Добавить профиль",
         duplicateProfileButton: "Дублировать профиль",
         deleteProfileButton: "Удалить профиль",
+        deleteProfileConfirmFormat: "Удалить «%@»?",
+        deleteProfileConfirmMessage: "Действия, сочетание клавиш, кнопка мыши и касание четырьмя пальцами этого профиля будут удалены. Это нельзя отменить.",
         profileNameLabel: "Название профиля",
         profileColorLabel: "Цвет",
         profileShortcutLabel: "Сочетание клавиш",
@@ -515,13 +539,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Загрузка значка…",
         fetchFaviconSuccess: "Значок загружен",
         fetchFaviconError: "Не удалось найти значок сайта",
-        mouseTriggerRequirement: "Здесь работают только дополнительные кнопки мыши. С трекпадом или мышью без дополнительных кнопок используйте сочетание клавиш выше.",
+        mouseTriggerRequirement: "Здесь работают только дополнительные кнопки мыши. С мышью без дополнительных кнопок используйте сочетание клавиш выше. С трекпадом можно также использовать касание четырьмя пальцами ниже.",
         canvasHint: "Нажмите кнопку, чтобы настроить или удалить действие. Перетащите, чтобы переместить.",
         resetActionsButton: "Сбросить",
         resetActionsConfirm: "Сбросить действия",
         resetActionsConfirmMessage: "Восстановить действия по умолчанию для этого профиля? Пользовательские действия будут заменены.",
         showListButton: "Показать списком",
-        hideListButton: "Скрыть список"
+        hideListButton: "Скрыть список",
+        trackpadTapLabel: "Открывать касанием четырьмя пальцами",
+        trackpadTapConflict: "Касание четырьмя пальцами уже занято средней кнопкой, поэтому оно не открывает это колесо.",
+        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами."
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -588,6 +615,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Añadir perfil",
         duplicateProfileButton: "Duplicar perfil",
         deleteProfileButton: "Eliminar perfil",
+        deleteProfileConfirmFormat: "¿Eliminar “%@”?",
+        deleteProfileConfirmMessage: "Se eliminarán las acciones, el atajo, el botón del ratón y el toque de cuatro dedos de este perfil. No se puede deshacer.",
         profileNameLabel: "Nombre del perfil",
         profileColorLabel: "Color",
         profileShortcutLabel: "Atajo",
@@ -615,13 +644,121 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Obteniendo icono…",
         fetchFaviconSuccess: "Icono descargado",
         fetchFaviconError: "No se pudo encontrar el icono del sitio web",
-        mouseTriggerRequirement: "Aquí solo funcionan los botones adicionales del ratón. Con un trackpad o un ratón sin botones adicionales, usa el atajo de teclado de arriba.",
+        mouseTriggerRequirement: "Aquí solo funcionan los botones adicionales del ratón. Con un ratón sin botones adicionales, usa el atajo de teclado de arriba. Con un trackpad, también puedes usar el toque de cuatro dedos de abajo.",
         canvasHint: "Haz clic en un botón para elegir su acción o eliminarlo. Arrastra para moverlo.",
         resetActionsButton: "Restablecer",
         resetActionsConfirm: "Restablecer acciones",
         resetActionsConfirmMessage: "¿Restaurar las acciones predeterminadas de este perfil? Se reemplazarán las acciones personalizadas.",
         showListButton: "Mostrar como lista",
-        hideListButton: "Ocultar lista"
+        hideListButton: "Ocultar lista",
+        trackpadTapLabel: "Abrir con un toque de cuatro dedos",
+        trackpadTapConflict: "El clic central ya usa el toque de cuatro dedos, así que el toque no abre esta rueda.",
+        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo."
+    )
+
+    static let sk = RadialMenuFeatureStrings(
+        pageTitle: "Radiálne menu",
+        hubDescription: "Otvorí koleso obľúbených akcií okolo kurzora",
+        enableLabel: "Používať radiálne menu",
+        enableCaption: "Podržte skratku, namierte na akciu a pustite. Krátke stlačenie necháva koleso otvorené.",
+        positionLabel: "Otvára sa",
+        positionPointer: "Pri kurzore",
+        positionCenter: "V strede obrazovky",
+        tryButton: "Vyskúšať",
+        actionsHeader: "Akcie",
+        addButton: "Pridať akciu",
+        limitCaption: "Koleso pojme až 12 akcií.",
+        emptyCaption: "Zatiaľ tu nie sú žiadne akcie.",
+        backButton: "Späť",
+        editActionsButton: "Upraviť akcie",
+        nameLabel: "Názov",
+        automaticLabel: "Automaticky",
+        iconLabel: "Ikona",
+        actionLabel: "Akcia",
+        kindApp: "Otvoriť aplikáciu",
+        kindFile: "Otvoriť súbor alebo priečinok",
+        kindURL: "Otvoriť odkaz",
+        kindShortcut: "Stlačiť skratku",
+        kindTool: "Nástroj Vorssaint",
+        kindMedia: "Ovládanie médií",
+        kindSubmenu: "Podmenu",
+        chooseButton: "Vybrať…",
+        urlPlaceholder: "priklad.sk",
+        urlInvalid: "Zadajte platný odkaz.",
+        toolLabel: "Nástroj",
+        mediaLabel: "Ovládanie",
+        mediaPlayPause: "Prehrať alebo pozastaviť",
+        mediaPrevious: "Predchádzajúca skladba",
+        mediaNext: "Ďalšia skladba",
+        mediaNowPlaying: "Práve sa prehráva",
+        mediaNothingPlaying: "Nič sa neprehráva",
+        mediaOpenAppFormat: "Otvoriť „%@“",
+        submenuCaption: "Otvorí druhé koleso s vlastnými akciami.",
+        saveButton: "Uložiť",
+        deleteButton: "Odstrániť",
+        permissionCaption: "Akcie s klávesmi a spúšťanie bočným tlačidlom myši vyžadujú povolenie Prístupnosť.",
+        manageButton: "Spravovať menu",
+        panelCaption: "Vaše obľúbené akcie na kolese",
+        mouseTriggerLabel: "Tlačidlo myši",
+        mouseTriggerOff: "Vypnuté",
+        mouseTriggerBack: "Bočné tlačidlo Späť",
+        mouseTriggerForward: "Bočné tlačidlo Dopredu",
+        mouseTriggerWarning: "Kým je toto zapnuté, dané tlačidlo už v aplikáciách neprechádza späť ani dopredu. Ak ním navigujete, nechajte to vypnuté.",
+        buttonTestLabel: "Test tlačidla",
+        buttonTestWaiting: "Teraz stlačte tlačidlo",
+        buttonTestSeen: "Vorssaint vidí toto tlačidlo",
+        buttonTestOther: "To bolo iné tlačidlo",
+        buttonTestBlind: "Vorssaint teraz nemôže sledovať myš",
+        buttonTestHint: "Ak sa nič nerozsvieti, macOS toto tlačidlo neposiela aplikáciám. Myši s vlastným softvérom často menia funkciu bočných tlačidiel na niečo iné. Zmeňte to tam späť, alebo tlačidlu priraďte klávesovú kombináciu a použite ju vyššie.",
+        activationModeLabel: "Spôsob otvárania",
+        activationModePressOrHold: "Stlačiť alebo podržať",
+        activationModePress: "Stlačením otvoríte",
+        activationModeHold: "Podržaním vyberiete",
+        activationModeCaption: "Stlačiť alebo podržať zachová súčasné adaptívne gesto. Stlačenie necháva menu otvorené, podržanie spustí zvýraznenú akciu po pustení.",
+        profilesHeader: "Profily",
+        profilePickerLabel: "Profil",
+        addProfileButton: "Pridať profil",
+        duplicateProfileButton: "Duplikovať profil",
+        deleteProfileButton: "Vymazať profil",
+        deleteProfileConfirmFormat: "Vymazať „%@“?",
+        deleteProfileConfirmMessage: "Jeho akcie, skratka, tlačidlo myši a ťuknutie štyrmi prstami sa odstránia. Túto akciu nie je možné vrátiť späť.",
+        profileNameLabel: "Názov profilu",
+        profileColorLabel: "Farba",
+        profileShortcutLabel: "Skratka",
+        profileMouseTriggerLabel: "Tlačidlo myši",
+        presetGeneral: "Všeobecné",
+        presetMedia: "Médiá",
+        presetTools: "Nástroje",
+        presetWindowLayout: "Rozloženie okien",
+        presetQuickToggles: "Rýchle prepínače",
+        presetBlank: "Prázdne",
+        colorAccent: "Akcent",
+        colorBlue: "Modrá",
+        colorPurple: "Fialová",
+        colorPink: "Ružová",
+        colorRed: "Červená",
+        colorOrange: "Oranžová",
+        colorYellow: "Žltá",
+        colorGreen: "Zelená",
+        colorMint: "Mätová",
+        colorCyan: "Azúrová",
+        colorIndigo: "Indigová",
+        colorGraphite: "Grafitová",
+        fetchFaviconButton: "Načítať ikonu webu",
+        fetchFaviconDisclaimer: "Raz sa pripojí na web a stiahne jeho ikonu. Uložené lokálne.",
+        fetchFaviconLoading: "Načítava sa ikona…",
+        fetchFaviconSuccess: "Ikona stiahnutá",
+        fetchFaviconError: "Ikonu webu sa nepodarilo nájsť",
+        mouseTriggerRequirement: "Tu fungujú iba dodatočné tlačidlá myši. S myšou bez dodatočných tlačidiel použite klávesovú skratku vyššie. S trackpadom môžete použiť aj ťuknutie štyrmi prstami nižšie.",
+        canvasHint: "Kliknutím na tlačidlo vyberiete, čo spúšťa, alebo ho odstránite. Presunutím tlačidla ho premiestnite.",
+        resetActionsButton: "Obnoviť",
+        resetActionsConfirm: "Obnoviť akcie",
+        resetActionsConfirmMessage: "Obnoviť predvolené akcie pre tento profil? Vlastné akcie budú nahradené.",
+        showListButton: "Zobraziť ako zoznam",
+        hideListButton: "Skryť zoznam",
+        trackpadTapLabel: "Otvoriť ťuknutím štyrmi prstami",
+        trackpadTapConflict: "Stredné kliknutie už používa ťuknutie štyrmi prstami, takže toto ťuknutie koleso neotvorí.",
+        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami."
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -688,6 +825,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Profil hinzufügen",
         duplicateProfileButton: "Profil duplizieren",
         deleteProfileButton: "Profil löschen",
+        deleteProfileConfirmFormat: "„%@“ löschen?",
+        deleteProfileConfirmMessage: "Aktionen, Kurzbefehl, Maustaste und Vier-Finger-Tippen dieses Profils werden entfernt. Das lässt sich nicht widerrufen.",
         profileNameLabel: "Profilname",
         profileColorLabel: "Farbe",
         profileShortcutLabel: "Kurzbefehl",
@@ -715,13 +854,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Icon wird geladen…",
         fetchFaviconSuccess: "Icon heruntergeladen",
         fetchFaviconError: "Website-Icon konnte nicht gefunden werden",
-        mouseTriggerRequirement: "Hier funktionieren nur zusätzliche Maustasten. Verwende mit einem Trackpad oder einer Maus ohne zusätzliche Tasten den Tastaturkurzbefehl oben.",
+        mouseTriggerRequirement: "Hier funktionieren nur zusätzliche Maustasten. Verwende mit einer Maus ohne zusätzliche Tasten den Tastaturkurzbefehl oben. Mit einem Trackpad kannst du auch das Vier-Finger-Tippen unten nutzen.",
         canvasHint: "Klicke auf eine Taste, um die Aktion festzulegen oder sie zu entfernen. Ziehe zum Verschieben.",
         resetActionsButton: "Zurücksetzen",
         resetActionsConfirm: "Aktionen zurücksetzen",
         resetActionsConfirmMessage: "Standardaktionen für dieses Profil wiederherstellen? Eigene Aktionen werden ersetzt.",
         showListButton: "Als Liste anzeigen",
-        hideListButton: "Liste ausblenden"
+        hideListButton: "Liste ausblenden",
+        trackpadTapLabel: "Mit Vier-Finger-Tippen öffnen",
+        trackpadTapConflict: "Der Mittelklick nutzt bereits das Vier-Finger-Tippen, daher öffnet das Tippen dieses Rad nicht.",
+        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen."
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -788,6 +930,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Ajouter un profil",
         duplicateProfileButton: "Dupliquer le profil",
         deleteProfileButton: "Supprimer le profil",
+        deleteProfileConfirmFormat: "Supprimer «\u{00A0}%@\u{00A0}»\u{00A0}?",
+        deleteProfileConfirmMessage: "Les actions, le raccourci, le bouton de la souris et le toucher à quatre doigts de ce profil seront supprimés. Cette action est irréversible.",
         profileNameLabel: "Nom du profil",
         profileColorLabel: "Couleur",
         profileShortcutLabel: "Raccourci",
@@ -815,13 +959,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Récupération de l’icône…",
         fetchFaviconSuccess: "Icône téléchargée",
         fetchFaviconError: "Impossible de trouver l’icône du site web",
-        mouseTriggerRequirement: "Seuls les boutons supplémentaires de la souris fonctionnent ici. Avec un trackpad ou une souris sans boutons supplémentaires, utilisez le raccourci clavier ci-dessus.",
+        mouseTriggerRequirement: "Seuls les boutons supplémentaires de la souris fonctionnent ici. Avec une souris sans boutons supplémentaires, utilisez le raccourci clavier ci-dessus. Avec un trackpad, vous pouvez aussi utiliser le toucher à quatre doigts ci-dessous.",
         canvasHint: "Cliquez sur un bouton pour choisir son action ou le retirer. Faites glisser pour le déplacer.",
         resetActionsButton: "Réinitialiser",
         resetActionsConfirm: "Réinitialiser les actions",
         resetActionsConfirmMessage: "Restaurer les actions par défaut de ce profil\u{00A0}? Les actions personnalisées seront remplacées.",
         showListButton: "Afficher sous forme de liste",
-        hideListButton: "Masquer la liste"
+        hideListButton: "Masquer la liste",
+        trackpadTapLabel: "Ouvrir d’un toucher à quatre doigts",
+        trackpadTapConflict: "Le clic du milieu utilise déjà le toucher à quatre doigts, donc ce toucher n’ouvre pas cette roue.",
+        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir."
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -888,6 +1035,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "Aggiungi profilo",
         duplicateProfileButton: "Duplica profilo",
         deleteProfileButton: "Elimina profilo",
+        deleteProfileConfirmFormat: "Eliminare “%@”?",
+        deleteProfileConfirmMessage: "Azioni, abbreviazione, pulsante del mouse e tocco a quattro dita di questo profilo verranno rimossi. L’operazione non può essere annullata.",
         profileNameLabel: "Nome del profilo",
         profileColorLabel: "Colore",
         profileShortcutLabel: "Abbreviazione",
@@ -915,13 +1064,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "Scaricamento icona…",
         fetchFaviconSuccess: "Icona scaricata",
         fetchFaviconError: "Impossibile trovare l’icona del sito",
-        mouseTriggerRequirement: "Qui funzionano solo i pulsanti aggiuntivi del mouse. Con un trackpad o un mouse senza pulsanti aggiuntivi, usa l’abbreviazione da tastiera qui sopra.",
+        mouseTriggerRequirement: "Qui funzionano solo i pulsanti aggiuntivi del mouse. Con un mouse senza pulsanti aggiuntivi, usa l’abbreviazione da tastiera qui sopra. Con un trackpad puoi usare anche il tocco a quattro dita qui sotto.",
         canvasHint: "Fai clic su un pulsante per sceglierne l’azione o rimuoverlo. Trascina per spostarlo.",
         resetActionsButton: "Ripristina",
         resetActionsConfirm: "Ripristina azioni",
         resetActionsConfirmMessage: "Ripristinare le azioni predefinite per questo profilo? Le azioni personalizzate verranno sostituite.",
         showListButton: "Mostra come elenco",
-        hideListButton: "Nascondi elenco"
+        hideListButton: "Nascondi elenco",
+        trackpadTapLabel: "Apri con un tocco a quattro dita",
+        trackpadTapConflict: "Il clic centrale usa già il tocco a quattro dita, quindi il tocco non apre questa ruota.",
+        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo."
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -988,6 +1140,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "プロファイルを追加",
         duplicateProfileButton: "プロファイルを複製",
         deleteProfileButton: "プロファイルを削除",
+        deleteProfileConfirmFormat: "「%@」を削除しますか？",
+        deleteProfileConfirmMessage: "このプロファイルのアクション、ショートカット、マウスボタン、4本指のタップが削除されます。この操作は取り消せません。",
         profileNameLabel: "プロファイル名",
         profileColorLabel: "カラー",
         profileShortcutLabel: "ショートカット",
@@ -1015,13 +1169,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "アイコンを取得中…",
         fetchFaviconSuccess: "アイコンをダウンロードしました",
         fetchFaviconError: "Webサイトのアイコンが見つかりませんでした",
-        mouseTriggerRequirement: "ここではマウスの追加ボタンだけを使用できます。トラックパッドや追加ボタンのないマウスでは、上のキーボードショートカットを使用してください。",
+        mouseTriggerRequirement: "ここではマウスの追加ボタンだけを使用できます。追加ボタンのないマウスでは、上のキーボードショートカットを使用してください。トラックパッドでは、下の4本指のタップも使えます。",
         canvasHint: "ボタンをクリックして機能の選択や削除を行います。ドラッグして並べ替えます。",
         resetActionsButton: "リセット",
         resetActionsConfirm: "アクションをリセット",
         resetActionsConfirmMessage: "このプロファイルのデフォルトアクションに戻しますか？カスタムアクションは置き換えられます。",
         showListButton: "リストとして表示",
-        hideListButton: "リストを非表示"
+        hideListButton: "リストを非表示",
+        trackpadTapLabel: "4本指のタップで開く",
+        trackpadTapConflict: "4本指のタップは中クリックで使用中のため、このホイールは開きません。",
+        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -1088,6 +1245,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "프로필 추가",
         duplicateProfileButton: "프로필 복제",
         deleteProfileButton: "프로필 삭제",
+        deleteProfileConfirmFormat: "‘%@’ 프로필을 삭제할까요?",
+        deleteProfileConfirmMessage: "이 프로필의 동작, 단축키, 마우스 버튼, 네 손가락 탭이 제거됩니다. 이 작업은 되돌릴 수 없습니다.",
         profileNameLabel: "프로필 이름",
         profileColorLabel: "색상",
         profileShortcutLabel: "단축키",
@@ -1115,13 +1274,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "아이콘 가져오는 중…",
         fetchFaviconSuccess: "아이콘 다운로드됨",
         fetchFaviconError: "웹사이트 아이콘을 찾을 수 없습니다",
-        mouseTriggerRequirement: "여기서는 마우스의 추가 버튼만 사용할 수 있습니다. 트랙패드나 추가 버튼이 없는 마우스에서는 위의 키보드 단축키를 사용하세요.",
+        mouseTriggerRequirement: "여기서는 마우스의 추가 버튼만 사용할 수 있습니다. 추가 버튼이 없는 마우스에서는 위의 키보드 단축키를 사용하세요. 트랙패드에서는 아래의 네 손가락 탭도 사용할 수 있습니다.",
         canvasHint: "버튼을 클릭하여 동작을 선택하거나 제거할 수 있습니다. 드래그하여 위치를 이동하세요.",
         resetActionsButton: "재설정",
         resetActionsConfirm: "동작 재설정",
         resetActionsConfirmMessage: "이 프로필의 기본 동작을 복원할까요? 사용자 설정 동작이 대체됩니다.",
         showListButton: "목록으로 표시",
-        hideListButton: "목록 숨기기"
+        hideListButton: "목록 숨기기",
+        trackpadTapLabel: "네 손가락 탭으로 열기",
+        trackpadTapConflict: "네 손가락 탭은 이미 가운데 클릭에 사용 중이므로 이 휠을 열지 않습니다.",
+        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요."
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -1188,6 +1350,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "添加配置",
         duplicateProfileButton: "复制配置",
         deleteProfileButton: "删除配置",
+        deleteProfileConfirmFormat: "删除“%@”？",
+        deleteProfileConfirmMessage: "此配置的动作、快捷键、鼠标按钮和四指轻点将被移除。此操作无法撤销。",
         profileNameLabel: "配置名称",
         profileColorLabel: "颜色",
         profileShortcutLabel: "快捷键",
@@ -1215,13 +1379,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "正在获取图标…",
         fetchFaviconSuccess: "图标已下载",
         fetchFaviconError: "未找到网站图标",
-        mouseTriggerRequirement: "这里仅支持鼠标的额外按键。使用触控板或没有额外按键的鼠标时，请使用上方的键盘快捷键。",
+        mouseTriggerRequirement: "这里仅支持鼠标的额外按键。使用没有额外按键的鼠标时，请使用上方的键盘快捷键。使用触控板时，也可以用下方的四指轻点。",
         canvasHint: "点按按钮以选择动作或将其移除。拖移即可调整位置。",
         resetActionsButton: "重置",
         resetActionsConfirm: "重置动作",
         resetActionsConfirmMessage: "恢复此描述文件的默认动作？自定义动作将被替换。",
         showListButton: "显示为列表",
-        hideListButton: "隐藏列表"
+        hideListButton: "隐藏列表",
+        trackpadTapLabel: "用四指轻点打开",
+        trackpadTapConflict: "四指轻点已用于中键点按，因此不会打开这个转盘。",
+        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -1288,6 +1455,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "新增設定檔",
         duplicateProfileButton: "複製設定檔",
         deleteProfileButton: "刪除設定檔",
+        deleteProfileConfirmFormat: "刪除「%@」？",
+        deleteProfileConfirmMessage: "此設定檔的動作、快速鍵、滑鼠按鈕和四指輕點將被移除。此操作無法復原。",
         profileNameLabel: "設定檔名稱",
         profileColorLabel: "顏色",
         profileShortcutLabel: "快速鍵",
@@ -1315,13 +1484,16 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "正在取得圖示…",
         fetchFaviconSuccess: "圖示已下載",
         fetchFaviconError: "找不到網站圖示",
-        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控式軌跡板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。",
+        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。使用觸控式軌跡板時，也可以用下方的四指輕點。",
         canvasHint: "按一下按鈕以選擇動作或將其移除。拖移即可調整位置。",
         resetActionsButton: "重設",
         resetActionsConfirm: "重設動作",
         resetActionsConfirmMessage: "恢復此設定檔的預設動作？自訂動作將會被取代。",
         showListButton: "顯示為列表",
-        hideListButton: "隱藏列表"
+        hideListButton: "隱藏列表",
+        trackpadTapLabel: "用四指輕點打開",
+        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -1388,6 +1560,8 @@ extension RadialMenuFeatureStrings {
         addProfileButton: "新增設定檔",
         duplicateProfileButton: "複製設定檔",
         deleteProfileButton: "刪除設定檔",
+        deleteProfileConfirmFormat: "刪除「%@」？",
+        deleteProfileConfirmMessage: "此設定檔的動作、快捷鍵、滑鼠按鈕和四指輕點將被移除。此操作無法復原。",
         profileNameLabel: "設定檔名稱",
         profileColorLabel: "顏色",
         profileShortcutLabel: "快捷鍵",
@@ -1415,12 +1589,119 @@ extension RadialMenuFeatureStrings {
         fetchFaviconLoading: "正在取得圖示…",
         fetchFaviconSuccess: "圖示已下載",
         fetchFaviconError: "找不到網站圖示",
-        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用觸控板或沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。",
+        mouseTriggerRequirement: "這裡只支援滑鼠的額外按鈕。使用沒有額外按鈕的滑鼠時，請使用上方的鍵盤快速鍵。使用觸控板時，也可以用下方的四指輕點。",
         canvasHint: "按一下按鈕以選擇動作或將其移除。拖移即可調整位置。",
         resetActionsButton: "重設",
         resetActionsConfirm: "重設動作",
         resetActionsConfirmMessage: "恢復此設定檔的預設動作？自訂動作將會被取代。",
         showListButton: "顯示為列表",
-        hideListButton: "隱藏列表"
+        hideListButton: "隱藏列表",
+        trackpadTapLabel: "用四指輕點打開",
+        trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。"
+    )
+    static let uk = RadialMenuFeatureStrings(
+        pageTitle: "Радіальне меню",
+        hubDescription: "Відкриває колесо ваших улюблених дій навколо вказівника",
+        enableLabel: "Використовувати радіальне меню",
+        enableCaption: "Утримуйте поєднання, наведіть на дію та відпустіть. Швидке натискання тримає колесо відкритим.",
+        positionLabel: "Відкриває",
+        positionPointer: "Біля вказівника",
+        positionCenter: "У центрі екрана",
+        tryButton: "Спробувати",
+        actionsHeader: "Дії",
+        addButton: "Додати дію",
+        limitCaption: "Колесо вміщує до 12 дій.",
+        emptyCaption: "Тут ще немає дій.",
+        backButton: "Назад",
+        editActionsButton: "Редагувати дії",
+        nameLabel: "Назва",
+        automaticLabel: "Автоматично",
+        iconLabel: "Значок",
+        actionLabel: "Дія",
+        kindApp: "Відкрити програму",
+        kindFile: "Відкрити файл або папку",
+        kindURL: "Відкрити посилання",
+        kindShortcut: "Натисніть клавіатурне скорочення",
+        kindTool: "Інструмент Vorssaint",
+        kindMedia: "Керування медіа",
+        kindSubmenu: "Підменю",
+        chooseButton: "Вибрати…",
+        urlPlaceholder: "example.com",
+        urlInvalid: "Введіть коректне посилання.",
+        toolLabel: "Інструмент",
+        mediaLabel: "Керування",
+        mediaPlayPause: "Грати або призупинити",
+        mediaPrevious: "Попередній трек",
+        mediaNext: "Наступний трек",
+        mediaNowPlaying: "Зараз грає",
+        mediaNothingPlaying: "Нічого не грає",
+        mediaOpenAppFormat: "Відкрити %@",
+        submenuCaption: "Відкриває друге колесо з власними діями.",
+        saveButton: "Зберегти",
+        deleteButton: "Видалити",
+        permissionCaption: "Дії клавіш і тригер бокової кнопки миші потребують дозволу «Доступність».",
+        manageButton: "Керувати меню",
+        panelCaption: "Ваші улюблені дії на колесі",
+        mouseTriggerLabel: "Кнопка миші",
+        mouseTriggerOff: "Вимкнено",
+        mouseTriggerBack: "Задня бокова кнопка",
+        mouseTriggerForward: "Передня бокова кнопка",
+        mouseTriggerWarning: "Поки це ввімкнено, ця кнопка більше не йде назад або вперед у програмах. Якщо ви використовуєте її для навігації, залиште це вимкненим.",
+        buttonTestLabel: "Тест кнопки",
+        buttonTestWaiting: "Натисніть кнопку зараз",
+        buttonTestSeen: "Vorssaint бачить цю кнопку",
+        buttonTestOther: "Це була інша кнопка",
+        buttonTestBlind: "Vorssaint не може стежити за мишею зараз",
+        buttonTestHint: "Якщо нічого не підсвічується, macOS не надсилає цю кнопку програмам. Миші з власним ПЗ часто перетворюють бокові кнопки на щось інше. Змініть це там або призначте кнопці клавіатурне скорочення і використовуйте це поєднання вище.",
+        activationModeLabel: "Поведінка відкриття",
+        activationModePressOrHold: "Натиснути або утримати",
+        activationModePress: "Натисніть, щоб відкрити",
+        activationModeHold: "Утримувати для вибору",
+        activationModeCaption: "Натискання або утримання зберігає поточний адаптивний жест. Натискання тримає відкритим; утримання запускає підсвічену дію при відпусканні.",
+        profilesHeader: "Профілі",
+        profilePickerLabel: "Профіль",
+        addProfileButton: "Додати профіль",
+        duplicateProfileButton: "Дублювати профіль",
+        deleteProfileButton: "Видалити профіль",
+        deleteProfileConfirmFormat: "Видалити «%@»?",
+        deleteProfileConfirmMessage: "Його дії, клавіатурне скорочення, кнопку миші та дотик чотирма пальцями буде видалено. Цю дію не можна скасувати.",
+        profileNameLabel: "Назва профілю",
+        profileColorLabel: "Колір",
+        profileShortcutLabel: "Клавіатурне скорочення",
+        profileMouseTriggerLabel: "Кнопка миші",
+        presetGeneral: "Загальне",
+        presetMedia: "Медіа",
+        presetTools: "Інструменти",
+        presetWindowLayout: "Розкладка вікон",
+        presetQuickToggles: "Швидкі перемикачі",
+        presetBlank: "Порожній",
+        colorAccent: "Акцент",
+        colorBlue: "Синій",
+        colorPurple: "Фіолетовий",
+        colorPink: "Рожевий",
+        colorRed: "Червоний",
+        colorOrange: "Помаранчевий",
+        colorYellow: "Жовтий",
+        colorGreen: "Зелений",
+        colorMint: "М’ятний",
+        colorCyan: "Блакитний",
+        colorIndigo: "Індиго",
+        colorGraphite: "Графіт",
+        fetchFaviconButton: "Завантажити значок сайту",
+        fetchFaviconDisclaimer: "З’єднується з сайтом один раз, щоб завантажити його значок. Зберігається локально.",
+        fetchFaviconLoading: "Завантаження значка…",
+        fetchFaviconSuccess: "Значок завантажено",
+        fetchFaviconError: "Не вдалося знайти значок сайту",
+        mouseTriggerRequirement: "Тут підтримуються лише додаткові кнопки миші. З мишею без додаткових кнопок використовуйте клавіатурне скорочення вище. З трекпедом можна також скористатися дотиком чотирма пальцями нижче.",
+        canvasHint: "Клацніть кнопку, щоб вибрати дію або видалити її. Перетягуйте, щоб змінити розташування.",
+        resetActionsButton: "Скинути",
+        resetActionsConfirm: "Скинути дії",
+        resetActionsConfirmMessage: "Відновити дії за замовчуванням для цього профілю? Ваші власні дії буде замінено.",
+        showListButton: "Показати списком",
+        hideListButton: "Сховати список",
+        trackpadTapLabel: "Відкривати дотиком чотирма пальцями",
+        trackpadTapConflict: "Дотик чотирма пальцями вже зайнятий середньою кнопкою, тому він не відкриває це колесо.",
+        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями."
     )
 }

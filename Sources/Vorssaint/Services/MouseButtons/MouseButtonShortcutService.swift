@@ -512,9 +512,13 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     private func handleSideWheel(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        if AppSwitcher.shared.scrollNavigationActive {
+            return Unmanaged.passUnretained(event)
+        }
         guard Self.hasActiveSideWheelInterest,
               !isDraining,
               event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.syntheticTag,
+              event.getIntegerValueField(.eventSourceUserData) != ScrollWheelSupport.horizontalRedirectTag,
               let input = sideWheelInput(for: event) else {
             return Unmanaged.passUnretained(event)
         }

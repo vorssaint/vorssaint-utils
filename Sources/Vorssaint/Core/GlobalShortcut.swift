@@ -176,6 +176,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                                modifiers: [.control, .option, .command])
     static let windowDirectionalDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                          modifiers: [.control, .option])
+    // The key beside the modifiers, so one left hand presses it, on the
+    // free control-option-command layer.
+    static let pointerNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Z),
+                                                          modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -199,6 +203,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // Full screen sits beside the selector's 4 and the recorder's 5.
     static let screenshotFullScreenDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
                                                             modifiers: [.control, .option, .command])
+    static let screenshotUploadDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_U),
+                                                        modifiers: [.control, .option, .command])
     // E opens the latest capture in the editor, beside the capture shortcut.
     static let screenshotLastCaptureDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_E),
                                                              modifiers: [.control, .option, .command])
@@ -700,6 +706,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenshot
     case screenshotFullScreen
     case screenshotLastCapture
+    case screenshotUpload
     case recentCaptures
     case screenshotClipboard
     case cameraPreview
@@ -712,6 +719,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case displayBrightnessIncrease
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
+    case pointerNextDisplay
 
     var id: String { storageKey }
 
@@ -732,6 +740,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
+        case .screenshotUpload: return DefaultsKey.screenshotUploadShortcut
         case .recentCaptures: return DefaultsKey.recentCapturesShortcut
         case .screenshotClipboard: return DefaultsKey.screenshotClipboardShortcut
         case .cameraPreview: return DefaultsKey.cameraPreviewShortcut
@@ -744,6 +753,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessIncrease: return DefaultsKey.displayBrightnessIncreaseShortcut
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
+        case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         }
     }
 
@@ -764,6 +774,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
+        case .screenshotUpload: return .screenshotUploadDefault
         case .recentCaptures: return .recentCapturesDefault
         case .screenshotClipboard: return .screenshotClipboardDefault
         case .cameraPreview: return .cameraPreviewDefault
@@ -776,6 +787,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessIncrease: return .displayBrightnessIncreaseDefault
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
+        case .pointerNextDisplay: return .pointerNextDisplayDefault
         }
     }
 
@@ -802,7 +814,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
         case .shelf: return strings.shelfName
-        case .switcher: return strings.switcherSection
+        case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
@@ -816,6 +828,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
+        case .screenshotUpload:
+            return FeatureStrings.screenshot(L10n.shared.language).uploadLastCapture
         case .screenshotLastCapture:
             return FeatureStrings.screenshot(L10n.shared.language).editLastCapture
         case .recentCaptures:
@@ -836,6 +850,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessDecrease
         case .keyboardBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
+        case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         }
     }
 
@@ -843,12 +858,18 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                          excluding role: GlobalShortcutRole?,
                          isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
                          isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
-                         includeInactive: Bool = false) -> GlobalShortcutRole? {
+                         includeInactive: Bool = false,
+                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() })
+        -> GlobalShortcutRole? {
         let candidates = includeInactive
             ? availableRoles(isAvailable: isAvailable)
             : activeRoles(isOn: isOn, isAvailable: isAvailable)
         return candidates.first { candidate in
-            candidate != role && candidate.savedShortcut == shortcut
+            guard candidate != role else { return false }
+            // The radial menu's role key only seeds the first wheel. Every
+            // wheel registers its own combination, so those are the ones taken.
+            if candidate == .radialMenu { return radialMenuShortcuts().contains(shortcut) }
+            return candidate.savedShortcut == shortcut
         }
     }
 
@@ -873,6 +894,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
+        case .screenshotUpload: return [DefaultsKey.screenshotUploadShortcutEnabled, DefaultsKey.screenshotSharingEnabled]
         case .recentCaptures: return [DefaultsKey.recentCapturesShortcutEnabled]
         case .screenshotClipboard: return [DefaultsKey.screenshotClipboardShortcutEnabled]
         case .cameraPreview: return [DefaultsKey.cameraPreviewShortcutEnabled]
@@ -885,6 +907,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayBrightnessShortcutsEnabled]
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
+        case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         }
     }
 
@@ -905,7 +928,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMute
         case .quickLauncher: return .quickLauncher
         case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
-             .screenshotClipboard:
+             .screenshotClipboard, .screenshotUpload:
             return .screenshot
         case .cameraPreview: return .cameraPreview
         case .radialMenu: return .radialMenu
@@ -915,6 +938,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
+        case .pointerNextDisplay: return .windowLayout
         }
     }
 
@@ -925,6 +949,19 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         switch self {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .mouseKeyboard
         default: return feature.group
+        }
+    }
+
+    /// Whether a claim ever reaches `SystemShortcutTakeover` for this key, and
+    /// so whether the recorder may offer to take a macOS shortcut over. The
+    /// switcher suppresses its keys through its own take-over toggle rather
+    /// than a claim, and the radial menu's role key is only a migration seed —
+    /// the live shortcuts are the per-profile ones. A row that cannot keep the
+    /// promise refuses the combination instead of making it.
+    var supportsTakeOver: Bool {
+        switch self {
+        case .switcher, .switcherWindow, .radialMenu: return false
+        default: return true
         }
     }
 
@@ -985,7 +1022,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
         .screenshot, .screenRecorder, .screenOCR, .colorPicker,
-        .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard,
+        .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard, .screenshotUpload,
     ]
 
     /// The given roles narrowed to the capture group, in display order. The
@@ -1092,4 +1129,37 @@ extension GlobalShortcut {
 
     /// The placeholder a system entry carries when it has no key assigned.
     private static let noKeyCode: Int64 = 0xFFFF
+}
+
+/// Opt-in recording for held chords. A key press disqualifies the current
+/// chord, so releasing modifiers after an invalid key cannot save a new trigger.
+struct ModifierShortcutRecording {
+    private var candidate: GlobalShortcutModifiers = []
+    private var waitingForRelease = false
+
+    mutating func keyPressed() {
+        candidate = []
+        waitingForRelease = true
+    }
+
+    mutating func flagsChanged(_ modifiers: GlobalShortcutModifiers,
+                               hasUnsupportedModifier: Bool = false) -> GlobalShortcutModifiers? {
+        if hasUnsupportedModifier {
+            keyPressed()
+            return nil
+        }
+        if modifiers.isEmpty {
+            let captured = candidate
+            candidate = []
+            waitingForRelease = false
+            return captured.isEmpty ? nil : captured
+        }
+        guard !waitingForRelease else { return nil }
+        // Remember a chord that was actually held, never the union of keys
+        // pressed at different times. Keep it while its keys are released.
+        if modifiers.rawValue.nonzeroBitCount > candidate.rawValue.nonzeroBitCount {
+            candidate = modifiers
+        }
+        return nil
+    }
 }

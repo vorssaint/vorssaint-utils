@@ -56,8 +56,10 @@ final class MouseAppExceptions: ObservableObject {
     private var pointerRefreshScheduled = false
 
     private static let ownProcessID = Int32(getpid())
+    private let uptime: () -> TimeInterval
 
-    private init() {
+    init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+        self.uptime = uptime
         reload()
     }
 
@@ -240,7 +242,7 @@ final class MouseAppExceptions: ObservableObject {
     /// back to the app in front when the pointer is over none. `known` is false
     /// only on the pointer thread, which never waits for the main one.
     private func pointerIdentity(at point: CGPoint) -> (known: Bool, identity: String?) {
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = uptime()
         // The pointer thread must return even while the main thread is busy.
         // An answer that aged out still names the window it came from, so the
         // pointer resting in that window keeps it; anywhere else the answer

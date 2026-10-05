@@ -78,9 +78,9 @@ final class KillProcessService: ObservableObject {
         groupRelated = UserDefaults.standard.bool(forKey: DefaultsKey.killProcessGroupRelated)
     }
 
-    var filteredEntries: [KillProcessEntry] {
+    var sortedEntries: [KillProcessEntry] {
         let ascending = sortAscending
-        let sorted = entries.sorted { lhs, rhs in
+        return entries.sorted { lhs, rhs in
             switch sortBy {
             case .cpu:
                 return KillProcessSupport.numberComesBefore(lhs.cpuPercent, rhs.cpuPercent,
@@ -100,9 +100,12 @@ final class KillProcessService: ObservableObject {
                                                             ascending: ascending)
             }
         }
+    }
+
+    var filteredEntries: [KillProcessEntry] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return sorted }
-        return sorted.filter {
+        guard !needle.isEmpty else { return sortedEntries }
+        return sortedEntries.filter {
             $0.name.lowercased().contains(needle) || String($0.pid) == needle
         }
     }
@@ -181,6 +184,24 @@ final class KillProcessService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let removed = self.killBatch([target], force: force, adminPromptProcessName: entry.name)
             self.finishKill(removed: removed)
+        }
+    }
+
+    /// Kills a process identified by its pid, name, and kernel start time.
+    /// This is the shared safe path for rows supplied by another feature.
+    func kill(pid: pid_t,
+              name: String,
+              startedAt: UInt64,
+              force: Bool,
+              completion: (() -> Void)? = nil) {
+        guard !Self.isProtected(pid: pid, name: name) else {
+            completion?()
+            return
+        }
+        let target = KillTarget(pid: pid, startedAt: startedAt)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let removed = self.killBatch([target], force: force, adminPromptProcessName: name)
+            self.finishKill(removed: removed, completion: completion)
         }
     }
 
@@ -272,7 +293,7 @@ final class KillProcessService: ObservableObject {
     /// reconciles with a real `ps` snapshot shortly after - long enough for
     /// the kernel to have reaped the process, short enough nobody notices
     /// the wait.
-    private func finishKill(removed: Set<pid_t>) {
+    private func finishKill(removed: Set<pid_t>, completion: (() -> Void)? = nil) {
         DispatchQueue.main.async {
             if !removed.isEmpty {
                 self.entries.removeAll { removed.contains($0.pid) }
@@ -280,6 +301,7 @@ final class KillProcessService: ObservableObject {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.refresh(force: true)
+            completion?()
         }
     }
 
@@ -368,6 +390,10 @@ final class KillProcessService: ObservableObject {
 
     static func isProtected(pid: pid_t, name: String = "", path: String = "") -> Bool {
         KillProcessSupport.isProtected(pid: pid, name: name, path: path)
+    }
+
+    static func startTime(for pid: pid_t) -> UInt64? {
+        currentStartTime(pid: pid)
     }
 
     private static func target(for entry: KillProcessEntry) -> KillTarget? {

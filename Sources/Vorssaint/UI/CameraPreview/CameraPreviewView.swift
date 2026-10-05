@@ -8,6 +8,11 @@ import SwiftUI
 /// appears on hover when more than one camera is around. Esc, a click
 /// anywhere else or switching to the meeting app closes it.
 struct CameraPreviewView: View {
+    var size = CGSize(width: 320, height: 240)
+    var showsCameraMenu = false
+    /// The island stops its mirror from a button over the image, beside the
+    /// camera picker, so the preview can take the whole page.
+    var onStop: (() -> Void)? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CameraPreviewService.shared
     @State private var hovering = false
@@ -21,7 +26,9 @@ struct CameraPreviewView: View {
             Color.black
             content
         }
-        .frame(width: 320, height: 240)
+        .frame(width: size.width, height: size.height)
+        .overlay(alignment: .bottom) { controls }
+        .animation(.easeInOut(duration: 0.15), value: hovering)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -39,14 +46,6 @@ struct CameraPreviewView: View {
         case .running:
             if let session = service.session {
                 CameraLayerView(session: session)
-                    .overlay(alignment: .bottom) {
-                        if hovering, service.devices.count > 1 {
-                            cameraMenu
-                                .padding(.bottom, 10)
-                                .transition(.opacity)
-                        }
-                    }
-                    .animation(.easeInOut(duration: 0.15), value: hovering)
             }
         case .idle, .waitingPermission, .starting:
             ProgressView()
@@ -59,12 +58,59 @@ struct CameraPreviewView: View {
                 }
                 .controlSize(.small)
             }
+        case .unavailable:
+            statusMessage(icon: "video.slash", text: FeatureStrings.notchActivities(l10n.language).cameraUnavailable) {
+                Button(FeatureStrings.notchActivities(l10n.language).startCamera, action: service.retryCapture)
+                    .controlSize(.small)
+            }
         case .noCamera:
             statusMessage(icon: "web.camera", text: strings.noCameraMessage) { EmptyView() }
         }
     }
 
-    private var cameraMenu: some View {
+    private var showsMenu: Bool {
+        service.state == .running && service.session != nil
+            && (hovering || showsCameraMenu) && service.devices.count > 1
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        if showsMenu || onStop != nil {
+            // A camera name too long to share the row leaves the picker its
+            // icon, so neither control is cut off at the image's edges.
+            ViewThatFits(in: .horizontal) {
+                controlRow(showsCameraName: true)
+                controlRow(showsCameraName: false)
+            }
+            .padding([.horizontal, .bottom], 10)
+        }
+    }
+
+    private func controlRow(showsCameraName: Bool) -> some View {
+        HStack(spacing: 6) {
+            if showsMenu {
+                cameraMenu(showsName: showsCameraName).transition(.opacity)
+            }
+            if let onStop {
+                Button(action: onStop) {
+                    Text(FeatureStrings.notchActivities(l10n.language).stopCamera)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(.black.opacity(0.55), in: Capsule())
+                        // Still a button over the black of a status message.
+                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
+                .foregroundStyle(.white)
+                .fixedSize()
+            }
+        }
+    }
+
+    private func cameraMenu(showsName: Bool) -> some View {
         Menu {
             ForEach(service.devices, id: \.uniqueID) { device in
                 Button {
@@ -81,9 +127,11 @@ struct CameraPreviewView: View {
             HStack(spacing: 5) {
                 Image(systemName: "web.camera")
                     .font(.system(size: 10, weight: .semibold))
-                Text(currentCameraName)
-                    .font(.caption)
-                    .lineLimit(1)
+                if showsName {
+                    Text(currentCameraName)
+                        .font(.caption)
+                        .lineLimit(1)
+                }
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 8, weight: .semibold))
             }
@@ -118,6 +166,8 @@ struct CameraPreviewView: View {
             extra()
         }
         .padding(.horizontal, 28)
+        // Clear of the stop button along the bottom.
+        .padding(.bottom, onStop == nil ? 0 : 30)
     }
 }
 

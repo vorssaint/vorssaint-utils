@@ -68,6 +68,10 @@ struct SnippetFeatureStrings {
     let dateTimePreviewLabel: String
     let dateTimeConfirmInsert: String
     let dateTimeConfirmUpdate: String
+    let soundToggle: String
+    let soundCaption: String
+    let soundPickerLabel: String
+    let soundUnavailable: String
 }
 
 extension FeatureStrings {
@@ -78,6 +82,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -86,6 +91,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .uk: return .uk
         }
     }
 }
@@ -152,7 +158,78 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "패턴",
         dateTimePreviewLabel: "미리보기",
         dateTimeConfirmInsert: "삽입",
-        dateTimeConfirmUpdate: "업데이트"
+        dateTimeConfirmUpdate: "업데이트",
+        soundToggle: "입력한 트리거가 확장될 때 소리 재생",
+        soundCaption: "입력한 트리거가 확장될 때마다 짧은 시스템 소리가 재생됩니다.",
+        soundPickerLabel: "소리",
+        soundUnavailable: "사용할 수 없는 소리"
+    )
+    static let uk = SnippetFeatureStrings(
+        pageTitle: "Текстові сніпети",
+        hubDescription: "Короткі тригери розгортаються в повний текст",
+        enable: "Розгортати сніпети під час набору",
+        enableCaption: "Введіть тригер будь-де, і він стане своїм текстом. Все залишається на цьому Mac.",
+        addButton: "Додати сніпет",
+        newTitle: "Новий сніпет",
+        editTitle: "Редагувати сніпет",
+        nameLabel: "Назва",
+        namePlaceholder: "Особистий email",
+        triggerLabel: "Тригер",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Текст",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Розгорнути",
+        expansionImmediate: "Одразу",
+        expansionDelimiter: "Після пробілу, Tab або Return",
+        variablesHint: "Змінні: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Вони стають датою, часом та скопійованим текстом у момент розгортання.",
+        emptyList: "Ще немає сніпетів. Додайте перший.",
+        duplicateTrigger: "Інший сніпет уже використовує цей тригер.",
+        triggerTooShort: "Тригер має містити щонайменше 2 символи.",
+        deleteButton: "Видалити",
+        saveButton: "Зберегти",
+        manageButton: "Керувати сніпетами",
+        ignoreCaseLabel: "Ігнорувати регістр",
+        libraryTitle: "Швидке меню сніпетів",
+        libraryToggle: "Відкривати сніпети з меню",
+        libraryCaption: "Клавіатурне скорочення відкриває меню з пошуком. Вибір сніпета друкує його прямо там, де ваш курсор.",
+        librarySearchPlaceholder: "Шукати сніпети",
+        libraryNoResults: "Жоден сніпет не відповідає пошуку.",
+        libraryEmpty: "Поки нічого показувати. Додайте сніпети або увімкніть «Показувати в швидкому меню» для тих, що використовуєте найчастіше.",
+        libraryFooterHint: "↩ вставляє · esc закриває",
+        folderLabel: "Папка",
+        folderPlaceholder: "Робота",
+        showInLibraryLabel: "Показувати в швидкому меню",
+        variablesFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Формат після двокрапки визначає, як вони виглядають, наприклад {{date:yyyy-MM-dd}}, або використовуйте кнопку дати/часу вище. Частина -tz(...) задає часовий пояс, наприклад {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Вставити дату/час",
+        dateTimeEditButton: "Редагувати дату/час",
+        dateTimeTypeLabel: "Тип",
+        dateTimeKindDate: "Дата",
+        dateTimeKindTime: "Час",
+        dateTimeKindDateTime: "Дата та час",
+        dateTimeStyleLabel: "Стиль",
+        dateTimeStyleShort: "Короткий",
+        dateTimeStyleMedium: "Середній",
+        dateTimeStyleLong: "Довгий",
+        dateTimeStyleFull: "Повний",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Власний",
+        dateTimeStyleLocaleNote: "Іменований стиль зберігає формат, який зараз використовує регіон вашого Mac.",
+        dateTimeTimezoneLabel: "Часовий пояс",
+        dateTimeTimezoneDeviceDefault: "Типове для пристрою",
+        dateTimeTimezoneValid: "Дійсний часовий пояс",
+        dateTimeTimezoneInvalid: "Невідомий часовий пояс",
+        dateTimeTimezoneClear: "Очистити часовий пояс",
+        dateTimeTimezoneSearchPlaceholder: "Шукати часові пояси",
+        dateTimePatternLabel: "Шаблон",
+        dateTimePreviewLabel: "Попередній перегляд",
+        dateTimeConfirmInsert: "Вставити",
+        dateTimeConfirmUpdate: "Оновити",
+        soundToggle: "Відтворювати звук, коли тригер розгортається",
+        soundCaption: "Щоразу, коли введений тригер розгортається, лунає короткий системний звук.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступний"
     )
 }
 
@@ -218,7 +295,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Pattern",
         dateTimePreviewLabel: "Preview",
         dateTimeConfirmInsert: "Insert",
-        dateTimeConfirmUpdate: "Update"
+        dateTimeConfirmUpdate: "Update",
+        soundToggle: "Play a sound when a typed trigger expands",
+        soundCaption: "A short system sound plays each time a typed trigger expands.",
+        soundPickerLabel: "Sound",
+        soundUnavailable: "Sound unavailable"
     )
 
     static let ptBR = SnippetFeatureStrings(
@@ -282,7 +363,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Padrão",
         dateTimePreviewLabel: "Pré-visualização",
         dateTimeConfirmInsert: "Inserir",
-        dateTimeConfirmUpdate: "Atualizar"
+        dateTimeConfirmUpdate: "Atualizar",
+        soundToggle: "Tocar um som quando um gatilho digitado expandir",
+        soundCaption: "Um som curto do sistema toca sempre que um gatilho digitado se expande.",
+        soundPickerLabel: "Som",
+        soundUnavailable: "Som indisponível"
     )
 
     static let tr = SnippetFeatureStrings(
@@ -346,7 +431,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Desen",
         dateTimePreviewLabel: "Önizleme",
         dateTimeConfirmInsert: "Ekle",
-        dateTimeConfirmUpdate: "Güncelle"
+        dateTimeConfirmUpdate: "Güncelle",
+        soundToggle: "Yazılan bir tetikleyici genişlediğinde ses çal",
+        soundCaption: "Yazılan bir tetikleyici genişlediğinde kısa bir sistem sesi çalar.",
+        soundPickerLabel: "Ses",
+        soundUnavailable: "Ses kullanılamıyor"
     )
 
     static let ru = SnippetFeatureStrings(
@@ -410,7 +499,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Шаблон",
         dateTimePreviewLabel: "Предпросмотр",
         dateTimeConfirmInsert: "Вставить",
-        dateTimeConfirmUpdate: "Обновить"
+        dateTimeConfirmUpdate: "Обновить",
+        soundToggle: "Воспроизводить звук при развёртывании введённого триггера",
+        soundCaption: "Короткий системный звук воспроизводится каждый раз, когда введённый триггер разворачивается.",
+        soundPickerLabel: "Звук",
+        soundUnavailable: "Звук недоступен"
     )
 
     static let es = SnippetFeatureStrings(
@@ -474,7 +567,79 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Patrón",
         dateTimePreviewLabel: "Vista previa",
         dateTimeConfirmInsert: "Insertar",
-        dateTimeConfirmUpdate: "Actualizar"
+        dateTimeConfirmUpdate: "Actualizar",
+        soundToggle: "Reproducir un sonido al expandir un disparador escrito",
+        soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
+        soundPickerLabel: "Sonido",
+        soundUnavailable: "Sonido no disponible"
+    )
+
+    static let sk = SnippetFeatureStrings(
+        pageTitle: "Textové fragmenty",
+        hubDescription: "Krátke spúšťače sa rozbalia na celý text",
+        enable: "Rozbaľovať fragmenty počas písania",
+        enableCaption: "Napíšte spúšťač kdekoľvek a zmení sa na svoj text. Všetko zostáva v tomto Macu.",
+        addButton: "Pridať fragment",
+        newTitle: "Nový fragment",
+        editTitle: "Upraviť fragment",
+        nameLabel: "Názov",
+        namePlaceholder: "Osobný e-mail",
+        triggerLabel: "Spúšťač",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "mojemail@priklad.sk",
+        expansionLabel: "Rozbaliť",
+        expansionImmediate: "Ihneď",
+        expansionDelimiter: "Po medzere, Tab alebo Return",
+        variablesHint: "Premenné: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "V okamihu rozbalenia sa zmenia na dátum, čas a skopírovaný text.",
+        emptyList: "Zatiaľ žiadne fragmenty. Pridajte prvý.",
+        duplicateTrigger: "Tento spúšťač už používa iný fragment.",
+        triggerTooShort: "Spúšťač potrebuje aspoň 2 znaky.",
+        deleteButton: "Vymazať",
+        saveButton: "Uložiť",
+        manageButton: "Spravovať fragmenty",
+        ignoreCaseLabel: "Nerozlišovať veľké a malé písmená",
+        libraryTitle: "Rýchla ponuka fragmentov",
+        libraryToggle: "Otvárať fragmenty z ponuky",
+        libraryCaption: "Skratka otvorí ponuku s vyhľadávaním. Výberom fragmentu ho vložíte presne tam, kde je kurzor.",
+        librarySearchPlaceholder: "Hľadať fragmenty",
+        libraryNoResults: "Vyhľadávaniu nezodpovedá žiadny fragment.",
+        libraryEmpty: "Zatiaľ nie je čo zobraziť. Pridajte fragmenty alebo pri tých, ktoré používate najčastejšie, zapnite „Zobraziť v rýchlej ponuke“.",
+        libraryFooterHint: "↩ vloží · esc zavrie",
+        folderLabel: "Priečinok",
+        folderPlaceholder: "Práca",
+        showInLibraryLabel: "Zobraziť v rýchlej ponuke",
+        variablesFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Formát za dvojbodkou určí, ako budú vyzerať, napríklad {{date:yyyy-MM-dd}}, alebo použite tlačidlo dátumu a času vyššie. Časové pásmo nastavíte časťou -tz(...), napríklad {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Vložiť dátum/čas",
+        dateTimeEditButton: "Upraviť dátum/čas",
+        dateTimeTypeLabel: "Typ",
+        dateTimeKindDate: "Dátum",
+        dateTimeKindTime: "Čas",
+        dateTimeKindDateTime: "Dátum a čas",
+        dateTimeStyleLabel: "Štýl",
+        dateTimeStyleShort: "Krátky",
+        dateTimeStyleMedium: "Stredný",
+        dateTimeStyleLong: "Dlhý",
+        dateTimeStyleFull: "Úplný",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Vlastný",
+        dateTimeStyleLocaleNote: "Pomenovaný štýl uloží formát, ktorý región vášho Macu používa práve teraz.",
+        dateTimeTimezoneLabel: "Časové pásmo",
+        dateTimeTimezoneDeviceDefault: "Predvolené zariadenia",
+        dateTimeTimezoneValid: "Platné časové pásmo",
+        dateTimeTimezoneInvalid: "Nerozpoznané časové pásmo",
+        dateTimeTimezoneClear: "Vymazať časové pásmo",
+        dateTimeTimezoneSearchPlaceholder: "Hľadať časové pásma",
+        dateTimePatternLabel: "Vzor",
+        dateTimePreviewLabel: "Ukážka",
+        dateTimeConfirmInsert: "Vložiť",
+        dateTimeConfirmUpdate: "Aktualizovať",
+        soundToggle: "Prehrať zvuk pri rozbalení napísaného spúšťača",
+        soundCaption: "Krátky systémový zvuk zaznie vždy, keď sa napísaný spúšťač rozbalí.",
+        soundPickerLabel: "Zvuk",
+        soundUnavailable: "Zvuk nie je k dispozícii"
     )
 
     static let de = SnippetFeatureStrings(
@@ -538,7 +703,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Muster",
         dateTimePreviewLabel: "Vorschau",
         dateTimeConfirmInsert: "Einfügen",
-        dateTimeConfirmUpdate: "Aktualisieren"
+        dateTimeConfirmUpdate: "Aktualisieren",
+        soundToggle: "Ton abspielen, wenn ein getipptes Kürzel ausgeschrieben wird",
+        soundCaption: "Ein kurzer Systemton wird jedes Mal abgespielt, wenn ein getipptes Kürzel ausgeschrieben wird.",
+        soundPickerLabel: "Ton",
+        soundUnavailable: "Ton nicht verfügbar"
     )
 
     static let fr = SnippetFeatureStrings(
@@ -602,7 +771,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Motif",
         dateTimePreviewLabel: "Aperçu",
         dateTimeConfirmInsert: "Insérer",
-        dateTimeConfirmUpdate: "Mettre à jour"
+        dateTimeConfirmUpdate: "Mettre à jour",
+        soundToggle: "Jouer un son au développement d’un déclencheur tapé",
+        soundCaption: "Un court son système est joué chaque fois qu’un déclencheur tapé se développe.",
+        soundPickerLabel: "Son",
+        soundUnavailable: "Son indisponible"
     )
 
     static let it = SnippetFeatureStrings(
@@ -666,7 +839,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "Modello",
         dateTimePreviewLabel: "Anteprima",
         dateTimeConfirmInsert: "Inserisci",
-        dateTimeConfirmUpdate: "Aggiorna"
+        dateTimeConfirmUpdate: "Aggiorna",
+        soundToggle: "Riproduci un suono quando un trigger digitato si espande",
+        soundCaption: "Un breve suono di sistema viene riprodotto ogni volta che un trigger digitato si espande.",
+        soundPickerLabel: "Suono",
+        soundUnavailable: "Suono non disponibile"
     )
 
     static let ja = SnippetFeatureStrings(
@@ -730,7 +907,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "パターン",
         dateTimePreviewLabel: "プレビュー",
         dateTimeConfirmInsert: "挿入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "入力したトリガーが展開されたときに音を再生",
+        soundCaption: "入力したトリガーが展開されるたびに、短いシステム音が再生されます。",
+        soundPickerLabel: "サウンド",
+        soundUnavailable: "利用できないサウンド"
     )
 
     static let zhHans = SnippetFeatureStrings(
@@ -794,7 +975,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "预览",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "输入的触发词展开时播放声音",
+        soundCaption: "每次输入的触发词展开时都会播放一个简短的系统声音。",
+        soundPickerLabel: "声音",
+        soundUnavailable: "声音不可用"
     )
 
     static let zhTW = SnippetFeatureStrings(
@@ -858,7 +1043,11 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入的觸發詞展開時播放聲音",
+        soundCaption: "每次輸入的觸發詞展開時都會播放一個簡短的系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 
     static let zhHK = SnippetFeatureStrings(
@@ -922,6 +1111,10 @@ extension SnippetFeatureStrings {
         dateTimePatternLabel: "格式",
         dateTimePreviewLabel: "預覽",
         dateTimeConfirmInsert: "插入",
-        dateTimeConfirmUpdate: "更新"
+        dateTimeConfirmUpdate: "更新",
+        soundToggle: "輸入嘅觸發詞展開時播放聲音",
+        soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
+        soundPickerLabel: "聲音",
+        soundUnavailable: "聲音無法使用"
     )
 }

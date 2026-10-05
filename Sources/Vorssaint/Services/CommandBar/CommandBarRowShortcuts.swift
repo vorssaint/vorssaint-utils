@@ -11,9 +11,9 @@ import Foundation
 /// the thing you run weekly does not. Nothing is registered unless the person
 /// asked for it, so an untouched install pays nothing.
 enum CommandBarRowShortcuts {
-    /// Few enough that the keyboard is still the person's, and that the list
-    /// in Settings stays readable.
-    static let limit = 20
+    /// Bound global hotkey registrations while leaving room for a shortcut
+    /// for every letter and for other commands.
+    static let limit = 64
 
     /// A cold catalog may arrive after the person changed their shortcut.
     /// Only the latest request, with its original binding still intact, runs.
@@ -46,6 +46,27 @@ enum CommandBarRowShortcuts {
             return .occupied(owner)
         }
         return hasRoom(for: key, in: shortcuts) ? nil : .full
+    }
+
+    /// The name a row's hotkey is claimed under, and so the name its take-over
+    /// choice is kept under. Row combinations live inside one dictionary, so a
+    /// claim is named by the row it belongs to.
+    static func takeOverKey(for key: String) -> String {
+        "\(DefaultsKey.commandBarRowShortcuts).\(key)"
+    }
+
+    /// What a row does with a combination macOS may answer, once every
+    /// Vorssaint-side check has passed: the same rule every other shortcut
+    /// field follows, so the row can offer to take the key over instead of
+    /// refusing a combination another field would accept.
+    static func takeOverDecision(_ shortcut: GlobalShortcut, for key: String,
+                                 in shortcuts: [String: GlobalShortcut],
+                                 conflictsWithMacOS: Bool,
+                                 isTakenOver: (String) -> Bool) -> RecorderTakeOverDecision {
+        SystemShortcutTakeoverSupport.recorderDecision(shortcut: shortcut,
+                                                       conflictsWithMacOS: conflictsWithMacOS,
+                                                       takenOver: isTakenOver(takeOverKey(for: key)),
+                                                       current: shortcuts[key])
     }
 
     static func decode(_ raw: String?) -> [String: GlobalShortcut] {

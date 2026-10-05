@@ -384,12 +384,20 @@ final class UpdateService: ObservableObject {
                                                                     resultPath: resultPath,
                                                                     uid: getuid(),
                                                                     expectedVersion: expectedVersion)
+        // The in-process authorization holds the main thread until it is
+        // answered, and the system dialog never appears while the Extra
+        // Brightness overlay is on screen (#1917). Once the request waits,
+        // nothing can take the overlay down, not even the menu, so it
+        // leaves first and returns if the prompt is declined; an approved
+        // install quits.
+        ExtraBrightnessService.shared.stop()
         AdminShell.runInProcess(command, prompt: L10n.shared.s.adminPromptUpdate) { [weak self] granted in
             DispatchQueue.main.async {
                 guard let self else { return }
                 if granted {
                     NSApp.terminate(nil)
                 } else {
+                    ExtraBrightnessService.shared.syncWithPreferences()
                     // The user dismissed the admin prompt: keep the offer so
                     // the button simply works again.
                     self.abortInstall(dmgPath: dmgPath, offered: expectedVersion)

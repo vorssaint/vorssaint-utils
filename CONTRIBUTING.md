@@ -1,208 +1,118 @@
 # Contributing to Vorssaint
 
-Thanks for the interest. This project aims to stay small, native and readable.
-
-## License for contributions
-
-Unless it is stated otherwise, contributions to this repository are accepted
-under GPL-3.0-or-later.
+Vorssaint aims to stay small, native and readable. Contributions are accepted
+under GPL-3.0-or-later unless stated otherwise.
 
 ## Getting started
+
+You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+The project builds with `build.sh`, without an Xcode project or external package
+dependencies. `Package.swift` supports editor indexing; it does not assemble or
+sign the app bundle.
 
 ```sh
 git clone https://github.com/vorssaint/vorssaint-utils.git
 cd vorssaint-utils
-./build.sh                         # build and assemble the bundle
-./build/Vorssaint --selftest       # quick health check (SELFTEST OK)
-./build.sh --install               # install into /Applications and launch
+./build.sh --dev
+./build/VorssaintDeveloper --selftest
+./build.sh --test
 ```
 
-You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools. The
-build is a plain `swiftc` invocation, see `build.sh`, with no Xcode project and
-no external dependencies, reproducible by design. `Package.swift` is there so
-SwiftPM aware editors can index the code.
-
-Hitting a build or permission snag while developing? See the
-[troubleshooting guide](docs/TROUBLESHOOTING.md).
+To install and launch the separate Developer app, use `./build.sh --dev --install`.
+It has its own preferences and permissions and does not replace the official app.
+A plain `./build.sh` builds the optimized variant used by CI; its health check is
+`./build/Vorssaint --selftest`.
 
 ### Stable signing
 
-By default `build.sh` signs ad hoc, and that code hash changes on every build.
-macOS ties Accessibility and Screen Recording grants to the hash, so each
-rebuild silently orphans them: System Settings keeps showing the app as
-granted, the app is no longer trusted, and no new prompt appears. Builds that
-install (`--dev` or `--install`) therefore create a free, self signed identity
-called `Vorssaint Utils Signing` in a dedicated keychain automatically when no
-identity is installed. For a build you do not install, run the same setup once
-yourself:
+Developer and install builds automatically try to create a stable local signing
+identity when none is available. You can also run `./Tools/setup-signing.sh`.
+Keep that identity across rebuilds: ad-hoc signatures change with the binary and
+can invalidate macOS permission grants. Check the build output for signing
+failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).
 
-```sh
-./Tools/setup-signing.sh
-```
+Official releases use Developer ID signing and notarization through the protected
+release workflow. Local signing does not produce an official release.
 
-Either way `build.sh` then signs local builds with it and gives them a
-constant designated requirement, so granted permissions stick across rebuilds.
-If a permission was granted to an earlier ad-hoc build, clear the stale grant
-once (`tccutil reset Accessibility com.vorssaint.utils.dev`) and grant it
-again. The identity is a local convenience only and never shows up outside
-the keychain.
+## Scope and implementation
 
-Official releases work differently. CI signs the app and DMG with an Apple
-**Developer ID**, using credentials isolated in the protected `release-signing`
-environment, then
-**notarizes** and staples them through `Tools/notarize.sh`, with secrets
-`NOTARY_API_KEY_P8`, `NOTARY_KEY_ID` and `NOTARY_ISSUER_ID`, so downloads open
-with no Gatekeeper warning. `build.sh` prefers the Developer ID identity when it
-is present, with the hardened runtime and `Resources/Vorssaint.entitlements`,
-and falls back to the self signed identity, then to ad hoc.
+Before a substantial feature, search existing issues and PRs and discuss the
+direction in an issue. Explain the user need, required permissions, dependencies
+and ongoing maintenance. Prefer existing macOS capabilities and repository code
+over a new subsystem. Keep each PR focused on one independently useful change.
 
-## Project layout
+- App lifecycle lives in `Sources/Vorssaint/App`, shared catalogs and preferences
+  in `Core`, behavior in `Services`, views in `UI`, and diagnostics in `Support`.
+  Keep reusable decisions outside views where they can be tested.
+- Check other callers and the upgrade path when fixing shared behavior.
+- New features belong in the feature catalog, with availability and permission
+  checks on every entry point. Optional background work should stop when disabled.
+- User preferences must participate in settings backup. Machine-specific state
+  and private content need an explicit exclusion.
+- Update every locale in `AppLanguage.allCases`, including feature-specific
+  string catalogs. A new language also needs its locale registration, localized
+  permission prompts where applicable, and coverage tests.
+- New source files retain the project's SPDX license and copyright headers.
 
-| Folder | Role |
-|---|---|
-| `Sources/Vorssaint/App` | App lifecycle and the menu bar status item |
-| `Sources/Vorssaint/Core` | Localization, permissions, UserDefaults keys |
-| `Sources/Vorssaint/Services` | All behavior, like energy, monitor, scroll and switcher |
-| `Sources/Vorssaint/UI` | SwiftUI views only, no business logic |
-| `Sources/Vorssaint/Support` | `--selftest` and `--sensors` diagnostics |
-| `Tools` | Icon generator and DMG packaging |
+Sensor changes should include a dump from `./build/Vorssaint --sensors` and the
+Mac model. Selection logic lives in `TemperatureSensorSelector` and `SystemMonitor`.
 
-A few conventions to keep in mind.
+## Validation
 
-- **UI observes services, and services never import SwiftUI.** Keep that boundary.
-- Singletons are exposed as `Type.shared` and publish state with Combine through
-  `ObservableObject`, with no Observation macros, since the project builds with
-  the Command Line Tools.
-- Comments explain *why*, not *what*. Keep them rare and useful.
-- No new dependencies without talking it over first in an issue.
-- Working with an agent? [Contributing with an
-  agent](docs/AI-CONTRIBUTIONS.md) is the process that gets that work merged
-  here, and it is written to be read by the agent as much as by you.
+Documentation-only changes need a diff and link check. For code changes, run the
+relevant tests; `./build.sh --list-tests` lists suites and
+`./build.sh --test-suite=NAME` selects one. Behavior tests should fail without the
+fix and preserve legitimate use, rather than pinning private implementation text.
 
-## Strings and translations
+The test executable compiles a selected set of sources, so passing tests does not
+prove the app builds. Build the app and run its selftest for runtime, UI or bundled
+resource changes. CI also checks the optimized build, selftest, tests and packaging.
+Builds should finish without warnings.
 
-Every user facing string lives in `Core/Localization.swift` as a field of the
-`Strings` struct. Adding a field forces **every** supported language to provide
-it, and the compiler is the completeness check, so a translation can never
-silently fall out of sync.
-
-Vorssaint ships these locales today: English (US), Português (Brasil),
-Türkçe, Русский, Español, Deutsch, Français, Italiano, 日本語, 한국어, 简体中文,
-繁體中文（台灣） and 繁體中文（香港）. The non-base translations live in
-`Core/Localizations/`. To add a language, add a case to `AppLanguage`, provide
-a complete `Strings` catalog and all feature-specific string catalogs, register
-the locale in `Resources/Info.plist`, add localized permission prompts under
-`Resources/<locale>.lproj/` when needed, and extend the localization coverage
-tests.
-
-## Sensors on new chips
-
-Temperature mapping lives in `SystemMonitor.prepareSensorsIfNeeded()`. CPU keys
-look like `Tp…` and `Te…`, GPU is `Tg…`, and battery runs from `TB0T` to
-`TB2T`. If a new Apple Silicon generation renames the keys, run this
-
-```sh
-./build/Vorssaint --sensors
-```
-
-and open a PR with the dump and the adjusted prefixes.
-
-## Reporting bugs and requesting features
-
-You do not need to write code to help. Use the issue forms on the
-[new issue](https://github.com/vorssaint/vorssaint-utils/issues/new/choose) page.
-
-- **Bug report.** Include your Vorssaint version from Settings under About and
-  your macOS version, plus clear steps to reproduce. The
-  [troubleshooting guide](docs/TROUBLESHOOTING.md) explains what makes a report
-  useful.
-- **Feature request.** Describe the problem you are trying to solve rather than
-  only a specific solution.
-
-For general help and every support channel, see [support](SUPPORT.md).
+For behavior involving windows, permissions or hardware, describe what you actually
+verified and on which Mac and macOS version. Include display, Spaces or language
+details when relevant, and state what remains untested. Compilation and static
+inspection alone do not demonstrate an interaction on a real Mac.
 
 ## Pull requests
 
-1. One topic per PR, with a clear description of the behavior before and after.
-2. `./build.sh` must finish without warnings and `--selftest` must pass.
-3. New user facing text must land in **every** supported language, since the
-   build will not compile until it does.
-4. Match the style of the file you are editing.
-5. Keep it small. Half of the open pull requests over a thousand added lines
-   have been waiting a week or more; nothing under two hundred is waiting at
-   all. When a change is large, splitting it moves it faster than explaining
-   it does.
-6. Settle the direction before writing the code. Scope is the most common
-   reason a pull request is turned down here, and an issue costs far less
-   than a branch. Four things decide it: what the feature is built on and
-   whether that will still be here, what it exposes the project to, what it
-   drags in as a runtime dependency and who then carries it when that breaks,
-   and how much permanent surface it adds against how many people will ever
-   switch it on. Vorssaint reaches for what macOS almost does; it does not
-   grow a subsystem of its own. Intel support, hardcoded integrations with
-   particular third-party apps, a plugin system and video downloading have all
-   been declined already, and [contributing with an
-   agent](docs/AI-CONTRIBUTIONS.md) works the four through with the cases they
-   came from.
-7. Title it `type(scope): lowercase imperative phrase`, and do not add the PR
-   number yourself, since squash merge appends it. Reuse a scope that already
-   shows up in `git log --oneline` rather than inventing one, and leave the
-   version and environment notes for the description.
-8. Leave `CHANGELOG.md` alone. The maintainer writes the entry when merging,
-   in the release notes voice and with your credit, so an entry in your branch
-   is a conflict with every sibling PR and a wording that gets rewritten
-   anyway. Say in the description what a user would notice; the entry is
-   written from that.
-9. **A pull request that has an issue must link it, written exactly as `Refs
-   #123`.** Not `Closes`/`Fixes`, not a bare `#123`, not a sentence about it.
-   That one line is the whole tie between the change and the person who
-   reported it: the fix-status bot reads it on merge, labels the issue,
-   comments again when a release carries the fix, and closes the issue after
-   two weeks of silence. A branch that leaves it out drops that report out of
-   the track entirely, and nobody finds out until the reporter asks months
-   later. `Closes`/`Fixes` fails the other way, closing the report on merge
-   when the fix is not on anyone's Mac yet. Several issues means several
-   references, each on its own line and each starting with its own `Refs`:
-   the bot reads the word and the number as a pair, so `Refs #123, #456`
-   reaches #123 and leaves #456 sitting there. When the branch merges, say on
-   the issue which part of it this covered and which part it did not. An issue
-   here often carries more than one report, and a fix for one of them reads as
-   a fix for all of them until somebody says otherwise. The issue itself stays
-   open until the person who reported it confirms on a real build.
-10. Fix the cause, not the path the report happened to take. A reporter names
-    the symptom they hit; the same mistake usually sits in every sibling call
-    site. Find the other callers of whatever you are about to change before
-    you change it, and name in the description which ones you checked — one
-    guard in the shared function is a smaller diff than a guard in each
-    caller, and it is the difference between a fix and a fix for one person.
-11. Verify on a real Mac, and describe where. Give as much of it as you have:
-    the Mac model, the macOS version and build, the display and Spaces
-    layout, whether it was a release build or one of your own, and the app
-    language if the change touches text. Then say what you could not test.
-    Every pull request is run locally before it is merged, on one
-    maintainer's hardware, so the gap between your machine and that one is
-    the part worth writing down; changes have passed review and then failed
-    on a different Mac. Building with a stable signing identity, see above,
-    keeps granted permissions across rebuilds and makes this cheap.
-12. The pull request template lists the sections a description here usually
-    has. Apart from the issue reference, nothing in it is required, and it is
-    a prompt rather than a form, so delete what does not apply and write
-    prose.
-13. A new feature is not ready the day it compiles. Install your own build,
-    live with it for a few days, and fix what surfaces. The rough edge you
-    only notice on the third day is the one a reviewer cannot find and a user
-    will. A fix or a small change does not need that wait; a feature does.
-14. Even so, an unfinished branch is welcome. Open it as a **draft** and name
-    in the description what is missing or what decision you need. A draft
-    says on its own that it is not asking to be merged yet, and it says so
-    everywhere the pull request appears.
+Explain the behavior before and after, the scope and validation. Use
+`type(scope): lowercase imperative phrase` for the title and reuse an existing
+scope where possible. Open unfinished work as a draft and name what is missing.
+The [template](.github/PULL_REQUEST_TEMPLATE.md) is a prompt, not a form.
+
+Leave version bumps and `CHANGELOG.md` to the maintainer. Describe the user-visible
+effect in the PR so it can become a release note with your credit.
+
+When an issue exists, include one reference per line:
+
+```text
+Refs #123
+Refs #456
+```
+
+Avoid `Closes` or `Fixes`: those close the issue at merge, before users receive
+the fix. The fix-status workflow tracks the reference, notifies the reporter when
+a stable release carries the fix, and can close the issue after two weeks without
+a response. If the PR addresses only part of an issue, say exactly which part.
+
+For agent-assisted work, see [contributing with an agent](docs/AI-CONTRIBUTIONS.md).
+Bug reports and feature requests use the [issue forms](https://github.com/vorssaint/vorssaint-utils/issues/new/choose).
+Report vulnerabilities through [private security reporting](SECURITY.md).
 
 ## Releases (maintainers)
 
-```sh
-git tag v2.1.0 && git push origin v2.1.0
-```
+Integrating into `main`, pushing a branch and opening a PR do not publish a release.
+Publication requires an explicit release decision, including beta or stable.
 
-Only an owner-created protected version tag can enter the `release-signing`
-environment. After owner approval, the workflow builds, signs, notarizes and
-publishes the DMG as an immutable GitHub release.
+Before sending a version tag, validate the final commit on `main`, confirm its
+verified signature, and match `Resources/Info.plist` and the release notes to the
+chosen version. Use a signed tag such as `vX.Y.Z-beta.N` or `vX.Y.Z`.
+Sending the tag starts [the release workflow](.github/workflows/release.yml).
+
+The protected `release-signing` environment holds the signing and notarization
+credentials. The workflow builds, signs and notarizes the app and DMG, then
+publishes an immutable release. Confirm publication succeeded; a pushed tag alone
+is not a published version. Beta releases remain prereleases and do not replace
+the latest stable release or its Homebrew cask. Do not move published tags or
+replace published artifacts.

@@ -60,6 +60,28 @@ struct DiskDeviceReading: Identifiable, Equatable {
     }
 }
 
+enum DiskMenuBarStyle: String, CaseIterable {
+    case percent, free, used
+
+    static let defaultsKey = DefaultsKey.menuBarDiskStyle
+
+    static var current: DiskMenuBarStyle {
+        DiskMenuBarStyle(rawValue: UserDefaults.standard.string(forKey: defaultsKey) ?? "") ?? .percent
+    }
+
+    var showsPercentage: Bool { self == .percent }
+
+    var minimumValue: String { showsPercentage ? "100%" : "1000 GB" }
+
+    func value(for disk: DiskDeviceReading) -> String {
+        switch self {
+        case .percent: return MetricFormat.percent(disk.usedFraction)
+        case .free: return MetricFormat.diskBytes(disk.freeBytes)
+        case .used: return MetricFormat.diskBytes(disk.usedBytes)
+        }
+    }
+}
+
 struct DiskReading: Equatable {
     var devices: [DiskDeviceReading] = []
 
@@ -128,7 +150,7 @@ enum DiskSupport {
 
     static func healthPercent(fromPercentageUsed used: UInt64?) -> Int? {
         guard let used else { return nil }
-        return max(0, min(100, 100 - Int(used)))
+        return max(0, min(100, 100 - Int(clamping: used)))
     }
 
     static func smartReading(status: String?, vendorKeys: [String: Any]?) -> DiskSMARTReading? {

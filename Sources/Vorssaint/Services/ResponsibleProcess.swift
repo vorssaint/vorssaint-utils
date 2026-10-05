@@ -70,6 +70,14 @@ enum ResponsibleProcess {
             let name = String(cString: buffer)
             if !name.isEmpty { return name }
         }
+        // macOS 27 refuses proc_name for another user's process, such as
+        // WindowServer or a daemon, and the GPU list showed "pid 100" for
+        // them. Their executable path stays readable.
+        var path = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        if proc_pidpath(pid, &path, UInt32(path.count)) > 0 {
+            let name = (String(cString: path) as NSString).lastPathComponent
+            if !name.isEmpty { return name }
+        }
         return fallback.trimmingCharacters(in: .whitespaces)
     }
 

@@ -76,6 +76,8 @@ enum SettingsBackup {
         ScratchpadService.shared.prepareForSettingsRestore()
         let defaults = UserDefaults.standard
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
+        let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
+        let localWatermarkPresets = defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets)
         // A backup carries only the portable half of an exception list: the
         // path of a program that is not an app is authority on one Mac and is
         // filtered out on export (issue #1009). The clear below covers every
@@ -86,7 +88,9 @@ enum SettingsBackup {
             out[scope.defaultsKey] = SettingsBackupSupport.pathIdentities(
                 in: defaults.stringArray(forKey: scope.defaultsKey) ?? [])
         }
-        for key in SettingsBackupSupport.exportKeys() {
+        let windowLayoutPaths = SettingsBackupSupport.pathIdentities(
+            in: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [])
+        for key in SettingsBackupSupport.keysToClear(whenImporting: settings) {
             defaults.removeObject(forKey: key)
         }
         for (key, value) in settings {
@@ -96,10 +100,21 @@ enum SettingsBackup {
             defaults.set(SettingsBackupSupport.preservingLocalPresetImages(
                 restored: restored, local: localRecorderPresets), forKey: DefaultsKey.recorderEditorPresets)
         }
+        defaults.set(SettingsBackupSupport.restoredScreenshotWatermark(
+            restored: settings[DefaultsKey.screenshotWatermarkStyle] as? String,
+            local: localWatermark), forKey: DefaultsKey.screenshotWatermarkStyle)
+        defaults.set(SettingsBackupSupport.restoredScreenshotWatermarkPresets(
+            restored: settings[DefaultsKey.screenshotWatermarkPresets] as? String,
+            local: localWatermarkPresets), forKey: DefaultsKey.screenshotWatermarkPresets)
         for (key, paths) in carried where !paths.isEmpty {
             defaults.set(SettingsBackupSupport.restoredExceptionList(
                 restored: defaults.stringArray(forKey: key) ?? [],
                 carried: paths), forKey: key)
+        }
+        if !windowLayoutPaths.isEmpty {
+            defaults.set(SettingsBackupSupport.restoredExceptionList(
+                restored: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [],
+                carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)
         }
         FeatureRuntime.shared.relaunchApp()
     }

@@ -18,6 +18,9 @@ final class AppUpdatesService: ObservableObject {
     static let shared = AppUpdatesService()
 
     @Published private(set) var items: [AppUpdatesSupport.Item] = []
+    @Published private(set) var rules: [AppUpdatesSupport.UpdateRule] = []
+    /// Latest scan, including skipped versions, so removing a rule needs no network work.
+    private var allItems: [AppUpdatesSupport.Item] = []
     @Published private(set) var isChecking = false
     @Published private(set) var lastCheck: Date?
     @Published private(set) var nextCheck: Date?
@@ -67,6 +70,8 @@ final class AppUpdatesService: ObservableObject {
     private init() {
         let stamp = UserDefaults.standard.double(forKey: DefaultsKey.appUpdatesLastCheck)
         lastCheck = stamp > 0 ? Date(timeIntervalSince1970: stamp) : nil
+        rules = AppUpdatesSupport.decodedRules(
+            UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesRules))
     }
 
     // MARK: - Lifecycle
@@ -77,6 +82,7 @@ final class AppUpdatesService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        reloadRules()
         guard AppFeature.appUpdates.isAvailable, frequency != .off else {
             stop()
             return
@@ -142,6 +148,8 @@ final class AppUpdatesService: ObservableObject {
             automaticCheckPending = automaticCheckPending || automatic
             return
         }
+        reloadRules()
+        let checkedRules = rules
         isChecking = true
         lastError = nil
         scanGeneration += 1
@@ -155,7 +163,8 @@ final class AppUpdatesService: ObservableObject {
 
         workQueue.async { [weak self] in
             guard let self else { return }
-            let apps = Self.scanInstalledApps(includePublisherFeeds: includeOnlineCatalog)
+            let apps = AppUpdatesSupport.checkedApps(
+                Self.scanInstalledApps(includePublisherFeeds: includeOnlineCatalog), rules: checkedRules)
             let packageResult = includeHomebrewApps || includeOnlineCatalog
                 ? self.packageManagerFindings(apps: apps, includeUpdates: includeHomebrewApps)
                 : PackageResult(items: [], coveredPaths: [], available: true,
@@ -204,27 +213,29 @@ final class AppUpdatesService: ObservableObject {
                 }
             }
             group.notify(queue: self.workQueue) {
+                let resolvedFeed = feedResult.resolvingCatalogFallback(
+                    checkedPaths: onlineResult.checkedPaths, candidates: onlineCandidates)
                 DispatchQueue.main.async {
                     guard generation == self.scanGeneration else { return }
                     self.finishCheck(items: AppUpdatesSupport.merged(packageResult.items,
                                                                      storeResult.items,
-                                                                     feedResult.items,
+                                                                     resolvedFeed.items,
                                                                      onlineResult.items.filter {
-                                                                         !feedResult.checkedPaths.contains($0.bundlePath ?? "")
+                                                                         !resolvedFeed.checkedPaths.contains($0.bundlePath ?? "")
                                                                      }),
                                      packageManagerAvailable: packageResult.available,
-                                     onlineCatalogAvailable: onlineResult.available && feedResult.available,
+                                     onlineCatalogAvailable: onlineResult.available && resolvedFeed.available,
                                      appStoreAvailable: storeResult.available,
                                      uncheckedAppNames: AppUpdatesSupport.uncheckedAppNames(
-                                        storeResult.uncheckedApps + feedResult.uncheckedApps + onlineResult.uncheckedApps,
-                                        checkedPaths: feedResult.checkedPaths),
+                                        storeResult.uncheckedApps + resolvedFeed.uncheckedApps + onlineResult.uncheckedApps,
+                                        checkedPaths: resolvedFeed.checkedPaths),
                                      automatic: automatic)
                 }
             }
         }
     }
 
-    private func finishCheck(items newItems: [AppUpdatesSupport.Item],
+    private func finishCheck(items scannedItems: [AppUpdatesSupport.Item],
                              packageManagerAvailable available: Bool,
                              onlineCatalogAvailable catalogAvailable: Bool,
                              appStoreAvailable storeAvailable: Bool,
@@ -246,6 +257,8 @@ final class AppUpdatesService: ObservableObject {
             check(automatic: shouldFinishAutomatically)
             return
         }
+        allItems = scannedItems
+        let newItems = AppUpdatesSupport.visibleItems(scannedItems, rules: rules)
         // What was already announced survives relaunches, unlike knownIDs:
         // otherwise the first background check of every launch would speak up
         // about the same pending update again. Findings that are gone drop out,
@@ -315,7 +328,8 @@ final class AppUpdatesService: ObservableObject {
             return PackageResult(items: [], coveredPaths: [], available: !includeUpdates,
                                  onlineCoverageAvailable: true)
         }
-        let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath))
+        let installedOutput = Self.runCommand(HomebrewCommandBuilder.installed(brewPath: brewPath),
+                                              environment: HomebrewEnvironment.forBrew)
         let records = installedOutput.status == 0
             ? HomebrewParser.parseInstalledCaskRecords(installedOutput.output)
             : []
@@ -327,7 +341,8 @@ final class AppUpdatesService: ObservableObject {
                                  onlineCoverageAvailable: installedOutput.status == 0)
         }
         let outdatedOutput = Self.runCommand(
-            HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath))
+            HomebrewCommandBuilder.outdatedCasksIncludingSelfUpdating(brewPath: brewPath),
+            environment: HomebrewEnvironment.forBrew)
         guard installedOutput.status == 0, outdatedOutput.status == 0 else {
             let failure = [outdatedOutput, installedOutput].first { $0.status != 0 }
             let message = failure.map { HomebrewProgressParser.visibleError(from: $0.output) } ?? ""
@@ -412,6 +427,15 @@ final class AppUpdatesService: ObservableObject {
         let available: Bool
         var checkedPaths: Set<String> = []
         var uncheckedApps: [AppUpdatesSupport.InstalledApp] = []
+        var catalogFallbackPaths: Set<String> = []
+
+        func resolvingCatalogFallback(checkedPaths catalogPaths: Set<String>,
+                                      candidates: [AppUpdatesSupport.InstalledApp]) -> SourceResult {
+            let missing = catalogFallbackPaths.subtracting(catalogPaths)
+            return SourceResult(items: items, available: available && missing.isEmpty,
+                                checkedPaths: checkedPaths,
+                                uncheckedApps: uncheckedApps + candidates.filter { missing.contains($0.path) })
+        }
     }
 
     private static let onlineCatalogCacheLifetime: TimeInterval = 60 * 60
@@ -426,6 +450,8 @@ final class AppUpdatesService: ObservableObject {
         let feeds = Array(grouped)
         var items: [AppUpdatesSupport.Item] = []
         var checkedPaths = Set<String>()
+        var uncheckedPaths = Set<String>()
+        var catalogFallbackPaths = Set<String>()
         var complete = true
         let deadline = Date().addingTimeInterval(60)
         var kernelBytes = [CChar](repeating: 0, count: 256)
@@ -442,37 +468,31 @@ final class AppUpdatesService: ObservableObject {
         // All accumulated results are confined to workQueue.
         func checkBatch(_ start: Int) {
             guard start < feeds.count, Date() < deadline else {
+                // A feed the deadline cut off was not checked, so keep its apps named.
+                uncheckedPaths.formUnion(feeds[start...].flatMap { $0.value.map(\.path) })
                 completion(SourceResult(items: items, available: complete && start >= feeds.count,
                                         checkedPaths: checkedPaths,
                                         uncheckedApps: candidates.filter {
-                                            $0.updateFeed != nil && !checkedPaths.contains($0.path)
-                                        }))
+                                            uncheckedPaths.contains($0.path)
+                                        }, catalogFallbackPaths: catalogFallbackPaths))
                 return
             }
             let end = min(start + 4, feeds.count)
             let group = DispatchGroup()
             for (feed, apps) in feeds[start..<end] {
                 group.enter()
-                AppUpdateFeedLoader.load(feed.url) { data in
+                AppUpdateFeedLoader.load(feed.url) { loadResult in
                     self.workQueue.async {
                         defer { group.leave() }
-                        guard let data, let releases = AppUpdateFeedSupport.releases(data: data, format: feed.format) else {
-                            complete = false
-                            return
-                        }
-                        for app in apps {
-                            guard AppUpdateFeedSupport.comparableInstalledVersion(app, format: feed.format) != nil else {
-                                complete = false
-                                continue
-                            }
-                            checkedPaths.insert(app.path)
-                            if let item = AppUpdateFeedSupport.update(
-                                app: app, releases: releases, format: feed.format,
-                                operatingSystemVersion: operatingSystemVersion,
-                                kernelVersion: kernelVersion, architecture: architecture) {
-                                items.append(item)
-                            }
-                        }
+                        let findings = AppUpdateFeedSupport.findings(
+                            loadResult: loadResult, format: feed.format, apps: apps,
+                            operatingSystemVersion: operatingSystemVersion,
+                            kernelVersion: kernelVersion, architecture: architecture)
+                        items.append(contentsOf: findings.items)
+                        checkedPaths.formUnion(findings.checkedPaths)
+                        uncheckedPaths.formUnion(findings.uncheckedPaths)
+                        catalogFallbackPaths.formUnion(findings.catalogFallbackPaths)
+                        complete = complete && findings.complete
                     }
                 }
             }
@@ -523,13 +543,66 @@ final class AppUpdatesService: ObservableObject {
     private func onlineResult(candidates: [AppUpdatesSupport.InstalledApp],
                               catalog: [AppUpdatesSupport.CatalogEntry],
                               operatingSystemVersion: String) -> SourceResult {
-        SourceResult(
-            items: AppUpdatesSupport.onlineCatalogUpdates(
-                apps: candidates,
-                catalog: catalog,
-                operatingSystemVersion: operatingSystemVersion,
-                ignoredTokens: Self.ownPackageTokens),
-            available: true)
+        let findings = AppUpdatesSupport.onlineCatalogFindings(
+            apps: candidates, catalog: catalog,
+            operatingSystemVersion: operatingSystemVersion,
+            ignoredTokens: Self.ownPackageTokens)
+        return SourceResult(items: findings.items, available: true,
+                            checkedPaths: findings.checkedPaths)
+    }
+
+    // MARK: - Update rules
+
+    func skipVersion(_ item: AppUpdatesSupport.Item) {
+        guard !AppUpdatesSupport.isUncomparable(item.latestVersion) else { return }
+        setRule(for: item, version: item.latestVersion)
+    }
+
+    func excludeApp(_ item: AppUpdatesSupport.Item) {
+        setRule(for: item, version: nil)
+    }
+
+    private func setRule(for item: AppUpdatesSupport.Item, version: String?) {
+        guard !isChecking, let bundleID = item.bundleID, !bundleID.isEmpty,
+              items.contains(item) else { return }
+        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: item.name, version: version)
+        saveRules(rules.filter { $0.bundleID != bundleID } + [rule])
+    }
+
+    func removeRule(_ rule: AppUpdatesSupport.UpdateRule) {
+        guard !isChecking, rules.contains(rule) else { return }
+        saveRules(rules.filter { $0.id != rule.id })
+        // An excluded app was not queried in later scans. Do not invent a current
+        // result or launch a full scan just to remove its rule; Check now remains available.
+        if rule.version == nil { hasCheckedThisSession = false }
+    }
+
+    private func saveRules(_ newRules: [AppUpdatesSupport.UpdateRule]) {
+        guard let raw = AppUpdatesSupport.encodedRules(newRules) else { return }
+        rules = newRules
+        UserDefaults.standard.set(raw, forKey: DefaultsKey.appUpdatesRules)
+        applyRules()
+    }
+
+    /// Settings restore and reset use the same preference as the panel.
+    private func reloadRules() {
+        let restored = AppUpdatesSupport.decodedRules(
+            UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesRules))
+        guard restored != rules else { return }
+        rules = restored
+        hasCheckedThisSession = false
+        if isChecking { sourceRefreshPending = true }
+        applyRules()
+    }
+
+    private func applyRules() {
+        let visible = AppUpdatesSupport.visibleItems(allItems, rules: rules)
+        selection = AppUpdatesSupport.reconciledSelection(previous: selection,
+                                                          knownIDs: knownIDs, items: visible)
+        knownIDs = Set(visible.map(\.id))
+        items = visible
+        UserDefaults.standard.set(visible.count, forKey: DefaultsKey.appUpdatesLastCount)
+        Self.saveAnnouncedIDs(Self.announcedIDs().intersection(knownIDs))
     }
 
     // MARK: - Acting on the list
@@ -546,7 +619,7 @@ final class AppUpdatesService: ObservableObject {
     }
 
     func toggle(_ item: AppUpdatesSupport.Item) {
-        guard item.isSelectable else { return }
+        guard item.isSelectable, items.contains(item) else { return }
         if selection.contains(item.id) {
             selection.remove(item.id)
         } else {
@@ -571,6 +644,7 @@ final class AppUpdatesService: ObservableObject {
     }
 
     func update(_ item: AppUpdatesSupport.Item) {
+        guard items.contains(item) else { return }
         switch item.source {
         case .packageManager:
             guard let token = item.token else { return }
@@ -633,6 +707,7 @@ final class AppUpdatesService: ObservableObject {
     /// process, an update just finished elsewhere, or the last answer is
     /// simply old. Otherwise reopening the panel costs nothing.
     func checkIfNeeded() {
+        reloadRules()
         guard AppUpdatesSupport.shouldRecheck(hasCheckedThisSession: hasCheckedThisSession,
                                               handoffPending: updateHandoffPending,
                                               lastCheck: lastCheck,
@@ -753,10 +828,12 @@ final class AppUpdatesService: ObservableObject {
     private static let commandTimeout: TimeInterval = 120
     private static let commandOutputLimit = 32 * 1_024 * 1_024
 
-    private static func runCommand(_ command: HomebrewCommand) -> (status: Int32, output: String) {
+    private static func runCommand(_ command: HomebrewCommand,
+                                   environment: [String: String]? = nil) -> (status: Int32, output: String) {
         let result = BoundedProcessRunner.run(command.executable, command.arguments,
                                               timeout: commandTimeout,
-                                              maxOutputBytes: commandOutputLimit)
+                                              maxOutputBytes: commandOutputLimit,
+                                              environment: environment)
         return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }

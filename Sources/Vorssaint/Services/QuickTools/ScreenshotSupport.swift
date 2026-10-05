@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Accelerate
 import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
@@ -81,6 +82,13 @@ enum ScreenCaptureTool: String, CaseIterable {
         !fromShortcut || (defaults.object(forKey: showCaptureMenuOnShortcutKey) as? Bool ?? true)
     }
 
+    /// A running recording blocks the capture menu, because picking recording
+    /// from it would stop the take. A shortcut that skips the menu can only
+    /// reach its own tool, so it may run on top of the recording.
+    func opensDuringRecording(fromShortcut: Bool, defaults: UserDefaults = .standard) -> Bool {
+        self != .recording && !showsCaptureMenu(fromShortcut: fromShortcut, defaults: defaults)
+    }
+
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
@@ -89,6 +97,11 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .color: return "eyedropper"
         }
     }
+
+    /// Only the recorder writes sound, so its microphone and system-audio
+    /// choices are the only tool controls that belong under the chooser.
+    /// Every other mode leaves them out entirely, reserving no space for them.
+    var capturesAudio: Bool { self == .recording }
 
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
@@ -115,15 +128,20 @@ enum ScreenshotSupport {
         let freeze: Bool
         let includePointer: Bool
         let hideVorssaintWindows: Bool
+        /// Whether editors and pinned captures stay out of the picture and the
+        /// pickable windows. Recording keeps them out even while "Hide
+        /// Vorssaint windows" is off, which that flag alone cannot tell apart.
+        let keepsContentWindowsOut: Bool
         let usesGeometry: Bool
 
         /// Two tools can want the same photograph and still do different
         /// things with it, so only the fields that decide which pixels are
-        /// taken force a new one.
+        /// taken, and which windows can be picked, force a new one.
         func sharesSource(with other: UnifiedCapturePolicy) -> Bool {
             freeze == other.freeze
                 && includePointer == other.includePointer
                 && hideVorssaintWindows == other.hideVorssaintWindows
+                && keepsContentWindowsOut == other.keepsContentWindowsOut
         }
     }
 
@@ -136,6 +154,7 @@ enum ScreenshotSupport {
             freeze: tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
+            keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
             usesGeometry: tool == .recording)
     }
 
@@ -151,10 +170,46 @@ enum ScreenshotSupport {
         isAvailable(selected.feature)
     }
 
+    static func selectionDimAlpha(notchControls: Bool, isFrozen: Bool, isDragging: Bool) -> CGFloat {
+        if notchControls { return isDragging ? 0.18 : 0 }
+        return isFrozen ? 0.22 : 0.18
+    }
+
     static func captureGuideIsVisible(pointerOnDisplay: Bool,
                                       selectionInProgress: Bool,
                                       capturePending: Bool) -> Bool {
         pointerOnDisplay && !selectionInProgress && !capturePending
+    }
+
+    static func fullScreenCaptureControlIsAvailable(selectedTool: ScreenCaptureTool?,
+                                                    standaloneScreenshot: Bool,
+                                                    requiresDraggedRegion: Bool,
+                                                    scrollingCaptureEnabled: Bool) -> Bool {
+        let isScreenshot = standaloneScreenshot || selectedTool == .screenshot
+        return isScreenshot && !requiresDraggedRegion && !scrollingCaptureEnabled
+    }
+
+    static func fullScreenCaptureControlIsVisible(isAvailable: Bool,
+                                                  pointerOnDisplay: Bool,
+                                                  selectionInProgress: Bool,
+                                                  capturePending: Bool) -> Bool {
+        isAvailable && pointerOnDisplay && !selectionInProgress && !capturePending
+    }
+
+    static func fullScreenCaptureControlTopInset(screenChromeHeight: CGFloat,
+                                                 notchControlsHeight: CGFloat?) -> CGFloat {
+        let chrome = screenChromeHeight.isFinite ? max(0, screenChromeHeight) : 0
+        let controls = notchControlsHeight.flatMap { $0.isFinite ? max(0, $0) : nil } ?? 0
+        return max(chrome, controls) + 12
+    }
+
+    /// Whether the guide should advertise repeating the last capture region.
+    /// The region is remembered for this app session only and belongs to one
+    /// display, so the hint stays hidden until pressing the key would really
+    /// capture something.
+    static func offersRepeatLastRegion(isPickingColor: Bool,
+                                       storedRegionDisplayIsAvailable: Bool) -> Bool {
+        !isPickingColor && storedRegionDisplayIsAvailable
     }
 
     // MARK: - Preferences
@@ -197,6 +252,102 @@ enum ScreenshotSupport {
 
     static func sanitizedDelay(_ raw: Int) -> Int {
         allowedDelays.contains(raw) ? raw : 0
+    }
+
+    static let confirmationPreviewDurations = [1, 2, 3, 5, 10, 0]
+    static let defaultConfirmationPreviewDuration = 3
+    static let recoveryPreviewDismissInterval: TimeInterval = 12
+
+    struct ConfirmationPreviewPresentationPolicy: Equatable {
+        let takesFocus: Bool
+        let closesOnCollapse: Bool
+        let showsDismissButton: Bool
+    }
+
+    static func sanitizedConfirmationPreviewDuration(_ raw: Int) -> Int {
+        confirmationPreviewDurations.contains(raw) ? raw : defaultConfirmationPreviewDuration
+    }
+
+    static func confirmationPreviewDismissInterval(_ raw: Int) -> TimeInterval? {
+        let duration = sanitizedConfirmationPreviewDuration(raw)
+        return duration == 0 ? nil : TimeInterval(duration)
+    }
+
+    static func sharedPreviewDismissInterval(base: TimeInterval?) -> TimeInterval? {
+        base == nil ? nil : 30
+    }
+
+    static func confirmationPreviewPresentationPolicy(
+        dismissInterval: TimeInterval?,
+        prefersFocus: Bool
+    ) -> ConfirmationPreviewPresentationPolicy {
+        let persistent = dismissInterval == nil
+        return ConfirmationPreviewPresentationPolicy(
+            takesFocus: !persistent && prefersFocus,
+            closesOnCollapse: persistent,
+            showsDismissButton: persistent)
+    }
+
+    static func confirmationPreviewPresentationPolicy(
+        dismissInterval: TimeInterval?,
+        defaults: UserDefaults
+    ) -> ConfirmationPreviewPresentationPolicy {
+        confirmationPreviewPresentationPolicy(
+            dismissInterval: dismissInterval,
+            prefersFocus: defaults.bool(forKey: DefaultsKey.screenshotPreviewTakesFocus))
+    }
+
+    static func automaticActionSucceeded(_ action: ScreenshotDefaultAction,
+                                         saved: Bool,
+                                         copied: Bool) -> Bool {
+        switch action {
+        case .none, .edit: return false
+        case .save: return saved
+        case .saveAndCopy: return saved && copied
+        case .copy: return copied
+        }
+    }
+
+    static func shouldShowQuickPreview(defaultAction: ScreenshotDefaultAction,
+                                       saved: Bool,
+                                       copied: Bool,
+                                       confirmationEnabled: Bool) -> Bool {
+        switch defaultAction {
+        case .none: return true
+        case .edit: return false
+        case .save, .saveAndCopy, .copy:
+            return confirmationEnabled
+                || !automaticActionSucceeded(defaultAction, saved: saved, copied: copied)
+        }
+    }
+
+    /// What a finished capture shows once its after-capture action ran.
+    enum QuickPreviewPresentation: Equatable {
+        case hidden
+        /// A nil interval keeps the preview until it is dismissed.
+        case shown(dismissInterval: TimeInterval?)
+    }
+
+    /// The whole decision `route` makes, read from the person's settings: a
+    /// successful action shows the confirmation for its chosen duration or
+    /// nothing at all, while a failed or partial action, or no action, gets
+    /// the recovery preview with its longer timer.
+    static func quickPreviewPresentation(defaultAction: ScreenshotDefaultAction,
+                                         saved: Bool,
+                                         copied: Bool,
+                                         defaults: UserDefaults) -> QuickPreviewPresentation {
+        guard shouldShowQuickPreview(
+            defaultAction: defaultAction, saved: saved, copied: copied,
+            confirmationEnabled: defaults.bool(forKey: DefaultsKey.screenshotPreviewEnabled))
+        else { return .hidden }
+        guard automaticActionSucceeded(defaultAction, saved: saved, copied: copied) else {
+            return .shown(dismissInterval: recoveryPreviewDismissInterval)
+        }
+        // A stored value that is not a number reads as the default duration,
+        // not as 0, which would keep every confirmation until dismissed.
+        let duration = (defaults.object(forKey: DefaultsKey.screenshotPreviewDuration) as? NSNumber)?
+            .intValue ?? defaultConfirmationPreviewDuration
+        return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
     }
 
     /// Remaining stroke for the one-second countdown ring. Time drives the
@@ -301,14 +452,29 @@ enum ScreenshotSupport {
         }
         guard !movingTiles.isEmpty else { return .unmatched }
 
+        // Compute pixel differences in Accelerate, once per offset. The old
+        // nested Swift pixel loops repeated the work for each tile and candidate
+        // and took seconds per Retina frame in unoptimized Developer builds.
+        let previousPixels = previous.pixels.map(Float.init)
+        let currentPixels = current.pixels.map(Float.init)
+        var differences = [Float](repeating: 0, count: previous.pixels.count)
         var matches: [Match] = []
         for advance in minimumAdvance...maximumAdvance {
+            if Task.isCancelled { return .unmatched }
             for reversed in [false, true] {
+                let count = (height - advance) * previous.width
+                previousPixels.withUnsafeBufferPointer { lhs in
+                    currentPixels.withUnsafeBufferPointer { rhs in
+                        vDSP_vsub(rhs.baseAddress! + (reversed ? advance * previous.width : 0), 1,
+                                  lhs.baseAddress! + (reversed ? 0 : advance * previous.width), 1,
+                                  &differences, 1, vDSP_Length(count))
+                    }
+                }
+                vDSP_vabs(differences, 1, &differences, 1, vDSP_Length(count))
                 guard let match = scrollingCandidate(previous: previous,
-                                                     current: current,
                                                      advance: advance,
-                                                     reversed: reversed,
-                                                     tiles: movingTiles) else { continue }
+                                                     tiles: movingTiles,
+                                                     differences: differences) else { continue }
                 matches.append(Match(advance: advance,
                                      reversed: reversed,
                                      contentColumns: match.contentColumns,
@@ -444,17 +610,15 @@ enum ScreenshotSupport {
     }
 
     private static func scrollingCandidate(previous: ScrollingSample,
-                                           current: ScrollingSample,
                                            advance: Int,
-                                           reversed: Bool,
-                                           tiles: [Range<Int>]) -> ScrollingCandidate? {
+                                           tiles: [Range<Int>],
+                                           differences: [Float]) -> ScrollingCandidate? {
         let requiredRun = max(8, min(28, previous.height / 12))
         let matches = tiles.map { tile -> (Range<Int>, ScrollingRowMatch?) in
             guard let match = scrollingMatch(previous: previous,
-                                              current: current,
                                               advance: advance,
-                                              reversed: reversed,
-                                              columns: tile),
+                                              columns: tile,
+                                              differences: differences),
                   match.longestRun >= requiredRun,
                   match.matchingRows >= max(requiredRun, match.comparedRows / 3)
             else { return (tile, nil) }
@@ -484,10 +648,9 @@ enum ScreenshotSupport {
                   let last = supported.last else { return nil }
             let contentColumns = first.0.lowerBound..<last.0.upperBound
             guard let combined = scrollingMatch(previous: previous,
-                                                 current: current,
                                                  advance: advance,
-                                                 reversed: reversed,
-                                                 columns: contentColumns),
+                                                 columns: contentColumns,
+                                                 differences: differences),
                   combined.longestRun >= requiredRun,
                   combined.matchingRows >= max(requiredRun, combined.comparedRows / 3)
             else { return nil }
@@ -515,10 +678,9 @@ enum ScreenshotSupport {
     }
 
     private static func scrollingMatch(previous: ScrollingSample,
-                                       current: ScrollingSample,
                                        advance: Int,
-                                       reversed: Bool,
-                                       columns: Range<Int>) -> ScrollingRowMatch? {
+                                       columns: Range<Int>,
+                                       differences: [Float]) -> ScrollingRowMatch? {
         let width = previous.width
         let edgeInset = max(2, previous.height / 10)
         let lastRow = previous.height - advance - edgeInset
@@ -527,39 +689,37 @@ enum ScreenshotSupport {
               columns.upperBound <= width,
               !columns.isEmpty else { return nil }
 
+        let rowCount = lastRow - edgeInset
+        var rowDifferences = [Float](repeating: 0, count: rowCount)
+        let weights = [Float](repeating: 1, count: columns.count)
+        differences.withUnsafeBufferPointer { buffer in
+            vDSP_desamp(buffer.baseAddress! + edgeInset * width + columns.lowerBound,
+                        vDSP_Stride(width), weights, &rowDifferences,
+                        vDSP_Length(rowCount), vDSP_Length(columns.count))
+        }
         var longestRun = 0
         var run = 0
         var matchingRows = 0
-        var comparedRows = 0
-        var totalDifference = 0
-        var comparedPixels = 0
-        for currentRow in edgeInset..<lastRow {
-            let previousRow = currentRow + advance
-            let previousStart = (reversed ? currentRow : previousRow) * width
-            let currentStart = (reversed ? previousRow : currentRow) * width
-            var rowDifference = 0
-            for column in columns {
-                rowDifference += abs(Int(previous.pixels[previousStart + column])
-                    - Int(current.pixels[currentStart + column]))
-            }
-            let rowPixels = columns.count
-            let average = Double(rowDifference) / Double(rowPixels)
-            totalDifference += rowDifference
-            comparedPixels += rowPixels
-            comparedRows += 1
-            if average <= 8 {
-                run += 1
-                matchingRows += 1
-                longestRun = max(longestRun, run)
-            } else {
-                run = 0
+        let threshold = Float(columns.count * 8)
+        rowDifferences.withUnsafeBufferPointer { rows in
+            var row = 0
+            while row < rowCount {
+                if rows[row] <= threshold {
+                    run += 1
+                    matchingRows += 1
+                    if run > longestRun { longestRun = run }
+                } else {
+                    run = 0
+                }
+                row += 1
             }
         }
-        guard comparedPixels > 0 else { return nil }
+        var totalDifference: Float = 0
+        vDSP_sve(rowDifferences, 1, &totalDifference, vDSP_Length(rowCount))
         return ScrollingRowMatch(longestRun: longestRun,
                                  matchingRows: matchingRows,
-                                 comparedRows: comparedRows,
-                                 difference: Double(totalDifference) / Double(comparedPixels))
+                                 comparedRows: rowCount,
+                                 difference: Double(totalDifference) / Double(rowCount * columns.count))
     }
 
     static func scrollingPixelRange(sampleColumns: Range<Int>,
@@ -629,6 +789,37 @@ enum ScreenshotSupport {
                                        within bounds: CGRect) -> Bool {
         bounds.contains(point)
             && (draft.standardized == bounds.standardized || !draft.contains(point))
+    }
+
+    /// A captured image's alpha, top row first.
+    struct AlphaCoverage {
+        let alpha: [UInt8]
+        let width: Int
+        let height: Int
+
+        /// Total alpha inside `rect`, in image pixels from the top left.
+        func sum(in rect: CGRect) -> Int {
+            let area = rect.integral.intersection(CGRect(x: 0, y: 0, width: width, height: height))
+            guard !area.isNull, !area.isEmpty else { return 0 }
+            var total = 0
+            for row in Int(area.minY)..<Int(area.maxY) {
+                let start = row * width
+                for column in Int(area.minX)..<Int(area.maxX) { total += Int(alpha[start + column]) }
+            }
+            return total
+        }
+    }
+
+    /// Where a display capture of only some windows put them. Older systems
+    /// draw each window where it sits on the display. macOS 27 packs the
+    /// included windows into the image's top-left corner, keeping their
+    /// relative layout, so cropping at the window's place on screen kept only
+    /// its lower-right part beside empty space. Everything but those windows
+    /// is transparent, so
+    /// the placement that holds more of them is the one the system used.
+    static func attachedCaptureCrop(placed: CGRect, packed: CGRect,
+                                    coverage: AlphaCoverage) -> CGRect {
+        coverage.sum(in: packed) > coverage.sum(in: placed) ? packed : placed
     }
 
     static func clamp(_ rect: CGRect, to bounds: CGRect) -> CGRect {
@@ -739,15 +930,15 @@ enum ScreenshotSupport {
             let area = overlap.isNull ? 0 : max(0, overlap.width) * max(0, overlap.height)
             let winsTie = area == selectedArea
                 && area > 0
-                && screen.frame.contains(pointer)
-                && !(selected?.frame.contains(pointer) ?? false)
+                && NSMouseInRect(pointer, screen.frame, false)
+                && !(selected.map { NSMouseInRect(pointer, $0.frame, false) } ?? false)
             if area > selectedArea || winsTie {
                 selected = screen
                 selectedArea = area
             }
         }
         if let selected { return selected.visibleFrame }
-        return screens.first { $0.frame.contains(pointer) }?.visibleFrame ?? fallback
+        return screens.first { NSMouseInRect(pointer, $0.frame, false) }?.visibleFrame ?? fallback
     }
 
     /// Places the capture preview beside the selection in automatic mode, or
@@ -869,6 +1060,22 @@ enum ScreenshotSupport {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         return "\(prefix) \(formatter.string(from: date)).\(fileExtension)"
+    }
+
+    /// Marks a saved capture the way macOS marks its own screenshots, so
+    /// Spotlight and the Cleaner's forgotten screenshots treat both alike.
+    /// Best effort: an unmarked file is only never offered for cleaning.
+    static func markAsScreenCapture(_ url: URL) {
+        guard let data = try? PropertyListSerialization.data(fromPropertyList: true,
+                                                             format: .binary,
+                                                             options: 0) else { return }
+        url.withUnsafeFileSystemRepresentation { path in
+            guard let path else { return }
+            _ = data.withUnsafeBytes {
+                setxattr(path, "com.apple.metadata:kMDItemIsScreenCapture",
+                         $0.baseAddress, data.count, 0, XATTR_NOFOLLOW)
+            }
+        }
     }
 
     /// Writes one drag payload into its own temporary directory. Separate
@@ -1393,6 +1600,66 @@ enum ScreenshotSupport {
         }
     }
 
+    /// Text point sizes at 1x, offered as presets. Text has its own size
+    /// instead of borrowing the shape thickness, so a thin arrow can sit
+    /// beside a large label.
+    static let textSizes: [Int] = [10, 12, 14, 16, 19, 24, 28, 36, 48, 64, 72, 96]
+    static let defaultTextSize = 19
+
+    static func sanitizedTextSize(_ size: Int) -> Int {
+        guard let first = textSizes.first, let last = textSizes.last else { return defaultTextSize }
+        return size == 0 ? defaultTextSize : min(max(size, first), last)
+    }
+
+    /// The preset one step away from `size`, or nil at either end.
+    static func steppedTextSize(from size: Int, up: Bool) -> Int? {
+        up ? textSizes.first(where: { $0 > size }) : textSizes.last(where: { $0 < size })
+    }
+
+    /// How hard a blur hides what is under it, from 1 (lightest) to 5
+    /// (heaviest). Level 3 is the strength blurs always had. The screenshot
+    /// pixelate tool and video blurs share the scale so a level means the
+    /// same thing in both editors.
+    enum BlurStrength {
+        static let levels = 1...5
+        static let defaultLevel = 3
+
+        static func sanitized(_ level: Int) -> Int {
+            min(max(level, levels.lowerBound), levels.upperBound)
+        }
+
+        /// Where a new capture's pixelate tool starts: the remembered level,
+        /// but never a light one. Levels 1 and 2 make blocks smaller than a
+        /// line of text, which can stay readable, so they are picked area by
+        /// area instead of carried into the next redaction.
+        static func startingLevel(remembered: Int) -> Int {
+            max(sanitized(remembered), defaultLevel)
+        }
+
+        /// What the level does to the mosaic block, relative to level 3.
+        static func blockFactor(for level: Int) -> CGFloat {
+            switch sanitized(level) {
+            case 1: return 0.4
+            case 2: return 0.65
+            case 4: return 1.5
+            case 5: return 2.2
+            default: return 1
+            }
+        }
+    }
+
+    enum ArrowStyleID: String, CaseIterable {
+        case filled, outline, open, doubleEnded, scribbly
+
+        static func sanitized(_ raw: String?) -> ArrowStyleID {
+            ArrowStyleID(rawValue: raw ?? "") ?? .filled
+        }
+    }
+
+    static func randomScribbleSeed() -> UInt64 {
+        UInt64.random(in: UInt64.min...UInt64.max)
+    }
+
     enum StickerID: String, CaseIterable {
         case check, cross, star, heart, thumbsUp, thumbsDown,
              smile, laugh, party, fire, warning, eyes
@@ -1447,6 +1714,10 @@ enum ScreenshotSupport {
         var text: String
         var color: ColorID
         var stroke: StrokeID
+        var textSize: Int
+        var blurLevel: Int
+        var arrowStyle: ArrowStyleID
+        var scribbleSeed: UInt64
         var number: Int
 
         init(id: UUID = UUID(),
@@ -1456,6 +1727,10 @@ enum ScreenshotSupport {
              text: String = "",
              color: ColorID = .red,
              stroke: StrokeID = .medium,
+             textSize: Int = ScreenshotSupport.defaultTextSize,
+             blurLevel: Int = BlurStrength.defaultLevel,
+             arrowStyle: ArrowStyleID = .filled,
+             scribbleSeed: UInt64? = nil,
              number: Int = 0) {
             self.id = id
             self.tool = tool
@@ -1464,7 +1739,54 @@ enum ScreenshotSupport {
             self.text = text
             self.color = color
             self.stroke = stroke
+            self.textSize = textSize
+            self.blurLevel = blurLevel
+            self.arrowStyle = arrowStyle
+            self.scribbleSeed = scribbleSeed
+                ?? (arrowStyle == .scribbly
+                    ? ScreenshotSupport.randomScribbleSeed()
+                    : 0)
             self.number = number
+        }
+    }
+
+    /// The style values the editor controls should show for a picked mark.
+    struct SelectionStyle: Equatable {
+        let color: ColorID?
+        let stroke: StrokeID?
+        let arrowStyle: ArrowStyleID?
+        var textSize: Int? = nil
+        var blurLevel: Int? = nil
+    }
+
+    static func selectionStyle(for annotation: Annotation) -> SelectionStyle {
+        switch annotation.tool {
+        case .arrow:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: annotation.arrowStyle)
+        case .line, .rect, .ellipse, .freehand:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: annotation.stroke,
+                                  arrowStyle: nil)
+        case .text:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  textSize: annotation.textSize)
+        case .highlight, .counter, .redact:
+            return SelectionStyle(color: annotation.color,
+                                  stroke: nil,
+                                  arrowStyle: nil)
+        case .pixelate:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil,
+                                  blurLevel: annotation.blurLevel)
+        case .sticker, .select, .crop:
+            return SelectionStyle(color: nil,
+                                  stroke: nil,
+                                  arrowStyle: nil)
         }
     }
 
@@ -1625,6 +1947,24 @@ enum ScreenshotSupport {
         }
         if lineDelta != 0 { return CGFloat(lineDelta) }
         return scrollingDelta.isFinite ? scrollingDelta : 0
+    }
+
+    /// Fast mode on a plain wheel. Its 15% per event was tuned for a smoothed
+    /// wheel, whose train of packets per notch sweeps the range; one discrete
+    /// event per notch made fast mode crawl at the same pace as stepped mode.
+    /// A plain notch therefore zooms by three of those factors. The event's
+    /// line count is left out, as stepped mode leaves it out: scroll tools
+    /// write a fixed count per notch there, and following it would let one
+    /// notch cross the whole range.
+    static func captureLoupeFastZoom(_ zoom: CGFloat,
+                                     adjustedBy scrollDelta: CGFloat,
+                                     isContinuous: Bool) -> CGFloat {
+        guard !isContinuous, scrollDelta.isFinite, scrollDelta != 0 else {
+            return captureLoupeZoom(zoom, adjustedBy: scrollDelta)
+        }
+        var result = zoom
+        for _ in 0..<3 { result = captureLoupeZoom(result, adjustedBy: scrollDelta) }
+        return result
     }
 
     /// Fast mode preserves the original one-step-per-event behavior.
@@ -1797,6 +2137,139 @@ enum ScreenshotSupport {
         return path
     }
 
+    /// Shaft and heads of a stroked arrow style as one path, so a single
+    /// stroke draws the whole arrow and casts one shadow. The solid style is a
+    /// filled silhouette rather than a stroke and answers nil.
+    static func arrowStrokePath(from tail: CGPoint,
+                                to tip: CGPoint,
+                                strokeWidth: CGFloat,
+                                style: ArrowStyleID,
+                                seed: UInt64) -> CGPath? {
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let path = CGMutablePath()
+        switch style {
+        case .filled:
+            return nil
+        case .outline:
+            path.addLines(between: [tail, CGPoint(x: (head.left.x + head.right.x) / 2,
+                                                  y: (head.left.y + head.right.y) / 2)])
+            path.addLines(between: [head.left, tip, head.right])
+            path.closeSubpath()
+        case .open:
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+        case .doubleEnded:
+            let tailHead = arrowHead(from: tip, to: tail, strokeWidth: strokeWidth)
+            path.addLines(between: [tail, tip])
+            path.addLines(between: [head.left, tip, head.right])
+            path.addLines(between: [tailHead.left, tail, tailHead.right])
+        case .scribbly:
+            let geometry = scribblyArrowGeometry(from: tail,
+                                                 to: tip,
+                                                 strokeWidth: strokeWidth,
+                                                 seed: seed)
+            path.addLines(between: geometry.shaft)
+            path.addLines(between: geometry.leftWing)
+            path.addLines(between: geometry.rightWing)
+        }
+        return path
+    }
+
+    /// A lightly hand-drawn arrow made from stable, seeded wobble. The seed
+    /// belongs to the annotation so a redraw or export keeps the same sketch,
+    /// while each newly created scribbly arrow gets its own variation.
+    struct ScribblyArrowGeometry: Equatable {
+        let shaft: [CGPoint]
+        let leftWing: [CGPoint]
+        let rightWing: [CGPoint]
+    }
+
+    static func scribblyArrowGeometry(from tail: CGPoint,
+                                      to tip: CGPoint,
+                                      strokeWidth: CGFloat,
+                                      seed: UInt64) -> ScribblyArrowGeometry {
+        let dx = tip.x - tail.x
+        let dy = tip.y - tail.y
+        let distance = hypot(dx, dy)
+        let angle = atan2(dy, dx)
+        let direction = CGPoint(x: cos(angle), y: sin(angle))
+        let perpendicular = CGPoint(x: -direction.y, y: direction.x)
+        let head = arrowHead(from: tail, to: tip, strokeWidth: strokeWidth)
+        let base = CGPoint(x: (head.left.x + head.right.x) / 2,
+                           y: (head.left.y + head.right.y) / 2)
+        var randomizer = ScribbleRandomizer(seed: seed)
+        let shaftSegments = max(4, min(24, Int(ceil(distance / max(10, strokeWidth * 3)))))
+        let shaftWobble = min(max(1, strokeWidth * 0.35), distance * 0.025)
+        let shaft = roughPath(from: tail,
+                              to: base,
+                              segments: shaftSegments,
+                              direction: direction,
+                              perpendicular: perpendicular,
+                              wobble: shaftWobble,
+                              randomizer: &randomizer)
+        let wingWobble = min(max(0.8, strokeWidth * 0.22), distance * 0.035)
+        let leftWing = roughPath(from: head.left,
+                                 to: tip,
+                                 segments: 3,
+                                 wobble: wingWobble,
+                                 randomizer: &randomizer)
+        let rightWing = roughPath(from: head.right,
+                                  to: tip,
+                                  segments: 3,
+                                  wobble: wingWobble,
+                                  randomizer: &randomizer)
+        return ScribblyArrowGeometry(shaft: shaft,
+                                     leftWing: leftWing,
+                                     rightWing: rightWing)
+    }
+
+    private struct ScribbleRandomizer {
+        private var state: UInt64
+
+        init(seed: UInt64) {
+            state = seed == 0 ? 0x9E3779B97F4A7C15 : seed
+        }
+
+        mutating func signedUnit() -> CGFloat {
+            state = state &* 2862933555777941757 &+ 3037000493
+            let normalized = Double(state) / Double(UInt64.max)
+            return CGFloat(normalized * 2 - 1)
+        }
+    }
+
+    private static func roughPath(from start: CGPoint,
+                                  to end: CGPoint,
+                                  segments: Int,
+                                  direction: CGPoint? = nil,
+                                  perpendicular: CGPoint? = nil,
+                                  wobble: CGFloat,
+                                  randomizer: inout ScribbleRandomizer) -> [CGPoint] {
+        let lineX = end.x - start.x
+        let lineY = end.y - start.y
+        let length = hypot(lineX, lineY)
+        let pathDirection = direction
+            ?? CGPoint(x: lineX / max(length, 0.001), y: lineY / max(length, 0.001))
+        let pathPerpendicular = perpendicular
+            ?? CGPoint(x: -pathDirection.y, y: pathDirection.x)
+        let count = max(1, segments)
+        return (0...count).map { index in
+            let progress = CGFloat(index) / CGFloat(count)
+            guard index != 0, index != count else {
+                return CGPoint(x: start.x + lineX * progress,
+                               y: start.y + lineY * progress)
+            }
+            let envelope = CGFloat(sin(Double.pi * Double(progress)))
+            let sideOffset = randomizer.signedUnit() * wobble * envelope
+            let forwardOffset = randomizer.signedUnit() * wobble * 0.28 * envelope
+            return CGPoint(x: start.x + lineX * progress
+                                + pathPerpendicular.x * sideOffset
+                                + pathDirection.x * forwardOffset,
+                           y: start.y + lineY * progress
+                                + pathPerpendicular.y * sideOffset
+                                + pathDirection.y * forwardOffset)
+        }
+    }
+
     /// Distance from a point to a segment, for hit-testing lines and arrows.
     static func distance(from point: CGPoint, toSegment start: CGPoint, _ end: CGPoint) -> CGFloat {
         let dx = end.x - start.x
@@ -1812,11 +2285,20 @@ enum ScreenshotSupport {
 
     // MARK: - Redaction
 
-    /// Pixelation block size in image pixels: coarse enough that the mosaic
-    /// carries no legible detail, scaled to the capture so small crops and
-    /// full screens redact equally well.
-    static func pixelBlockSize(for imageSize: CGSize) -> Int {
-        max(10, Int(min(imageSize.width, imageSize.height) / 55))
+    /// Pixelation block size in image pixels, scaled to the capture so small
+    /// crops and full screens redact equally well. From the default level up
+    /// the mosaic carries no legible detail; levels 1 and 2 are lighter and
+    /// can leave large text readable.
+    static func pixelBlockSize(for imageSize: CGSize,
+                               level: Int = BlurStrength.defaultLevel) -> Int {
+        let base = max(10, Int(min(imageSize.width, imageSize.height) / 55))
+        return max(2, Int((CGFloat(base) * BlurStrength.blockFactor(for: level)).rounded()))
+    }
+
+    /// The blur levels the pixelate marks use. Keep only their sampled mosaics;
+    /// drawing expands each one to the capture size when needed.
+    static func mosaicLevels(for annotations: [Annotation]) -> Set<Int> {
+        Set(annotations.filter { $0.tool == .pixelate }.map(\.blurLevel))
     }
 
     // MARK: - Export
@@ -2048,6 +2530,181 @@ enum ScreenshotSupport {
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
+
+    // MARK: - Watermark
+
+    /// A mark of your own on every capture that leaves the editor: a line of
+    /// text or a picture from disk, faded, tilted if you like and set on one
+    /// of nine places. Persisted as JSON like the backdrop, so the next
+    /// capture opens with it already on.
+    struct WatermarkStyle: Codable, Equatable {
+        enum Kind: String, Codable {
+            case none, text, image
+        }
+
+        /// The same nine places the recorder's captions and pictures take:
+        /// one grid to learn across both editors.
+        typealias Anchor = RecorderTextOverlay.Anchor
+
+        var kind: Kind
+        var text: String
+        /// Absolute path when kind == .image.
+        var imagePath: String?
+        /// ColorID raw value the text is drawn in.
+        var color: String
+        var anchor: Anchor
+        /// Sliders 0…1; `watermarkFontSize` and `watermarkImageWidth` turn
+        /// them into pixels for a given capture.
+        var size: Double
+        var opacity: Double
+        /// Degrees, -90…90: positive tilts the mark up to the right, the way
+        /// a diagonal document watermark runs.
+        var rotation: Double
+
+        init(kind: Kind = .none,
+             text: String = "",
+             imagePath: String? = nil,
+             color: String = ColorID.white.rawValue,
+             anchor: Anchor = .bottomTrailing,
+             size: Double = 0.3,
+             opacity: Double = 0.4,
+             rotation: Double = 0) {
+            self.kind = kind
+            self.text = text
+            self.imagePath = imagePath
+            self.color = color
+            self.anchor = anchor
+            self.size = size
+            self.opacity = opacity
+            self.rotation = rotation
+        }
+
+        static let opacityRange: ClosedRange<Double> = 0.05...1
+        static let rotationRange: ClosedRange<Double> = -90...90
+        static let textLimit = 120
+
+        /// Clamps the sliders, trims the text and drops a configuration
+        /// missing its content back to .none, so a damaged persisted value
+        /// can never wedge the editor.
+        func sanitized() -> WatermarkStyle {
+            var style = self
+            style.text = String(text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .prefix(Self.textLimit))
+            style.color = ColorID(rawValue: color)?.rawValue ?? ColorID.white.rawValue
+            style.size = size.isFinite ? max(0, min(1, size)) : 0.3
+            style.opacity = opacity.isFinite
+                ? max(Self.opacityRange.lowerBound, min(Self.opacityRange.upperBound, opacity))
+                : 0.4
+            style.rotation = rotation.isFinite
+                ? max(Self.rotationRange.lowerBound, min(Self.rotationRange.upperBound, rotation))
+                : 0
+            switch style.kind {
+            case .none:
+                break
+            case .text:
+                guard !style.text.isEmpty else { return style.demoted() }
+            case .image:
+                guard let path = style.imagePath, !path.isEmpty else { return style.demoted() }
+            }
+            return style
+        }
+
+        private func demoted() -> WatermarkStyle {
+            var style = self
+            style.kind = .none
+            return style
+        }
+
+        func encoded() -> String {
+            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            return String(data: data, encoding: .utf8) ?? ""
+        }
+
+        static func decoded(_ raw: String?) -> WatermarkStyle {
+            guard let raw, !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
+                  let style = try? JSONDecoder().decode(WatermarkStyle.self, from: data)
+            else { return WatermarkStyle() }
+            return style.sanitized()
+        }
+    }
+
+    /// Saved watermarks, capped like the backdrops.
+    static func decodedWatermarkPresets(_ raw: String?) -> [WatermarkStyle] {
+        guard let raw, !raw.isEmpty,
+              let data = raw.data(using: .utf8),
+              let presets = try? JSONDecoder().decode([WatermarkStyle].self, from: data)
+        else { return [] }
+        return presets.map { $0.sanitized() }
+            .filter { $0.kind != .none }
+            .suffix(backdropPresetLimit)
+            .map { $0 }
+    }
+
+    static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
+        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        else { return "[]" }
+        return String(data: data, encoding: .utf8) ?? "[]"
+    }
+
+    /// Point size of watermark text in image pixels: factor 0 is a discreet
+    /// 2% of the short side, 1 a bold 16%, the recorder's caption ceiling.
+    static func watermarkFontSize(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(8, (min(imageSize.width, imageSize.height) * (0.02 + 0.14 * clamped)).rounded())
+    }
+
+    /// Width of a watermark picture in image pixels, from a corner mark of
+    /// 5% of the capture's width up to half of it. The picture's own
+    /// proportions decide the height.
+    static func watermarkImageWidth(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
+        let clamped = max(0, min(1, factor))
+        return max(1, (imageSize.width * (0.05 + 0.45 * clamped)).rounded())
+    }
+
+    struct WatermarkPlacement {
+        /// Where the mark's center goes, in image pixels with a top-left origin.
+        let center: CGPoint
+        /// How much the content shrinks so its tilted bounds stay inside the
+        /// margins; 1 when it already fits.
+        let fit: CGFloat
+    }
+
+    /// Where a mark of `contentSize`, turned by `rotation` degrees, sits on a
+    /// capture: its tilted bounding box is what the nine places position, so
+    /// a diagonal mark in a corner touches the margin instead of leaving it.
+    /// The margin is the recorder's, 5% of the short side.
+    static func watermarkPlacement(contentSize: CGSize,
+                                   rotation: Double,
+                                   anchor: WatermarkStyle.Anchor,
+                                   in imageSize: CGSize,
+                                   cornerRadius: CGFloat = 0) -> WatermarkPlacement? {
+        guard contentSize.width.isFinite, contentSize.height.isFinite,
+              contentSize.width > 0, contentSize.height > 0,
+              imageSize.width > 0, imageSize.height > 0, rotation.isFinite
+        else { return nil }
+        let radians = rotation * .pi / 180
+        let bounds = CGSize(
+            width: abs(contentSize.width * cos(radians)) + abs(contentSize.height * sin(radians)),
+            height: abs(contentSize.width * sin(radians)) + abs(contentSize.height * cos(radians)))
+        let shortSide = min(imageSize.width, imageSize.height)
+        // The inset rectangle must lie entirely inside the rounded capture.
+        // At the diagonal of a quarter circle the inset is r * (1 - sqrt(0.5)).
+        // A pixel of breathing room avoids clipping antialiased edges. Keep
+        // positive space even after cropping down to only a few pixels.
+        let radius = cornerRadius.isFinite ? max(0, min(shortSide / 2, cornerRadius)) : 0
+        let roundedInset = radius > 0 ? ceil(radius * (1 - sqrt(0.5))) + 1 : 0
+        let margin = min(shortSide * 0.45, max(shortSide * 0.05, roundedInset))
+        let available = CGSize(width: imageSize.width - margin * 2,
+                               height: imageSize.height - margin * 2)
+        let fit = min(1, min(available.width / bounds.width, available.height / bounds.height))
+        let fitted = CGSize(width: bounds.width * fit, height: bounds.height * fit)
+        let point = anchor.unitPoint
+        return WatermarkPlacement(
+            center: CGPoint(x: margin + (available.width - fitted.width) * point.x + fitted.width / 2,
+                            y: margin + (available.height - fitted.height) * point.y + fitted.height / 2),
+            fit: fit)
+    }
 }
 
 /// The action to run automatically right after a capture, chosen in
@@ -2064,5 +2721,18 @@ enum ScreenshotDefaultAction: String, CaseIterable {
     static var current: ScreenshotDefaultAction {
         let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
         return ScreenshotDefaultAction(rawValue: raw) ?? .none
+    }
+
+    /// Copy and Save and copy put every capture on the clipboard.
+    var copiesToClipboard: Bool { self == .copy || self == .saveAndCopy }
+
+    /// The same choice without its clipboard half. Turning automatic copy
+    /// off in Settings applies this, so Save and copy keeps saving.
+    var withoutCopy: ScreenshotDefaultAction {
+        switch self {
+        case .copy: return .none
+        case .saveAndCopy: return .save
+        case .none, .save, .edit: return self
+        }
     }
 }

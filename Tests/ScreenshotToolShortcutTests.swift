@@ -4,7 +4,8 @@
 import AppKit
 import Carbon.HIToolbox
 
-func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
+enum ScreenshotToolShortcutTests {
+static func run(_ suite: TestSuite) {
     typealias Tool = ScreenshotSupport.Tool
     let sources = (TISCreateInputSourceList(
         [kTISPropertyInputSourceType: kTISTypeKeyboardLayout] as CFDictionary, true)?
@@ -36,7 +37,7 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
     let layouts = ["US", "French", "French-numerical", "German", "Russian"]
     for name in layouts {
         guard let data = layout("com.apple.keylayout." + name) else {
-            expect(false, "keyboard fixture unavailable: " + name)
+            suite.expect(false, "keyboard fixture unavailable: " + name)
             continue
         }
         GlobalShortcut.refreshLayoutLabels(layoutData: data)
@@ -50,7 +51,7 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
                         ? character.flatMap { ["1", "2", "3", "4", "5", "6", "7", "8", "9"].firstIndex(of: $0) }.map { $0 + 1 }
                         : nil
                     let shortcut = GlobalShortcut(keyCode: Int64(code), modifiers: modifiers)
-                    expect(Tool.shortcutDigit(shortcut, capsLockOn: locked) == expected,
+                    suite.expect(Tool.shortcutDigit(shortcut, capsLockOn: locked) == expected,
                            "recording follows typed digits on \(name), key \(code), modifiers \(modifierBits), lock \(locked)")
                 }
             }
@@ -63,13 +64,13 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
         let other = GlobalShortcut(keyCode: Int64(kVK_F19), modifiers: [.control, .option, .command])
         GlobalShortcut.refreshLayoutLabels(layoutData: french)
         let original = Tool.assigningBinding(ampersand, to: .text, orderRaw: nil, bindingsRaw: "")
-        expect(Tool.activeBindings(from: original.bindingsRaw)[.text] == ampersand,
+        suite.expect(Tool.activeBindings(from: original.bindingsRaw)[.text] == ampersand,
                "French symbol binding starts active")
         GlobalShortcut.refreshLayoutLabels(layoutData: us)
-        expect(Tool.bindings(from: original.bindingsRaw)[.text] == ampersand
+        suite.expect(Tool.bindings(from: original.bindingsRaw)[.text] == ampersand
                && Tool.activeBindings(from: original.bindingsRaw)[.text] == nil,
                "keyboard changes suspend digit-shaped bindings without deleting them")
-        expect(Tool.shortcutLabel(for: .text, orderRaw: nil, bindingsRaw: original.bindingsRaw, enabled: true) == "5"
+        suite.expect(Tool.shortcutLabel(for: .text, orderRaw: nil, bindingsRaw: original.bindingsRaw, enabled: true) == "5"
                && Tool.shortcutTool(keyCode: ampersand.keyCode, modifiers: [], number: 1,
                                     orderRaw: nil, bindingsRaw: original.bindingsRaw, enabled: true) == .select,
                "suspended binding leaves position badges and printed-digit routing consistent")
@@ -78,30 +79,30 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
         let clearedOther = Tool.assigningBinding(nil, to: .arrow, orderRaw: edited.orderRaw,
                                                 bindingsRaw: edited.bindingsRaw)
         GlobalShortcut.refreshLayoutLabels(layoutData: french)
-        expect(Tool.activeBindings(from: edited.bindingsRaw)[.text] == ampersand
+        suite.expect(Tool.activeBindings(from: edited.bindingsRaw)[.text] == ampersand
                && Tool.activeBindings(from: clearedOther.bindingsRaw)[.text] == ampersand,
                "editing and clearing another tool preserve bindings across a keyboard round trip")
 
         GlobalShortcut.refreshLayoutLabels(layoutData: numerical)
-        expect(Tool.shortcutDigit(ampersand, capsLockOn: true) == 1
+        suite.expect(Tool.shortcutDigit(ampersand, capsLockOn: true) == 1
                && Tool.shortcutDigit(ampersand, capsLockOn: false) == nil,
                "French numerical Caps Lock changes recording from a symbol to a digit")
         let lockedAssignment = Tool.assigningBinding(ampersand,
             digit: Tool.shortcutDigit(ampersand, capsLockOn: true), to: .text,
             orderRaw: original.orderRaw, bindingsRaw: original.bindingsRaw)
-        expect(Tool.ordered(from: lockedAssignment.orderRaw).first == .text
+        suite.expect(Tool.ordered(from: lockedAssignment.orderRaw).first == .text
                && Tool.bindings(from: lockedAssignment.bindingsRaw)[.text] == nil,
                "recording a locked digit moves the tool and clears only its explicit binding")
-        expect(Tool.shortcutTool(keyCode: ampersand.keyCode, modifiers: [], number: 1,
+        suite.expect(Tool.shortcutTool(keyCode: ampersand.keyCode, modifiers: [], number: 1,
                                 orderRaw: lockedAssignment.orderRaw, bindingsRaw: lockedAssignment.bindingsRaw,
                                 enabled: true, capsLockOn: true) == .text,
                "the editor selects the new first tool using the locked digit")
-        expect(Tool.activeBindings(from: original.bindingsRaw, capsLockOn: true)[.text] == nil
+        suite.expect(Tool.activeBindings(from: original.bindingsRaw, capsLockOn: true)[.text] == nil
                && Tool.shortcutLabel(for: .text, orderRaw: nil, bindingsRaw: original.bindingsRaw,
                                      enabled: true, capsLockOn: true) == "5"
                && Tool.activeBindings(from: original.bindingsRaw, capsLockOn: false)[.text] == ampersand,
                "Caps Lock temporarily changes availability and labels, never storage")
-        expect(Tool.shortcutTool(keyCode: ampersand.keyCode, modifiers: [], number: 1,
+        suite.expect(Tool.shortcutTool(keyCode: ampersand.keyCode, modifiers: [], number: 1,
                                 orderRaw: nil, bindingsRaw: original.bindingsRaw, enabled: false,
                                 capsLockOn: true) == nil,
                "disabled shortcuts remain silent with Caps Lock and a suspended binding")
@@ -109,10 +110,10 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
         GlobalShortcut.refreshLayoutLabels(layoutData: us)
         let text = GlobalShortcut(keyCode: Int64(kVK_ANSI_T), modifiers: [])
         let textBinding = Tool.bindingsStorage([.text: text])
-        expect(Tool.shortcutTool(keyCode: text.keyCode, modifiers: [], number: 1,
+        suite.expect(Tool.shortcutTool(keyCode: text.keyCode, modifiers: [], number: 1,
                                 orderRaw: nil, bindingsRaw: textBinding, enabled: true) == .select,
                "an input method's actual printed digit wins over an underlying physical letter")
-        expect(Tool.shortcutTool(keyCode: Int64(kVK_ANSI_5), modifiers: [], number: 5,
+        suite.expect(Tool.shortcutTool(keyCode: Int64(kVK_ANSI_5), modifiers: [], number: 5,
                                 orderRaw: nil, bindingsRaw: textBinding, enabled: true) == nil,
                "an active custom binding keeps its tool's old position shortcut off")
     }
@@ -122,40 +123,41 @@ func screenshotToolShortcutChecks(_ expect: (Bool, String) -> Void) {
         let letter = GlobalShortcut(keyCode: Int64(kVK_ANSI_N), modifiers: modifiers)
         let fnOwner = LiveSystemShortcut(id: 212, keyCode: letter.keyCode,
                                          flags: modifiers.cgFlags.union(.maskSecondaryFn), enabled: true)
-        expect(fnOwner.requiresFunctionKey && !GlobalShortcut.matchesLiveSystemShortcut(letter, entries: [fnOwner]),
+        suite.expect(fnOwner.requiresFunctionKey && !GlobalShortcut.matchesLiveSystemShortcut(letter, entries: [fnOwner]),
                "an Fn-letter system owner does not reserve the same letter without Fn")
         let plainOwner = LiveSystemShortcut(id: 213, keyCode: letter.keyCode, flags: modifiers.cgFlags, enabled: true)
-        expect(GlobalShortcut.matchesLiveSystemShortcut(letter, entries: [plainOwner]),
+        suite.expect(GlobalShortcut.matchesLiveSystemShortcut(letter, entries: [plainOwner]),
                "a system owner that really uses the same modifiers remains protected")
         let plist: [String: Any] = ["212": ["enabled": true,
             "value": ["type": "standard", "parameters": [0, Int(letter.keyCode),
                 Int(modifiers.cgFlags.union(.maskSecondaryFn).rawValue)]]]]
-        expect(!GlobalShortcut.matchesSystemShortcut(letter, symbolicHotKeys: plist),
+        suite.expect(!GlobalShortcut.matchesSystemShortcut(letter, symbolicHotKeys: plist),
                "the preference fallback also retains the Fn requirement")
     }
     for code in [kVK_F2, kVK_LeftArrow] {
         let key = GlobalShortcut(keyCode: Int64(code), modifiers: [])
         let owner = LiveSystemShortcut(id: 1, keyCode: key.keyCode,
                                        flags: .maskSecondaryFn, enabled: true)
-        expect(GlobalShortcut.matchesLiveSystemShortcut(key, entries: [owner]),
+        suite.expect(GlobalShortcut.matchesLiveSystemShortcut(key, entries: [owner]),
                "function and navigation keys retain their intrinsic Fn system protection")
     }
 
     let directional = GlobalShortcut(keyCode: Int64(kVK_F18), modifiers: [.control, .option, .command])
     let ordinary = GlobalShortcut.windowLayoutLeftDefault
-    expect(WindowLayoutShortcutConflict.find(directional, directional: directional,
+    suite.expect(WindowLayoutShortcutConflict.find(directional, directional: directional,
                                              actionShortcut: { _ in nil }) == .directional,
            "directional window shortcut is detected with ordinary shortcuts disabled")
-    expect(WindowLayoutShortcutConflict.find(directional, directional: nil,
+    suite.expect(WindowLayoutShortcutConflict.find(directional, directional: nil,
                                              actionShortcut: { _ in nil }) == nil,
            "disabling the directional owner releases its combination")
-    expect(WindowLayoutShortcutConflict.find(ordinary, directional: directional,
+    suite.expect(WindowLayoutShortcutConflict.find(ordinary, directional: directional,
                                              actionShortcut: { $0 == .leftHalf ? ordinary : nil }) == .action(.leftHalf),
            "ordinary window actions remain protected alongside the directional shortcut")
-    expect(WindowLayoutShortcutConflict.find(ordinary, directional: directional, excluding: .leftHalf,
+    suite.expect(WindowLayoutShortcutConflict.find(ordinary, directional: directional, excluding: .leftHalf,
                                              actionShortcut: { $0 == .leftHalf ? ordinary : nil }) == nil,
            "a window action may retain its own shortcut without a false self-conflict")
-    expect(WindowLayoutShortcutConflict.find(directional, directional: nil,
+    suite.expect(WindowLayoutShortcutConflict.find(directional, directional: nil,
                                              actionShortcut: { $0 == .leftHalf ? directional : nil }) == .action(.leftHalf),
            "editing the directional shortcut still detects a different ordinary owner")
+}
 }

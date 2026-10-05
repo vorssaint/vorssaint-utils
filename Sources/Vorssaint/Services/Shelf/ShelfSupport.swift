@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 enum ShelfSelectionSupport {
     /// Escape clears the Shelf selection only when pressed on its own. Keeping
@@ -20,6 +22,48 @@ enum ShelfSelectionSupport {
         let anchor = anchorID.flatMap { allIDs.firstIndex(of: $0) } ?? target
         let bounds = min(anchor, target)...max(anchor, target)
         return Array(allIDs[bounds])
+    }
+}
+
+/// Tracks the shelf shortcut's asynchronous Finder selection read. Every press
+/// takes a new ticket, and a later press, clearing the Shelf or turning it off
+/// retires the older one, so a slow Finder or a permission prompt answering late
+/// can neither add a stale selection nor toggle the Shelf after the fact.
+struct ShelfShortcutSelectionRequests {
+    enum Outcome: Equatable {
+        case discard
+        case toggle
+        case add([URL])
+    }
+
+    private var lastTicket: UInt64 = 0
+    private var pendingTicket: UInt64?
+
+    var hasPending: Bool { pendingTicket != nil }
+
+    mutating func begin() -> UInt64 {
+        lastTicket &+= 1
+        pendingTicket = lastTicket
+        return lastTicket
+    }
+
+    mutating func invalidate() {
+        pendingTicket = nil
+    }
+
+    /// Settles a reply once. `stillAllowed` is the feature state rechecked when
+    /// the reply arrives, not the state from when the shortcut was pressed.
+    /// Files the shelf already holds are left out, so pressing the shortcut
+    /// again on the same selection toggles the shelf instead of shelving the
+    /// same files twice. Finder stays in front while the shelf is up, so that
+    /// second press is the ordinary way to close it.
+    mutating func resolve(_ ticket: UInt64, urls: [URL], stillAllowed: Bool,
+                          shelvedPaths: Set<String> = []) -> Outcome {
+        guard ticket == pendingTicket else { return .discard }
+        pendingTicket = nil
+        guard stillAllowed else { return .discard }
+        let fresh = urls.filter { !shelvedPaths.contains($0.standardizedFileURL.path) }
+        return fresh.isEmpty ? .toggle : .add(fresh)
     }
 }
 
@@ -77,6 +121,47 @@ enum ShelfTileLayout {
         return max(1, Int(usable / (tileWidth + spacing)))
     }
 
+    /// How many tile rows fit a given height, for a strip that flows sideways.
+    static func rowCount(contentHeight: CGFloat,
+                         tileHeight: CGFloat,
+                         spacing: CGFloat,
+                         inset: CGFloat) -> Int {
+        let usable = contentHeight - inset * 2 + spacing
+        return max(1, Int(usable / (tileHeight + spacing)))
+    }
+
+    /// Where the tile at `index` sits when tiles fill each column top to
+    /// bottom and continue to the right.
+    static func sidewaysTileFrame(index: Int,
+                                  rows: Int,
+                                  tileSize: CGSize,
+                                  spacing: CGFloat,
+                                  inset: CGFloat) -> CGRect {
+        let safeRows = max(1, rows)
+        let column = index / safeRows
+        let row = index % safeRows
+        return CGRect(x: inset + CGFloat(column) * (tileSize.width + spacing),
+                      y: inset + CGFloat(row) * (tileSize.height + spacing),
+                      width: tileSize.width,
+                      height: tileSize.height)
+    }
+
+    /// The document size for a sideways strip: wide enough for every column
+    /// and tall enough for every row, and never smaller than the visible area.
+    static func sidewaysDocumentSize(itemCount: Int,
+                                     rows: Int,
+                                     visibleSize: CGSize,
+                                     tileSize: CGSize,
+                                     spacing: CGFloat,
+                                     inset: CGFloat) -> CGSize {
+        let safeRows = max(1, rows)
+        let columns = max(1, Int(ceil(Double(itemCount) / Double(safeRows))))
+        let filledRows = min(safeRows, max(1, itemCount))
+        let width = inset * 2 + CGFloat(columns) * tileSize.width + CGFloat(columns - 1) * spacing
+        let height = inset * 2 + CGFloat(filledRows) * tileSize.height + CGFloat(filledRows - 1) * spacing
+        return CGSize(width: max(width, visibleSize.width), height: max(height, visibleSize.height))
+    }
+
     /// Where the tile at `index` sits in the flipped document view.
     static func tileFrame(index: Int,
                           columns: Int,
@@ -106,15 +191,20 @@ enum ShelfInteractionSupport {
     /// or resizing a window. The drag pasteboard retains the previous drag's
     /// items indefinitely, so retained content alone proves nothing: only a
     /// change-count bump during the current gesture makes it current. Dock
-    /// stacks are the one source that can publish the contents before the
-    /// mouse-down, hence the Dock escape. Either way the pasteboard must hold
-    /// something the Shelf can keep; the check stays lazy because most dragged
-    /// events resolve on the cheap change count alone.
-    static func isContentDrag(baselineChangeCount: Int,
+    /// stacks can publish the contents before the mouse-down is seen, so a
+    /// gesture in the Dock counts from the end of the previous gesture
+    /// instead. It still needs a bump, so holding or dragging a Dock icon over
+    /// content an earlier drag left behind is not a content drag (#2212).
+    /// Either way the pasteboard must hold something the Shelf can keep; the
+    /// check stays lazy because most dragged events resolve on the cheap
+    /// change count alone.
+    static func isContentDrag(gestureChangeCount: Int,
+                              restingChangeCount: Int,
                               changeCount: Int,
                               beganInDock: Bool,
                               hasDroppableContent: () -> Bool) -> Bool {
-        guard changeCount != baselineChangeCount || beganInDock else { return false }
+        let baseline = beganInDock ? restingChangeCount : gestureChangeCount
+        guard changeCount != baseline else { return false }
         return hasDroppableContent()
     }
 
@@ -135,6 +225,73 @@ enum ShelfInteractionSupport {
                                       removeAfterDrop: Bool) -> Bool {
         dropAccepted && draggedItemCount > 0 && removeAfterDrop
     }
+
+    /// The dragged tiles that may leave the Shelf after a drop. A pinned item,
+    /// or anything inside a pinned pile, is reused across sessions and stays.
+    static func removableAfterDrag(_ draggedIDs: [UUID], protectedIDs: Set<UUID>) -> [UUID] {
+        draggedIDs.filter { !protectedIDs.contains($0) }
+    }
+
+    /// A pinned item is dragged out again and again, so a destination must
+    /// never be offered a move: it would take the file away from the Shelf.
+    static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool) -> Bool {
+        removeAfterDrop && !dragIncludesPinned
+    }
+}
+
+/// Types accepted by the native shelf drop targets.
+enum ShelfPasteboardSupport {
+    /// Orders a mixed drop by pasteboard position. Receivers follow the
+    /// promised pasteboard items in order; a receiver without one goes last.
+    static func mergedItemIndices(companionPositions: [Int], receiverIndices: [Int],
+                                  promisePositions: [Int]) -> [Int] {
+        let positions = companionPositions + receiverIndices.map { index in
+            promisePositions.indices.contains(index) ? promisePositions[index] : Int.max
+        }
+        return positions.indices.sorted {
+            positions[$0] == positions[$1] ? $0 < $1 : positions[$0] < positions[$1]
+        }
+    }
+
+    static let filePromiseTypeIdentifiers: Set<String> = {
+        var ids = Set(NSFilePromiseReceiver.readableDraggedTypes)
+        ids.formUnion(["Apple files promise pasteboard type",
+                       "com.apple.pasteboard.promised-file-url",
+                       "com.apple.pasteboard.promised-file-content-type"])
+        return ids
+    }()
+
+    private static let directDroppableTypes: Set<String> = [
+        NSPasteboard.PasteboardType.fileURL.rawValue,
+        NSPasteboard.PasteboardType.string.rawValue,
+        NSPasteboard.PasteboardType.tiff.rawValue,
+        NSPasteboard.PasteboardType.png.rawValue,
+        UTType.gif.identifier,
+        UTType.fileURL.identifier,
+        UTType.image.identifier,
+        UTType.url.identifier,
+        UTType.text.identifier,
+        UTType.plainText.identifier,
+        "NSFilenamesPboardType",
+        "NSURLPboardType"
+    ]
+
+    private static let supportedUTTypes: [UTType] = [
+        .fileURL, .gif, .image, .url, .text, .plainText
+    ]
+
+    static func isFilePromiseType(_ rawValue: String) -> Bool {
+        filePromiseTypeIdentifiers.contains(rawValue)
+    }
+
+    static func isDroppablePasteboardType(_ rawValue: String) -> Bool {
+        if isFilePromiseType(rawValue) { return true }
+        if directDroppableTypes.contains(rawValue) { return true }
+        guard let utType = UTType(rawValue) else { return false }
+        return supportedUTTypes.contains { utType.conforms(to: $0) }
+    }
+
+
 }
 
 /// A leaf item's kind, reduced to what the pile-breakdown tooltip needs. A
@@ -173,22 +330,31 @@ struct ShelfTooltipStrings {
     let linkSingular: String
     let linkFew: String
     let linkPlural: String
-    /// Set for a language whose two through four take a form of their own.
-    let usesFewForm: Bool
+    /// How the language agrees a counted noun with its number.
+    let agreement: CountAgreement
 
     /// The form a count asks for. Russian agrees by the number's last digits:
     /// one for 1, 21, 31 but not 11; the middle form for 2 through 4, 22
     /// through 24 but not 12 through 14; the last for everything else.
+    /// Slovak reads the whole number instead, so only 1 and only 2 through 4
+    /// leave the last form, and 21 and 22 stay with it.
     enum Form { case one, few, many }
 
     func form(for count: Int) -> Form {
-        guard usesFewForm else { return count == 1 ? .one : .many }
         let magnitude = abs(count)
-        if (11...14).contains(magnitude % 100) { return .many }
-        switch magnitude % 10 {
-        case 1: return .one
-        case 2, 3, 4: return .few
-        default: return .many
+        switch agreement {
+        case .oneAndMany:
+            return magnitude == 1 ? .one : .many
+        case .byWholeNumber:
+            if magnitude == 1 { return .one }
+            return (2...4).contains(magnitude) ? .few : .many
+        case .byLastDigits:
+            if (11...14).contains(magnitude % 100) { return .many }
+            switch magnitude % 10 {
+            case 1: return .one
+            case 2, 3, 4: return .few
+            default: return .many
+            }
         }
     }
 }
@@ -387,6 +553,34 @@ enum ShelfEdgeDragSupport {
     }
 }
 
+/// Where the menu bar drop zone docks the shelf.
+enum ShelfDockPlacement: String {
+    case menuBar, topCenter
+
+    /// The Dynamic Island owns the top center of the screen while it is on,
+    /// so the top center placement waits until it is off.
+    static func current(in defaults: UserDefaults = .standard) -> Self {
+        guard !NotchSupport.isEnabled(in: defaults),
+              defaults.string(forKey: DefaultsKey.shelfDockPlacement) == Self.topCenter.rawValue
+        else { return .menuBar }
+        return .topCenter
+    }
+
+    /// The docked panel's frame: its top edge just below the menu bar, either
+    /// centered under the icon or centered on the screen, clamped on screen.
+    /// `safeTop` is the screen's `frame.maxY - safeAreaInsets.top`: with a
+    /// hidden menu bar or in full screen the visible frame reaches the very top,
+    /// which would put the centered badge behind the camera housing.
+    func frame(size: CGSize, visible: CGRect, safeTop: CGFloat, anchor: CGRect?) -> CGRect {
+        var x = self == .topCenter
+            ? visible.midX - size.width / 2
+            : anchor.map { $0.midX - size.width / 2 } ?? (visible.maxX - size.width - 12)
+        x = min(max(visible.minX + 8, x), visible.maxX - size.width - 8)
+        let top = self == .topCenter ? min(visible.maxY - 4, safeTop) : visible.maxY - 4
+        return CGRect(x: x, y: top - size.height, width: size.width, height: size.height)
+    }
+}
+
 enum ShelfDockDragSupport {
     /// How long the pointer has to stay within the collapsed pill trigger
     /// area before expanding into the full shelf card, so a fast pass
@@ -470,6 +664,9 @@ struct ShelfPersistedItem: Codable, Equatable {
     /// and older app versions simply ignore it.
     var bookmark: Data?
     var children: [ShelfPersistedItem]?
+    /// Kept after a drag-out and a Clear all. Nil rather than false when
+    /// unpinned, so the common case adds nothing to the saved blob.
+    var pinned: Bool?
 
     init(id: UUID,
          kind: Kind,
@@ -478,7 +675,8 @@ struct ShelfPersistedItem: Codable, Equatable {
          url: String? = nil,
          path: String? = nil,
          bookmark: Data? = nil,
-         children: [ShelfPersistedItem]? = nil) {
+         children: [ShelfPersistedItem]? = nil,
+         pinned: Bool? = nil) {
         self.id = id
         self.kind = kind
         self.title = title
@@ -487,6 +685,7 @@ struct ShelfPersistedItem: Codable, Equatable {
         self.path = path
         self.bookmark = bookmark
         self.children = children
+        self.pinned = pinned == true ? true : nil
     }
 }
 
@@ -497,7 +696,7 @@ struct ShelfPersistedItem: Codable, Equatable {
 // drops instead of losing the whole shelf.
 extension ShelfPersistedItem {
     private enum CodingKeys: String, CodingKey {
-        case id, kind, title, text, url, path, bookmark, children
+        case id, kind, title, text, url, path, bookmark, children, pinned
     }
 
     init(from decoder: Decoder) throws {
@@ -510,7 +709,8 @@ extension ShelfPersistedItem {
                   path: try container.decodeIfPresent(String.self, forKey: .path),
                   bookmark: try container.decodeIfPresent(Data.self, forKey: .bookmark),
                   children: try container.decodeIfPresent([FailableShelfPersistedItem].self, forKey: .children)?
-                      .compactMap(\.value))
+                      .compactMap(\.value),
+                  pinned: try container.decodeIfPresent(Bool.self, forKey: .pinned))
     }
 }
 
@@ -593,6 +793,13 @@ enum ShelfPersistenceSupport {
         existingLeaves >= 0 && newLeaves > 0 && existingLeaves <= maxLeaves - newLeaves
     }
 
+    /// A stored attachment can have its own directory to preserve its name.
+    /// Startup cleanup must keep that directory while a descendant is referenced.
+    static func containsKeptFile(under path: String, keptPaths: Set<String>) -> Bool {
+        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+        return keptPaths.contains(path) || keptPaths.contains { $0.hasPrefix(path + "/") }
+    }
+
     static func discardablePayloadPaths(candidatePaths: [String],
                                         referencedPaths: Set<String>) -> Set<String> {
         Set(candidatePaths).subtracting(referencedPaths)
@@ -657,40 +864,37 @@ enum ShelfPersistenceSupport {
                 }
                 remainingLeaves -= 1
                 result.append(ShelfPersistedItem(id: item.id, kind: .file, title: keptTitle,
-                                                 path: keptPath, bookmark: item.bookmark))
+                                                 path: keptPath, bookmark: item.bookmark,
+                                                 pinned: item.pinned))
             case .text:
                 guard let text = item.text,
                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
                 remainingLeaves -= 1
                 result.append(ShelfPersistedItem(id: item.id, kind: .text, title: item.title,
-                                                 text: String(text.prefix(maxTextLength))))
+                                                 text: String(text.prefix(maxTextLength)),
+                                                 pinned: item.pinned))
             case .link:
                 guard let raw = item.url, let url = URL(string: raw),
                       url.scheme != nil, !url.isFileURL else { continue }
                 remainingLeaves -= 1
-                result.append(ShelfPersistedItem(id: item.id, kind: .link, title: item.title, url: raw))
+                result.append(ShelfPersistedItem(id: item.id, kind: .link, title: item.title, url: raw,
+                                                 pinned: item.pinned))
             case .batch:
                 let children = sanitized(item.children ?? [], depth: depth + 1,
                                          remainingLeaves: &remainingLeaves,
                                          fileExists: fileExists, resolveBookmark: resolveBookmark)
                 if children.isEmpty { continue }
                 if children.count == 1 {
-                    result.append(children[0])
+                    // The survivor inherits the pile's pin, as it does live.
+                    var survivor = children[0]
+                    if item.pinned == true { survivor.pinned = true }
+                    result.append(survivor)
                     continue
                 }
                 result.append(ShelfPersistedItem(id: item.id, kind: .batch, title: item.title,
-                                                 children: children))
+                                                 children: children, pinned: item.pinned))
             }
         }
         return result
-    }
-}
-
-enum ShelfBatchSupport {
-    /// Restores original drop order after resolving every provider in a
-    /// multi-item drop in parallel, which completes out of order, and
-    /// drops any provider that failed to resolve to anything.
-    static func orderedItems<Item>(from resolved: [(index: Int, item: Item)]) -> [Item] {
-        resolved.sorted { $0.index < $1.index }.map(\.item)
     }
 }

@@ -82,6 +82,8 @@ enum SuperKeyMappingFailure: Equatable, CaseIterable {
     case foreignMapping
     /// hidutil refused the read, the write, or the readback.
     case systemRefused
+    /// The keyboard event tap could not be created, so the key cannot add modifiers.
+    case keyboardTapRefused
 }
 
 /// The pure half of the super key: which keys are involved, how the mapping

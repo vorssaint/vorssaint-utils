@@ -15,6 +15,8 @@ struct RadialMenuSettings: View {
     @AppStorage(DefaultsKey.radialMenuAtPointer) private var atPointer = true
     @AppStorage(DefaultsKey.radialMenuActivationMode) private var activationModeRaw =
         RadialMenuActivationMode.pressOrHold.rawValue
+    @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
+    @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
 
     @State private var profiles: [RadialMenuProfile] = RadialMenuSupport.decodeProfiles(
         UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
@@ -24,6 +26,7 @@ struct RadialMenuSettings: View {
     @State private var editing: RadialMenuItem?
     @State private var dragging: RadialMenuItem?
     @State private var showList = false
+    @State private var confirmingDeletion: RadialMenuProfile?
     @Environment(\.colorScheme) private var colorScheme
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -107,6 +110,11 @@ struct RadialMenuSettings: View {
 
             Section {
                 profileManagementRow
+                if enabled, !RadialMenuSupport.hasTrigger(selectedProfile) {
+                    Text(text.profileNoTrigger)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 profileConfigurationRows
             } header: {
                 Text(text.profilesHeader)
@@ -248,13 +256,27 @@ struct RadialMenuSettings: View {
             .disabled(!enabled)
 
             Button {
-                deleteProfile()
+                confirmingDeletion = selectedProfile
             } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
             .help(text.deleteProfileButton)
             .disabled(!enabled || profiles.count <= 1)
+            .confirmationDialog(
+                String(format: text.deleteProfileConfirmFormat, confirmingDeletion?.displayName(text) ?? ""),
+                isPresented: Binding(get: { confirmingDeletion != nil },
+                                     set: { if !$0 { confirmingDeletion = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmingDeletion
+            ) { profile in
+                Button(text.deleteProfileButton, role: .destructive) {
+                    deleteProfile(id: profile.id)
+                }
+                Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            } message: { _ in
+                Text(text.deleteProfileConfirmMessage)
+            }
         }
     }
 
@@ -302,6 +324,7 @@ struct RadialMenuSettings: View {
             isEnabled: enabled,
             text: text,
             l10n: l10n,
+            conflictTitle: { shortcutConflictTitle($0, excluding: profile.id) },
             onChange: {
                 persist()
             }
@@ -311,7 +334,9 @@ struct RadialMenuSettings: View {
             get: { profile.mouseButton },
             set: { newTrigger in
                 guard profiles.indices.contains(pIndex) else { return }
-                profiles[pIndex].mouseButton = newTrigger
+                // One wheel owns each button: claiming it here releases the others.
+                profiles = RadialMenuSupport.assigning(mouseButton: newTrigger,
+                                                       to: profiles[pIndex].id, in: profiles)
                 persist()
                 if RadialMenuMouseTrigger.sanitized(newTrigger) != .off, !permissions.accessibility {
                     permissions.requestAccessibility()
@@ -340,6 +365,27 @@ struct RadialMenuSettings: View {
             }
             buttonTestRow(for: profile.mouseButton)
         }
+
+        Toggle(text.trackpadTapLabel, isOn: Binding(
+            get: { profile.trackpadTap },
+            set: { on in
+                guard profiles.indices.contains(pIndex) else { return }
+                // One wheel owns the tap: claiming it here releases the others.
+                for index in profiles.indices { profiles[index].trackpadTap = on && index == pIndex }
+                persist()
+                if on, !permissions.accessibility { permissions.requestAccessibility() }
+            }
+        ))
+        .disabled(!enabled)
+
+        if profile.trackpadTap, MiddleClickSupport.radialMenuTapFingers(
+            radialMenuWantsTap: true,
+            middleClickTapFingers: AppFeature.middleClick.isAvailable && middleClickEnabled
+                ? middleClickTapFingers : 0) == 0 {
+            Text(text.trackpadTapConflict)
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
     }
 
     // MARK: - Mutations (every change lands in defaults right away)
@@ -355,11 +401,7 @@ struct RadialMenuSettings: View {
     }
 
     private func duplicateProfile() {
-        var copy = selectedProfile
-        copy.id = UUID()
-        let baseName = copy.name.isEmpty ? text.presetGeneral : copy.name
-        copy.name = "\(baseName) 2"
-        copy.shortcut = ""
+        let copy = selectedProfile.duplicate(named: "\(selectedProfile.displayName(text)) 2")
         profiles.append(copy)
         selectedProfileID = copy.id
         openSubmenuID = nil
@@ -367,9 +409,10 @@ struct RadialMenuSettings: View {
         persist()
     }
 
-    private func deleteProfile() {
-        guard profiles.count > 1 else { return }
-        let index = selectedProfileIndex
+    /// Deletes the profile the user confirmed, which the selection may no
+    /// longer point at by the time the dialog closes.
+    private func deleteProfile(id: UUID) {
+        guard profiles.count > 1, let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles.remove(at: index)
         let nextIndex = min(index, profiles.count - 1)
         selectedProfileID = profiles[nextIndex].id
@@ -455,6 +498,26 @@ struct RadialMenuSettings: View {
     private func persist() {
         UserDefaults.standard.set(RadialMenuSupport.encodeProfiles(profiles), forKey: DefaultsKey.radialMenuProfiles)
         RadialMenuService.shared.syncWithPreferences()
+    }
+
+    /// Who already answers to a combination, named the way the other shortcut
+    /// rows name it. The other wheels come from this page's own list, and
+    /// everything else from the same checks those rows run.
+    private func shortcutConflictTitle(_ shortcut: GlobalShortcut, excluding profileID: UUID) -> String? {
+        if let other = RadialMenuSupport.profile(using: shortcut, in: profiles, excluding: profileID) {
+            return other.displayName(text)
+        }
+        if let role = GlobalShortcutRole.conflict(for: shortcut, excluding: .radialMenu) {
+            return role.title(l10n.s)
+        }
+        if let title = WindowLayoutService.shared.shortcutConflictTitle(shortcut) {
+            return title
+        }
+        guard AppFeature.commandBar.isAvailable,
+              let row = CommandBarRowShortcuts.key(for: shortcut, in: CommandBarService.shared.rowShortcuts)
+        else { return nil }
+        return CommandBarService.shared.entryTitle(forStableKey: row)
+            ?? FeatureStrings.commandBar(l10n.language).rowShortcutsTitle
     }
 
     private func requestAccessibilityIfNeeded(_ on: Bool) {
@@ -549,6 +612,8 @@ private struct ProfileShortcutRow: View {
     let isEnabled: Bool
     let text: RadialMenuFeatureStrings
     let l10n: L10n
+    /// Names whoever already answers to a combination, or nil when it is free.
+    let conflictTitle: (GlobalShortcut) -> String?
     let onChange: () -> Void
 
     @State private var message: String?
@@ -578,6 +643,10 @@ private struct ProfileShortcutRow: View {
                         message = l10n.s.shortcutInvalid
                     },
                     captureAction: { newShortcut in
+                        if let owner = conflictTitle(newShortcut) {
+                            message = String(format: l10n.s.shortcutConflictFormat, owner)
+                            return
+                        }
                         shortcutValue = newShortcut.storageValue
                         message = nil
                         onChange()

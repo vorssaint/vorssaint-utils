@@ -14,8 +14,6 @@ struct FeatureHubSettings: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
-        SuperKeySource.capsLock.rawValue
     @State private var tab: Tab = .features
     @State private var confirmingPreset: FeaturePreset?
     /// Tracks the feature-target request currently being revealed, so a
@@ -26,6 +24,17 @@ struct FeatureHubSettings: View {
     /// on it, mirroring the section highlight `SettingsSectionFocusModifier`
     /// gives an ordinary page anchor.
     @State private var highlightedFeature: AppFeature?
+    @State private var expandedGroups = Set(FeatureGroup.allCases)
+    @State private var islandExtensionsExpanded = true
+    @State private var presetsExpanded = true
+    /// Installed switches never once turned on, read when the page appears
+    /// and after every install change rather than on every redraw.
+    @State private var neverUsed: [AppFeature] = []
+    /// The batch just uninstalled from that card, kept for its Undo.
+    @State private var recentlyUninstalled: [AppFeature] = []
+
+    /// Below this, the offer would be more to read than it saves.
+    private static let neverUsedMinimum = 3
 
     private enum Tab { case features, permissions }
 
@@ -34,73 +43,65 @@ struct FeatureHubSettings: View {
     var body: some View {
         ScrollViewReader { proxy in
             content
-                .onAppear { revealPendingFeatureTarget(using: proxy) }
+                .onAppear {
+                    refreshNeverUsed()
+                    revealPendingFeatureTarget(using: proxy)
+                }
                 .onChange(of: router.requestID) { _, _ in revealPendingFeatureTarget(using: proxy) }
+                .onChange(of: features.revision) { _, _ in refreshNeverUsed() }
         }
     }
 
     private var content: some View {
-        Form {
-            Section {
-                Picker("", selection: $tab) {
+        // The lazy stack has to be the scroll view's own content (issue
+        // #2270). Nested in a plain stack, it resized that stack each time a
+        // card came into view: scrolling stalled for up to a second, and the
+        // layout could keep redoing itself until Settings froze.
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(hub.pageTitle).font(.title2.bold())
+                    Text(tab == .features ? hub.intro : hub.permissionsIntro)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Picker(hub.pageTitle, selection: $tab) {
                     Text(hub.tabFeatures).tag(Tab.features)
                     Text(hub.tabPermissions).tag(Tab.permissions)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                Text(tab == .features ? hub.intro : hub.permissionsIntro)
+                // The restart notice comes first, whichever tab is open:
+                // uninstalling anything makes it impossible to miss.
+                if features.needsRestartToUnload {
+                    restartCard
+                }
+                if tab == .features {
+                    summaryCard
+                    neverUsedCard
+                    dynamicIslandCard
+                    presetsCard
+                    ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
+                        groupCard(group)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(hub.footerNote)
+                        Text(hub.energyHelp)
+                    }
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if tab == .features {
-                    HStack(spacing: 8) {
-                        Text(String(format: hub.activeCountFormat,
-                                    features.availableCount, features.installableCount))
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                        Spacer(minLength: 8)
-                        Button(hub.installAllButton) {
-                            FeatureRuntime.shared.setAllAvailable(true)
-                        }
-                        .disabled(features.availableCount == features.installableCount)
-                        Button(hub.uninstallAllButton) {
-                            FeatureRuntime.shared.setAllAvailable(false)
-                        }
-                        .disabled(features.availableCount == 0)
+                    .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    SettingsCard {
+                        PermissionsPortalSections(hub: hub)
                     }
-                    .controlSize(.small)
                 }
             }
-            // The restart notice lives at the very top, never behind a
-            // scroll: uninstalling anything makes it impossible to miss.
-            if features.needsRestartToUnload {
-                Section {
-                    HStack(spacing: 10) {
-                        Image(systemName: "arrow.clockwise.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(Color.accentColor)
-                        Text(hub.restartNote)
-                            .font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 10)
-                        Button(hub.restartButton) {
-                            FeatureRuntime.shared.relaunchApp()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(.vertical, 4)
-                    .listRowBackground(Color.accentColor.opacity(0.12))
-                }
-            }
-            if tab == .features {
-                presetsSection
-                featureSections
-            } else {
-                Section {
-                    PermissionsPortalSections(hub: hub)
-                }
-            }
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            .padding(22)
         }
-        .formStyle(.grouped)
         .alert(confirmingPreset.map { presetName($0) } ?? "",
                isPresented: Binding(get: { confirmingPreset != nil },
                                     set: { if !$0 { confirmingPreset = nil } }),
@@ -126,12 +127,21 @@ struct FeatureHubSettings: View {
         router.consumeFeatureTarget(id: request.id)
         revealID = request.id
         if tab == .permissions { tab = .features }
+        if request.feature.group == .dynamicIsland {
+            if request.feature != .notch { islandExtensionsExpanded = true }
+        } else {
+            expandedGroups.insert(request.feature.group)
+        }
         DispatchQueue.main.async {
             guard self.revealID == request.id else { return }
-            reveal(request.feature, using: proxy)
+            proxy.scrollTo(request.feature.group, anchor: .top)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                 guard self.revealID == request.id else { return }
                 reveal(request.feature, using: proxy)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    guard self.revealID == request.id else { return }
+                    reveal(request.feature, using: proxy)
+                }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                     guard self.revealID == request.id else { return }
                     clearHighlight()
@@ -162,28 +172,143 @@ struct FeatureHubSettings: View {
         }
     }
 
-    /// Three one-click starting points. Nobody arrives wanting 37 decisions;
-    /// a preset shapes the app in one move and everything else stays one
-    /// click away in the list below.
-    private var presetsSection: some View {
-        Section {
-            HStack(alignment: .top, spacing: 8) {
-                ForEach(FeaturePreset.allCases) { preset in
-                    PresetCard(preset: preset,
-                               name: presetName(preset),
-                               caption: presetDescription(preset),
-                               applyTitle: hub.presetApplyButton) {
-                        confirmingPreset = preset
-                    }
+    private var restartCard: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.clockwise.circle.fill")
+                .font(.system(size: 24))
+                .foregroundStyle(Color.accentColor)
+            Text(hub.restartNote)
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 12)
+            Button(hub.restartButton) {
+                FeatureRuntime.shared.relaunchApp()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(16)
+        .background(Color.accentColor.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    /// The tally as a bar, with the two bulk actions beside it.
+    private var summaryCard: some View {
+        SettingsCard {
+            HStack(spacing: 12) {
+                Text(String(format: hub.activeCountFormat,
+                            features.availableCount, features.installableCount))
+                    .font(.headline)
+                Spacer(minLength: 12)
+                Button(hub.installAllButton) {
+                    FeatureRuntime.shared.setAllAvailable(true)
+                }
+                .disabled(features.availableCount == features.installableCount)
+                Button(hub.uninstallAllButton) {
+                    FeatureRuntime.shared.setAllAvailable(false)
+                }
+                .disabled(features.availableCount == 0)
+            }
+            InstalledShareBar(installed: features.availableCount, total: features.installableCount)
+        }
+    }
+
+    /// Installed switches that were never once turned on, offered as one
+    /// batch. People come to this page to manage the app, so the offer waits
+    /// here instead of interrupting anywhere else. Keep ends it for these
+    /// features, and Undo puts back exactly what left.
+    @ViewBuilder
+    private var neverUsedCard: some View {
+        if !recentlyUninstalled.isEmpty {
+            SettingsCard {
+                HStack(spacing: 12) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.green)
+                        .accessibilityHidden(true)
+                    Text(hub.footerNote)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 12)
+                    Button(l10n.s.menuUndo, action: undoNeverUsedUninstall)
                 }
             }
-            .padding(.vertical, 2)
-        } header: {
-            Text(hub.presetsTitle)
-        } footer: {
-            Text(hub.presetsCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        } else if neverUsed.count >= Self.neverUsedMinimum {
+            SettingsCard(title: hub.neverUsedTitle) {
+                Text(String(format: hub.neverUsedMessageFormat,
+                            neverUsed.map { $0.hubTitle(l10n.s, hub: hub) }.joined(separator: ", ")))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+                    Button(hub.neverUsedKeep, action: keepNeverUsed)
+                    Button(hub.neverUsedUninstall, action: uninstallNeverUsed)
+                }
+            }
+        }
+    }
+
+    private func refreshNeverUsed() {
+        neverUsed = FeatureRuntime.shared.neverSwitchedOnFeatures()
+    }
+
+    private func uninstallNeverUsed() {
+        // Read again at the click: a switch turned on in the panel since the
+        // page appeared takes its feature out of the batch.
+        let stillUnused = Set(FeatureRuntime.shared.neverSwitchedOnFeatures())
+        let batch = neverUsed.filter(stillUnused.contains)
+        guard !batch.isEmpty else {
+            refreshNeverUsed()
+            return
+        }
+        recentlyUninstalled = batch
+        withAnimation(.easeOut(duration: 0.22)) {
+            FeatureRuntime.shared.setAvailable(batch, false)
+        }
+    }
+
+    /// Changing one's mind is also an answer to the offer, so the features
+    /// that come back are kept and never offered again. None of them was
+    /// ever on, and the reinstall leaves their switches off too.
+    private func undoNeverUsedUninstall() {
+        let batch = recentlyUninstalled
+        recentlyUninstalled = []
+        FeatureRuntime.shared.keep(batch)
+        withAnimation(.easeOut(duration: 0.22)) {
+            FeatureRuntime.shared.setAvailable(batch, true, enablingFirstInstalls: false)
+        }
+    }
+
+    private func keepNeverUsed() {
+        FeatureRuntime.shared.keep(neverUsed)
+        withAnimation(.easeOut(duration: 0.22)) {
+            refreshNeverUsed()
+        }
+    }
+
+    /// Three one-click starting points. Nobody arrives wanting 67 decisions;
+    /// a preset shapes the app in one move and everything else stays one
+    /// click away in the list below.
+    private var presetsCard: some View {
+        SettingsCard {
+            DisclosureGroup(hub.presetsTitle, isExpanded: $presetsExpanded) {
+                if presetsExpanded {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(FeaturePreset.allCases) { preset in
+                            PresetCard(preset: preset,
+                                       name: presetName(preset),
+                                       caption: presetDescription(preset),
+                                       applyTitle: hub.presetApplyButton) {
+                                confirmingPreset = preset
+                            }
+                        }
+                    }
+                    Text(hub.presetsCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
     }
 
@@ -203,35 +328,95 @@ struct FeatureHubSettings: View {
         }
     }
 
-    @ViewBuilder
-    private var featureSections: some View {
-        ForEach(FeatureGroup.allCases, id: \.self) { group in
-            Section {
-                ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                    FeatureHubRow(
-                        feature: feature,
-                        hub: hub,
-                        symbolName: feature == .superKey
-                            ? SuperKeySource.sanitized(superKeySourceRaw).systemImage
-                            : feature.symbolName,
-                        isHighlighted: highlightedFeature == feature
-                    )
-                        .id(feature)
+    /// The island stays near the top, with its additions in a group the user
+    /// can close when they want a shorter catalog.
+    private var dynamicIslandCard: some View {
+        let members = AppFeature.features(in: .dynamicIsland)
+        let installed = members.filter(\.isAvailable).count
+        return SettingsCard {
+            groupHeader(.dynamicIsland, installed: installed, total: members.count)
+            FeatureHubRow(feature: .notch, hub: hub,
+                          isHighlighted: highlightedFeature == .notch)
+                .id(AppFeature.notch)
+            DisclosureGroup(
+                FeatureStrings.notch(l10n.language).modules,
+                isExpanded: $islandExtensionsExpanded
+            ) {
+                if islandExtensionsExpanded {
+                    VStack(spacing: 0) {
+                        ForEach(members.filter { $0 != .notch }, id: \.self) { feature in
+                            FeatureHubRow(feature: feature, hub: hub,
+                                          isHighlighted: highlightedFeature == feature)
+                                .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
                 }
-                if group == .monitor,
-                   !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
-                    Text(hub.monitorAllOffNote)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            } header: {
-                Text(groupTitle(group))
             }
         }
-        Section {
-            Text(hub.footerNote)
-                .font(.caption)
+        .id(FeatureGroup.dynamicIsland)
+    }
+
+    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Closing a group removes its feature rows until the user reopens it.
+    private func groupCard(_ group: FeatureGroup) -> some View {
+        let members = AppFeature.features(in: group)
+        let installed = members.filter(\.isAvailable).count
+        return SettingsCard {
+            DisclosureGroup(isExpanded: Binding(
+                get: { expandedGroups.contains(group) },
+                set: { expanded in
+                    if expanded { expandedGroups.insert(group) }
+                    else { expandedGroups.remove(group) }
+                }
+            )) {
+                if expandedGroups.contains(group) {
+                    VStack(spacing: 0) {
+                        ForEach(members, id: \.self) { feature in
+                            FeatureHubRow(
+                                feature: feature,
+                                hub: hub,
+                                isHighlighted: highlightedFeature == feature
+                            )
+                            .id(feature)
+                            if feature != members.last {
+                                Divider().padding(.leading, 8)
+                            }
+                        }
+                    }
+                    if group == .monitor,
+                       !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
+                        Text(hub.monitorAllOffNote)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            } label: {
+                groupHeader(group, installed: installed, total: members.count)
+            }
+        }
+        .id(group)
+    }
+
+    private func groupHeader(_ group: FeatureGroup, installed: Int, total: Int) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: group.symbolName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 26, height: 26)
+                .background(Color.accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Text(groupTitle(group)).font(.headline)
+            Spacer(minLength: 12)
+            Text("\(installed)/\(total)")
+                .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
+            InstalledShareBar(installed: installed, total: total)
+                .controlSize(.small)
+                .frame(width: 64)
         }
     }
 
@@ -243,8 +428,37 @@ struct FeatureHubSettings: View {
         case .sound: return hub.groupSound
         case .energyDisplay: return hub.groupEnergyDisplay
         case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
         }
+    }
+}
+
+private extension FeatureGroup {
+    var symbolName: String {
+        switch self {
+        case .windowsDock: return "macwindow.on.rectangle"
+        case .mouseKeyboard: return "computermouse"
+        case .clipboardFiles: return "doc.on.clipboard"
+        case .sound: return "speaker.wave.2.fill"
+        case .energyDisplay: return "bolt.fill"
+        case .tools: return "wrench.and.screwdriver.fill"
+        case .dynamicIsland: return AppFeature.notch.symbolName
+        case .monitor: return "chart.line.uptrend.xyaxis"
+        }
+    }
+}
+
+/// The installed share as the system's own bar, the one picture of "how
+/// much of this is on" that needs no reading.
+private struct InstalledShareBar: View {
+    let installed: Int
+    let total: Int
+
+    var body: some View {
+        ProgressView(value: Double(min(installed, total)), total: Double(max(total, 1)))
+            .progressViewStyle(.linear)
+            .tint(Color.accentColor)
     }
 }
 
@@ -258,31 +472,29 @@ private struct PresetCard: View {
     let onApply: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Image(systemName: preset.symbolName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-                Text(name)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-            }
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: preset.symbolName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 34, height: 34)
+                .background(Color.accentColor.opacity(0.12),
+                            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            Text(name)
+                .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
             Text(caption)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
             Button(applyTitle, action: onApply)
-                .buttonStyle(.bordered)
                 .controlSize(.small)
         }
-        .padding(9)
-        .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        )
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 138, alignment: .topLeading)
+        .background(Color.primary.opacity(0.05),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(name). \(caption)")
     }
@@ -290,24 +502,38 @@ private struct PresetCard: View {
 
 // MARK: - Feature row
 
+/// Icon, name and one line about the feature; small icons for the
+/// permissions it can use and what it keeps alive; and the install switch.
+/// An installed feature with a page of its own opens it from the row.
 private struct FeatureHubRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
-    @State private var working = false
+    @State private var confirmingExtensions = false
+    @State private var hovering = false
+    @State private var showingMetadata = false
     let feature: AppFeature
     let hub: FeatureHubStrings
-    let symbolName: String
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
 
+    private var opensSettings: Bool { installed && feature.hasNavigableSettingsDestination }
+
+    /// Extensions still installed under this row's feature; only the Dynamic
+    /// Island has any. They do nothing without it, so its uninstall asks
+    /// whether they leave too.
+    private var installedExtensions: [AppFeature] {
+        feature == .notch ? AppFeature.dynamicIslandExtensions.filter(\.isAvailable) : []
+    }
+
     /// Set only while this Mac cannot run the feature and it is not yet
     /// installed, so an install that predates the check keeps an ordinary
-    /// row with its settings and Uninstall reachable.
+    /// row with its settings and the switch reachable.
     private var unsupportedReason: String? { feature.installBlockedReason }
 
     private var accessibilityTitle: String {
         let title = feature.hubTitle(l10n.s, hub: hub)
+        if feature == .notch { return "\(title). \(hub.experimentalBadge)" }
         return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
     }
 
@@ -322,11 +548,36 @@ private struct FeatureHubRow: View {
         }
     }
 
+    private var energySymbols: [String] {
+        switch feature.energyProfile {
+        case .idle: return ["leaf"]
+        case .mouse: return ["computermouse"]
+        case .pointer: return ["hand.point.up.left"]
+        case .keyboard: return ["keyboard"]
+        case .inputs: return ["computermouse", "keyboard"]
+        case .periodic: return ["clock.arrow.circlepath"]
+        }
+    }
+
+    /// The switch reads availability itself, so it only moves once the
+    /// runtime has flipped; the Dynamic Island asks about its extensions
+    /// before leaving, and the switch springs back if that is cancelled.
+    private var installBinding: Binding<Bool> {
+        Binding(get: { installed }, set: { wanted in
+            if !wanted, !installedExtensions.isEmpty {
+                confirmingExtensions = true
+            } else {
+                flip(to: wanted)
+            }
+        })
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            if installed, feature.hasNavigableSettingsDestination {
+        HStack(spacing: 12) {
+            if opensSettings {
                 Button {
-                    SettingsRouter.shared.request(feature.settingsDestination)
+                    SettingsRouter.shared.request(feature.settingsDestination,
+                                                  sidebarFeature: feature)
                 } label: {
                     rowContent(showsChevron: true)
                 }
@@ -342,57 +593,44 @@ private struct FeatureHubRow: View {
                     .opacity(unsupportedReason == nil ? 1 : 0.4)
                     .saturation(unsupportedReason == nil ? 1 : 0)
             }
-            if working {
-                ProgressView()
-                    .controlSize(.small)
-            } else if installed {
-                Button(hub.uninstallButton) { flip(to: false) }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
-            } else if let reason = unsupportedReason {
-                // .help() never fires on a disabled control, so the tooltip
-                // has to sit on this wrapper. Flattening it loses the only
-                // place the reason is shown.
-                HStack(spacing: 0) {
-                    Button(hub.installButton) { flip(to: true) }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(true)
-                        .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(reason)")
-                }
-                .help(reason)
-            } else {
-                Button(hub.installButton) { flip(to: true) }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
-            }
+            metadata
+            installSwitch
         }
-        .padding(.vertical, 1)
-        .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.accentColor.opacity(isHighlighted ? 0.10 : 0))
-                .allowsHitTesting(false)
+        .padding(.vertical, 7)
+        .padding(.horizontal, 8)
+        .background(rowFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onHover { hovering = $0 }
+        .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
+            Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
+            Button(hub.notchUninstallKeepExtensions) { flip(to: false) }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            Text(String(format: hub.notchUninstallMessageFormat,
+                        installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
+                            .joined(separator: ", ")))
         }
     }
 
+    private var rowFill: Color {
+        if isHighlighted { return Color.accentColor.opacity(0.10) }
+        return hovering && opensSettings ? Color.primary.opacity(0.04) : Color.clear
+    }
+
     private func rowContent(showsChevron: Bool) -> some View {
-        HStack(spacing: 10) {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(installed
-                        ? AnyShapeStyle(Theme.spaceGradient)
-                        : AnyShapeStyle(Color.secondary.opacity(0.22)))
-                .frame(width: 30, height: 30)
-                .overlay(
-                    Image(systemName: symbolName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(installed ? AnyShapeStyle(.white) : AnyShapeStyle(.secondary))
-                )
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
                         .foregroundStyle(installed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                    if feature == .notch {
+                        Text(hub.experimentalBadge.uppercased())
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .foregroundStyle(.orange)
+                            .background(Capsule().fill(Color.orange.opacity(0.14)))
+                            .accessibilityHidden(true)
+                    }
                     if feature.isBeta {
                         Text(l10n.s.betaBadge)
                             .font(.system(size: 8, weight: .bold))
@@ -402,25 +640,11 @@ private struct FeatureHubRow: View {
                             .background(Capsule().fill(Color.accentColor))
                             .accessibilityHidden(true)
                     }
-                    ForEach(feature.permissions, id: \.self) { permission in
-                        Image(systemName: permission.symbolName)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.tertiary)
-                            .help(permission.name(hub))
-                            .accessibilityHidden(true)
-                    }
-                    Text(energyLabel)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
-                        .help(hub.energyHelp)
-                        .accessibilityHidden(true)
                 }
                 Text(feature.hubDescription(hub))
                     .font(.caption)
-                    .foregroundStyle(installed ? Color.secondary : Color.secondary.opacity(0.6))
+                    .foregroundStyle(installed ? Color.secondary : Color.secondary.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             if showsChevron {
@@ -434,16 +658,64 @@ private struct FeatureHubRow: View {
         .contentShape(Rectangle())
     }
 
-    /// A quick, honest beat of feedback: the spinner shows the action landed,
-    /// then the row fades to its new state. The flip itself is instant.
-    private func flip(to install: Bool) {
-        guard !working else { return }
-        working = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            withAnimation(.easeOut(duration: 0.22)) {
-                FeatureRuntime.shared.setAvailable(feature, install)
+    /// Use a readable label instead of a row of tiny, unexplained symbols.
+    private var metadata: some View {
+        let explanation = (feature.permissions.map { $0.name(hub) } + [energyLabel])
+            .joined(separator: "\n")
+        return Button(feature.permissions.isEmpty ? energyLabel : hub.tabPermissions) {
+            showingMetadata.toggle()
+        }
+        .buttonStyle(.plain)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .help(explanation)
+        .accessibilityLabel(explanation)
+        .popover(isPresented: $showingMetadata) {
+            // Symbols differ in width, so a centered icon column keeps the texts aligned.
+            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                ForEach(feature.permissions, id: \.self) { permission in
+                    GridRow {
+                        Image(systemName: permission.symbolName)
+                            .gridColumnAlignment(.center)
+                            .accessibilityHidden(true)
+                        Text(permission.name(hub))
+                    }
+                }
+                GridRow {
+                    HStack(spacing: 2) {
+                        ForEach(energySymbols, id: \.self) { Image(systemName: $0) }
+                    }
+                    .accessibilityHidden(true)
+                    Text(energyLabel)
+                }
             }
-            working = false
+            .padding(14)
+        }
+    }
+
+    @ViewBuilder
+    private var installSwitch: some View {
+        let toggle = Toggle(accessibilityTitle, isOn: installBinding)
+            .labelsHidden()
+            .toggleStyle(.switch)
+            .controlSize(.small)
+        if let reason = unsupportedReason {
+            // .help() never fires on a disabled control, so the tooltip
+            // has to sit on this wrapper. Flattening it loses the only
+            // place the reason is shown.
+            HStack(spacing: 0) {
+                toggle.disabled(true)
+            }
+            .help(reason)
+            .accessibilityLabel("\(accessibilityTitle). \(reason)")
+        } else {
+            toggle
+        }
+    }
+
+    private func flip(to install: Bool, alongside companions: [AppFeature] = []) {
+        withAnimation(.easeOut(duration: 0.22)) {
+            FeatureRuntime.shared.setAvailable([feature] + companions, install)
         }
     }
 }
@@ -470,6 +742,9 @@ struct PermissionsPortalSections: View {
             PermissionPortalRow(permission: permission,
                                 hub: hub,
                                 status: status(for: permission))
+            if permission != visiblePermissions.last {
+                Divider().padding(.leading, 42)
+            }
         }
         .onAppear {
             // Statuses that only refresh at launch/activation get a fresh
@@ -516,6 +791,7 @@ struct PermissionsPortalSections: View {
             }
         case .automationFinder: return automationStatus(.finder)
         case .automationTerminal: return automationStatus(.terminal)
+        case .automationPlayback: return .unknown
         case .audioCapture:
             // No public check exists for system audio capture; the mixer
             // reports a failed tap, which is the one readable signal.
@@ -529,6 +805,8 @@ struct PermissionsPortalSections: View {
             case .denied, .undetermined: return .missing
             case .unknown: return .unknown
             }
+        case .calendar:
+            return permissions.calendarAccess == .fullAccess ? .granted : .missing
         case .camera:
             switch permissions.camera {
             case .granted: return .granted
@@ -555,16 +833,21 @@ private struct PermissionPortalRow: View {
     enum Status { case granted, missing, unknown }
 
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.colorScheme) private var colorScheme
     let permission: AppPermission
     let hub: FeatureHubStrings
     let status: Status
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .top, spacing: 12) {
+            // The tile wears the status color, so a glance down the list
+            // shows what is granted before any word is read.
             Image(systemName: permission.symbolName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 24, height: 24)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(statusColor)
+                .frame(width: 30, height: 30)
+                .background(statusColor.opacity(0.14),
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(permission.name(hub))
@@ -574,9 +857,11 @@ private struct PermissionPortalRow: View {
                 Text(permission.explainer(hub))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(usedByLine)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
                 if status == .granted, activeFeatures.isEmpty {
                     unusedCard
                 }
@@ -590,7 +875,6 @@ private struct PermissionPortalRow: View {
                 .padding(.top, 2)
             }
         }
-        .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
     }
 
@@ -609,7 +893,7 @@ private struct PermissionPortalRow: View {
     private var statusChip: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(chipColor)
+                .fill(statusColor)
                 .frame(width: 6, height: 6)
             Text(chipText)
                 .font(.caption)
@@ -617,10 +901,10 @@ private struct PermissionPortalRow: View {
         }
     }
 
-    private var chipColor: Color {
+    private var statusColor: Color {
         switch status {
-        case .granted: return .green
-        case .missing: return .orange
+        case .granted: return PanelMetricColor.green(for: colorScheme)
+        case .missing: return PanelMetricColor.orange(for: colorScheme)
         case .unknown: return .secondary
         }
     }
@@ -637,6 +921,7 @@ private struct PermissionPortalRow: View {
         Text(hub.unusedBanner)
             .font(.caption)
             .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -649,9 +934,11 @@ private struct PermissionPortalRow: View {
         switch permission {
         case .accessibility, .screenRecording, .fullDiskAccess: return true
         case .notifications: return Permissions.shared.notifications == .undetermined
+        case .calendar: return Permissions.shared.calendarAccess == .notDetermined
+            || Permissions.shared.calendarAccess == .writeOnly
         case .camera: return Permissions.shared.camera == .undetermined
         case .microphone: return Permissions.shared.microphone == .undetermined
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+        case .filesAndFolders, .automationFinder, .automationTerminal, .automationPlayback, .audioCapture,
              .appManagement: return false
         }
     }
@@ -666,9 +953,10 @@ private struct PermissionPortalRow: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 Permissions.shared.refresh()
             }
+        case .calendar: Permissions.shared.requestCalendar()
         case .camera: Permissions.shared.requestCamera()
         case .microphone: Permissions.shared.requestMicrophone()
-        case .filesAndFolders, .automationFinder, .automationTerminal, .audioCapture,
+        case .filesAndFolders, .automationFinder, .automationTerminal, .automationPlayback, .audioCapture,
              .appManagement:
             break
         }
@@ -681,9 +969,10 @@ private struct PermissionPortalRow: View {
         case .fullDiskAccess: Permissions.shared.openFullDiskAccessSettings()
         case .filesAndFolders: Permissions.shared.openFilesAndFoldersSettings()
         case .notifications: Permissions.shared.openNotificationSettings()
-        case .automationFinder, .automationTerminal: Permissions.shared.openAutomationSettings()
+        case .automationFinder, .automationTerminal, .automationPlayback: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
         case .microphone: Permissions.shared.openMicrophoneSettings()
+        case .calendar: Permissions.shared.openCalendarSettings()
         case .camera: Permissions.shared.openCameraSettings()
         case .appManagement: Permissions.shared.openAppManagementSettings()
         }
@@ -703,10 +992,13 @@ extension AppFeature {
         case .windowMaximizer: return s.windowMaximizeName
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .autoQuit: return s.autoQuitName
+        case .spacesOrder: return s.spacesOrderName
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
         case .scrollInverter: return s.invertMouseScroll
+        case .scrollHorizontal: return s.scrollHorizontalName
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
+        case .linearScroll: return s.linearScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
         case .mouseNavigation: return hub.titleMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
@@ -726,6 +1018,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
+        case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
@@ -739,6 +1032,20 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).pageTitle
+        case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).title
+        case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timer
+        case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessories
+        case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).title
+        case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyrics
+        case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queue
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizer
+        case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsTitle
+        case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
+        case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).title
+        case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).title
+        case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).title
+        case .notch: return FeatureStrings.notch(L10n.shared.language).title
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
@@ -747,6 +1054,7 @@ extension AppFeature {
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
+        case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -755,6 +1063,7 @@ extension AppFeature {
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
         }
     }
@@ -767,10 +1076,13 @@ extension AppFeature {
         case .windowMaximizer: return hub.descWindowMaximizer
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit
+        case .spacesOrder: return L10n.shared.s.spacesOrderCaption
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
+        case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
+        case .linearScroll: return L10n.shared.s.linearScrollCaption
         case .mouseAcceleration: return L10n.shared.s.mouseAccelerationCaption
         case .mouseNavigation: return hub.descMouseNavigation
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription
@@ -790,6 +1102,7 @@ extension AppFeature {
             return FeatureStrings.diskImageInstaller(L10n.shared.language).hubDescription
         case .mixer: return hub.descMixer
         case .soundOutputSwitcher: return hub.descSoundOutputSwitcher
+        case .audioPriority: return hub.descAudioPriority
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
         case .keepAwake: return hub.descKeepAwake
@@ -803,6 +1116,20 @@ extension AppFeature {
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).hubDescription
         case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).hubDescription
+        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).hubDescription
+        case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).description
+        case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timerDescription
+        case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessoryDescription
+        case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).description
+        case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyricsDescription
+        case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queueDescription
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizerDescription
+        case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsDescription
+        case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).description
+        case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).hubDescription
+        case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).description
+        case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).hubDescription
+        case .notch: return FeatureStrings.notch(L10n.shared.language).description
         case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).hubDescription
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).hubDescription
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
@@ -817,6 +1144,7 @@ extension AppFeature {
                 + FeatureStrings.whatsAppDownloads(L10n.shared.language).hubDescription
         case .uninstaller: return hub.descUninstaller
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
+        case .portManager: return FeatureStrings.portManager(L10n.shared.language).hubDescription
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU
@@ -825,6 +1153,7 @@ extension AppFeature {
         case .monitorNetwork: return hub.descMonitorNetwork
         case .monitorDisk: return hub.descMonitorDisk
         case .monitorPower: return hub.descMonitorPower
+        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
         }
     }
@@ -840,8 +1169,10 @@ extension AppPermission {
         case .notifications: return hub.permNotifications
         case .automationFinder: return hub.permAutomationFinder
         case .automationTerminal: return hub.permAutomationTerminal
+        case .automationPlayback: return FeatureStrings.notchMusicExtras(L10n.shared.language).automationPermission
         case .audioCapture: return hub.permAudioCapture
         case .microphone: return FeatureStrings.recorder(L10n.shared.language).microphonePermissionName
+        case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
         case .appManagement: return FeatureStrings.settingsCategories(L10n.shared.language).appManagement
         }
@@ -856,9 +1187,11 @@ extension AppPermission {
         case .notifications: return hub.explainNotifications
         case .automationFinder: return hub.explainAutomationFinder
         case .automationTerminal: return hub.explainAutomationTerminal
+        case .automationPlayback: return FeatureStrings.notchMusicExtras(L10n.shared.language).automationExplanation
         case .audioCapture: return hub.explainAudioCapture
         case .microphone:
             return FeatureStrings.recorder(L10n.shared.language).microphonePermissionExplain
+        case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).permission
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
         case .appManagement: return hub.explainAppManagement
         }
