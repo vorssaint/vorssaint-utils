@@ -7,6 +7,21 @@ import Foundation
 /// Real selection methods run with controlled capture replies and inert panels.
 /// Images carry exclusion identities; no desktop pixels or input events are used.
 enum ScreenshotSelectionRefreshContract {
+    final class SurfaceOptions {
+        var onCaptureControlsSurfaceChange: ((CGRect, CGFloat) -> Void)?
+    }
+    final class SurfaceController {
+        var placements: [(CGRect, CGFloat)] = []
+        func placeFullScreenControlBelowNotch(screenFrame: CGRect, surfaceHeight: CGFloat) {
+            placements.append((screenFrame, surfaceHeight))
+        }
+    }
+    final class SurfaceService {
+        typealias ScreenCaptureSelectionOptions = SurfaceOptions
+        typealias ScreenshotSelectionController = SurfaceController
+        var options: SurfaceOptions?
+        var selection: SurfaceController?
+    }
     struct CGImage {
         let excluded: Set<CGWindowID>
         let width = 100
@@ -26,16 +41,37 @@ enum ScreenshotSelectionRefreshContract {
         static let screens = [NSScreen()]
         let frame = CGRect(x: 0, y: 0, width: 100, height: 100)
     }
-    final class View {
+    @MainActor final class View {
+        final class Host {
+            var isHidden = false
+            var frame = CGRect.zero
+        }
+        weak var controller: Chooser?
+        weak var panel: ScreenshotOverlayPanel?
+        var windows: [ScreenshotSupport.PickableWindow] = []
+        var fullScreenHost = Host()
         var isCapturePending = false
+        var isDragging = false
         var loupeImage: CGImage?
-        func captureToolDidChange() {}
+        var dragOrigin: CGPoint?
+        var selection = CGRect.zero
+        var hoverPoint = CGPoint.zero
+        var pointerIsInside = false
+        var hoveredWindow: ScreenshotSupport.PickableWindow?
+        var needsLayout = false, needsDisplay = false
+        var guideVisibilityRefreshes = 0
+        var notchCaptureControlsHeight: CGFloat?
+        var fullScreenControlHovered = false
+        var deferredNotchCaptureControlsHeight: CGFloat?
+        var hasDeferredNotchCaptureControlsHeight = false
+        func refreshGuideVisibility() { guideVisibilityRefreshes += 1 }
+        func refreshCaptureGuide() {}
         func refreshPointerState() {}
         func updateLoupeImage(_ image: CGImage?) { loupeImage = image }
     }
-    final class ScreenshotOverlayPanel {
+    @MainActor final class ScreenshotOverlayPanel {
         let displayID: CGDirectDisplayID
-        let screenFrame = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let screenFrame: CGRect
         let pixelScale: CGFloat = 1
         var frozenImage: CGImage?
         var windows: [ScreenshotSupport.PickableWindow]
@@ -44,15 +80,22 @@ enum ScreenshotSelectionRefreshContract {
         var frozenImageSize: CGSize? { frozenImage == nil ? nil : screenFrame.size }
         init(_ id: CGDirectDisplayID, _ excluded: Set<CGWindowID>) {
             displayID = id
+            screenFrame = CGRect(x: CGFloat(id - 1) * 100, y: 0, width: 100, height: 100)
             frozenImage = CGImage(excluded: excluded)
             windows = excluded.contains(11) ? [] : [.init(windowID: 11, frame: screenFrame)]
         }
         func update(frozenImage: CGImage?, windows: [ScreenshotSupport.PickableWindow]) {
             self.frozenImage = frozenImage
             self.windows = windows
+            overlayView.windows = windows
         }
     }
-    enum RecorderSupport { struct Region { let windowID: CGWindowID? } }
+    enum RecorderSupport {
+        struct Region {
+            let windowID: CGWindowID?
+            let viewRect: CGRect
+        }
+    }
     @MainActor enum ScreenshotCaptureEngine {
         struct Request {
             let excluded: Set<CGWindowID>
@@ -77,8 +120,11 @@ enum ScreenshotSelectionRefreshContract {
                 protectedWindowIDs: protectedWindowIDs)
                 ? [(CGWindowID(11), CGRect(x: 0, y: 0, width: 50, height: 50))] : []
         }
-        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> CGImage? {
-            CGImage(excluded: [])
+        /// The scale a window capture reports, like a composite recaptured
+        /// on a 2x display; `nil` echoes the scale asked for.
+        static var windowCaptureScale: CGFloat?
+        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
+            (CGImage(excluded: []), windowCaptureScale ?? scale)
         }
         static func complete(_ index: Int, displays: [CGDirectDisplayID]) {
             let request = requests[index]
@@ -111,7 +157,10 @@ enum ScreenshotSelectionRefreshContract {
             activeTool == .recording ? .geometry : activeTool == .color ? .color : .image
         }
         var isPickingColor: Bool { activeMode == .color }
-        final class Options { var offersRepeatLastRegion = false }
+        final class Options {
+            var offersRepeatLastRegion = false
+            var onSelectionProgressChange: ((Bool) -> Void)?
+        }
         var screenCaptureOptions: Options? = Options()
         var capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
         var freeze: Bool
@@ -122,6 +171,8 @@ enum ScreenshotSelectionRefreshContract {
             loupeEnabled = false, selectionInProgress = false
         var panels: [ScreenshotOverlayPanel]
         var outcome: Outcome?
+        var currentPointerLocation: CGPoint? = CGPoint(x: 23, y: 61)
+        var requiresDraggedRegion = false
         var captureExcludedWindowIDs: Set<CGWindowID> {
             ScreenshotCapturePolicy.protectedWindowIDs(
                 workflowWindowIDs: [12], contentWindowIDs: [11, 13],
@@ -140,6 +191,11 @@ enum ScreenshotSelectionRefreshContract {
             hideVorssaintWindows = p.hideVorssaintWindows
             let ids: Set<CGWindowID> = p.keepsContentWindowsOut ? [11, 12, 13] : [12]
             panels = [ScreenshotOverlayPanel(1, ids), ScreenshotOverlayPanel(2, ids)]
+            for panel in panels {
+                panel.overlayView.controller = self
+                panel.overlayView.panel = panel
+                panel.overlayView.windows = panel.windows
+            }
         }
         func select(_ tool: ScreenCaptureTool) {
             activeTool = tool
@@ -155,7 +211,7 @@ enum ScreenshotSelectionRefreshContract {
         }
         func region(fromView: CGRect, on: ScreenshotOverlayPanel, windowID: CGWindowID?)
             -> RecorderSupport.Region
-        { .init(windowID: windowID) }
+        { .init(windowID: windowID, viewRect: fromView) }
         func finish(_ outcome: Outcome) {
             self.outcome = outcome
             finished = true
@@ -166,8 +222,10 @@ enum ScreenshotSelectionRefreshContract {
     }
 
     enum QuickToolsSupport {
+        static var sampledPoint: CGPoint?
         static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
-            image.excluded.contains(11) ? .red : .green
+            sampledPoint = CGPoint(x: x, y: y)
+            return image.excluded.contains(11) ? .red : .green
         }
     }
     static func run(_ suite: TestSuite) {
@@ -189,6 +247,50 @@ enum ScreenshotSelectionRefreshContract {
         ScreenshotCaptureEngine.requests = []
         let previousRegion = Chooser.lastRegion
         defer { Chooser.lastRegion = previousRegion }
+        let color = Chooser(.color)
+        color.confirmSelectionWithKeyboard()
+        if case .color(let picked) = color.outcome {
+            expect(picked == .green, "keyboard confirmation returns the displayed color")
+        } else {
+            expect(false, "keyboard confirmation produces a color result")
+        }
+        expect(color.finished, "keyboard color confirmation ends the picker session")
+        expect(QuickToolsSupport.sampledPoint == CGPoint(x: 23, y: 39),
+               "keyboard confirmation samples the nudged pointer in flipped display coordinates")
+        for blocked in ["refresh", "drag", "finished", "missing image"] {
+            let c = Chooser(.color)
+            switch blocked {
+            case "refresh": c.sourceRefreshPending = true
+            case "drag": c.panels[0].overlayView.isDragging = true
+            case "finished": c.finished = true
+            default: c.panels[0].frozenImage = nil
+            }
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard color confirmation is ignored during \(blocked)")
+        }
+        for tool in [ScreenCaptureTool.screenshot, .text, .recording] {
+            let c = Chooser(tool)
+            c.confirmSelectionWithKeyboard()
+            switch c.outcome {
+            case .captured(let capture):
+                expect(tool != .recording && capture.anchorRect == c.panels[0].screenFrame
+                       && capture.scale == c.panels[0].pixelScale,
+                       "screenshot and text confirmation capture the full display")
+            case .region(let region):
+                expect(tool == .recording && region.windowID == nil
+                       && region.viewRect == CGRect(origin: .zero, size: c.panels[0].screenFrame.size),
+                       "recording confirmation selects a full-display region without a window target")
+            default:
+                expect(false, "keyboard confirmation returns the existing capture result for \(tool)")
+            }
+        }
+        for restricted in ["dragged region", "scrolling"] {
+            let c = Chooser(.screenshot)
+            c.requiresDraggedRegion = restricted == "dragged region"
+            c.scrollingCaptureEnabled = restricted == "scrolling"
+            c.confirmSelectionWithKeyboard()
+            expect(c.outcome == nil, "keyboard confirmation preserves the \(restricted) restriction")
+        }
         for tool in ScreenCaptureTool.allCases {
             for display in [nil, 1, 2, 3] as [CGDirectDisplayID?] {
                 let c = Chooser(tool)
@@ -203,13 +305,107 @@ enum ScreenshotSelectionRefreshContract {
                        "the repeat hint agrees with the production confirmation path")
             }
         }
+        let fullScreenScreenshot = Chooser(.screenshot)
+        fullScreenScreenshot.captureFullScreenFromControl(on: fullScreenScreenshot.panels[0])
+        if case .captured? = fullScreenScreenshot.outcome {
+            expect(true, "the full-screen control runs the screenshot capture path")
+        } else {
+            expect(false, "the full-screen control runs the screenshot capture path")
+        }
+        for tool in [ScreenCaptureTool.recording, .text, .color] {
+            let other = Chooser(tool)
+            other.captureFullScreenFromControl(on: other.panels[0])
+            expect(other.outcome == nil,
+                   "the full-screen control stays unavailable outside screenshot mode")
+        }
+        let scrolling = Chooser(.screenshot)
+        scrolling.scrollingCaptureEnabled = true
+        scrolling.captureFullScreenFromControl(on: scrolling.panels[0])
+        expect(scrolling.outcome == nil,
+               "scrolling capture keeps its region workflow instead of taking a full-screen capture")
+        let placement = Chooser(.screenshot)
+        placement.placeFullScreenControlBelowNotch(
+            screenFrame: placement.panels[1].screenFrame,
+            surfaceHeight: 72)
+        expect(placement.panels[0].overlayView.notchCaptureControlsHeight == nil
+                && placement.panels[1].overlayView.notchCaptureControlsHeight == 72,
+               "the island surface height applies only to the display that owns the notch")
+        placement.placeFullScreenControlBelowNotch(
+            screenFrame: placement.panels[0].screenFrame,
+            surfaceHeight: 40)
+        expect(placement.panels[0].overlayView.notchCaptureControlsHeight == 40
+                && placement.panels[1].overlayView.notchCaptureControlsHeight == nil,
+               "moving capture controls to another display clears the old pill offset")
+        let surfaceService = SurfaceService()
+        let surfaceOptions = SurfaceOptions()
+        let surfaceController = SurfaceController()
+        surfaceService.options = surfaceOptions
+        surfaceService.selection = surfaceController
+        surfaceService.connectCaptureControlsSurface(surfaceOptions, controller: surfaceController)
+        let surfaceFrame = CGRect(x: 40, y: 50, width: 60, height: 70)
+        surfaceOptions.onCaptureControlsSurfaceChange?(surfaceFrame, 88)
+        expect(surfaceController.placements.count == 1
+                && surfaceController.placements[0].0 == surfaceFrame
+                && surfaceController.placements[0].1 == 88,
+               "the capture service forwards live island geometry to its active selection")
+        surfaceService.selection = SurfaceController()
+        surfaceOptions.onCaptureControlsSurfaceChange?(.zero, 12)
+        expect(surfaceController.placements.count == 1,
+               "a stale island geometry callback cannot move a replacement selection")
+        let visibility = Chooser(.screenshot)
+        visibility.currentPointerLocation = CGPoint(x: 50, y: 50)
+        var progressChanges: [Bool] = []
+        visibility.screenCaptureOptions?.onSelectionProgressChange = { progressChanges.append($0) }
+        visibility.setSelectionInProgress(true)
+        visibility.setSelectionInProgress(false)
+        expect(visibility.panels.allSatisfy { $0.overlayView.guideVisibilityRefreshes == 2 }
+                && !visibility.panels[0].overlayView.fullScreenHost.isHidden
+                && visibility.panels[1].overlayView.fullScreenHost.isHidden
+                && progressChanges == [true, false],
+               "selection progress refreshes both chooser surfaces and notifies the island")
+        let hover = Chooser(.screenshot)
+        hover.currentPointerLocation = CGPoint(x: 50, y: 50)
+        let hoverView = hover.panels[0].overlayView
+        hoverView.fullScreenHost.frame = CGRect(x: 40, y: 40, width: 20, height: 20)
+        hoverView.refreshFullScreenControlVisibility()
+        hoverView.updatePointerHover(CGPoint(x: 50, y: 50))
+        expect(hoverView.hoveredWindow == nil,
+               "hovering the full-screen action suppresses the window capture highlight")
+        hoverView.updatePointerHover(CGPoint(x: 20, y: 20))
+        expect(hoverView.hoveredWindow?.windowID == 11,
+               "window highlighting resumes immediately outside the full-screen action")
+        hoverView.setNotchCaptureControlsHeight(180)
+        hoverView.needsLayout = false
+        hoverView.fullScreenControlHoverChanged(true)
+        hoverView.setNotchCaptureControlsHeight(40)
+        expect(hoverView.notchCaptureControlsHeight == 180 && !hoverView.needsLayout,
+               "an island collapse cannot move the full-screen action while it is hovered")
+        hoverView.fullScreenControlHoverChanged(false)
+        expect(hoverView.notchCaptureControlsHeight == 40 && hoverView.needsLayout,
+               "the latest island geometry is applied as soon as the pointer leaves the action")
+        let hiddenHover = Chooser(.screenshot)
+        hiddenHover.currentPointerLocation = CGPoint(x: 50, y: 50)
+        let hiddenHoverView = hiddenHover.panels[0].overlayView
+        hiddenHoverView.refreshFullScreenControlVisibility()
+        hiddenHoverView.fullScreenControlHoverChanged(true)
+        hiddenHoverView.setNotchCaptureControlsHeight(180)
+        hiddenHover.activeTool = .recording
+        hiddenHoverView.refreshFullScreenControlVisibility()
+        expect(hiddenHoverView.fullScreenHost.isHidden
+                && !hiddenHoverView.fullScreenControlHovered
+                && hiddenHoverView.notchCaptureControlsHeight == 180
+                && !hiddenHoverView.hasDeferredNotchCaptureControlsHeight,
+               "hiding a hovered full-screen action clears hover and applies deferred island geometry")
         for other in [ScreenCaptureTool.screenshot, .text, .color] {
             for (from, to) in [
                 (ScreenCaptureTool.recording, other), (other, ScreenCaptureTool.recording),
             ] {
                 let c = Chooser(from)
+                c.currentPointerLocation = CGPoint(x: 50, y: 50)
                 let request = ScreenshotCaptureEngine.requests.count
                 c.select(to)
+                expect(c.panels.allSatisfy { $0.overlayView.fullScreenHost.isHidden },
+                       "changing capture tool hides the full-screen action until the refreshed source is ready")
                 expect(c.screenCaptureOptions?.offersRepeatLastRegion == c.offersRepeatLastRegion,
                        "changing capture tool updates the island hint from the same decision as the overlay")
                 expect(
@@ -217,6 +413,7 @@ enum ScreenshotSelectionRefreshContract {
                 c.confirmRegion(CGRect(x: 0, y: 0, width: 20, height: 20), on: c.panels[0])
                 c.confirmWindow(11, frame: .zero, on: c.panels[0])
                 c.captureFullDisplayUnderMouse()
+                c.captureFullScreenFromControl(on: c.panels[0])
                 Chooser.lastRegion = (1, CGRect(x: 0, y: 0, width: 20, height: 20))
                 c.repeatLastRegion()
                 c.confirmColor(at: .zero, on: c.panels[0])
@@ -230,6 +427,9 @@ enum ScreenshotSelectionRefreshContract {
                 ScreenshotCaptureEngine.complete(request, displays: [1, 2])
                 await drain()
                 expect(c.acceptsCaptureInput, "successful refresh restores capture input")
+                expect(c.panels[0].overlayView.fullScreenHost.isHidden == (to != .screenshot)
+                        && c.panels[1].overlayView.fullScreenHost.isHidden,
+                       "a ready source restores the full-screen action only for screenshots on the pointer display")
                 expect(
                     c.panels.allSatisfy { $0.frozenImage!.excluded.contains(11) == (to == .recording) },
                     "both displays use the selected tool visibility")
@@ -258,12 +458,28 @@ enum ScreenshotSelectionRefreshContract {
             }
             expect(!failed.acceptsCaptureInput, "a failed refresh never resumes capture on old pixels")
             failed.captureFullDisplayUnderMouse()
+            failed.captureFullScreenFromControl(on: failed.panels[0])
             if case .failed? = failed.outcome {
                 expect(true, "failed selection cannot subsequently save a stale screenshot")
             } else {
                 expect(false, "failed selection cannot subsequently save a stale screenshot")
             }
         }
+        // A 1x panel whose window came back as a 2x composite records 2x, so
+        // the editor, pinned image and 1x export size it by its own pixels.
+        for reported: CGFloat? in [nil, 2] {
+            ScreenshotCaptureEngine.windowCaptureScale = reported
+            let window = Chooser(.screenshot)
+            window.confirmWindow(11, frame: CGRect(x: 0, y: 0, width: 50, height: 50), on: window.panels[0])
+            await drain()
+            if case .captured(let capture)? = window.outcome {
+                expect(capture.scale == (reported ?? window.panels[0].pixelScale),
+                       "a window capture records the scale the engine captured it at")
+            } else {
+                expect(false, "a window capture records the scale the engine captured it at")
+            }
+        }
+        ScreenshotCaptureEngine.windowCaptureScale = nil
         let rapid = Chooser(.recording)
         let r3 = ScreenshotCaptureEngine.requests.count
         rapid.select(.screenshot)

@@ -9,6 +9,9 @@ struct BatteryInfo: Equatable {
     let percent: Int
     let isCharging: Bool
     let isOnBattery: Bool
+    /// Read from the power source state rather than taken as the opposite of
+    /// `isOnBattery`: a description that omits the key answers neither.
+    let isOnExternalPower: Bool
 }
 
 /// Point-in-time system facts that need no special permissions.
@@ -45,7 +48,8 @@ enum SystemInfo {
         let state = desc["Power Source State"] as? String ?? ""
         return BatteryInfo(percent: percent,
                            isCharging: charging,
-                           isOnBattery: state == "Battery Power")
+                           isOnBattery: state == "Battery Power",
+                           isOnExternalPower: state == "AC Power")
     }
 
     static func memoryUsage() -> (used: UInt64, appUsed: UInt64, total: UInt64, compressed: UInt64, cached: UInt64, swapUsed: UInt64?)? {

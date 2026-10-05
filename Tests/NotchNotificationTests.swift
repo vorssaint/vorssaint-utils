@@ -127,6 +127,27 @@ enum NotchNotificationTests {
         inbox = NotchNotificationInbox()
         suite.expect(inbox.items.isEmpty, "locking or disabling discards mirrored messages")
 
+        let kept = item(), onScreen = item(), expired = item()
+        _ = inbox.update([])
+        _ = inbox.update([kept, onScreen, expired])
+        _ = inbox.update([kept, onScreen])
+        inbox.dismiss(kept.id)
+        suite.expect(inbox.items.map(\.id) == [expired.id, onScreen.id],
+               "dismissing one mirror leaves the others in place")
+        inbox.clear()
+        suite.expect(inbox.items.isEmpty, "clear all empties live and expired mirrors together")
+        let next = item()
+        suite.expect(inbox.update([kept, onScreen, next]).map(\.id) == [next.id] && inbox.items.map(\.id) == [next.id],
+               "the first pass after clearing mirrors a new notification without restoring the cleared ones")
+        let later = item()
+        suite.expect(inbox.update([onScreen, next, later]).map(\.id) == [later.id]
+               && inbox.items.map(\.id) == [later.id, next.id],
+               "banners still on screen stay cleared while later notifications keep arriving")
+        inbox.clear()
+        inbox.clear()
+        suite.expect(inbox.items.isEmpty && inbox.update([]).isEmpty,
+               "clearing an empty inbox is harmless")
+
         let domain = "com.vorssaint.tests.notch-notifications"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)

@@ -14,6 +14,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var gate = PreciseVolumeRollerGate()
+    private var keyOwnership = PreciseVolumeKeyOwnership()
     private var notchKeyGate = NotchVolumeKeyGate()
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
@@ -23,7 +24,6 @@ final class PreciseVolumeRollerService: ObservableObject {
     private static let volumeFeedback = NSSound(
         contentsOfFile: "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff",
         byReference: true)
-    private static let forwardedVolumeEvent: Int64 = 0x564F4C4E
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
@@ -62,6 +62,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         gate.reset()
         notchKeyGate = NotchVolumeKeyGate()
         feedback = nil
+        keyOwnership = PreciseVolumeKeyOwnership()
     }
 
     private func start() {
@@ -116,7 +117,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         guard type.rawValue == CleaningSystemKeyEvent.systemDefinedEventTypeRawValue,
               let nsEvent = NSEvent(cgEvent: event),
               nsEvent.subtype.rawValue == 8 else { return Unmanaged.passUnretained(event) }
-        if event.getIntegerValueField(.eventSourceUserData) == Self.forwardedVolumeEvent {
+        if PreciseVolumeKeyEvents.isPosted(event) {
             return Unmanaged.passUnretained(event)
         }
         if routeNotchVolume(nsEvent, event: event) { return nil }
@@ -125,7 +126,10 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        if event.flags.contains(.maskAlternate), event.flags.contains(.maskShift) {
+        if keyOwnership.leavesToSystem(
+            keyCode: volumePress.keyCode, isDown: volumePress.isDown, isRepeat: volumePress.isRepeat,
+            option: event.flags.contains(.maskAlternate),
+            commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl])) {
             return Unmanaged.passUnretained(event)
         }
 
@@ -133,7 +137,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         guard gate.accepts(volumePress.direction, at: ProcessInfo.processInfo.systemUptime) else {
             return nil
         }
-        Self.postVolumeKey(volumePress.keyCode, optionShift: true)
+        Self.postFineStep(volumePress.keyCode)
         return nil
     }
 
@@ -162,8 +166,9 @@ final class PreciseVolumeRollerService: ObservableObject {
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
         feedbackStep &+= 1
         let step = feedbackStep
-        // Like macOS, the mute key clicks only when it unmutes.
-        feedback = (key != .mute || mixer.systemOutputMuted == true) && NotchVolumeKeyGate.playsFeedback(
+        // Like macOS, the mute key clicks only when it unmutes. The toggle
+        // follows the output's own reading, so its result decides that below.
+        feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
             ? (code, step, false, false) : nil
@@ -179,19 +184,31 @@ final class PreciseVolumeRollerService: ObservableObject {
                     else { self.feedback = nil }
                 }
                 if !applied, let fallback {
-                    fallback.setIntegerValueField(.eventSourceUserData, value: Self.forwardedVolumeEvent)
+                    fallback.setIntegerValueField(.eventSourceUserData, value: PreciseVolumeKeyEvents.postedMarker)
                     fallback.post(tap: .cgSessionEventTap)
                     Self.postForwardedRelease(code)
                 }
             }
-            if key == .mute, let muted = mixer.systemOutputMuted {
-                mixer.requestOutputAdjustment(muted: !muted, completion: completion)
-            } else if let current = mixer.systemOutputVolume {
-                mixer.requestOutputAdjustment(volume: NotchSupport.volumeLevel(
-                    current: mixer.systemOutputMuted == true ? 0 : current,
-                    direction: key == .volumeUp ? 1 : -1, fine: fine), completion: completion)
+            // Both keys start from the device's own reading, so the island
+            // shows the result once it has been applied. A native fallback
+            // publishes its state through the listeners.
+            if key == .mute, mixer.systemOutputMuted != nil {
+                mixer.requestOutputMuteToggle { applied in
+                    if applied, mixer.systemOutputMuted == true, self?.feedback?.step == step {
+                        self?.feedback = nil
+                    }
+                    completion(applied)
+                    if applied { NotchService.shared.showCurrentVolume() }
+                }
+            } else if mixer.systemOutputVolume != nil {
+                let direction = key == .volumeUp ? 1 : -1
+                mixer.requestOutputStep(level: {
+                    NotchSupport.volumeLevel(current: $0, direction: direction, fine: fine)
+                }, completion: { applied in
+                    completion(applied)
+                    if applied { NotchService.shared.showCurrentVolume() }
+                })
             } else { completion(false) }
-            NotchService.shared.showCurrentVolume()
         }
         return true
     }
@@ -208,33 +225,22 @@ final class PreciseVolumeRollerService: ObservableObject {
                                       modifierFlags: NSEvent.ModifierFlags(rawValue: 0xB00),
                                       timestamp: 0, windowNumber: 0, context: nil,
                                       subtype: 8, data1: Int(code << 16) | 0xB00, data2: -1)?.cgEvent
-        event?.setIntegerValueField(.eventSourceUserData, value: forwardedVolumeEvent)
+        event?.setIntegerValueField(.eventSourceUserData, value: PreciseVolumeKeyEvents.postedMarker)
         event?.post(tap: .cgSessionEventTap)
     }
 
     private static func volumePress(fromData1 data1: Int) -> (keyCode: Int32,
                                                              direction: PreciseVolumeRollerDirection,
-                                                             isDown: Bool)? {
+                                                             isDown: Bool,
+                                                             isRepeat: Bool)? {
         let keyCode = Int32((data1 >> 16) & 0xffff)
         guard let mediaKey = PreciseVolumeMediaKey(rawValue: keyCode),
               let direction = mediaKey.rollerDirection else { return nil }
         let state = (data1 >> 8) & 0xff
-        return (keyCode, direction, state == 0x0a)
+        return (keyCode, direction, state == 0x0a, data1 & 1 != 0)
     }
 
-    private static func postVolumeKey(_ keyCode: Int32, optionShift: Bool) {
-        let fineFlags: UInt = optionShift ? 0x80000 | 0x20000 : 0
-        for state in [0x0a, 0x0b] {
-            let event = NSEvent.otherEvent(with: .systemDefined,
-                                           location: .zero,
-                                           modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(state << 8) | fineFlags),
-                                           timestamp: 0,
-                                           windowNumber: 0,
-                                           context: nil,
-                                           subtype: 8,
-                                           data1: Int((keyCode << 16) | Int32(state << 8)),
-                                           data2: -1)
-            event?.cgEvent?.post(tap: CGEventTapLocation.cghidEventTap)
-        }
+    private static func postFineStep(_ keyCode: Int32) {
+        PreciseVolumeKeyEvents.fineStep(keyCode).forEach { $0.post(tap: .cghidEventTap) }
     }
 }

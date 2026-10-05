@@ -119,16 +119,21 @@ enum NotchLockScreenLayout {
         return CGRect(x: (screen.midX - playerWidth / 2).rounded(), y: bottom, width: playerWidth, height: height)
     }
 
-    /// The island as it rests with something beside the camera: one wing on
-    /// each side, the padlock in the first.
-    static let islandWing: CGFloat = 44
-
-    /// The locked island hung from the top of `screen`, around its camera.
-    static func islandFrame(in screen: CGRect, cameraWidth: CGFloat, cameraHeight: CGFloat) -> CGRect? {
-        guard [screen.width, screen.height, cameraWidth, cameraHeight].allSatisfy({ $0.isFinite && $0 > 0 }) else { return nil }
-        let width = min(screen.width - 24, cameraWidth + islandWing * 2)
+    /// The locked island hung from the top of `screen`, around its camera,
+    /// with a `wing` on each side: the padlock in the first, as wide as the
+    /// music strip's wings so the island keeps its size as the Mac locks. It
+    /// is the camera's exact fitted height, as the closed strips keep it: a
+    /// half point more would show as a dark line under the housing.
+    static func islandSurface(in screen: CGRect, cameraWidth: CGFloat, cameraHeight: CGFloat, wing: CGFloat) -> CGRect? {
+        guard [screen.width, screen.height, cameraWidth, cameraHeight, wing].allSatisfy({ $0.isFinite && $0 > 0 }) else { return nil }
+        let width = min(screen.width - 24, cameraWidth + wing * 2)
         guard width > cameraWidth else { return nil }
         // Centred on the camera to the half point: a notch only comes on Retina displays.
         return CGRect(x: screen.midX - width / 2, y: screen.maxY - cameraHeight, width: width, height: cameraHeight)
     }
+
+    /// The island's window. The lock screen's windows land on whole points,
+    /// so it grows out to them around the island, which keeps its own size
+    /// at the top of the window and leaves the extra room clear.
+    static func islandFrame(around surface: CGRect) -> CGRect { surface.integral }
 }

@@ -13,20 +13,120 @@ BUNDLE="com.vorssaint.utils"
 APP="/Applications/Vorssaint.app"
 LEGACY_APP="/Applications/Vorssaint Utils.app"
 
+# A readable domain with a missing key is different from a failed read. Export
+# the whole domain first, including an empty dictionary when it does not exist.
+spaces_read_domain() {
+    local snapshot
+    snapshot="$(defaults export "$1" - 2>/dev/null)" || return 1
+    /usr/bin/plutil -lint -s - <<< "$snapshot" >/dev/null 2>&1 || return 1
+    print -r -- "$snapshot"
+}
+
+spaces_recovery_value() {
+    local snapshot=$1 key=$2 kind value
+    kind="$(/usr/bin/plutil -type "$key" - <<< "$snapshot" 2>/dev/null)" || return 0
+    [[ "$kind" == string ]] || return 1
+    value="$(/usr/bin/plutil -extract "$key" raw -o - - <<< "$snapshot" 2>/dev/null)" || return 1
+    [[ -n "$value" ]] || return 1
+    print -r -- "$value"
+}
+
+spaces_dock_preference() {
+    local snapshot kind value
+    snapshot="$(spaces_read_domain com.apple.dock)" || { print unknown; return; }
+    kind="$(/usr/bin/plutil -type mru-spaces - <<< "$snapshot" 2>/dev/null)" || return 0
+    value="$(/usr/bin/plutil -extract mru-spaces raw -o - - <<< "$snapshot" 2>/dev/null)" \
+        || { print unknown; return; }
+    case "$kind:$value" in
+        bool:false|integer:0) print 0 ;;
+        bool:true|integer:1) print 1 ;;
+        *) print unknown ;;
+    esac
+}
+
+spaces_dock_pid() {
+    local pids result
+    if pids="$(pgrep -x -U "$UID" Dock 2>/dev/null)"; then
+        [[ -n "$pids" ]] && print -r -- "${pids%%$'\n'*}" || print unknown
+    else
+        result=$?
+        [[ "$result" == 1 ]] || print unknown
+    fi
+    return 0
+}
+
+# What fixed Space order still owes, from the restore
+# marker, the journal of a restart the Dock still owes, the Dock's mru-spaces
+# value and the running Dock's process: "stuck" while rearranging is still off,
+# "unloaded" while it is back on but the Dock keeps a fixed order until it
+# restarts, and nothing when settled. The owed restart counts on its own,
+# because the marker is gone once the setting is back. The journal counts only
+# while the same Dock process runs and the preference still reads as written:
+# a Dock that restarted since has read it, and any other value is a later
+# change the Dock applied itself. An "off" marker owes nothing: rearranging was
+# already off when the feature turned on, so it is the user's own. An
+# inconclusive read is unknown while recovery is recorded, never absent.
+spaces_leftover() {
+    local owed=$1 journal=$2 preference=$3 dock_pid=$4
+    local journal_pid journal_runs journal_wrote reads=""
+    [[ ( -z "$owed" || "$owed" == off ) && -z "$journal" ]] && return 0
+    case "$owed" in
+        ""|absent|on|off) ;;
+        *) print unknown; return ;;
+    esac
+    if [[ "$preference" == unknown || ( -n "$journal" && "$dock_pid" == unknown ) ]]; then
+        print unknown
+        return
+    fi
+    read -r journal_pid journal_runs journal_wrote <<< "$journal"
+    if [[ -n "$journal" ]]; then
+        if [[ "$journal_pid" != <-> || "$journal_runs" != (fixed|rearranging) || -z "$journal_wrote" ]]; then
+            print unknown
+            return
+        fi
+        local written
+        for written in ${=journal_wrote}; do
+            case "$written" in
+                absent|on|off) ;;
+                *) print unknown; return ;;
+            esac
+        done
+    fi
+    case "$preference" in
+        0) reads=off ;;
+        1) reads=on ;;
+        "") reads=absent ;;
+        *) print unknown; return ;;
+    esac
+    if [[ -n "$owed" && "$owed" != off && "$preference" == "0" ]]; then
+        print stuck
+    elif [[ "$journal_runs" == fixed && "$preference" != "0" && -n "$dock_pid" && "$journal_pid" == "$dock_pid"
+            && " $journal_wrote " == *" $reads "* ]]; then
+        print unloaded
+    fi
+}
+
+spaces_removal_state() {
+    local owed=$1 journal=$2
+    [[ ( -z "$owed" || "$owed" == off ) && -z "$journal" ]] && return 0
+    spaces_leftover "$owed" "$journal" "$(spaces_dock_preference)" "$(spaces_dock_pid)"
+}
+
 echo "▸ Quitting…"
 pkill -x Vorssaint 2>/dev/null || true
 pkill -x VorssaintUtils 2>/dev/null || true
 sleep 0.5
 
 # Detach from the system from inside whichever bundle still exists: unregisters
-# the login item (no BTM tombstone) and restores normal sleep.
+# the login item (no BTM tombstone), restores normal sleep and puts back Space
+# rearranging.
 # The fan helper's registration lives in the system, not in the bundle, so
 # deleting the app below cannot reach it. Only the binary can drop it, and the
 # check after the loop settles what its absence or failure left behind.
 detached=1
 for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
     if [[ -x "$candidate" ]]; then
-        echo "▸ Detaching the fan helper and login item, restoring sleep…"
+        echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
         if "$candidate" --uninstall; then detached=0; fi
         break
     fi
@@ -51,6 +151,28 @@ fi
 sleep_was_ours=0
 [[ "$(defaults read "$BUNDLE" vorssDisabledSleep 2>/dev/null)" == "1" ]] && sleep_was_ours=1
 
+# Whether Space rearranging is still owed back. `--uninstall` clears this
+# marker once the setting is back, so one still here means that restore failed
+# or never ran (an app trashed by hand). It is read here for the same reason
+# as the sleep flag above.
+if ! spaces_snapshot="$(spaces_read_domain "$BUNDLE")" \
+    || ! spaces_owed="$(spaces_recovery_value "$spaces_snapshot" spacesOrderRestore)" \
+    || ! spaces_journal="$(spaces_recovery_value "$spaces_snapshot" spacesOrderRestartPending)"; then
+    print -u2 "Could not read Space arrangement recovery. The app and its preferences were kept."
+    print -u2 "Try uninstalling again when the preferences can be read."
+    exit 1
+fi
+spaces_before_removal="$(spaces_removal_state "$spaces_owed" "$spaces_journal")"
+if [[ -n "$spaces_before_removal" ]]; then
+    case "$spaces_before_removal" in
+        stuck) print -u2 "Space rearranging has not been restored." ;;
+        unloaded) print -u2 "The Dock has not loaded the restored Space arrangement yet." ;;
+        *) print -u2 "Could not confirm that Space rearranging was restored." ;;
+    esac
+    print -u2 "The app and its recovery preferences were kept. Try uninstalling again."
+    exit 1
+fi
+
 echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
 tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
 
@@ -71,10 +193,18 @@ rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.
 # ordinary case, and prints an error over a successful uninstall.
 rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
 
-RULES="/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell"
-if ls $RULES >/dev/null 2>&1; then
+# The closed-lid rule under its current name and the two earlier ones, the
+# same files the app looks for. Each path is checked on its own. zsh passes an
+# unquoted string to a command as a single word, and one `ls` over all three
+# fails as soon as any of them is missing.
+RULES=(/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell)
+found_rules=()
+for rule in "${RULES[@]}"; do
+    [[ -e "$rule" ]] && found_rules+=("$rule")
+done
+if (( ${#found_rules} )); then
     echo "▸ Removing closed-lid sudoers rule (asks for your admin password)…"
-    osascript -e "do shell script \"rm -f $RULES\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
 fi
 
 # `--uninstall` restores sleep, but it runs before the app has an
@@ -97,7 +227,20 @@ if (( sleep_was_ours )); then
     fi
 fi
 
-if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 )); then
+# With the marker gone, nothing will ever put Space rearranging back, so this
+# is the only warning anyone will get. Only a 0 proves it is still off: a
+# missing key is the system default, which rearranges. This only reads the
+# Dock's preference; changing it is left to the user.
+spaces_stuck=0
+spaces_unloaded=0
+spaces_unknown=0
+case "$(spaces_removal_state "$spaces_owed" "$spaces_journal")" in
+    stuck) spaces_stuck=1 ;;
+    unloaded) spaces_unloaded=1 ;;
+    unknown) spaces_unknown=1 ;;
+esac
+
+if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 && spaces_unloaded == 0 && spaces_unknown == 0 )); then
     echo "✓ Vorssaint fully removed."
     exit 0
 fi
@@ -114,5 +257,20 @@ if (( sleep_unknown )); then
     echo "⚠ Vorssaint removed, but whether sleep came back could not be read." >&2
     echo "  Closed-lid mode had switched it off. Check with: pmset -g | grep SleepDisabled" >&2
     echo "  If that reads 1, put it back with: sudo pmset disablesleep 0" >&2
+fi
+if (( spaces_stuck )); then
+    echo "⚠ Vorssaint removed, but Spaces are still kept in a fixed order." >&2
+    echo "  Fixed Space order had turned rearranging off, and it was not put back." >&2
+    echo "  Turn it back on in System Settings › Desktop & Dock with" >&2
+    echo "  \"Automatically rearrange Spaces based on most recent use\"." >&2
+fi
+if (( spaces_unloaded )); then
+    echo "⚠ Vorssaint removed, but the Dock still keeps Spaces in a fixed order." >&2
+    echo "  Space rearranging was put back on, and the Dock reads it when it restarts." >&2
+    echo "  Log out and back in to finish." >&2
+fi
+if (( spaces_unknown )); then
+    print -u2 "Vorssaint removed, but whether Space rearranging was restored could not be confirmed."
+    print -u2 "Check Automatically rearrange Spaces based on most recent use in System Settings."
 fi
 exit 1

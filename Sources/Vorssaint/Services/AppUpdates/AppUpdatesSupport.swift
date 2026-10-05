@@ -205,7 +205,12 @@ enum AppUpdatesSupport {
                 return leftBare ? .orderedDescending : .orderedAscending
             }
         }
-        return lhs.lowercased() < rhs.lowercased() ? .orderedAscending : .orderedDescending
+        // The text tie-break folds case, so two spellings of one release are
+        // equal here. Returning descending for both directions made the
+        // result antisymmetric and left isNewer true against itself.
+        let left = lhs.lowercased(), right = rhs.lowercased()
+        if left == right { return .orderedSame }
+        return left < right ? .orderedAscending : .orderedDescending
     }
 
     /// Compared as text after dropping leading zeros, so versions with more

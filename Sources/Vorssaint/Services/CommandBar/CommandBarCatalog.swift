@@ -393,7 +393,10 @@ enum CommandBarCatalog {
                 title: clipboard.clearRecent,
                 subtitle: area(.clipboardHistory),
                 keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
-                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                           ClipboardFeatureStrings.enUS.clearRecent,
+                           clipboard.recent, ClipboardFeatureStrings.enUS.recent,
+                           clipboard.clearRecentKeywords,
+                           ClipboardFeatureStrings.enUS.clearRecentKeywords].joined(separator: " "),
                 icon: .symbol("trash"),
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
@@ -512,9 +515,9 @@ enum CommandBarCatalog {
                 subtitle: enabled
                     ? String(format: bar.argumentRangeFormat, 0, 100)
                     : area(.brightness),
-                // The Displays page name doubles as a synonym, so the words
-                // of both surfaces land here.
-                keywords: FeatureStrings.brightness(language).pageTitle,
+                // The Displays page name and the everyday word for the screen
+                // both find this row, so "screen 40" still sets brightness.
+                keywords: FeatureStrings.brightness(language).pageTitle + " " + bar.brightnessKeywords,
                 icon: .symbol("sun.max"),
                 trouble: enabled ? nil
                     : .needsSetup(featureTitle: FeatureStrings.brightness(language).pageTitle,
@@ -1085,19 +1088,23 @@ enum CommandBarCatalog {
         }
     }
 
-    /// One row per installed app, offered only inside the "Uninstall
-    /// Application" category browse - never in the flat search pool, since a
-    /// few hundred destructive rows have no business sitting in a list
-    /// someone might arrow through by accident. Selecting one opens the full
-    /// leftover-files review, the same as picking the app straight from
-    /// Finder does.
+    /// One row per installed app the uninstaller will take, offered only
+    /// inside the "Uninstall Application" category browse - never in the flat
+    /// search pool, since a few hundred destructive rows have no business
+    /// sitting in a list someone might arrow through by accident. Selecting
+    /// one opens the full leftover-files review, the same as picking the app
+    /// straight from Finder does. `uninstallable` holds the ids its own check
+    /// accepted during the background scan.
     static func uninstallEntries(_ apps: [InstalledApps.InstalledApp],
+                                 uninstallable: Set<String>,
                                  bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
         else { return [] }
         let ownBundleID = Bundle.main.bundleIdentifier
-        return apps.filter { !$0.isSystem && $0.bundleID != ownBundleID }.map { app in
+        return apps.filter {
+            !$0.isSystem && $0.bundleID != ownBundleID && uninstallable.contains($0.id)
+        }.map { app in
             CommandBarEntry(
                 id: "uninstall.\(app.id)",
                 stableKey: app.bundleID.map { "uninstall.bundle.\($0)" } ?? "uninstall.\(app.id)",
@@ -1113,13 +1120,14 @@ enum CommandBarCatalog {
 
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, so uninstalling it never needs the bar's own picker first.
+    /// An app the uninstaller would refuse gets no row.
     static func uninstallSelectionEntries(urls: [URL], automationDenied: Bool) -> [CommandBarEntry] {
         guard AppFeature.uninstaller.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
               urls.count == 1, let url = urls.first,
               url.pathExtension.lowercased() == "app",
               InstalledApps.isInApplicationsFolder(url),
-              !InstalledApps.isSystemApplication(at: url)
+              UninstallerSupport.selection(for: url) != nil
         else { return [] }
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         var name = FileManager.default.displayName(atPath: url.path)
@@ -1182,14 +1190,22 @@ enum CommandBarCatalog {
 
         if let battery = cachedBattery {
             let value = "\(battery.percent)%"
-            let detail = battery.isCharging
-                ? bar.answerBatteryCharging
-                : (battery.isOnBattery ? bar.answerBatteryLabel : bar.answerBatteryPlugged)
+            // The row said "Plugged" beside a battery drawn without its bolt;
+            // text and icon now answer from the same reading.
+            let state = BatteryPowerSupport.state(isCharging: battery.isCharging,
+                                                  externalConnected: battery.isOnExternalPower,
+                                                  hasBattery: true)
+            let detail: String
+            switch state {
+            case .charging: detail = bar.answerBatteryCharging
+            case .externalPower: detail = bar.answerBatteryPlugged
+            case .onBattery, .unavailable: detail = bar.answerBatteryLabel
+            }
             entries.append(CommandBarEntry(
                 id: "answer.battery",
                 title: bar.answerBatteryLabel,
                 subtitle: detail,
-                icon: .symbol(battery.isCharging ? "battery.100.bolt" : "battery.75"),
+                icon: .symbol(state == .onBattery ? "battery.75" : "battery.100.bolt"),
                 answerValue: value,
                 countsUsage: false,
                 run: { _ in copyAnswer(value) }))

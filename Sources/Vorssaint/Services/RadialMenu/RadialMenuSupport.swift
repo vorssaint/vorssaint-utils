@@ -86,13 +86,15 @@ struct RadialMenuProfile: Codable, Identifiable, Equatable {
         name.isEmpty ? text.presetGeneral : name
     }
 
-    /// The copy Duplicate adds. The shortcut and the trackpad tap each open
-    /// one wheel, so the copy starts without them and leaves the original's.
+    /// The copy Duplicate adds. The shortcut, the mouse button and the
+    /// trackpad tap each open one wheel, so the copy starts without them and
+    /// leaves the original's.
     func duplicate(named name: String) -> RadialMenuProfile {
         var copy = self
         copy.id = UUID()
         copy.name = name
         copy.shortcut = ""
+        copy.mouseButton = RadialMenuMouseTrigger.off.rawValue
         copy.trackpadTap = false
         return copy
     }
@@ -788,6 +790,33 @@ enum RadialMenuSupport {
         }
     }
 
+    /// Whether anything opens this wheel. The profile picked in Settings is
+    /// only the one being edited, so a wheel without a shortcut, a mouse
+    /// button or the trackpad tap never opens outside of Try it.
+    static func hasTrigger(_ profile: RadialMenuProfile) -> Bool {
+        GlobalShortcut(storageValue: profile.shortcut) != nil
+            || RadialMenuMouseTrigger.sanitized(profile.mouseButton) != .off
+            || profile.trackpadTap
+    }
+
+    /// Gives one wheel a mouse button. A button only ever opens the first
+    /// wheel that has it, so claiming it here releases it from the others,
+    /// the way the trackpad tap moves.
+    static func assigning(mouseButton raw: String, to profileID: UUID,
+                          in profiles: [RadialMenuProfile]) -> [RadialMenuProfile] {
+        let button = RadialMenuMouseTrigger.sanitized(raw).buttonNumber
+        return profiles.map { profile in
+            var profile = profile
+            if profile.id == profileID {
+                profile.mouseButton = raw
+            } else if let button,
+                      RadialMenuMouseTrigger.sanitized(profile.mouseButton).buttonNumber == button {
+                profile.mouseButton = RadialMenuMouseTrigger.off.rawValue
+            }
+            return profile
+        }
+    }
+
     /// The mouse buttons the wheel is bound to right now, decoded from the
     /// stored buttons alone.
     ///
@@ -875,6 +904,7 @@ enum RadialMenuSupport {
 
     static func sanitizedProfiles(_ profiles: [RadialMenuProfile]) -> [RadialMenuProfile] {
         var seenIDs = Set<UUID>()
+        var seenButtons = Set<Int64>()
         var result: [RadialMenuProfile] = []
         for var profile in profiles {
             guard seenIDs.insert(profile.id).inserted else { continue }
@@ -885,6 +915,13 @@ enum RadialMenuSupport {
                 profile.shortcut = ""
             }
             profile.mouseButton = RadialMenuMouseTrigger.sanitized(profile.mouseButton).rawValue
+            // A button opens only the first wheel that has it, so a later
+            // wheel saved with the same one (Duplicate used to keep it) reads
+            // as off, which is what it always was.
+            if let button = RadialMenuMouseTrigger.sanitized(profile.mouseButton).buttonNumber,
+               !seenButtons.insert(button).inserted {
+                profile.mouseButton = RadialMenuMouseTrigger.off.rawValue
+            }
             result.append(profile)
         }
         if result.isEmpty {

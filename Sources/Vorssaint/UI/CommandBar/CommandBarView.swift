@@ -29,7 +29,14 @@ struct CommandBarView: View {
     /// As tall as the list is ever allowed to be, so the panel never grows
     /// past what a laptop screen can show above the fold.
     static let listCeiling: CGFloat = 452
+    static let width: CGFloat = 560
+    /// The field alone, as the compact bar shows it.
+    static let fieldHeight: CGFloat = 50
     private static let homeChipID = "category.all"
+
+    /// Where this copy is drawn: the island's own, or the bar's window, which
+    /// follows how the bar was presented.
+    var presentation: CommandBarPresentation? = nil
 
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -111,6 +118,18 @@ struct CommandBarView: View {
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
 
+    private var shownAs: CommandBarPresentation { presentation ?? service.presentation }
+
+    /// Out of the island the bar is the island's: black, or the open island's
+    /// own surface, and dark like it.
+    @ViewBuilder private var backdrop: some View {
+        switch shownAs {
+        case .window: HUDBackdrop(cornerRadius: 22, contrast: .high)
+        case .droplet: RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black)
+        case .island: Color.clear
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             searchBar
@@ -169,16 +188,26 @@ struct CommandBarView: View {
                 footer
             }
         }
-        .frame(width: 560)
-        .background(HUDBackdrop(cornerRadius: 22, contrast: .high))
+        .frame(width: Self.width)
+        .environment(\.colorScheme, shownAs == .window ? colorScheme : .dark)
+        .background(backdrop)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .onAppear { focusSearch() }
+        .onAppear {
+            focusSearch()
+            service.barDidAppear()
+        }
         .onChange(of: service.presentationID) { _, _ in focusSearch() }
         .onChange(of: service.mode) { _, _ in focusSearch() }
     }
 
+    /// Only the copy on screen asks for the keyboard: a hidden copy taking it
+    /// would hand its own empty text back to the search.
+    private var isShown: Bool {
+        presentation == .island ? service.presentation == .island : service.presentation != .island
+    }
+
     private func focusSearch() {
-        DispatchQueue.main.async { searchFocused = true }
+        DispatchQueue.main.async { if isShown { searchFocused = true } }
     }
 
     // MARK: - Field
@@ -191,14 +220,21 @@ struct CommandBarView: View {
             // a mark left to follow the proposed height shrinks or vanishes
             // mid-layout. It is also the handle that carries the bar to
             // wherever the hand wants it; a double-click brings it home.
-            BrandMark(width: 22, tint: markTint)
-                .opacity(0.85)
-                .frame(width: 22, height: 22)
-                .allowsHitTesting(false)
-                .overlay(
-                    DragHandle()
-                        .help(text.dragHint)
-                )
+            if shownAs == .window {
+                BrandMark(width: 22, tint: markTint)
+                    .opacity(0.85)
+                    .frame(width: 22, height: 22)
+                    .allowsHitTesting(false)
+                    .overlay(
+                        DragHandle()
+                            .help(text.dragHint)
+                    )
+            } else {
+                // Out of the island, the companion is the bar's face, and the
+                // bar stays where the island put it.
+                CommandBarMascot(service: service)
+                    .frame(width: 22, height: 22)
+            }
             if case .naming(let entryID) = service.mode,
                let entry = service.entry(withID: entryID) {
                 Text(entry.title)
@@ -1219,5 +1255,37 @@ enum CommandBarIconCache {
         let result = NSImage(size: size)
         result.addRepresentation(rep)
         return result
+    }
+}
+
+/// The companion as the bar's face: it glances about as you type, thinks
+/// while answers load, hops when they arrive and looks lost when nothing
+/// matches.
+private struct CommandBarMascot: View {
+    @ObservedObject var service: CommandBarService
+    @State private var cue: NotchMascotCue?
+    @State private var cueID = 0
+
+    private var mood: NotchMascotMood {
+        NotchMascotSupport.commandBarMood(query: service.query, hasResults: !service.rows.isEmpty,
+                                          searching: service.awaitsAnswers)
+    }
+
+    var body: some View {
+        NotchMascotView(look: NotchMascotSupport.look(), mood: mood, size: 22, cue: cue, cueID: cueID)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            // Its eyes go along what is typed, and come back once typing stops.
+            .onChange(of: service.query) { _, query in
+                cue = .look(NotchMascotSupport.readingGaze(for: query))
+                cueID += 1
+            }
+            // After the look, so results arriving with a keystroke win.
+            .onChange(of: mood) { old, new in
+                guard NotchMascotSupport.celebrates(from: old, to: new, query: service.query,
+                                                    hasResults: !service.rows.isEmpty) else { return }
+                cue = .celebrate
+                cueID += 1
+            }
     }
 }

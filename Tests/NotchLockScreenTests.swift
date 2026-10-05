@@ -119,16 +119,39 @@ enum NotchLockScreenTests {
         suite.expect(Layout.rowFrame(in: CGRect(x: 0, y: 0, width: 400, height: 956)) == nil
                      && Layout.playerFrame(in: CGRect(x: 0, y: 0, width: CGFloat.nan, height: 956)) == nil,
                      "a narrow or unreadable display keeps the lock screen as it is")
-        if let island = Layout.islandFrame(in: measured, cameraWidth: 179, cameraHeight: 32) {
-            suite.expect(island.midX == measured.midX && island.maxY == measured.maxY && island.height == 32
-                         && island.width == 179 + Layout.islandWing * 2,
-                         "the padlock's island hangs from the top, centred on the camera, a wing each side")
-        } else {
-            suite.expect(false, "a notched display has room for the padlock")
+        // The fit a person sets moves the island's camera. The locked island
+        // is drawn at exactly the fitted camera's height and the music strip's
+        // size, even when the fit leaves half a point or the width is odd; only
+        // its window grows out to whole points, with the extra room clear.
+        let fits = [NotchCameraFit(width: 6, height: 3), NotchCameraFit(width: 0, height: 0.5),
+                    NotchCameraFit(width: 0, height: -0.5), NotchCameraFit(width: 1, height: 1.5)]
+        for fit in fits {
+            let fitted = NotchGeometry(screen: measured, safeAreaTop: 32, cameraWidth: 179, cameraFit: fit)
+            let music = fitted.lockScreenMusicGeometry
+            let camera = fitted.bareCutout
+            guard let surface = Layout.islandSurface(in: measured, cameraWidth: camera.width, cameraHeight: camera.height,
+                                                     wing: music.compactActivityWingWidth) else {
+                suite.expect(false, "a notched display has room for the padlock with a fit of \(fit)")
+                continue
+            }
+            let window = Layout.islandFrame(around: surface)
+            suite.expect(surface.height == 32 + fit.height && surface.height == camera.height
+                         && surface.size == music.compactActivitySize
+                         && surface.maxY == measured.maxY && surface.midX == measured.midX,
+                         "with a fit of \(fit) the padlock's island is the fitted camera's height and the strip's size, centred on the camera")
+            suite.expect(window == window.integral && window.contains(surface) && window.maxY == surface.maxY
+                         && window.width - surface.width < 2 && window.height - surface.height < 1,
+                         "with a fit of \(fit) the island's window lands on whole points around it, the island at its top")
         }
-        suite.expect(Layout.islandFrame(in: measured, cameraWidth: 0, cameraHeight: 32) == nil
-                     && Layout.islandFrame(in: measured, cameraWidth: 179, cameraHeight: .nan) == nil
-                     && Layout.islandFrame(in: measured, cameraWidth: 1460, cameraHeight: 32) == nil,
+        var crowded = NotchGeometry(screen: measured, safeAreaTop: 32, cameraWidth: 179)
+        let wing = crowded.lockScreenMusicGeometry.compactActivityWingWidth
+        crowded.compactSideRoom = 0
+        suite.expect(crowded.lockScreenMusicGeometry.compactActivityWingWidth == wing && wing < 44,
+                     "menus beside the camera while unlocked do not narrow the locked island")
+        suite.expect(Layout.islandSurface(in: measured, cameraWidth: 0, cameraHeight: 32, wing: wing) == nil
+                     && Layout.islandSurface(in: measured, cameraWidth: 179, cameraHeight: .nan, wing: wing) == nil
+                     && Layout.islandSurface(in: measured, cameraWidth: 179, cameraHeight: 32, wing: 0) == nil
+                     && Layout.islandSurface(in: measured, cameraWidth: 1460, cameraHeight: 32, wing: wing) == nil,
                      "no padlock without a camera to hang it from, or room beside it")
     }
 

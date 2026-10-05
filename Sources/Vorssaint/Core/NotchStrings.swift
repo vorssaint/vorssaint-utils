@@ -414,7 +414,7 @@ extension NotchStrings {
         charging: "Nabíja sa",
         charged: "Úplne nabitá",
         lowBattery: "Nízky stav batérie",
-        controls: "Ovládacie prvky",
+        controls: "Ovládanie",
         system: "Systém",
         disabled: "Zapnite príslušnú funkciu, aby ste ju tu mohli používať.",
         files: "Súbory",
@@ -468,7 +468,7 @@ extension NotchStrings {
         quickAccessRight: "Vpravo",
         translucentBackground: "Priesvitné pozadie",
         translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
-        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto priesvitného pozadia."
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu."
     )
 
     static let de = NotchStrings(
@@ -1109,14 +1109,14 @@ extension NotchStrings {
         hover: "指针停留在Dynamic Island上时打开",
         modules: "显示内容",
         events: "更多选项",
-        clipboardActivity: "复制时通知",
+        clipboardActivity: "拷贝时通知",
         captureActivity: "在此显示截屏预览",
-        privacy: "复制的内容会保持私密，直到你打开历史记录。这些选项遵循原功能的设置。",
+        privacy: "拷贝的内容会保持私密，直到你打开历史记录。这些选项遵循原功能的设置。",
         open: "打开Dynamic Island",
         collapse: "收起",
         pin: "保持打开",
         unpin: "允许自动关闭",
-        panel: "打开应用面板",
+        panel: "打开 App 面板",
         dropHint: "将文件拖到这里",
         empty: "在Dynamic Island设置中选择要显示的内容。",
         volume: "音量",
@@ -1143,7 +1143,7 @@ extension NotchStrings {
         dragReveal: "拖动时显示放置区域",
         captureControls: "在Dynamic Island中显示屏幕捕获控制",
         quickPanel: "在Dynamic Island中打开快捷面板",
-        appPanel: "在Dynamic Island中打开应用面板",
+        appPanel: "在Dynamic Island中打开 App 面板",
         idleContent: "闲置时",
         idleNone: "无",
         coverMenus: "显示在菜单上方",
@@ -1393,7 +1393,7 @@ extension NotchStrings {
         charging: "Заряджається",
         charged: "Повністю заряджено",
         lowBattery: "Низький заряд",
-        controls: "Елементи керування",
+        controls: "Керування",
         system: "Система",
         disabled: "Увімкніть відповідну функцію, щоб використовувати її тут.",
         files: "Файли",

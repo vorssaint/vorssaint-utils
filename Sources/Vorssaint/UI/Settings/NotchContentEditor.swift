@@ -57,7 +57,7 @@ struct NotchIslandPreview: View {
     }
 
     private func stage(in stageSize: CGSize) -> some View {
-        let geometry = notch.geometry
+        let geometry = notch.previewGeometry(for: module)
         let size = notch.previewSize(for: module)
         let scale = Self.scale(in: stageSize)
         return ZStack(alignment: .top) {
@@ -134,7 +134,7 @@ struct NotchIslandPreview: View {
                         .frame(width: 28, height: 28)
                 }
                 Text(module.title(l10n.language))
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(Font(NotchLayout.headerTitleFont as CTFont))
                     .lineLimit(1)
             }
             .frame(width: half, alignment: .leading)
@@ -142,12 +142,13 @@ struct NotchIslandPreview: View {
             if geometry.headerCameraGap > 0 {
                 Color.clear.frame(width: geometry.headerCameraGap)
             }
+            // In a row of its own the title takes the width the actions leave.
             Image(systemName: "ellipsis")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(width: 28, height: 28)
                 .frame(width: half, alignment: .trailing)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: half == nil ? nil : .infinity, alignment: .trailing)
         }
         .frame(height: geometry.headerRowHeight)
     }
@@ -185,6 +186,8 @@ struct NotchPagePreview: View {
             } else {
                 NotchEmptyView(symbol: "sparkles", message: FeatureStrings.notchEditor(l10n.language).agentsSummary)
             }
+        // The live area belongs to the island; the preview explains it instead.
+        case .watch: NotchWatchView(size: size)
         }
     }
 
@@ -379,6 +382,7 @@ extension NotchModule {
         case .downloads: return .blue
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
+        case .watch: return .purple
         }
     }
 

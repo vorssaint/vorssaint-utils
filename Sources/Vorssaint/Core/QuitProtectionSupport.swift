@@ -78,8 +78,17 @@ enum QuitProtectionSupport {
         return secondTimestamp - firstTimestamp <= allowedNanoseconds
     }
 
-    static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut) -> Bool {
-        shortcut == .quit
+    static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut,
+                                      bundleIdentifier: String? = nil) -> Bool {
+        guard shortcut == .quit else { return false }
+        if let bundleIdentifier, requiresSyntheticQuit(bundleIdentifier: bundleIdentifier) {
+            return false
+        }
+        return true
+    }
+
+    static func requiresSyntheticQuit(bundleIdentifier: String) -> Bool {
+        bundleIdentifier == "com.valvesoftware.steam"
     }
 
     static func scopeAllows(_ scope: QuitProtectionScope,

@@ -159,7 +159,8 @@ enum AgentCodexServer {
         }
         guard let snapshot,
               let windows = AgentLogParser.codexWindows(snapshot, observed: observed,
-                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt")),
+                                                        keys: ("usedPercent", "windowDurationMins", "resetsAt",
+                                                               "individualLimit", "remainingPercent")),
               !windows.isEmpty else { return nil }
         return AgentLimits(provider: .codex, windows: windows, observedAt: observed, source: .account)
     }
@@ -201,7 +202,10 @@ final class AgentCodexConversation {
     init?(_ executable: URL, environment: [String: String], timeout: TimeInterval) {
         deadline = .now() + timeout
         process.executableURL = executable
-        process.arguments = ["app-server"]
+        // As it starts, Codex's server brings its plugins up to date, which
+        // runs Git against each plugin marketplace added to Codex. Nothing
+        // asked here needs a plugin, so they stay off for this server.
+        process.arguments = ["-c", "features.plugins=false", "app-server"]
         process.environment = environment
         // Nothing here needs a folder; the root keeps a project's files, or
         // a protected folder the app was opened from, out of the server's way.

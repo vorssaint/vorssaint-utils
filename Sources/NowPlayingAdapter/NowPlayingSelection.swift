@@ -88,8 +88,10 @@ enum NotchNativePlayback {
     }
 
     private static func playPauseCommand(for info: [String: Any]) -> Int32 {
-        guard let rate = (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue,
-              rate.isFinite else { return 2 }
+        // The player's own state outranks a rate it has not updated yet.
+        let rate = (info["isPlaying"] as? Bool).map { $0 ? 1 : 0 }
+            ?? (info["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue
+        guard let rate, rate.isFinite else { return 2 }
         if rate > 0, info["canPause"] as? Bool == true { return 1 }
         if rate == 0, info["canPlay"] as? Bool == true { return 0 }
         return 2
@@ -161,12 +163,23 @@ enum NotchNativePlayback {
             }
         }
         var candidates: [(Target, NotchPlaybackSource)] = []
+        // A rate the player has not updated would rank a paused song as
+        // playing. Its own state wins where it answers in time.
+        var states: [Int32: Bool] = [:]
+        let stateReads = DispatchGroup()
         for app in applications {
             guard var candidate = makeTarget(app) else { continue }
             // A browser can publish through a web content helper. Keep its exact
             // process for routing, and use the parent app only for presentation/opening.
             candidate.applicationBundleIdentifier = presentation[candidate.pid]?.application
                 .flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
+            stateReads.enter()
+            readPlaybackState(candidate, queue: callbacks) { isPlaying in
+                resultsLock.lock()
+                states[candidate.pid] = isPlaying
+                resultsLock.unlock()
+                stateReads.leave()
+            }
             group.enter()
             readInfo(candidate, artwork: false, queue: callbacks) { info in
                 let source = NotchPlaybackSource(pid: candidate.pid, bundleIdentifier: candidate.bundleIdentifier,
@@ -182,8 +195,14 @@ enum NotchNativePlayback {
         }
         // Keep completed reads when an unrelated client misses the deadline.
         _ = group.wait(timeout: .now() + 1)
+        _ = stateReads.wait(timeout: .now() + 0.2)
         resultsLock.lock()
-        let ready = candidates
+        let ready = candidates.map { candidate, source in
+            guard let playing = states[candidate.pid], playing != source.isPlaying else { return (candidate, source) }
+            return (candidate, NotchPlaybackSource(pid: source.pid, bundleIdentifier: source.bundleIdentifier,
+                                                   isMusicApp: source.isMusicApp, isPlaying: playing,
+                                                   hasTrack: source.hasTrack, displayName: source.displayName))
+        }
         resultsLock.unlock()
         let now = ProcessInfo.processInfo.systemUptime
         lock.lock()
@@ -322,6 +341,25 @@ enum NotchNativePlayback {
             completion(nil); return
         }
         read(target.path, queue, completion)
+    }
+
+    /// Whether the player says it is playing, as the system's Now Playing
+    /// shows it. Nil when the state is unknown or cannot be read.
+    static func readPlaybackState(_ target: Target, queue: DispatchQueue, completion: @escaping (Bool?) -> Void) {
+        typealias Read = @convention(c) (AnyObject, DispatchQueue, @escaping @convention(block) (UInt32) -> Void) -> Void
+        guard target.isRunning,
+              let read = function(handle, "MRMediaRemoteGetPlaybackStateForPlayer", as: Read.self) else {
+            completion(nil); return
+        }
+        read(target.path, queue) { state in
+            // 1 playing; 2 paused, 3 stopped, 4 interrupted. Unknown (0)
+            // and seeking (5) leave the rate to decide.
+            switch state {
+            case 1: completion(true)
+            case 2, 3, 4: completion(false)
+            default: completion(nil)
+            }
+        }
     }
 
     private static func currentPlayerPID() -> Int32? {

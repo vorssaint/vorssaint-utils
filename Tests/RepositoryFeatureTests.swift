@@ -296,6 +296,77 @@ enum RepositoryFeatureTests {
                     "https://www.reddit.com/r/swift/comments/abc/?sort=new",
                     "URL cleaner strips Reddit's deep-link tracking in either spelling")
 
+        // MARK: URL cleaning is a pure deletion
+
+        // Cleaning a link is only allowed to take parameters out of it. The
+        // query is therefore filtered while it is still percent-encoded and
+        // the survivors are put back byte for byte. Decoding them and writing
+        // them back through `queryItems` re-encodes with a much wider allowed
+        // set, so the cleaner respells a value it was never asked to touch —
+        // and on a link with nothing to remove it respells the whole query
+        // and then reports a clean.
+        let wrappedLink = "https://example.com/?redirect=https%3A%2F%2Fexample.org%2F%3Futm_source%3Dkeepme%26z%3D9&gclid=1"
+        let wrappedClean = URLCleaning.clean(wrappedLink)
+        expectEqual(wrappedClean?.url ?? "",
+                    "https://example.com/?redirect=https%3A%2F%2Fexample.org%2F%3Futm_source%3Dkeepme%26z%3D9",
+                    "cleaning a wrapper link takes the tracker out and leaves the wrapped target encoded")
+        suite.expect(wrappedClean?.removed == ["gclid"],
+               "a wrapper link reports only the tracker it really removed")
+        // A link with nothing to remove must come back identical, or the
+        // clipboard poll replaces the user's copy with a different, wrong one
+        // and the UI calls it a clean.
+        let nothingToRemove = "https://example.com/url?q=https%3A%2F%2Fexample.com%2Fpage%3Fa%3D1%26utm_source%3Dnews&sa=U"
+        suite.expect(URLCleaning.clean(nothingToRemove)?.url == nothingToRemove
+               && URLCleaning.outcome(for: URLCleaning.clean(nothingToRemove), input: nothingToRemove) == .unchanged,
+               "a link with no tracked parameter is returned byte for byte and reads as unchanged")
+        for untouched in [
+            "https://example.com/",
+            "https://example.com/?",
+            "https://example.com/path?a=1&a=2",
+            "https://example.com/?q=a+b&r=%5B%5D&s=%20x",
+            "https://user:pw@example.com:8443/p?id=1",
+            "https://[::1]:8443/p?id=1",
+        ] {
+            suite.expect(URLCleaning.clean(untouched)?.url == untouched,
+                   "a link with no tracked parameter is never re-encoded, reordered or normalised: \(untouched)")
+        }
+        expectEqual(URLCleaning.clean("https://example.com/?flag&utm_medium&utm_source=news&id=1")?.url ?? "",
+                    "https://example.com/?flag&id=1",
+                    "a pair with no equals sign is judged by its whole text and a valueless tracker still goes")
+        expectEqual(URLCleaning.clean("https://example.com/?%75tm_source=news&id=1")?.url ?? "",
+                    "https://example.com/?id=1",
+                    "a tracker name spelled percent-encoded is decoded before it is matched")
+        suite.expect(URLCleaning.clean("https://example.com/?utm_source=a&fbclid=b&utm_source=c")?.removed
+                == ["utm_source", "fbclid"],
+               "a name repeated in one link is still reported once")
+
+        let unicodeURL = "https://éxample.com/cafe\u{0301}?x=%2f&q=é#re\u{0301}sume\u{0301}"
+        let unchangedUnicode = URLCleaning.clean(unicodeURL)
+        suite.expect(unchangedUnicode?.url.utf8.elementsEqual(unicodeURL.utf8) == true
+               && unchangedUnicode?.removed.isEmpty == true,
+               "a no-op preserves Unicode spelling and existing escapes byte for byte")
+        let preservedURLCases = [
+            ("https://example.com/p?x=%2f&q=é&utm_source=x", "https://example.com/p?x=%2f&q=é"),
+            ("https://éxample.com/cafe\u{0301}?x=%2f&utm_source=x#re\u{0301}sume\u{0301}",
+             "https://éxample.com/cafe\u{0301}?x=%2f#re\u{0301}sume\u{0301}"),
+            ("https://example.com/p?utm_source=x&\u{0301}id=1", "https://example.com/p?\u{0301}id=1"),
+            ("https://example.com/p?fbclid=\u{0301}x&id=1", "https://example.com/p?id=1"),
+            ("https://example.com/p?\u{0301}id=1&utm_source=x", "https://example.com/p?\u{0301}id=1"),
+            ("https://example.com/p?utm_source=x#\u{0301}keep?utm_medium=y", "https://example.com/p#\u{0301}keep?utm_medium=y"),
+            ("https://example.com/p?utm_source=x#", "https://example.com/p#"),
+            ("https://example.com/p?utm_source=x&", "https://example.com/p?"),
+            ("https://example.com/p?&utm_source=x&&id=%26%3D%3F%23", "https://example.com/p?&&id=%26%3D%3F%23"),
+            ("https://example.com/p#fragment?utm_source=x", "https://example.com/p#fragment?utm_source=x"),
+        ]
+        for (input, expected) in preservedURLCases {
+            suite.expect(URLCleaning.clean(input)?.url.utf8.elementsEqual(expected.utf8) == true,
+                   "cleaning preserves every surviving byte, including delimiters beside combining marks: \(input)")
+        }
+        for separator in ["\n", "\r\n", "\t", " ", "\u{00A0}"] {
+            suite.expect(URLCleaning.clean("https://a.example/x?utm_source=x\(separator)https://b.example/y") == nil,
+                   "automatic URL cleaning cannot discard a second link from a separated text copy")
+        }
+
         suite.expect(URLCleaning.canRewritePasteboard(types: [
             "public.utf8-plain-text", "public.url", "public.url-name",
             "NSStringPboardType", "NSURLPboardType",
@@ -788,16 +859,19 @@ enum RepositoryFeatureTests {
                                                    groupDependencies: false)
         suite.expect(flat.rows.map(\.id) == dependencyPackages.map(\.id)
                      && flat.rows.count == dependencyPackages.count
-                     && flat.dependencies.isEmpty,
-                     "Homebrew flat mode retains every installed row in its incoming order and shows no nested duplicates")
+                     && flat.dependencies.isEmpty
+                     && flat.orphans.isEmpty,
+                     "Homebrew flat mode retains every installed row in its incoming order and shows no nested duplicates or orphans")
         let grouped = HomebrewDependencyGraph.display(dependencyPackages,
                                                       installed: dependencyPackages,
                                                       groupDependencies: true)
         suite.expect(grouped.rows.map(\.id) == folded.rows.map(\.id)
-                     && Set(grouped.dependencies.keys) == Set(folded.dependencies.keys),
+                     && Set(grouped.dependencies.keys) == Set(folded.dependencies.keys)
+                     && grouped.orphans.map(\.id) == folded.orphans.map(\.id),
                      "Homebrew grouped mode preserves the existing dependency layout")
-        suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b", "orphan-lib"],
-                     "Homebrew keeps requested packages and unneeded dependencies as rows, found \(folded.rows.map(\.name))")
+        suite.expect(folded.rows.map(\.name) == ["cask-app", "app-a", "example/tap/app-b"]
+                     && folded.orphans.map(\.name) == ["orphan-lib"],
+                     "Homebrew keeps requested packages as rows and lists a dependency nothing needs as an orphan, found \(folded.rows.map(\.name)) and \(folded.orphans.map(\.name))")
         suite.expect(folded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
                      "Homebrew lists direct and transitive dependencies under a requested formula")
         suite.expect(folded.dependencies["formula:example/tap/app-b"]?.map(\.name)
@@ -820,9 +894,21 @@ enum RepositoryFeatureTests {
         suite.expect(flatWithUpdate.rows.map(\.id) == withUpdate.map(\.id)
                      && flatWithUpdate.rows.first?.name == "shared-lib",
                      "Homebrew flat mode keeps update-first ordering and includes dependencies as top-level rows")
-        suite.expect(updateFolded.rows.map(\.name) == ["shared-lib", "cask-app", "app-a", "example/tap/app-b", "orphan-lib"]
+        suite.expect(updateFolded.rows.map(\.name) == ["app-a", "example/tap/app-b", "cask-app"]
                      && updateFolded.dependencies["formula:app-a"]?.map(\.name) == ["deep-lib", "shared-lib"],
-                     "Homebrew keeps a reached dependency with an update as its own first row and under its parent, found \(updateFolded.rows.map(\.name))")
+                     "Homebrew keeps a dependency with an update under its parents and moves those parents up, found \(updateFolded.rows.map(\.name))")
+        let orphanUpdate = HomebrewPackageOrdering.updatesFirst(dependencyPackages.map { package in
+            var package = package
+            if package.name == "orphan-lib" {
+                package.update = HomebrewPackageUpdate(kind: .formula, name: "orphan-lib",
+                                                       installedVersions: ["6"], currentVersion: "7", isPinned: false)
+            }
+            return package
+        })
+        let orphanUpdateFolded = HomebrewDependencyGraph.fold(orphanUpdate, installed: orphanUpdate)
+        suite.expect(orphanUpdateFolded.orphans.map(\.name) == ["orphan-lib"]
+                     && !orphanUpdateFolded.rows.contains { $0.name == "orphan-lib" },
+                     "Homebrew keeps an orphan with an update in the unneeded group, found \(orphanUpdateFolded.rows.map(\.name))")
         let formulaOnly = dependencyPackages.filter { $0.kind == .formula }
         let flatFormulaOnly = HomebrewDependencyGraph.display(formulaOnly,
                                                               installed: dependencyPackages,
@@ -830,13 +916,15 @@ enum RepositoryFeatureTests {
         suite.expect(flatFormulaOnly.rows.count == formulaOnly.count
                      && flatFormulaOnly.rows.allSatisfy { $0.kind == .formula },
                      "Homebrew flat mode keeps the active filter and its displayed count")
-        suite.expect(HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages).rows.map(\.name).contains("cask-lib"),
-                     "Homebrew shows a cask's dependency as a row when the filter hides the cask")
+        let formulaOnlyFolded = HomebrewDependencyGraph.fold(formulaOnly, installed: dependencyPackages)
+        suite.expect(formulaOnlyFolded.rows.map(\.name).contains("cask-lib")
+                     && formulaOnlyFolded.orphans.map(\.name) == ["orphan-lib"],
+                     "Homebrew shows a cask's dependency as a row, not an orphan, when the filter hides the cask")
         let oldBrewPackages = (try? HomebrewParser.parseInfoJSON(Data(dependencyJSON
             .replacingOccurrences(of: "\"installed_on_request\": true,", with: "")
             .replacingOccurrences(of: "\"installed_on_request\": false,", with: "").utf8))) ?? []
         let oldBrewFolded = HomebrewDependencyGraph.fold(oldBrewPackages, installed: oldBrewPackages)
-        suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty,
+        suite.expect(oldBrewFolded.rows.count == 8 && oldBrewFolded.dependencies.isEmpty && oldBrewFolded.orphans.isEmpty,
                      "Homebrew keeps the flat list when brew does not report installed_on_request, found \(oldBrewFolded.rows.count)")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.homebrewGroupDependencies] as? Bool == true
                      && SettingsBackupSupport.exportKeys().contains(DefaultsKey.homebrewGroupDependencies),
@@ -1431,6 +1519,19 @@ enum RepositoryFeatureTests {
         }
         suite.expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
+        // zsh passes a plain string to a command as one word, so the script
+        // keeps the closed-lid rule names in an array. They must be the files
+        // the app looks for, under the current name and every earlier one.
+        func sudoersRuleFiles(_ text: String) -> Set<String> {
+            Set(text.components(separatedBy: CharacterSet(charactersIn: " \n\t\"(),"))
+                .filter { $0.hasPrefix("/etc/sudoers.d/") })
+        }
+        let appRuleFiles = sudoersRuleFiles(
+            repository.source(at: "Sources/Vorssaint/Services/ShellSupport.swift"))
+        let scriptRuleFiles = sudoersRuleFiles(uninstallScriptSource.components(separatedBy: "\n")
+            .first { $0.hasPrefix("RULES=(") } ?? "")
+        suite.expect(!appRuleFiles.isEmpty && scriptRuleFiles == appRuleFiles,
+               "script uninstall looks for the same closed-lid rule files as the app: \(scriptRuleFiles.sorted())")
         // Restoring sleep used to be fired and forgotten at both exits. A
         // failure there leaves `pmset disablesleep 1` set system-wide, and
         // removal deletes the flag that launch-time recovery reads before it
@@ -1451,8 +1552,20 @@ enum RepositoryFeatureTests {
                 && selfUninstallSource.contains("adminPromptRecover")
                 && selfUninstallSource.contains("verification.status == 0"),
                "in-app uninstall aborts unless fans and normal sleep are restored before removal")
+        suite.expect(uninstallerSource.contains("SpacesOrderHold.restoreForRemoval()"),
+               "script uninstall puts back the Space rearranging setting before the preferences are deleted")
         suite.expect(uninstallScriptSource.contains("SleepDisabled"),
                "script uninstall reads the sleep setting back for itself")
+        suite.expect(uninstallScriptSource.contains("spaces_read_domain \"$BUNDLE\"")
+                && uninstallScriptSource.contains("spaces_recovery_value \"$spaces_snapshot\" \(DefaultsKey.spacesOrderRestore)")
+                && uninstallScriptSource.contains("spaces_recovery_value \"$spaces_snapshot\" \(DefaultsKey.spacesOrderRestartPending)")
+                && uninstallScriptSource.contains("spaces_read_domain com.apple.dock")
+                && uninstallScriptSource.contains("spaces_stuck == 0")
+                && uninstallScriptSource.contains("spaces_unloaded == 0")
+                && uninstallScriptSource.contains("spaces_unknown == 0")
+                && !uninstallScriptSource.contains("defaults write com.apple.dock")
+                && !uninstallScriptSource.contains("killall"),
+               "script uninstall reads Space rearranging back for itself and never changes it")
         let brightnessSource = repository.source(
             at: "Sources/Vorssaint/Services/Display/BrightnessService.swift")
         let brightnessTapMethod = brightnessSource

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import ImageIO
 import ObjectiveC
 
 /// The queue stays inside the existing isolated adapter. No request, timer or
@@ -9,6 +10,10 @@ import ObjectiveC
 enum NotchNativeQueue {
     private static let work = DispatchQueue(label: "com.vorssaint.now-playing-queue")
     private static let callbacks = DispatchQueue(label: "com.vorssaint.now-playing-queue-callbacks")
+    private static let covers = DispatchQueue(label: "com.vorssaint.now-playing-queue-covers")
+    private static let coverPixels = 96
+    private static let maximumCoverBytes = 64 * 1_024
+    private static var coverToken: UUID?
     private static var requestID: UUID?
     private static var identity: Identity?
     private static var revision = UUID()
@@ -28,6 +33,7 @@ enum NotchNativeQueue {
         let identity: Identity
         let items: [[String: Any]]
         let canPlay: Bool
+        var currentCover: Data? = nil
     }
 
     static func configure(_ id: UUID?) {
@@ -92,16 +98,38 @@ enum NotchNativeQueue {
     private static func refreshNow() {
         guard let requestID, isCurrent(requestID) else { return }
         revision = UUID()
-        let snapshot = readSnapshot()
+        let snapshot = readSnapshot(covers: false)
         guard isCurrent(requestID) else { return }
-        var reply: [String: Any] = ["queueRequest": requestID.uuidString, "queueAvailable": snapshot != nil]
+        emit(reply(requestID, snapshot))
+        if let snapshot, !snapshot.items.isEmpty { readCovers(request: requestID, token: revision) }
+    }
+
+    private static func reply(_ request: UUID, _ snapshot: Snapshot?) -> [String: Any] {
+        var reply: [String: Any] = ["queueRequest": request.uuidString, "queueAvailable": snapshot != nil]
         if let snapshot {
             reply["currentIdentifier"] = snapshot.identity.item
             reply["pid"] = snapshot.identity.pid
             reply["queueItems"] = snapshot.items
             reply["queueCanPlay"] = snapshot.canPlay
+            reply["currentArtworkBase64"] = snapshot.currentCover?.base64EncodedString()
         }
-        emit(reply)
+        return reply
+    }
+
+    private static func readCovers(request: UUID, token: UUID) {
+        lifetimeLock.lock()
+        coverToken = token
+        lifetimeLock.unlock()
+        covers.async {
+            lifetimeLock.lock()
+            let current = coverToken == token && desiredRequest == request
+            lifetimeLock.unlock()
+            guard current, let snapshot = readSnapshot(covers: true) else { return }
+            work.async {
+                guard requestID == request, revision == token, isCurrent(request) else { return }
+                emit(reply(request, snapshot))
+            }
+        }
     }
 
     static func play(_ selected: NotchQueueSelection) {
@@ -109,7 +137,7 @@ enum NotchNativeQueue {
             let request = selected.requestID
             let identifier = selected.itemIdentifier
             guard selected.isValid, requestID == request, isCurrent(request),
-                  let fresh = readSnapshot(), fresh.canPlay,
+                  let fresh = readSnapshot(covers: false), fresh.canPlay,
                   let current = fresh.items.first(where: { $0["id"] as? String == identifier }),
                   let offset = current["offset"] as? Int,
                   selected.matches(pid: fresh.identity.pid, currentIdentifier: fresh.identity.item,
@@ -166,7 +194,7 @@ enum NotchNativeQueue {
         return Identity(pid: target.pid, item: item)
     }
 
-    private static func readSnapshot() -> Snapshot? {
+    private static func readSnapshot(covers: Bool) -> Snapshot? {
         typealias Create = @convention(c) (AnyObject, Selector, NSRange) -> Unmanaged<AnyObject>?
         typealias Read = @convention(c) (AnyObject, AnyObject, DispatchQueue, @escaping @convention(block) (AnyObject?, NSError?) -> Void) -> Void
         guard let target = NotchNativePlayback.target, let before = currentIdentity(target: target),
@@ -177,7 +205,9 @@ enum NotchNativeQueue {
               let request = unsafeBitCast(method_getImplementation(method), to: Create.self)(
                 factory, NSSelectorFromString("defaultPlaybackQueueRequestWithRange:"), NSRange(location: 0, length: NotchQueueSelection.maximumItems + 1))?
                 .takeUnretainedValue() as? NSObject,
-              setFlag(request, "setIncludeMetadata:"), setFlag(request, "setIncludeInfo:") else { return nil }
+              setFlag(request, "setIncludeMetadata:"), setFlag(request, "setIncludeInfo:"),
+              !covers || setDimension(request, "setArtworkWidth:", Double(coverPixels))
+                && setDimension(request, "setArtworkHeight:", Double(coverPixels)) else { return nil }
         let group = DispatchGroup()
         let lock = NSLock()
         var received: NSObject?
@@ -188,7 +218,7 @@ enum NotchNativeQueue {
             lock.unlock()
             group.leave()
         }
-        guard group.wait(timeout: .now() + 1.5) == .success else { return nil }
+        guard group.wait(timeout: .now() + (covers ? 3 : 1.5)) == .success else { return nil }
         lock.lock()
         let answer = received
         lock.unlock()
@@ -203,12 +233,15 @@ enum NotchNativeQueue {
                   let title = object(metadata, "title") as? String, !title.isEmpty else { continue }
             // Retain the native offset when an incomplete entry is omitted.
             // Reindexing filtered metadata could play a different song.
-            rows.append(["id": identifier, "offset": offset, "title": String(title.prefix(1024)),
-                         "artist": String((object(metadata, "trackArtistName") as? String ?? "").prefix(1024))])
+            var row: [String: Any] = ["id": identifier, "offset": offset, "title": String(title.prefix(1024)),
+                                      "artist": String((object(metadata, "trackArtistName") as? String ?? "").prefix(1024))]
+            if covers, let cover = cover(of: item) { row["artworkBase64"] = cover.base64EncodedString() }
+            rows.append(row)
         }
         let canPlay = target.allowsDirectCommands && target.itemIdentifier != nil && supportsPlayItem(target: target)
         guard currentIdentity(target: target) == before, NotchNativePlayback.target?.pid == target.pid else { return nil }
-        return Snapshot(target: target, identity: before, items: rows, canPlay: canPlay)
+        return Snapshot(target: target, identity: before, items: rows, canPlay: canPlay,
+                        currentCover: covers ? cover(of: items[0]) : nil)
     }
 
     private static func supportsPlayItem(target: NotchNativePlayback.Target) -> Bool {
@@ -230,6 +263,22 @@ enum NotchNativeQueue {
         return supported
     }
 
+    private static func cover(of item: NSObject) -> Data? {
+        guard let artwork = object(item, "artwork") as? NSObject,
+              let data = object(artwork, "imageData") as? Data, !data.isEmpty, data.count <= maximumArtworkBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                  kCGImageSourceCreateThumbnailFromImageAlways: true,
+                  kCGImageSourceCreateThumbnailWithTransform: true,
+                  kCGImageSourceThumbnailMaxPixelSize: coverPixels
+              ] as CFDictionary) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+        guard CGImageDestinationFinalize(destination), output.length <= maximumCoverBytes else { return nil }
+        return output as Data
+    }
+
     private static func object(_ value: NSObject, _ name: String) -> AnyObject? {
         let selector = NSSelectorFromString(name)
         guard value.responds(to: selector) else { return nil }
@@ -242,6 +291,15 @@ enum NotchNativeQueue {
         guard let method = class_getInstanceMethod(type(of: object), selector),
               let encoding = method_getTypeEncoding(method), String(cString: encoding).hasPrefix("v20@0:8B16") else { return false }
         unsafeBitCast(method_getImplementation(method), to: Set.self)(object, selector, true)
+        return true
+    }
+
+    private static func setDimension(_ object: NSObject, _ name: String, _ value: Double) -> Bool {
+        typealias Set = @convention(c) (AnyObject, Selector, Double) -> Void
+        let selector = NSSelectorFromString(name)
+        guard let method = class_getInstanceMethod(type(of: object), selector),
+              let encoding = method_getTypeEncoding(method), String(cString: encoding).hasPrefix("v24@0:8d16") else { return false }
+        unsafeBitCast(method_getImplementation(method), to: Set.self)(object, selector, value)
         return true
     }
 

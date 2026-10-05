@@ -11,6 +11,7 @@ struct NotchNotificationStrings {
     let waiting: String
     let open: String
     let dismiss: String
+    let clearAll: String
     let unavailable: String
     let hideSystemBanner: String
     let hideSystemBannerHint: String
@@ -27,6 +28,7 @@ extension FeatureStrings {
             waiting: "Waiting for the system notification service",
             open: "Open",
             dismiss: "Dismiss",
+            clearAll: "Clear All",
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
             hideSystemBannerHint: "Hide the original while the Dynamic Island shows it.")
@@ -38,6 +40,7 @@ extension FeatureStrings {
             waiting: "Aguardando as notificações do sistema",
             open: "Abrir",
             dismiss: "Dispensar",
+            clearAll: "Limpar tudo",
             unavailable: "Esta notificação não aceita mais esta ação.",
             hideSystemBanner: "Esconder aviso do sistema",
             hideSystemBannerHint: "Esconde o aviso original enquanto o Dynamic Island o mostra.")
@@ -49,6 +52,7 @@ extension FeatureStrings {
             waiting: "Esperando las notificaciones del sistema",
             open: "Abrir",
             dismiss: "Descartar",
+            clearAll: "Borrar todo",
             unavailable: "Esta notificación ya no admite esta acción.",
             hideSystemBanner: "Ocultar el aviso del sistema",
             hideSystemBannerHint: "Oculta el aviso original mientras el Dynamic Island lo muestra.")
@@ -60,6 +64,7 @@ extension FeatureStrings {
             waiting: "Čaká sa na systémovú službu hlásení",
             open: "Otvoriť",
             dismiss: "Zavrieť",
+            clearAll: "Vymazať všetko",
             unavailable: "Toto hlásenie už túto akciu neumožňuje.",
             hideSystemBanner: "Skryť systémové hlásenie",
             hideSystemBannerHint: "Skryje pôvodné hlásenie, kým ho zobrazuje Dynamic Island.")
@@ -71,6 +76,7 @@ extension FeatureStrings {
             waiting: "Warten auf den Mitteilungsdienst des Systems",
             open: "Öffnen",
             dismiss: "Verwerfen",
+            clearAll: "Alle löschen",
             unavailable: "Diese Mitteilung unterstützt diese Aktion nicht mehr.",
             hideSystemBanner: "Systemhinweis ausblenden",
             hideSystemBannerHint: "Blendet den ursprünglichen Hinweis aus, solange die Dynamic Island ihn zeigt.")
@@ -82,6 +88,7 @@ extension FeatureStrings {
             waiting: "En attente du service de notifications système",
             open: "Ouvrir",
             dismiss: "Ignorer",
+            clearAll: "Tout effacer",
             unavailable: "Cette notification ne permet plus cette action.",
             hideSystemBanner: "Masquer la bannière système",
             hideSystemBannerHint: "Masque la bannière d’origine pendant que la Dynamic Island l’affiche.")
@@ -93,6 +100,7 @@ extension FeatureStrings {
             waiting: "In attesa del servizio notifiche di sistema",
             open: "Apri",
             dismiss: "Ignora",
+            clearAll: "Cancella tutto",
             unavailable: "Questa notifica non consente più questa azione.",
             hideSystemBanner: "Nascondi l’avviso di sistema",
             hideSystemBannerHint: "Nasconde l’avviso originale mentre il Dynamic Island lo mostra.")
@@ -104,6 +112,7 @@ extension FeatureStrings {
             waiting: "Ожидание службы системных уведомлений",
             open: "Открыть",
             dismiss: "Убрать",
+            clearAll: "Очистить все",
             unavailable: "Это уведомление больше не поддерживает данное действие.",
             hideSystemBanner: "Скрывать системное уведомление",
             hideSystemBannerHint: "Скрывает исходное уведомление, пока его показывает Dynamic Island.")
@@ -115,6 +124,7 @@ extension FeatureStrings {
             waiting: "Sistem bildirim hizmeti bekleniyor",
             open: "Aç",
             dismiss: "Kapat",
+            clearAll: "Tümünü temizle",
             unavailable: "Bu bildirim artık bu işlemi desteklemiyor.",
             hideSystemBanner: "Sistem bildirimini gizle",
             hideSystemBannerHint: "Dynamic Island gösterirken asıl bildirimi gizler.")
@@ -126,6 +136,7 @@ extension FeatureStrings {
             waiting: "システムの通知サービスを待機中",
             open: "開く",
             dismiss: "閉じる",
+            clearAll: "すべて消去",
             unavailable: "この通知では、この操作を実行できなくなりました。",
             hideSystemBanner: "システムの通知を隠す",
             hideSystemBannerHint: "Dynamic Islandに表示している間、元の通知を隠します。")
@@ -137,6 +148,7 @@ extension FeatureStrings {
             waiting: "시스템 알림 서비스를 기다리는 중",
             open: "열기",
             dismiss: "닫기",
+            clearAll: "모두 지우기",
             unavailable: "이 알림에서는 더 이상 이 동작을 사용할 수 없습니다.",
             hideSystemBanner: "시스템 알림 숨기기",
             hideSystemBannerHint: "Dynamic Island에 표시되는 동안 원래 알림을 숨깁니다.")
@@ -148,6 +160,7 @@ extension FeatureStrings {
             waiting: "正在等待系统通知服务",
             open: "打开",
             dismiss: "忽略",
+            clearAll: "全部清除",
             unavailable: "此通知已无法执行此操作。",
             hideSystemBanner: "隐藏系统通知",
             hideSystemBannerHint: "在Dynamic Island中显示时隐藏原通知。")
@@ -159,6 +172,7 @@ extension FeatureStrings {
             waiting: "正在等待系統通知服務",
             open: "打開",
             dismiss: "關閉",
+            clearAll: "全部清除",
             unavailable: "此通知已無法執行此操作。",
             hideSystemBanner: "隱藏系統通知",
             hideSystemBannerHint: "在Dynamic Island中顯示時隱藏原通知。")
@@ -170,6 +184,7 @@ extension FeatureStrings {
             waiting: "正在等候系統通知服務",
             open: "開啟",
             dismiss: "關閉",
+            clearAll: "全部清除",
             unavailable: "此通知已無法執行此操作。",
             hideSystemBanner: "隱藏系統通知",
             hideSystemBannerHint: "在Dynamic Island顯示時隱藏原通知。")
@@ -181,6 +196,7 @@ extension FeatureStrings {
             waiting: "Очікування на службу системних сповіщень",
             open: "Відкрити",
             dismiss: "Відхилити",
+            clearAll: "Очистити все",
             unavailable: "Це сповіщення більше не підтримує цю дію.",
             hideSystemBanner: "Приховувати системний банер",
             hideSystemBannerHint: "Приховує оригінальний банер, поки його показує Dynamic Island.")

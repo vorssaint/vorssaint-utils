@@ -220,36 +220,39 @@ struct MetricDetailView: View {
     private var graph: some View {
         switch kind {
         case .cpu:
-            historyGraph(monitor.snapshot.cpuHistory, color: summaryColor, maxValue: 1)
+            historyGraph(monitor.snapshot.cpuHistory, color: summaryColor)
         case .gpu:
-            historyGraph(monitor.snapshot.gpuHistory, color: summaryColor, maxValue: 1)
+            historyGraph(monitor.snapshot.gpuHistory, color: summaryColor)
         case .memory:
             historyGraph(MonitorMemoryMetric.current.history(in: monitor.snapshot),
-                         color: summaryColor,
-                         maxValue: 1)
+                         color: summaryColor)
         case .network:
             networkGraph
         case .disk:
             diskGraph
         case .battery:
             if PowerSampler.hasInternalBattery {
-                historyGraph(monitor.snapshot.batteryHistory, color: summaryColor, maxValue: 1)
+                historyGraph(monitor.snapshot.batteryHistory, color: summaryColor)
             }
         case .power:
-            historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor)
+            let peak = MetricFormat.graphCeiling(monitor.snapshot.systemPowerHistory.max() ?? 0, unitStep: 1000)
+            historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor, maxValue: peak,
+                         ceilingLabel: MetricFormat.watts(peak))
         case .fan, .connectedDevices:
             EmptyView()
         }
     }
 
     @ViewBuilder
-    private func historyGraph(_ values: [Double], color: Color, maxValue: Double? = nil) -> some View {
+    private func historyGraph(_ values: [Double], color: Color, maxValue: Double = 1,
+                              ceilingLabel: String = MetricFormat.percent(1)) -> some View {
         if values.count >= 2 {
             Sparkline(values: values,
                       color: color,
                       maxValue: maxValue,
                       showsZeroBaseline: true)
                 .frame(height: 38)
+                .graphCeilingLabel(ceilingLabel)
         }
     }
 
@@ -258,7 +261,7 @@ struct MetricDetailView: View {
         let down = monitor.snapshot.netDownHistory
         let up = monitor.snapshot.netUpHistory
         if down.count >= 2 || up.count >= 2 {
-            let peak = max(down.max() ?? 0, up.max() ?? 0, 1)
+            let peak = MetricFormat.graphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1), unitStep: 1024)
             ZStack {
                 Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: up,
@@ -267,6 +270,7 @@ struct MetricDetailView: View {
                           fillOpacity: 0.08)
             }
             .frame(height: 38)
+            .graphCeilingLabel(MetricFormat.bytesPerSec(peak))
         }
     }
 
@@ -275,7 +279,7 @@ struct MetricDetailView: View {
         let read = monitor.snapshot.diskReadHistory
         let write = monitor.snapshot.diskWriteHistory
         if read.count >= 2 || write.count >= 2 {
-            let peak = max(read.max() ?? 0, write.max() ?? 0, 1)
+            let peak = MetricFormat.graphCeiling(max(read.max() ?? 0, write.max() ?? 0, 1), unitStep: 1024)
             ZStack {
                 Sparkline(values: read, color: summaryColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: write,
@@ -284,6 +288,7 @@ struct MetricDetailView: View {
                           fillOpacity: 0.08)
             }
             .frame(height: 38)
+            .graphCeilingLabel(MetricFormat.bytesPerSec(peak))
         }
     }
 
@@ -527,7 +532,10 @@ struct MetricDetailView: View {
             return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
         case .battery:
             if PowerSampler.hasInternalBattery {
-                return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
+                return powerStateText(BatteryPowerSupport.state(
+                    isCharging: snapshot.power?.isCharging ?? false,
+                    externalConnected: snapshot.power?.externalConnected ?? false,
+                    hasBattery: true))
             }
             return PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).first?.name
                 ?? l10n.s.peripheralBatteryNoDevices
@@ -777,6 +785,15 @@ struct MetricDetailView: View {
         if power.externalConnected { return l10n.s.powerPluggedIn }
         if power.hasBattery { return l10n.s.powerOnBattery }
         return l10n.s.powerUnavailable
+    }
+
+    private func powerStateText(_ state: BatteryPowerSupport.State) -> String {
+        switch state {
+        case .charging: return l10n.s.powerCharging
+        case .externalPower: return l10n.s.powerPluggedIn
+        case .onBattery: return l10n.s.powerOnBattery
+        case .unavailable: return l10n.s.powerUnavailable
+        }
     }
 
     private func mbps(_ value: Double) -> String {

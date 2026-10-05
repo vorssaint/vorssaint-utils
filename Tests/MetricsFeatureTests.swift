@@ -38,16 +38,34 @@ enum MetricsFeatureTests {
         expectEqual(MetricFormat.bytes(10 * 1024), "10 KB", "bytes 10K drops decimal")
         expectEqual(MetricFormat.bytes(1024 * 1024), "1.0 MB", "bytes 1M")
         expectEqual(MetricFormat.bytes(3 * 1024 * 1024 * 1024), "3.0 GB", "bytes 3G")
+        // A value that only reaches the next unit after rounding used to print as
+        // "1,024 KB", one unit behind the compact menu-bar form, which already
+        // promoted that edge. Both must name the unit the number reads as.
+        expectEqual(MetricFormat.bytes(1023), "1023 B", "bytes just under a kilobyte stay in bytes")
+        expectEqual(MetricFormat.bytes(1_048_063), "1023 KB", "a total just short of the kilobyte edge stays in kilobytes")
+        expectEqual(MetricFormat.bytes(1_048_064), "1.0 MB", "a total that rounds to a megabyte is shown in megabytes")
+        expectEqual(MetricFormat.bytes(1_048_575), "1.0 MB", "a megabyte total is never labelled 1,024 KB")
+        expectEqual(MetricFormat.bytes(1_000_000_000), "954 MB", "byte totals keep the binary 1024 base")
         expectEqual(MetricFormat.diskBytes(245_107_195_904), "245 GB", "disk bytes use decimal storage units")
         expectEqual(MetricFormat.diskBytes(1_000_204_845_056), "1.0 TB", "disk bytes show decimal terabytes")
         expectEqual(MetricFormat.diskBytes(123_456_789_000), "123 GB", "disk bytes match Finder-style GB")
+        expectEqual(MetricFormat.diskBytes(1_000_000_000), "1.0 GB", "disk bytes keep the decimal 1000 base")
         expectEqual(MetricFormat.diskBytesPrecise(14_878_047_232_000), "14.88 TB",
                     "precise disk bytes keep SMART totals readable")
 
         expectEqual(MetricFormat.bytesPerSec(0), "0 B/s", "rate zero")
         expectEqual(MetricFormat.bytesPerSec(2 * 1024 * 1024), "2.0 MB/s", "rate 2M")
         expectEqual(MetricFormat.bytesPerSec(1500 * 1024), "1.5 MB/s", "rate 1.5M")
+        expectEqual(MetricFormat.bytesPerSec(1023.4), "1023 B/s", "a rate just under a kilobyte stays in bytes")
+        expectEqual(MetricFormat.bytesPerSec(1023.6), "1.0 KB/s", "a rate that rounds to a kilobyte is shown in kilobytes")
+        expectEqual(MetricFormat.bytesPerSec(1023.6 * 1024), "1.0 MB/s", "a rate that rounds to a megabyte is shown in megabytes")
 
+        suite.expect(MetricFormat.graphCeiling(1.3 * 1024 * 1024, unitStep: 1024) == 2 * 1024 * 1024,
+                     "a byte-rate graph tops out on a round rate")
+        suite.expect(MetricFormat.graphCeiling(600 * 1024, unitStep: 1024) == 1024 * 1024,
+                     "past 500 KB/s the next step is 1 MB/s")
+        suite.expect(MetricFormat.graphCeiling(12.4, unitStep: 1000) == 20, "a power graph tops out on 20 W")
+        suite.expect(MetricFormat.graphCeiling(20, unitStep: 1000) == 20, "a peak on a step keeps that step")
         expectEqual(MetricFormat.bytesPerSecCompact(0), "0B", "compact zero")
         expectEqual(MetricFormat.bytesPerSecCompact(320 * 1024), "320K", "compact 320K")
         expectEqual(MetricFormat.bytesPerSecCompact(1.2 * 1024 * 1024), "1.2M", "compact 1.2M")
@@ -74,6 +92,8 @@ enum MetricsFeatureTests {
                "SMART health subtracts percentage used")
         suite.expect(DiskSupport.healthPercent(fromPercentageUsed: 150) == 0,
                "SMART health clamps exhausted drives")
+        suite.expect(DiskSupport.healthPercent(fromPercentageUsed: UInt64.max) == 0,
+               "A percentage-used value beyond Int.max clamps to 0 instead of aborting the process")
         suite.expect(DiskSupport.fileSystemLabel(type: "apfs") == "APFS",
                "file system label maps apfs")
         suite.expect(DiskSupport.fileSystemLabel(type: " APFS \n") == "APFS",
@@ -230,8 +250,64 @@ enum MetricsFeatureTests {
                "battery time ignores the public unavailable sentinel")
         suite.expect(BatteryTimeSupport.formatted(seconds: 13_320) == "3h 42m",
                "battery time formats hours and minutes")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 3600) == "1h 0m",
+               "battery time formats an exact hour")
         suite.expect(BatteryTimeSupport.formatted(seconds: 30) == "0h 1m",
                "battery time keeps a positive final minute visible")
+        suite.expect(BatteryTimeSupport.formatted(seconds: 1e21) == nil,
+               "battery time returns nil rather than trapping on an absurd input")
+
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 80,
+                                                      isCharging: false,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a charge held at a limit still reads as external power")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 100,
+                                                      isCharging: false,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a full battery on its adapter still reads as external power")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: true,
+                                                      externalConnected: true),
+                    "battery.100.bolt",
+                    "a charge in progress keeps the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: true,
+                                                      externalConnected: false),
+                    "battery.100.bolt",
+                    "a charge reported before its adapter keeps the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 42,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.50",
+                    "an unplugged Mac shows its charge level, never the bolt")
+        expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 5,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.0",
+                    "an unplugged Mac keeps the level thresholds it always had")
+
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: true,
+                                               hasBattery: true) == .externalPower,
+               "a stopped charge on the adapter is external power, not battery power")
+        suite.expect(BatteryPowerSupport.state(isCharging: true,
+                                               externalConnected: true,
+                                               hasBattery: true) == .charging,
+               "a charge in progress is named as charging")
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: false,
+                                               hasBattery: true) == .onBattery,
+               "an unplugged Mac with a battery is on battery power")
+        suite.expect(BatteryPowerSupport.state(isCharging: false,
+                                               externalConnected: false,
+                                               hasBattery: false) == .unavailable,
+               "a Mac with no battery and no adapter reading has nothing to report")
+        suite.expect(BatteryPowerSupport.state(isCharging: true,
+                                               externalConnected: false,
+                                               hasBattery: true) == .charging,
+               "a charge claimed without an adapter flag is still never battery power")
 
         suite.expect(MetricFormat.systemPowerWatts(measured: 3,
                                              batteryWatts: 10,
@@ -258,6 +334,32 @@ enum MetricsFeatureTests {
                "peripheral battery rounds numeric values")
         suite.expect(PeripheralBatterySupport.percent(from: 140) == nil,
                "peripheral battery ignores invalid percentages")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: UInt64.max)) == nil,
+               "peripheral battery returns nil rather than trapping on a huge device number")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: Double.greatestFiniteMagnitude)) == nil,
+               "peripheral battery returns nil rather than trapping on the largest finite number")
+        suite.expect(PeripheralBatterySupport.percent(from: "1e300") == nil,
+               "peripheral battery returns nil rather than trapping on an absurd percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: 55) == 55,
+               "peripheral battery keeps an integer percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: "80") == 80,
+               "peripheral battery parses a bare percentage string")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.6)) == 43,
+               "peripheral battery rounds a fractional percentage up")
+        suite.expect(PeripheralBatterySupport.percent(from: NSNumber(value: 42.4)) == 42,
+               "peripheral battery rounds a fractional percentage down")
+        suite.expect(PeripheralBatterySupport.percent(from: -5) == nil,
+               "peripheral battery ignores a negative percentage")
+        suite.expect(PeripheralBatterySupport.percent(from: 0) == 0,
+               "peripheral battery keeps an empty battery as zero rather than nil")
+        suite.expect(PeripheralBatterySupport.percent(from: 100) == 100,
+               "peripheral battery keeps a full battery")
+        suite.expect(PeripheralBatterySupport.percent(from: Double.nan) == nil,
+               "peripheral battery ignores a not-a-number reading")
+        suite.expect(PeripheralBatterySupport.percent(from: "abc") == nil,
+               "peripheral battery ignores unreadable text")
+        suite.expect(PeripheralBatterySupport.percent(from: nil) == nil,
+               "peripheral battery ignores a missing value")
         let usageMouse = [["DeviceUsagePage": 1, "DeviceUsage": 2]]
         suite.expect(PeripheralBatterySupport.kind(product: "Wireless Device",
                                              primaryUsagePage: nil,

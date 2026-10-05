@@ -65,9 +65,9 @@ struct MenuBarMetricsPreview: View {
                 .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
                 .filter { !$0.isEmpty }
             : []
-        // The steady state of the hide option: a pending update or a muted
-        // microphone brings the real icon back, and the preview does not
-        // pretend to know about either.
+        // The steady state of the hide option: a pending update, a running
+        // Keep Awake or a muted microphone brings the real icon back, and the
+        // preview does not pretend to know about any of them.
         let iconHidden = hideIconWithMetrics && (!lines.isEmpty || !items.isEmpty)
 
         HStack(spacing: 12) {
@@ -198,9 +198,11 @@ struct MenuBarMetricsPreview: View {
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
-        case let .batteryBlock(percent, isCharging, style):
+        case let .batteryBlock(percent, isCharging, externalConnected, style):
             HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: MenuBarRenderer.batterySymbol(for: percent, isCharging: isCharging))
+                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
+                                                                    isCharging: isCharging,
+                                                                    externalConnected: externalConnected))
                     .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
                 Text("\(max(0, min(100, percent)))%")
                     .font(.system(size: style == .readable ? 13 : 12,

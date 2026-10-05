@@ -14,13 +14,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -245,8 +247,8 @@ private struct NotchAgentLimitsCard: View {
         return parts.joined(separator: " · ")
     }
 
-    /// Without a recent reading from the Claude app, the session still starts
-    /// and ends on the hour of its first request, so the window itself is known.
+    /// Without a recent reading from the Claude app, the session still ends
+    /// five hours after its first request, so the window itself is known.
     @ViewBuilder private var estimate: some View {
         if provider == .claude, let block = snapshot.claudeBlock {
             let length = block.end.timeIntervalSince(block.start)
@@ -272,6 +274,43 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
+        } else if provider == .opencode {
+            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+            if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
+                let costText: String = {
+                    if todayUsage.unpriced > 0 {
+                        return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
+                    }
+                    return AgentFormat.cost(todayUsage.cost)
+                }()
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        Text(costText)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+                    HStack(spacing: 4) {
+                        Text(AgentFormat.tokens(todayUsage.tokens.total))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                        if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
+                            Text("· \(AgentFormat.percent(rate)) \(text.cached(""))".trimmingCharacters(in: .whitespaces))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
@@ -524,7 +563,9 @@ private struct NotchAgentTrendCard: View {
 
     private func caption(byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost)
+            // A pointed-at bar reads its tokens beside its cost.
+            let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
+            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
         }
         return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }

@@ -192,6 +192,14 @@ struct UpdateSupportIntroView: View {
 private struct UpdateSupportContent: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var donateThanksText: String {
+        let thanks = l10n.s.donateThanks
+        return colorScheme == .dark
+            ? thanks.replacingOccurrences(of: "🖤", with: "🤍")
+            : thanks
+    }
 
     var body: some View {
         VStack(spacing: 13) {
@@ -225,7 +233,7 @@ private struct UpdateSupportContent: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
 
-            Text(l10n.s.donateThanks)
+            Text(donateThanksText)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
         }

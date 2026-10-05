@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import SwiftUI
 import VMStatisticsCompat
 
 enum ScreenshotFeatureTests {
@@ -38,6 +39,91 @@ enum ScreenshotFeatureTests {
         }
 
         // MARK: Screenshot tool
+
+        let copyRecord = ScreenshotShareRecord(
+            id: String(repeating: "a", count: 32),
+            endpoint: URL(string: "https://example.com")!,
+            expiresAt: Date().addingTimeInterval(3_600), deleteToken: "test")
+        var linkEvents: [String] = []
+        let failedCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
+            linkEvents.append(url.absoluteString)
+            return false
+        }, dismiss: { linkEvents.append("dismiss") })
+        suite.expect(!failedCopy && linkEvents == [copyRecord.url.absoluteString],
+                     "a failed link copy leaves the preview open for retry")
+        linkEvents.removeAll()
+        let successfulCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
+            linkEvents.append(url.absoluteString)
+            return true
+        }, dismiss: { linkEvents.append("dismiss") })
+        suite.expect(successfulCopy && linkEvents == [copyRecord.url.absoluteString, "dismiss"],
+                     "a successful link copy dismisses the preview only after copying the URL")
+
+        let retryCaptureID = UUID()
+        var copyRetry = ScreenshotLinkCopyRetry()
+        copyRetry.remember(copyRecord, for: retryCaptureID)
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == copyRecord,
+                     "a clipboard failure offers the same uploaded link for retry")
+        suite.expect(copyRetry.record(for: UUID(), availableRecords: [copyRecord]) == nil,
+                     "a new screenshot does not retry the previous screenshot's link")
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: []) == nil,
+                     "a revoked link cannot be copied by the upload shortcut")
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord],
+                                      now: copyRecord.expiresAt) == nil,
+                     "an expired link cannot be copied by the upload shortcut")
+        copyRetry.clear()
+        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == nil,
+                     "successful copying clears the pending retry")
+
+        let uploadDefaultsName = "com.vorssaint.tests.screenshot-upload.\(UUID().uuidString)"
+        let uploadDefaults = UserDefaults(suiteName: uploadDefaultsName)!
+        defer { uploadDefaults.removePersistentDomain(forName: uploadDefaultsName) }
+        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
+                     "an unset upload expiry defaults to one hour")
+        for duration in ScreenshotShareDuration.allCases {
+            uploadDefaults.set(duration.rawValue, forKey: DefaultsKey.screenshotUploadDuration)
+            suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == duration,
+                         "the upload shortcut uses each supported saved expiry")
+            let url = ScreenshotSharingSupport.uploadURL(
+                endpoint: ScreenshotSharingSupport.productionEndpoint,
+                duration: .saved(in: uploadDefaults))!
+            suite.expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first?.value == String(duration.rawValue),
+                         "the saved shortcut expiry reaches the upload request")
+        }
+        uploadDefaults.set(-1, forKey: DefaultsKey.screenshotUploadDuration)
+        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
+                     "invalid restored expiry falls back to one hour")
+        for editEnabled in [false, true] {
+            for uploadEnabled in [false, true] {
+                for sharingEnabled in [false, true] {
+                    uploadDefaults.set(editEnabled, forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
+                    uploadDefaults.set(uploadEnabled, forKey: DefaultsKey.screenshotUploadShortcutEnabled)
+                    uploadDefaults.set(sharingEnabled, forKey: DefaultsKey.screenshotSharingEnabled)
+                    let canUpload = uploadEnabled && sharingEnabled
+                    suite.expect(ScreenshotSharingSupport.uploadShortcutEnabled(in: uploadDefaults) == canUpload,
+                                 "uploads require both the shortcut and sharing to be enabled")
+                    suite.expect(ScreenshotSharingSupport.retainsLatestCapture(in: uploadDefaults)
+                        == (editEnabled || canUpload),
+                                 "either active latest-capture shortcut retains the screenshot")
+                    let roles = GlobalShortcutRole.activeRoles(
+                        isOn: { uploadDefaults.bool(forKey: $0) },
+                        isAvailable: { $0 == .screenshot })
+                    suite.expect(roles.contains(.screenshotUpload) == canUpload,
+                                 "shortcut conflict detection follows upload availability")
+                }
+            }
+        }
+        suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                                                     isAvailable: { _ in false })
+            .contains(.screenshotUpload), "unavailable screenshots disable the upload shortcut")
+        let uploadBackupKeys = SettingsBackupSupport.exportKeys()
+        suite.expect([DefaultsKey.screenshotUploadShortcutEnabled,
+                      DefaultsKey.screenshotUploadShortcut,
+                      DefaultsKey.screenshotUploadDuration].allSatisfy(uploadBackupKeys.contains),
+                     "upload shortcut and expiry settings travel in backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotUploadShortcutEnabled]
+            as? Bool == false, "uploading by shortcut is opt-in")
 
         let ownScreenshotWindows: Set<CGWindowID> = [11, 12, 13]
         let protectedScreenshotWindows: Set<CGWindowID> = [12, 99]
@@ -177,6 +263,62 @@ enum ScreenshotFeatureTests {
             placed: CGRect(x: 4, y: 2, width: 8, height: 6), packed: packedWindow,
             coverage: attachedCoverage(windowAt: CGPoint(x: 4, y: 2))) == CGRect(x: 4, y: 2, width: 8, height: 6),
                "an overlapping placement still follows where the window was drawn")
+        let straddlingParent = CGRect(x: 1200, y: 100, width: 800, height: 600)
+        suite.expect(ScreenshotCapturePolicy.compositeRect(for: straddlingParent, in: straddlingParent, scale: 2)
+                == CGRect(x: 0, y: 0, width: 1600, height: 1200)
+                && ScreenshotCapturePolicy.compositeRect(
+                    for: CGRect(x: 1400, y: 128, width: 400, height: 200), in: straddlingParent, scale: 2)
+                == CGRect(x: 400, y: 744, width: 800, height: 400),
+               "a sheet on a window spanning two displays lands at its place under the title bar")
+        let layerFrame = CGRect(x: 1200, y: 100, width: 800, height: 600)
+        suite.expect(ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                              frame: layerFrame, scale: 2)
+                && ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1601, imageHeight: 1199,
+                                                            frame: layerFrame, scale: 2),
+               "a whole window buffer covers its frame, allowing a pixel of rounding")
+        suite.expect(!ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1552, imageHeight: 1200,
+                                                               frame: layerFrame, scale: 2)
+                && !ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1164,
+                                                             frame: layerFrame, scale: 2),
+               "a buffer a few percent short, clipped at a display edge, drops the layer instead of stretching it")
+        suite.expect(ScreenshotCapturePolicy.layerScale(imageWidth: 800, imageHeight: 600, frame: layerFrame,
+                                                        candidates: [1, 2]) == 1
+                && ScreenshotCapturePolicy.layerScale(imageWidth: 1600, imageHeight: 1200, frame: layerFrame,
+                                                      candidates: [1, 2]) == 2
+                && ScreenshotCapturePolicy.layerScale(imageWidth: 1552, imageHeight: 1200, frame: layerFrame,
+                                                      candidates: [1, 2]) == nil,
+               "the clicked window's buffer sets one display scale for every layer, and a clipped one sets none")
+        // A 1x display with a 2x display connected: the composite's scale is
+        // the one its target layer was captured at, which the caller records
+        // in place of the clicked display's so sizes and exports match pixels.
+        let mixedScales: [CGFloat] = [1, 2]
+        suite.expect(ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (800, 600), frame: layerFrame, candidates: mixedScales) == .buffer(scale: 1)
+                && ScreenshotCapturePolicy.compositeTargetCapture(
+                    buffer: (1600, 1200), frame: layerFrame, candidates: mixedScales) == .buffer(scale: 2),
+               "a whole window-server buffer on mixed displays reports the scale its pixels were drawn at")
+        let mixedRecapture = ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (776, 600), frame: layerFrame, candidates: mixedScales)
+        suite.expect(mixedRecapture == .recapture(scale: 2)
+                && ScreenshotCapturePolicy.compositeTargetCapture(
+                    buffer: nil, frame: layerFrame, candidates: mixedScales) == .recapture(scale: 2),
+               "a clipped or missing buffer on mixed displays is recaptured at the finest scale")
+        if let mixedRecapture {
+            let canvas = ScreenshotCapturePolicy.compositeRect(for: layerFrame, in: layerFrame,
+                                                               scale: mixedRecapture.scale)
+            suite.expect(mixedRecapture.scale == 2
+                    && ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                                frame: layerFrame, scale: mixedRecapture.scale)
+                    && !ScreenshotCapturePolicy.layerCoversFrame(imageWidth: 1600, imageHeight: 1200,
+                                                                 frame: layerFrame, scale: 1)
+                    && canvas.size == CGSize(width: 1600, height: 1200),
+                   "the recaptured composite reports 2x, matching its pixels, not the clicked 1x display")
+        } else {
+            suite.expect(false, "the recaptured composite reports 2x, matching its pixels, not the clicked 1x display")
+        }
+        suite.expect(ScreenshotCapturePolicy.compositeTargetCapture(
+            buffer: (1600, 1200), frame: layerFrame, candidates: []) == nil,
+               "with no display scale known there is no composite to report")
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet, capturedWindow])
             == ScreenshotCapturePolicy.AttachedCapturePlan(
@@ -230,7 +372,7 @@ enum ScreenshotFeatureTests {
         suite.expect(captureEngineSource.contains("$0.frame.intersects(plan.bounds)")
                 && captureEngineSource.contains("hits.count == 1")
                 && !captureEngineSource.contains(".contains(plan.bounds)"),
-               "a window straddling two displays falls back to the single-window capture instead of a one-display slice")
+               "the one-display crop declines a window straddling two displays instead of taking a one-display slice")
 
         let geometricAttachment = ScreenshotCapturePolicy.AttachedCapturePlan(
             windowIDs: [1, 6, 2], bounds: capturedWindow.frame)
@@ -684,6 +826,120 @@ enum ScreenshotFeatureTests {
                 == [.none, .save, .save, .none, .edit]
                 && ScreenshotDefaultAction.allCases.allSatisfy { !$0.withoutCopy.copiesToClipboard },
                "turning automatic copy off drops only the copy half of the after-capture action")
+        suite.expect(ScreenshotSupport.confirmationPreviewDurations.contains(1)
+                && ScreenshotSupport.confirmationPreviewDurations.contains(
+                    ScreenshotSupport.defaultConfirmationPreviewDuration)
+                && ScreenshotSupport.confirmationPreviewDurations.contains(0)
+                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(2) == 2
+                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(99) == 3
+                && ScreenshotSupport.confirmationPreviewDismissInterval(2) == 2
+                && ScreenshotSupport.confirmationPreviewDismissInterval(0) == nil
+                && ScreenshotSupport.sharedPreviewDismissInterval(base: 3) == 30
+                && ScreenshotSupport.sharedPreviewDismissInterval(base: nil) == nil,
+               "confirmation previews support short, default, persistent, and share-result dismissal behavior")
+        let focusedTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, prefersFocus: true)
+        let quietTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, prefersFocus: false)
+        let persistentPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: nil, prefersFocus: true)
+        suite.expect(focusedTimedPolicy.takesFocus && !focusedTimedPolicy.closesOnCollapse
+                && !focusedTimedPolicy.showsDismissButton
+                && !quietTimedPolicy.takesFocus && !quietTimedPolicy.closesOnCollapse
+                && !quietTimedPolicy.showsDismissButton
+                && !persistentPolicy.takesFocus && persistentPolicy.closesOnCollapse
+                && persistentPolicy.showsDismissButton,
+               "preview presentation keeps timed focus behavior while persistent confirmations stay dismissible without taking focus")
+        let focusDefaultsDomain = "com.vorssaint.tests.screenshot-preview-focus.\(UUID().uuidString)"
+        let focusDefaults = UserDefaults(suiteName: focusDefaultsDomain)!
+        defer { focusDefaults.removePersistentDomain(forName: focusDefaultsDomain) }
+        focusDefaults.set(true, forKey: DefaultsKey.screenshotPreviewTakesFocus)
+        let preferredFocusPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, defaults: focusDefaults)
+        focusDefaults.set(false, forKey: DefaultsKey.screenshotPreviewTakesFocus)
+        let retainedFocusPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
+            dismissInterval: 3, defaults: focusDefaults)
+        suite.expect(preferredFocusPolicy.takesFocus && !retainedFocusPolicy.takesFocus,
+               "the screenshot preview focus preference controls timed confirmation focus")
+        suite.expect(ScreenshotSupport.shouldShowQuickPreview(defaultAction: .none,
+                                                              saved: false,
+                                                              copied: false,
+                                                              confirmationEnabled: false)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .edit,
+                                                              saved: false,
+                                                              copied: false,
+                                                              confirmationEnabled: true)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                             saved: false,
+                                                             copied: true,
+                                                             confirmationEnabled: true)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                              saved: false,
+                                                              copied: true,
+                                                              confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .copy,
+                                                             saved: false,
+                                                             copied: false,
+                                                             confirmationEnabled: false)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .save,
+                                                              saved: true,
+                                                              copied: false,
+                                                              confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                             saved: true,
+                                                             copied: false,
+                                                             confirmationEnabled: false)
+                && ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                             saved: true,
+                                                             copied: true,
+                                                             confirmationEnabled: true)
+                && !ScreenshotSupport.shouldShowQuickPreview(defaultAction: .saveAndCopy,
+                                                              saved: true,
+                                                              copied: true,
+                                                              confirmationEnabled: false),
+               "automatic actions honor confirmation preferences while failed or partial actions still expose recovery controls")
+        // The decision route makes after the action ran, read from settings.
+        let routeDefaultsDomain = "com.vorssaint.tests.screenshot-preview-route.\(UUID().uuidString)"
+        let routeDefaults = UserDefaults(suiteName: routeDefaultsDomain)!
+        defer { routeDefaults.removePersistentDomain(forName: routeDefaultsDomain) }
+        func routePreview(_ action: ScreenshotDefaultAction, saved: Bool = false,
+                          copied: Bool = false) -> ScreenshotSupport.QuickPreviewPresentation {
+            ScreenshotSupport.quickPreviewPresentation(defaultAction: action, saved: saved,
+                                                       copied: copied, defaults: routeDefaults)
+        }
+        let recovery = ScreenshotSupport.QuickPreviewPresentation.shown(
+            dismissInterval: ScreenshotSupport.recoveryPreviewDismissInterval)
+        routeDefaults.set(true, forKey: DefaultsKey.screenshotPreviewEnabled)
+        routeDefaults.set(10, forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.save, saved: true) == .shown(dismissInterval: 10)
+                && routePreview(.copy, copied: true) == .shown(dismissInterval: 10)
+                && routePreview(.none) == recovery && routePreview(.edit) == .hidden,
+               "a successful action confirms for the chosen duration and asking each time keeps the longer timer")
+        routeDefaults.set(0, forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.saveAndCopy, saved: true, copied: true) == .shown(dismissInterval: nil),
+               "until dismissed keeps a successful confirmation with no timer")
+        routeDefaults.set(false, forKey: DefaultsKey.screenshotPreviewEnabled)
+        suite.expect(routePreview(.save, saved: true) == .hidden
+                && routePreview(.saveAndCopy, saved: true, copied: true) == .hidden
+                && routePreview(.save) == recovery
+                && routePreview(.saveAndCopy, saved: true) == recovery
+                && routePreview(.copy) == recovery,
+               "with confirmations off a successful action shows nothing and a failed or partial one still shows the recovery preview")
+        routeDefaults.set(true, forKey: DefaultsKey.screenshotPreviewEnabled)
+        routeDefaults.set("soon", forKey: DefaultsKey.screenshotPreviewDuration)
+        suite.expect(routePreview(.save, saved: true) == .shown(
+                    dismissInterval: TimeInterval(ScreenshotSupport.defaultConfirmationPreviewDuration)),
+               "a stored duration that is not a number falls back to the default instead of staying until dismissed")
+        let screenshotRouteBody = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "    private func route(_ capture:").dropFirst().first?
+            .components(separatedBy: "\n    }\n").first ?? ""
+        suite.expect(screenshotRouteBody.contains("guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(")
+                && screenshotRouteBody.contains("defaults: defaults)\n        else { return }\n        presentPreview(capture,")
+                && screenshotRouteBody.components(separatedBy: "presentPreview(").count == 2
+                && screenshotRouteBody.contains("dismissInterval: dismissInterval,"),
+               "route shows exactly the preview the shared decision asks for")
 
         // A gesture that ends with more than one release, like a drag made
         // with three fingers, delivers events after the capture is over.
@@ -881,6 +1137,76 @@ enum ScreenshotFeatureTests {
                                                             selectionInProgress: false,
                                                             capturePending: false),
                "the capture chooser disappears for the whole drag and while capture is pending")
+        suite.expect(ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+            selectedTool: nil,
+            standaloneScreenshot: true,
+            requiresDraggedRegion: false,
+            scrollingCaptureEnabled: false),
+               "standalone screenshot selection offers the full-screen action")
+        suite.expect(ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+            selectedTool: .screenshot,
+            standaloneScreenshot: false,
+            requiresDraggedRegion: false,
+            scrollingCaptureEnabled: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+                    selectedTool: .recording,
+                    standaloneScreenshot: false,
+                    requiresDraggedRegion: false,
+                    scrollingCaptureEnabled: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+                    selectedTool: .text,
+                    standaloneScreenshot: false,
+                    requiresDraggedRegion: false,
+                    scrollingCaptureEnabled: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+                    selectedTool: .color,
+                    standaloneScreenshot: false,
+                    requiresDraggedRegion: false,
+                    scrollingCaptureEnabled: false),
+               "the unified chooser offers full screen only for screenshots")
+        suite.expect(!ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+            selectedTool: .screenshot,
+            standaloneScreenshot: false,
+            requiresDraggedRegion: true,
+            scrollingCaptureEnabled: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsAvailable(
+                    selectedTool: .screenshot,
+                    standaloneScreenshot: false,
+                    requiresDraggedRegion: false,
+                    scrollingCaptureEnabled: true),
+               "region-only and scrolling capture modes do not offer a conflicting full-screen action")
+        suite.expect(ScreenshotSupport.fullScreenCaptureControlIsVisible(
+            isAvailable: true,
+            pointerOnDisplay: true,
+            selectionInProgress: false,
+            capturePending: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsVisible(
+                    isAvailable: true,
+                    pointerOnDisplay: true,
+                    selectionInProgress: true,
+                    capturePending: false)
+                && !ScreenshotSupport.fullScreenCaptureControlIsVisible(
+                    isAvailable: true,
+                    pointerOnDisplay: true,
+                    selectionInProgress: false,
+                    capturePending: true)
+                && !ScreenshotSupport.fullScreenCaptureControlIsVisible(
+                    isAvailable: true,
+                    pointerOnDisplay: false,
+                    selectionInProgress: false,
+                    capturePending: false),
+               "the full-screen action stays on the pointer display and disappears as soon as selection or capture starts")
+        suite.expect(ScreenshotSupport.fullScreenCaptureControlTopInset(
+            screenChromeHeight: 32,
+            notchControlsHeight: nil) == 44
+                && ScreenshotSupport.fullScreenCaptureControlTopInset(
+                    screenChromeHeight: 32,
+                    notchControlsHeight: 168) == 180,
+               "the full-screen action sits below screen chrome and any active notch capture controls")
+        let fullScreenClickHost = PassThroughHostingView(interactiveRootView: Text("Full screen"))
+        suite.expect(!fullScreenClickHost.passesThrough
+                && fullScreenClickHost.acceptsFirstMouse(for: nil),
+               "the interactive full-screen host receives its first click while Dynamic Island owns key focus")
         suite.expect(ScreenshotSupport.offersRepeatLastRegion(isPickingColor: false,
                                                         storedRegionDisplayIsAvailable: true),
                "the repeat hint is offered once a region is stored on a display still in the session")
@@ -910,6 +1236,44 @@ enum ScreenshotFeatureTests {
         suite.expect(captureSelectionSource.contains("private var pointerIsInside = false")
                 && !captureSelectionSource.contains("|| bounds.contains(hoverPoint)"),
                "the capture loupe draws on only the display that owns the current pointer")
+        // The uploader tests run what these call. Here the calls themselves
+        // are checked with comments removed: a new capture starts the latest
+        // capture first, teardown invalidates pending uploads, and only a
+        // preview made from that new capture can withhold it on discard.
+        let screenshotServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        func serviceBody(_ start: String) -> String {
+            screenshotServiceCode.components(separatedBy: start).dropFirst().first?
+                .components(separatedBy: "\n    }\n").first ?? ""
+        }
+        let routeStatements = serviceBody("    private func route(_ capture:")
+            .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        suite.expect(serviceBody("    private func teardownSurfaces() {").contains("invalidateLatestCaptureUploads()")
+                && routeStatements.dropFirst().first == "beginLatestCapture(capture)",
+               "turning screenshots off invalidates pending shortcut uploads, and every capture starts as the latest one")
+        suite.expect(serviceBody("    func syncWithPreferences() {")
+                    .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),"),
+               "the upload shortcut is registered only while it and temporary links are both on")
+        suite.expect(serviceBody("    private func route(_ capture:").contains("latestCapture: latestCaptureID)")
+                && serviceBody("    func restorePreview(").contains("latestCapture: nil)")
+                && screenshotServiceCode.contains("self.discardLatestCapture(latestCapture)\n                    return [.discard]"),
+               "discarding the preview of the latest capture withholds it, while a preview reopened from history does not")
+        // In the island the menu arrow is hidden, so a click there must open
+        // the durations rather than publish at once.
+        let shareMenuCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
+            encoding: .utf8)) ?? "").components(separatedBy: "@ViewBuilder private var shareMenu: some View {")
+            .dropFirst().first?.components(separatedBy: "private var shareDurations").first ?? ""
+        let embeddedShareMenu = shareMenuCode.components(separatedBy: "} else {").first ?? ""
+        let floatingShareMenu = shareMenuCode.components(separatedBy: "} else {").dropFirst().first ?? ""
+        suite.expect(embeddedShareMenu.contains("Menu { shareDurations } label: { shareMenuLabel },")
+                && !embeddedShareMenu.contains("primaryAction")
+                && floatingShareMenu.contains("primaryAction: {\n                share(.saved())"),
+               "the island's link button opens the durations on a click, while the floating preview keeps its split button")
         let captureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift",
             encoding: .utf8)) ?? ""
@@ -941,14 +1305,20 @@ enum ScreenshotFeatureTests {
         let panelBody = quickPreviewCode.components(separatedBy: "class ScreenshotQuickPreviewPanel")
             .dropFirst().first?.components(separatedBy: "\n}").first ?? ""
         // The preference keys the panel only after it is on screen, and the
-        // line above the call is the preference check itself, so dropping the
-        // guard or keying before ordering front both go red.
+        // policy guard must stay immediately above the hand-off so an
+        // unconditional makeKey cannot slip past the behavior checks.
         let presentLines = presentBody.components(separatedBy: "\n")
         let orderFrontLine = presentLines.firstIndex { $0.contains("orderFrontRegardless()") } ?? -1
         let makeKeyLine = presentLines.firstIndex { $0.contains("makeKey") } ?? -1
         suite.expect(orderFrontLine >= 0 && makeKeyLine > orderFrontLine
-                && presentLines[makeKeyLine - 1].contains("screenshotPreviewTakesFocus"),
-               "presenting the screenshot preview takes key focus only behind the preference, once the panel is on screen")
+                && presentLines[makeKeyLine - 1].trimmingCharacters(in: .whitespaces)
+                    == "if presentationPolicy.takesFocus {",
+               "the screenshot preview takes key focus only behind the presentation policy, once the panel is on screen")
+        // The island reads the same policy: whether it takes the keyboard and
+        // whether a collapse closes the preview come from it, never a literal.
+        suite.expect(quickPreviewCode.contains("takeFocus: presentationPolicy.takesFocus,")
+                && quickPreviewCode.contains("closeOnCollapse: presentationPolicy.closesOnCollapse,"),
+               "the island preview takes the keyboard and closes on collapse exactly as the presentation policy says")
         let makeKeyCount = quickPreviewCode.components(separatedBy: "makeKey").count - 1
         let panelMakeKeyCount = panelBody.components(separatedBy: "makeKey").count - 1
         suite.expect(makeKeyCount == panelMakeKeyCount + 1 && panelMakeKeyCount >= 1,
@@ -2318,6 +2688,27 @@ enum ScreenshotFeatureTests {
         }
         suite.expectClose(steppedLoupeZoom, ScreenshotSupport.captureLoupeMinZoom,
                     "all stepped magnifier levels are reversible without dead notches")
+        var plainFastZoom = ScreenshotSupport.captureLoupeMinZoom
+        var plainFastNotches = 0
+        while plainFastZoom < ScreenshotSupport.captureLoupeMaxZoom, plainFastNotches < 20 {
+            plainFastZoom = ScreenshotSupport.captureLoupeFastZoom(
+                plainFastZoom, adjustedBy: 1, isContinuous: false)
+            plainFastNotches += 1
+        }
+        suite.expect(plainFastNotches <= 6,
+               "fast zoom on a plain wheel crosses the range in a few notches, not one level each")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1,
+                                                                 isContinuous: true), 1.15,
+                    "fast zoom keeps its per-packet factor for a smoothed wheel")
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(4, adjustedBy: -1,
+                                                                 isContinuous: false),
+                    4 / (1.15 * 1.15 * 1.15),
+                    "fast zoom on a plain wheel zooms back out at the same pace")
+        // A scroll tool can write three lines per notch; the notch keeps its pace.
+        suite.expectClose(ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 3,
+                                                                 isContinuous: false),
+                    ScreenshotSupport.captureLoupeFastZoom(1, adjustedBy: 1, isContinuous: false),
+                    "a plain notch carrying three lines lands where a one-line notch does")
         var fastLoupeZoom: CGFloat = 1
         for _ in 0..<6 {
             fastLoupeZoom = ScreenshotSupport.captureLoupeZoom(
@@ -2393,6 +2784,13 @@ enum ScreenshotFeatureTests {
                "screenshot preview placement preserves the existing automatic behavior by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == true,
                "the screenshot preview takes the keyboard as it appears by default, so its shortcuts work at once; leaving it is the opt-out")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewEnabled] as? Bool == true
+                && Defaults.registeredDefaults[DefaultsKey.screenshotPreviewDuration] as? Int
+                    == ScreenshotSupport.defaultConfirmationPreviewDuration,
+               "automatic screenshot confirmations stay enabled at the existing three-second duration by default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewEnabled)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewDuration),
+               "screenshot confirmation preferences are included in settings backups")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
@@ -2757,6 +3155,7 @@ enum ScreenshotFeatureTests {
         // Muting every microphone, not just the one the Mac is set to: an app
         // pointed at a device of its own has to go silent too.
         suite.expect(MicMuteSupport.isOwnDevice(name: "Vorssaint Mixer")
+                && MicMuteSupport.isOwnDevice(name: "Vorssaint AirPlay")
                 && MicMuteSupport.isOwnDevice(name: "Vorssaint Island Levels")
                 && MicMuteSupport.isOwnDevice(name: "Vorssaint Recorder")
                 && !MicMuteSupport.isOwnDevice(name: "MacBook Air Microphone"),
@@ -2807,6 +3206,7 @@ enum ScreenshotFeatureTests {
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
+        RadialMenuProfileDeletionContract.run(suite)
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuShortcut] as? String
                 == "control+option+command:49",
                "the default radial menu shortcut is control option command space")
@@ -2889,5 +3289,37 @@ enum ScreenshotFeatureTests {
                 == [.screenshot, .colorPicker],
                "capture roles are reordered for display and other roles fall away")
         GlobalShortcut.refreshLayoutLabels()
+    }
+}
+
+/// Runs the production profile deletion from Settings with its view state
+/// held by a plain fixture.
+enum RadialMenuProfileDeletionContract {
+    class Fixture {
+        var profiles: [RadialMenuProfile] = []
+        var selectedProfileID: UUID?
+        var openSubmenuID: UUID?
+        var dragging: RadialMenuItem?
+        var persisted = 0
+        func persist() { persisted += 1 }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let settings = Settings()
+        let first = RadialMenuProfile(name: "First")
+        let second = RadialMenuProfile(name: "Second")
+        let third = RadialMenuProfile(name: "Third")
+        settings.profiles = [first, second, third]
+        settings.selectedProfileID = third.id
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.map(\.id) == [second.id, third.id] && settings.persisted == 1,
+                     "the confirmed profile is deleted even after the selection moved to another one")
+        settings.deleteProfile(id: first.id)
+        suite.expect(settings.profiles.count == 2 && settings.persisted == 1,
+                     "a confirmation for a profile that is already gone deletes nothing")
+        settings.deleteProfile(id: second.id)
+        settings.deleteProfile(id: third.id)
+        suite.expect(settings.profiles.map(\.id) == [third.id] && settings.selectedProfileID == third.id,
+                     "the last profile is never deleted and stays selected")
     }
 }

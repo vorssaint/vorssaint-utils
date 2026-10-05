@@ -5,8 +5,6 @@ import SwiftUI
 
 struct NotchQueueView: View {
     let playback: NotchPlayback
-    /// The list takes the room the island gives the card.
-    let height: CGFloat
     @ObservedObject private var service = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
@@ -24,13 +22,12 @@ struct NotchQueueView: View {
             if service.queueActionFailed {
                 Text(text.actionFailed).font(.caption).foregroundStyle(.orange)
             }
-            if let queue = service.upcoming, !queue.items.isEmpty {
+            if let queue = service.upcoming, !service.upcomingRows.isEmpty {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        ForEach(queue.items) { item in
+                        ForEach(service.upcomingRows) { item in
                             HStack(spacing: 10) {
-                                Text("\(item.offset)").font(.caption).monospacedDigit()
-                                    .foregroundStyle(.secondary).frame(width: 20)
+                                NotchArtwork(image: service.upcomingArtwork[item.id], size: 34)
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(item.title).font(.callout.weight(.medium)).lineLimit(1)
                                     if !item.artist.isEmpty { Text(item.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
@@ -41,23 +38,22 @@ struct NotchQueueView: View {
                                             .frame(width: 28, height: 28).contentShape(Circle())
                                     }
                                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                                    .disabled(service.queueActionPending)
+                                    .disabled(service.queueActionPending || service.upcomingIsHeld)
                                     .help(text.playNow).accessibilityLabel("\(text.playNow): \(item.title)")
                                 }
                             }.padding(.vertical, 8)
                         }
                     }
-                }.frame(height: max(40, height - 24 - 10 - 18))
+                }
+                .notchScrollEdgeFade()
             } else if !service.queueLoading {
-                Text(service.upcoming == nil ? text.queueUnavailable : text.queueEmpty)
-                    .font(.callout).foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, minHeight: 50, alignment: .center)
-                Button(text.openPlayer) { RadialNowPlayingApplication.open(playback.track) }
-                    .buttonStyle(.borderless).font(.caption)
+                NotchEmptyView(symbol: "list.bullet", message: service.upcoming == nil ? text.queueUnavailable : text.queueEmpty) {
+                    NotchPillButton(title: text.openPlayer, prominent: true) { RadialNowPlayingApplication.open(playback.track) }
+                }
             }
         }
-        .padding(12)
+        // The title sits as far below the player as the first verse would.
+        .padding(.top, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
     }
 }

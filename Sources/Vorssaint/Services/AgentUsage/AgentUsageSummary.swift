@@ -26,7 +26,7 @@ struct AgentTotals: Equatable {
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
-        requests += 1
+        requests += max(0, record.requests)
         savings += record.savings
         if let price = record.cost { cost += price } else { unpriced += 1 }
     }
@@ -228,9 +228,9 @@ enum AgentUsageSummary {
         return low
     }
 
-    /// Windows start on the hour of the first request after the previous
-    /// one ended, the way the service counts them: the hour in UTC, as the
-    /// Claude app's readings are placed.
+    /// Windows start at the first request after the previous one ended and
+    /// last five hours from that moment, the renewal time the provider's own
+    /// usage page shows.
     static func currentBlock(_ records: [AgentUsageRecord], now: Date) -> AgentBlock? {
         var block: AgentBlock?
         // Sorting positions moves no strings: a day of records is thousands.
@@ -240,8 +240,7 @@ enum AgentUsageSummary {
                 block?.totals.add(record)
                 continue
             }
-            let hour = AgentClaudeAppUsage.hour(of: record.date)
-            var next = AgentBlock(start: hour, end: hour.addingTimeInterval(blockLength), totals: AgentTotals())
+            var next = AgentBlock(start: record.date, end: record.date.addingTimeInterval(blockLength), totals: AgentTotals())
             next.totals.add(record)
             block = next
         }
@@ -375,7 +374,7 @@ final class AgentUsageSummaryCache {
                                         reasoning: -previous.tokens.reasoning)
             delta.cost -= previous.cost ?? 0
             delta.savings -= previous.savings
-            delta.requests -= 1
+            delta.requests -= previous.requests
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta

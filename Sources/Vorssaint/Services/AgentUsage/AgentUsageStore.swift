@@ -10,6 +10,9 @@ import Foundation
 final class AgentUsageStore {
     private(set) var records: [AgentUsageRecord] = []
     private var billables: [AgentBillable] = []
+    /// The logs each response was read from: most in one, a resumed or
+    /// archived session's again in another.
+    private var sources: [[String]] = []
     private var index: [String: Int] = [:]
     private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
@@ -22,6 +25,8 @@ final class AgentUsageStore {
     private(set) var waiting: [String: AgentLiveSession] = [:]
     /// Claude turns whose process was seen running, by log file.
     private var registered: Set<String> = []
+    /// Turns whose last step ended expecting more, by log file, with when.
+    private var settled: [String: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -52,7 +57,19 @@ final class AgentUsageStore {
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                add(record, billable: billable, key: key, turn: tracksTurns ? file : parent, subagent: !tracksTurns)
+                // Copilot exposes response activity and session-wide token
+                // totals, neither of which measures the current root task.
+                let turn = provider == .copilot ? nil : tracksTurns ? file : parent
+                add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
+            case .usageModel(let key, let model):
+                guard let position = index[key], records[position].model.isEmpty else { continue }
+                let old = records[position]
+                records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
+                    project: old.project, session: old.session, requests: old.requests,
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                // Incremental token updates keep the same model; attribution
+                // changes instead rebuild model buckets from the records.
+                summary.invalidate()
             case .limits(let reading):
                 updateLimits(reading)
             case .plan(let plan, let date):
@@ -63,6 +80,7 @@ final class AgentUsageStore {
                 codexPlanObserved = date
             case .turnBegan(let date):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 // A log rewritten in place is read again from its start; the
                 // turn it already holds keeps what its responses added, which
                 // the second reading skips as repeats.
@@ -71,8 +89,20 @@ final class AgentUsageStore {
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
                                                model: "", project: "", tokens: AgentTokens(), cost: 0)
+            case .turnContext(let model, let project):
+                guard tracksTurns else { continue }
+                if var turn = turns[file] {
+                    if !model.isEmpty { turn.model = model }
+                    if !project.isEmpty { turn.project = project }
+                    turns[file] = turn
+                } else if var turn = waiting[file] {
+                    if !model.isEmpty { turn.model = model }
+                    if !project.isEmpty { turn.project = project }
+                    waiting[file] = turn
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 let moment = date ?? modified
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
@@ -81,8 +111,14 @@ final class AgentUsageStore {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
                                                    model: "", project: "", tokens: AgentTokens(), cost: 0)
                 }
+            case .turnSettled(let date):
+                guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }
+                turn.lastActivity = max(turn.lastActivity, date)
+                turns[file] = turn
+                settled[file] = date
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
+                settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
@@ -91,6 +127,9 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .reset:
+                let baseFile = file.components(separatedBy: "#").first ?? file
+                forget(file: baseFile)
             }
         }
         return events
@@ -101,19 +140,58 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
-        return turns.removeValue(forKey: file) != nil
+        settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
+        var removed = turns.removeValue(forKey: file) != nil
+        for key in turns.keys where key.hasPrefix(file + "#") {
+            turns.removeValue(forKey: key)
+            removed = true
+        }
+        for key in waiting.keys where key.hasPrefix(file + "#") {
+            waiting.removeValue(forKey: key)
+        }
+        return removed
     }
 
-    /// `file` names the log whose turn the response counts toward. A
-    /// subagent's responses leave that turn's model and project alone.
-    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, turn file: String?,
-                     subagent: Bool) {
+    /// `source` is the log the response was read from; `file` names the log
+    /// whose turn it counts toward. A subagent's responses leave that turn's
+    /// model and project alone.
+    private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, source: String,
+                     turn file: String?, subagent: Bool) {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
+            if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
-            guard merged != old.tokens else { return }
+            if merged == old.tokens {
+                if record.provider == .opencode {
+                    let newCost: Double?
+                    let isReported: Bool
+                    if record.reportedCost {
+                        newCost = record.cost
+                        isReported = true
+                    } else if old.reportedCost {
+                        newCost = old.cost
+                        isReported = true
+                    } else {
+                        newCost = record.cost ?? old.cost
+                        isReported = false
+                    }
+                    if newCost != old.cost || isReported != old.reportedCost {
+                        summary.recordChanged(at: position, previous: old)
+                        let extra = (newCost ?? 0) - (old.cost ?? 0)
+                        records[position].cost = newCost
+                        records[position].reportedCost = isReported
+                        if let file, var turn = turns[file] ?? waiting[file],
+                           record.date >= turn.started.addingTimeInterval(-1) {
+                            waiting[file] = nil
+                            turn.cost += extra
+                            turns[file] = turn
+                        }
+                    }
+                }
+                return
+            }
             summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
@@ -121,22 +199,42 @@ final class AgentUsageStore {
             combined.webSearches = max(combined.webSearches, billable.webSearches)
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
+            combined.isAggregate = combined.isAggregate || billable.isAggregate
             let priced = AgentPricing.cost(combined, model: old.model)
+            let newCost: Double?
+            let isReported: Bool
+            if record.provider == .opencode {
+                if record.reportedCost {
+                    newCost = record.cost
+                    isReported = true
+                } else if old.reportedCost {
+                    newCost = old.cost
+                    isReported = true
+                } else {
+                    newCost = priced.cost ?? record.cost ?? old.cost
+                    isReported = false
+                }
+            } else {
+                newCost = priced.cost
+                isReported = false
+            }
             delta = AgentTokens(input: merged.input - old.tokens.input,
                                 cacheWrite: merged.cacheWrite - old.tokens.cacheWrite,
                                 cacheRead: merged.cacheRead - old.tokens.cacheRead,
                                 output: merged.output - old.tokens.output,
                                 reasoning: merged.reasoning - old.tokens.reasoning)
-            extra = (priced.cost ?? 0) - (old.cost ?? 0)
+            extra = (newCost ?? 0) - (old.cost ?? 0)
             billables[position] = combined
             records[position].tokens = merged
-            records[position].cost = priced.cost
+            records[position].cost = newCost
             records[position].savings = priced.savings
+            records[position].reportedCost = isReported
         } else {
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
             records.append(record)
             billables.append(billable)
+            sources.append([source])
         }
         guard let file, var turn = turns[file] ?? waiting[file],
               record.date >= turn.started.addingTimeInterval(-1) else { return }
@@ -151,12 +249,17 @@ final class AgentUsageStore {
         turns[file] = turn
     }
 
-    /// Prices every response again, after a newer list arrives.
+    /// Prices every response again, after a newer list arrives. List-derived
+    /// rows recalculate against the new prices, while reported provider charges stay intact.
     func reprice() {
         summary.invalidate()
         for position in records.indices {
+            guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
-            records[position].cost = priced.cost
+            // A zero OpenCode recorded for a model the list still does not
+            // know stays that reply's cost.
+            let recordedZero = records[position].provider == .opencode && records[position].cost == 0
+            records[position].cost = priced.cost ?? (recordedZero ? 0 : nil)
             records[position].savings = priced.savings
         }
     }
@@ -189,6 +292,21 @@ final class AgentUsageStore {
         waiting = waiting.filter { now.timeIntervalSince($0.value.lastActivity) < Self.resumeWindow(for: $0.value.provider) }
     }
 
+    /// A turn whose last step ended expecting more, with nothing after it
+    /// for a while, stopped there, as when OpenCode's loop stops on a
+    /// rejected tool call: it ends without a notice, since nothing finished.
+    /// True when one was showing.
+    @discardableResult
+    func closeSettledTurns(now: Date) -> Bool {
+        var removed = false
+        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.openCodeSettle {
+            settled[file] = nil
+            waiting[file] = nil
+            if turns.removeValue(forKey: file) != nil { removed = true }
+        }
+        return removed
+    }
+
     /// A Claude session quit or killed in the middle of a turn, as when its
     /// terminal closes, writes nothing that ends the turn. Its process
     /// record says so sooner than the quiet wait: the record names a process
@@ -215,21 +333,99 @@ final class AgentUsageStore {
 
     var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
 
+    /// What is kept between launches: every counter the logs gave, and none
+    /// of their text. OpenCode's database is read again at each launch, so
+    /// nothing it gave is kept.
+    struct Saved: Equatable {
+        struct Record: Equatable {
+            let key: String
+            let record: AgentUsageRecord
+            let billable: AgentBillable
+            let sources: [String]
+        }
+
+        var records: [Record] = []
+        var limits: [AgentLimits] = []
+        var codexPlan: String?
+        var codexPlanObserved = Date.distantPast
+        var turns: [AgentLiveSession] = []
+        var waiting: [AgentLiveSession] = []
+    }
+
+    var saved: Saved {
+        var keys = [String](repeating: "", count: records.count)
+        for (key, position) in index { keys[position] = key }
+        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+            Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
+        }
+        return Saved(records: kept,
+                     limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
+                     codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
+                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+    }
+
+    convenience init(saved: Saved) {
+        self.init()
+        records = saved.records.map(\.record)
+        billables = saved.records.map(\.billable)
+        sources = saved.records.map(\.sources)
+        for (position, entry) in saved.records.enumerated() { index[entry.key] = position }
+        limits = Dictionary(saved.limits.map { ($0.provider, $0) }, uniquingKeysWith: { $1 })
+        codexPlan = saved.codexPlan
+        codexPlanObserved = saved.codexPlanObserved
+        turns = Dictionary(saved.turns.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+        waiting = Dictionary(saved.waiting.map { ($0.id, $0) }, uniquingKeysWith: { $1 })
+    }
+
     /// Keeps memory bounded to the history the island can show.
     func dropRecords(before date: Date) {
         guard records.contains(where: { $0.date < date }) else { return }
+        keepRecords { records[$0].date >= date }
+    }
+
+    /// Takes back what logs gone or rewritten since they were read gave, as
+    /// reading every log from its start would: a response only they held
+    /// goes, one another log also holds stays. Their turns end without a
+    /// notice.
+    func forget(files: Set<String>) {
+        for file in files { forget(file: file) }
+        var emptied = false
+        for position in sources.indices where sources[position].contains(where: files.contains) {
+            sources[position].removeAll(where: files.contains)
+            emptied = emptied || sources[position].isEmpty
+        }
+        if emptied { keepRecords { !sources[$0].isEmpty } }
+    }
+
+    /// The logs holding a response that one of `files` also holds.
+    func files(sharingWith files: Set<String>) -> Set<String> {
+        var sharing = Set<String>()
+        for list in sources where list.contains(where: files.contains) { sharing.formUnion(list) }
+        return sharing
+    }
+
+    /// Every log that gave a response or holds a turn.
+    var files: Set<String> {
+        Set(sources.joined()).union(turns.keys).union(waiting.keys)
+    }
+
+    private func keepRecords(where keep: (Int) -> Bool) {
         summary.invalidate()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
+        var keptSources: [[String]] = []
         var positions: [Int: Int] = [:]
-        for (offset, record) in records.enumerated() where record.date >= date {
+        for offset in records.indices where keep(offset) {
             positions[offset] = kept.count
-            kept.append(record)
+            kept.append(records[offset])
             keptBillables.append(billables[offset])
+            keptSources.append(sources[offset])
         }
         index = index.compactMapValues { positions[$0] }
         records = kept
         billables = keptBillables
+        sources = keptSources
     }
 }
 
@@ -242,7 +438,8 @@ struct AgentLogRoot: Equatable {
     /// link elsewhere, as dotfile setups do, would otherwise never match.
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
-         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions")].map { provider, path in
+         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -258,6 +455,17 @@ struct AgentLogRoot: Equatable {
     var exists: Bool {
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
+    }
+
+    /// Discovery and live file events admit the same provider-specific logs.
+    func accepts(_ path: String) -> Bool {
+        let prefix = url.path + "/"
+        guard path.hasPrefix(prefix) else { return false }
+        if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        guard path.hasSuffix(".jsonl") else { return false }
+        guard provider == .copilot else { return true }
+        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
     }
 }
 
@@ -312,12 +520,18 @@ final class AgentLogCursor {
     let tracksTurns: Bool
     /// The session log a Claude subagent works for.
     let parent: String?
+    /// Replies still being written and the rows read last, for a database.
+    var openCode = AgentOpenCodeProgress()
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
     var discarding = false
     var state = AgentLogState()
     var modified = Date.distantPast
+    /// Set when the log turned out replaced, cut short or written again after
+    /// part of it was read. What its old contents gave is still counted, so
+    /// its progress is not saved: the next launch reads it as rewritten.
+    private(set) var restarted = false
 
     init(path: String, provider: AgentProvider) {
         self.path = path
@@ -325,7 +539,84 @@ final class AgentLogCursor {
         let name = (path as NSString).lastPathComponent
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
-        tracksTurns = provider == .claude ? parent == nil : !name.contains("_")
+        tracksTurns = provider == .claude ? parent == nil : (provider == .codex ? !name.contains("_") : true)
+    }
+
+    /// Where reading stopped, at a line boundary: a line still being written
+    /// is read again whole from the file.
+    struct Saved: Equatable {
+        let path: String
+        let provider: AgentProvider
+        let offset: UInt64
+        let identity: UInt64
+        let discarding: Bool
+        let modified: Date
+        let state: AgentLogState
+        /// Tells the log that was read from one rewritten in place, which
+        /// keeps its inode.
+        let fingerprint: UInt64
+    }
+
+    /// The fingerprint taken right after reading, so saved progress
+    /// describes the bytes as they were read, not as they are when saving.
+    private var fingerprinted: (offset: UInt64, identity: UInt64, value: UInt64)?
+
+    /// Where a resumed read picks up: the start of a line still being
+    /// written, or past a line too long to keep.
+    private var boundary: UInt64 { discarding ? offset : offset - UInt64(pending.count) }
+
+    /// Reads the log again from its start.
+    func startOver(identity: UInt64) {
+        if offset > 0 { restarted = true }
+        self.identity = identity
+        offset = 0
+        pending = Data()
+        discarding = false
+        state = AgentLogState()
+        fingerprinted = nil
+    }
+
+    func fingerprintRead() {
+        let end = boundary
+        if let taken = fingerprinted, taken.offset == end, taken.identity == identity { return }
+        fingerprinted = AgentLogReader.fingerprint(path, upTo: end).map { (end, identity, $0) }
+    }
+
+    /// False once the log no longer holds what was read: written again in
+    /// place, perhaps past where reading stopped, which its size and inode
+    /// alone do not show.
+    var holdsWhatWasRead: Bool {
+        guard let taken = fingerprinted, taken.identity == identity else { return true }
+        return AgentLogReader.fingerprint(path, upTo: taken.offset) == taken.value
+    }
+
+    var saved: Saved {
+        let end = boundary
+        let fingerprint: UInt64
+        if let taken = fingerprinted, taken.offset == end, taken.identity == identity {
+            fingerprint = taken.value
+        } else {
+            fingerprint = AgentLogReader.fingerprint(path, upTo: end) ?? 0
+            fingerprinted = (end, identity, fingerprint)
+        }
+        return Saved(path: path, provider: provider, offset: end, identity: identity, discarding: discarding,
+                     modified: modified, state: state, fingerprint: fingerprint)
+    }
+
+    /// Nil when the path no longer holds the log that was read up to the
+    /// saved offset: replaced by another file, or cut short and written
+    /// again in place.
+    convenience init?(saved: Saved) {
+        var info = stat()
+        guard stat(saved.path, &info) == 0, UInt64(info.st_ino) == saved.identity,
+              AgentLogReader.fingerprint(saved.path, upTo: saved.offset) == saved.fingerprint else { return nil }
+        self.init(path: saved.path, provider: saved.provider)
+        offset = saved.offset
+        identity = saved.identity
+        discarding = saved.discarding
+        modified = saved.modified
+        state = saved.state
+        fingerprinted = (saved.offset, saved.identity, saved.fingerprint)
     }
 
     /// Claude Code keeps a session's subagents in `<session>/subagents/`,
@@ -342,7 +633,40 @@ enum AgentLogReader {
     /// usage record; it is skipped rather than held in memory.
     static let maximumLine = 32 << 20
 
-    static func isLog(_ path: String) -> Bool { path.hasSuffix(".jsonl") }
+    static func isLog(_ path: String) -> Bool {
+        let name = (path as NSString).lastPathComponent
+        if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        return path.hasSuffix(".jsonl")
+    }
+
+    /// A hash of the log's first and last few kilobytes before `offset`, and
+    /// of the offset itself. A log rewritten with a different start, or
+    /// different lines just before where reading stopped, no longer matches.
+    /// Nil when the file cannot be read that far.
+    static func fingerprint(_ path: String, upTo offset: UInt64) -> UInt64? {
+        // Without O_NONBLOCK a FIFO named like a log would block the open,
+        // and a stop waiting for the usage queue with it.
+        let descriptor = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK)
+        guard descriptor >= 0 else { return nil }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let span: UInt64 = 4096
+        // FNV-1a: stable across launches, unlike `Hasher`.
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325
+        func mix(_ bytes: UnsafeRawBufferPointer) {
+            for byte in bytes { hash = (hash ^ UInt64(byte)) &* 0x100_0000_01B3 }
+        }
+        withUnsafeBytes(of: offset.littleEndian, mix)
+        var buffer = [UInt8](repeating: 0, count: Int(span))
+        for start in [0, offset - min(span, offset)] {
+            let length = Int(min(span, offset - start))
+            let read = buffer.withUnsafeMutableBytes { pread(descriptor, $0.baseAddress, length, off_t(start)) }
+            guard read == length else { return nil }
+            buffer.withUnsafeBytes { mix(UnsafeRawBufferPointer(rebasing: $0[..<length])) }
+        }
+        return hash
+    }
 
     /// Log files changed since `horizon`, newest last so live turns settle
     /// on the most recent state. Subagents come after every session, so the
@@ -350,14 +674,37 @@ enum AgentLogReader {
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
+        func include(_ url: URL, from root: AgentLogRoot) {
+            guard root.accepts(url.path),
+                  let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                  let modified = values.contentModificationDate, modified >= horizon else { return }
+            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            found.append((url.path, root.provider, modified, subagent))
+        }
         for root in roots where root.exists {
+            // OpenCode keeps its database beside the snapshots, clones and
+            // logs of its data folder, which are never walked.
+            if root.provider == .opencode {
+                let path = root.url.appending(path: AgentOpenCodeReader.database).path
+                if let modified = AgentOpenCodeReader.modified(path), modified >= horizon {
+                    found.append((path, root.provider, modified, false))
+                }
+                continue
+            }
+            // A Copilot session can contain a complete workspace checkout,
+            // databases and checkpoints. Its log has one fixed shallow path;
+            // recursively walking the workspace can delay the first snapshot
+            // indefinitely on a large repository.
+            if root.provider == .copilot {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
-            for case let url as URL in enumerator where isLog(url.path) {
-                guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                      let modified = values.contentModificationDate, modified >= horizon else { continue }
-                let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
-                found.append((url.path, root.provider, modified, subagent))
+            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
+                include(url, from: root)
             }
         }
         return found.sorted { $0.subagent != $1.subagent ? $1.subagent : $0.modified < $1.modified }
@@ -366,22 +713,27 @@ enum AgentLogReader {
 
     /// Reads what was appended since the last call and hands over each
     /// complete line. A replaced or truncated file starts over.
-    static func readAppended(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
-                             line: (Data) -> Void) {
+    /// A database has no files to leave out, so its first read starts at
+    /// `horizon` instead.
+    static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast,
+                             shouldContinue: () -> Bool = { true },
+                             including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .opencode {
+            AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
         let identity = UInt64(info.st_ino)
         cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                 + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
-        if identity != cursor.identity || size < cursor.offset {
-            cursor.identity = identity
-            cursor.offset = 0
-            cursor.pending = Data()
-            cursor.discarding = false
-            cursor.state = AgentLogState()
+        if identity != cursor.identity || size < cursor.offset
+            || (size > cursor.offset && !cursor.holdsWhatWasRead) {
+            cursor.startOver(identity: identity)
         }
+        defer { cursor.fingerprintRead() }
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
@@ -392,14 +744,30 @@ enum AgentLogReader {
             let read: Bool = autoreleasepool {
                 guard let chunk = try? handle.read(upToCount: wanted), !chunk.isEmpty else { return false }
                 cursor.offset += UInt64(chunk.count)
-                split(chunk, cursor: cursor, line: line)
+                split(chunk, cursor: cursor, including: including, line: line)
                 return true
             }
             guard read else { break }
         }
     }
 
-    private static func split(_ chunk: Data, cursor: AgentLogCursor, line: (Data) -> Void) {
+    /// Skip unrelated payloads before copying a line. Only top-level event
+    /// types count, including in whitespace-formatted logs or nested results.
+    static func copilotHistoryLine(_ buffer: Data, range: Range<Int>) -> Bool {
+        guard let type = AgentLogObject(buffer, range: range)?.string("type") else { return false }
+        return AgentLogParser.copilotEvent(type)
+    }
+
+    /// Streams every structural event so responses keep their original date
+    /// and model, and the final turn state is restored. The line filter keeps
+    /// unrelated workspace output from being copied or decoded.
+    static func readCopilotHistory(_ cursor: AgentLogCursor, shouldContinue: () -> Bool = { true },
+                                   line: (Data) -> Void) {
+        readAppended(cursor, shouldContinue: shouldContinue, including: copilotHistoryLine, line: line)
+    }
+
+    private static func split(_ chunk: Data, cursor: AgentLogCursor,
+                              including: ((Data, Range<Int>) -> Bool)?, line: (Data) -> Void) {
         var buffer = cursor.pending
         buffer.append(chunk)
         var start = 0
@@ -422,7 +790,9 @@ enum AgentLogReader {
                 cursor.discarding = false
                 continue
             }
-            if !range.isEmpty, range.count <= maximumLine { line(buffer.subdata(in: range)) }
+            if !range.isEmpty, range.count <= maximumLine, including?(buffer, range) != false {
+                line(buffer.subdata(in: range))
+            }
         }
         // Once a line is oversized, scan only for its terminator. Retaining
         // subsequent fragments would rebuild a buffer we can never deliver.

@@ -267,8 +267,11 @@ struct NotchAudioControls: View {
 
     @ViewBuilder private var slider: some View {
         if let level {
+            // Under the song's position bar the volume draws as slim as that
+            // bar, keeping the full height to grab it by.
             NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
-                             label: FeatureStrings.notch(l10n.language).volume)
+                             label: FeatureStrings.notch(l10n.language).volume,
+                             trackThickness: style == .inline ? 8 : nil)
                 .frame(height: style == .card ? 28 : 24)
         } else {
             Text(l10n.s.mixerOutputUnavailable).font(.system(size: 10)).foregroundStyle(.secondary)
@@ -299,14 +302,12 @@ struct NotchAudioControls: View {
     /// Under the player the readout is the slider itself; a glyph opens the chooser.
     private var inlineOutputMenu: some View {
         NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: outputItems) {
-            HStack(spacing: 5) {
-                Image(systemName: "airplay.audio").font(.system(size: 14))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-            }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 4)
-            .frame(height: 24)
-            .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            Image(systemName: "airplay.audio")
+                .font(.system(size: 14))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .frame(height: 24)
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .help(deviceName)
         .accessibilityValue(deviceName)

@@ -10,6 +10,8 @@ import SwiftUI
 struct NotchButtonStyle: ButtonStyle {
     var cornerRadius: CGFloat = 10
     var lifts = true
+    /// A light wash under the pointer.
+    var highlights = true
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -19,7 +21,7 @@ struct NotchButtonStyle: ButtonStyle {
         configuration.label
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.white.opacity(active ? 0.09 : 0))
+                    .fill(.white.opacity(active && highlights ? 0.09 : 0))
                     .allowsHitTesting(false)
             }
             .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
@@ -91,6 +93,54 @@ struct NotchRollingDigits: ViewModifier {
     }
 }
 
+/// Draws a strip from what its activity reported while it was on the island.
+/// An activity that ends says so before the island swaps its strip out, and
+/// the strip on its way out drew the empty reading for those frames and
+/// through the fade into what comes next.
+struct NotchStripHold<Value: Equatable, Content: View>: View {
+    private let value: Value
+    private let shows: Bool
+    private let content: (Value) -> Content
+    @State private var held: Value
+
+    /// `shows` is whether the activity is still on the island.
+    init(_ value: Value, shows: Bool, @ViewBuilder content: @escaping (Value) -> Content) {
+        self.value = value
+        self.shows = shows
+        self.content = content
+        _held = State(initialValue: value)
+    }
+
+    var body: some View {
+        content(shows ? value : held)
+            .onChange(of: value) { _, value in
+                if shows { held = value }
+            }
+    }
+}
+
+/// Swaps a strip and the companion at rest through black: the one leaving is
+/// gone halfway through the island's crossfade and the one arriving comes in
+/// over the rest of it, so the companion never shows half faded over the
+/// strip's text in the same place.
+struct NotchFadeThrough: ViewModifier, Animatable {
+    var progress: Double
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func body(content: Content) -> some View {
+        content.opacity(max(0, progress * 2 - 1))
+    }
+}
+
+extension AnyTransition {
+    static var notchFadeThrough: AnyTransition {
+        .modifier(active: NotchFadeThrough(progress: 0), identity: NotchFadeThrough(progress: 1))
+    }
+}
+
 struct NotchIconButton: View {
     let symbol: String
     let title: String
@@ -118,19 +168,25 @@ struct NotchIconButton: View {
 }
 
 /// A short island puts the glyph beside its message; taller ones stack them.
-struct NotchEmptyView: View {
+/// Actions, when a page has a next step to offer, follow the message.
+struct NotchEmptyView<Actions: View>: View {
     let symbol: String
     let message: String
+    @ViewBuilder var actions: () -> Actions
 
     var body: some View {
         ViewThatFits(in: .vertical) {
             VStack(spacing: 12) {
                 glyph
-                label.frame(maxWidth: 250)
+                label.multilineTextAlignment(.center).frame(maxWidth: 250)
+                actions()
             }
             HStack(spacing: 14) {
                 glyph
-                label.frame(maxWidth: 260, alignment: .leading)
+                VStack(alignment: .leading, spacing: 10) {
+                    label.frame(maxWidth: 260, alignment: .leading)
+                    actions()
+                }
             }
         }
         .padding(12)
@@ -151,6 +207,34 @@ struct NotchEmptyView: View {
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+extension NotchEmptyView where Actions == EmptyView {
+    init(symbol: String, message: String) {
+        self.init(symbol: symbol, message: message) { EmptyView() }
+    }
+}
+
+/// An empty page's next step, as a word on a pill. The step the page leads
+/// to is filled, and any other stays plain beside it.
+struct NotchPillButton: View {
+    let title: String
+    var prominent = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 12, weight: prominent ? .semibold : .medium))
+                .foregroundStyle(.white.opacity(prominent ? 1 : 0.7))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(height: 28)
+                .background(.white.opacity(prominent ? 0.14 : 0), in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
     }
 }
 
@@ -226,6 +310,7 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                     .contentShape(Rectangle())
                 }
                 .scrollIndicators(.never)
+                .notchScrollEdgeFade(.horizontal)
                 .onAppear {
                     if let targetColumn { proxy.scrollTo(targetColumn, anchor: .center) }
                 }
@@ -370,7 +455,8 @@ struct NotchSurfaceBackground: View {
                     .environment(\.appearsActive, true)
                     .materialActiveAppearance(.active)
                     .overlay {
-                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast),
+                        LinearGradient(stops: Self.shade(openness: presentation.openness, contrast: contrast,
+                                                             height: presentation.contourBottom),
                                        startPoint: .top, endPoint: .bottom)
                             .frame(height: presentation.contourBottom)
                             .frame(maxHeight: .infinity, alignment: .top)
@@ -390,13 +476,11 @@ struct NotchSurfaceBackground: View {
     /// The dimming over the glass, from the top of the island to its lip. Near
     /// a black strip the lip closes up, so the last frames of a collapse
     /// already match the resting island.
-    static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
-        (0...64).map { index in
-            let t = Double(index) / 64
-            return Gradient.Stop(
-                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
-                location: t)
-        }
+    /// The black holds over the whole page, and the lip opens in the margin
+    /// below it (NotchGlassLip), measured in points over an island `height` tall.
+    static func shade(openness: Double, contrast: ColorSchemeContrast, height: CGFloat) -> [Gradient.Stop] {
+        NotchGlassLip.stops(height: height, openness: openness, increasedContrast: contrast == .increased)
+            .map { Gradient.Stop(color: .black.opacity($0.opacity), location: $0.location) }
     }
 }
 
@@ -601,6 +685,8 @@ final class NotchMenuAnchor: NSObject {
         actions = items.map(\.action)
         let menu = NSMenu()
         menu.autoenablesItems = false
+        // The island is dark whatever the system is, so its menus are too.
+        menu.appearance = NSAppearance(named: .darkAqua)
         for (index, item) in items.enumerated() {
             guard !item.isSeparator else { menu.addItem(.separator()); continue }
             let entry = NSMenuItem(title: item.title, action: #selector(choose(_:)), keyEquivalent: "")
@@ -613,7 +699,15 @@ final class NotchMenuAnchor: NSObject {
             }
             menu.addItem(entry)
         }
-        menu.popUp(positioning: nil, at: NSPoint(x: 0, y: 0), in: view)
+        // A menu whose top lands on the menu bar's edge opens scrolled past its
+        // first entry, so a button against the bar opens it a little below.
+        var location = NSPoint.zero
+        if let window = view.window, let screen = window.screen {
+            let bottom = window.convertPoint(toScreen: view.convert(location, to: nil)).y
+            let edge = screen.visibleFrame.maxY - 3
+            if bottom > edge { location.y -= bottom - edge }
+        }
+        menu.popUp(positioning: nil, at: location, in: view)
     }
 
     @objc private func choose(_ sender: NSMenuItem) {

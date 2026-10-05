@@ -451,8 +451,14 @@ final class WindowPreviewProvider {
             else { return }
             self.pendingWarmPid = nil
             warmTask?.cancel()
+            // Taken here, on the main queue, before the task starts.
             let snapshot = WindowEnumerator.snapshot()
-            warmTask = Task(priority: .utility) { [weak self] in
+            // Detached: this closure runs on the main queue, so a plain Task
+            // would inherit the main actor, and the alpha check, the Stage
+            // Manager strip rectification and the downscaled copy of every
+            // window below would run on the main thread after each activation.
+            // The listing itself stays on the warm enumeration queue.
+            warmTask = Task.detached(priority: .utility) { [weak self] in
                 guard let self else { return }
                 let items = await withCheckedContinuation { continuation in
                     Self.warmEnumerationQueue.async {

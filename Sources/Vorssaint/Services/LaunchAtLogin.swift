@@ -28,9 +28,8 @@ enum LaunchAtLogin {
         var errorDescription: String? { L10n.shared.s.launchAtLoginNeedsApplications }
     }
 
-    /// Thrown when the item is registered but System Settings still has it
-    /// switched off. Only the user can approve it there, so the toggle would
-    /// otherwise flip straight back with nothing said (issue #260).
+    /// Registration can succeed while macOS still denies permission, including
+    /// when Allow in the Background is off. Only the user can approve it.
     struct NeedsApprovalError: LocalizedError {
         var errorDescription: String? { L10n.shared.s.launchAtLoginNeedsApproval }
     }

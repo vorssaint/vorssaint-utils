@@ -1477,7 +1477,7 @@ final class ShelfService: ObservableObject {
 
     func accept(draggingInfo: NSDraggingInfo) -> Bool {
         let accepted = acceptDrop(pasteboard: draggingInfo.draggingPasteboard)
-        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        if accepted { noteAcceptedDrop(draggingInfo) }
         return accepted
     }
 
@@ -1489,8 +1489,17 @@ final class ShelfService: ObservableObject {
         let accepted = receivers.isEmpty
             ? mergePasteboard(pasteboard, into: targetID)
             : beginPromisedFileReceive(receivers, additions: nonPromisedItems(from: pasteboard), mergeInto: targetID)
-        if accepted, draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        if accepted { noteAcceptedDrop(draggingInfo) }
         return accepted
+    }
+
+    /// A promised file reaches `append`, and with it `noteInteraction()`, only
+    /// once its asynchronous delivery completes, which can be after the grace
+    /// window in `endEdgePeekDrag` has retracted an edge peek. Noting the drop
+    /// here clears `edgePeekMatch` first, so that retract does nothing.
+    private func noteAcceptedDrop(_ draggingInfo: NSDraggingInfo) {
+        if draggingInfo.draggingDestinationWindow === dockedPanel { dockDidAccept() }
+        noteInteraction()
     }
 
     private func filePromiseReceivers(from pasteboard: NSPasteboard) -> [NSFilePromiseReceiver] {

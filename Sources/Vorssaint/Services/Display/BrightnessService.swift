@@ -35,6 +35,9 @@ struct BrightnessDisplay: Identifiable, Equatable {
     let readable: Bool
     /// Manual dimming choices need a stable display-and-connection key.
     var canChooseDimming = false
+    /// Captured before this display is disabled, while its identity is still
+    /// available. A reused display number must not transfer recovery ownership.
+    var restorationFingerprint: String? = nil
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -42,9 +45,10 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// external monitors are driven over DDC/CI, the same protocol their own
 /// buttons use, addressed per display through its I2C service.
 ///
-/// While display control is off there are no display observers, services or
-/// I2C traffic. Keyboard light state is read when Quick toggles opens or one
-/// of its global shortcuts is pressed.
+/// Display control stops its screen observer, brightness routes and I2C work
+/// when turned off. Pending restores keep wake and lid observation until they
+/// succeed. Keyboard light state is read when Quick toggles opens or one of
+/// its global shortcuts is pressed.
 /// While display control is on, the standing resources are one screen change
 /// observer and a pair of wake observers, and no timers; everything else
 /// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
@@ -118,6 +122,7 @@ final class BrightnessService: ObservableObject {
     /// system-defined events only, so ordinary typing never touches it.
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
+    private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     /// Second tap for keyboards that send brightness as an ordinary key
     /// press instead of a media key. Every keystroke in the session passes
     /// through it, so it runs on its own thread: the window server waits for
@@ -154,6 +159,9 @@ final class BrightnessService: ObservableObject {
         let value: Double
         let showOSD: Bool
         let sequence: UInt64
+        /// A key step, which a system display eases into like the system's
+        /// own keys. Slider drags land at once.
+        let smooth: Bool
     }
     private var pendingLevels: [CGDirectDisplayID: PendingWrite] = [:]
     private var writeSequence: UInt64 = 0
@@ -217,6 +225,16 @@ final class BrightnessService: ObservableObject {
         "\(CGDisplayVendorNumber(id)):\(CGDisplayModelNumber(id)):\(CGDisplaySerialNumber(id))"
     }
 
+    /// Nil when CoreGraphics names no monitor: zeroes for a connection with
+    /// nothing identified on it, all ones for a number no display uses, and
+    /// the unknown vendor ('unkn') for a monitor IOKit could not identify.
+    private static func restorationDisplayFingerprint(_ id: CGDirectDisplayID) -> String? {
+        let fingerprint = displayFingerprint(id)
+        guard fingerprint != "0:0:0", !fingerprint.contains(String(UInt32.max)),
+              !fingerprint.hasPrefix("\(0x756E6B6E):") else { return nil }
+        return fingerprint
+    }
+
     /// A remembered level, only if it was saved for the monitor currently
     /// behind this display number. Callers hold the state lock.
     private func rememberedLevel(for id: CGDirectDisplayID) -> Double? {
@@ -226,12 +244,16 @@ final class BrightnessService: ObservableObject {
     }
     private var knownTopology = Set<CGDirectDisplayID>()
     private var knownActiveTopology = Set<CGDirectDisplayID>()
+    /// Keep a managed display's latest identified monitor across connection
+    /// gaps, when CoreGraphics may answer zeroes or all ones for its display number.
+    private var knownDisplayFingerprints: [CGDirectDisplayID: String] = [:]
     /// Only displays disabled by this process are restored when the feature
     /// is switched off. A display another app disabled is never changed
     /// without a direct click from the user.
     private var managedDisabledIDs = Set<CGDirectDisplayID>()
     /// A disabled display leaves even CoreGraphics' online list. Keep its
-    /// last row so the panel still offers the button that brings it back.
+    /// last row for that monitor until an enable succeeds, so a transient active
+    /// reading during sleep or an input change cannot take its button away.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
     /// Permission reset removes only the two Accessibility event taps. The
@@ -605,9 +627,10 @@ final class BrightnessService: ObservableObject {
 
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
-    /// queue, and a drag folds into one write of the newest value.
+    /// queue, and a drag folds into one write of the newest value. A key
+    /// step passes `smooth`, so a system display eases into it.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
-                       showOSD: Bool = false) {
+                       showOSD: Bool = false, smooth: Bool = false) {
         guard value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
         let shownInNotch = NotchService.shared.showBrightness(clamped)
@@ -619,7 +642,7 @@ final class BrightnessService: ObservableObject {
         writeSequence &+= 1
         pendingLevels[id] = PendingWrite(value: clamped,
                                          showOSD: showOSD && !shownInNotch,
-                                         sequence: writeSequence)
+                                         sequence: writeSequence, smooth: smooth)
         lastApplied[id] = RememberedLevel(value: clamped,
                                           fingerprint: Self.displayFingerprint(id))
         levelKnownAt[id] = Date()
@@ -705,7 +728,15 @@ final class BrightnessService: ObservableObject {
     /// Second half of `toggleDisplay`, on the main thread: the display
     /// reconfiguration and the bookkeeping that follows it.
     private func commitDisplayToggle(_ display: BrightnessDisplay, enabled: Bool) {
-        if !enabled { Self.rememberDisplaySwitchedOff(display.id) }
+        if enabled, discardReplacedDisplay(display.id) {
+            finishDisplayToggle(id: display.id, enabled: enabled, failure: .failed)
+            refresh(force: true)
+            return
+        }
+        // The built-in's number never passes to another monitor, so it keeps
+        // no identity that could later retire its row.
+        let fingerprint = display.isBuiltIn ? nil : Self.restorationDisplayFingerprint(display.id)
+        if !enabled { Self.rememberDisplaySwitchedOff(display.id, fingerprint: fingerprint) }
         let result = Self.configureDisplay(display.id, enabled: enabled)
         guard result == .success else {
             if !enabled { Self.forgetDisplaySwitchedOff(display.id) }
@@ -722,6 +753,7 @@ final class BrightnessService: ObservableObject {
         }
 
         stateLock.lock()
+        if let fingerprint { knownDisplayFingerprints[display.id] = fingerprint }
         pendingLevels.removeValue(forKey: display.id)
         if enabled {
             managedDisabledIDs.remove(display.id)
@@ -732,6 +764,7 @@ final class BrightnessService: ObservableObject {
             var disabled = display
             disabled.method = nil
             disabled.isActive = false
+            disabled.restorationFingerprint = fingerprint
             managedDisabledDisplays[display.id] = disabled
             knownActiveTopology.remove(display.id)
         }
@@ -760,7 +793,9 @@ final class BrightnessService: ObservableObject {
             if failure == nil, let index = self.displays.firstIndex(where: { $0.id == id }) {
                 self.displays[index].isActive = enabled
                 if !enabled { self.displays[index].method = nil }
-                self.refresh()
+                // Ownership changed even if macOS briefly reports the same
+                // topology. Invalidate probes started before this transaction.
+                self.refresh(force: true)
             }
         }
         // Publish a main-thread transaction before queued lid recovery can
@@ -821,14 +856,34 @@ final class BrightnessService: ObservableObject {
 
     /// These requests outlive the brightness feature, but never the app.
     private func restoreDisplay(_ id: CGDirectDisplayID) -> BrightnessSupport.DisplayConfigurationResult {
-        let result = Self.configureDisplay(id, enabled: true)
+        guard !discardReplacedDisplay(id) else { return .failed }
+        let result: BrightnessSupport.DisplayConfigurationResult = canRestoreDisplay(id)
+            ? Self.configureDisplay(id, enabled: true) : .failed
         deferredRestoration.record(id, result: result)
         syncLidObserver()
         if result == .success { displayControlFailure = nil }
         return result
     }
 
+    /// Switching on is the safe direction, so automatic recovery is refused
+    /// only when this number positively names another monitor. A display that
+    /// is off may report no identity at all, and old records carry none.
+    private func canRestoreDisplay(_ id: CGDirectDisplayID) -> Bool {
+        guard let current = Self.restorationDisplayFingerprint(id) else { return true }
+        stateLock.lock()
+        let original = managedDisabledDisplays[id]?.restorationFingerprint
+        stateLock.unlock()
+        return original == nil || original == current
+    }
+
     private func syncLidObserver() {
+        // Failed recovery outlives the feature, like closed-lid recovery.
+        // Keep wake observation only while either has work left to do.
+        if running || !deferredRestoration.ids.isEmpty {
+            installWakeObservers()
+        } else {
+            removeWakeObservers()
+        }
         if deferredRestoration.ids.isEmpty {
             if lidNotification != 0 { IOObjectRelease(lidNotification) }
             lidNotification = 0
@@ -861,8 +916,9 @@ final class BrightnessService: ObservableObject {
         DispatchQueue.main.async { [weak self] in self?.restoreDeferredDisplays() }
     }
 
-    private func restoreDeferredDisplays() {
-        for id in deferredRestoration.candidates(lidClosed: Self.lidClosed()) {
+    private func restoreDeferredDisplays(retryFailures: Bool = false) {
+        for id in deferredRestoration.candidates(lidClosed: Self.lidClosed(),
+                                                 retryFailures: retryFailures) {
             guard restoreDisplay(id) == .success else { continue }
             stateLock.lock()
             managedDisabledIDs.remove(id)
@@ -888,6 +944,53 @@ final class BrightnessService: ObservableObject {
         return BrightnessSupport.DisplayTopology(
             online: Set(ids.prefix(Int(count))),
             active: activeDisplayIDs())
+    }
+
+    /// Callers hold the state lock. Discovery is an observation, not a
+    /// completed enable: a disabled display can appear active briefly while
+    /// macOS rebuilds its connections. An enable or a different physical
+    /// monitor retires its saved row.
+    private func recordDiscoveredTopology(online: Set<CGDirectDisplayID>,
+                                          active: Set<CGDirectDisplayID>,
+                                          fingerprints: [CGDirectDisplayID: String] = [:]) {
+        knownTopology = online
+        knownActiveTopology = active
+        knownDisplayFingerprints = knownDisplayFingerprints.filter {
+            online.contains($0.key) || managedDisabledIDs.contains($0.key)
+        }
+        knownDisplayFingerprints.merge(fingerprints) { _, discovered in discovered }
+        let replaced = fingerprints.keys.filter { id in
+            guard let original = managedDisabledDisplays[id]?.restorationFingerprint else { return false }
+            return original != fingerprints[id]
+        }
+        if !replaced.isEmpty {
+            // Preferences and restoration observers belong to main and must
+            // never be changed while this caller holds the state lock.
+            DispatchQueue.main.async { [weak self] in
+                for id in replaced { _ = self?.discardReplacedDisplay(id) }
+            }
+        }
+    }
+
+    /// Main thread only, before any recovery transaction. Recheck the current
+    /// owner so queued discovery cannot discard a newer explicit disable.
+    private func discardReplacedDisplay(_ id: CGDirectDisplayID) -> Bool {
+        let fingerprint = Self.restorationDisplayFingerprint(id)
+        stateLock.lock()
+        if let fingerprint { knownDisplayFingerprints[id] = fingerprint }
+        guard let original = managedDisabledDisplays[id]?.restorationFingerprint,
+              let current = knownDisplayFingerprints[id], original != current else {
+            stateLock.unlock()
+            return false
+        }
+        managedDisabledIDs.remove(id)
+        managedDisabledDisplays.removeValue(forKey: id)
+        stateLock.unlock()
+        deferredRestoration.record(id, result: .success)
+        Self.forgetDisplaySwitchedOff(id)
+        syncLidObserver()
+        displays.removeAll { $0.id == id && $0.restorationFingerprint == original }
+        return true
     }
 
     /// AppKit gives termination hooks only a brief synchronous window. Put
@@ -940,38 +1043,81 @@ final class BrightnessService: ObservableObject {
     /// went away without putting it back, whether by a crash or by being
     /// forced to quit, the only way left was to unplug the screen. The
     /// intention is written down instead, and honoured on the next start.
-    private static func rememberDisplaySwitchedOff(_ id: CGDirectDisplayID) {
-        var stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
-        guard !stored.contains(Int(id)) else { return }
-        stored.append(Int(id))
-        UserDefaults.standard.set(stored, forKey: DefaultsKey.displaysSwitchedOff)
+    private static func rememberDisplaySwitchedOff(_ id: CGDirectDisplayID, fingerprint: String?) {
+        let defaults = UserDefaults.standard
+        var fingerprints = defaults.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+            as? [String: String] ?? [:]
+        fingerprints[String(id)] = fingerprint
+        // Save identity first, before the display transaction can make it
+        // unavailable. A crash before writing the id cannot disable a display.
+        if fingerprints.isEmpty {
+            defaults.removeObject(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+        } else {
+            defaults.set(fingerprints, forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+        }
+        var stored = defaults.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
+        if !stored.contains(Int(id)) { stored.append(Int(id)) }
+        defaults.set(stored, forKey: DefaultsKey.displaysSwitchedOff)
     }
 
     private static func forgetDisplaySwitchedOff(_ id: CGDirectDisplayID) {
-        let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
+        let defaults = UserDefaults.standard
+        let stored = defaults.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         let remaining = stored.filter { $0 != Int(id) }
         if remaining.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.displaysSwitchedOff)
+            defaults.removeObject(forKey: DefaultsKey.displaysSwitchedOff)
+            defaults.removeObject(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
         } else {
-            UserDefaults.standard.set(remaining, forKey: DefaultsKey.displaysSwitchedOff)
+            defaults.set(remaining, forKey: DefaultsKey.displaysSwitchedOff)
+            var fingerprints = defaults.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+                as? [String: String] ?? [:]
+            fingerprints.removeValue(forKey: String(id))
+            if fingerprints.isEmpty {
+                defaults.removeObject(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+            } else {
+                defaults.set(fingerprints, forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+            }
         }
     }
 
-    /// Switches back on anything a previous run left off. Called at startup on
-    /// the main thread, before any display work, so a screen is never stranded
-    /// between runs. Nothing here belongs to the work queue, and the
-    /// reconfiguration itself may not run there (see `configureDisplay`).
+    /// Recovers displays a previous run left off, using the identity saved
+    /// before the connection disappeared. Called at startup on main, before
+    /// display work. A display that cannot be switched back on yet keeps its
+    /// power-on control and is tried again when the screens wake.
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         guard !stored.isEmpty else { return }
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
+        let fingerprints = UserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
+            as? [String: String] ?? [:]
         for id in stored {
             // The list is plain numbers on disk and can arrive edited or
             // imported, so anything that is not a display number is skipped
             // rather than converted.
             guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
+            let currentFingerprint = Self.restorationDisplayFingerprint(displayID)
+            let display = BrightnessDisplay(
+                id: displayID,
+                name: Self.displayName(displayID, info: Self.displayInfoDictionary(displayID),
+                                       screenNames: [:]),
+                isBuiltIn: CGDisplayIsBuiltin(displayID) != 0,
+                method: nil, isActive: false, brightness: 1, readable: false,
+                restorationFingerprint: fingerprints[String(displayID)])
+            stateLock.lock()
+            if let currentFingerprint {
+                knownDisplayFingerprints[displayID] = currentFingerprint
+            }
+            managedDisabledIDs.insert(displayID)
+            if managedDisabledDisplays[displayID] == nil {
+                managedDisabledDisplays[displayID] = display
+            }
+            stateLock.unlock()
             deferredRestoration.keep(displayID)
             guard restoreDisplay(displayID) == .success else { continue }
+            stateLock.lock()
+            managedDisabledIDs.remove(displayID)
+            managedDisabledDisplays.removeValue(forKey: displayID)
+            stateLock.unlock()
             Self.forgetDisplaySwitchedOff(displayID)
         }
     }
@@ -1066,6 +1212,7 @@ final class BrightnessService: ObservableObject {
         CFMachPortInvalidate(tap)
         keyTapSource = nil
         keyTap = nil
+        keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
     }
 
     // MARK: - Brightness keys on other keyboards
@@ -1413,7 +1560,7 @@ final class BrightnessService: ObservableObject {
                             showOSD: Bool) {
         let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
         Self.log.log("key step display \(displayID) route \(String(describing: method), privacy: .public) \(current) to \(stepped)")
-        setBrightness(stepped, for: displayID, showOSD: showOSD)
+        setBrightness(stepped, for: displayID, showOSD: showOSD, smooth: true)
     }
 
     /// Routes a handled brightness key press to the pointer display when that
@@ -1448,12 +1595,18 @@ final class BrightnessService: ObservableObject {
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
+        guard case .app(let ownedDelta) = keyOwnership.owner(
+            of: press,
+            option: event.flags.contains(.maskAlternate),
+            shift: event.flags.contains(.maskShift),
+            commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
+        else { return Unmanaged.passUnretained(event) }
 
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
         let keyStep = self.keyStep
-        let delta = keyStep.limited(press.delta)
+        let delta = keyStep.limited(ownedDelta)
         // A press left to the system still takes a finer step, as the
         // system's own quarter steps, and both of its halves are replaced.
         func leaveToSystem() -> Unmanaged<CGEvent>? {
@@ -1518,7 +1671,7 @@ final class BrightnessService: ObservableObject {
             ) {
                 let stepped = BrightnessSupport.steppedBrightness(current, delta: delta)
                 Self.log.log("key step display \(displayID) route system \(current) to \(stepped)")
-                setBrightness(stepped, for: displayID, showOSD: showsOverlay)
+                setBrightness(stepped, for: displayID, showOSD: showsOverlay, smooth: true)
             }
             // Both halves are replaced so the system never draws a second OSD.
             return nil
@@ -1602,7 +1755,12 @@ final class BrightnessService: ObservableObject {
             var restored: CGDirectDisplayID?
             var failure: DisplayControlFailure = .closedLid
             for id in candidates {
-                let result = Self.configureDisplay(id, enabled: true)
+                if self.discardReplacedDisplay(id) {
+                    failure = .failed
+                    continue
+                }
+                let result: BrightnessSupport.DisplayConfigurationResult = self.canRestoreDisplay(id)
+                    ? Self.configureDisplay(id, enabled: true) : .failed
                 self.deferredRestoration.recordHeadless(id, result: result)
                 self.syncLidObserver()
                 if result == .success { self.displayControlFailure = nil }
@@ -1664,10 +1822,12 @@ final class BrightnessService: ObservableObject {
     /// moment before the monitors have finished negotiating, so the two fold
     /// into a single pass that waits for the connections to settle.
     private func displaysWokeUp() {
-        guard running else { return }
+        guard running || !deferredRestoration.ids.isEmpty else { return }
         wakeRebuild?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.running else { return }
+            guard let self, self.running || !self.deferredRestoration.ids.isEmpty else { return }
+            self.restoreDeferredDisplays(retryFailures: true)
+            guard self.running else { return }
             Self.log.log("woke from sleep; rebuilding display routes")
             self.refresh(force: true)
         }
@@ -1683,6 +1843,9 @@ final class BrightnessService: ObservableObject {
         var count: UInt32 = 0
         CGGetOnlineDisplayList(16, &ids, &count)
         let onlineIDs = Array(ids.prefix(Int(count)))
+        let fingerprints = Dictionary(uniqueKeysWithValues: onlineIDs.compactMap { id in
+            Self.restorationDisplayFingerprint(id).map { (id, $0) }
+        })
 
         let seenTopology = Set(onlineIDs)
         let activeTopology = Self.activeDisplayIDs()
@@ -1767,12 +1930,13 @@ final class BrightnessService: ObservableObject {
         let previousTopology = knownTopology
         let topologyChanged = seenTopology != knownTopology
             || activeTopology != knownActiveTopology
-        let canPublishDiscovery = generation == rebuildGeneration && topologyChanged
-        if canPublishDiscovery {
+        let discoveryIsCurrent = generation == rebuildGeneration
+        let canPublishDiscovery = discoveryIsCurrent && topologyChanged
+        if discoveryIsCurrent {
             // The power control only becomes safe when it sees the new active
             // set. Brightness routes remain untouched until probing finishes.
-            knownTopology = seenTopology
-            knownActiveTopology = activeTopology
+            recordDiscoveredTopology(online: seenTopology, active: activeTopology,
+                                     fingerprints: fingerprints)
         }
         stateLock.unlock()
         for (id, display) in disabledSnapshots where !seenTopology.contains(id) {
@@ -2014,13 +2178,9 @@ final class BrightnessService: ObservableObject {
                 }
             }
             routes = newRoutes
-            knownTopology = seenTopology
-            knownActiveTopology = activeTopology
+            recordDiscoveredTopology(online: seenTopology, active: activeTopology,
+                                     fingerprints: fingerprints)
             rebuildingTopology = nil
-            managedDisabledIDs.subtract(activeTopology)
-            for id in activeTopology {
-                managedDisabledDisplays.removeValue(forKey: id)
-            }
             for display in resolved where display.method != nil {
                 lastApplied[display.id] = RememberedLevel(
                     value: display.brightness,
@@ -2072,7 +2232,7 @@ final class BrightnessService: ObservableObject {
             var writeSucceeded = false
             switch route.method {
             case .system:
-                writeSucceeded = BrightnessBridge.setBrightness?(id, Float(value)) == 0
+                writeSucceeded = Self.writeSystemBrightness(value, to: id, smooth: pending.smooth)
             case .ddc:
                 guard let service = route.service else { continue }
                 if route.extendedDimming {
@@ -2117,6 +2277,26 @@ final class BrightnessService: ObservableObject {
                 }
             }
         }
+    }
+
+    /// A key step reaches a system display the way the system's own keys do:
+    /// the level moves at once and the backlight eases after it, instead of
+    /// jumping (issue #2149). The easing call takes a change, measured from
+    /// the level the system reports, which is already the end of any ramp
+    /// still running. A display that is asleep, refuses the change or does
+    /// not land on the level gets the level directly.
+    private static func writeSystemBrightness(_ value: Double, to id: CGDirectDisplayID,
+                                              smooth: Bool) -> Bool {
+        var current: Float = -1
+        if smooth, CGDisplayIsAsleep(id) == 0,
+           let ease = BrightnessBridge.setBrightnessSmooth, let read = BrightnessBridge.getBrightness,
+           read(id, &current) == 0,
+           let change = BrightnessSupport.easedBrightnessChange(to: value, from: current),
+           ease(id, change) == 0, read(id, &current) == 0,
+           BrightnessSupport.easedBrightnessLanded(on: value, reported: current) {
+            return true
+        }
+        return BrightnessBridge.setBrightness?(id, Float(value)) == 0
     }
 
     /// The monitor stays at its hardware minimum while the lower part of the
@@ -2534,6 +2714,11 @@ enum BrightnessBridge {
         symbol(displayServicesHandle, "DisplayServicesGetBrightness")
     static let setBrightness: SetBrightnessFn? =
         symbol(displayServicesHandle, "DisplayServicesSetBrightness")
+    /// What the system's own brightness keys call. It takes a change, not a
+    /// level: the reported level moves by that much at once and the
+    /// backlight eases after it.
+    static let setBrightnessSmooth: SetBrightnessFn? =
+        symbol(displayServicesHandle, "DisplayServicesSetBrightnessSmooth")
     static let createInfoDictionary: CreateInfoDictionaryFn? =
         symbol(coreDisplayHandle, "CoreDisplay_DisplayCreateInfoDictionary")
     static let createWithService: CreateWithServiceFn? =

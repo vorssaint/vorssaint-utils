@@ -75,6 +75,7 @@ struct NotchCapsuleNoticeView: View {
         switch notice.event {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
+        case .timer: return .orange
         default: return .white
         }
     }
@@ -125,7 +126,9 @@ struct NotchCapsuleNoticeView: View {
     private var messageRow: some View {
         HStack(spacing: CapsuleLayout.spacing) {
             mark
+            // A timer's notice keeps the orange its strip wears.
             Text(notice.title).capsuleTitle().layoutPriority(1)
+                .foregroundStyle(notice.event == .timer ? Color.orange : .white)
             if !notice.detail.isEmpty {
                 Text(notice.detail).capsuleDetail()
                     .truncationMode(notice.event == .accessory ? .middle : .tail)
@@ -135,9 +138,16 @@ struct NotchCapsuleNoticeView: View {
     }
 
     @ViewBuilder private var mark: some View {
-        // A notice about the agent itself wears its mark; warnings and
-        // renewals keep a symbol that says what happened.
-        if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
+        // With the companion on, it stands in for the symbol and reacts, unless
+        // its reactions are off. A
+        // notice about the agent itself wears its mark; warnings and renewals
+        // keep a symbol that says what happened.
+        if NotchMascotSupport.isEnabled(), let reaction = notice.mascot {
+            let side = min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry))
+            NotchMascotView(look: NotchMascotSupport.look(), mood: NotchService.shared.mascotRestingMood,
+                            size: side, reaction: NotchMascotSupport.reacts() ? reaction : nil)
+                .frame(width: CapsuleLayout.symbolWidth, height: side)
+        } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
             NotchAgentMark(provider: agent, size: CapsuleLayout.symbolSize).frame(width: CapsuleLayout.symbolWidth)
         } else if notice.event == .track {
             NotchCapsuleTrackArtwork(side: min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry)))
@@ -157,17 +167,43 @@ private struct NotchCapsuleTrackArtwork: View {
 }
 
 /// The closed capsule at rest: bare, or with the charge or the AI allowance
-/// the person chose, in its middle.
+/// the person chose, in its middle. The companion rests in its middle when
+/// nothing else is there, and walks through on its visits.
 struct NotchCapsuleRestingView: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var music = NotchMusicService.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let size: CGSize
     /// Another display's capsule, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
 
+    /// A visit walks over what the capsule rests with, which steps aside meanwhile.
+    private var contentStepsAside: Bool { service.mascotStepsAside && !service.mascotAtRest }
+
     var body: some View {
+        resting
+            .opacity(contentStepsAside ? 0 : 1)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: contentStepsAside)
+            .overlay {
+                if service.mascotShows(on: geometry) {
+                    NotchMascotTrackView(look: NotchMascotSupport.look(),
+                                         track: NotchMascotSupport.track(stripWidth: size.width,
+                                                                         stripHeight: geometry.stripHeight,
+                                                                         wing: 0, cameraWidth: 0, floats: true,
+                                                                         bodyHeight: geometry.stripBodyHeight),
+                                         rests: service.mascotAtRest, visit: service.mascotVisit,
+                                         mood: service.mascotRestingMood, reaction: service.mascotReaction,
+                                         yieldsToActivities: true)
+                        .frame(width: size.width, height: geometry.stripHeight)
+                        .allowsHitTesting(false)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+
+    private var resting: some View {
         NotchCapsuleRow(size: size, geometry: geometry) {
             HStack(spacing: 5) {
                 switch service.idleContent {
@@ -194,7 +230,6 @@ struct NotchCapsuleRestingView: View {
             }
             .foregroundStyle(.white.opacity(0.9))
         }
-        .accessibilityHidden(true)
     }
 }
 
@@ -350,7 +385,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake:
+        case .timer, .keepAwake, .watch:
             EmptyView()
         }
     }
@@ -366,18 +401,24 @@ struct NotchCapsuleAgentStrip: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
-    private var working: [AgentProvider] {
-        AgentProvider.allCases.filter { provider in usage.snapshot.live.contains { $0.provider == provider } }
+    private func working(_ live: [AgentLiveSession]) -> [AgentProvider] {
+        AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
 
     var body: some View {
-        let working = working
+        // The last agent stopping empties the list before the strip has left.
+        NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty) { row(live: $0) }
+    }
+
+    @ViewBuilder private func row(live: [AgentLiveSession]) -> some View {
+        let working = working(live)
         NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
             HStack(spacing: CapsuleLayout.spacing) {
                 NotchCapsuleAgentMarks(providers: working)
                 NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                    let text = reading(at: date)
+                    let text = reading(at: date, live: live)
                     Text(text)
                         .font(Font(CapsuleLayout.readingFont as CTFont))
                         .foregroundStyle(working.first?.tint ?? .white)
@@ -392,13 +433,16 @@ struct NotchCapsuleAgentStrip: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
-        .accessibilityValue(reading(at: Date()))
+        .accessibilityValue(reading(at: Date(), live: live))
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 
-    private func reading(at now: Date) -> String {
-        NotchAgentSupport.stripReading(usage.snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
-                                       display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, now: now)
+    private func reading(at now: Date, live: [AgentLiveSession]) -> String {
+        var snapshot = usage.snapshot
+        snapshot.live = live
+        return NotchAgentSupport.stripReading(snapshot, readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
+                                              display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining,
+                                              focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
     }
 }
 
@@ -438,6 +482,44 @@ struct NotchCapsuleDownloadStrip: View {
     }
 }
 
+/// A watched area: the eye, then what the area reads now, or the area
+/// itself when it holds no text.
+struct NotchCapsuleWatchStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var watch = NotchWatchService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let geometry = displayGeometry ?? service.geometry
+        NotchCapsuleRow(size: size, geometry: geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                NotchWatchEye(size: CapsuleLayout.symbolSize, hidden: watch.state == .hidden)
+                    .frame(width: CapsuleLayout.symbolWidth)
+                if watch.showsThumbnail, let preview = watch.preview {
+                    NotchWatchThumbnail(image: preview, height: max(8, geometry.stripBodyHeight - 6))
+                } else if watch.headline.isEmpty {
+                    // A hidden window's slashed eye says enough until it is read.
+                    if watch.state == .hidden {
+                        Color.clear.frame(width: CapsuleLayout.spinnerWidth, height: 1)
+                    } else {
+                        ProgressView().controlSize(.mini).frame(width: CapsuleLayout.spinnerWidth)
+                    }
+                } else {
+                    Text(watch.headline).font(Font(CapsuleLayout.levelFont as CTFont))
+                        .lineLimit(1).truncationMode(.tail)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.notchWatch(l10n.language).title)
+        .accessibilityValue(watch.headline)
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+}
+
 /// The next timed event, or the one under way: its color and title, and
 /// the countdown with the time it starts or ends.
 struct NotchCapsuleCalendarStrip: View {
@@ -452,7 +534,13 @@ struct NotchCapsuleCalendarStrip: View {
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
 
     var body: some View {
-        if let countdown = calendar.countdown {
+        // An event ending moves the countdown on, or clears it, before the
+        // strip has left.
+        NotchStripHold(calendar.countdown, shows: service.compactActivity == .calendar) { content($0) }
+    }
+
+    @ViewBuilder private func content(_ countdown: NotchCalendarCountdown?) -> some View {
+        if let countdown {
             let companion = service.compactCompanion
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let title = CapsuleLayout.calendarTitle(countdown, language: l10n.language)
@@ -535,7 +623,12 @@ struct NotchCapsuleKeepAwakeStrip: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        if let end = awake.endDate {
+        // Ending a session clears its end before the strip has left.
+        NotchStripHold(awake.endDate, shows: awake.isActive) { content(end: $0) }
+    }
+
+    @ViewBuilder private func content(end: Date?) -> some View {
+        if let end {
             TimelineView(.periodic(from: NotchKeepAwakeSupport.tickStart(until: end, now: Date()), by: 60)) { context in
                 row(end: end, now: context.date)
             }
