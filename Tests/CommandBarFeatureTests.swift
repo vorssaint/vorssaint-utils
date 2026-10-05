@@ -283,6 +283,25 @@ enum CommandBarFeatureTests {
                     from: "uninstallApps,emoji,killProcess"))
         },
                "a navigation row whose destination is still on stays in the actions list, and a category whose navigation rows are all switched off is left with nothing to show")
+        // The rule above only reaches the bar if the Actions list and its chip
+        // both ask it with the sources the person switched off. Each body ends
+        // at the next declaration, so a renamed or moved site fails here
+        // instead of passing on some other part of the file.
+        let actionsServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter(isCodeLine)
+            .joined(separator: "\n")
+        for function in ["categoryHasContent", "categoryContent"] {
+            let parts = (actionsServiceCode
+                .components(separatedBy: "private func \(function)(").last ?? "")
+                .components(separatedBy: "\n    private func ")
+            suite.expect(parts.count > 1
+                    && (parts.first ?? "").contains(
+                        "CommandBarPreferences.isActionRow($0.id, disabled: disabledCache)"),
+                   "\(function) answers the actions list with the sources the person switched off, the same ones the empty bar and search drop")
+        }
         suite.expect(CommandBarSource.actions.isAlwaysOn
                 && CommandBarSource.allCases.filter(\.isAlwaysOn).count == 1,
                "only the app's own actions cannot be switched off")
