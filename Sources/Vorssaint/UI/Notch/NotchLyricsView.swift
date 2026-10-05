@@ -68,7 +68,7 @@ struct NotchLyricsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 NotchEmptyView(symbol: service.state == .failed ? "exclamationmark.triangle" : "quote.bubble",
-                               message: !online ? text.onlineHint : service.state == .failed ? text.failed : text.unavailable) {
+                               message: emptyMessage) {
                     // A short island keeps importing as a glyph beside the
                     // next step rather than cutting either name short.
                     ViewThatFits(in: .horizontal) {
@@ -89,6 +89,13 @@ struct NotchLyricsView: View {
     }
 
     private func update() { service.update(playback: playback, visible: true) }
+
+    /// An import that read no timed lines fails even with online lookup off,
+    /// so the failure stays above the disclosure the next step needs.
+    private var emptyMessage: String {
+        let reason: String? = service.state == .failed ? text.failed : online ? text.unavailable : nil
+        return [reason, online ? nil : text.onlineHint].compactMap { $0 }.joined(separator: "\n")
+    }
 
     @ViewBuilder private var nextStep: some View {
         if online {
