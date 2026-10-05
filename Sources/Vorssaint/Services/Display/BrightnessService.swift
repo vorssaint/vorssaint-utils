@@ -225,9 +225,14 @@ final class BrightnessService: ObservableObject {
         "\(CGDisplayVendorNumber(id)):\(CGDisplayModelNumber(id)):\(CGDisplaySerialNumber(id))"
     }
 
+    /// Nil when CoreGraphics names no monitor: zeroes for a connection with
+    /// nothing identified on it, all ones for a number no display uses, and
+    /// the unknown vendor ('unkn') for a monitor IOKit could not identify.
     private static func restorationDisplayFingerprint(_ id: CGDirectDisplayID) -> String? {
         let fingerprint = displayFingerprint(id)
-        return fingerprint == "0:0:0" ? nil : fingerprint
+        guard fingerprint != "0:0:0", !fingerprint.contains(String(UInt32.max)),
+              !fingerprint.hasPrefix("\(0x756E6B6E):") else { return nil }
+        return fingerprint
     }
 
     /// A remembered level, only if it was saved for the monitor currently
@@ -240,7 +245,7 @@ final class BrightnessService: ObservableObject {
     private var knownTopology = Set<CGDirectDisplayID>()
     private var knownActiveTopology = Set<CGDirectDisplayID>()
     /// Keep a managed display's latest identified monitor across connection
-    /// gaps, when CoreGraphics may answer only zeroes for its display number.
+    /// gaps, when CoreGraphics may answer zeroes or all ones for its display number.
     private var knownDisplayFingerprints: [CGDirectDisplayID: String] = [:]
     /// Only displays disabled by this process are restored when the feature
     /// is switched off. A display another app disabled is never changed
@@ -728,7 +733,9 @@ final class BrightnessService: ObservableObject {
             refresh(force: true)
             return
         }
-        let fingerprint = Self.restorationDisplayFingerprint(display.id)
+        // The built-in's number never passes to another monitor, so it keeps
+        // no identity that could later retire its row.
+        let fingerprint = display.isBuiltIn ? nil : Self.restorationDisplayFingerprint(display.id)
         if !enabled { Self.rememberDisplaySwitchedOff(display.id, fingerprint: fingerprint) }
         let result = Self.configureDisplay(display.id, enabled: enabled)
         guard result == .success else {
@@ -858,17 +865,15 @@ final class BrightnessService: ObservableObject {
         return result
     }
 
-    /// Automatic recovery needs a positive identity match. An absent monitor
-    /// waits for a matching connection. Old external-display records without
-    /// an identity keep a manual power-on control. CoreGraphics identifies the
-    /// built-in panel independently of external display numbers.
+    /// Switching on is the safe direction, so automatic recovery is refused
+    /// only when this number positively names another monitor. A display that
+    /// is off may report no identity at all, and old records carry none.
     private func canRestoreDisplay(_ id: CGDirectDisplayID) -> Bool {
-        if CGDisplayIsBuiltin(id) != 0 { return true }
-        guard let current = Self.restorationDisplayFingerprint(id) else { return false }
+        guard let current = Self.restorationDisplayFingerprint(id) else { return true }
         stateLock.lock()
         let original = managedDisabledDisplays[id]?.restorationFingerprint
         stateLock.unlock()
-        return original == current
+        return original == nil || original == current
     }
 
     private func syncLidObserver() {
@@ -1077,7 +1082,8 @@ final class BrightnessService: ObservableObject {
 
     /// Recovers displays a previous run left off, using the identity saved
     /// before the connection disappeared. Called at startup on main, before
-    /// display work. Unverified external records keep their manual control.
+    /// display work. A display that cannot be switched back on yet keeps its
+    /// power-on control and is tried again when the screens wake.
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
         guard !stored.isEmpty else { return }

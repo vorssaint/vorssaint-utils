@@ -645,16 +645,20 @@ enum DisplayRestorationTests {
             service = make()
             UserDefaults.standard = savedDefaults
             Hardware.lid = false
+            // An empty connection names no monitor and cannot be switched on.
             Hardware.fingerprints[2] = "0:0:0"
+            Hardware.succeeds = false
             service.restoreDisplaysLeftOff()
             DispatchQueue.main.drain()
             suite.expect(service.managedDisabledDisplays[2]?.restorationFingerprint == "2:2:2"
-                         && service.deferredRestoration.ids == [2] && Hardware.transactions == 0,
-                         "relaunch with an absent monitor preserves its saved identity without configuring an unknown display")
+                         && service.deferredRestoration.ids == [2] && UserDefaults.standard.stored == [2],
+                         "relaunch with an absent monitor keeps its saved identity and recovery when switching it on fails")
+            let attemptsWhileAbsent = Hardware.transactions
             Hardware.fingerprints[2] = returningFingerprint
+            Hardware.succeeds = true
             service.displaysWokeUp()
             DispatchQueue.main.drain()
-            suite.expect(Hardware.transactions == (returningFingerprint == "2:2:2" ? 1 : 0)
+            suite.expect(Hardware.transactions == attemptsWhileAbsent + (returningFingerprint == "2:2:2" ? 1 : 0)
                          && service.managedDisabledIDs.isEmpty && service.managedDisabledDisplays.isEmpty
                          && service.deferredRestoration.ids.isEmpty && UserDefaults.standard.stored.isEmpty
                          && UserDefaults.standard.fingerprints.isEmpty && !service.wakeObserversInstalled,
@@ -663,21 +667,69 @@ enum DisplayRestorationTests {
 
         service = make()
         Hardware.lid = false
+        Hardware.succeeds = false
         UserDefaults.standard.stored = [2]
         Hardware.fingerprints[2] = "0:0:0"
         service.restoreDisplaysLeftOff()
         DispatchQueue.main.drain()
-        Hardware.fingerprints[2] = "3:3:3"
-        service.displaysWokeUp()
-        DispatchQueue.main.drain()
-        suite.expect(Hardware.transactions == 0 && UserDefaults.standard.stored == [2]
+        suite.expect(Hardware.transactions > 0 && UserDefaults.standard.stored == [2]
+                     && service.deferredRestoration.ids == [2]
                      && service.managedDisabledDisplays[2]?.restorationFingerprint == nil,
-                     "a legacy external record without an original identity never acquires a replacement through wake recovery")
-        service.displays = [service.managedDisabledDisplays[2]!]
+                     "a legacy record without an identity is still switched on by number and kept when that fails")
+        let attemptsBeforeManual = Hardware.transactions
+        Hardware.succeeds = true
+        service.displays = [service.managedDisabledDisplays[2] ?? BrightnessDisplay(id: 2)]
         service.commitDisplayToggle(service.displays[0], enabled: true)
         DispatchQueue.main.drain()
-        suite.expect(Hardware.transactions == 1 && service.managedDisabledIDs.isEmpty
+        suite.expect(Hardware.transactions == attemptsBeforeManual + 1 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
                      "a legacy external record still offers explicit power-on recovery")
+
+        for headless in [false, true] {
+            service = make()
+            Hardware.lid = false
+            service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+            // A monitor that is off can read like an empty connection.
+            Hardware.fingerprints[2] = "0:0:0"
+            if headless {
+                _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+            } else {
+                service.restoreManagedDisplays()
+            }
+            DispatchQueue.main.drain()
+            suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
+                         && UserDefaults.standard.stored.isEmpty,
+                         "a disabled monitor that reports no identity still comes back when display control stops, the app quits or no screen is left")
+        }
+
+        // CoreGraphics answers all ones for a number no display uses, such as
+        // while a monitor's connection is down, and the unknown vendor for a
+        // monitor IOKit cannot identify. Neither names another monitor.
+        for unknown in ["4294967295:4294967295:4294967295", "1970170734:0:0"] {
+            service = make()
+            Hardware.lid = false
+            service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+            Hardware.fingerprints[2] = unknown
+            Hardware.succeeds = false
+            _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+            DispatchQueue.main.drain()
+            service.commitDisplayToggle(service.managedDisabledDisplays[2] ?? BrightnessDisplay(id: 2), enabled: true)
+            DispatchQueue.main.drain()
+            suite.expect(service.managedDisabledIDs == [2] && UserDefaults.standard.stored == [2]
+                         && UserDefaults.standard.fingerprints == ["2": "2:2:2"],
+                         "a display number that reads \(unknown) never retires the saved row and recovery")
+        }
+
+        // The built-in's number never passes to another monitor, so an odd
+        // reading while it is off cannot retire its row or its recovery.
+        service = make()
+        Hardware.lid = false
+        service.commitDisplayToggle(BrightnessDisplay(id: 1, isActive: true), enabled: false)
+        Hardware.fingerprints[1] = "9:9:9"
+        service.restoreManagedDisplays()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
+                     && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
+                     "the built-in display comes back even when it reads as another monitor while off")
     }
 }

@@ -63,7 +63,7 @@ Dynamic Island adds a companion, an integrated Command Bar and Watch, while AI A
 - Pasting or copying an entry from Clipboard history moves it to the top of the recent entries, as copying the same content again elsewhere already did. Pinned entries keep their place and their ⌘1 to ⌘9 shortcuts, and the island and menu bar panel lists follow the copied entry.
 
 ### Fixed
-- Displays switched off in Vorssaint keep their power-on control when macOS briefly reports them as active. Recovery keeps the original monitor's identity across app restarts and skips replacement displays. Verified recovery retries when the screens wake, while older records without an identity keep a manual power-on control.
+- Displays switched off in Vorssaint keep their power-on control when macOS briefly reports them as active. A different monitor that takes over the connection is not switched on in place of the original, even after a restart, and a display that could not be switched back on is tried again when the screens wake.
 - Clipboard history reopens at the top and searches large histories more efficiently.
 - Clipboard history preserves copied lists of links instead of turning them into one invalid link or keeping only the first.
 - URL cleaning removes tracking parameters without rewriting the remaining parts of the link. Links with nothing to remove stay unchanged.
