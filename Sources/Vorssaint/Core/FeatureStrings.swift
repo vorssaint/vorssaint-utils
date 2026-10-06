@@ -303,6 +303,7 @@ extension WindowLayoutFeatureStrings {
         gapExtraLarge: "아주 크게",
         hideAllWindows: "모든 창 가리기",
         minimizeAllWindows: "모든 창 최소화",
+        unminimizeAllWindows: "모든 창 복원",
     )
 }
 
