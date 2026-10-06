@@ -2549,7 +2549,7 @@ enum Defaults {
     /// floor below rather than minting a second one: both features write the
     /// speakers without being asked, and they must not disagree about what
     /// counts as too quiet to write.
-    static let defaultMixerWakeVolumeCapPercent: Double = 50
+    static let defaultMixerWakeVolumeCapPercent = 50
 
     /// The disconnect option shipped with a stored 0, and the trap is the same
     /// here: this one re-applies on every wake, so a stored 0 would silence
@@ -2557,8 +2557,8 @@ enum Defaults {
     /// floor is the guard, and this moves an already-stored bad value out of
     /// the way before it is ever read.
     static func migrateSilentWakeVolumeCap(in defaults: UserDefaults) {
-        guard let stored = defaults.object(forKey: DefaultsKey.mixerWakeVolumeCapPercent) as? Double,
-              !stored.isFinite || stored < Double(Defaults.minimumMixerHeadphonesDisconnectVolumePercent) else { return }
+        guard let stored = defaults.object(forKey: DefaultsKey.mixerWakeVolumeCapPercent) as? Int,
+              stored < Defaults.minimumMixerHeadphonesDisconnectVolumePercent else { return }
         defaults.set(defaultMixerWakeVolumeCapPercent,
                      forKey: DefaultsKey.mixerWakeVolumeCapPercent)
     }

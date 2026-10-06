@@ -541,6 +541,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
         Sources/Vorssaint/Core/MicMuteWhileTypingSupport.swift
+        Sources/Vorssaint/Core/SoundOutputStrings.swift
         Sources/Vorssaint/Core/WakeVolumeCapSupport.swift
         Sources/Vorssaint/Core/SecureInputSupport.swift
         Tests/*.swift

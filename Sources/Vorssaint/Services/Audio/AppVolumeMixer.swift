@@ -85,7 +85,6 @@ final class AppVolumeMixer: ObservableObject {
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
     @Published private(set) var needsPermission = false
-    @Published private(set) var systemMuted = false
     private let systemMuteHotkey = QuickToolHotkey(id: 62)
     /// Apps kept out of the list (issue #300), including the Finder when its
     /// own toggle hides it, so the panel can offer to bring any of them back.
@@ -2204,14 +2203,8 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     func toggleSystemMute() {
-        let target = !systemMuted
-        if Self.setSystemOutputMuted(target) {
-            systemMuted = target
-        }
-    }
-    static func setSystemOutputMuted(_ muted: Bool) -> Bool {
-        guard let device = defaultOutputDeviceID() else { return false }
-        return setOutputMuted(muted, for: device)
+        let target = !(Self.systemOutputIsMuted() ?? false)
+        Self.setSystemOutputMuted(target)
     }
 
     private static func defaultOutputDeviceID() -> AudioObjectID? {
