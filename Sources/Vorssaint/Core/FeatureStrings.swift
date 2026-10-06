@@ -300,7 +300,8 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "작게",
         gapMedium: "중간",
         gapLarge: "크게",
-        gapExtraLarge: "아주 크게"
+        gapExtraLarge: "아주 크게",
+        hideAllWindows: "모든 창 가리기"
     )
 }
 
@@ -1409,6 +1410,7 @@ struct WindowLayoutFeatureStrings {
     let gapMedium: String
     let gapLarge: String
     let gapExtraLarge: String
+    let hideAllWindows: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1497,7 +1499,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Small",
         gapMedium: "Medium",
         gapLarge: "Large",
-        gapExtraLarge: "Extra large"
+        gapExtraLarge: "Extra large",
+        hideAllWindows: "Hide all windows"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1587,7 +1590,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeno",
         gapMedium: "Médio",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+        gapExtraLarge: "Extragrande",
+        hideAllWindows: "Ocultar todas as janelas"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1677,7 +1681,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Küçük",
         gapMedium: "Orta",
         gapLarge: "Büyük",
-        gapExtraLarge: "Çok büyük"
+        gapExtraLarge: "Çok büyük",
+        hideAllWindows: "Tüm pencereleri gizle"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1767,7 +1772,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Маленький",
         gapMedium: "Средний",
         gapLarge: "Большой",
-        gapExtraLarge: "Очень большой"
+        gapExtraLarge: "Очень большой",
+        hideAllWindows: "Скрыть все окна"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1857,7 +1863,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeño",
         gapMedium: "Mediano",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+        gapExtraLarge: "Extragrande",
+        hideAllWindows: "Ocultar todas las ventanas"
     )
 
     static let sk = WindowLayoutFeatureStrings(
@@ -1947,7 +1954,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Malá",
         gapMedium: "Stredná",
         gapLarge: "Veľká",
-        gapExtraLarge: "Extra veľká"
+        gapExtraLarge: "Extra veľká",
+        hideAllWindows: "Skryť všetky okná"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -2037,7 +2045,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Klein",
         gapMedium: "Mittel",
         gapLarge: "Groß",
-        gapExtraLarge: "Sehr groß"
+        gapExtraLarge: "Sehr groß",
+        hideAllWindows: "Alle Fenster ausblenden"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -2127,7 +2136,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Petit",
         gapMedium: "Moyen",
         gapLarge: "Grand",
-        gapExtraLarge: "Très grand"
+        gapExtraLarge: "Très grand",
+        hideAllWindows: "Masquer toutes les fenêtres"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -2217,7 +2227,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Piccolo",
         gapMedium: "Medio",
         gapLarge: "Grande",
-        gapExtraLarge: "Molto grande"
+        gapExtraLarge: "Molto grande",
+        hideAllWindows: "Nascondi tutte le finestre"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -2307,7 +2318,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        hideAllWindows: "すべてのウィンドウを隠す"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -2397,7 +2409,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        hideAllWindows: "隐藏所有窗口"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -2487,7 +2500,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        hideAllWindows: "隱藏所有視窗"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -2577,7 +2591,8 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        hideAllWindows: "隱藏所有視窗"
     )
 }
 
@@ -3233,7 +3248,8 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "Малий",
         gapMedium: "Середній",
         gapLarge: "Великий",
-        gapExtraLarge: "Дуже великий"
+        gapExtraLarge: "Дуже великий",
+        hideAllWindows: "Сховати всі вікна"
     )
 }
 

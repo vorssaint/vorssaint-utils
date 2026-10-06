@@ -4,12 +4,15 @@
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import Combine
 import CoreGraphics
 
 /// Adds optional actions when the active app's Dock icon is clicked: minimize
-/// its windows, hide the app, or cycle its windows. The Dock's native behavior
-/// remains untouched for every other click. Requires Accessibility.
-final class DockClickService {
+/// its windows, hide the app, or cycle its windows. Also hides every window
+/// from one hotkey, which reuses the click's hide bookkeeping. The Dock's
+/// native behavior remains untouched for every other click. Requires
+/// Accessibility for the click tap; the hide-all hotkey needs none.
+final class DockClickService: ObservableObject {
     static let shared = DockClickService()
 
     private struct ActionRecord {
@@ -59,12 +62,27 @@ final class DockClickService {
     /// (same magic the snippets tap uses for its synthetic events).
     private static let syntheticEventMarker: Int64 = 0x564F5253
     private var pendingSweeps: [pid_t: DispatchWorkItem] = [:]
+    /// Hide-everything hotkey. Id 90 sits free between the window-layout
+    /// pointer key (80) and the capture tool range (25-28). Hiding needs no
+    /// Accessibility, so this key lives apart from the tap and stays
+    /// registered while the tap is stopped.
+    private let hideAllHotkey = QuickToolHotkey(id: 90)
+    @Published private(set) var hideAllShortcutRegistrationFailed = false
 
     private init() {
+        hideAllHotkey.onPress = { [weak self] in _ = self?.hideAllWindows() }
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
     }
 
     func syncWithPreferences() {
+        let hideAllEnabled = AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.hideAllWindowsShortcutEnabled)
+        // Hiding asks AppKit, not Accessibility: no permission gate here, so
+        // the hotkey stays live even while the click tap is stopped.
+        hideAllShortcutRegistrationFailed = !hideAllHotkey.sync(
+            enabled: hideAllEnabled,
+            shortcut: GlobalShortcutRole.hideAllWindows.savedShortcut,
+            storageKey: DefaultsKey.hideAllWindowsShortcut)
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
@@ -81,8 +99,13 @@ final class DockClickService {
 
     /// Force-stops the tap regardless of the preference. Used before the app
     /// resets its own permissions, so a revoked Accessibility grant can never
-    /// leave a live tap behind.
-    func suspend() { stop() }
+    /// leave a live tap behind. The hide-all key is permission-free, but it
+    /// still unregisters here: recording a shortcut releases every quick tool
+    /// key, and uninstalling must leave no global key held.
+    func suspend() {
+        stop()
+        hideAllHotkey.unregister()
+    }
 
     private func start() {
         guard tap == nil else { return }
@@ -380,7 +403,9 @@ final class DockClickService {
                 DockPreviewService.shared.dockClickWasHandled()
             }
         case .hide:
-            lastAction[pid] = ActionRecord(kind: .hide, time: now, targets: [])
+            recordHide(pid: pid, actionTime: now)
+            // Deferred like every other commit: this runs inside the event
+            // tap, which has to return before the Dock's own click resolves.
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
                 _ = pending.app.hide()
@@ -388,6 +413,62 @@ final class DockClickService {
         case .passThrough:
             break
         }
+    }
+
+    /// The one thing the click's hide and the hotkey's hide must share: the
+    /// record a follow-up Dock click reads to decide its action, and the
+    /// preview panel's notice that its pre-click idea of minimized state went
+    /// stale. Written synchronously in both paths — a second click can arrive
+    /// inside the toggle window, and a record that only landed one main-queue
+    /// turn later would be missing exactly when it is most needed.
+    private func recordHide(pid: pid_t, actionTime: CFAbsoluteTime) {
+        lastAction[pid] = ActionRecord(kind: .hide, time: actionTime, targets: [])
+    }
+
+    /// Hides every app with a normal on-screen window, frontmost first, and
+    /// returns how many hides succeeded. Main thread only: `lastAction` is
+    /// main-thread-only and the hotkey press arrives on the main queue, so no
+    /// hop is needed. Hiding asks AppKit, not Accessibility — no permission
+    /// gate, no AX walk, just the AX-free window-server check the tap uses to
+    /// see through busy accessibility servers.
+    @discardableResult
+    func hideAllWindows() -> Int {
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let running = NSWorkspace.shared.runningApplications
+        var candidates: [(pid: pid_t, isActive: Bool, hasVisibleWindow: Bool, app: NSRunningApplication)] = []
+        candidates.reserveCapacity(running.count)
+        for app in running {
+            let pid = app.processIdentifier
+            guard !app.isTerminated,
+                  app.activationPolicy == .regular,
+                  !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+            else { continue }
+            // Launcher-style apps misreport isActive; the workspace's idea of
+            // the frontmost app is the tiebreaker, same as the tap's.
+            let isActive = app.isActive || frontmostPID == pid
+            guard Self.windowServerHasStandardWindows(pid: pid) else { continue }
+            candidates.append((pid: pid, isActive: isActive, hasVisibleWindow: true, app: app))
+        }
+        let order = DockClickSupport.pidsToHide(from: candidates.map {
+            (pid: $0.pid, isActive: $0.isActive, hasVisibleWindow: $0.hasVisibleWindow)
+        })
+        var byPID: [pid_t: NSRunningApplication] = [:]
+        byPID.reserveCapacity(candidates.count)
+        for candidate in candidates { byPID[candidate.pid] = candidate.app }
+        let now = CFAbsoluteTimeGetCurrent()
+        var hidden = 0
+        for pid in order {
+            guard let app = byPID[pid] else { continue }
+            recordHide(pid: pid, actionTime: now)
+            // Unlike the click, this is not deferred: a hotkey press is
+            // already on the main queue and waits on nothing, so the hide can
+            // report whether it actually took. An app that refuses — quitting,
+            // mid-launch, or AX-less in a way that matters — is left out of the
+            // count instead of inflating it.
+            DockPreviewService.shared.dockClickWasHandled()
+            if app.hide() { hidden += 1 }
+        }
+        return hidden
     }
 
     // MARK: - Settling sweep
