@@ -39,6 +39,7 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let latestRunStartedAt: Date?
     let activityRunID: String?
     let activityRunStartedAt: Date?
+    let latestUserMessageAt: Date?
     let latestUserAuthoredMessageAt: Date?
     let backgroundTaskCount: Int
 
@@ -76,6 +77,7 @@ struct T3ShellSnapshot: Decodable {
         let latestRunStartedAt: String?
         let latestRunRequestedAt: String?
         let latestRunCompletedAt: String?
+        let latestUserMessageAt: String?
         let latestUserAuthoredMessageAt: String?
         let latestRunID: String?
         let activeRunID: String?
@@ -89,6 +91,7 @@ struct T3ShellSnapshot: Decodable {
             case providerInstanceID = "providerInstanceId"
             case latestRunID = "latestRunId"
             case latestUserAuthoredMessageAt = "latestUserAuthoredMessageAt"
+            case latestUserMessageAt
             case activeRunID = "activeRunId"
             case activityRunStatus, activityRunStartedAt, latestRunStartedAt, latestRunRequestedAt
             case latestRunCompletedAt, pendingRuntimeRequest, pendingBackgroundTasks
@@ -148,6 +151,7 @@ struct T3ShellSnapshot: Decodable {
                 // still owns the activity. Only activeRunId proves run ownership.
                 activityRunID: thread.activeRunID,
                 activityRunStartedAt: activityStartedAt,
+                latestUserMessageAt: thread.latestUserMessageAt.flatMap(Self.date),
                 latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt.flatMap(Self.date),
                 backgroundTaskCount: tasks.count)
         }
@@ -252,7 +256,13 @@ struct T3ActivityReducer {
                     let hasUnstartedLatestRun = activity.latestRunID != nil && activity.latestRunStartedAt == nil
                     let messageAtStart: Date?
                     if activityStarts[activity.id] == start {
-                        messageAtStart = activityStartMessages[activity.id]
+                        if let old, Self.isAgentWakeContinuation(old: old, as: activity) {
+                            // A cancelled queued user message can remain the
+                            // latest authored message after a wake is queued.
+                            messageAtStart = activity.latestUserAuthoredMessageAt
+                        } else {
+                            messageAtStart = activityStartMessages[activity.id]
+                        }
                     } else if hasUnstartedLatestRun {
                         // On first connection, a queued user run may already
                         // have replaced the authored timestamp while the older
@@ -288,12 +298,24 @@ struct T3ActivityReducer {
         if let runID = old.activityRunID, runID == next.activityRunID { return true }
         if let runID = old.latestRunID, runID == next.latestRunID,
            let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
+        if isAgentWakeContinuation(old: old, as: next) { return true }
         // Bind the authored timestamp to the retained activity start. T3 updates
         // latestUserAuthoredMessageAt as soon as a queued user run is persisted,
         // even while the prior run still owns the activity.
         guard let activityStartMessageAt,
               activityStartMessageAt == next.latestUserAuthoredMessageAt else { return false }
         return true
+    }
+
+    private static func isAgentWakeContinuation(old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
+        guard old.latestRunID != nil, next.latestRunID != nil,
+              let authoredAt = next.latestUserAuthoredMessageAt,
+              let latestMessageAt = next.latestUserMessageAt else { return false }
+        // T3's user-role timestamp advances for agent-created wake messages,
+        // while the authored timestamp only advances for user prompts. This
+        // also covers a cold/reconnected observer that first sees the wake
+        // already queued and then sees that same run complete.
+        return latestMessageAt > authoredAt
     }
 }
 

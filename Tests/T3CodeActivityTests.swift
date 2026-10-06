@@ -18,12 +18,14 @@ enum T3CodeActivityTests {
                                  startedAt: String? = "2026-10-06T12:00:00Z", updatedAt: String = "2026-10-06T12:01:00Z",
                                  activityStartedAt: String? = nil,
                                  latestUserAuthoredAt: String? = "2026-10-06T12:00:00Z",
+                                 latestUserMessageAt: String? = nil,
                                  latestRunID: String = "run-1", backgroundKinds: [String] = [],
                                  duplicateProject: Bool = false) -> [T3ThreadActivity] {
         let runStatus = activity.map { "\"\($0)\"" } ?? "null"
         let runStart = startedAt.map { "\"\($0)\"" } ?? "null"
         let activityStart = activityStartedAt.map { "\"\($0)\"" } ?? "null"
         let latestUserAuthored = latestUserAuthoredAt.map { "\"\($0)\"" } ?? "null"
+        let latestUserMessage = latestUserMessageAt.map { "\"\($0)\"" } ?? "null"
         let completed = completedAt.map { "\"\($0)\"" } ?? "null"
         let active = activeRun.map { "\"\($0)\"" } ?? "null"
         let pending = request.map { "{\"kind\":\"\($0)\"}" } ?? "null"
@@ -38,6 +40,7 @@ enum T3CodeActivityTests {
           "providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"gpt-5.4"},
           "status":"\(status)","activityRunStatus":\(runStatus),"activityRunStartedAt":\(activityStart),
           "latestUserAuthoredMessageAt":\(latestUserAuthored),
+          "latestUserMessageAt":\(latestUserMessage),
           "latestRunStartedAt":\(runStart),"latestRunCompletedAt":\(completed),
           "latestRunId":"\(latestRunID)","activeRunId":\(active),"pendingRuntimeRequest":\(pending),
           "pendingBackgroundTasks":\(background),"updatedAt":"\(updatedAt)"}],
@@ -244,6 +247,47 @@ enum T3CodeActivityTests {
         _ = queuedWake.apply(pendingWake)
         suite.expect(queuedWake.apply(wakeCompleted).first?.duration == 602,
                      "a queued wake keeps its original duration even when T3 hides background tasks while queued")
+
+        let coldPendingWake = snapshot(status: "waiting", activity: "waiting", activeRun: nil, startedAt: nil,
+                                       activityStartedAt: "2026-10-06T12:00:00Z",
+                                       latestUserAuthoredAt: "2026-10-06T12:00:00Z",
+                                       latestUserMessageAt: "2026-10-06T12:00:01Z", latestRunID: "run-2")
+        let coldWakeCompleted = snapshot(status: "completed", activeRun: nil,
+                                          completedAt: "2026-10-06T12:10:02Z",
+                                          startedAt: "2026-10-06T12:10:00Z", activityStartedAt: nil,
+                                          latestUserAuthoredAt: "2026-10-06T12:00:00Z",
+                                          latestUserMessageAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+        var coldQueuedWake = T3ActivityReducer()
+        _ = coldQueuedWake.apply(coldPendingWake)
+        suite.expect(coldQueuedWake.apply(coldWakeCompleted).first?.duration == 602,
+                     "a cold observer recognizes a queued wake from T3 message provenance")
+
+        var reconnectedQueuedWake = T3ActivityReducer()
+        _ = reconnectedQueuedWake.apply(originalWork)
+        _ = reconnectedQueuedWake.apply([])
+        _ = reconnectedQueuedWake.apply(coldPendingWake)
+        suite.expect(reconnectedQueuedWake.apply(coldWakeCompleted).first?.duration == 602,
+                     "a reconnect recognizes a queued wake that completes between polls")
+
+        var cancelledPromptWake = T3ActivityReducer()
+        _ = cancelledPromptWake.apply(originalWork)
+        let cancelledQueuedPrompt = snapshot(status: "waiting", activity: "waiting", activeRun: nil,
+                                             startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
+                                             latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                             latestUserMessageAt: "2026-10-06T12:09:50Z", latestRunID: "run-2")
+        let wakeAfterCancellation = snapshot(status: "waiting", activity: "waiting", activeRun: nil,
+                                             startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
+                                             latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                             latestUserMessageAt: "2026-10-06T12:09:55Z", latestRunID: "run-3")
+        let wakeAfterCancellationCompleted = snapshot(status: "completed", activeRun: nil,
+                                                      completedAt: "2026-10-06T12:10:02Z",
+                                                      startedAt: "2026-10-06T12:10:00Z", activityStartedAt: nil,
+                                                      latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                                      latestUserMessageAt: "2026-10-06T12:10:00Z", latestRunID: "run-3")
+        _ = cancelledPromptWake.apply(cancelledQueuedPrompt)
+        _ = cancelledPromptWake.apply(wakeAfterCancellation)
+        suite.expect(cancelledPromptWake.apply(wakeAfterCancellationCompleted).first?.duration == 602,
+                     "a wake after a cancelled queued prompt retains the original activity duration")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
