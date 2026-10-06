@@ -9,6 +9,9 @@ enum T3CodeActivityTests {
         transitions(suite)
         compactPresentation(suite)
         endpointValidation(suite)
+        connectionConfiguration(suite)
+        aggregation(suite)
+        connectionLifecycle(suite)
         localization(suite)
     }
 
@@ -394,9 +397,11 @@ enum T3CodeActivityTests {
 
     private static func compactPresentation(_ suite: TestSuite) {
         let now = ISO8601DateFormatter().date(from: "2026-10-06T12:03:00Z")!
-        func activity(_ id: String, _ state: T3ThreadState, age: TimeInterval = 0) -> T3ThreadActivity {
+        func activity(_ id: String, _ state: T3ThreadState, environmentID: String = "env-local",
+                      age: TimeInterval = 0) -> T3ThreadActivity {
             let updatedAt = now.addingTimeInterval(-age)
-            return T3ThreadActivity(id: id, threadID: id, environmentID: "env-local", environment: "Local Mac",
+            return T3ThreadActivity(id: id, threadID: id, environmentID: environmentID,
+                                    environment: environmentID == "env-local" ? "Local Mac" : "Remote",
                                     machine: "MacBook", project: "MowgliNext", title: id, provider: "codex",
                                     model: "gpt-5.4", state: state, startedAt: updatedAt,
                                     completedAt: state == .completed ? updatedAt : nil, updatedAt: updatedAt,
@@ -510,12 +515,95 @@ enum T3CodeActivityTests {
                      "T3 polling starts only for an enabled feature with one complete connection")
     }
 
+    private static func connectionConfiguration(_ suite: TestSuite) {
+        let suiteName = "vorss.tests.t3-connections-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let endpoint = "http://127.0.0.1:3773"
+        defaults.set(endpoint, forKey: DefaultsKey.notchAgentsT3Endpoint)
+        defaults.set("env-local", forKey: DefaultsKey.notchAgentsT3Environment)
+        defaults.set("Local Mac", forKey: DefaultsKey.notchAgentsT3Label)
+        defaults.set("MacBook", forKey: DefaultsKey.notchAgentsT3Machine)
+        defaults.set(Date(timeIntervalSince1970: 2_000_000_000), forKey: DefaultsKey.notchAgentsT3Expiry)
+        // A nil credential id is a valid legacy Keychain binding and must survive migration.
+        defaults.set("", forKey: DefaultsKey.notchAgentsT3CredentialID)
+        let store = T3ConfiguredConnectionStore(defaults: defaults,
+                                                client: T3CodeClient(transport: T3UnusedTransport()))
+        let migrated = store.load()
+        suite.expect(migrated.count == 1 && migrated[0].endpoint == endpoint
+                        && migrated[0].environmentID == "env-local" && migrated[0].credentialID == nil,
+                     "legacy single-endpoint settings migrate without changing the Keychain binding")
+        suite.expect(defaults.data(forKey: DefaultsKey.notchAgentsT3Connections) != nil
+                        && defaults.object(forKey: DefaultsKey.notchAgentsT3Endpoint) == nil,
+                     "connection-list migration persists before removing legacy preference values")
+
+        // An earlier multi-environment build stored the array directly rather than
+        // wrapping it in the versioned document used by current builds.
+        defaults.set(try! JSONEncoder().encode([migrated[0]]), forKey: DefaultsKey.notchAgentsT3Connections)
+        let earlyFormat = store.load()
+        let rewrittenObject = defaults.data(forKey: DefaultsKey.notchAgentsT3Connections)
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        suite.expect(earlyFormat.count == 1 && earlyFormat[0].credentialID == nil
+                        && rewrittenObject?["version"] as? Int == 1
+                        && rewrittenObject?["connections"] as? [[String: Any]] != nil,
+                     "early multi-environment arrays migrate without changing the saved Keychain binding")
+
+        let remote = T3ConfiguredConnection(id: UUID().uuidString, endpoint: "https://remote.example.test:3773",
+            environmentID: "env-remote", label: "Remote", machine: "Roffe", credentialID: "credential-2",
+            expiresAt: Date(timeIntervalSince1970: 2_000_000_000))
+        store.save(migrated + [remote])
+        suite.expect(store.load().map(\.environmentID) == ["env-local", "env-remote"],
+                     "separate T3 environments persist and reload independently")
+        let duplicate = T3ConfiguredConnection(id: UUID().uuidString, endpoint: endpoint,
+            environmentID: "env-local", label: "Duplicate", machine: nil, credentialID: "other",
+            expiresAt: remote.expiresAt)
+        suite.expect(T3ConfiguredConnectionStore.uniqueEnvironments([migrated[0], duplicate, remote]).count == 2,
+                     "an environment id cannot be duplicated through multiple endpoint records")
+    }
+
+    private static func aggregation(_ suite: TestSuite) {
+        func activity(environmentID: String, state: T3ThreadState) -> T3ThreadActivity {
+            T3ThreadActivity(id: "\(environmentID):shared-thread", threadID: "shared-thread",
+                environmentID: environmentID, environment: environmentID, machine: nil, project: "",
+                title: environmentID, provider: "codex", model: "", state: state, startedAt: .now,
+                completedAt: nil, updatedAt: .now, latestRunID: "run-1", latestRunStartedAt: .now,
+                latestRunWorkStartedAt: nil, activityRunID: "run-1", activityRunStartedAt: .now,
+                backgroundTaskCount: 0)
+        }
+        let local = activity(environmentID: "env-local", state: .working)
+        let remote = activity(environmentID: "env-remote", state: .waitingForInput)
+        let snapshots = ["local-connection": [local], "remote-connection": [remote]]
+        let merged = T3ActivityAggregator.merge(snapshots)
+        suite.expect(merged.count == 2 && Set(merged.map(\.environmentID)) == ["env-local", "env-remote"],
+                     "thread aggregation keeps same-named threads from distinct T3 environments")
+        suite.expect(T3ActivityAggregator.merge(["local-connection": [local], "remote-connection": []]) == [local],
+                     "a failed environment can clear its snapshot without hiding healthy environment activity")
+        suite.expect(T3ActivityAggregator.merge(["first": [local], "duplicate": [local]]) == [local],
+                     "duplicate snapshots do not create duplicate agent cards")
+    }
+
+    private static func connectionLifecycle(_ suite: TestSuite) {
+        suite.expect(T3CodeActivityService.aggregateConnectionState([]) == .notConfigured,
+                     "an empty T3 environment list is not configured")
+        suite.expect(T3CodeActivityService.aggregateConnectionState([.connected, .unavailable]) == .connected,
+                     "one unavailable endpoint does not hide healthy endpoint connections")
+        suite.expect(T3CodeActivityService.aggregateConnectionState([.needsPairing, .reconnecting]) == .reconnecting,
+                     "a reconnecting endpoint remains visible when no endpoint is healthy")
+        suite.expect(T3CodeActivityService.aggregateConnectionState([.needsPairing, .unavailable]) == .needsPairing,
+                     "an expired credential is surfaced when no endpoint can poll")
+        suite.expect(T3CodeActivityService.aggregateConnectionState([.connected], pairingInProgress: true) == .connecting,
+                     "adding an environment shows pairing progress without stopping healthy connections")
+    }
+
     private static func localization(_ suite: TestSuite) {
         for language in AppLanguage.allCases where language != .enUS {
             let strings = T3CodeStrings(language)
             suite.expect(strings.errors(.pairingRejected) != "The pairing code was rejected or has expired."
                             && strings.errors(.serverUnavailable) != "Could not reach the T3 endpoint.",
                          "T3 connection errors are localized for \(language.rawValue)")
+            suite.expect(!strings.environmentsHelp.isEmpty && !strings.addEnvironment.isEmpty
+                            && !strings.removeEnvironment.isEmpty && !strings.rePair.isEmpty,
+                         "multi-environment T3 settings are localized for \(language.rawValue)")
         }
     }
 

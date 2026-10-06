@@ -24,12 +24,19 @@ enum T3CodeConnectionError: Error, Equatable {
     case authenticationExpired
     case serverUnavailable
     case invalidResponse
+    case credentialStoreUnavailable(Int32)
 }
 
 protocol T3CredentialStore: Sendable {
-    func read(account: String) -> String?
+    func read(account: String) -> T3CredentialLookup
     func write(_ token: String, account: String) -> Bool
     func remove(account: String)
+}
+
+enum T3CredentialLookup: Equatable, Sendable {
+    case found(String)
+    case missing
+    case retryable(Int32)
 }
 
 struct T3KeychainCredentialStore: T3CredentialStore {
@@ -46,14 +53,25 @@ struct T3KeychainCredentialStore: T3CredentialStore {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
-    func read(account: String) -> String? {
+    func read(account: String) -> T3CredentialLookup {
         var query = baseQuery(account)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data, let token = String(data: data, encoding: .utf8), !token.isEmpty else {
+                return .retryable(errSecDecode)
+            }
+            return .found(token)
+        case errSecItemNotFound:
+            return .missing
+        default:
+            // Keychain can temporarily refuse access while the device is locked or
+            // the security service is unavailable. Keep retrying without prompting.
+            return .retryable(status)
+        }
     }
 
     func write(_ token: String, account: String) -> Bool {
@@ -239,25 +257,113 @@ struct T3CodeClient {
     }
 }
 
+struct T3ConfiguredConnection: Codable, Equatable, Identifiable {
+    var id: String
+    var endpoint: String
+    var environmentID: String
+    var label: String
+    var machine: String?
+    var credentialID: String?
+    var expiresAt: Date
+
+    var identity: T3EnvironmentIdentity {
+        T3EnvironmentIdentity(id: environmentID, label: label, machine: machine)
+    }
+}
+
+struct T3ConnectionStatus: Equatable, Identifiable {
+    let connection: T3ConfiguredConnection
+    let state: T3CodeConnectionState
+    let error: T3CodeConnectionError?
+    var id: String { connection.id }
+}
+
+struct T3ConfiguredConnectionStore {
+    let defaults: UserDefaults
+    let client: T3CodeClient
+
+    private struct Document: Codable {
+        let version: Int
+        let connections: [T3ConfiguredConnection]
+    }
+
+    func load() -> [T3ConfiguredConnection] {
+        if let data = defaults.data(forKey: DefaultsKey.notchAgentsT3Connections) {
+            if let decoded = try? JSONDecoder().decode(Document.self, from: data) {
+                return decoded.version == 1 ? Self.uniqueEnvironments(decoded.connections) : []
+            }
+            // Early multi-environment builds stored the connections array directly.
+            // Upgrade it in place before considering the legacy single-endpoint keys.
+            if let connections = try? JSONDecoder().decode([T3ConfiguredConnection].self, from: data) {
+                let uniqueConnections = Self.uniqueEnvironments(connections)
+                save(uniqueConnections)
+                return uniqueConnections
+            }
+        }
+
+        guard let rawEndpoint = defaults.string(forKey: DefaultsKey.notchAgentsT3Endpoint),
+              let endpoint = try? client.validateEndpoint(rawEndpoint),
+              let environmentID = defaults.string(forKey: DefaultsKey.notchAgentsT3Environment),
+              !environmentID.isEmpty,
+              let expiresAt = defaults.object(forKey: DefaultsKey.notchAgentsT3Expiry) as? Date else { return [] }
+        let record = T3ConfiguredConnection(
+            id: UUID().uuidString, endpoint: endpoint.absoluteString, environmentID: environmentID,
+            label: defaults.string(forKey: DefaultsKey.notchAgentsT3Label).flatMap { $0.isEmpty ? nil : $0 } ?? "T3 Code",
+            machine: defaults.string(forKey: DefaultsKey.notchAgentsT3Machine).flatMap { $0.isEmpty ? nil : $0 },
+            credentialID: defaults.string(forKey: DefaultsKey.notchAgentsT3CredentialID).flatMap { $0.isEmpty ? nil : $0 },
+            expiresAt: expiresAt)
+        // Keep the legacy Keychain account binding intact until this list is durable.
+        save([record])
+        removeLegacyValues()
+        return [record]
+    }
+
+    func save(_ connections: [T3ConfiguredConnection]) {
+        let document = Document(version: 1, connections: Self.uniqueEnvironments(connections))
+        guard let data = try? JSONEncoder().encode(document) else { return }
+        defaults.set(data, forKey: DefaultsKey.notchAgentsT3Connections)
+    }
+
+    func removeLegacyValues() {
+        [DefaultsKey.notchAgentsT3Endpoint, DefaultsKey.notchAgentsT3Environment,
+         DefaultsKey.notchAgentsT3CredentialID, DefaultsKey.notchAgentsT3Label,
+         DefaultsKey.notchAgentsT3Machine, DefaultsKey.notchAgentsT3Expiry]
+            .forEach(defaults.removeObject(forKey:))
+    }
+
+    static func uniqueEnvironments(_ connections: [T3ConfiguredConnection]) -> [T3ConfiguredConnection] {
+        var seen = Set<String>()
+        return connections.filter { seen.insert($0.environmentID).inserted }
+    }
+}
+
 final class T3CodeActivityService: ObservableObject {
     static let shared = T3CodeActivityService()
 
     @Published private(set) var state: T3CodeConnectionState = .notConfigured
     @Published private(set) var activities: [T3ThreadActivity] = []
     @Published private(set) var lastUpdated: Date?
+    @Published private(set) var connectionStatuses: [T3ConnectionStatus] = []
     let completed = PassthroughSubject<T3ActivityCompletion, Never>()
 
     private let client: T3CodeClient
     private let credentials: T3CredentialStore
     private let defaults: UserDefaults
-    private var task: Task<Void, Never>?
-    private var generation = 0
-    private var reducer = T3ActivityReducer()
-    private var endpointURL: URL?
-    private var environment: T3EnvironmentIdentity?
-    private var accessToken: String?
-    private var expiresAt: Date?
+    private var tasks: [String: Task<Void, Never>] = [:]
+    private var generations: [String: UUID] = [:]
+    private var reducers: [String: T3ActivityReducer] = [:]
+    private var activitiesByConnection: [String: [T3ThreadActivity]] = [:]
+    private var runtimeStates: [String: T3CodeConnectionState] = [:]
+    private var errorsByConnection: [String: T3CodeConnectionError] = [:]
+    private var tokens: [String: String] = [:]
     private var pairingInProgress = false
+    private var pairingGeneration = UUID()
+
+    private var connectionStore: T3ConfiguredConnectionStore {
+        T3ConfiguredConnectionStore(defaults: defaults, client: client)
+    }
+
+    private var configuredConnections: [T3ConfiguredConnection] { connectionStore.load() }
 
     init(client: T3CodeClient = T3CodeClient(), credentials: T3CredentialStore = T3KeychainCredentialStore(),
          defaults: UserDefaults = .standard) {
@@ -266,11 +372,9 @@ final class T3CodeActivityService: ObservableObject {
         self.defaults = defaults
     }
 
-    var endpoint: String { defaults.string(forKey: DefaultsKey.notchAgentsT3Endpoint) ?? "" }
-    var configuredEnvironment: String { defaults.string(forKey: DefaultsKey.notchAgentsT3Environment) ?? "" }
-    var hasSavedConnection: Bool {
-        Self.hasSavedConnection(endpoint: endpoint, environmentID: configuredEnvironment)
-    }
+    var endpoint: String { configuredConnections.first?.endpoint ?? "" }
+    var configuredEnvironment: String { configuredConnections.first?.environmentID ?? "" }
+    var hasSavedConnection: Bool { !configuredConnections.isEmpty }
 
     static func hasSavedConnection(endpoint: String, environmentID: String) -> Bool {
         !endpoint.isEmpty && !environmentID.isEmpty
@@ -278,13 +382,16 @@ final class T3CodeActivityService: ObservableObject {
 
     @MainActor func connect(endpoint rawEndpoint: String, pairingCode: String) async throws {
         let endpoint = try client.validateEndpoint(rawEndpoint)
-        stop(clearActivity: true)
+        let generation = UUID()
+        pairingGeneration = generation
         pairingInProgress = true
         state = .connecting
-        let operationGeneration = generation
+        updateConnectionState()
         do {
             let (identity, token, expiry) = try await client.pair(endpoint: endpoint, credential: pairingCode)
-            guard !Task.isCancelled, operationGeneration == generation else { throw CancellationError() }
+            guard !Task.isCancelled, pairingGeneration == generation else { throw CancellationError() }
+            let existing = configuredConnections.first { $0.environmentID == identity.id }
+            let connectionID = existing?.id ?? UUID().uuidString
             let credentialID = UUID().uuidString
             let account = T3KeychainCredentialStore.account(endpoint: endpoint, environmentID: identity.id,
                                                             credentialID: credentialID)
@@ -292,182 +399,271 @@ final class T3CodeActivityService: ObservableObject {
             let saved = await Task.detached(priority: .utility) {
                 credentialStore.write(token, account: account)
             }.value
-            guard !Task.isCancelled, operationGeneration == generation else {
+            guard !Task.isCancelled, pairingGeneration == generation else {
                 Task.detached(priority: .utility) { credentialStore.remove(account: account) }
                 throw CancellationError()
             }
             guard saved else {
                 throw T3CodeConnectionError.readPermissionMissing
             }
-            let previousEnvironment = defaults.string(forKey: DefaultsKey.notchAgentsT3Environment) ?? ""
-            let previousCredentialID = defaults.string(forKey: DefaultsKey.notchAgentsT3CredentialID)
-                .flatMap { $0.isEmpty ? nil : $0 }
-            let previousEndpoint = defaults.string(forKey: DefaultsKey.notchAgentsT3Endpoint)
-                .flatMap { try? client.validateEndpoint($0) }
-            let previousAccount = previousEndpoint.flatMap { previousEndpoint in
-                previousEnvironment.isEmpty ? nil : T3KeychainCredentialStore.account(
-                    endpoint: previousEndpoint, environmentID: previousEnvironment,
-                    credentialID: previousCredentialID)
-            }
-            if let previousAccount, previousAccount != account {
-                let credentialStore = credentials
-                Task.detached(priority: .utility) {
-                    credentialStore.remove(account: previousAccount)
+            var connections = configuredConnections
+            let replacement = T3ConfiguredConnection(id: connectionID, endpoint: endpoint.absoluteString,
+                                                     environmentID: identity.id, label: identity.label,
+                                                     machine: identity.machine, credentialID: credentialID,
+                                                     expiresAt: expiry)
+            connections.removeAll { $0.environmentID == identity.id }
+            connections.append(replacement)
+            connectionStore.save(connections)
+            connectionStore.removeLegacyValues()
+            if let existing, let oldEndpoint = try? client.validateEndpoint(existing.endpoint) {
+                let oldAccount = T3KeychainCredentialStore.account(endpoint: oldEndpoint,
+                    environmentID: existing.environmentID, credentialID: existing.credentialID)
+                if oldAccount != account {
+                    Task.detached(priority: .utility) { credentialStore.remove(account: oldAccount) }
                 }
             }
-            defaults.set(endpoint.absoluteString, forKey: DefaultsKey.notchAgentsT3Endpoint)
-            defaults.set(identity.id, forKey: DefaultsKey.notchAgentsT3Environment)
-            defaults.set(credentialID, forKey: DefaultsKey.notchAgentsT3CredentialID)
-            defaults.set(identity.label, forKey: DefaultsKey.notchAgentsT3Label)
-            defaults.set(identity.machine ?? "", forKey: DefaultsKey.notchAgentsT3Machine)
-            defaults.set(expiry, forKey: DefaultsKey.notchAgentsT3Expiry)
-            self.endpointURL = endpoint
-            environment = identity
-            accessToken = token
-            expiresAt = expiry
+            cancelRuntime(connectionID: connectionID, clearActivity: true)
+            tokens[connectionID] = token
+            reducers[connectionID] = T3ActivityReducer()
+            runtimeStates[connectionID] = .connected
+            errorsByConnection[connectionID] = nil
             pairingInProgress = false
-            state = .connected
-            startPolling()
+            pairingGeneration = UUID()
+            publishAggregate()
+            updateConnectionState()
+            startPolling(replacement)
         } catch {
-            guard operationGeneration == generation else { throw CancellationError() }
-            pairingInProgress = false
-            syncWithPreferences()
+            if pairingGeneration == generation {
+                pairingInProgress = false
+                pairingGeneration = UUID()
+                syncWithPreferences()
+            }
+            if error is CancellationError { throw error }
             throw (error as? T3CodeConnectionError) ?? .serverUnavailable
         }
     }
 
     func disconnect() {
-        stop(clearActivity: true)
-        let environmentID = configuredEnvironment
-        let endpointURL = try? client.validateEndpoint(endpoint)
-        if !environmentID.isEmpty, let endpointURL {
-            let credentialStore = credentials
-            let credentialID = defaults.string(forKey: DefaultsKey.notchAgentsT3CredentialID)
-                .flatMap { $0.isEmpty ? nil : $0 }
-            let account = T3KeychainCredentialStore.account(endpoint: endpointURL, environmentID: environmentID,
-                                                            credentialID: credentialID)
-            Task.detached(priority: .utility) { credentialStore.remove(account: account) }
+        for connection in configuredConnections { disconnect(connectionID: connection.id) }
+    }
+
+    func disconnect(connectionID: String) {
+        guard let connection = configuredConnections.first(where: { $0.id == connectionID }) else { return }
+        invalidatePairing()
+        cancelRuntime(connectionID: connectionID, clearActivity: true)
+        connectionStore.save(configuredConnections.filter { $0.id != connectionID })
+        if let endpoint = try? client.validateEndpoint(connection.endpoint) {
+            let account = T3KeychainCredentialStore.account(endpoint: endpoint,
+                environmentID: connection.environmentID, credentialID: connection.credentialID)
+            let credentials = self.credentials
+            Task.detached(priority: .utility) { credentials.remove(account: account) }
         }
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3Endpoint)
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3Environment)
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3CredentialID)
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3Label)
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3Machine)
-        defaults.removeObject(forKey: DefaultsKey.notchAgentsT3Expiry)
-        state = .notConfigured
+        connectionStatuses.removeAll { $0.id == connectionID }
+        updateConnectionState()
+        publishAggregate()
     }
 
     func syncWithPreferences() {
         guard NotchAgentSupport.isEnabled() else { stop(clearActivity: true); return }
-        if task != nil || pairingInProgress { return }
-        guard let endpointURL = try? client.validateEndpoint(endpoint),
-              !configuredEnvironment.isEmpty,
-              let expiry = defaults.object(forKey: DefaultsKey.notchAgentsT3Expiry) as? Date,
-              expiry > Date() else {
-            clearActivities()
-            state = endpoint.isEmpty ? .notConfigured : .needsPairing
+        let connections = configuredConnections
+        let validIDs = Set(connections.map(\.id))
+        for id in Array(tasks.keys) where !validIDs.contains(id) { cancelRuntime(connectionID: id, clearActivity: true) }
+        if connections.isEmpty {
+            clearAllActivities()
+            state = .notConfigured
+            connectionStatuses = []
             return
         }
-        let environmentID = configuredEnvironment
-        let credentialID = defaults.string(forKey: DefaultsKey.notchAgentsT3CredentialID)
-            .flatMap { $0.isEmpty ? nil : $0 }
-        let account = T3KeychainCredentialStore.account(endpoint: endpointURL, environmentID: environmentID,
-                                                        credentialID: credentialID)
-        let identity = T3EnvironmentIdentity(
-            id: environmentID,
-            label: defaults.string(forKey: DefaultsKey.notchAgentsT3Label).flatMap { $0.isEmpty ? nil : $0 } ?? "T3 Code",
-            machine: defaults.string(forKey: DefaultsKey.notchAgentsT3Machine).flatMap { $0.isEmpty ? nil : $0 })
-        state = .reconnecting
-        generation += 1
-        let currentGeneration = generation
-        let credentials = self.credentials
-        task = Task { @MainActor [weak self] in
-            let token = await Task.detached(priority: .utility) {
-                credentials.read(account: account)
-            }.value
-            guard let self, !Task.isCancelled, currentGeneration == self.generation else { return }
-            self.task = nil
-            guard let token else {
-                self.clearActivities()
-                self.state = .needsPairing
-                return
-            }
-            self.endpointURL = endpointURL
-            self.expiresAt = expiry
-            self.accessToken = token
-            self.environment = identity
-            self.startPolling()
+        for connection in connections where tasks[connection.id] == nil && runtimeStates[connection.id] != .needsPairing {
+            restoreAndPoll(connection)
         }
+        updateConnectionState()
     }
 
     func pause() { stop(clearActivity: false) }
 
     func stop(clearActivity: Bool) {
-        generation += 1
-        task?.cancel()
-        task = nil
-        pairingInProgress = false
+        invalidatePairing()
+        for id in Array(tasks.keys) { cancelRuntime(connectionID: id, clearActivity: clearActivity) }
         if clearActivity {
-            activities = []
-            reducer = T3ActivityReducer()
-            lastUpdated = nil
-            endpointURL = nil
-            environment = nil
-            accessToken = nil
-            expiresAt = nil
+            clearAllActivities()
         }
+        updateConnectionState()
     }
 
-    private func startPolling() {
-        guard Self.shouldStartPolling(featureEnabled: NotchAgentSupport.isEnabled(),
-                                      taskAlreadyRunning: task != nil,
-                                      hasConnection: endpointURL != nil && environment != nil && accessToken != nil),
-              let endpointURL, let environment, let accessToken else { return }
-        generation += 1
-        let currentGeneration = generation
-        task = Task { @MainActor [weak self] in
+    private func restoreAndPoll(_ connection: T3ConfiguredConnection) {
+        guard let endpoint = try? client.validateEndpoint(connection.endpoint), connection.expiresAt > Date() else {
+            runtimeStates[connection.id] = .needsPairing
+            errorsByConnection[connection.id] = nil
+            clearActivity(connectionID: connection.id)
+            updateConnectionState()
+            return
+        }
+        let account = T3KeychainCredentialStore.account(endpoint: endpoint,
+            environmentID: connection.environmentID, credentialID: connection.credentialID)
+        let credentials = self.credentials
+        runtimeStates[connection.id] = .reconnecting
+        let generation = UUID()
+        generations[connection.id] = generation
+        let id = connection.id
+        tasks[id] = Task { @MainActor [weak self] in
             guard let self else { return }
             var delay: UInt64 = 3
-            while !Task.isCancelled, currentGeneration == self.generation {
+            while !Task.isCancelled, self.generations[id] == generation {
+                let lookup = await Task.detached(priority: .utility) { credentials.read(account: account) }.value
+                guard !Task.isCancelled, self.generations[id] == generation else { return }
+                switch lookup {
+                case .found(let token):
+                    self.tasks[id] = nil
+                    self.tokens[id] = token
+                    self.runtimeStates[id] = .connected
+                    self.errorsByConnection[id] = nil
+                    self.startPolling(connection)
+                    return
+                case .missing:
+                    self.tasks[id] = nil
+                    self.runtimeStates[id] = .needsPairing
+                    self.errorsByConnection[id] = nil
+                    self.clearActivity(connectionID: id)
+                    self.updateConnectionState()
+                    return
+                case .retryable(let status):
+                    self.runtimeStates[id] = .reconnecting
+                    self.errorsByConnection[id] = .credentialStoreUnavailable(status)
+                    self.updateConnectionState()
+                    do { try await Task.sleep(for: .seconds(delay)) }
+                    catch { return }
+                    delay = min(delay * 2, 30)
+                }
+            }
+        }
+        updateConnectionState()
+    }
+
+    private func startPolling(_ connection: T3ConfiguredConnection) {
+        guard let endpoint = try? client.validateEndpoint(connection.endpoint),
+              let token = tokens[connection.id],
+              Self.shouldStartPolling(featureEnabled: NotchAgentSupport.isEnabled(),
+                                      taskAlreadyRunning: tasks[connection.id] != nil,
+                                      hasConnection: true) else { return }
+        let identity = connection.identity
+        let id = connection.id
+        let generation = UUID()
+        generations[id] = generation
+        runtimeStates[id] = .connecting
+        tasks[id] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            var delay: UInt64 = 3
+            while !Task.isCancelled, generation == self.generations[id] {
                 do {
-                    guard self.expiresAt.map({ $0 > Date() }) == true else {
-                        self.clearActivities()
-                        self.state = .needsPairing
-                        self.task = nil
+                    guard connection.expiresAt > Date() else {
+                        self.runtimeStates[id] = .needsPairing
+                        self.errorsByConnection[id] = nil
+                        self.tokens[id] = nil
+                        self.clearActivity(connectionID: id)
+                        self.tasks[id] = nil
+                        self.updateConnectionState()
                         return
                     }
-                    let snapshot = try await self.client.fetchSnapshot(endpoint: endpointURL, token: accessToken)
-                    guard !Task.isCancelled, currentGeneration == self.generation else { return }
-                    let next = snapshot.activities(environment: environment)
-                    for event in self.reducer.apply(next) { self.completed.send(event) }
-                    self.activities = next
+                    let snapshot = try await self.client.fetchSnapshot(endpoint: endpoint, token: token)
+                    guard !Task.isCancelled, generation == self.generations[id] else { return }
+                    let next = snapshot.activities(environment: identity)
+                    var reducer = self.reducers[id] ?? T3ActivityReducer()
+                    for event in reducer.apply(next) { self.completed.send(event) }
+                    self.reducers[id] = reducer
+                    self.activitiesByConnection[id] = next
                     self.lastUpdated = Date()
-                    self.state = .connected
+                    self.runtimeStates[id] = .connected
+                    self.errorsByConnection[id] = nil
+                    self.publishAggregate()
+                    self.updateConnectionState()
                     delay = 3
                 } catch let error as T3CodeConnectionError {
-                    guard !Task.isCancelled, currentGeneration == self.generation else { return }
+                    guard !Task.isCancelled, generation == self.generations[id] else { return }
                     if error == .authenticationExpired || error == .readPermissionMissing {
-                        self.clearActivities()
-                        self.accessToken = nil
-                        self.state = .needsPairing
-                        self.task = nil
+                        self.clearActivity(connectionID: id)
+                        self.tokens[id] = nil
+                        self.runtimeStates[id] = .needsPairing
+                        self.errorsByConnection[id] = nil
+                        self.tasks[id] = nil
+                        self.updateConnectionState()
                         return
                     } else {
-                        self.clearActivities()
-                        self.state = .reconnecting
+                        self.clearActivity(connectionID: id)
+                        self.runtimeStates[id] = .reconnecting
+                        self.errorsByConnection[id] = error
                     }
                     delay = min(delay * 2, 30)
                 } catch {
-                    guard !Task.isCancelled, currentGeneration == self.generation else { return }
-                    self.clearActivities()
-                    self.state = .reconnecting
+                    guard !Task.isCancelled, generation == self.generations[id] else { return }
+                    self.clearActivity(connectionID: id)
+                    self.runtimeStates[id] = .reconnecting
+                    self.errorsByConnection[id] = .serverUnavailable
                     delay = min(delay * 2, 30)
                 }
+                self.updateConnectionState()
                 do { try await Task.sleep(for: .seconds(delay)) }
                 catch { return }
             }
-            if currentGeneration == self.generation { self.task = nil }
+            if generation == self.generations[id] { self.tasks[id] = nil }
         }
+        updateConnectionState()
+    }
+
+    private func cancelRuntime(connectionID: String, clearActivity: Bool) {
+        generations[connectionID] = UUID()
+        tasks[connectionID]?.cancel()
+        tasks[connectionID] = nil
+        tokens[connectionID] = nil
+        runtimeStates[connectionID] = nil
+        errorsByConnection[connectionID] = nil
+        if clearActivity {
+            reducers[connectionID] = nil
+            activitiesByConnection[connectionID] = nil
+        }
+    }
+
+    private func invalidatePairing() {
+        pairingGeneration = UUID()
+        pairingInProgress = false
+    }
+
+    private func clearActivity(connectionID: String) {
+        activitiesByConnection[connectionID] = nil
+        reducers[connectionID] = T3ActivityReducer()
+        publishAggregate()
+    }
+
+    private func clearAllActivities() {
+        activitiesByConnection.removeAll()
+        reducers.removeAll()
+        activities = []
+        lastUpdated = nil
+    }
+
+    private func publishAggregate() {
+        activities = T3ActivityAggregator.merge(activitiesByConnection)
+    }
+
+    private func updateConnectionState() {
+        let connections = configuredConnections
+        connectionStatuses = connections.map { connection in
+            T3ConnectionStatus(connection: connection,
+                state: runtimeStates[connection.id] ?? (connection.expiresAt > Date() ? .reconnecting : .needsPairing),
+                error: errorsByConnection[connection.id])
+        }
+        state = Self.aggregateConnectionState(connectionStatuses.map(\.state), pairingInProgress: pairingInProgress)
+    }
+
+    static func aggregateConnectionState(_ states: [T3CodeConnectionState], pairingInProgress: Bool = false)
+        -> T3CodeConnectionState {
+        if pairingInProgress { return .connecting }
+        if states.isEmpty { return .notConfigured }
+        if states.contains(.connected) { return .connected }
+        if states.contains(.connecting) { return .connecting }
+        if states.contains(.reconnecting) { return .reconnecting }
+        if states.contains(.needsPairing) { return .needsPairing }
+        return .unavailable
     }
 
     static func shouldStartPolling(featureEnabled: Bool, taskAlreadyRunning: Bool,
@@ -475,9 +671,4 @@ final class T3CodeActivityService: ObservableObject {
         featureEnabled && !taskAlreadyRunning && hasConnection
     }
 
-    private func clearActivities() {
-        activities = []
-        reducer = T3ActivityReducer()
-        lastUpdated = nil
-    }
 }

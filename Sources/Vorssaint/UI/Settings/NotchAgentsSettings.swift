@@ -185,42 +185,54 @@ struct NotchAgentsSettingsControls: View {
                         .foregroundStyle(t3.state == .connected ? .green : .secondary)
                 }
                 Spacer()
-                if t3.hasSavedConnection {
-                    Button(t3Text.disconnect) {
-                        t3.disconnect()
-                        t3Error = nil
-                    }
-                }
             }
+            ForEach(t3.connectionStatuses) { connection in
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(connection.connection.label).font(.subheadline)
+                        let connectionState = connection.error.map(t3Text.errors) ?? t3Text.statusText(connection.state)
+                        Text("\(connectionState) · \(connection.connection.endpoint)")
+                            .font(.caption).foregroundStyle(connection.state == .connected ? .green : .secondary)
+                            .lineLimit(2).textSelection(.enabled)
+                    }
+                    Spacer(minLength: 4)
+                    Button(t3Text.rePair) { t3Endpoint = connection.connection.endpoint; t3PairingCode = "" }
+                        .font(.caption)
+                    Button(t3Text.removeEnvironment) { t3.disconnect(connectionID: connection.id) }
+                        .font(.caption)
+                }
+                .padding(.vertical, 2)
+            }
+            Text(t3Text.environmentsHelp)
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             TextField(t3Text.endpoint, text: $t3Endpoint)
                 .textFieldStyle(.roundedBorder)
                 .textContentType(.URL)
                 .accessibilityLabel(t3Text.endpoint)
-            if t3.state != .connected {
-                SecureField(t3Text.pairingCode, text: $t3PairingCode)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel(t3Text.pairingCode)
-                Button(t3Text.connect) {
-                    t3Error = nil
-                    Task { @MainActor in
-                        do {
-                            try await t3.connect(endpoint: t3Endpoint, pairingCode: t3PairingCode)
-                            t3PairingCode = ""
-                        } catch is CancellationError {
-                            return
-                        } catch let error as T3CodeConnectionError {
-                            t3Error = t3Text.errors(error)
-                        } catch {
-                            t3Error = t3Text.errors(.serverUnavailable)
-                        }
+            SecureField(t3Text.pairingCode, text: $t3PairingCode)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(t3Text.pairingCode)
+            Button(t3Text.addEnvironment) {
+                t3Error = nil
+                Task { @MainActor in
+                    do {
+                        try await t3.connect(endpoint: t3Endpoint, pairingCode: t3PairingCode)
+                        t3PairingCode = ""
+                    } catch is CancellationError {
+                        return
+                    } catch let error as T3CodeConnectionError {
+                        t3Error = t3Text.errors(error)
+                    } catch {
+                        t3Error = t3Text.errors(.serverUnavailable)
                     }
                 }
-                .disabled(t3PairingCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                          || t3.state == .connecting)
-                Text(t3Text.pairHelp)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .textSelection(.enabled)
             }
+            .disabled(t3PairingCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                      || t3.state == .connecting)
+            Text(t3Text.pairHelp)
+                .font(.caption).foregroundStyle(.secondary)
+                .textSelection(.enabled)
             Text(t3Text.remoteHelp)
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

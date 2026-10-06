@@ -4,6 +4,7 @@
 import Foundation
 
 struct T3CodeStrings {
+    private let language: AppLanguage
     let source: String
     let working: String
     let waiting: String
@@ -28,7 +29,56 @@ struct T3CodeStrings {
     let workingCount: (Int) -> String
     let errors: (T3CodeConnectionError) -> String
 
+    var environmentsHelp: String {
+        switch language {
+        case .enUS: "Pair each T3 environment separately. Threads from all connected environments appear together."
+        case .ptBR: "Emparelhe cada ambiente T3 separadamente. As conversas de todos os ambientes conectados aparecem juntas."
+        case .de: "Kopple jede T3-Umgebung einzeln. Threads aus allen verbundenen Umgebungen werden zusammen angezeigt."
+        case .fr: "Associez chaque environnement T3 séparément. Les fils de tous les environnements connectés apparaissent ensemble."
+        case .es: "Empareja cada entorno de T3 por separado. Los hilos de todos los entornos conectados aparecen juntos."
+        case .it: "Associa ogni ambiente T3 separatamente. I thread di tutti gli ambienti connessi appaiono insieme."
+        case .tr: "Her T3 ortamını ayrı ayrı eşleştirin. Bağlı ortamlardaki tüm iş parçacıkları birlikte görünür."
+        case .ru: "Подключите каждую среду T3 отдельно. Потоки из всех подключённых сред отображаются вместе."
+        case .sk: "Spárujte každé prostredie T3 samostatne. Vlákna zo všetkých pripojených prostredí sa zobrazia spolu."
+        case .ja: "T3 環境ごとに個別にペアリングしてください。接続したすべての環境のスレッドが一緒に表示されます。"
+        case .ko: "각 T3 환경을 별도로 페어링하세요. 연결된 모든 환경의 스레드가 함께 표시됩니다."
+        case .uk: "Підключіть кожне середовище T3 окремо. Потоки з усіх підключених середовищ відображатимуться разом."
+        case .zhHans: "请分别配对每个 T3 环境。所有已连接环境中的线程会一起显示。"
+        case .zhTW, .zhHK: "請分別配對每個 T3 環境。所有已連線環境中的執行緒會一起顯示。"
+        }
+    }
+
+    var addEnvironment: String {
+        switch language {
+        case .ptBR: "Conectar ambiente"; case .de: "Umgebung verbinden"; case .fr: "Connecter un environnement"
+        case .es: "Conectar entorno"; case .it: "Collega ambiente"; case .tr: "Ortamı bağla"
+        case .ru: "Подключить среду"; case .sk: "Pripojiť prostredie"; case .ja: "環境を接続"
+        case .ko: "환경 연결"; case .uk: "Підключити середовище"; case .zhHans: "连接环境"
+        case .zhTW, .zhHK: "連線環境"; case .enUS: "Connect environment"
+        }
+    }
+
+    var removeEnvironment: String {
+        switch language {
+        case .ptBR: "Remover"; case .de: "Entfernen"; case .fr: "Supprimer"; case .es: "Quitar"
+        case .it: "Rimuovi"; case .tr: "Kaldır"; case .ru: "Удалить"; case .sk: "Odstrániť"
+        case .ja: "削除"; case .ko: "삭제"; case .uk: "Видалити"; case .zhHans: "移除"
+        case .zhTW, .zhHK: "移除"; case .enUS: "Remove"
+        }
+    }
+
+    var rePair: String {
+        switch language {
+        case .ptBR: "Emparelhar novamente"; case .de: "Erneut koppeln"; case .fr: "Associer à nouveau"
+        case .es: "Volver a emparejar"; case .it: "Associa di nuovo"; case .tr: "Yeniden eşleştir"
+        case .ru: "Подключить повторно"; case .sk: "Znova spárovať"; case .ja: "再ペアリング"
+        case .ko: "다시 페어링"; case .uk: "Підключити повторно"; case .zhHans: "重新配对"
+        case .zhTW, .zhHK: "重新配對"; case .enUS: "Re-pair"
+        }
+    }
+
     init(_ language: AppLanguage) {
+        self.language = language
         switch language {
         case .enUS:
             source = "T3 Code"; working = "working"; waiting = "waiting"; waitingInput = "waiting for input"
@@ -196,6 +246,7 @@ struct T3CodeStrings {
         case .authenticationExpired: "The T3 read-access token expired. Pair again."
         case .serverUnavailable: "Could not reach the T3 endpoint."
         case .invalidResponse: "T3 returned an unexpected response."
+        case .credentialStoreUnavailable(let status): "macOS Keychain is temporarily unavailable (OSStatus \(status)); retrying."
         }
     }
 
@@ -208,6 +259,7 @@ struct T3CodeStrings {
         case .authenticationExpired: "O token de leitura do T3 expirou. Pareie novamente."
         case .serverUnavailable: "Não foi possível acessar o endpoint do T3."
         case .invalidResponse: "O T3 retornou uma resposta inesperada."
+        case .credentialStoreUnavailable(let status): "O Chaves do macOS está temporariamente indisponível (OSStatus \(status)); tentando novamente."
         }
     }
 
@@ -215,6 +267,7 @@ struct T3CodeStrings {
         let invalidEndpoint: String
         let pairing: String
         let unavailable: String
+        let credentialStore: String
         switch language {
         case .enUS:
             return englishError(error)
@@ -224,55 +277,68 @@ struct T3CodeStrings {
             invalidEndpoint = "Yerel HTTP veya uzak HTTPS adresi kullanın."
             pairing = "Salt okunur erişimi geri yüklemek için T3 ile yeniden eşleştirin."
             unavailable = "T3 uç noktası kullanılamıyor veya protokol yanıtı geçersiz."
+            credentialStore = "macOS Anahtar Zinciri geçici olarak kullanılamıyor; yeniden deneniyor."
         case .ru:
             invalidEndpoint = "Укажите локальный HTTP-адрес или удалённый HTTPS-адрес."
             pairing = "Повторите сопряжение с T3, чтобы восстановить доступ на чтение."
             unavailable = "Адрес T3 недоступен или вернул неверный ответ."
+            credentialStore = "Связка ключей macOS временно недоступна; повторная попытка."
         case .es:
             invalidEndpoint = "Usa una dirección HTTP local o HTTPS remota."
             pairing = "Vuelve a emparejar con T3 para restaurar el acceso de lectura."
             unavailable = "La dirección de T3 no está disponible o devolvió una respuesta no válida."
+            credentialStore = "El llavero de macOS no está disponible temporalmente; reintentando."
         case .sk:
             invalidEndpoint = "Použite lokálnu HTTP alebo vzdialenú HTTPS adresu."
             pairing = "Znova spárujte T3, aby ste obnovili prístup na čítanie."
             unavailable = "Adresa T3 nie je dostupná alebo vrátila neplatnú odpoveď."
+            credentialStore = "Kľúčenka macOS je dočasne nedostupná; skúša sa znova."
         case .de:
             invalidEndpoint = "Verwende eine lokale HTTP- oder entfernte HTTPS-Adresse."
             pairing = "Kopple T3 erneut, um den Lesezugriff wiederherzustellen."
             unavailable = "Der T3-Endpunkt ist nicht erreichbar oder lieferte eine ungültige Antwort."
+            credentialStore = "Der macOS-Schlüsselbund ist vorübergehend nicht verfügbar; erneuter Versuch."
         case .fr:
             invalidEndpoint = "Utilisez une adresse HTTP locale ou HTTPS distante."
             pairing = "Associez de nouveau T3 pour rétablir l’accès en lecture."
             unavailable = "L’adresse T3 est indisponible ou a renvoyé une réponse invalide."
+            credentialStore = "Le trousseau macOS est temporairement indisponible ; nouvelle tentative."
         case .it:
             invalidEndpoint = "Usa un indirizzo HTTP locale o HTTPS remoto."
             pairing = "Associa di nuovo T3 per ripristinare l’accesso in lettura."
             unavailable = "L’endpoint T3 non è disponibile o ha restituito una risposta non valida."
+            credentialStore = "Il portachiavi di macOS non è disponibile temporaneamente; nuovo tentativo."
         case .ja:
             invalidEndpoint = "ローカル HTTP またはリモート HTTPS アドレスを使用してください。"
             pairing = "読み取りアクセスを復元するには T3 と再ペアリングしてください。"
             unavailable = "T3 エンドポイントに接続できないか、応答が無効です。"
+            credentialStore = "macOS キーチェーンは一時的に利用できません。再試行しています。"
         case .ko:
             invalidEndpoint = "로컬 HTTP 또는 원격 HTTPS 주소를 사용하세요."
             pairing = "읽기 권한을 복원하려면 T3와 다시 페어링하세요."
             unavailable = "T3 엔드포인트에 연결할 수 없거나 응답이 올바르지 않습니다."
+            credentialStore = "macOS 키체인을 일시적으로 사용할 수 없어 다시 시도합니다."
         case .uk:
             invalidEndpoint = "Вкажіть локальну HTTP- або віддалену HTTPS-адресу."
             pairing = "Повторіть сполучення з T3, щоб відновити доступ на читання."
             unavailable = "Адреса T3 недоступна або повернула некоректну відповідь."
+            credentialStore = "Зв’язка ключів macOS тимчасово недоступна; повторна спроба."
         case .zhHans:
             invalidEndpoint = "请使用本地 HTTP 或远程 HTTPS 地址。"
             pairing = "请与 T3 重新配对以恢复读取权限。"
             unavailable = "T3 端点不可用或返回了无效响应。"
+            credentialStore = "macOS 钥匙串暂时不可用，正在重试。"
         case .zhTW, .zhHK:
             invalidEndpoint = "請使用本機 HTTP 或遠端 HTTPS 位址。"
             pairing = "請與 T3 重新配對以恢復讀取權限。"
             unavailable = "T3 端點無法使用或回傳了無效回應。"
+            credentialStore = "macOS 鑰匙圈暫時無法使用，正在重試。"
         }
         return switch error {
         case .invalidEndpoint: invalidEndpoint
         case .pairingRejected, .readPermissionMissing, .authenticationExpired: pairing
         case .unsupportedServer, .serverUnavailable, .invalidResponse: unavailable
+        case .credentialStoreUnavailable(let status): "\(credentialStore) (OSStatus \(status))"
         }
     }
 }

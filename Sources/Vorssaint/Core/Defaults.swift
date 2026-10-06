@@ -850,6 +850,7 @@ enum DefaultsKey {
     static let notchAgentsT3Label = "notchAgentsT3Label"
     static let notchAgentsT3Machine = "notchAgentsT3Machine"
     static let notchAgentsT3Expiry = "notchAgentsT3Expiry"
+    static let notchAgentsT3Connections = "notchAgentsT3Connections"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"

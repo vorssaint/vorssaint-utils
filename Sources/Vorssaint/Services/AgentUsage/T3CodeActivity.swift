@@ -309,6 +309,15 @@ enum T3ActivityPresentation {
     }
 }
 
+enum T3ActivityAggregator {
+    static func merge(_ snapshots: [String: [T3ThreadActivity]]) -> [T3ThreadActivity] {
+        let all = snapshots.values.flatMap { $0 }
+        var seen = Set<String>()
+        return all.filter { seen.insert($0.id).inserted }
+            .sorted { $0.updatedAt == $1.updatedAt ? $0.id < $1.id : $0.updatedAt > $1.updatedAt }
+    }
+}
+
 struct T3ActivityReducer {
     private(set) var activities: [String: T3ThreadActivity] = [:]
     private var announcedRuns: Set<String> = []

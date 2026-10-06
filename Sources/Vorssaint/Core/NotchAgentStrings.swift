@@ -177,7 +177,7 @@ extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
         hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and local usage stays on this Mac; T3 thread status is read from the T3 endpoint you configure.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and local usage stays on this Mac; T3 thread status is read from the T3 endpoints you pair.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -367,7 +367,7 @@ extension NotchAgentStrings {
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
         hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode e do GitHub Copilot.",
-        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o uso local permanece neste Mac; o estado das conversas do T3 é lido do endpoint T3 configurado.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o uso local permanece neste Mac; o estado das conversas do T3 é lido dos endpoints T3 conectados.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -842,7 +842,7 @@ extension NotchAgentStrings {
     static let it = NotchAgentStrings(
         title: "Agenti IA",
         hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode e GitHub Copilot.",
-        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e l’utilizzo locale resta su questo Mac; lo stato dei thread T3 viene letto dall’endpoint T3 configurato.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e l’utilizzo locale resta su questo Mac; lo stato dei thread T3 viene letto dagli endpoint T3 collegati.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -1317,7 +1317,7 @@ extension NotchAgentStrings {
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
         hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 和 GitHub Copilot 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，本地用量保留在这台 Mac 上；T3 线程状态从你配置的 T3 端点读取。",
+        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，本地用量保留在这台 Mac 上；T3 线程状态从你配对的 T3 端点读取。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1412,7 +1412,7 @@ extension NotchAgentStrings {
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
         hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，本機用量保留在這部 Mac 上；T3 執行緒狀態從你設定的 T3 端點讀取。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，本機用量保留在這部 Mac 上；T3 執行緒狀態從你配對的 T3 端點讀取。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1507,7 +1507,7 @@ extension NotchAgentStrings {
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
         hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，本機用量保留在這部 Mac 上；T3 執行緒狀態從你設定的 T3 端點讀取。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，本機用量保留在這部 Mac 上；T3 執行緒狀態從你配對的 T3 端點讀取。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",

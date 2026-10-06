@@ -174,6 +174,7 @@ enum SettingsBackupSupport {
         DefaultsKey.notchAgentsT3Label,
         DefaultsKey.notchAgentsT3Machine,
         DefaultsKey.notchAgentsT3Expiry,
+        DefaultsKey.notchAgentsT3Connections,
         // Whether the audio system let a recording hear the Mac's sound is a
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
