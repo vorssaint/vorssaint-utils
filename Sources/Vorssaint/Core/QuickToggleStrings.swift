@@ -35,6 +35,9 @@ struct QuickToggleFeatureStrings {
     let hidePointerIdleTitle: String
     let hidePointerIdleCaption: String
     let hidePointerIdleThresholdCaption: String
+    let dockRevealDelayTitle: String
+    let dockRevealDelayRestoreTitle: String
+    let dockRevealDelayCaption: String
 }
 
 extension FeatureStrings {
@@ -89,6 +92,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Hide the pointer when idle",
         hidePointerIdleCaption: "Hides the pointer after a few seconds without movement.",
         hidePointerIdleThresholdCaption: "Seconds without movement before the pointer hides.",
+        dockRevealDelayTitle: "Skip the Dock's reveal delay",
+        dockRevealDelayRestoreTitle: "Restore the Dock's reveal delay",
+        dockRevealDelayCaption: "The Dock appears as soon as the pointer reaches it.",
     )
 
     static let ptBR = QuickToggleFeatureStrings(
@@ -120,6 +126,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Ocultar o ponteiro quando inativo",
         hidePointerIdleCaption: "Oculta o ponteiro depois de alguns segundos sem movimento.",
         hidePointerIdleThresholdCaption: "Segundos sem movimento antes de ocultar o ponteiro",
+        dockRevealDelayTitle: "Ignorar o atraso de exibição do Dock",
+        dockRevealDelayRestoreTitle: "Restaurar o atraso de exibição do Dock",
+        dockRevealDelayCaption: "O Dock aparece assim que o ponteiro chega nele.",
     )
 
     static let tr = QuickToggleFeatureStrings(
@@ -151,6 +160,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Hareketsizken işaretçiyi gizle",
         hidePointerIdleCaption: "Hareketsiz birkaç saniye geçtikten sonra işaretçiyi gizler.",
         hidePointerIdleThresholdCaption: "Hareketsiz kalınan süre (saniye)",
+        dockRevealDelayTitle: "Dock’un açılma gecikmesini kaldır",
+        dockRevealDelayRestoreTitle: "Dock’un açılma gecikmesini geri getir",
+        dockRevealDelayCaption: "Dock, işaretçi ona ulaşır ulaşmaz görünür.",
     )
 
     static let ru = QuickToggleFeatureStrings(
@@ -182,6 +194,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Скрывать указатель при бездействии",
         hidePointerIdleCaption: "Скрывает указатель через несколько секунд без движения.",
         hidePointerIdleThresholdCaption: "Секунды без движения до скрытия указателя",
+        dockRevealDelayTitle: "Пропустить задержку появления Dock",
+        dockRevealDelayRestoreTitle: "Восстановить задержку появления Dock",
+        dockRevealDelayCaption: "Dock появляется, как только указатель до него доходит.",
     )
 
     static let es = QuickToggleFeatureStrings(
@@ -213,6 +228,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Ocultar el puntero cuando está inactivo",
         hidePointerIdleCaption: "Oculta el puntero tras unos segundos sin movimiento.",
         hidePointerIdleThresholdCaption: "Segundos sin movimiento antes de ocultar el puntero",
+        dockRevealDelayTitle: "Omitir el retardo de aparición del Dock",
+        dockRevealDelayRestoreTitle: "Restaurar el retardo de aparición del Dock",
+        dockRevealDelayCaption: "El Dock aparece en cuanto el puntero lo alcanza.",
     )
 
     static let sk = QuickToggleFeatureStrings(
@@ -244,6 +262,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Skryť kurzor pri nečinnosti",
         hidePointerIdleCaption: "Skryje kurzor po niekoľkých sekundách bez pohybu.",
         hidePointerIdleThresholdCaption: "Sekundy bez pohybu, kým sa kurzor neskryje",
+        dockRevealDelayTitle: "Preskočiť oneskorenie zobrazenia Docku",
+        dockRevealDelayRestoreTitle: "Obnoviť oneskorenie zobrazenia Docku",
+        dockRevealDelayCaption: "Dock sa zobrazí hneď, ako naň kurzor dosiahne.",
     )
 
     static let de = QuickToggleFeatureStrings(
@@ -275,6 +296,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Zeiger bei Inaktivität ausblenden",
         hidePointerIdleCaption: "Blendet den Zeiger nach einigen Sekunden ohne Bewegung aus.",
         hidePointerIdleThresholdCaption: "Sekunden ohne Bewegung, bevor der Zeiger ausgeblendet wird",
+        dockRevealDelayTitle: "Verzögerung beim Einblenden des Docks überspringen",
+        dockRevealDelayRestoreTitle: "Verzögerung beim Einblenden des Docks wiederherstellen",
+        dockRevealDelayCaption: "Das Dock erscheint, sobald der Zeiger es erreicht.",
     )
 
     static let fr = QuickToggleFeatureStrings(
@@ -306,6 +330,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Masquer le pointeur en cas d’inactivité",
         hidePointerIdleCaption: "Masque le pointeur après quelques secondes sans mouvement.",
         hidePointerIdleThresholdCaption: "Secondes sans mouvement avant que le pointeur soit masqué",
+        dockRevealDelayTitle: "Ignorer le délai d’affichage du Dock",
+        dockRevealDelayRestoreTitle: "Rétablir le délai d’affichage du Dock",
+        dockRevealDelayCaption: "Le Dock apparaît dès que le pointeur l’atteint.",
     )
 
     static let it = QuickToggleFeatureStrings(
@@ -337,6 +364,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Nascondi il puntatore quando è inattivo",
         hidePointerIdleCaption: "Nasconde il puntatore dopo qualche secondo senza movimento.",
         hidePointerIdleThresholdCaption: "Secondi senza movimento prima di nascondere il puntatore",
+        dockRevealDelayTitle: "Salta il ritardo di comparsa del Dock",
+        dockRevealDelayRestoreTitle: "Ripristina il ritardo di comparsa del Dock",
+        dockRevealDelayCaption: "Il Dock compare appena il puntatore lo raggiunge.",
     )
 
     static let ja = QuickToggleFeatureStrings(
@@ -368,6 +398,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "操作がないときにポインタを隠す",
         hidePointerIdleCaption: "ポインタが動かずに数秒経つと非表示になります。",
         hidePointerIdleThresholdCaption: "ポインタが隠れるまでの静止時間（秒）",
+        dockRevealDelayTitle: "Dock の表示を待たせない",
+        dockRevealDelayRestoreTitle: "Dock の表示待ちを元に戻す",
+        dockRevealDelayCaption: "ポインタが Dock に触れるとすぐに表示されます。",
     )
 
     static let ko = QuickToggleFeatureStrings(
@@ -399,6 +432,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "유휴 상태일 때 포인터 숨기기",
         hidePointerIdleCaption: "움직이지 않고 몇 초 지나면 포인터를 숨깁니다.",
         hidePointerIdleThresholdCaption: "포인터가 숨겨질 때까지의 정지 시간(초)",
+        dockRevealDelayTitle: "Dock 표시 지연 건너뛰기",
+        dockRevealDelayRestoreTitle: "Dock 표시 지연 복원",
+        dockRevealDelayCaption: "포인터가 닿는 즉시 Dock이 나타납니다.",
     )
 
     static let zhHans = QuickToggleFeatureStrings(
@@ -430,6 +466,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "空闲时隐藏指针",
         hidePointerIdleCaption: "指针几秒没有移动后就会隐藏。",
         hidePointerIdleThresholdCaption: "指针隐藏前的无移动秒数",
+        dockRevealDelayTitle: "跳过程序坞显示延迟",
+        dockRevealDelayRestoreTitle: "恢复程序坞显示延迟",
+        dockRevealDelayCaption: "指针一到程序坞，程序坞就立即显示。",
     )
 
     static let zhTW = QuickToggleFeatureStrings(
@@ -461,6 +500,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "閒置時隱藏游標",
         hidePointerIdleCaption: "游標幾秒沒有移動後就會隱藏。",
         hidePointerIdleThresholdCaption: "游標隱藏前的靜止秒數",
+        dockRevealDelayTitle: "略過 Dock 顯示延遲",
+        dockRevealDelayRestoreTitle: "恢復 Dock 顯示延遲",
+        dockRevealDelayCaption: "游標一移到 Dock，Dock 就會立即顯示。",
     )
 
     static let zhHK = QuickToggleFeatureStrings(
@@ -492,6 +534,9 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "閒置時隱藏游標",
         hidePointerIdleCaption: "游標幾秒沒有移動後就會隱藏。",
         hidePointerIdleThresholdCaption: "游標隱藏前的靜止秒數",
+        dockRevealDelayTitle: "略過 Dock 顯示延遲",
+        dockRevealDelayRestoreTitle: "恢復 Dock 顯示延遲",
+        dockRevealDelayCaption: "游標一移到 Dock，Dock 就會立即顯示。",
     )
     static let uk = QuickToggleFeatureStrings(
         pageTitle: "Швидкі перемикачі",
@@ -522,5 +567,8 @@ extension QuickToggleFeatureStrings {
         hidePointerIdleTitle: "Ховати вказівник під час простою",
         hidePointerIdleCaption: "Ховає вказівник після кількох секунд без руху.",
         hidePointerIdleThresholdCaption: "Секунди без руху, після яких ховається вказівник",
+        dockRevealDelayTitle: "Пропустити затримку появи Dock",
+        dockRevealDelayRestoreTitle: "Відновити затримку появи Dock",
+        dockRevealDelayCaption: "Dock з’являється, щойно вказівник його досягає.",
     )
 }
