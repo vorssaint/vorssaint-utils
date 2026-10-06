@@ -10,6 +10,12 @@ import Foundation
 /// the top level of Downloads, waits until a file is stable, then moves it to
 /// the configured folder. File bytes are read only to calculate a local SHA-256
 /// digest used for exact duplicate detection.
+///
+/// One pass, two retention policies: it routes a confirmed download to the
+/// chosen folder, and it files away screenshots of the configured folder that
+/// nobody has touched in a chosen number of days. Both stages share this
+/// type's single timer, single busy guard and single undo transaction, so
+/// one "Undo last organization" puts back both.
 final class WhatsAppDownloadOrganizer: ObservableObject {
     static let shared = WhatsAppDownloadOrganizer()
 
@@ -34,6 +40,15 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         let category: WhatsAppDownloadCategory
     }
 
+    /// The second retention policy's live half: a real screenshot folder, the
+    /// `Archive` folder inside it, and the instant that separates "been
+    /// sitting here untouched" from "just arrived".
+    private struct ArchiveSettings {
+        let folder: URL
+        let destination: URL
+        let boundary: Date
+    }
+
     private struct Settings {
         let destination: URL?
         let sources: [String]
@@ -42,6 +57,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         let categories: Set<WhatsAppDownloadCategory>
         let layout: WhatsAppOrganizerLayout
         let duplicateAction: WhatsAppDuplicateAction
+        let archive: ArchiveSettings?
     }
 
     private struct RunResult {
@@ -92,17 +108,60 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         Set(loadRecords().map { URL(fileURLWithPath: $0.destinationPath).standardizedFileURL.path })
     }
 
+    /// Whether the routing policy may run: the app it routes for, the routing
+    /// switches, and a confirmed Downloads folder to route out of.
+    private func routingPolicyIsLive() -> Bool {
+        AppFeature.cleaner.isAvailable
+            && WhatsAppDownloadSupport.isEnabled
+            && UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled)
+            && UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed)
+            && downloadsURL != nil
+            && Self.destinationURL(downloadsURL: downloadsURL) != nil
+    }
+
+    /// Whether any retention policy is live. Both the timer and the pass read
+    /// it through this one answer so they cannot drift into disagreeing about
+    /// whether there is work to do - and, more importantly, so that either
+    /// policy being switched off never switches the other one off.
+    private func anyPolicyIsLive() -> Bool {
+        routingPolicyIsLive() || Self.archiveSettings() != nil
+    }
+
+    /// The archive policy's live half, or nil when it is off. Off means the
+    /// day count is zero, no folder has been chosen, the folder no longer
+    /// exists, or the screenshot feature is gone. The folder is checked but
+    /// never created: this pass files captures away from a place the person
+    /// already put them, and inventing one here would create a folder that
+    /// quietly collects screenshots nobody asked to put anywhere.
+    private static func archiveSettings() -> ArchiveSettings? {
+        guard AppFeature.screenshot.isAvailable else { return nil }
+        let defaults = UserDefaults.standard
+        let plan = ScreenshotArchiveSupport.archivePlan(
+            folder: defaults.string(forKey: DefaultsKey.screenshotSaveFolder),
+            afterDays: defaults.integer(forKey: ScreenshotArchiveSupport.archiveAfterKey),
+            now: Date())
+        guard let plan else { return nil }
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: plan.folder.path,
+                                              isDirectory: &isDirectory),
+              isDirectory.boolValue else { return nil }
+        return ArchiveSettings(folder: plan.folder, destination: plan.destination,
+                               boundary: plan.boundary)
+    }
+
     func syncWithPreferences() {
         stopMonitoring()
-        guard AppFeature.cleaner.isAvailable,
-              WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed),
-              let root = downloadsURL else {
+        guard anyPolicyIsLive() else {
             phase = .idle
             return
         }
-        startMonitoring(root: root)
+        // The Downloads watcher belongs to routing alone. With routing off,
+        // starting it would be a directory source opened on every write to a
+        // folder this pass no longer reads, and the archive policy needs no
+        // watcher at all: it works from file dates, not from events.
+        if routingPolicyIsLive(), let root = downloadsURL {
+            startMonitoring(root: root)
+        }
         schedule(after: 2)
     }
 
@@ -194,8 +253,7 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
     }
 
     private func schedule(after delay: TimeInterval) {
-        guard WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled) else { return }
+        guard anyPolicyIsLive() else { return }
         let date = Date().addingTimeInterval(max(1, delay))
         if let nextCheck, nextCheck <= date { return }
         timer?.invalidate()
@@ -231,10 +289,10 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             schedule(after: 60)
             return
         }
-        guard AppFeature.cleaner.isAvailable,
-              WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppOrganizerEnabled),
-              let root = downloadsURL,
+        // Read once here: the archive policy may run with no Downloads folder
+        // at all, so the pass takes an optional root rather than demanding one.
+        let root = downloadsURL
+        guard anyPolicyIsLive(),
               let settings = settings(root: root) else {
             phase = .idle
             return
@@ -288,9 +346,21 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
         }
     }
 
-    private func settings(root: URL) -> Settings? {
-        guard let destination = Self.destinationURL(downloadsURL: root) else { return nil }
+    private func settings(root: URL?) -> Settings? {
         let defaults = UserDefaults.standard
+        // A stored destination path is not a live routing policy: the switches
+        // above it can be off while a path from an earlier session is still
+        // remembered, and this pass must not route a single file in that
+        // state.
+        let destination = routingPolicyIsLive()
+            ? Self.destinationURL(downloadsURL: root) : nil
+        let archive = Self.archiveSettings()
+        // One pass, two policies: it runs when either has work and stops when
+        // neither does. Requiring both would make each policy's absence
+        // switch the other one off, so turning off routing could never leave
+        // archiving running, and turning off archiving could never leave
+        // routing running.
+        guard destination != nil || archive != nil else { return nil }
         return Settings(
             destination: destination,
             sources: DownloadRouter.decodedSources(
@@ -305,121 +375,133 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
                 rawValue: defaults.string(forKey: DefaultsKey.whatsAppOrganizerLayout) ?? "") ?? .flat,
             duplicateAction: WhatsAppDuplicateAction(
                 rawValue: defaults.string(
-                    forKey: DefaultsKey.whatsAppOrganizerDuplicateAction) ?? "") ?? .trashNew)
+                    forKey: DefaultsKey.whatsAppOrganizerDuplicateAction) ?? "") ?? .trashNew,
+            archive: archive)
     }
 
-    private static func organize(root: URL, settings: Settings) -> RunResult {
-        // No chosen folder is not a failure; it is the feature being off, and
-        // every folder this pass writes is created below alongside its file.
-        guard let destination = settings.destination else {
+    private static func organize(root: URL?, settings: Settings) -> RunResult {
+        // Neither policy configured is not a failure; it is both features
+        // being off, and there is nothing this pass could have done.
+        guard settings.destination != nil || settings.archive != nil else {
             return RunResult(moved: 0, duplicates: 0, failed: 0,
                              records: loadRecords(), undo: nil, nextEligible: nil)
         }
         let fm = FileManager.default
 
         let now = Date()
-        let files: [SourceFile]
-        do {
-            files = try sourceFiles(in: root)
-        } catch {
-            return RunResult(moved: 0, duplicates: 0, failed: 1,
-                             records: loadRecords(), undo: nil, nextEligible: nil)
-        }
-
         let recordsBefore = loadRecords()
-        var records = recordsBefore.filter {
-            fm.fileExists(atPath: $0.destinationPath)
-        }
+        var records = recordsBefore
         var undoActions: [UndoTransaction.Action] = []
         var moved = 0
         var duplicates = 0
         var failed = 0
         var nextEligible: Date?
 
-        for source in files {
-            guard settings.categories.contains(source.category),
-                  let folderBase = DownloadRouter.destination(
-                    for: DownloadCandidate(url: source.url, agent: source.agent,
-                                           destination: destination),
-                    configured: settings.sources,
-                    extensionWhitelist: settings.extensionWhitelist) else { continue }
-            guard WhatsAppDownloadSupport.isStableForOrganization(
-                downloadedAt: source.downloadedAt, modifiedAt: source.modifiedAt,
-                now: now, delayMinutes: settings.delayMinutes) else {
-                let base = max(source.downloadedAt, source.modifiedAt)
-                let eligible = base.addingTimeInterval(
-                    TimeInterval(settings.delayMinutes * 60 + 1))
-                nextEligible = min(nextEligible ?? eligible, eligible)
-                continue
+        if let destination = settings.destination, let root {
+            records = recordsBefore.filter {
+                fm.fileExists(atPath: $0.destinationPath)
+            }
+            let files: [SourceFile]
+            do {
+                files = try sourceFiles(in: root)
+            } catch {
+                return RunResult(moved: 0, duplicates: 0, failed: 1,
+                                 records: loadRecords(), undo: nil, nextEligible: nil)
             }
 
-            do {
-                guard fingerprint(for: source.url) == source.fingerprint else {
-                    failed += 1
+            for source in files {
+                guard settings.categories.contains(source.category),
+                      let folderBase = DownloadRouter.destination(
+                        for: DownloadCandidate(url: source.url, agent: source.agent,
+                                               destination: destination),
+                        configured: settings.sources,
+                        extensionWhitelist: settings.extensionWhitelist) else { continue }
+                guard WhatsAppDownloadSupport.isStableForOrganization(
+                    downloadedAt: source.downloadedAt, modifiedAt: source.modifiedAt,
+                    now: now, delayMinutes: settings.delayMinutes) else {
+                    let base = max(source.downloadedAt, source.modifiedAt)
+                    let eligible = base.addingTimeInterval(
+                        TimeInterval(settings.delayMinutes * 60 + 1))
+                    nextEligible = min(nextEligible ?? eligible, eligible)
                     continue
                 }
-                let digest = try sha256(of: source.url)
-                let validDuplicateIndex = DownloadUndoPolicy.resolveDuplicate(
-                    digest: digest, records: &records) { record in
+
+                do {
+                    guard fingerprint(for: source.url) == source.fingerprint else {
+                        failed += 1
+                        continue
+                    }
+                    let digest = try sha256(of: source.url)
+                    let validDuplicateIndex = DownloadUndoPolicy.resolveDuplicate(
+                        digest: digest, records: &records) { record in
                         let url = URL(fileURLWithPath: record.destinationPath)
                         return FileManager.default.fileExists(atPath: url.path)
                             && (try? Self.sha256(of: url)) == digest
                     }
-                guard sourceStillMatches(source) else {
-                    failed += 1
-                    continue
-                }
-
-                if let duplicateIndex = validDuplicateIndex {
-                    let existing = URL(fileURLWithPath: records[duplicateIndex].destinationPath)
-                    switch settings.duplicateAction {
-                    case .trashNew:
-                        let trashed = try trash(source.url)
-                        if let trashed {
-                            undoActions.insert(.init(kind: .move,
-                                                     currentPath: trashed.path,
-                                                     restorePath: source.url.path), at: 0)
-                        }
-                        duplicates += 1
+                    guard sourceStillMatches(source) else {
+                        failed += 1
                         continue
-                    case .replaceExisting:
-                        let actions = try replaceVerified(source: source.url,
-                                                          existing: existing,
-                                                          digest: digest)
-                        records[duplicateIndex] = OrganizedFileRecord(
-                            digest: digest, destinationPath: existing.path,
-                            originalName: source.url.lastPathComponent,
-                            size: source.size, organizedAt: now)
-                        undoActions.insert(contentsOf: actions, at: 0)
-                        moved += 1
-                        duplicates += 1
-                        continue
-                    case .keepBoth:
-                        break
                     }
-                }
 
-                let components = WhatsAppDownloadSupport.organizerRelativeComponents(
-                    layout: settings.layout, category: source.category,
-                    date: source.downloadedAt)
-                let folder = components.reduce(folderBase) {
-                    $0.appendingPathComponent($1, isDirectory: true)
+                    if let duplicateIndex = validDuplicateIndex {
+                        let existing = URL(fileURLWithPath: records[duplicateIndex].destinationPath)
+                        switch settings.duplicateAction {
+                        case .trashNew:
+                            let trashed = try trash(source.url)
+                            if let trashed {
+                                undoActions.insert(.init(kind: .move,
+                                                         currentPath: trashed.path,
+                                                         restorePath: source.url.path), at: 0)
+                            }
+                            duplicates += 1
+                            continue
+                        case .replaceExisting:
+                            let actions = try replaceVerified(source: source.url,
+                                                              existing: existing,
+                                                              digest: digest)
+                            records[duplicateIndex] = OrganizedFileRecord(
+                                digest: digest, destinationPath: existing.path,
+                                originalName: source.url.lastPathComponent,
+                                size: source.size, organizedAt: now)
+                            undoActions.insert(contentsOf: actions, at: 0)
+                            moved += 1
+                            duplicates += 1
+                            continue
+                        case .keepBoth:
+                            break
+                        }
+                    }
+
+                    let components = WhatsAppDownloadSupport.organizerRelativeComponents(
+                        layout: settings.layout, category: source.category,
+                        date: source.downloadedAt)
+                    let folder = components.reduce(folderBase) {
+                        $0.appendingPathComponent($1, isDirectory: true)
+                    }
+                    try fm.createDirectory(at: folder, withIntermediateDirectories: true)
+                    let destination = uniqueDestination(
+                        in: folder, preferredName: source.url.lastPathComponent)
+                    let actions = try moveVerified(source: source.url,
+                                                   destination: destination,
+                                                   digest: digest)
+                    undoActions.insert(contentsOf: actions, at: 0)
+                    records.append(OrganizedFileRecord(digest: digest,
+                                          destinationPath: destination.path,
+                                          originalName: source.url.lastPathComponent,
+                                          size: source.size, organizedAt: now))
+                    moved += 1
+                } catch {
+                    failed += 1
                 }
-                try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-                let destination = uniqueDestination(
-                    in: folder, preferredName: source.url.lastPathComponent)
-                let actions = try moveVerified(source: source.url,
-                                               destination: destination,
-                                               digest: digest)
-                undoActions.insert(contentsOf: actions, at: 0)
-                records.append(OrganizedFileRecord(digest: digest,
-                                      destinationPath: destination.path,
-                                      originalName: source.url.lastPathComponent,
-                                      size: source.size, organizedAt: now))
-                moved += 1
-            } catch {
-                failed += 1
             }
+        }
+
+        if let archive = settings.archive {
+            // Same pass, same queue block, same undo array: one "Undo last
+            // organization" then restores a routed download and a filed-away
+            // capture together, because they were one decision to begin with.
+            archiveScreenshots(archive, now: now, undoActions: &undoActions,
+                               moved: &moved, failed: &failed)
         }
 
         records = Array(records.sorted { $0.organizedAt < $1.organizedAt }.suffix(5_000))
@@ -428,6 +510,115 @@ final class WhatsAppDownloadOrganizer: ObservableObject {
             recordsAfter: records, createdAt: now)
         return RunResult(moved: moved, duplicates: duplicates, failed: failed,
                          records: records, undo: undo, nextEligible: nextEligible)
+    }
+
+    private static let archiveResourceKeys: Set<URLResourceKey> = [
+        .isRegularFileKey, .isSymbolicLinkKey, .isAliasFileKey, .isDirectoryKey,
+        .isPackageKey, .isHiddenKey, .addedToDirectoryDateKey,
+        .contentModificationDateKey,
+    ]
+
+    /// The second policy's stage of the pass: files away screenshots that
+    /// macOS itself marked as captures and that have been sitting, untouched
+    /// and undisturbed since they arrived, in the top level of the screenshot
+    /// folder. Only that top level: a subfolder is a decision about grouping,
+    /// and this pass does not reach into one.
+    ///
+    /// No name rule applies here, deliberately. `JunkCleaner` skips a capture
+    /// the person renamed because for DELETION a rename is a decision to keep.
+    /// This policy does not delete anything - it moves a file to a subfolder
+    /// of the folder it is already in, where it remains visible and keeps its
+    /// name - so borrowing the cleaner's rule would make a renamed capture
+    /// immortal for a reason that has nothing to do with this decision.
+    private static func archiveScreenshots(_ archive: ArchiveSettings, now: Date,
+                                           undoActions: inout [UndoTransaction.Action],
+                                           moved: inout Int, failed: inout Int) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(
+            at: archive.folder, includingPropertiesForKeys: Array(archiveResourceKeys),
+            options: [.skipsSubdirectoryDescendants, .skipsHiddenFiles]) else { return }
+
+        let candidates = entries.compactMap { url -> ScreenshotCandidate? in
+            let standardized = url.standardizedFileURL
+            guard WhatsAppDownloadSupport.isDirectChild(standardized, of: archive.folder),
+                  !WhatsAppDownloadSupport.isIncompleteFile(
+                    extension: standardized.pathExtension),
+                  let values = try? standardized.resourceValues(forKeys: archiveResourceKeys),
+                  values.isRegularFile == true,
+                  values.isDirectory != true,
+                  values.isPackage != true,
+                  values.isSymbolicLink != true,
+                  values.isAliasFile != true,
+                  values.isHidden != true,
+                  let touched = values.contentModificationDate,
+                  captureFlag(of: standardized) else { return nil }
+            return ScreenshotCandidate(url: standardized, touched: touched,
+                                       added: values.addedToDirectoryDate)
+        }
+
+        var archiveFolderExists = false
+        for candidate in candidates where ScreenshotArchiveSupport.shouldArchive(
+            age: candidate.touched, added: candidate.added, boundary: archive.boundary) {
+            do {
+                // Reads the bytes once per archived capture, which is the one
+                // cost this policy adds: the digest is what lets the existing
+                // move primitive verify the copy across volumes, and a
+                // capture qualifies only after going untouched for at least
+                // seven days and then leaves the folder permanently.
+                let digest = try sha256(of: candidate.url)
+                // Created at the moment of the first move, never before: a
+                // pass that finds nothing to file away must not leave an
+                // empty folder behind in the person's screenshot folder.
+                if !archiveFolderExists {
+                    try fm.createDirectory(at: archive.destination,
+                                           withIntermediateDirectories: true)
+                    archiveFolderExists = true
+                }
+                let destination = uniqueDestination(
+                    in: archive.destination,
+                    preferredName: candidate.url.lastPathComponent)
+                let actions = try moveVerified(source: candidate.url,
+                                               destination: destination, digest: digest)
+                undoActions.insert(contentsOf: actions, at: 0)
+                // Deliberately no OrganizedFileRecord. Records are the
+                // routing ledger, keyed by digest, and a capture filed away by
+                // this policy must never become a duplicate verdict against
+                // a file the person is still downloading. Undo restores from
+                // transaction.actions, which is independent of records, and
+                // its refusal to overwrite anything already sitting at the
+                // restore path is what keeps putting a capture back safe.
+                //
+                // `moved` is reused rather than a new counter: the summary
+                // this pass reports is one localized format string, so a new
+                // counter would need a new string in fifteen languages to say
+                // nothing the person cannot already read there.
+                moved += 1
+            } catch {
+                failed += 1
+            }
+        }
+    }
+
+    /// Whether macOS itself wrote "this is a screenshot" onto the file. The
+    /// attribute name and the decoding are the cleaner's; only the `getxattr`
+    /// call is repeated here, because the cleaner's copy is private to it.
+    /// That duplication is worth collapsing later and not worth forking a
+    /// shared policy file over now: the two must stay in step, and both answer
+    /// the same question of the same attribute.
+    private static func captureFlag(of url: URL) -> Bool {
+        url.withUnsafeFileSystemRepresentation { path -> Bool in
+            guard let path else { return false }
+            let length = getxattr(path, CleanerSupport.screenCaptureAttribute, nil, 0, 0,
+                                  XATTR_NOFOLLOW)
+            guard length > 0, length <= 4096 else { return false }
+            var data = Data(count: length)
+            let read = data.withUnsafeMutableBytes {
+                getxattr(path, CleanerSupport.screenCaptureAttribute, $0.baseAddress, length, 0,
+                         XATTR_NOFOLLOW)
+            }
+            guard read == length else { return false }
+            return CleanerSupport.isScreenCaptureFlag(data)
+        }
     }
 
     private static let sourceResourceKeys: Set<URLResourceKey> = [
