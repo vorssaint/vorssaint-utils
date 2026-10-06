@@ -22,6 +22,7 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadBackgroundOpacity) private var scratchpadBackgroundOpacity = 0.0
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
+    @AppStorage(DefaultsKey.micMuteWhileTypingEnabled) private var micMuteWhileTypingEnabled = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
 
     var body: some View {
@@ -120,6 +121,18 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.micMuteMenuBarCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    Toggle(l10n.s.micMuteWhileTypingToggle, isOn: $micMuteWhileTypingEnabled)
+                        .onChange(of: micMuteWhileTypingEnabled) { _, _ in
+                            MicMuteService.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.micMuteWhileTypingCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if micMuteWhileTypingEnabled, !permissions.accessibility {
+                        Text(l10n.s.micMuteWhileTypingNeedsAccessibility)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                     Toggle(l10n.s.quickToolShortcutToggle, isOn: $micShortcutEnabled)
                         .onChange(of: micShortcutEnabled) { _, _ in
                             MicMuteService.shared.syncWithPreferences()
