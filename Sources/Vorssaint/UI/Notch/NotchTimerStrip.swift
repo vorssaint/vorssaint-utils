@@ -125,14 +125,13 @@ struct NotchCompanionMark: View {
             downloadIndicator
         case .agents:
             let working = Self.working
-            let showsT3 = Self.showsT3
+            let t3Summary = Self.t3Summary
+            let showsT3 = t3Summary != nil
             let markCount = NotchTimerSupport.stripAgentMarkCount(providers: working.count, showsT3: showsT3)
             HStack(spacing: 1) {
                 ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(markCount, geometry)) }
-                if showsT3 {
-                    Text("T3")
-                        .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white)
+                if let t3Summary {
+                    t3Mark(t3Summary.state, markCount: markCount)
                 }
             }
         case .calendar:
@@ -147,6 +146,31 @@ struct NotchCompanionMark: View {
                             radius: geometry.compactMusicArtworkRadius)
         case .timer, .keepAwake, .watch:
             EmptyView()
+        }
+    }
+
+    @ViewBuilder private func t3Mark(_ state: T3ThreadState, markCount: Int) -> some View {
+        switch state {
+        case .waitingForInput:
+            Image(systemName: "questionmark.circle.fill")
+                .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold))
+                .foregroundStyle(.orange)
+        case .waitingForApproval:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold))
+                .foregroundStyle(.orange)
+        case .waiting:
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold))
+                .foregroundStyle(.green)
+        default:
+            Text("T3")
+                .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
         }
     }
 
@@ -168,8 +192,8 @@ struct NotchCompanionMark: View {
         return AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
 
-    private static var showsT3: Bool {
-        T3CodeActivityService.shared.activities.contains { $0.state.isActive }
+    private static var t3Summary: T3CompactActivitySummary? {
+        T3ActivityPresentation.compactSummary(T3CodeActivityService.shared.activities)
     }
 
     private static func agentMarkSize(_ working: Int, _ geometry: NotchGeometry) -> CGFloat {
@@ -181,7 +205,7 @@ struct NotchCompanionMark: View {
     static func inset(_ companion: NotchCompactActivity, geometry: NotchGeometry) -> CGFloat {
         switch companion {
         case .agents:
-            let markCount = NotchTimerSupport.stripAgentMarkCount(providers: working.count, showsT3: showsT3)
+            let markCount = NotchTimerSupport.stripAgentMarkCount(providers: working.count, showsT3: t3Summary != nil)
             let side = agentMarkSize(markCount, geometry)
             return geometry.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
         case .music:
@@ -200,7 +224,7 @@ struct NotchCompanionMark: View {
             return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents:
             return NotchTimerSupport.stripAgentMarkAccessibilityLabel(
-                providers: working.map(\.displayName), t3Source: showsT3 ? T3CodeStrings(language).source : nil)
+                providers: working.map(\.displayName), t3Source: t3Summary == nil ? nil : T3CodeStrings(language).source)
         case .calendar:
             let text = FeatureStrings.notchCalendar(language)
             guard let countdown = NotchCalendarService.shared.countdown else { return text.title }

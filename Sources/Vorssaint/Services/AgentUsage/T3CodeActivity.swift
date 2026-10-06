@@ -184,7 +184,42 @@ struct T3ActivityCompletion: Equatable {
     let duration: TimeInterval
 }
 
+struct T3CompactActivitySummary: Equatable {
+    let state: T3ThreadState
+    let workingCount: Int
+
+    var compactReadout: String {
+        let suffix: String
+        switch state {
+        case .waitingForApproval: suffix = "!"
+        case .waitingForInput: suffix = "?"
+        case .waiting: suffix = "…"
+        case .completed: suffix = "✓"
+        case .working: suffix = "\(workingCount)"
+        case .idle, .failed, .stopped: suffix = ""
+        }
+        return "T3 · \(suffix)"
+    }
+
+    func accessibilityReadout(language: AppLanguage) -> String {
+        let strings = T3CodeStrings(language)
+        let status = switch state {
+        case .waitingForApproval: strings.approval
+        case .waitingForInput: strings.waitingInput
+        case .waiting: strings.waiting
+        case .completed: strings.completed
+        case .working: strings.workingCount(workingCount)
+        case .idle: strings.idle
+        case .failed: strings.failed
+        case .stopped: strings.stopped
+        }
+        return "\(strings.source), \(status)"
+    }
+}
+
 enum T3ActivityPresentation {
+    static let compactCompletionDuration: TimeInterval = 5
+
     static func visible(_ activities: [T3ThreadActivity], now: Date = .now) -> [T3ThreadActivity] {
         activities.filter {
             $0.state.isActive || (($0.state == .completed || $0.state == .failed || $0.state == .stopped)
@@ -197,6 +232,51 @@ enum T3ActivityPresentation {
                 return leftPriority != rightPriority ? leftPriority < rightPriority : lhs.updatedAt > rhs.updatedAt
             }
             .prefix(8).map { $0 }
+    }
+
+    static func compactSummary(_ activities: [T3ThreadActivity], now: Date = .now) -> T3CompactActivitySummary? {
+        let active = activities.filter { $0.state.isActive }
+        let workingCount = active.filter { $0.state == .working }.count
+        if active.contains(where: { $0.state == .waitingForInput }) {
+            return T3CompactActivitySummary(state: .waitingForInput, workingCount: workingCount)
+        }
+        if active.contains(where: { $0.state == .waitingForApproval }) {
+            return T3CompactActivitySummary(state: .waitingForApproval, workingCount: workingCount)
+        }
+        if active.contains(where: { $0.state == .waiting }) {
+            return T3CompactActivitySummary(state: .waiting, workingCount: workingCount)
+        }
+        if hasRecentCompletion(activities, now: now) {
+            return T3CompactActivitySummary(state: .completed, workingCount: workingCount)
+        }
+        guard workingCount > 0 else { return nil }
+        return T3CompactActivitySummary(state: .working, workingCount: workingCount)
+    }
+
+    static func hasRecentCompletion(_ activities: [T3ThreadActivity], now: Date = .now) -> Bool {
+        activities.contains { activity in
+            guard activity.state == .completed else { return false }
+            let age = now.timeIntervalSince(activity.completedAt ?? activity.updatedAt)
+            return age >= 0 && age < compactCompletionDuration
+        }
+    }
+
+    static func compactCompletionExpiry(_ activities: [T3ThreadActivity], now: Date = .now) -> Date? {
+        guard compactSummary(activities, now: now)?.state == .completed else { return nil }
+        return activities
+            .filter { $0.state == .completed }
+            .map { $0.completedAt ?? $0.updatedAt }
+            .filter {
+                let age = now.timeIntervalSince($0)
+                return age >= 0 && age < compactCompletionDuration
+            }
+            .map { $0.addingTimeInterval(compactCompletionDuration) }
+            .max()
+    }
+
+    static func allowsCompletionNotice(_ activities: [T3ThreadActivity]) -> Bool {
+        let active = activities.filter { $0.state.isActive }
+        return !active.contains { $0.state == .waitingForInput || $0.state == .waitingForApproval }
     }
 
     static func layoutKey(_ activities: [T3ThreadActivity], now: Date = .now) -> [String] {

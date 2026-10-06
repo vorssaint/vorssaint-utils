@@ -7,6 +7,7 @@ enum T3CodeActivityTests {
     static func run(_ suite: TestSuite) {
         mapping(suite)
         transitions(suite)
+        compactPresentation(suite)
         endpointValidation(suite)
         localization(suite)
     }
@@ -366,6 +367,66 @@ enum T3CodeActivityTests {
                         && T3ActivityPresentation.layoutKey(finished, now: terminalVisibleAt).count == 1
                         && T3ActivityPresentation.layoutKey(finished, now: terminalExpiredAt).isEmpty,
                      "terminal-only arrival and expiry change the expanded-page layout key")
+    }
+
+    private static func compactPresentation(_ suite: TestSuite) {
+        let now = ISO8601DateFormatter().date(from: "2026-10-06T12:03:00Z")!
+        func activity(_ id: String, _ state: T3ThreadState, age: TimeInterval = 0) -> T3ThreadActivity {
+            let updatedAt = now.addingTimeInterval(-age)
+            return T3ThreadActivity(id: id, threadID: id, environmentID: "env-local", environment: "Local Mac",
+                                    machine: "MacBook", project: "MowgliNext", title: id, provider: "codex",
+                                    model: "gpt-5.4", state: state, startedAt: updatedAt,
+                                    completedAt: state == .completed ? updatedAt : nil, updatedAt: updatedAt,
+                                    latestRunID: id, latestRunStartedAt: updatedAt, latestRunWorkStartedAt: updatedAt,
+                                    activityRunID: state.isActive ? id : nil,
+                                    activityRunStartedAt: state.isActive ? updatedAt : nil, backgroundTaskCount: 0)
+        }
+
+        let working = activity("working", .working)
+        let secondWorking = activity("working-2", .working)
+        let waiting = activity("waiting", .waiting)
+        let input = activity("input", .waitingForInput)
+        let approval = activity("approval", .waitingForApproval)
+        let completed = activity("completed", .completed)
+        let question = T3ActivityPresentation.compactSummary([working, completed, input], now: now)
+        suite.expect(question?.state == .waitingForInput
+                        && question?.compactReadout == "T3 · ?",
+                     "a pending user question takes priority over completed and working threads")
+        suite.expect(T3ActivityPresentation.compactSummary([input, approval, working], now: now)?.state == .waitingForInput,
+                     "a user question is the highest-priority compact status")
+        suite.expect(!T3ActivityPresentation.allowsCompletionNotice([input, completed])
+                        && !T3ActivityPresentation.allowsCompletionNotice([approval, completed]),
+                     "a completion notice cannot cover a pending question or approval")
+        suite.expect(T3ActivityPresentation.allowsCompletionNotice([waiting, completed]),
+                     "ordinary waiting does not suppress a configured completion notice")
+        suite.expect(T3ActivityPresentation.compactSummary([approval, waiting, working], now: now)?.state == .waitingForApproval,
+                     "approval requests outrank ordinary waiting and work")
+        suite.expect(T3ActivityPresentation.compactSummary([waiting, working, completed], now: now)?.state == .waiting,
+                     "a waiting thread takes priority over a transient completion and normal work")
+
+        let completion = T3ActivityPresentation.compactSummary([completed, working], now: now)
+        suite.expect(completion?.state == .completed
+                        && completion?.compactReadout == "T3 · ✓",
+                     "a recent completion gets a short green-check readout while other work continues")
+        suite.expect(T3ActivityPresentation.compactCompletionExpiry([completed, working], now: now)
+                        == now.addingTimeInterval(T3ActivityPresentation.compactCompletionDuration),
+                     "the service can schedule a deterministic refresh at the compact completion deadline")
+        let futureCompletion = activity("future-completion", .completed, age: -30)
+        suite.expect(T3ActivityPresentation.compactCompletionExpiry([completed, futureCompletion], now: now)
+                        == now.addingTimeInterval(T3ActivityPresentation.compactCompletionDuration),
+                     "a future-dated remote completion cannot extend the flash deadline")
+        let afterCompletion = T3ActivityPresentation.compactSummary([completed, working], now: now.addingTimeInterval(5))
+        suite.expect(afterCompletion?.state == .working && afterCompletion?.workingCount == 1
+                        && afterCompletion?.compactReadout == "T3 · 1",
+                     "the compact island returns to the active count when the completion flash expires")
+        suite.expect(T3ActivityPresentation.compactCompletionExpiry([completed, working], now: now.addingTimeInterval(5)) == nil,
+                     "expired completion state no longer schedules repeated refreshes")
+        let multiple = T3ActivityPresentation.compactSummary([working, secondWorking], now: now)
+        suite.expect(multiple?.state == .working && multiple?.workingCount == 2
+                        && multiple?.compactReadout == "T3 · 2",
+                     "the compact readout shows a concise count for concurrent work")
+        suite.expect(T3ActivityPresentation.compactSummary([completed], now: now.addingTimeInterval(5)) == nil,
+                     "a completion-only strip disappears after its brief success state")
     }
 
     private static func endpointValidation(_ suite: TestSuite) {

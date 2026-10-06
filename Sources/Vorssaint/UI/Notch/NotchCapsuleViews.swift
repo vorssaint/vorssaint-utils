@@ -341,17 +341,36 @@ struct NotchCapsuleTimerStrip: View {
 /// The working agents' marks, side by side, each in a frame wider than it.
 private struct NotchCapsuleAgentMarks: View {
     let providers: [AgentProvider]
-    var showsT3 = false
+    var t3State: T3ThreadState? = nil
 
     var body: some View {
-        let working = providers.count + (showsT3 ? 1 : 0)
+        let working = providers.count + (t3State == nil ? 0 : 1)
         HStack(spacing: 1) {
             ForEach(providers) { NotchAgentGlyph(provider: $0, size: CapsuleLayout.agentMarkSize(working: working)) }
-            if showsT3 {
+            if let t3State {
+                t3Mark(t3State, working: working)
+            }
+        }
+    }
+
+    @ViewBuilder private func t3Mark(_ state: T3ThreadState, working: Int) -> some View {
+        switch state {
+        case .waitingForInput:
+            Image(systemName: "questionmark.circle.fill")
+                .font(.system(size: working > 1 ? 9 : 10, weight: .semibold)).foregroundStyle(.orange)
+        case .waitingForApproval:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: working > 1 ? 9 : 10, weight: .semibold)).foregroundStyle(.orange)
+        case .waiting:
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: working > 1 ? 9 : 10, weight: .semibold)).foregroundStyle(.secondary)
+        case .completed:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: working > 1 ? 9 : 10, weight: .semibold)).foregroundStyle(.green)
+        default:
                 Text("T3")
                     .font(.system(size: working > 1 ? 9 : 10, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-            }
         }
     }
 }
@@ -381,9 +400,10 @@ private struct NotchCapsuleCompanionMark: View {
                 }
             }
         case .agents:
+            let t3Summary = T3ActivityPresentation.compactSummary(t3.activities)
             NotchCapsuleAgentMarks(providers: AgentProvider.allCases.filter { provider in
                 usage.snapshot.live.contains { $0.provider == provider }
-            }, showsT3: t3.activities.contains(where: { $0.state.isActive }))
+            }, t3State: t3Summary?.state)
         case .music:
             let side = CapsuleLayout.artworkSide(geometry)
             NotchMusicCover(artwork: music.artwork, side: side, radius: side / 2)
@@ -408,59 +428,94 @@ struct NotchCapsuleAgentStrip: View {
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var t3 = T3CodeActivityService.shared
     @ObservedObject private var l10n = L10n.shared
+    @State private var tracksCompletionFlash = false
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
 
     private struct Activity: Equatable {
         let live: [AgentLiveSession]
-        let threads: [T3ThreadActivity]
+        let summary: T3CompactActivitySummary?
 
         var providers: [AgentProvider] {
             AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
         }
-        var activeThreads: [T3ThreadActivity] { threads.filter { $0.state.isActive } }
-        var shows: Bool { !live.isEmpty || !activeThreads.isEmpty }
+        var shows: Bool { !live.isEmpty || summary != nil }
     }
 
-    private var activity: Activity { Activity(live: usage.snapshot.live, threads: t3.activities) }
-
     var body: some View {
-        NotchStripHold(activity, shows: activity.shows) { row(activity: $0) }
-            .onChange(of: t3.activities) { _, _ in
-                DispatchQueue.main.async { service.refreshPresentation() }
+        Group {
+            if tracksCompletionFlash {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    strip(now: context.date)
+                }
+            } else {
+                strip(now: .now)
             }
+        }
+        .onAppear { updateCompletionTracking() }
+        .onChange(of: t3.activities) { _, _ in
+            updateCompletionTracking()
+            DispatchQueue.main.async { service.refreshPresentation() }
+        }
+    }
+
+    private func strip(now: Date) -> some View {
+        let activity = Activity(live: usage.snapshot.live,
+                                summary: T3ActivityPresentation.compactSummary(t3.activities, now: now))
+        return NotchStripHold(activity, shows: activity.shows) { row(activity: $0) }
+            .onChange(of: activity.summary) { _, _ in
+                DispatchQueue.main.async {
+                    if activity.summary?.state != .completed { tracksCompletionFlash = false }
+                    service.refreshPresentation()
+                }
+            }
+    }
+
+    private func updateCompletionTracking() {
+        tracksCompletionFlash = T3ActivityPresentation.compactSummary(t3.activities)?.state == .completed
     }
 
     @ViewBuilder private func row(activity: Activity) -> some View {
         let working = activity.providers
-        let activeT3 = activity.activeThreads
-        let approvalOrInput = activeT3.contains { $0.state == .waitingForApproval || $0.state == .waitingForInput }
+        let summary = activity.summary
         NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
             HStack(spacing: CapsuleLayout.spacing) {
-                NotchCapsuleAgentMarks(providers: working, showsT3: !activeT3.isEmpty)
-                NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                    let local = reading(at: date, live: activity.live)
-                    let t3Readout = NotchService.t3CompactReadout(activeT3, language: l10n.language)
-                    let text = activeT3.isEmpty ? local : String(t3Readout.dropFirst("T3 · ".count))
-                    Text(text)
-                        .font(Font(CapsuleLayout.readingFont as CTFont))
-                        .foregroundStyle(approvalOrInput ? .orange : working.first?.tint ?? .white)
-                        .lineLimit(1).fixedSize()
-                        // A reading that gains a digit, like an hour passing,
-                        // widens the capsule; the service measures the same.
-                        .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
-                            DispatchQueue.main.async { service.refreshPresentation() }
-                        }
+                NotchCapsuleAgentMarks(providers: working, t3State: summary?.state)
+                if let summary {
+                    compactReadout(String(summary.compactReadout.dropFirst("T3 · ".count)),
+                                   tint: summary.state == .waitingForApproval || summary.state == .waitingForInput
+                                       ? .orange : summary.state == .completed ? .green
+                                       : summary.state == .waiting ? .secondary : working.first?.tint ?? .white)
+                } else {
+                    NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                        let text = reading(at: date, live: activity.live)
+                        Text(text)
+                            .font(Font(CapsuleLayout.readingFont as CTFont))
+                            .foregroundStyle(working.first?.tint ?? .white)
+                            .lineLimit(1).fixedSize()
+                            // A reading that gains a digit, like an hour passing,
+                            // widens the capsule; the service measures the same.
+                            .onChange(of: NotchAgentSupport.readingShape(text)) { _, _ in
+                                DispatchQueue.main.async { service.refreshPresentation() }
+                            }
+                    }
                 }
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel((working.map(\.displayName) + (activeT3.isEmpty ? [] : [T3CodeStrings(l10n.language).source]))
+        .accessibilityLabel((working.map(\.displayName) + (summary == nil ? [] : [T3CodeStrings(l10n.language).source]))
             .joined(separator: ", "))
-        .accessibilityValue(activeT3.isEmpty ? reading(at: Date(), live: activity.live)
-                            : NotchService.t3CompactReadout(activeT3, language: l10n.language))
+        .accessibilityValue(summary?.accessibilityReadout(language: l10n.language)
+                            ?? reading(at: Date(), live: activity.live))
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    private func compactReadout(_ value: String, tint: Color) -> some View {
+        Text(value)
+            .font(Font(CapsuleLayout.readingFont as CTFont))
+            .foregroundStyle(tint)
+            .lineLimit(1).fixedSize()
     }
 
     private func reading(at now: Date, live: [AgentLiveSession]) -> String {
