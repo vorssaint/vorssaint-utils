@@ -55,7 +55,14 @@ final class FinderToggleService: ObservableObject {
             // answer already; saying so beats a key that looks like it worked.
             if !finder.hide() { NSSound.beep() }
         case .activate:
-            if !finder.activate(options: []) { NSSound.beep() }
+            // The same yield-then-`activate(from:)` the switcher and the Dock
+            // click use: a bare `activate()` cannot raise another app since
+            // macOS 14, and this process swallowed the key, so nobody else is
+            // going to do it.
+            ActivationHandoff.yield(to: finder)
+            if !finder.activate(from: NSRunningApplication.current, options: []) {
+                if !finder.activate(options: []) { NSSound.beep() }
+            }
         }
     }
 
