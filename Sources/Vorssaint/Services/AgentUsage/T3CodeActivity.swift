@@ -226,6 +226,7 @@ struct T3ActivityReducer {
     private(set) var activities: [String: T3ThreadActivity] = [:]
     private var announcedRuns: Set<String> = []
     private var activityStarts: [String: Date] = [:]
+    private var activityStartMessages: [String: Date] = [:]
     private var hasBaseline = false
 
     mutating func apply(_ next: [T3ThreadActivity]) -> [T3ActivityCompletion] {
@@ -233,23 +234,31 @@ struct T3ActivityReducer {
         let nextByID = Dictionary(next.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         var completed: [T3ActivityCompletion] = []
         var nextStarts: [String: Date] = [:]
+        var nextStartMessages: [String: Date] = [:]
         for activity in next {
             let old = previous[activity.id]
             if activity.state.isActive {
                 let start: Date?
                 if let activityStartedAt = activity.activityRunStartedAt {
                     start = activityStartedAt
-                } else if let old, old.state.isActive, Self.continues(old, as: activity) {
+                } else if let old, old.state.isActive,
+                          Self.continues(old, as: activity, activityStartMessageAt: activityStartMessages[activity.id]) {
                     start = activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
                 } else {
                     start = activity.startedAt
                 }
-                if let start { nextStarts[activity.id] = start }
+                if let start {
+                    nextStarts[activity.id] = start
+                    let messageAtStart = activityStarts[activity.id] == start
+                        ? activityStartMessages[activity.id]
+                        : activity.latestUserAuthoredMessageAt
+                    if let messageAtStart { nextStartMessages[activity.id] = messageAtStart }
+                }
             } else if hasBaseline, activity.state == .completed,
                       let old, old.state.isActive,
                       let runID = activity.latestRunID,
                       announcedRuns.insert("\(activity.environmentID):\(activity.threadID):\(runID)").inserted {
-                let start = Self.continues(old, as: activity)
+                let start = Self.continues(old, as: activity, activityStartMessageAt: activityStartMessages[activity.id])
                     ? activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
                     : activity.startedAt
                 let duration = start.flatMap { start in
@@ -260,19 +269,21 @@ struct T3ActivityReducer {
         }
         hasBaseline = true
         activityStarts = nextStarts
+        activityStartMessages = nextStartMessages
         activities = nextByID
         return completed
     }
 
-    private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
+    private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity,
+                                  activityStartMessageAt: Date?) -> Bool {
         if let runID = old.activityRunID, runID == next.activityRunID { return true }
         if let runID = old.latestRunID, runID == next.latestRunID,
            let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
-        // T3 may have a queued latest run while a previous run still owns the
-        // activity. A stable user-authored timestamp identifies wake/continuation
-        // runs; a new user request changes it, even when the prior run was waiting.
-        guard let oldMessage = old.latestUserAuthoredMessageAt,
-              oldMessage == next.latestUserAuthoredMessageAt else { return false }
+        // Bind the authored timestamp to the retained activity start. T3 updates
+        // latestUserAuthoredMessageAt as soon as a queued user run is persisted,
+        // even while the prior run still owns the activity.
+        guard let activityStartMessageAt,
+              activityStartMessageAt == next.latestUserAuthoredMessageAt else { return false }
         return true
     }
 }

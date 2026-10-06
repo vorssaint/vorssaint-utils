@@ -207,10 +207,15 @@ enum T3CodeActivityTests {
         _ = approvalWithQueuedRun.apply(firstRun)
         let approvalWhileQueued = snapshot(status: "waiting", request: "permission", activeRun: nil,
                                            startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
-                                           latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
+                                           latestUserAuthoredAt: "2026-10-06T12:09:50Z", latestRunID: "run-2")
+        let approvalSecondRunFinished = snapshot(status: "completed", activeRun: nil,
+                                                  completedAt: "2026-10-06T12:10:02Z",
+                                                  startedAt: "2026-10-06T12:10:00Z",
+                                                  latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                                  latestRunID: "run-2")
         _ = approvalWithQueuedRun.apply(approvalWhileQueued)
-        suite.expect(approvalWithQueuedRun.apply(secondRunFinished).first?.duration == 2,
-                     "approval state does not make an unstarted queued run inherit the waiting duration")
+        suite.expect(approvalWithQueuedRun.apply(approvalSecondRunFinished).first?.duration == 2,
+                     "a queued user message does not make its completion inherit the approval wait duration")
 
         var queuedWake = T3ActivityReducer()
         let originalWork = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
