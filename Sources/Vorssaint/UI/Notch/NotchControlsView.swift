@@ -534,7 +534,8 @@ struct NotchActionTile: View {
 }
 
 /// A running timer, focus cycle or stopwatch keeps its clock on the tile:
-/// opening the island covers the reading the closed island showed.
+/// opening the island covers the reading the closed island showed, and a
+/// countdown hidden from the closed island can still be read here.
 private struct NotchTimerTile: View {
     let service: NotchService
     @ObservedObject private var timer = NotchTimerService.shared
