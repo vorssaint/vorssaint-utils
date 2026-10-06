@@ -222,7 +222,6 @@ struct T3ActivityReducer {
             for activity in next where activity.state == .completed {
                 guard let old = previous[activity.id], old.state.isActive,
                       let runID = activity.latestRunID,
-                      old.latestRunID == runID,
                       announcedRuns.insert("\(activity.environmentID):\(activity.threadID):\(runID)").inserted else { continue }
                 let duration = (old.startedAt ?? activity.startedAt).flatMap { start in
                     activity.completedAt.map { max(0, $0.timeIntervalSince(start)) }
