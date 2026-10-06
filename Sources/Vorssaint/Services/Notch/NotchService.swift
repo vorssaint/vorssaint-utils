@@ -4088,6 +4088,10 @@ final class NotchService: ObservableObject {
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         if needs, AppFeature.connectedDevices.isAvailable { detailNeeds.connectedDevices = true }
+        // The header's readout samples only while the island is open.
+        if expanded, UserDefaults.standard.bool(forKey: DefaultsKey.notchSystemReadout) {
+            detailNeeds = detailNeeds.merging(NotchSystemReadout.monitorNeeds(available: NotchSystemReadout.availableKinds()))
+        }
         SystemMonitor.shared.setNotchDetailNeeds(detailNeeds)
         if needs != notchNeedsMonitor {
             notchNeedsMonitor = needs

@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchSystemReadout) private var systemReadout = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -437,7 +438,14 @@ struct NotchView: View {
                     actions.fixedSize()
                     overflowMenu(items: overflowItems(tools: false, clear: false))
                 } else if service.expandedGeometry.headerCameraGap > 0 {
-                    cameraHeaderActions
+                    // Beside the camera the actions stay in view; the readings
+                    // take what room is left on their side, fewer when it is narrow.
+                    if systemReadout {
+                        NotchSystemReadoutView(showsEllipsisWhenEmpty: false)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .allowsHitTesting(false)
+                    }
+                    cameraHeaderActions.layoutPriority(1)
                 } else {
                     headerActions(quickActions: quickActions)
                 }
@@ -576,24 +584,32 @@ struct NotchView: View {
         .overlay(alignment: .trailing) {
             if !revealed {
                 HStack(spacing: 5) {
-                    if case .available(let version) = updates.state {
-                        Circle()
-                            .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
-                            .frame(width: 6, height: 6)
+                    Group {
+                        if case .available(let version) = updates.state {
+                            Circle()
+                                .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
+                                .frame(width: 6, height: 6)
+                        }
+                        // A kept-open island says so at rest, not only under the pointer.
+                        if service.pinned {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
                     }
-                    // A kept-open island says so at rest, not only under the pointer.
-                    if service.pinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.6))
+                    .accessibilityHidden(true)
+                    // The room the actions keep shows system readings instead of `…`.
+                    if systemReadout {
+                        NotchSystemReadoutView()
+                    } else {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
+                            .frame(width: 28, height: 28)
+                            .accessibilityHidden(true)
                     }
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
-                        .frame(width: 28, height: 28)
                 }
                 .allowsHitTesting(false)
-                .accessibilityHidden(true)
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: revealed)
