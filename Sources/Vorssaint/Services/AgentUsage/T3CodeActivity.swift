@@ -36,6 +36,7 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let completedAt: Date?
     let updatedAt: Date
     let latestRunID: String?
+    let activityRunID: String?
     let activityRunStartedAt: Date?
     let latestUserAuthoredMessageAt: Date?
     let backgroundTaskCount: Int
@@ -141,6 +142,7 @@ struct T3ShellSnapshot: Decodable {
                 model: thread.modelSelection?.model ?? "", state: state,
                 startedAt: startedAt, completedAt: thread.latestRunCompletedAt.flatMap(Self.date),
                 updatedAt: updatedAt, latestRunID: thread.latestRunID,
+                activityRunID: thread.activeRunID ?? thread.latestRunID,
                 activityRunStartedAt: activityStartedAt,
                 latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt.flatMap(Self.date),
                 backgroundTaskCount: tasks.count)
@@ -259,11 +261,11 @@ struct T3ActivityReducer {
     }
 
     private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
-        if old.latestRunID == next.latestRunID { return true }
+        if let runID = old.activityRunID, runID == next.activityRunID { return true }
         if old.state == .waitingForApproval || old.state == .waitingForInput { return true }
         guard let oldMessage = old.latestUserAuthoredMessageAt,
               oldMessage == next.latestUserAuthoredMessageAt else { return false }
-        return old.backgroundTaskCount > 0 || old.state == .waiting
+        return old.backgroundTaskCount > 0
     }
 }
 

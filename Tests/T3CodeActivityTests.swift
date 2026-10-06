@@ -185,6 +185,22 @@ enum T3CodeActivityTests {
         suite.expect(newRunAfterWaiting.apply(finishedAfterWaiting).first?.duration == 2,
                      "a user run after waiting starts a new completion duration")
 
+        var queuedRun = T3ActivityReducer()
+        let firstRun = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
+                                activityStartedAt: "2026-10-06T12:00:00Z", latestUserAuthoredAt: "2026-10-06T12:00:00Z",
+                                latestRunID: "run-1")
+        let queuedSecondRun = snapshot(status: "waiting", startedAt: "2026-10-06T12:00:00Z",
+                                       activityStartedAt: "2026-10-06T12:00:00Z",
+                                       latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+        let secondRunFinished = snapshot(status: "completed", activeRun: nil,
+                                         completedAt: "2026-10-06T12:10:02Z",
+                                         startedAt: "2026-10-06T12:10:00Z",
+                                         latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+        _ = queuedRun.apply(firstRun)
+        _ = queuedRun.apply(queuedSecondRun)
+        suite.expect(queuedRun.apply(secondRunFinished).first?.duration == 2,
+                     "a queued latest run does not inherit the still-active run's start")
+
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
         _ = chainedWake.apply(pendingMonitor)
