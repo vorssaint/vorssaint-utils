@@ -12,10 +12,12 @@ struct NotchAgentStrip: View {
     /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var t3 = T3CodeActivityService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
+    private var activeT3: [T3ThreadActivity] { t3.activities.filter { $0.state.isActive } }
 
     private func working(_ live: [AgentLiveSession]) -> [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
@@ -23,10 +25,15 @@ struct NotchAgentStrip: View {
 
     var body: some View {
         // The last agent stopping empties the list before the strip has left.
-        NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty) { strip(live: $0) }
+        NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty || !activeT3.isEmpty) {
+            strip(live: $0, t3: activeT3)
+        }
+        .onChange(of: t3.activities) { _, _ in
+            DispatchQueue.main.async { service.refreshPresentation() }
+        }
     }
 
-    @ViewBuilder private func strip(live: [AgentLiveSession]) -> some View {
+    @ViewBuilder private func strip(live: [AgentLiveSession], t3: [T3ThreadActivity]) -> some View {
         // Resolve layout once per presentation update. The timeline captures
         // these values, so ticking the clock never remeasures the island or
         // walks the preferences for every font, inset and frame.
@@ -43,7 +50,15 @@ struct NotchAgentStrip: View {
         HStack(spacing: 0) {
             Button { service.openActivity(.agents) } label: {
                 HStack(spacing: 1) {
-                    if geometry.compactActivityWingWidth >= 28 {
+                    if geometry.compactActivityWingWidth >= 28, !t3.isEmpty {
+                        Image(systemName: t3.contains(where: { $0.state == .waitingForApproval })
+                              ? "exclamationmark.triangle.fill"
+                              : t3.contains(where: { $0.state == .waitingForInput })
+                                ? "questionmark.circle.fill" : "circle.fill")
+                            .font(.system(size: iconSize, weight: .semibold))
+                            .foregroundStyle(t3.contains(where: { $0.state == .waitingForApproval || $0.state == .waitingForInput })
+                                             ? .orange : .white)
+                    } else if geometry.compactActivityWingWidth >= 28 {
                         ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
                     }
                 }
@@ -57,11 +72,13 @@ struct NotchAgentStrip: View {
                 Group {
                     if geometry.compactActivityWingWidth >= 42 {
                         NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
-                            let text = reading(at: date, live: live)
+                            let text = t3.isEmpty ? reading(at: date, live: live)
+                                : NotchService.t3CompactReadout(t3, language: l10n.language)
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
+                                .foregroundStyle(t3.contains(where: { $0.state == .waitingForApproval || $0.state == .waitingForInput })
+                                                 ? .orange : tint)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                                 // A reading that gains a digit, like an hour
@@ -84,8 +101,9 @@ struct NotchAgentStrip: View {
         .padding(.top, geometry.compactActivityTopPadding)
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(working.map(\.displayName).joined(separator: ", "))
-        .accessibilityValue(reading(at: Date(), live: live))
+        .accessibilityLabel(t3.isEmpty ? working.map(\.displayName).joined(separator: ", ") : T3CodeStrings(l10n.language).source)
+        .accessibilityValue(t3.isEmpty ? reading(at: Date(), live: live)
+                            : NotchService.t3CompactReadout(t3, language: l10n.language))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)

@@ -173,7 +173,10 @@ final class NotchLockScreenService {
         if gates.countdown || gates.timeLeft || !NotchCalendarSupport.chosenCountdowns().isEmpty {
             NotchCalendarService.shared.syncWithPreferences()
         }
-        if gates.agents { AgentUsageService.shared.syncWithPreferences() }
+        if gates.agents {
+            AgentUsageService.shared.syncWithPreferences()
+            T3CodeActivityService.shared.syncWithPreferences()
+        }
     }
 
     private func hide(unlocking: Bool, stopsSources: Bool) {
@@ -182,6 +185,7 @@ final class NotchLockScreenService {
             NotchDownloadService.shared.stop()
             NotchCalendarService.shared.stop()
             AgentUsageService.shared.pause()
+            T3CodeActivityService.shared.pause()
         }
         playbackSubscription = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }

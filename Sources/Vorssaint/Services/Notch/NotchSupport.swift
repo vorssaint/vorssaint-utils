@@ -752,9 +752,12 @@ enum NotchCapsuleLayout {
 
     /// Two working agents share a smaller mark, each in a frame wider than it.
     static func agentMarkSize(working: Int) -> CGFloat { working > 1 ? 10 : 12 }
-    static func agentMarksWidth(working: Int) -> CGFloat {
-        let count = max(1, working)
-        return CGFloat(count) * (agentMarkSize(working: count) * 1.45 + 1) + CGFloat(count - 1)
+    static func agentMarksWidth(working: Int, showsT3: Bool = false) -> CGFloat {
+        let count = max(0, working)
+        let providers = count == 0 ? 0 : CGFloat(count) * (agentMarkSize(working: count) * 1.45 + 1)
+            + CGFloat(count - 1)
+        let t3 = showsT3 ? width("T3", font: smallFont) : 0
+        return providers + (count > 0 && showsT3 ? markSpacing : 0) + t3
     }
 
     /// A level's reading keeps the room of its widest value, so its meter
@@ -800,12 +803,12 @@ enum NotchCapsuleLayout {
     /// A timer's mark, or the mark of what shares the capsule with a timer
     /// or an event: a download's arrow and percentage, the working agents,
     /// the cover or the event's dot and countdown.
-    static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
+    static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, showsT3: Bool = false, downloadPercent: Bool,
                                geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
-        case .agents: return agentMarksWidth(working: workingAgents)
+        case .agents: return agentMarksWidth(working: workingAgents, showsT3: showsT3)
         case .music: return artworkSide(geometry)
         case .calendar: return calendarClockWidth
         default: return symbolWidth
@@ -821,9 +824,9 @@ enum NotchCapsuleLayout {
 
     /// A timer's reading beside its mark, measured by its shape, so the
     /// capsule only moves when a character comes or goes.
-    static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
+    static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int, showsT3: Bool = false,
                              downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
-        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
+        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, showsT3: showsT3, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
@@ -833,9 +836,9 @@ enum NotchCapsuleLayout {
     /// An event beside what shares the capsule with it: that activity's
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
-    static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
+    static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, showsT3: Bool = false, downloadPercent: Bool,
                                     geometry: NotchGeometry, language: AppLanguage) -> CGSize {
-        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
+        let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, showsT3: showsT3, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
         return surface(content: mark + markGap(.calendar) + calendarClockWidth,
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
@@ -853,8 +856,8 @@ enum NotchCapsuleLayout {
     }
 
     /// Working agents' marks and the reading the person chose.
-    static func agentSurface(reading: String, working: Int, geometry: NotchGeometry) -> CGSize {
-        let content = agentMarksWidth(working: working) + spacing
+    static func agentSurface(reading: String, working: Int, showsT3: Bool = false, geometry: NotchGeometry) -> CGSize {
+        let content = agentMarksWidth(working: working, showsT3: showsT3) + spacing
             + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, maximum: Maximum.activity, geometry: geometry)
     }

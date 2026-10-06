@@ -9,6 +9,13 @@ import Foundation
 struct MetricsTests {
     static func main() {
         let suite = TestSuite()
+        if ProcessInfo.processInfo.environment["VORSSAINT_T3_LIVE_ACCEPTANCE"] == "1" {
+            let code = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = ProcessInfo.processInfo.environment["VORSSAINT_T3_ENDPOINT"] ?? "http://127.0.0.1:3773"
+            T3CodeLiveAcceptance.run(endpoint: endpoint, pairingCode: code, suite: suite)
+            suite.finish()
+        }
         let groups: [(String, () -> Void)] = [
             ("harness", {
                 TestHarnessTests.run(suite)
