@@ -186,6 +186,10 @@ enum T3ActivityPresentation {
             .prefix(8).map { $0 }
     }
 
+    static func layoutKey(_ activities: [T3ThreadActivity], now: Date = .now) -> [String] {
+        visible(activities, now: now).map { "\($0.id):\($0.state)" }
+    }
+
     static func contentHeight(count: Int) -> CGFloat {
         guard count > 0 else { return 0 }
         return 34 + CGFloat(count) * 42 + 8

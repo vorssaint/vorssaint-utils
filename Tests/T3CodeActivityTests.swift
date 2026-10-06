@@ -127,12 +127,21 @@ enum T3CodeActivityTests {
         suite.expect(T3ActivityPresentation.visible(finished, now: now).count == 1
                         && T3ActivityPresentation.visible(snapshot(status: "idle", activeRun: nil), now: now).isEmpty,
                      "recent terminal threads remain visible while idle threads are omitted")
+        let terminalVisibleAt = ISO8601DateFormatter().date(from: "2026-10-06T12:11:59Z")!
+        let terminalExpiredAt = ISO8601DateFormatter().date(from: "2026-10-06T12:12:00Z")!
+        suite.expect(T3ActivityPresentation.layoutKey([], now: now).isEmpty
+                        && T3ActivityPresentation.layoutKey(finished, now: now).count == 1
+                        && T3ActivityPresentation.layoutKey(finished, now: terminalVisibleAt).count == 1
+                        && T3ActivityPresentation.layoutKey(finished, now: terminalExpiredAt).isEmpty,
+                     "terminal-only arrival and expiry change the expanded-page layout key")
     }
 
     private static func endpointValidation(_ suite: TestSuite) {
         let client = T3CodeClient(transport: T3UnusedTransport())
         suite.expect(accepts { try client.validateEndpoint("http://127.0.0.1:3773") },
                      "loopback HTTP endpoints are accepted")
+        suite.expect(accepts { try client.validateEndpoint("http://[::1]:3773") },
+                     "bracketed IPv6 loopback HTTP endpoints are accepted")
         suite.expect(accepts { try client.validateEndpoint("https://t3.example.test:3773") },
                      "remote HTTPS endpoints are accepted")
         suite.expect(rejects { try client.validateEndpoint("http://t3.example.test:3773") },

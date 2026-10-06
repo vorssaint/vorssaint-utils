@@ -3525,7 +3525,7 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
             T3CodeActivityService.shared.$activities
-                .map { $0.filter(\.state.isActive).map { "\($0.id):\($0.state)" } }
+                .map { T3ActivityPresentation.layoutKey($0) }
                 .removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

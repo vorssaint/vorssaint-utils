@@ -130,7 +130,8 @@ struct T3CodeClient {
               components.path.isEmpty || components.path == "/" else {
             throw T3CodeConnectionError.invalidEndpoint
         }
-        let loopback = host.lowercased() == "localhost" || host == "127.0.0.1" || host == "::1"
+        let normalizedHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]")).lowercased()
+        let loopback = normalizedHost == "localhost" || normalizedHost == "127.0.0.1" || normalizedHost == "::1"
         guard scheme == "https" || (scheme == "http" && loopback) else {
             throw T3CodeConnectionError.invalidEndpoint
         }
