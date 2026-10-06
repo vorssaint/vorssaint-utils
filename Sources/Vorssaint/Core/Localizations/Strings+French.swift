@@ -625,7 +625,7 @@ extension Strings {
         soundInputSwitcherNoDevices: "Aucun micro trouvé",
         systemMuteShortcutToggle: "Couper les sons du système",
         mixerCapVolumeAfterWakeToggle: "Plafonner le volume au réveil",
-        mixerCapVolumeAfterWakeCaption: "Abausse le volume du système jusqu’à ce plafond au réveil. Il ne fait que baisser\u{00A0}: il ne monte jamais et ne rétablit jamais le son.",
+        mixerCapVolumeAfterWakeCaption: "Abaisse le volume du système jusqu’à ce plafond au réveil. Il ne fait que baisser\u{00A0}: il ne monte jamais et ne rétablit jamais le son.",
         mixerWakeVolumeCapPercent: "Plafond au réveil",
         mixerInputTitle: "Micro",
         mixerInputNoDevices: "Aucun micro trouvé",

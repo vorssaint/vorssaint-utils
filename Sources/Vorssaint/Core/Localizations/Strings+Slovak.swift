@@ -207,7 +207,7 @@ extension Strings {
         micMuteMenuBarToggle: "Zobraziť v lište s ponukami počas stlmenia",
         micMuteMenuBarCaption: "Vedľa ikony aplikácie v lište s ponukami sa objaví červený prečiarknutý mikrofón, kým ho táto funkcia stlmuje.",
         micMuteWhileTypingToggle: "Stlmiť pri písaní",
-        micMuteWhileTypingCaption: "Vypne všetky mikrofóny, kým píšete, a znova ich zapne, keď przestanete písať.",
+        micMuteWhileTypingCaption: "Vypne všetky mikrofóny, kým píšete, a znova ich zapne, keď prestanete písať.",
         micMuteWhileTypingNeedsAccessibility: "Potrebuje povolenie v sekcii „Prístupnosť“ na sledovanie klávesnice.",
         micMuteWhileTypingUnmuteDelay: "Čakať pred zapnutím späť",
         pastePlainName: "Vložiť ako čistý text",
