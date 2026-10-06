@@ -424,8 +424,16 @@ enum T3CodeActivityTests {
                      "ordinary waiting does not suppress a configured completion notice")
         suite.expect(T3ActivityPresentation.compactSummary([approval, waiting, working], now: now)?.state == .waitingForApproval,
                      "approval requests outrank ordinary waiting and work")
-        suite.expect(T3ActivityPresentation.compactSummary([waiting, working, completed], now: now)?.state == .waiting,
-                     "a waiting thread takes priority over a transient completion and normal work")
+        suite.expect(T3ActivityPresentation.compactSummary([waiting, working, completed], now: now)?.state == .completed,
+                     "a recent completion is visible briefly alongside waiting and working threads")
+        let mixed = T3ActivityPresentation.compactSummary([waiting, working, secondWorking], now: now)
+        suite.expect(mixed?.state == .working && mixed?.workingCount == 2
+                        && mixed?.compactReadout == "T3 · 2",
+                     "ordinary waiting does not hide the count of working T3 threads")
+        let mixedAfterFlash = T3ActivityPresentation.compactSummary([waiting, working, completed],
+                                                                    now: now.addingTimeInterval(5))
+        suite.expect(mixedAfterFlash?.state == .working && mixedAfterFlash?.workingCount == 1,
+                     "the working count returns after the completion flash even when another thread is waiting")
         let backgroundWaiting = snapshot(status: "completed", activeRun: nil,
                                          completedAt: "2026-10-06T12:00:00Z", backgroundKinds: ["monitor"])[0]
         let backgroundSummary = T3ActivityPresentation.compactSummary([backgroundWaiting], now: now)

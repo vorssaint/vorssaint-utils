@@ -248,14 +248,16 @@ enum T3ActivityPresentation {
         if active.contains(where: { $0.state == .waitingForApproval }) {
             return T3CompactActivitySummary(state: .waitingForApproval, workingCount: workingCount)
         }
-        if active.contains(where: { $0.state == .waiting }) {
-            return T3CompactActivitySummary(state: .waiting, workingCount: workingCount)
-        }
         if hasRecentCompletion(activities, now: now) {
             return T3CompactActivitySummary(state: .completed, workingCount: workingCount)
         }
-        guard workingCount > 0 else { return nil }
-        return T3CompactActivitySummary(state: .working, workingCount: workingCount)
+        if workingCount > 0 {
+            return T3CompactActivitySummary(state: .working, workingCount: workingCount)
+        }
+        if active.contains(where: { $0.state == .waiting }) {
+            return T3CompactActivitySummary(state: .waiting, workingCount: workingCount)
+        }
+        return nil
     }
 
     static func hasRecentCompletion(_ activities: [T3ThreadActivity], now: Date = .now) -> Bool {
