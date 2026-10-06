@@ -37,10 +37,9 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let updatedAt: Date
     let latestRunID: String?
     let latestRunStartedAt: Date?
+    let latestRunWorkStartedAt: Date?
     let activityRunID: String?
     let activityRunStartedAt: Date?
-    let latestUserMessageAt: Date?
-    let latestUserAuthoredMessageAt: Date?
     let backgroundTaskCount: Int
 
     var location: String {
@@ -77,8 +76,7 @@ struct T3ShellSnapshot: Decodable {
         let latestRunStartedAt: String?
         let latestRunRequestedAt: String?
         let latestRunCompletedAt: String?
-        let latestUserMessageAt: String?
-        let latestUserAuthoredMessageAt: String?
+        let latestRunWorkStartedAt: String?
         let latestRunID: String?
         let activeRunID: String?
         let pendingRuntimeRequest: PendingRuntimeRequest?
@@ -90,8 +88,7 @@ struct T3ShellSnapshot: Decodable {
             case projectID = "projectId"
             case providerInstanceID = "providerInstanceId"
             case latestRunID = "latestRunId"
-            case latestUserAuthoredMessageAt = "latestUserAuthoredMessageAt"
-            case latestUserMessageAt
+            case latestRunWorkStartedAt
             case activeRunID = "activeRunId"
             case activityRunStatus, activityRunStartedAt, latestRunStartedAt, latestRunRequestedAt
             case latestRunCompletedAt, pendingRuntimeRequest, pendingBackgroundTasks
@@ -147,12 +144,11 @@ struct T3ShellSnapshot: Decodable {
                 startedAt: startedAt, completedAt: thread.latestRunCompletedAt.flatMap(Self.date),
                 updatedAt: updatedAt, latestRunID: thread.latestRunID,
                 latestRunStartedAt: thread.latestRunStartedAt.flatMap(Self.date),
+                latestRunWorkStartedAt: thread.latestRunWorkStartedAt.flatMap(Self.date),
                 // latestRunId can refer to a queued run while a different run
                 // still owns the activity. Only activeRunId proves run ownership.
                 activityRunID: thread.activeRunID,
                 activityRunStartedAt: activityStartedAt,
-                latestUserMessageAt: thread.latestUserMessageAt.flatMap(Self.date),
-                latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt.flatMap(Self.date),
                 backgroundTaskCount: tasks.count)
         }
     }
@@ -229,93 +225,30 @@ enum T3ActivityPresentation {
 struct T3ActivityReducer {
     private(set) var activities: [String: T3ThreadActivity] = [:]
     private var announcedRuns: Set<String> = []
-    private var activityStarts: [String: Date] = [:]
-    private var activityStartMessages: [String: Date] = [:]
     private var hasBaseline = false
 
     mutating func apply(_ next: [T3ThreadActivity]) -> [T3ActivityCompletion] {
         let previous = activities
         let nextByID = Dictionary(next.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         var completed: [T3ActivityCompletion] = []
-        var nextStarts: [String: Date] = [:]
-        var nextStartMessages: [String: Date] = [:]
         for activity in next {
             let old = previous[activity.id]
-            if activity.state.isActive {
-                let start: Date?
-                if let activityStartedAt = activity.activityRunStartedAt {
-                    start = activityStartedAt
-                } else if let old, old.state.isActive,
-                          Self.continues(old, as: activity, activityStartMessageAt: activityStartMessages[activity.id]) {
-                    start = activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
-                } else {
-                    start = activity.startedAt
-                }
-                if let start {
-                    nextStarts[activity.id] = start
-                    let hasUnstartedLatestRun = activity.latestRunID != nil && activity.latestRunStartedAt == nil
-                    let messageAtStart: Date?
-                    if activityStarts[activity.id] == start {
-                        if let old, Self.isAgentWakeContinuation(old: old, as: activity) {
-                            // A cancelled queued user message can remain the
-                            // latest authored message after a wake is queued.
-                            messageAtStart = activity.latestUserAuthoredMessageAt
-                        } else {
-                            messageAtStart = activityStartMessages[activity.id]
-                        }
-                    } else if hasUnstartedLatestRun {
-                        // On first connection, a queued user run may already
-                        // have replaced the authored timestamp while the older
-                        // activity still owns this start. Its owner is unknown.
-                        messageAtStart = nil
-                    } else {
-                        messageAtStart = activity.latestUserAuthoredMessageAt
-                    }
-                    if let messageAtStart { nextStartMessages[activity.id] = messageAtStart }
-                }
-            } else if hasBaseline, activity.state == .completed,
+            if hasBaseline, activity.state == .completed,
                       let old, old.state.isActive,
                       let runID = activity.latestRunID,
                       announcedRuns.insert("\(activity.environmentID):\(activity.threadID):\(runID)").inserted {
-                let start = Self.continues(old, as: activity, activityStartMessageAt: activityStartMessages[activity.id])
-                    ? activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
-                    : activity.startedAt
-                let duration = start.flatMap { start in
+                // Prefer T3's persisted per-run work start. Older servers only
+                // expose run start in terminal snapshots, so use that narrower
+                // duration instead of guessing across an unobserved wake.
+                let duration = (activity.latestRunWorkStartedAt ?? activity.latestRunStartedAt).flatMap { start in
                     activity.completedAt.map { max(0, $0.timeIntervalSince(start)) }
                 } ?? 0
                 completed.append(T3ActivityCompletion(activity: activity, duration: duration))
             }
         }
         hasBaseline = true
-        activityStarts = nextStarts
-        activityStartMessages = nextStartMessages
         activities = nextByID
         return completed
-    }
-
-    private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity,
-                                  activityStartMessageAt: Date?) -> Bool {
-        if let runID = old.activityRunID, runID == next.activityRunID { return true }
-        if let runID = old.latestRunID, runID == next.latestRunID,
-           let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
-        if isAgentWakeContinuation(old: old, as: next) { return true }
-        // Bind the authored timestamp to the retained activity start. T3 updates
-        // latestUserAuthoredMessageAt as soon as a queued user run is persisted,
-        // even while the prior run still owns the activity.
-        guard let activityStartMessageAt,
-              activityStartMessageAt == next.latestUserAuthoredMessageAt else { return false }
-        return true
-    }
-
-    private static func isAgentWakeContinuation(old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
-        guard old.latestRunID != nil, next.latestRunID != nil,
-              let authoredAt = next.latestUserAuthoredMessageAt,
-              let latestMessageAt = next.latestUserMessageAt else { return false }
-        // T3's user-role timestamp advances for agent-created wake messages,
-        // while the authored timestamp only advances for user prompts. This
-        // also covers a cold/reconnected observer that first sees the wake
-        // already queued and then sees that same run complete.
-        return latestMessageAt > authoredAt
     }
 }
 

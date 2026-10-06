@@ -17,6 +17,7 @@ enum T3CodeActivityTests {
                                  activeRun: String? = "run-1", completedAt: String? = nil,
                                  startedAt: String? = "2026-10-06T12:00:00Z", updatedAt: String = "2026-10-06T12:01:00Z",
                                  activityStartedAt: String? = nil,
+                                 latestRunWorkStartedAt: String? = nil,
                                  latestUserAuthoredAt: String? = "2026-10-06T12:00:00Z",
                                  latestUserMessageAt: String? = nil,
                                  latestRunID: String = "run-1", backgroundKinds: [String] = [],
@@ -24,6 +25,7 @@ enum T3CodeActivityTests {
         let runStatus = activity.map { "\"\($0)\"" } ?? "null"
         let runStart = startedAt.map { "\"\($0)\"" } ?? "null"
         let activityStart = activityStartedAt.map { "\"\($0)\"" } ?? "null"
+        let latestWorkStart = latestRunWorkStartedAt.map { "\"\($0)\"" } ?? "null"
         let latestUserAuthored = latestUserAuthoredAt.map { "\"\($0)\"" } ?? "null"
         let latestUserMessage = latestUserMessageAt.map { "\"\($0)\"" } ?? "null"
         let completed = completedAt.map { "\"\($0)\"" } ?? "null"
@@ -39,6 +41,7 @@ enum T3CodeActivityTests {
         {"threads":[{"id":"thread-1","projectId":"project-1","title":"Fix USB recovery",
           "providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"gpt-5.4"},
           "status":"\(status)","activityRunStatus":\(runStatus),"activityRunStartedAt":\(activityStart),
+          "latestRunWorkStartedAt":\(latestWorkStart),
           "latestUserAuthoredMessageAt":\(latestUserAuthored),
           "latestUserMessageAt":\(latestUserMessage),
           "latestRunStartedAt":\(runStart),"latestRunCompletedAt":\(completed),
@@ -79,6 +82,11 @@ enum T3CodeActivityTests {
                      "T3 shell metadata maps project, environment, provider, and model")
         suite.expect(thread?.location == "MowgliNext · Local Mac (MacBook)",
                      "T3 thread location keeps its environment label when machine metadata is present")
+        suite.expect(thread?.latestRunWorkStartedAt == nil
+                        && snapshot(status: "running", activity: "running",
+                                    latestRunWorkStartedAt: "2026-10-06T11:59:00Z").first?.latestRunWorkStartedAt
+                            == ISO8601DateFormatter().date(from: "2026-10-06T11:59:00Z"),
+                     "the optional per-run work start maps when supplied and remains compatible with older shells")
         suite.expect(snapshot(status: "running", activity: "running", duplicateProject: true)
                         .first?.project == "MowgliNext",
                      "duplicate project ids are handled without crashing or changing the first title")
@@ -119,7 +127,8 @@ enum T3CodeActivityTests {
                                startedAt: "2026-10-06T12:04:55Z", activityStartedAt: "2026-10-06T12:00:00Z")
         let resumedFinished = snapshot(status: "completed", activeRun: nil,
                                         completedAt: "2026-10-06T12:05:00Z", startedAt: "2026-10-06T12:04:55Z",
-                                        updatedAt: "2026-10-06T12:05:00Z", activityStartedAt: nil)
+                                        updatedAt: "2026-10-06T12:05:00Z", activityStartedAt: nil,
+                                        latestRunWorkStartedAt: "2026-10-06T12:00:00Z")
         _ = resumedRun.apply(resumed)
         let resumedCompletion = resumedRun.apply(resumedFinished).first
         suite.expect(resumedCompletion?.duration == 300,
@@ -135,7 +144,8 @@ enum T3CodeActivityTests {
                                activityStartedAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
         let wakeFinished = snapshot(status: "completed", activeRun: nil,
                                     completedAt: "2026-10-06T12:05:00Z", startedAt: "2026-10-06T12:04:55Z",
-                                    activityStartedAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
+                                    activityStartedAt: "2026-10-06T12:00:00Z",
+                                    latestRunWorkStartedAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
         _ = backgroundWake.apply(rootWork)
         _ = backgroundWake.apply(pendingMonitor)
         _ = backgroundWake.apply(wakeRun)
@@ -148,7 +158,8 @@ enum T3CodeActivityTests {
         _ = directWakeCompletion.apply(pendingMonitor)
         let completedWake = snapshot(status: "completed", activeRun: nil,
                                      completedAt: "2026-10-06T12:05:00Z", startedAt: "2026-10-06T12:04:55Z",
-                                     activityStartedAt: nil, latestRunID: "run-2")
+                                     activityStartedAt: nil, latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
+                                     latestRunID: "run-2")
         suite.expect(directWakeCompletion.apply(completedWake).first?.duration == 300,
                      "a wake that completes between polls keeps the original duration after activity start clears")
 
@@ -241,7 +252,8 @@ enum T3CodeActivityTests {
                                    latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
         let wakeCompleted = snapshot(status: "completed", activeRun: nil,
                                       completedAt: "2026-10-06T12:10:02Z", startedAt: "2026-10-06T12:10:00Z",
-                                      activityStartedAt: nil, latestUserAuthoredAt: "2026-10-06T12:00:00Z",
+                                      activityStartedAt: nil, latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
+                                      latestUserAuthoredAt: "2026-10-06T12:00:00Z",
                                       latestRunID: "run-2")
         _ = queuedWake.apply(originalWork)
         _ = queuedWake.apply(pendingWake)
@@ -255,19 +267,20 @@ enum T3CodeActivityTests {
         let coldWakeCompleted = snapshot(status: "completed", activeRun: nil,
                                           completedAt: "2026-10-06T12:10:02Z",
                                           startedAt: "2026-10-06T12:10:00Z", activityStartedAt: nil,
+                                          latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
                                           latestUserAuthoredAt: "2026-10-06T12:00:00Z",
                                           latestUserMessageAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
         var coldQueuedWake = T3ActivityReducer()
         _ = coldQueuedWake.apply(coldPendingWake)
         suite.expect(coldQueuedWake.apply(coldWakeCompleted).first?.duration == 602,
-                     "a cold observer recognizes a queued wake from T3 message provenance")
+                     "a cold observer uses the completed run's persisted T3 work start")
 
         var reconnectedQueuedWake = T3ActivityReducer()
         _ = reconnectedQueuedWake.apply(originalWork)
         _ = reconnectedQueuedWake.apply([])
         _ = reconnectedQueuedWake.apply(coldPendingWake)
         suite.expect(reconnectedQueuedWake.apply(coldWakeCompleted).first?.duration == 602,
-                     "a reconnect recognizes a queued wake that completes between polls")
+                     "a reconnect uses the completed run's persisted T3 work start")
 
         var cancelledPromptWake = T3ActivityReducer()
         _ = cancelledPromptWake.apply(originalWork)
@@ -282,12 +295,43 @@ enum T3CodeActivityTests {
         let wakeAfterCancellationCompleted = snapshot(status: "completed", activeRun: nil,
                                                       completedAt: "2026-10-06T12:10:02Z",
                                                       startedAt: "2026-10-06T12:10:00Z", activityStartedAt: nil,
+                                                      latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
                                                       latestUserAuthoredAt: "2026-10-06T12:09:50Z",
                                                       latestUserMessageAt: "2026-10-06T12:10:00Z", latestRunID: "run-3")
         _ = cancelledPromptWake.apply(cancelledQueuedPrompt)
         _ = cancelledPromptWake.apply(wakeAfterCancellation)
         suite.expect(cancelledPromptWake.apply(wakeAfterCancellationCompleted).first?.duration == 602,
-                     "a wake after a cancelled queued prompt retains the original activity duration")
+                     "a wake after a cancelled queued prompt uses T3's persisted work start")
+
+        var queuedUserRunWake = T3ActivityReducer()
+        _ = queuedUserRunWake.apply(originalWork)
+        let queuedUserRun = snapshot(status: "waiting", activity: "waiting", activeRun: nil,
+                                     startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
+                                     latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                     latestUserMessageAt: "2026-10-06T12:09:50Z", latestRunID: "run-2")
+        let queuedUserWakeCompleted = snapshot(status: "completed", activeRun: nil,
+                                               completedAt: "2026-10-06T12:10:02Z",
+                                               startedAt: "2026-10-06T12:10:01Z", activityStartedAt: nil,
+                                               latestRunWorkStartedAt: "2026-10-06T12:10:00Z",
+                                               latestUserAuthoredAt: "2026-10-06T12:09:50Z",
+                                               latestUserMessageAt: "2026-10-06T12:10:00Z",
+                                               latestRunID: "run-3")
+        _ = queuedUserRunWake.apply(queuedUserRun)
+        suite.expect(queuedUserRunWake.apply(queuedUserWakeCompleted).first?.duration == 2,
+                     "a wake after a newly started user run uses that run's work start")
+
+        var agentCreatedWake = T3ActivityReducer()
+        let agentCreatedRun = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
+                                       activityStartedAt: "2026-10-06T12:00:00Z",
+                                       latestUserAuthoredAt: nil, latestRunID: "run-1")
+        let agentCreatedWakeCompleted = snapshot(status: "completed", activeRun: nil,
+                                                 completedAt: "2026-10-06T12:10:02Z",
+                                                 startedAt: "2026-10-06T12:10:00Z", activityStartedAt: nil,
+                                                 latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
+                                                 latestUserAuthoredAt: nil, latestRunID: "run-2")
+        _ = agentCreatedWake.apply(agentCreatedRun)
+        suite.expect(agentCreatedWake.apply(agentCreatedWakeCompleted).first?.duration == 602,
+                     "an agent-created thread uses T3's per-run work start without authored-message metadata")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
@@ -295,11 +339,13 @@ enum T3CodeActivityTests {
         let completedWakeWithMonitor = snapshot(status: "completed", activeRun: nil,
                                                 completedAt: "2026-10-06T12:05:00Z",
                                                 startedAt: "2026-10-06T12:04:55Z", activityStartedAt: nil,
+                                                latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
                                                 latestRunID: "run-2", backgroundKinds: ["monitor"])
         _ = chainedWake.apply(completedWakeWithMonitor)
         let nextWakeFinished = snapshot(status: "completed", activeRun: nil,
                                          completedAt: "2026-10-06T12:10:00Z",
                                          startedAt: "2026-10-06T12:09:55Z", activityStartedAt: nil,
+                                         latestRunWorkStartedAt: "2026-10-06T12:00:00Z",
                                          latestRunID: "run-3")
         suite.expect(chainedWake.apply(nextWakeFinished).first?.duration == 600,
                      "the original activity duration survives a completed wake with another monitor pending")
