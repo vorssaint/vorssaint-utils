@@ -85,6 +85,7 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleDisplayOff) private var showDisplayOff = true
     @AppStorage(DefaultsKey.panelToggleScreenSaver) private var showScreenSaver = true
     @AppStorage(DefaultsKey.panelToggleHidePointerIdle) private var showHidePointerIdle = true
+    @AppStorage(DefaultsKey.panelToggleDockRevealDelay) private var showDockRevealDelay = true
     @AppStorage(DefaultsKey.panelToggleOrder) private var toggleOrderRaw = ""
 
     let editing: Bool
@@ -107,6 +108,7 @@ struct QuickTogglesList: View {
         .onAppear {
             toggles.refreshPermissionStates()
             brightness.refreshKeyboardLight()
+            toggles.refreshDockPreferenceStates()
         }
     }
 
@@ -119,7 +121,8 @@ struct QuickTogglesList: View {
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
                     DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
-                    DefaultsKey.panelToggleHidePointerIdle] {
+                    DefaultsKey.panelToggleHidePointerIdle,
+                    DefaultsKey.panelToggleDockRevealDelay] {
             defaults.set(true, forKey: key)
         }
     }
@@ -165,6 +168,7 @@ struct QuickTogglesList: View {
         case .displayOff: return $showDisplayOff
         case .screenSaver: return $showScreenSaver
         case .hidePointerIdle: return $showHidePointerIdle
+        case .dockRevealDelay: return $showDockRevealDelay
         }
     }
 
@@ -318,6 +322,19 @@ struct QuickTogglesList: View {
                            isOn: Binding(
                                get: { pointerHide.isEnabled },
                                set: { QuickTogglesService.shared.setPointerHideIdle($0) }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+        case .dockRevealDelay:
+            PanelToggleRow(title: toggles.dockRevealDelayInstant
+                                ? strings.dockRevealDelayRestoreTitle
+                                : strings.dockRevealDelayTitle,
+                           caption: caption(for: item, idle: strings.dockRevealDelayCaption),
+                           systemImage: "dock.arrow-up.rectangle",
+                           isOn: Binding(
+                               get: { toggles.dockRevealDelayInstant },
+                               set: { _ in QuickTogglesService.shared.toggleDockRevealDelay() }
                            ),
                            isEditing: editing,
                            showsDragHandle: true,
