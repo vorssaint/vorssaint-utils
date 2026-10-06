@@ -36,6 +36,8 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let completedAt: Date?
     let updatedAt: Date
     let latestRunID: String?
+    let activityRunStartedAt: Date?
+    let latestUserAuthoredMessageAt: Date?
     let backgroundTaskCount: Int
 
     var location: String {
@@ -72,6 +74,7 @@ struct T3ShellSnapshot: Decodable {
         let latestRunStartedAt: String?
         let latestRunRequestedAt: String?
         let latestRunCompletedAt: String?
+        let latestUserAuthoredMessageAt: String?
         let latestRunID: String?
         let activeRunID: String?
         let pendingRuntimeRequest: PendingRuntimeRequest?
@@ -83,6 +86,7 @@ struct T3ShellSnapshot: Decodable {
             case projectID = "projectId"
             case providerInstanceID = "providerInstanceId"
             case latestRunID = "latestRunId"
+            case latestUserAuthoredMessageAt = "latestUserAuthoredMessageAt"
             case activeRunID = "activeRunId"
             case activityRunStatus, activityRunStartedAt, latestRunStartedAt, latestRunRequestedAt
             case latestRunCompletedAt, pendingRuntimeRequest, pendingBackgroundTasks
@@ -124,6 +128,7 @@ struct T3ShellSnapshot: Decodable {
             let pending = thread.pendingRuntimeRequest?.kind.lowercased() ?? ""
             let tasks = thread.pendingBackgroundTasks ?? []
             let state = Self.state(thread, pendingKind: pending, backgroundTasks: tasks)
+            let activityStartedAt = thread.activityRunStartedAt.flatMap(Self.date)
             let startedAt = [thread.activityRunStartedAt, thread.latestRunStartedAt,
                              thread.latestRunRequestedAt].compactMap { $0 }.compactMap(Self.date).first
             let provider = thread.modelSelection?.instanceID ?? thread.modelSelection?.provider
@@ -136,6 +141,8 @@ struct T3ShellSnapshot: Decodable {
                 model: thread.modelSelection?.model ?? "", state: state,
                 startedAt: startedAt, completedAt: thread.latestRunCompletedAt.flatMap(Self.date),
                 updatedAt: updatedAt, latestRunID: thread.latestRunID,
+                activityRunStartedAt: activityStartedAt,
+                latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt.flatMap(Self.date),
                 backgroundTaskCount: tasks.count)
         }
     }
@@ -224,7 +231,9 @@ struct T3ActivityReducer {
             let old = previous[activity.id]
             if activity.state.isActive {
                 let start: Date?
-                if let old, old.state.isActive, Self.continues(old, as: activity) {
+                if let activityStartedAt = activity.activityRunStartedAt {
+                    start = activityStartedAt
+                } else if let old, old.state.isActive, Self.continues(old, as: activity) {
                     start = activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
                 } else {
                     start = activity.startedAt
@@ -250,7 +259,11 @@ struct T3ActivityReducer {
     }
 
     private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
-        old.latestRunID == next.latestRunID || old.backgroundTaskCount > 0 || old.state != .working
+        if old.latestRunID == next.latestRunID { return true }
+        if old.state == .waitingForApproval || old.state == .waitingForInput { return true }
+        guard let oldMessage = old.latestUserAuthoredMessageAt,
+              oldMessage == next.latestUserAuthoredMessageAt else { return false }
+        return old.backgroundTaskCount > 0 || old.state == .waiting
     }
 }
 

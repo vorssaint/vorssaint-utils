@@ -17,11 +17,13 @@ enum T3CodeActivityTests {
                                  activeRun: String? = "run-1", completedAt: String? = nil,
                                  startedAt: String? = "2026-10-06T12:00:00Z", updatedAt: String = "2026-10-06T12:01:00Z",
                                  activityStartedAt: String? = nil,
+                                 latestUserAuthoredAt: String? = "2026-10-06T12:00:00Z",
                                  latestRunID: String = "run-1", backgroundKinds: [String] = [],
                                  duplicateProject: Bool = false) -> [T3ThreadActivity] {
         let runStatus = activity.map { "\"\($0)\"" } ?? "null"
         let runStart = startedAt.map { "\"\($0)\"" } ?? "null"
         let activityStart = activityStartedAt.map { "\"\($0)\"" } ?? "null"
+        let latestUserAuthored = latestUserAuthoredAt.map { "\"\($0)\"" } ?? "null"
         let completed = completedAt.map { "\"\($0)\"" } ?? "null"
         let active = activeRun.map { "\"\($0)\"" } ?? "null"
         let pending = request.map { "{\"kind\":\"\($0)\"}" } ?? "null"
@@ -35,6 +37,7 @@ enum T3CodeActivityTests {
         {"threads":[{"id":"thread-1","projectId":"project-1","title":"Fix USB recovery",
           "providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"gpt-5.4"},
           "status":"\(status)","activityRunStatus":\(runStatus),"activityRunStartedAt":\(activityStart),
+          "latestUserAuthoredMessageAt":\(latestUserAuthored),
           "latestRunStartedAt":\(runStart),"latestRunCompletedAt":\(completed),
           "latestRunId":"\(latestRunID)","activeRunId":\(active),"pendingRuntimeRequest":\(pending),
           "pendingBackgroundTasks":\(background),"updatedAt":"\(updatedAt)"}],
@@ -150,9 +153,37 @@ enum T3CodeActivityTests {
         _ = unrelatedRun.apply(working)
         let shortNewRun = snapshot(status: "completed", activeRun: nil,
                                    completedAt: "2026-10-06T12:10:02Z", startedAt: "2026-10-06T12:10:00Z",
-                                   latestRunID: "run-2")
+                                   latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
         suite.expect(unrelatedRun.apply(shortNewRun).first?.duration == 2,
                      "a distinct new user run does not inherit the previous task duration")
+
+        var newRunAfterMonitor = T3ActivityReducer()
+        _ = newRunAfterMonitor.apply(rootWork)
+        _ = newRunAfterMonitor.apply(pendingMonitor)
+        let newRunStarted = snapshot(status: "running", activity: "running",
+                                     startedAt: "2026-10-06T12:10:00Z",
+                                     activityStartedAt: "2026-10-06T12:10:00Z",
+                                     latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2",
+                                     backgroundKinds: ["monitor"])
+        _ = newRunAfterMonitor.apply(newRunStarted)
+        let newRunFinished = snapshot(status: "completed", activeRun: nil,
+                                      completedAt: "2026-10-06T12:10:02Z",
+                                      startedAt: "2026-10-06T12:10:00Z",
+                                      latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+        suite.expect(newRunAfterMonitor.apply(newRunFinished).first?.duration == 2,
+                     "a new user run after a monitor honors T3's authoritative activity start")
+
+        var newRunAfterWaiting = T3ActivityReducer()
+        let waiting = snapshot(status: "waiting", activeRun: nil,
+                               latestUserAuthoredAt: "2026-10-06T12:00:00Z")
+        _ = newRunAfterWaiting.apply(working)
+        _ = newRunAfterWaiting.apply(waiting)
+        let finishedAfterWaiting = snapshot(status: "completed", activeRun: nil,
+                                             completedAt: "2026-10-06T12:10:02Z",
+                                             startedAt: "2026-10-06T12:10:00Z",
+                                             latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+        suite.expect(newRunAfterWaiting.apply(finishedAfterWaiting).first?.duration == 2,
+                     "a user run after waiting starts a new completion duration")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
