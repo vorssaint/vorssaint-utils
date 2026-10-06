@@ -84,6 +84,9 @@ enum T3CodeActivityTests {
         suite.expect(snapshot(status: "completed", activeRun: nil, completedAt: "2026-10-06T12:01:00Z",
                               backgroundKinds: ["command"]).first?.state == .completed,
                      "a pending background command does not keep a completed thread active")
+        suite.expect(snapshot(status: "failed", activeRun: nil, backgroundKinds: ["monitor"])
+                        .first?.state == .failed,
+                     "pending monitor work does not hide a failed T3 run")
         for kind in ["monitor", "subagent", "background_task", "future-kind"] {
             suite.expect(snapshot(status: "completed", activeRun: nil, completedAt: "2026-10-06T12:01:00Z",
                                   backgroundKinds: [kind]).first?.state == .working,

@@ -145,8 +145,9 @@ struct T3ShellSnapshot: Decodable {
             return .waitingForInput
         }
         if !pendingKind.isEmpty && pendingKind != "auth_refresh" { return .waitingForApproval }
-        if backgroundTasks.contains(where: { $0.kind?.lowercased() != "command" }) { return .working }
         let runState = thread.activityRunStatus ?? thread.status
+        if runState == "failed" { return .failed }
+        if backgroundTasks.contains(where: { $0.kind?.lowercased() != "command" }) { return .working }
         switch runState {
         case "preparing", "queued", "starting", "running": return .working
         case "waiting": return .waiting
