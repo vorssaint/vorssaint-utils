@@ -12,6 +12,8 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowMaximizeEnabled) private var maximizeEnabled = false
     @ObservedObject private var pointerDisplay = PointerDisplayService.shared
     @AppStorage(DefaultsKey.pointerDisplayEnabled) private var pointerDisplayEnabled = false
+    @ObservedObject private var finderToggle = FinderToggleService.shared
+    @AppStorage(DefaultsKey.toggleFinderEnabled) private var toggleFinderEnabled = false
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showInPanel = true
     @AppStorage(DefaultsKey.windowLayoutShortcutsEnabled) private var shortcutsEnabled = true
     @AppStorage(DefaultsKey.windowDirectionalEnabled) private var directionalEnabled = false
@@ -195,6 +197,32 @@ struct WindowLayoutSettings: View {
                         pointerDisplay.syncWithPreferences()
                     }
                     if pointerDisplayEnabled, pointerDisplay.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                // Hiding an app needs no Accessibility either, and the key
+                // acts on Finder rather than on whatever is in front, so it
+                // sits outside the window shortcuts toggle like the one above.
+                Section {
+                    Toggle(FinderToggleStrings.localized(l10n.language).title,
+                           isOn: $toggleFinderEnabled)
+                        .onChange(of: toggleFinderEnabled) { _, _ in
+                            finderToggle.syncWithPreferences()
+                        }
+                    Text(FinderToggleStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ShortcutPreferenceRow(role: .toggleFinder,
+                                          isEnabled: toggleFinderEnabled,
+                                          additionalConflict: {
+                                              service.shortcutConflictTitle($0)
+                                          }) {
+                        finderToggle.syncWithPreferences()
+                    }
+                    if toggleFinderEnabled, finderToggle.shortcutRegistrationFailed {
                         Text(l10n.s.shortcutUnavailable)
                             .font(.caption)
                             .foregroundStyle(.orange)

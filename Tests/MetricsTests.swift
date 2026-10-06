@@ -43,6 +43,7 @@ struct MetricsTests {
                 DiskImageHomebrewTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
+            ("app-toggle", { AppToggleTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)
