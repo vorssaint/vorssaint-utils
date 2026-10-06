@@ -68,6 +68,8 @@ enum T3CodeActivityTests {
                         && thread?.environment == "Local Mac" && thread?.machine == "MacBook"
                         && thread?.provider == "codex" && thread?.model == "gpt-5.4",
                      "T3 shell metadata maps project, environment, provider, and model")
+        suite.expect(thread?.location == "MowgliNext · Local Mac (MacBook)",
+                     "T3 thread location keeps its environment label when machine metadata is present")
         suite.expect(snapshot(status: "running", activity: "running", duplicateProject: true)
                         .first?.project == "MowgliNext",
                      "duplicate project ids are handled without crashing or changing the first title")
@@ -131,6 +133,20 @@ enum T3CodeActivityTests {
         suite.expect(T3KeychainCredentialStore.account(endpoint: endpoint, environmentID: "env-local", credentialID: "first")
                         != T3KeychainCredentialStore.account(endpoint: endpoint, environmentID: "env-local", credentialID: "second"),
                      "each pairing receives an isolated Keychain account so delayed cleanup cannot remove a newer token")
+        suite.expect(!T3CodeActivityService.shouldStartPolling(featureEnabled: false,
+                                                                taskAlreadyRunning: false,
+                                                                hasConnection: true),
+                     "a saved T3 connection does not poll while AI Agents is disabled")
+        suite.expect(T3CodeActivityService.shouldStartPolling(featureEnabled: true,
+                                                               taskAlreadyRunning: false,
+                                                               hasConnection: true)
+                        && !T3CodeActivityService.shouldStartPolling(featureEnabled: true,
+                                                                     taskAlreadyRunning: true,
+                                                                     hasConnection: true)
+                        && !T3CodeActivityService.shouldStartPolling(featureEnabled: true,
+                                                                     taskAlreadyRunning: false,
+                                                                     hasConnection: false),
+                     "T3 polling starts only for an enabled feature with one complete connection")
     }
 
     private static func localization(_ suite: TestSuite) {

@@ -411,7 +411,10 @@ final class T3CodeActivityService: ObservableObject {
     }
 
     private func startPolling() {
-        guard task == nil, let endpointURL, let environment, let accessToken else { return }
+        guard Self.shouldStartPolling(featureEnabled: NotchAgentSupport.isEnabled(),
+                                      taskAlreadyRunning: task != nil,
+                                      hasConnection: endpointURL != nil && environment != nil && accessToken != nil),
+              let endpointURL, let environment, let accessToken else { return }
         generation += 1
         let currentGeneration = generation
         task = Task { @MainActor [weak self] in
@@ -457,6 +460,11 @@ final class T3CodeActivityService: ObservableObject {
             }
             if currentGeneration == self.generation { self.task = nil }
         }
+    }
+
+    static func shouldStartPolling(featureEnabled: Bool, taskAlreadyRunning: Bool,
+                                   hasConnection: Bool) -> Bool {
+        featureEnabled && !taskAlreadyRunning && hasConnection
     }
 
     private func clearActivities() {

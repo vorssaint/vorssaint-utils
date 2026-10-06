@@ -37,6 +37,11 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let updatedAt: Date
     let latestRunID: String?
     let backgroundTaskCount: Int
+
+    var location: String {
+        let environmentLabel = machine.flatMap { $0 == environment ? nil : "\(environment) (\($0))" } ?? environment
+        return [project, environmentLabel].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
 }
 
 struct T3EnvironmentIdentity: Equatable {

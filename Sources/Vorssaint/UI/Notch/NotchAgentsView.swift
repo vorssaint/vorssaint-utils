@@ -107,8 +107,7 @@ struct NotchAgentsView: View {
         let strings = T3CodeStrings(l10n.language)
         let priority = activity.state == .waitingForApproval || activity.state == .waitingForInput
         let provider = [activity.provider, activity.model].filter { !$0.isEmpty }.joined(separator: " · ")
-        let location = [activity.project, activity.machine ?? activity.environment].filter { !$0.isEmpty }
-            .joined(separator: " · ")
+        let location = activity.location
         return HStack(alignment: .top, spacing: 7) {
             Image(systemName: activity.state == .waitingForApproval ? "exclamationmark.triangle.fill"
                           : activity.state == .waitingForInput ? "questionmark.circle.fill"
