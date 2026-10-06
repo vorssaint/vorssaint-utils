@@ -489,6 +489,7 @@ enum LocalizationFeatureContractTests {
             ("soundOutputSwitcherDefault", GlobalShortcut.soundOutputSwitcherDefault),
             ("switcherDefault", GlobalShortcut.switcherDefault),
             ("switcherWindowDefault", GlobalShortcut.switcherWindowDefault),
+            ("toggleFinderDefault", GlobalShortcut.toggleFinderDefault),
             ("windowDirectionalDefault", GlobalShortcut.windowDirectionalDefault),
             ("windowLayoutBottomDefault", GlobalShortcut.windowLayoutBottomDefault),
             ("windowLayoutBottomLeftDefault", GlobalShortcut.windowLayoutBottomLeftDefault),
