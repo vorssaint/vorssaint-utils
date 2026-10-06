@@ -9,6 +9,7 @@ struct ClipboardQuickPanelView: View {
     @FocusState private var searchFocused: Bool
     @State private var previewSelection = QuickPreviewSelection()
     @State private var previewIsEditing = false
+    @State private var clearingIDs: Set<UUID>?
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -58,7 +59,7 @@ struct ClipboardQuickPanelView: View {
             previewSelection.select(nil)
             previewIsEditing = false
         }
-        .onChange(of: history.quickSelectionIndex) { _, _ in
+        .onChange(of: history.quickSelectionID) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
         }
         .onChange(of: history.quickQuery) { _, _ in
@@ -74,6 +75,9 @@ struct ClipboardQuickPanelView: View {
             TextField(text.search, text: $history.quickQuery)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
+                .frame(maxWidth: 320)
+            typeTabs
+            Spacer()
             Button {
                 history.toggleQuickPreview()
             } label: {
@@ -102,32 +106,69 @@ struct ClipboardQuickPanelView: View {
         .padding(.vertical, 9)
     }
 
+    /// One tab per type, each counting what the search leaves of it. Clicking
+    /// the chosen tab again, or Tab past the last, shows every type.
+    private var typeTabs: some View {
+        let counts = Dictionary(grouping: history.filteredEntries(matching: history.quickQuery),
+                                by: history.contentType(of:)).mapValues(\.count)
+        return HStack(spacing: 4) {
+            ForEach(ClipboardContentType.allCases, id: \.self) { type in
+                typeTab(type, count: counts[type] ?? 0)
+            }
+        }
+    }
+
+    private func typeTab(_ type: ClipboardContentType, count: Int) -> some View {
+        let selected = history.quickContentType == type
+        return Button {
+            history.quickContentType = selected ? nil : type
+        } label: {
+            Text("\(typeTitle(type)) \(count)")
+                .font(.system(size: 11, weight: selected ? .semibold : .regular))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(selected ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.05),
+                            in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(count == 0 && !selected)
+    }
+
+    private func typeTitle(_ type: ClipboardContentType) -> String {
+        switch type {
+        case .text: return text.textTypeLabel
+        case .link: return text.linkTypeLabel
+        case .code: return text.codeTypeLabel
+        case .image: return text.imageEntryLabel
+        case .file: return text.fileTypeLabel
+        }
+    }
+
     @ViewBuilder
     private var content: some View {
         if filtered.isEmpty {
             emptyState(history.entries.isEmpty ? text.empty : text.noResults)
         } else {
             ScrollViewReader { proxy in
-                ScrollView {
-                    // A plain stack for an ordinary history: with every row
+                ScrollView(.horizontal) {
+                    // A plain stack for an ordinary history: with every card
                     // already laid out, scrolling is the clip view moving and
                     // nothing else, which is what makes it smooth. Only a
-                    // very large history goes lazy, where building every row
+                    // very large history goes lazy, where building every card
                     // (and decoding every thumbnail) on open would cost more
                     // than the placement work a lazy stack does per tick.
                     Group {
                         if filtered.count <= Self.eagerRowLimit {
-                            VStack(alignment: .leading, spacing: 0) { topAnchor; sections }
+                            HStack(spacing: Self.cardSpacing) { topAnchor; sections }
                         } else {
-                            LazyVStack(alignment: .leading, spacing: 0) { topAnchor; sections }
+                            LazyHStack(spacing: Self.cardSpacing) { topAnchor; sections }
                         }
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, Self.listVerticalInset)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.trailing, Self.listInset)
+                    .frame(maxHeight: .infinity)
                 }
                 .background(ScrollBounceDisabler())
-                .onChange(of: history.quickSelectionIndex) { _, _ in
+                .onChange(of: history.quickSelectionID) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
                 .onChange(of: history.quickSelectionIsVisible) { _, _ in
@@ -140,73 +181,58 @@ struct ClipboardQuickPanelView: View {
                 // reopens wherever it was scrolled, while the selection and
                 // ⌘1 to ⌘9 already start from the top rows.
                 .onChange(of: history.quickWindowPresentationID) { _, _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
+                    proxy.scrollTo(Self.topAnchorID, anchor: .leading)
                 }
             }
         }
     }
 
-    /// Emits the header and rows straight into the enclosing lazy stack. If
-    /// wrapped, the whole section becomes one lazy unit and builds every row.
+    /// Emits the cards straight into the enclosing lazy stack. If wrapped,
+    /// the whole section becomes one lazy unit and builds every card.
     private static let eagerRowLimit = 300
 
-    private static let listVerticalInset: CGFloat = 6
+    private static let listInset: CGFloat = 16
+    private static let cardSpacing: CGFloat = 12
 
-    /// Above the first section's header, which scrolling to the first row
-    /// would leave cut off. It is the list's top inset itself, so scrolling
-    /// it to the top lands exactly where a first open starts.
+    /// The strip's leading inset itself, so scrolling it to the leading edge
+    /// lands exactly where a first open starts.
     private static let topAnchorID = "clipboard-list-top"
 
     private var topAnchor: some View {
-        Color.clear.frame(height: Self.listVerticalInset).id(Self.topAnchorID)
+        Color.clear.frame(width: Self.listInset - Self.cardSpacing, height: 1).id(Self.topAnchorID)
     }
 
+    /// Pinned cards first, then a rule, then the recent ones. A search or a
+    /// type tab lists its matches with no rule.
     @ViewBuilder
     private var sections: some View {
-        if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            section(title: text.pinned, entries: history.pinnedEntries)
-            section(title: text.recent, entries: history.recentEntries,
-                    followsSection: !history.pinnedEntries.isEmpty)
+        if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           history.quickContentType == nil {
+            section(entries: history.pinnedEntries)
+            if !history.pinnedEntries.isEmpty, !history.recentEntries.isEmpty {
+                Divider().frame(height: QuickEntryCard.size.height - 24)
+            }
+            section(entries: history.recentEntries)
         } else {
-            section(title: text.newestFirst, entries: filtered)
+            section(entries: filtered)
         }
     }
 
-    @ViewBuilder
-    private func section(title: String, entries: [ClipboardHistoryEntry],
-                         followsSection: Bool = false) -> some View {
-        if !entries.isEmpty {
-            if followsSection {
-                Divider()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 5)
-            }
-            Text(title.uppercased())
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .tracking(0.6)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-            ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                QuickEntryRow(entry: entry,
-                              tokens: searchTokens,
-                              shortcutIndex: shortcutIndex(for: entry),
-                              isSelected: history.quickSelectionIsVisible
-                                 && history.selectedQuickEntryID == entry.id,
-                              isBatchSelected: history.isQuickBatchSelected(entry),
-                              canReorderEntries: canReorderEntries,
-                              previewIsEditing: previewIsEditing,
-                              presentationID: history.quickWindowPresentationID,
-                              language: l10n.language,
-                              previewSelection: previewSelection)
-                    .equatable()
-                    .id(entry.id)
-                if index < entries.count - 1 {
-                    Divider()
-                        .padding(.leading, 43)
-                        .padding(.trailing, 8)
-                }
-            }
+    private func section(entries: [ClipboardHistoryEntry]) -> some View {
+        ForEach(entries) { entry in
+            QuickEntryCard(entry: entry,
+                           tokens: searchTokens,
+                           shortcutIndex: shortcutIndex(for: entry),
+                           isSelected: history.quickSelectionIsVisible
+                              && history.selectedQuickEntryID == entry.id,
+                           isBatchSelected: history.isQuickBatchSelected(entry),
+                           canReorderEntries: canReorderEntries,
+                           previewIsEditing: previewIsEditing,
+                           presentationID: history.quickWindowPresentationID,
+                           language: l10n.language,
+                           previewSelection: previewSelection)
+                .equatable()
+                .id(entry.id)
         }
     }
 
@@ -241,11 +267,12 @@ struct ClipboardQuickPanelView: View {
                 }
             } else {
                 Button {
-                    history.clearRecent()
+                    clearingIDs = Set(history.recentEntries.map(\.id))
                 } label: {
                     Label(text.clearRecent, systemImage: "trash")
                 }
                 .disabled(history.recentEntries.isEmpty)
+                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
             }
             Spacer()
             HStack(spacing: 5) {
@@ -302,9 +329,10 @@ private struct QuickPreviewPane: View {
     }
 }
 
-/// Keep hover within the row so moving the pointer does not rebuild the list.
-/// Value inputs let SwiftUI skip rows unaffected by selection or history changes.
-private struct QuickEntryRow: View, Equatable {
+/// Keep hover within the card so moving the pointer does not rebuild the strip.
+/// Value inputs let SwiftUI skip cards unaffected by selection or history changes.
+private struct QuickEntryCard: View, Equatable {
+    static let size = CGSize(width: 184, height: 210)
     let entry: ClipboardHistoryEntry
     let tokens: [String]
     let shortcutIndex: Int?
@@ -329,7 +357,7 @@ private struct QuickEntryRow: View, Equatable {
 
     // Preview selection is a channel to the sidebar, not part of this row's
     // appearance, so it stays out of the comparison.
-    static func == (lhs: QuickEntryRow, rhs: QuickEntryRow) -> Bool {
+    static func == (lhs: QuickEntryCard, rhs: QuickEntryCard) -> Bool {
         lhs.entry == rhs.entry
             && lhs.tokens == rhs.tokens
             && lhs.shortcutIndex == rhs.shortcutIndex
@@ -342,35 +370,29 @@ private struct QuickEntryRow: View, Equatable {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 9) {
-            Button {
-                history.toggleQuickBatchSelection(entry)
-            } label: {
-                leadingMarker(entry: entry,
-                              isBatchSelected: isBatchSelected,
-                              isHovered: isHovered)
-            }
-            .buttonStyle(.plain)
-            .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
-
+        VStack(alignment: .leading, spacing: 0) {
+            cardHeader
+            Divider()
             entryContent(entry)
-            Spacer(minLength: 8)
-            entryTrailing(entry, shortcutIndex: shortcutIndex, isHovered: isHovered)
+                .padding(10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .clipped()
+            Divider()
+            cardFooter
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .frame(minHeight: 48)
+        .frame(width: Self.size.width, height: Self.size.height)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(rowBackground(isSelected: isSelected,
-                                    isBatchSelected: isBatchSelected,
-                                    isHovered: isHovered))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(rowBackground(isSelected: isSelected,
+                                        isBatchSelected: isBatchSelected,
+                                        isHovered: isHovered)))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(isBatchSelected ? Color.accentColor.opacity(0.38)
-                              : isSelected ? Color.accentColor.opacity(0.24) : Color.clear,
-                              lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isBatchSelected || isSelected ? Color.accentColor : Color.primary.opacity(0.1),
+                              lineWidth: isBatchSelected || isSelected ? 2.5 : 0.5)
         )
         .contentShape(Rectangle())
         .contextMenu { entryActions(entry) }
@@ -404,26 +426,83 @@ private struct QuickEntryRow: View, Equatable {
         .onTapGesture { activate(entry) }
     }
 
+    private var cardHeader: some View {
+        HStack(spacing: 6) {
+            Button {
+                history.toggleQuickBatchSelection(entry)
+            } label: {
+                leadingMarker(entry: entry,
+                              isBatchSelected: isBatchSelected,
+                              isHovered: isHovered)
+            }
+            .buttonStyle(.plain)
+            .help(isBatchSelected ? text.unselectMultiple : text.selectMultiple)
+            if let app = sourceApp {
+                Text(app.name)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            entryTrailing(entry, isHovered: isHovered)
+        }
+        .padding(.horizontal, 6)
+        .frame(height: 34)
+    }
+
+    /// Looked up once per app. An app removed since the copy has nothing to
+    /// show, and the card keeps the kind's symbol.
+    private static var sourceApps: [String: (name: String, icon: NSImage)?] = [:]
+
+    private var sourceApp: (name: String, icon: NSImage)? {
+        guard let bundleID = entry.sourceBundleID else { return nil }
+        if let cached = Self.sourceApps[bundleID] { return cached }
+        let app = InstalledApps.url(for: bundleID).map {
+            (name: InstalledApps.name(for: bundleID), icon: NSWorkspace.shared.icon(forFile: $0.path))
+        }
+        Self.sourceApps[bundleID] = app
+        return app
+    }
+
+    private var cardFooter: some View {
+        HStack(spacing: 6) {
+            Text(entry.copiedAt, style: .time)
+            Spacer(minLength: 4)
+            if let shortcutIndex {
+                Text("⌘\(shortcutIndex + 1)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.system(size: 9.5))
+        .foregroundStyle(.tertiary)
+        .padding(.horizontal, 10)
+        .frame(height: 26)
+    }
+
     @ViewBuilder
     private func entryContent(_ entry: ClipboardHistoryEntry) -> some View {
         switch entry.kind {
         case .text:
-            HStack(alignment: .center, spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 if let color = entry.color {
                     ColorSwatch(color: color, size: 14)
                 }
-                SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 12)
-                    .font(.system(size: 12))
-                    .lineLimit(2)
+                // Code keeps its line breaks and columns; prose folds into lines.
+                let isCode = history.contentType(of: entry) == .code
+                SearchHighlightText.text(isCode ? String(entry.text.prefix(ClipboardHistoryEditing.previewCharacters))
+                                                : entry.preview,
+                                         tokens: tokens, fontSize: isCode ? 11 : 12)
+                    .font(.system(size: isCode ? 11 : 12, design: isCode ? .monospaced : .default))
+                    .lineLimit(7)
                     .truncationMode(.tail)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         case .image:
-            HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 if let name = entry.imageFile {
                     ClipboardThumbnailImage(source: .stored(name: name),
                                             aspectRatio: entry.imageAspectRatio)
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 }
                 SearchHighlightText.text("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)",
@@ -437,10 +516,10 @@ private struct QuickEntryRow: View, Equatable {
             if entry.filePaths.count == 1,
                let path = entry.filePaths.first,
                ClipboardImageStore.isImageFile(atPath: path) {
-                HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ClipboardThumbnailImage(source: .file(path: path),
                                             aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
-                        .frame(maxWidth: 240, maxHeight: 120)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
@@ -469,7 +548,7 @@ private struct QuickEntryRow: View, Equatable {
                         SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                            .lineLimit(5)
                             .truncationMode(.tail)
                     }
                 }
@@ -480,9 +559,7 @@ private struct QuickEntryRow: View, Equatable {
     }
 
     @ViewBuilder
-    private func entryTrailing(_ entry: ClipboardHistoryEntry,
-                               shortcutIndex: Int?,
-                               isHovered: Bool) -> some View {
+    private func entryTrailing(_ entry: ClipboardHistoryEntry, isHovered: Bool) -> some View {
         if isHovered {
             HStack(spacing: 4) {
                 if entry.kind == .image, AppFeature.screenshot.isAvailable {
@@ -518,17 +595,11 @@ private struct QuickEntryRow: View, Equatable {
                 .menuIndicator(.hidden)
                 .fixedSize()
             }
-        } else {
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(entry.copiedAt, style: .time)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.tertiary)
-                if let shortcutIndex {
-                    Text("⌘\(shortcutIndex + 1)")
-                        .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.secondary)
-                }
-            }
+        } else if entry.isPinned, sourceApp != nil {
+            // The app's icon took the pin's place on the left.
+            Image(systemName: "pin.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
         }
     }
 
@@ -592,6 +663,11 @@ private struct QuickEntryRow: View, Equatable {
             Image(systemName: "circle")
                 .foregroundStyle(Color.accentColor.opacity(0.7))
                 .frame(width: 25, height: 25)
+        } else if let app = sourceApp {
+            Image(nsImage: app.icon)
+                .resizable()
+                .frame(width: 18, height: 18)
+                .frame(width: 25, height: 25)
         } else if entry.kind == .files,
                   entry.filePaths.count == 1,
                   let path = entry.filePaths.first,
@@ -639,8 +715,8 @@ private struct QuickEntryRow: View, Equatable {
 }
 
 /// Turns off the rubber-band bounce of the enclosing scroll view. SwiftUI's
-/// `scrollBounceBehavior` still bounces once the content is taller than the
-/// view, and a list of rows has nothing to show past its ends.
+/// `scrollBounceBehavior` still bounces once the content is wider than the
+/// view, and a strip of cards has nothing to show past its ends.
 private struct ScrollBounceDisabler: NSViewRepresentable {
     func makeNSView(context: Context) -> BounceDisablingView { BounceDisablingView() }
     func updateNSView(_ view: BounceDisablingView, context: Context) { view.apply() }
@@ -655,7 +731,7 @@ private struct ScrollBounceDisabler: NSViewRepresentable {
             // The scroll view is an ancestor only once SwiftUI has placed
             // this view, which is after the current layout pass.
             DispatchQueue.main.async { [weak self] in
-                self?.enclosingScrollView?.verticalScrollElasticity = .none
+                self?.enclosingScrollView?.horizontalScrollElasticity = .none
             }
         }
     }

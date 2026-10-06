@@ -1392,7 +1392,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         if let tiff = payload?.tiff {
             item.setData(tiff, forType: .tiff)
         }
-        return pasteboard.writeObjects([item])
+        guard pasteboard.writeObjects([item]) else { return false }
+        pasteboard.declareVorssaintSource()
+        return true
     }
 
     struct ClipboardPayload: Sendable {
@@ -1422,7 +1424,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         if let tiff = payload.tiff {
             item.setData(tiff, forType: .tiff)
         }
-        return pasteboard.writeObjects([item])
+        guard pasteboard.writeObjects([item]) else { return false }
+        pasteboard.declareVorssaintSource()
+        return true
     }
 
     func save() {
@@ -1480,6 +1484,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         guard !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
         QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
     }

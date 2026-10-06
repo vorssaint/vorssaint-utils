@@ -138,6 +138,7 @@ final class ScreenTextService: ObservableObject {
     private static func copyToPasteboard(_ value: String) {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(value, forType: .string)
     }
 }

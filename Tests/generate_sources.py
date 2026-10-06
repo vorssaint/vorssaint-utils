@@ -244,9 +244,12 @@ def main():
           + declaration(clipboard, "    @Published private(set) var entries:")
           + declaration(clipboard, "    func updateText(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
-              "    func togglePin(", "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
+              "    func togglePin(", "    func clearRecent(", "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
-              "    func filteredEntries("])
+              "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
+              "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
+              "    private func selectedQuickIndex(", "    func contentType(of"])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
     write("CommandBarInputSource.swift", "import Foundation\n"
@@ -292,6 +295,11 @@ def main():
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
                         "    private func pasteIntoPreviousApp(").replace("private func", "func", 1)
+          + "}\n")
+    write("ClipboardSource.swift", "import Foundation\n"
+          + "extension ClipboardFeatureTests.SourceHost {\n"
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardIgnoredApps.swift",
+                        "    func sourceSinceLastCheck(")
           + "}\n")
     write("CommandBarCopyAnswer.swift", "import Foundation\n"
           + "extension CommandBarFeatureTests.CopyAnswerHost {\n"

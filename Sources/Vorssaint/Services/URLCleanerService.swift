@@ -64,7 +64,10 @@ final class URLCleanerService: ObservableObject {
         cancelPoll()
         lastCleaned = urlString
         GeneralPasteboardAccess.shared.async({
-            Self.writeToPasteboard(urlString)
+            let changeCount = Self.writeToPasteboard(urlString)
+            // Unlike a rewrite of what another app copied, this link is ours.
+            NSPasteboard.general.declareVorssaintSource()
+            return changeCount
         }, then: { [weak self] changeCount in
             guard let self else { return }
             self.lastChangeCount = max(self.lastChangeCount, changeCount)

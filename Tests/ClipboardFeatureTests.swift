@@ -45,8 +45,45 @@ enum ClipboardFeatureTests {
         static func postPasteShortcut() { host?.events.append("paste") }
     }
 
+    /// Runs the production source check against the apps that came to the
+    /// front since the last look.
+    final class SourceHost {
+        var historyIsRunning = true
+        var candidates: Set<String> = []
+        var lookup: Set<String> = []
+        let ownBundleID: String? = "com.vorssaint.utils"
+        static var front: String?
+        static func frontmostBundleID() -> String? { front }
+    }
+
     static func run(_ suite: TestSuite) {
         ClipboardPreviewContract.run(suite)
+        let source = SourceHost()
+        source.candidates = ["com.apple.Safari"]
+        let single = source.sourceSinceLastCheck(declared: nil)
+        suite.expect(single.bundleID == "com.apple.Safari" && !single.excluded,
+                     "a copy made while one app held the front records that app")
+        source.candidates = ["com.apple.Safari", "com.apple.Notes"]
+        suite.expect(source.sourceSinceLastCheck(declared: nil).bundleID == nil,
+                     "a copy made while two apps took turns in front records no app rather than a guess")
+        SourceHost.front = "com.apple.Notes"
+        source.candidates = []
+        _ = source.sourceSinceLastCheck(declared: nil)
+        suite.expect(source.sourceSinceLastCheck(declared: nil).bundleID == "com.apple.Notes",
+                     "the next check starts from the app in front")
+        source.lookup = ["com.agilebits.onepassword7"]
+        source.candidates = ["com.agilebits.onepassword7"]
+        suite.expect(source.sourceSinceLastCheck(declared: nil).excluded, "a copy from a skipped app is still left out")
+        source.lookup = []
+        source.candidates = ["com.apple.Safari"]
+        suite.expect(source.sourceSinceLastCheck(declared: "com.vorssaint.utils").bundleID == nil,
+                     "text Vorssaint copies itself, such as recognized text, is not credited to the app in front")
+        source.candidates = ["com.apple.Safari"]
+        suite.expect(source.sourceSinceLastCheck(declared: "com.apple.Notes").bundleID == "com.apple.Notes",
+                     "an app that names itself on the pasteboard is believed over the app in front")
+        source.historyIsRunning = false
+        source.candidates = ["com.apple.Safari"]
+        suite.expect(source.sourceSinceLastCheck(declared: nil) == (false, nil), "nothing is named while the history is off")
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
@@ -433,37 +470,6 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
-        // MARK: Clipboard quick window sizing
-
-        let desktop = NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let compactSize = ClipboardHistoryWindowSizing.contentSize(
-            preview: false, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
-        let previewSize = ClipboardHistoryWindowSizing.contentSize(
-            preview: true, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
-        suite.expect(compactSize == NSSize(width: 560, height: 420)
-                && previewSize == NSSize(width: 840, height: 500),
-               "clipboard quick window retains its original compact and preview sizes by default")
-        suite.expect(ClipboardHistoryWindowSizing.minimumSize(preview: false)
-                == NSSize(width: 560, height: 300)
-                && ClipboardHistoryWindowSizing.minimumSize(preview: true)
-                    == NSSize(width: 840, height: 380),
-               "the narrowest clipboard window leaves room for batch actions in both layouts")
-        let taller = ClipboardHistoryWindowSizing.contentSize(
-            preview: true, savedWidth: 700, savedHeight: 640, visibleFrame: desktop)
-        suite.expect(taller == NSSize(width: 980, height: 720)
-                && ClipboardHistoryWindowSizing.savedCompactSize(from: taller, preview: true)
-                    == NSSize(width: 700, height: 640),
-               "a resized preview returns to the same chosen list size")
-        let shortScreen = NSRect(x: 0, y: 0, width: 1050, height: 700)
-        suite.expect(ClipboardHistoryWindowSizing.contentSize(
-            preview: true, savedWidth: 1000, savedHeight: 900, visibleFrame: shortScreen)
-                == NSSize(width: 1018, height: 668),
-               "a saved size is limited to the visible display")
-        suite.expect(ClipboardHistoryWindowSizing.contentSize(
-            preview: false, savedWidth: .infinity, savedHeight: -1, visibleFrame: desktop)
-                == compactSize,
-               "invalid saved dimensions fall back to the original size")
-
         // MARK: Clipboard menu bar preview
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
@@ -578,6 +584,8 @@ enum ClipboardFeatureTests {
                          "\(language.rawValue) paste-selected button format")
             expectFormat(clipboardStrings.copySelectedFormat, ["d"],
                          "\(language.rawValue) copy-selected button format")
+            expectFormat(clipboardStrings.clearRecentConfirmFormat, ["d"],
+                         "\(language.rawValue) clear-unpinned confirmation format")
             suite.expect(!clipboardStrings.autoClearEnable.isEmpty
                    && !clipboardStrings.autoClearSecondsSuffix.isEmpty
                    && !clipboardStrings.autoClearOnSleep.isEmpty
@@ -629,10 +637,6 @@ enum ClipboardFeatureTests {
                "English monitor repeat control is explicit")
         suite.expect(FeatureStrings.monitorAlerts(.ptBR).cooldown == "Repetir o mesmo alerta depois de",
                "Portuguese monitor repeat control is explicit")
-        suite.expect(ClipboardHistorySelection.initialIndex(totalCount: 3) == 0,
-               "clipboard quick window starts keyboard navigation on the first item")
-        suite.expect(ClipboardHistorySelection.initialIndex(totalCount: 0) == 0,
-               "clipboard quick window keeps an empty selection index safe")
 
         // MARK: Settings search navigation
 
@@ -835,23 +839,53 @@ enum ClipboardFeatureTests {
                    == "alpha\nbeta",
                "the plain-text fallback of a rich batch keeps only the text parts")
 
+        // MARK: Clipboard content types
+
+        let typeSamples: [(String, ClipboardContentType)] = [
+            ("https://github.com/vorssaintapp/vorssaint-utils", .link),
+            ("https://a.example\nhttps://b.example", .text),
+            ("see https://a.example for the plan", .text),
+            ("Meeting room 4F-B, Thursday at 15:00", .text),
+            ("Dear team,\nthanks for the update (and the notes).\nBest", .text),
+            ("#FF6B35", .text),
+            ("git fetch origin --prune", .code),
+            ("$ brew install swiftlint", .code),
+            ("{\"id\": 2613, \"merged\": true}", .code),
+            ("[1, 2, 3]", .code),
+            ("func greet() {\n    print(\"hi\")\n}", .code),
+            ("const add = (a, b) =>\n  a + b;", .code),
+        ]
+        for (sample, expected) in typeSamples {
+            suite.expect(ClipboardContentType(ClipboardHistoryEntry(text: sample)) == expected,
+                         "\(sample.debugDescription) files under \(expected)")
+        }
+        suite.expect(ClipboardContentType(ClipboardHistoryEntry(text: "", kind: .image, imageFile: "a.png")) == .image
+                     && ClipboardContentType(ClipboardHistoryEntry(text: "", kind: .files,
+                                                                   filePaths: ["/tmp/shot.png"])) == .image
+                     && ClipboardContentType(ClipboardHistoryEntry(text: "", kind: .files,
+                                                                   filePaths: ["/tmp/a.png", "/tmp/b.txt"])) == .file,
+                     "a copied image file counts as an image, several files as files")
+
         let legacyClipboardJSON = Data("""
         [{"text":"hello","copiedAt":700000000}]
         """.utf8)
         if let legacy = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: legacyClipboardJSON) {
-            suite.expect(legacy.count == 1 && legacy[0].kind == .text && legacy[0].text == "hello",
-                   "clipboard histories saved before images and files decode as text")
+            suite.expect(legacy.count == 1 && legacy[0].kind == .text && legacy[0].text == "hello"
+                   && legacy[0].sourceBundleID == nil,
+                   "clipboard histories saved before images, files and source apps decode as text")
         } else {
             suite.expect(false, "clipboard legacy history decodes")
         }
         var editedTextEntry = ClipboardHistoryEntry(text: "before", pinnedAt: Date(timeIntervalSince1970: 42))
+        editedTextEntry.sourceBundleID = "com.apple.TextEdit"
         editedTextEntry.text = ClipboardHistoryEditing.storableText("after") ?? editedTextEntry.text
         if let encoded = try? JSONEncoder().encode([editedTextEntry]),
            let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: encoded) {
             suite.expect(decoded.first?.id == editedTextEntry.id
                    && decoded.first?.text == "after"
-                   && decoded.first?.pinnedAt == editedTextEntry.pinnedAt,
-                   "clipboard text edits persist without losing item identity or pinning")
+                   && decoded.first?.pinnedAt == editedTextEntry.pinnedAt
+                   && decoded.first?.sourceBundleID == "com.apple.TextEdit",
+                   "clipboard text edits persist without losing item identity, pinning or source app")
         } else {
             suite.expect(false, "clipboard text edit round-trips")
         }
@@ -1106,6 +1140,7 @@ enum ClipboardFeatureTests {
 /// pasteboard. A saved-text edit must not claim that the clipboard changed.
 enum ClipboardPreviewContract {
     class Fixture {
+        func pruneQuickBatchSelection() {}
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
@@ -1118,6 +1153,16 @@ enum ClipboardPreviewContract {
         var encodedHistoryByteLimit = ClipboardHistoryEditing.maxEncodedHistoryBytes
         func trimToLimit() {}
         func save() {}
+        var quickQuery = ""
+        var quickSelectionID: UUID?
+        var quickSelectionIndex = 0
+        var quickSelectionIsVisible = false
+        var quickContentType: ClipboardContentType?
+        var contentTypes: (stamp: Int, byID: [UUID: ClipboardContentType]) = (-1, [:])
+        var quickBatchEntryIDs: Set<UUID> = []
+        var keyboardSelectionPointer: NSPoint?
+        enum NSCursor { static func setHiddenUntilMouseMoves(_ hidden: Bool) {} }
+        enum NSEvent { static let mouseLocation = NSPoint.zero }
     }
 
     static func run(_ suite: TestSuite) {
@@ -1234,6 +1279,15 @@ enum ClipboardPreviewContract {
         suite.expect(service.entries.first { $0.id == heavy[0].id }?.isPinned == false,
                      "unpinning is never refused by the size of the saved file")
 
+        let counted = ClipboardHistoryEntry(text: "Counted by the confirmation")
+        let copiedLater = ClipboardHistoryEntry(text: "Copied while the confirmation was open")
+        var pinnedLater = ClipboardHistoryEntry(text: "Pinned while the confirmation was open")
+        pinnedLater.pinnedAt = Date()
+        service.setEntries([pinnedLater, copiedLater, counted])
+        service.clearRecent([counted.id, pinnedLater.id])
+        suite.expect(service.entries.map(\.id) == [pinnedLater.id, copiedLater.id],
+                     "clearing deletes only the unpinned items the confirmation counted")
+
         var pinnedItem = ClipboardHistoryEntry(text: "Candidate Alpha")
         pinnedItem.pinnedAt = Date()
         let recentItem = ClipboardHistoryEntry(text: "Candidate Beta")
@@ -1311,6 +1365,35 @@ enum ClipboardPreviewContract {
         suite.expect(editedPass.map(\.text) == ["Beta edited notes"], "search sees the edited text")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 4, "only the edited entry refolds")
         searchFolding(suite)
+        quickSelection(suite)
+    }
+
+    /// The window's highlight is what Return pastes, so it has to stay on the
+    /// entry the arrow keys chose while the history changes under it.
+    private static func quickSelection(_ suite: TestSuite) {
+        let service = Service()
+        let a = ClipboardHistoryEntry(text: "A"), b = ClipboardHistoryEntry(text: "B")
+        let c = ClipboardHistoryEntry(text: "C"), fresh = ClipboardHistoryEntry(text: "Copied while open")
+        service.setEntries([a, b, c])
+        suite.expect(service.selectedQuickEntry == a, "before any arrow key, Return pastes the newest entry")
+        service.moveQuickSelection(1)
+        service.moveQuickSelection(1)
+        suite.expect(service.selectedQuickEntry == b, "the second arrow press highlights the second entry")
+        service.setEntries([fresh, a, b, c])
+        suite.expect(service.selectedQuickEntry == b,
+                     "a copy arriving above the highlight leaves it on the entry Return will paste")
+        service.moveQuickSelection(1)
+        suite.expect(service.selectedQuickEntry == c, "the next arrow press moves on from where the highlight is")
+        service.moveQuickSelection(-1)
+        service.removeSelectedQuickEntries()
+        suite.expect(service.entries == [fresh, a, c] && service.selectedQuickEntry == c,
+                     "deleting the highlighted entry highlights the one that took its place")
+        let command = ClipboardHistoryEntry(text: "git status")
+        service.setEntries([command, fresh, a])
+        service.quickContentType = .code
+        suite.expect(service.filteredQuickEntries == [command], "the code tab lists only the code")
+        service.setEntries([fresh, command, a])
+        suite.expect(service.filteredQuickEntries == [command], "a history change sorts the entries again")
     }
 
     /// #1885: typing searches the history once per keystroke, so the folded

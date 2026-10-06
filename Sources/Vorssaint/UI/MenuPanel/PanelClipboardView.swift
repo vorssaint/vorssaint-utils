@@ -13,6 +13,7 @@ struct PanelClipboardView: View {
     /// Counts copies, so the list also follows an entry copied again while
     /// it still carries the tick.
     @State private var copyCount = 0
+    @State private var clearingIDs: Set<UUID>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var onClose: () -> Void
@@ -82,8 +83,7 @@ struct PanelClipboardView: View {
                     .font(.system(size: 11))
                     .disabled(history.entries.isEmpty)
                 Button {
-                    history.clearRecent()
-                    copiedID = nil
+                    clearingIDs = Set(history.recentEntries.map(\.id))
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 11, weight: .semibold))
@@ -93,6 +93,7 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
+                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
                 Button {
                     history.showHistoryWindow()
                 } label: {

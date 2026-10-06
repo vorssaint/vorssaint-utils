@@ -53,8 +53,15 @@ struct NotchClipboardView: View {
                     pinnedOnly.toggle()
                 }
                 NotchIconButton(symbol: "trash", title: text.clearRecent) {
-                    history.clearRecent()
-                    copiedID = nil
+                    let ids = Set(history.recentEntries.map(\.id))
+                    DispatchQueue.main.async {
+                        guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
+                                                         message: text.clearRecentConfirmMessage,
+                                                         action: text.clearRecent, destructive: true,
+                                                         cancel: text.cancel) else { return }
+                        history.clearRecent(ids)
+                        copiedID = nil
+                    }
                 }
                 .disabled(history.recentEntries.isEmpty)
                 NotchIconButton(symbol: "arrow.up.forward.app", title: text.title) {

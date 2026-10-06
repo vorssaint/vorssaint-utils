@@ -1574,6 +1574,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
                 return
             }
+            pasteboard.declareVorssaintSource()
             QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
             if deletesRecording {
                 self.confirmedClose = true
