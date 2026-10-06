@@ -32,6 +32,9 @@ struct QuickToggleFeatureStrings {
     let screenSaverTitle: String
     let screenSaverCaption: String
     let actionFailed: String
+    let hidePointerIdleTitle: String
+    let hidePointerIdleCaption: String
+    let hidePointerIdleThresholdCaption: String
 }
 
 extension FeatureStrings {
@@ -82,7 +85,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "The Mac keeps running with the display off.",
         screenSaverTitle: "Start the screen saver",
         screenSaverCaption: "Starts right away, on every display.",
-        actionFailed: "Could not complete."
+        actionFailed: "Could not complete.",
+        hidePointerIdleTitle: "Hide the pointer when idle",
+        hidePointerIdleCaption: "Hides the pointer after a few seconds without movement.",
+        hidePointerIdleThresholdCaption: "Seconds without movement before the pointer hides.",
     )
 
     static let ptBR = QuickToggleFeatureStrings(
@@ -110,7 +116,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "O Mac continua funcionando com a tela apagada.",
         screenSaverTitle: "Iniciar o protetor de tela",
         screenSaverCaption: "Começa na hora, em todas as telas.",
-        actionFailed: "Não foi possível concluir."
+        actionFailed: "Não foi possível concluir.",
+        hidePointerIdleTitle: "Ocultar o ponteiro quando inativo",
+        hidePointerIdleCaption: "Oculta o ponteiro depois de alguns segundos sem movimento.",
+        hidePointerIdleThresholdCaption: "Segundos sem movimento antes de ocultar o ponteiro",
     )
 
     static let tr = QuickToggleFeatureStrings(
@@ -138,7 +147,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Mac ekran kapalıyken çalışmaya devam eder.",
         screenSaverTitle: "Ekran koruyucuyu başlat",
         screenSaverCaption: "Hemen, tüm ekranlarda başlar.",
-        actionFailed: "Tamamlanamadı."
+        actionFailed: "Tamamlanamadı.",
+        hidePointerIdleTitle: "Hareketsizken işaretçiyi gizle",
+        hidePointerIdleCaption: "Hareketsiz birkaç saniye geçtikten sonra işaretçiyi gizler.",
+        hidePointerIdleThresholdCaption: "Hareketsiz kalınan süre (saniye)",
     )
 
     static let ru = QuickToggleFeatureStrings(
@@ -166,7 +178,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Mac продолжает работать с выключенным экраном.",
         screenSaverTitle: "Запустить заставку",
         screenSaverCaption: "Запускается сразу на всех экранах.",
-        actionFailed: "Не удалось выполнить."
+        actionFailed: "Не удалось выполнить.",
+        hidePointerIdleTitle: "Скрывать указатель при бездействии",
+        hidePointerIdleCaption: "Скрывает указатель через несколько секунд без движения.",
+        hidePointerIdleThresholdCaption: "Секунды без движения до скрытия указателя",
     )
 
     static let es = QuickToggleFeatureStrings(
@@ -194,7 +209,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "El Mac sigue funcionando con la pantalla apagada.",
         screenSaverTitle: "Iniciar el salvapantallas",
         screenSaverCaption: "Empieza al momento, en todas las pantallas.",
-        actionFailed: "No se pudo completar."
+        actionFailed: "No se pudo completar.",
+        hidePointerIdleTitle: "Ocultar el puntero cuando está inactivo",
+        hidePointerIdleCaption: "Oculta el puntero tras unos segundos sin movimiento.",
+        hidePointerIdleThresholdCaption: "Segundos sin movimiento antes de ocultar el puntero",
     )
 
     static let sk = QuickToggleFeatureStrings(
@@ -222,7 +240,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Mac beží ďalej aj s vypnutou obrazovkou.",
         screenSaverTitle: "Spustiť šetrič obrazovky",
         screenSaverCaption: "Spustí sa hneď, na všetkých displejoch.",
-        actionFailed: "Nepodarilo sa dokončiť."
+        actionFailed: "Nepodarilo sa dokončiť.",
+        hidePointerIdleTitle: "Skryť kurzor pri nečinnosti",
+        hidePointerIdleCaption: "Skryje kurzor po niekoľkých sekundách bez pohybu.",
+        hidePointerIdleThresholdCaption: "Sekundy bez pohybu, kým sa kurzor neskryje",
     )
 
     static let de = QuickToggleFeatureStrings(
@@ -250,7 +271,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Der Mac läuft mit ausgeschaltetem Bildschirm weiter.",
         screenSaverTitle: "Bildschirmschoner starten",
         screenSaverCaption: "Startet sofort, auf allen Bildschirmen.",
-        actionFailed: "Konnte nicht abgeschlossen werden."
+        actionFailed: "Konnte nicht abgeschlossen werden.",
+        hidePointerIdleTitle: "Zeiger bei Inaktivität ausblenden",
+        hidePointerIdleCaption: "Blendet den Zeiger nach einigen Sekunden ohne Bewegung aus.",
+        hidePointerIdleThresholdCaption: "Sekunden ohne Bewegung, bevor der Zeiger ausgeblendet wird",
     )
 
     static let fr = QuickToggleFeatureStrings(
@@ -278,7 +302,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Le Mac continue de fonctionner écran éteint.",
         screenSaverTitle: "Lancer l’économiseur d’écran",
         screenSaverCaption: "Démarre aussitôt, sur tous les écrans.",
-        actionFailed: "Impossible de terminer."
+        actionFailed: "Impossible de terminer.",
+        hidePointerIdleTitle: "Masquer le pointeur en cas d’inactivité",
+        hidePointerIdleCaption: "Masque le pointeur après quelques secondes sans mouvement.",
+        hidePointerIdleThresholdCaption: "Secondes sans mouvement avant que le pointeur soit masqué",
     )
 
     static let it = QuickToggleFeatureStrings(
@@ -306,7 +333,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Il Mac continua a funzionare con lo schermo spento.",
         screenSaverTitle: "Avvia il salvaschermo",
         screenSaverCaption: "Parte subito, su tutti gli schermi.",
-        actionFailed: "Impossibile completare."
+        actionFailed: "Impossibile completare.",
+        hidePointerIdleTitle: "Nascondi il puntatore quando è inattivo",
+        hidePointerIdleCaption: "Nasconde il puntatore dopo qualche secondo senza movimento.",
+        hidePointerIdleThresholdCaption: "Secondi senza movimento prima di nascondere il puntatore",
     )
 
     static let ja = QuickToggleFeatureStrings(
@@ -334,7 +364,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "画面を消しても Mac は動き続けます。",
         screenSaverTitle: "スクリーンセーバを開始",
         screenSaverCaption: "すべてのディスプレイですぐに始まります。",
-        actionFailed: "完了できませんでした。"
+        actionFailed: "完了できませんでした。",
+        hidePointerIdleTitle: "操作がないときにポインタを隠す",
+        hidePointerIdleCaption: "ポインタが動かずに数秒経つと非表示になります。",
+        hidePointerIdleThresholdCaption: "ポインタが隠れるまでの静止時間（秒）",
     )
 
     static let ko = QuickToggleFeatureStrings(
@@ -362,7 +395,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "화면이 꺼져도 Mac은 계속 작동합니다.",
         screenSaverTitle: "화면 보호기 시작",
         screenSaverCaption: "모든 디스플레이에서 바로 시작됩니다.",
-        actionFailed: "완료할 수 없습니다."
+        actionFailed: "완료할 수 없습니다.",
+        hidePointerIdleTitle: "유휴 상태일 때 포인터 숨기기",
+        hidePointerIdleCaption: "움직이지 않고 몇 초 지나면 포인터를 숨깁니다.",
+        hidePointerIdleThresholdCaption: "포인터가 숨겨질 때까지의 정지 시간(초)",
     )
 
     static let zhHans = QuickToggleFeatureStrings(
@@ -390,7 +426,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "显示器关闭后 Mac 继续运行。",
         screenSaverTitle: "启动屏幕保护程序",
         screenSaverCaption: "在所有显示器上立即启动。",
-        actionFailed: "无法完成。"
+        actionFailed: "无法完成。",
+        hidePointerIdleTitle: "空闲时隐藏指针",
+        hidePointerIdleCaption: "指针几秒没有移动后就会隐藏。",
+        hidePointerIdleThresholdCaption: "指针隐藏前的无移动秒数",
     )
 
     static let zhTW = QuickToggleFeatureStrings(
@@ -418,7 +457,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "螢幕關閉後 Mac 仍繼續運作。",
         screenSaverTitle: "啟動螢幕保護程式",
         screenSaverCaption: "在所有顯示器上立即啟動。",
-        actionFailed: "無法完成。"
+        actionFailed: "無法完成。",
+        hidePointerIdleTitle: "閒置時隱藏游標",
+        hidePointerIdleCaption: "游標幾秒沒有移動後就會隱藏。",
+        hidePointerIdleThresholdCaption: "游標隱藏前的靜止秒數",
     )
 
     static let zhHK = QuickToggleFeatureStrings(
@@ -446,7 +488,10 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "螢幕關閉後 Mac 仍繼續運作。",
         screenSaverTitle: "啟動螢幕保護程式",
         screenSaverCaption: "在所有顯示器上立即啟動。",
-        actionFailed: "無法完成。"
+        actionFailed: "無法完成。",
+        hidePointerIdleTitle: "閒置時隱藏游標",
+        hidePointerIdleCaption: "游標幾秒沒有移動後就會隱藏。",
+        hidePointerIdleThresholdCaption: "游標隱藏前的靜止秒數",
     )
     static let uk = QuickToggleFeatureStrings(
         pageTitle: "Швидкі перемикачі",
@@ -473,6 +518,9 @@ extension QuickToggleFeatureStrings {
         displayOffCaption: "Mac продовжує працювати з вимкненим екраном.",
         screenSaverTitle: "Запустити зберігач екрана",
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
-        actionFailed: "Не вдалося завершити."
+        actionFailed: "Не вдалося завершити.",
+        hidePointerIdleTitle: "Ховати вказівник під час простою",
+        hidePointerIdleCaption: "Ховає вказівник після кількох секунд без руху.",
+        hidePointerIdleThresholdCaption: "Секунди без руху, після яких ховається вказівник",
     )
 }

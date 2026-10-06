@@ -70,6 +70,7 @@ struct QuickTogglesList: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var toggles = QuickTogglesService.shared
     @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var pointerHide = PointerHideService.shared
     @ObservedObject private var brightness = BrightnessService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.panelToggleDarkMode) private var showDarkMode = true
@@ -82,6 +83,7 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleLockScreen) private var showLockScreen = true
     @AppStorage(DefaultsKey.panelToggleDisplayOff) private var showDisplayOff = true
     @AppStorage(DefaultsKey.panelToggleScreenSaver) private var showScreenSaver = true
+    @AppStorage(DefaultsKey.panelToggleHidePointerIdle) private var showHidePointerIdle = true
     @AppStorage(DefaultsKey.panelToggleOrder) private var toggleOrderRaw = ""
 
     let editing: Bool
@@ -115,7 +117,8 @@ struct QuickTogglesList: View {
                     DefaultsKey.panelToggleEmptyTrash,
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
-                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver] {
+                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
+                    DefaultsKey.panelToggleHidePointerIdle] {
             defaults.set(true, forKey: key)
         }
     }
@@ -159,6 +162,7 @@ struct QuickTogglesList: View {
         case .lockScreen: return $showLockScreen
         case .displayOff: return $showDisplayOff
         case .screenSaver: return $showScreenSaver
+        case .hidePointerIdle: return $showHidePointerIdle
         }
     }
 
@@ -294,6 +298,17 @@ struct QuickTogglesList: View {
                                         QuickTogglesService.shared.startScreenSaver()
                                     }
                                 })
+        case .hidePointerIdle:
+            PanelToggleRow(title: strings.hidePointerIdleTitle,
+                           caption: caption(for: item, idle: strings.hidePointerIdleCaption),
+                           systemImage: pointerHide.isHiding ? "cursorarrow.rays" : "cursorarrow",
+                           isOn: Binding(
+                               get: { pointerHide.isEnabled },
+                               set: { QuickTogglesService.shared.setPointerHideIdle($0) }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
         }
     }
 

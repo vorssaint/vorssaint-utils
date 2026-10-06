@@ -9,7 +9,7 @@ enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // Case order is the default panel order: the appearance switch leads
     // because it is the tab's headline action (issue request).
     case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
-         lockScreen, displayOff, screenSaver
+         lockScreen, displayOff, screenSaver, hidePointerIdle
 
     var id: String { rawValue }
 
@@ -147,6 +147,17 @@ final class QuickTogglesService: ObservableObject {
             }
             self.finishRun(.ejectDisks, state: failures == 0 ? nil : .failed)
         }
+    }
+
+    // MARK: - Pointer
+
+    /// Hiding the pointer is a switch rather than a one-shot: it is the only
+    /// quick toggle whose effect outlives the panel, so it reports state and
+    /// keeps running with the panel closed.
+    func setPointerHideIdle(_ enabled: Bool) {
+        guard available else { return }
+        PointerHideService.shared.setEnabled(enabled)
+        states[.hidePointerIdle] = nil
     }
 
     // MARK: - Screen
