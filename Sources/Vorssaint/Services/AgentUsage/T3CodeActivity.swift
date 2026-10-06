@@ -225,6 +225,10 @@ struct T3CompactActivitySummary: Equatable {
 enum T3ActivityPresentation {
     static let compactCompletionDuration: TimeInterval = 5
 
+    static func workingCount(_ activities: [T3ThreadActivity]) -> Int {
+        activities.filter { $0.state == .working }.count
+    }
+
     static func visible(_ activities: [T3ThreadActivity], now: Date = .now) -> [T3ThreadActivity] {
         activities.filter {
             $0.state.isActive || (($0.state == .completed || $0.state == .failed || $0.state == .stopped)
@@ -241,7 +245,7 @@ enum T3ActivityPresentation {
 
     static func compactSummary(_ activities: [T3ThreadActivity], now: Date = .now) -> T3CompactActivitySummary? {
         let active = activities.filter { $0.state.isActive }
-        let workingCount = active.filter { $0.state == .working }.count
+        let workingCount = Self.workingCount(active)
         if active.contains(where: { $0.state == .waitingForInput }) {
             return T3CompactActivitySummary(state: .waitingForInput, workingCount: workingCount)
         }

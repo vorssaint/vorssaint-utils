@@ -88,9 +88,9 @@ struct NotchAgentsView: View {
                 Image(systemName: "circle.hexagongrid.fill").font(.system(size: 10))
                 Text(T3CodeStrings(l10n.language).source).font(.system(size: 10, weight: .semibold))
                 Spacer(minLength: 4)
-                let active = activities.filter { $0.state.isActive }
-                if !active.isEmpty {
-                    Text(T3CodeStrings(l10n.language).workingCount(active.count))
+                let workingCount = T3ActivityPresentation.workingCount(activities)
+                if workingCount > 0 {
+                    Text(T3CodeStrings(l10n.language).workingCount(workingCount))
                         .font(.system(size: 9, weight: .medium)).foregroundStyle(.secondary)
                 }
             }

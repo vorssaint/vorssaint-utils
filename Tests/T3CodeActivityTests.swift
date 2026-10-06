@@ -436,6 +436,8 @@ enum T3CodeActivityTests {
         suite.expect(mixed?.state == .working && mixed?.workingCount == 2
                         && mixed?.compactReadout == "T3 · 2",
                      "ordinary waiting does not hide the count of working T3 threads")
+        suite.expect(T3ActivityPresentation.workingCount([waiting, input, approval, working]) == 1,
+                     "the expanded T3 header counts working threads without counting waiting or approval states")
         let mixedAfterFlash = T3ActivityPresentation.compactSummary([waiting, working, completed],
                                                                     now: now.addingTimeInterval(5))
         suite.expect(mixedAfterFlash?.state == .working && mixedAfterFlash?.workingCount == 1,
