@@ -160,15 +160,20 @@ struct T3ShellSnapshot: Decodable {
         if !pendingKind.isEmpty && pendingKind != "auth_refresh" { return .waitingForApproval }
         let runState = thread.activityRunStatus ?? thread.status
         if runState == "failed" { return .failed }
-        if backgroundTasks.contains(where: { $0.kind?.lowercased() != "command" }) { return .working }
+        let hasPendingBackgroundWork = backgroundTasks.contains { $0.kind?.lowercased() != "command" }
         switch runState {
         case "preparing", "queued", "starting", "running": return .working
         case "waiting": return .waiting
         case "failed": return .failed
-        case "cancelled", "interrupted", "rolled_back": return .stopped
-        case "completed": return .completed
+        case "cancelled", "interrupted": return hasPendingBackgroundWork ? .waiting : .stopped
+        case "rolled_back": return .stopped
+        case "completed": return hasPendingBackgroundWork ? .waiting : .completed
         default:
             if thread.activeRunID != nil { return .working }
+            // T3 keeps a settled thread in its Waiting state while a monitor,
+            // subagent, or other background task can still wake it. That work
+            // keeps the thread visible, but the root agent is not working.
+            if hasPendingBackgroundWork { return .waiting }
             if thread.latestRunCompletedAt != nil { return .completed }
             return .idle
         }

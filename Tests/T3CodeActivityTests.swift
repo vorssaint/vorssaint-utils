@@ -74,6 +74,14 @@ enum T3CodeActivityTests {
                      "failed runs map to failed")
         suite.expect(snapshot(status: "cancelled", activeRun: nil).first?.state == .stopped,
                      "cancelled runs map to stopped")
+        for status in ["cancelled", "interrupted"] {
+            suite.expect(snapshot(status: status, activeRun: nil, backgroundKinds: ["monitor"])
+                            .first?.state == .waiting,
+                         "T3 \(status) runs with pending monitors remain visible as waiting")
+        }
+        suite.expect(snapshot(status: "rolled_back", activeRun: nil, backgroundKinds: ["monitor"])
+                        .first?.state == .stopped,
+                     "rolled-back runs stay stopped even if stale background work is present")
         suite.expect(snapshot(status: "idle", activeRun: nil, completedAt: nil).first?.state == .idle,
                      "idle threads do not appear as active")
         let thread = snapshot(status: "running", activity: "running").first
@@ -100,13 +108,16 @@ enum T3CodeActivityTests {
         suite.expect(snapshot(status: "completed", activeRun: nil, completedAt: "2026-10-06T12:01:00Z",
                               backgroundKinds: ["command"]).first?.state == .completed,
                      "a pending background command does not keep a completed thread active")
+        suite.expect(snapshot(status: "running", activity: "running", backgroundKinds: ["subagent"])
+                        .first?.state == .working,
+                     "an active T3 run remains working even when background activity is present")
         suite.expect(snapshot(status: "failed", activeRun: nil, backgroundKinds: ["monitor"])
                         .first?.state == .failed,
                      "pending monitor work does not hide a failed T3 run")
         for kind in ["monitor", "subagent", "background_task", "future-kind"] {
             suite.expect(snapshot(status: "completed", activeRun: nil, completedAt: "2026-10-06T12:01:00Z",
-                                  backgroundKinds: [kind]).first?.state == .working,
-                         "T3 \(kind) background work conservatively holds thread completion")
+                                  backgroundKinds: [kind]).first?.state == .waiting,
+                         "T3 \(kind) background work keeps a settled thread visible without marking the root run working")
         }
     }
 
@@ -122,6 +133,18 @@ enum T3CodeActivityTests {
                         && completions.first?.duration == 120,
                      "completion duration uses run completion time, not thread modification time")
         suite.expect(reducer.apply(finished).isEmpty, "repeated completion snapshots do not duplicate events")
+
+        var backgroundTaskCompletionReducer = T3ActivityReducer()
+        _ = backgroundTaskCompletionReducer.apply(working)
+        let rootFinishedWithMonitor = snapshot(status: "completed", activeRun: nil,
+                                               completedAt: "2026-10-06T12:02:00Z", backgroundKinds: ["monitor"])
+        suite.expect(backgroundTaskCompletionReducer.apply(rootFinishedWithMonitor).isEmpty,
+                     "T3 background work holds the completion until its roster clears")
+        let monitorFinished = snapshot(status: "completed", activeRun: nil,
+                                       completedAt: "2026-10-06T12:02:00Z")
+        suite.expect(backgroundTaskCompletionReducer.apply(monitorFinished).count == 1
+                        && backgroundTaskCompletionReducer.apply(monitorFinished).isEmpty,
+                     "clearing T3 background work announces completion once")
 
         var resumedRun = T3ActivityReducer()
         let resumed = snapshot(status: "running", activity: "running",
@@ -403,6 +426,12 @@ enum T3CodeActivityTests {
                      "approval requests outrank ordinary waiting and work")
         suite.expect(T3ActivityPresentation.compactSummary([waiting, working, completed], now: now)?.state == .waiting,
                      "a waiting thread takes priority over a transient completion and normal work")
+        let backgroundWaiting = snapshot(status: "completed", activeRun: nil,
+                                         completedAt: "2026-10-06T12:00:00Z", backgroundKinds: ["monitor"])[0]
+        let backgroundSummary = T3ActivityPresentation.compactSummary([backgroundWaiting], now: now)
+        suite.expect(backgroundSummary?.state == .waiting && backgroundSummary?.workingCount == 0
+                        && backgroundSummary?.compactReadout == "T3 · …",
+                     "settled background work is visible without inflating the compact working count")
 
         let completion = T3ActivityPresentation.compactSummary([completed, working], now: now)
         suite.expect(completion?.state == .completed
