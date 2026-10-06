@@ -47,6 +47,11 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("CommandBarPathCancellation.swift", "import CoreServices\nimport Foundation\n"
+          + "extension CommandBarPathCancellationTests {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarFileSearch.swift",
+                        "final class CommandBarFileSearch {")
+          + "}\n")
     write("SwitcherAccessibilitySnapshot.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
           + "extension SwitcherAccessibilitySnapshotTests.Reader {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", prefix)
@@ -288,6 +293,22 @@ def main():
           + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    write("CommandBarPathActivation.swift", "import Foundation\nimport Combine\n"
+          + "extension CommandBarPathActivationTests {\n"
+          + declaration(bar, "    enum Mode:")
+          + "final class Service: Fixture {\n"
+          + "".join(declaration(bar, prefix).replace("private ", "", 1) for prefix in [
+              "    @Published var query =",
+              "    private func refreshResults()",
+              "    private func setCompactHome(",
+              "    static func uniqued(",
+              "    private func numericCommandMatches(",
+              "    private func rankingTitle(",
+              "    private func searchRows(",
+              "    func moveSelection(",
+              "    func select(_ index:",
+              "    var selectedEntry:"])
+          + "}\n}\n")
     write("QuickPaste.swift", "import Foundation\n"
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
