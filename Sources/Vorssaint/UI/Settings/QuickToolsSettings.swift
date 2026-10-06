@@ -128,7 +128,7 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.micMuteWhileTypingCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    if micMuteWhileTypingEnabled, !permissions.accessibility {
+                    if micMuteWhileTypingEnabled, !micMute.typingMuteAvailable {
                         Text(l10n.s.micMuteWhileTypingNeedsAccessibility)
                             .font(.caption)
                             .foregroundStyle(.orange)

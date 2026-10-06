@@ -555,6 +555,8 @@ struct MixerOptionsControls: View {
     private var wakeVolumeCapPercent = Defaults.defaultMixerWakeVolumeCapPercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
+    @AppStorage(DefaultsKey.systemMuteShortcutEnabled)
+    private var systemMuteShortcutEnabled = false
     @State private var showListChooser = false
     var includeSharedAudioFeatures = true
 
@@ -675,22 +677,18 @@ struct MixerOptionsControls: View {
 
     private var systemMuteToggle: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Toggle(l10n.s.systemMuteShortcutToggle, isOn: systemMuteBinding)
+            Toggle(l10n.s.systemMuteShortcutToggle, isOn: $systemMuteShortcutEnabled)
                 .toggleStyle(.checkbox)
                 .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: systemMuteShortcutEnabled) { _, _ in
+                    AppVolumeMixer.shared.syncWithPreferences()
+                }
 
             Text(SoundOutputStrings.localized(l10n.language).systemMuteCaption)
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
-    }
-
-    private var systemMuteBinding: Binding<Bool> {
-        Binding(
-            get: { UserDefaults.standard.bool(forKey: DefaultsKey.systemMuteShortcutEnabled) },
-            set: { UserDefaults.standard.set($0, forKey: DefaultsKey.systemMuteShortcutEnabled) }
-        )
     }
 
     private var preciseVolumeRollerToggle: some View {
