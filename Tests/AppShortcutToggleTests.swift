@@ -17,8 +17,8 @@ enum AppShortcutToggleTests {
         private(set) var hidden = false
         private(set) var frontmost = false
         private(set) var count = 0
-        /// Whether each press left the app away. A `.none` is a press that
-        /// could not be attributed, which is how a launch reads here.
+        /// What each press asked for, in order, so a replay can be compared
+        /// against the presses that produced it.
         private(set) var outcomes: [AppToggleAction] = []
 
         mutating func press(frontmost: Bool? = nil, hidden: Bool? = nil) {
@@ -29,8 +29,12 @@ enum AppShortcutToggleTests {
                                                  isFrontmost: self.frontmost,
                                                  isHidden: self.hidden)
             switch action {
-            case .activate: self.hidden = false; self.frontmost = true
-            case .hide: self.hidden = true; self.frontmost = false
+            case .activate:
+                self.hidden = false
+                self.frontmost = true
+            case .hide:
+                self.hidden = true
+                self.frontmost = false
             }
             outcomes.append(action)
         }
