@@ -265,17 +265,16 @@ struct T3ActivityReducer {
     }
 
     private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
-        // A waiting activity can coexist with a newer queued latest run. Once
-        // that run starts, do not carry the waiting owner's duration into it.
-        if old.activityRunID == nil, let runID = old.latestRunID, runID == next.latestRunID,
-           old.latestRunStartedAt == nil, next.latestRunStartedAt != nil { return false }
         if let runID = old.activityRunID, runID == next.activityRunID { return true }
         if let runID = old.latestRunID, runID == next.latestRunID,
            let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
-        if old.state == .waitingForApproval || old.state == .waitingForInput { return true }
+        // T3 may have a queued latest run while a previous run still owns the
+        // activity. Carry across changed/unknown run IDs only when stable user
+        // authored input and pending background work prove this is a wake.
         guard let oldMessage = old.latestUserAuthoredMessageAt,
-              oldMessage == next.latestUserAuthoredMessageAt else { return false }
-        return old.backgroundTaskCount > 0
+              oldMessage == next.latestUserAuthoredMessageAt,
+              old.backgroundTaskCount > 0 else { return false }
+        return true
     }
 }
 

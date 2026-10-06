@@ -207,10 +207,27 @@ enum T3CodeActivityTests {
         _ = approvalWithQueuedRun.apply(firstRun)
         let approvalWhileQueued = snapshot(status: "waiting", request: "permission", activeRun: nil,
                                            startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
-                                           latestUserAuthoredAt: nil, latestRunID: "run-2")
+                                           latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
         _ = approvalWithQueuedRun.apply(approvalWhileQueued)
         suite.expect(approvalWithQueuedRun.apply(secondRunFinished).first?.duration == 2,
                      "approval state does not make an unstarted queued run inherit the waiting duration")
+
+        var queuedWake = T3ActivityReducer()
+        let originalWork = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
+                                    activityStartedAt: "2026-10-06T12:00:00Z",
+                                    latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-1")
+        let pendingWake = snapshot(status: "waiting", activeRun: nil, startedAt: nil,
+                                   activityStartedAt: "2026-10-06T12:00:00Z",
+                                   latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2",
+                                   backgroundKinds: ["monitor"])
+        let wakeCompleted = snapshot(status: "completed", activeRun: nil,
+                                      completedAt: "2026-10-06T12:10:02Z", startedAt: "2026-10-06T12:10:00Z",
+                                      activityStartedAt: nil, latestUserAuthoredAt: "2026-10-06T12:00:00Z",
+                                      latestRunID: "run-2")
+        _ = queuedWake.apply(originalWork)
+        _ = queuedWake.apply(pendingWake)
+        suite.expect(queuedWake.apply(wakeCompleted).first?.duration == 602,
+                     "a queued background wake keeps its original duration when it completes between polls")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
