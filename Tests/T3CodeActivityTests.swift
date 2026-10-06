@@ -217,6 +217,18 @@ enum T3CodeActivityTests {
         suite.expect(approvalWithQueuedRun.apply(approvalSecondRunFinished).first?.duration == 2,
                      "a queued user message does not make its completion inherit the approval wait duration")
 
+        var coldQueuedRun = T3ActivityReducer()
+        _ = coldQueuedRun.apply(approvalWhileQueued)
+        suite.expect(coldQueuedRun.apply(approvalSecondRunFinished).first?.duration == 2,
+                     "a first snapshot does not bind a queued user's timestamp to the previous activity")
+
+        var reconnectedQueuedRun = T3ActivityReducer()
+        _ = reconnectedQueuedRun.apply(firstRun)
+        _ = reconnectedQueuedRun.apply([])
+        _ = reconnectedQueuedRun.apply(approvalWhileQueued)
+        suite.expect(reconnectedQueuedRun.apply(approvalSecondRunFinished).first?.duration == 2,
+                     "reconnect does not bind a queued user's timestamp to the previous activity")
+
         var queuedWake = T3ActivityReducer()
         let originalWork = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
                                     activityStartedAt: "2026-10-06T12:00:00Z",

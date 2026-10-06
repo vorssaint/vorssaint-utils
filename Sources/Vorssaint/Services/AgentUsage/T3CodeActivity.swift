@@ -249,9 +249,18 @@ struct T3ActivityReducer {
                 }
                 if let start {
                     nextStarts[activity.id] = start
-                    let messageAtStart = activityStarts[activity.id] == start
-                        ? activityStartMessages[activity.id]
-                        : activity.latestUserAuthoredMessageAt
+                    let hasUnstartedLatestRun = activity.latestRunID != nil && activity.latestRunStartedAt == nil
+                    let messageAtStart: Date?
+                    if activityStarts[activity.id] == start {
+                        messageAtStart = activityStartMessages[activity.id]
+                    } else if hasUnstartedLatestRun {
+                        // On first connection, a queued user run may already
+                        // have replaced the authored timestamp while the older
+                        // activity still owns this start. Its owner is unknown.
+                        messageAtStart = nil
+                    } else {
+                        messageAtStart = activity.latestUserAuthoredMessageAt
+                    }
                     if let messageAtStart { nextStartMessages[activity.id] = messageAtStart }
                 }
             } else if hasBaseline, activity.state == .completed,
