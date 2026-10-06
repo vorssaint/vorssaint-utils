@@ -814,6 +814,10 @@ struct Strings {
     let soundInputSwitcherDevices: String
     let soundInputSwitcherNoAvailableSelection: String
     let soundInputSwitcherNoDevices: String
+    let systemMuteShortcutToggle: String
+    let mixerCapVolumeAfterWakeToggle: String
+    let mixerCapVolumeAfterWakeCaption: String
+    let mixerWakeVolumeCapPercent: String
     let mixerInputTitle: String
     let mixerInputNoDevices: String
     let mixerInputUnavailable: String
@@ -1960,6 +1964,10 @@ extension Strings {
         soundInputSwitcherDevices: "Microfones no ciclo",
         soundInputSwitcherNoAvailableSelection: "Selecione pelo menos um microfone disponível.",
         soundInputSwitcherNoDevices: "Nenhum microfone encontrado",
+        systemMuteShortcutToggle: "Silenciar o som do sistema",
+        mixerCapVolumeAfterWakeToggle: "Limitar o volume ao acordar",
+        mixerCapVolumeAfterWakeCaption: "Ao acordar, baixa o volume do sistema até este teto. Só reduz: nunca aumenta nem tira o silenciamento.",
+        mixerWakeVolumeCapPercent: "Teto ao acordar",
         mixerInputTitle: "Microfone",
         mixerInputNoDevices: "Nenhum microfone encontrado",
         mixerInputUnavailable: "Microfone indisponível",
@@ -3081,6 +3089,10 @@ extension Strings {
         soundInputSwitcherDevices: "Microphones in cycle",
         soundInputSwitcherNoAvailableSelection: "Select at least one available microphone.",
         soundInputSwitcherNoDevices: "No microphones found",
+        systemMuteShortcutToggle: "Mute system sound",
+        mixerCapVolumeAfterWakeToggle: "Cap the volume after you wake",
+        mixerCapVolumeAfterWakeCaption: "Lowers the system volume to this ceiling after waking. It only ever lowers: never raises, and never unmutes.",
+        mixerWakeVolumeCapPercent: "Ceiling after waking",
         mixerInputTitle: "Microphone",
         mixerInputNoDevices: "No microphones found",
         mixerInputUnavailable: "Microphone unavailable",
