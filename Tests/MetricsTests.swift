@@ -41,7 +41,8 @@ struct MetricsTests {
                 AppManagementFeatureTests.run(suite)
                 DiskImageHomebrewTests.run(suite)
             }),
-            ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
+            ("window-layout", { WindowLayoutFeatureTests.run(suite)
+                HideAllWindowsTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)

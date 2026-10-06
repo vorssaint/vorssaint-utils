@@ -735,6 +735,8 @@ enum DefaultsKey {
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let pointerDisplayEnabled = "pointerDisplayEnabled"
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
+    static let hideAllWindowsShortcutEnabled = "hideAllWindowsShortcutEnabled" // opt-in hide-everything hotkey under Window Layout
+    static let hideAllWindowsShortcut = "hideAllWindowsShortcut" // saved combination for the hide-everything hotkey
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
@@ -1889,6 +1891,8 @@ enum Defaults {
         DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,
         DefaultsKey.pointerDisplayEnabled: false,
         DefaultsKey.pointerDisplayShortcut: GlobalShortcut.pointerNextDisplayDefault.storageValue,
+        DefaultsKey.hideAllWindowsShortcutEnabled: false,
+        DefaultsKey.hideAllWindowsShortcut: GlobalShortcut.hideAllWindowsDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowEdgeSnapDisabledZones: "",
         DefaultsKey.windowEdgeSnapZoneActions: "",
