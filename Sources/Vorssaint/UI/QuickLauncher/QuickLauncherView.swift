@@ -49,7 +49,7 @@ struct QuickLauncherView: View {
                let optionsItem, hasQuickOptions(optionsItem) {
                 optionsCard(optionsItem)
             }
-            if launcher.activeUtility == nil, launcher.isEditing, !launcher.hiddenItems.isEmpty {
+            if launcher.activeUtility == nil, launcher.isEditing, !addableItems.isEmpty {
                 hiddenTray
             }
             if notchSize == nil { footer }
@@ -328,6 +328,13 @@ struct QuickLauncherView: View {
         }
     }
 
+    private var addableItems: [QuickLauncherItem] {
+        QuickLauncherItem.allCases.filter {
+            launcher.hiddenItems.contains($0)
+                || (!$0.feature.isAvailable && $0.feature.installBlockedReason == nil)
+        }
+    }
+
     private var hiddenTray: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(l10n.s.launcherAddSection.uppercased())
@@ -335,9 +342,12 @@ struct QuickLauncherView: View {
                 .foregroundStyle(.secondary)
                 .tracking(0.5)
             FlowLayoutLite(spacing: 6) {
-                ForEach(launcher.hiddenItems) { item in
+                ForEach(addableItems) { item in
                     Button {
                         withAnimation(.easeOut(duration: 0.15)) {
+                            if !item.feature.isAvailable {
+                                FeatureRuntime.shared.setAvailable([item.feature], true)
+                            }
                             launcher.setHidden(item, false)
                         }
                     } label: {
