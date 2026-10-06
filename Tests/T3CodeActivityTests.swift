@@ -218,8 +218,7 @@ enum T3CodeActivityTests {
                                     latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-1")
         let pendingWake = snapshot(status: "waiting", activeRun: nil, startedAt: nil,
                                    activityStartedAt: "2026-10-06T12:00:00Z",
-                                   latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2",
-                                   backgroundKinds: ["monitor"])
+                                   latestUserAuthoredAt: "2026-10-06T12:00:00Z", latestRunID: "run-2")
         let wakeCompleted = snapshot(status: "completed", activeRun: nil,
                                       completedAt: "2026-10-06T12:10:02Z", startedAt: "2026-10-06T12:10:00Z",
                                       activityStartedAt: nil, latestUserAuthoredAt: "2026-10-06T12:00:00Z",
@@ -227,7 +226,7 @@ enum T3CodeActivityTests {
         _ = queuedWake.apply(originalWork)
         _ = queuedWake.apply(pendingWake)
         suite.expect(queuedWake.apply(wakeCompleted).first?.duration == 602,
-                     "a queued background wake keeps its original duration when it completes between polls")
+                     "a queued wake keeps its original duration even when T3 hides background tasks while queued")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
