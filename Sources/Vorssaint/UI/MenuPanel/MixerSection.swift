@@ -549,6 +549,10 @@ struct MixerOptionsControls: View {
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.mixerWakeVolumeCapEnabled)
+    private var wakeVolumeCapEnabled = false
+    @AppStorage(DefaultsKey.mixerWakeVolumeCapPercent)
+    private var wakeVolumeCapPercent = Defaults.defaultMixerWakeVolumeCapPercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
     @State private var showListChooser = false
@@ -560,6 +564,9 @@ struct MixerOptionsControls: View {
                 inactiveAppsVisibilityToggle
             }
             headphoneDisconnectProtectionToggle
+            wakeVolumeCapToggle
+
+            systemMuteToggle
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
@@ -622,6 +629,68 @@ struct MixerOptionsControls: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
+    }
+
+    private var wakeVolumeCapToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.mixerCapVolumeAfterWakeToggle, isOn: $wakeVolumeCapEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+
+            Text(l10n.s.mixerCapVolumeAfterWakeCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if wakeVolumeCapEnabled {
+                HStack(spacing: 8) {
+                    Stepper(value: wakeVolumeCapPercentBinding,
+                            in: Defaults.minimumMixerHeadphonesDisconnectVolumePercent...100,
+                            step: 5) {
+                        Text(l10n.s.mixerWakeVolumeCapPercent)
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .controlSize(.small)
+                    Spacer(minLength: 6)
+                    Text("\(wakeVolumeCapDisplayPercent)%")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private var wakeVolumeCapPercentBinding: Binding<Int> {
+        Binding(
+            get: { Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(wakeVolumeCapPercent) },
+            set: { wakeVolumeCapPercent = Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent($0) }
+        )
+    }
+
+    private var wakeVolumeCapDisplayPercent: Int {
+        Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(wakeVolumeCapPercent)
+    }
+
+    private var systemMuteToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.systemMuteShortcutToggle, isOn: systemMuteBinding)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+
+            Text(SoundOutputStrings.localized(l10n.language).systemMuteCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var systemMuteBinding: Binding<Bool> {
+        Binding(
+            get: { UserDefaults.standard.bool(forKey: DefaultsKey.systemMuteShortcutEnabled) },
+            set: { UserDefaults.standard.set($0, forKey: DefaultsKey.systemMuteShortcutEnabled) }
+        )
     }
 
     private var preciseVolumeRollerToggle: some View {
