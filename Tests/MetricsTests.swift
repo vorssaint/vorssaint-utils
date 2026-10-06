@@ -52,6 +52,7 @@ struct MetricsTests {
                 MixerPercentKeyTests.run(suite)
                 MixerFeatureTests.run(suite)
                 MicMuteWhileTypingTests.run(suite)
+                WakeVolumeCapTests.run(suite)
             }),
             ("audio-priority", { AudioPriorityTests.run(suite) }),
             ("shelf", { ShelfFeatureTests.run(suite) }),

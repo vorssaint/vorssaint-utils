@@ -85,6 +85,8 @@ final class AppVolumeMixer: ObservableObject {
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
     @Published private(set) var needsPermission = false
+    @Published private(set) var systemMuted = false
+    private let systemMuteHotkey = QuickToolHotkey(id: 62)
     /// Apps kept out of the list (issue #300), including the Finder when its
     /// own toggle hides it, so the panel can offer to bring any of them back.
     @Published private(set) var hiddenApps: [MixerHiddenApp] = []
@@ -181,7 +183,9 @@ final class AppVolumeMixer: ObservableObject {
     private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
-    private init() {}
+    private init() {
+        systemMuteHotkey.onPress = { [weak self] in self?.toggleSystemMute() }
+    }
 
     // MARK: - Lifecycle
 
@@ -197,6 +201,14 @@ final class AppVolumeMixer: ObservableObject {
         if listenerInstalled, processMonitoringEnabled != needs.processes {
             stop()
         }
+
+        let systemMuteEnabled = AppFeature.mixer.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.systemMuteShortcutEnabled)
+        let systemMuteShortcut = GlobalShortcut.saved(for: DefaultsKey.systemMuteShortcut,
+                                                       fallback: .systemMuteDefault)
+        systemMuteHotkey.sync(enabled: systemMuteEnabled, shortcut: systemMuteShortcut,
+                              storageKey: DefaultsKey.systemMuteShortcut)
+
         start()
     }
 
@@ -244,6 +256,11 @@ final class AppVolumeMixer: ObservableObject {
                 // Forgetting the registration makes this refresh subscribe again.
                 self.removeOutputControlListeners()
                 self.refreshApps()
+                // After the refresh, so the headphone-disconnect lowering
+                // inside it reads the pre-wake level first and this cap reads
+                // the fresher one: whichever ceiling is lower wins, and this
+                // pass fires once per wake without observing the level.
+                self.applyWakeVolumeCap()
                 self.reconcileEngines(with: self.apps)
                 self.scheduleEngineReconcile(after: 2)
             }
@@ -1531,6 +1548,73 @@ final class AppVolumeMixer: ObservableObject {
         loweredOutput = Self.restoringLoweredOutputVolume(loweredOutput, in: outputDevices)
     }
 
+    /// Caps the system output once per wake: if the Mac woke louder than the
+    /// configured ceiling, the level comes down to it. Called only from the
+    /// wake handler above, never from a refresh or a listener, so a volume key
+    /// pressed just after the write is the user's choice and wins: nothing
+    /// re-imposes the cap, and the cap never fires again until the next wake.
+    ///
+    /// Mute is read fresh and the scalar is the only thing ever written, via
+    /// the same `setOutputVolume` the headphone-disconnect path uses. Never
+    /// `setSystemOutputVolume` (it clears mute for any non-zero level) and
+    /// never the `requestOutputStep` queue: that queue always performs a write
+    /// (its level closure cannot decline), couples every volume write to the
+    /// mute switch (`requestOutputAdjustment` sets muted from the level, so a
+    /// muted output would come back unmuted or lose its scalar), and has no
+    /// device to enqueue on this early (the wake handler just tore the output
+    /// listeners down and the refresh has not re-subscribed yet). Instead the
+    /// guarantees are reimplemented directly: one `halQueue` block reads the
+    /// current default device, its mute and its level, decides with the pure
+    /// `WakeVolumeCapSupport.cappedVolume`, re-reads immediately before
+    /// writing (a volume key that moved the level in between drops the stale
+    /// decision instead of overwriting the user's choice), and publishes back
+    /// on the main thread. The block is atomic against this app's other HAL
+    /// traffic on the same serial queue.
+    ///
+    /// Deliberately not recorded in `loweredOutput`: the teardown path above
+    /// restores what it recorded, and restoring a cap would raise the volume.
+    /// A cap that restores is a cap that raises, so there is nothing to hand
+    /// back here. Do not "fix" this into the restore path.
+    private func applyWakeVolumeCap() {
+        guard AppFeature.mixer.isAvailable,
+              listenerInstalled,
+              UserDefaults.standard.bool(forKey: DefaultsKey.mixerWakeVolumeCapEnabled) else { return }
+        let ceilingPercent = WakeVolumeCapSupport.sanitizedCeilingPercent(
+            UserDefaults.standard.double(forKey: DefaultsKey.mixerWakeVolumeCapPercent))
+        halQueue.async { [weak self] in
+            guard let device = Self.defaultOutputDeviceID(),
+                  Self.hasSettableOutputVolume(for: device),
+                  let muted = Self.outputMuted(for: device),
+                  let volume = Self.outputVolume(for: device),
+                  let target = WakeVolumeCapSupport.cappedVolume(
+                      currentPercent: Int((volume * 100).rounded()),
+                      ceilingPercent: ceilingPercent,
+                      isMuted: muted) else { return }
+            // A volume key may have moved the level since the read above. Read
+            // again and recompute: only a decision that is still true for the
+            // fresh level is written. A mute that appeared in between reads as
+            // muted and declines (`?? true`), so a fresh mute is never touched.
+            guard let fresh = Self.outputVolume(for: device),
+                  // The default output may have been replaced between the two
+                  // reads (headphones taking over on the same wake). A step
+                  // meant for the old device is dropped, never replayed.
+                  Self.defaultOutputDeviceID() == device,
+                  WakeVolumeCapSupport.cappedVolume(
+                      currentPercent: Int((fresh * 100).rounded()),
+                      ceilingPercent: ceilingPercent,
+                      isMuted: Self.outputMuted(for: device) ?? true) == target else { return }
+            guard Self.setOutputVolume(Float(target) / 100, for: device) else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.listenerInstalled else { return }
+                // The wake refresh above already read the pre-cap level, so
+                // publish the post-cap one through the normal coalesced path.
+                // This refresh never re-applies the cap: only the wake handler
+                // calls this method.
+                self.scheduleListenerRefresh()
+            }
+        }
+    }
+
     /// Brings the running engines in line with the current app list: drops
     /// taps for apps that stopped playing, retargets taps whose process set
     /// changed (new helper spawned), and applies saved volumes to newcomers.
@@ -2114,6 +2198,17 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     @discardableResult
+    static func setSystemOutputMuted(_ muted: Bool) -> Bool {
+        guard let device = defaultOutputDeviceID() else { return false }
+        return setOutputMuted(muted, for: device)
+    }
+
+    func toggleSystemMute() {
+        let target = !systemMuted
+        if Self.setSystemOutputMuted(target) {
+            systemMuted = target
+        }
+    }
     static func setSystemOutputMuted(_ muted: Bool) -> Bool {
         guard let device = defaultOutputDeviceID() else { return false }
         return setOutputMuted(muted, for: device)
