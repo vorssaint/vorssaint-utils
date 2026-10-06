@@ -485,6 +485,12 @@ enum T3CodeActivityTests {
                      "endpoint-embedded credentials are rejected")
         suite.expect(rejects { try client.validateEndpoint("https://t3.example.test/path") },
                      "endpoint paths are rejected")
+        suite.expect(T3CodeClient.hasReadOnlyScope("orchestration:read")
+                        && T3CodeClient.hasReadOnlyScope("  orchestration:read  ")
+                        && !T3CodeClient.hasReadOnlyScope("orchestration:read terminal:operate")
+                        && !T3CodeClient.hasReadOnlyScope("orchestration:read relay:read")
+                        && !T3CodeClient.hasReadOnlyScope("orchestration:operate"),
+                     "T3 pairing accepts only the exact read-only environment scope")
         let endpoint = try! client.validateEndpoint("https://t3.example.test:3773")
         let otherEndpoint = try! client.validateEndpoint("https://other.example.test:3773")
         suite.expect(T3KeychainCredentialStore.account(endpoint: endpoint, environmentID: "env-local")
@@ -513,6 +519,16 @@ enum T3CodeActivityTests {
                                                                      taskAlreadyRunning: false,
                                                                      hasConnection: false),
                      "T3 polling starts only for an enabled feature with one complete connection")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        suite.expect(T3CodeActivityService.shouldRetainActivityAfterTransientFailure(
+                        lastSuccessfulPollAt: now.addingTimeInterval(-9.9), now: now)
+                        && T3CodeActivityService.activityExpiryDelay(
+                            lastSuccessfulPollAt: now, now: now.addingTimeInterval(3)) == 7
+                        && !T3CodeActivityService.shouldRetainActivityAfterTransientFailure(
+                            lastSuccessfulPollAt: now.addingTimeInterval(-10), now: now)
+                        && !T3CodeActivityService.shouldRetainActivityAfterTransientFailure(
+                            lastSuccessfulPollAt: nil, now: now),
+                     "a briefly reconnecting T3 endpoint retains its last activity for a bounded grace period")
     }
 
     private static func connectionConfiguration(_ suite: TestSuite) {

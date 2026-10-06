@@ -186,8 +186,7 @@ struct T3CodeClient {
         guard tokenHTTP.statusCode == 200 else { throw T3CodeConnectionError.pairingRejected }
         guard let token = try? JSONDecoder().decode(TokenResponse.self, from: tokenData),
               token.issuedTokenType == "urn:ietf:params:oauth:token-type:access_token",
-              token.tokenType == "Bearer", token.scope.split(separator: " ").contains("orchestration:read"),
-              !token.scope.split(separator: " ").contains("orchestration:operate"),
+              token.tokenType == "Bearer", Self.hasReadOnlyScope(token.scope),
               token.expiresIn > 0 else { throw T3CodeConnectionError.readPermissionMissing }
         return (identity, token.accessToken, Date().addingTimeInterval(token.expiresIn))
     }
@@ -227,6 +226,10 @@ struct T3CodeClient {
         var allowed = CharacterSet.alphanumerics
         allowed.insert(charactersIn: "-._~")
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? ""
+    }
+
+    static func hasReadOnlyScope(_ scope: String) -> Bool {
+        Set(scope.split(whereSeparator: \.isWhitespace).map(String.init)) == ["orchestration:read"]
     }
 
     private struct Descriptor: Decodable {
@@ -339,6 +342,7 @@ struct T3ConfiguredConnectionStore {
 
 final class T3CodeActivityService: ObservableObject {
     static let shared = T3CodeActivityService()
+    static let transientFailureActivityGrace: TimeInterval = 10
 
     @Published private(set) var state: T3CodeConnectionState = .notConfigured
     @Published private(set) var activities: [T3ThreadActivity] = []
@@ -356,6 +360,8 @@ final class T3CodeActivityService: ObservableObject {
     private var runtimeStates: [String: T3CodeConnectionState] = [:]
     private var errorsByConnection: [String: T3CodeConnectionError] = [:]
     private var tokens: [String: String] = [:]
+    private var lastSuccessfulPollAt: [String: Date] = [:]
+    private var activityExpiryTasks: [String: Task<Void, Never>] = [:]
     private var pairingInProgress = false
     private var pairingGeneration = UUID()
 
@@ -572,7 +578,11 @@ final class T3CodeActivityService: ObservableObject {
                     for event in reducer.apply(next) { self.completed.send(event) }
                     self.reducers[id] = reducer
                     self.activitiesByConnection[id] = next
-                    self.lastUpdated = Date()
+                    let successfulPollAt = Date()
+                    self.lastUpdated = successfulPollAt
+                    self.activityExpiryTasks[id]?.cancel()
+                    self.activityExpiryTasks[id] = nil
+                    self.lastSuccessfulPollAt[id] = successfulPollAt
                     self.runtimeStates[id] = .connected
                     self.errorsByConnection[id] = nil
                     self.publishAggregate()
@@ -589,14 +599,14 @@ final class T3CodeActivityService: ObservableObject {
                         self.updateConnectionState()
                         return
                     } else {
-                        self.clearActivity(connectionID: id)
+                        self.clearActivityAfterTransientFailure(connectionID: id, generation: generation)
                         self.runtimeStates[id] = .reconnecting
                         self.errorsByConnection[id] = error
                     }
                     delay = min(delay * 2, 30)
                 } catch {
                     guard !Task.isCancelled, generation == self.generations[id] else { return }
-                    self.clearActivity(connectionID: id)
+                    self.clearActivityAfterTransientFailure(connectionID: id, generation: generation)
                     self.runtimeStates[id] = .reconnecting
                     self.errorsByConnection[id] = .serverUnavailable
                     delay = min(delay * 2, 30)
@@ -614,12 +624,15 @@ final class T3CodeActivityService: ObservableObject {
         generations[connectionID] = UUID()
         tasks[connectionID]?.cancel()
         tasks[connectionID] = nil
+        activityExpiryTasks[connectionID]?.cancel()
+        activityExpiryTasks[connectionID] = nil
         tokens[connectionID] = nil
         runtimeStates[connectionID] = nil
         errorsByConnection[connectionID] = nil
         if clearActivity {
             reducers[connectionID] = nil
             activitiesByConnection[connectionID] = nil
+            lastSuccessfulPollAt[connectionID] = nil
         }
     }
 
@@ -629,14 +642,37 @@ final class T3CodeActivityService: ObservableObject {
     }
 
     private func clearActivity(connectionID: String) {
+        activityExpiryTasks[connectionID]?.cancel()
+        activityExpiryTasks[connectionID] = nil
         activitiesByConnection[connectionID] = nil
         reducers[connectionID] = T3ActivityReducer()
+        lastSuccessfulPollAt[connectionID] = nil
         publishAggregate()
+    }
+
+    private func clearActivityAfterTransientFailure(connectionID: String, generation: UUID, now: Date = .now) {
+        guard let lastSuccess = lastSuccessfulPollAt[connectionID],
+              let delay = Self.activityExpiryDelay(lastSuccessfulPollAt: lastSuccess, now: now), delay > 0 else {
+            clearActivity(connectionID: connectionID)
+            return
+        }
+        guard activityExpiryTasks[connectionID] == nil else { return }
+        activityExpiryTasks[connectionID] = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(delay)) }
+            catch { return }
+            guard let self, self.generations[connectionID] == generation,
+                  self.lastSuccessfulPollAt[connectionID] == lastSuccess else { return }
+            self.activityExpiryTasks[connectionID] = nil
+            self.clearActivity(connectionID: connectionID)
+        }
     }
 
     private func clearAllActivities() {
         activitiesByConnection.removeAll()
         reducers.removeAll()
+        lastSuccessfulPollAt.removeAll()
+        activityExpiryTasks.values.forEach { $0.cancel() }
+        activityExpiryTasks.removeAll()
         activities = []
         lastUpdated = nil
     }
@@ -669,6 +705,20 @@ final class T3CodeActivityService: ObservableObject {
     static func shouldStartPolling(featureEnabled: Bool, taskAlreadyRunning: Bool,
                                    hasConnection: Bool) -> Bool {
         featureEnabled && !taskAlreadyRunning && hasConnection
+    }
+
+    static func shouldRetainActivityAfterTransientFailure(lastSuccessfulPollAt: Date?, now: Date = .now) -> Bool {
+        activityExpiryDelay(lastSuccessfulPollAt: lastSuccessfulPollAt, now: now) != nil
+    }
+
+    static func activityExpiryDate(lastSuccessfulPollAt: Date?) -> Date? {
+        lastSuccessfulPollAt?.addingTimeInterval(transientFailureActivityGrace)
+    }
+
+    static func activityExpiryDelay(lastSuccessfulPollAt: Date?, now: Date) -> TimeInterval? {
+        guard let lastSuccessfulPollAt, now >= lastSuccessfulPollAt,
+              let expiry = activityExpiryDate(lastSuccessfulPollAt: lastSuccessfulPollAt), now < expiry else { return nil }
+        return expiry.timeIntervalSince(now)
     }
 
 }
