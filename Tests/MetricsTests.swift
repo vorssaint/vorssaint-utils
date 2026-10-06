@@ -171,6 +171,7 @@ struct MetricsTests {
                 CleanerLastRunContract.run(suite)
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
+                DownloadRoutingTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)
