@@ -198,6 +198,7 @@ struct MetricsTests {
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
                 DownloadRoutingTests.run(suite)
+                ScreenshotArchiveTests.run(suite)
             }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
