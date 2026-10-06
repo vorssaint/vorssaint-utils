@@ -532,6 +532,31 @@ enum MetricsFeatureTests {
 
         // MARK: Temperature sensor selection
 
+        let intel = TemperatureSensorSelector.platform(brandString: "Intel(R) Core(TM) i7-8850H CPU @ 2.60GHz")
+        suite.expect(intel == .intel, "Intel CPUs use their own SMC sensor families")
+        let intelSensors: [(key: String, value: Double)] = [
+            ("TC1C", 77), ("TC2C", 74), ("TC0P", 63), ("TCMX", 80),
+            ("TCGC", 85), ("TG0P", 60), ("TB0T", 36), ("Tp01", 95),
+        ]
+        let intelCPU = intelSensors.filter {
+            TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: intel)
+        }
+        suite.expect(intelCPU.map(\.key) == ["TC1C", "TC2C", "TC0P", "TCMX"],
+                     "Intel CPU discovery excludes GPU, battery and Apple Silicon sensors")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: intelCPU, platform: intel
+        ) ?? -1, 77, "Intel CPU display prefers the hottest core over auxiliary sensors")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("TC0P", 63)], platform: intel
+        ) ?? -1, 63, "Intel CPU display falls back to its package sensor when cores are absent")
+        suite.expect(intelSensors.filter {
+            TemperatureSensorSelector.isGPUTemperatureKey($0.key, platform: intel)
+        }.map(\.key) == ["TCGC", "TG0P"], "Intel GPU discovery includes integrated and discrete GPUs")
+        suite.expect(!TemperatureSensorSelector.isGPUTemperatureKey("TGDD", platform: intel)
+                     && !TemperatureSensorSelector.isGPUTemperatureKey("TG0P", platform: .appleM1Family)
+                     && TemperatureSensorSelector.isGPUTemperatureKey("Tg0D", platform: .appleM1Family),
+                     "GPU selection excludes auxiliary Intel readings and preserves Apple Silicon")
+
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M1") == .appleM1Family,
                "Apple M1 uses the mapped CPU core sensor set")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Apple M2 Pro") == .appleM2Family,
