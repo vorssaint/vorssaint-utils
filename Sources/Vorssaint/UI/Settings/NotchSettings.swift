@@ -42,6 +42,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
     @AppStorage(DefaultsKey.notchHoverDelay) private var hoverDelay = NotchSupport.defaultHoverDelay
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
+    @AppStorage(DefaultsKey.notchHidePinned) private var hidePinned = true
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
     @AppStorage(DefaultsKey.notchOpensActivity) private var opensActivity = true
     @AppStorage(DefaultsKey.notchHiddenModules) private var hidden = ""
@@ -99,7 +100,7 @@ struct NotchSettings: View {
     private var configuration: [String] {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft), String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled), String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer), String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown), String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight), String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback), String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel), String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus), display, silhouette, String(hover), hidden, order, String(volume),
-         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity)]
+         String(brightness), String(keyboardLight), String(microphone), String(battery), String(clipboard), String(clipboardWindow), String(capture), String(trackChange), captureAction, String(showInCaptures), String(returnHome), String(hidePinned), homeModule, String(opensActivity), String(scratchpad), String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -373,9 +374,7 @@ struct NotchSettings: View {
                     PanelReorderableItem(item: item,
                         order: Binding(get: { orderedShortcuts }, set: { controlOrder = $0.map(\.rawValue).joined(separator: ",") }),
                         dragging: $draggingControl) {
-                        toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable(),
-                                   reason: controlReason(item), reservesReason: !orderedShortcuts.allSatisfy { $0.isAvailable() },
-                                   unavailableAction: controlUnavailableAction(item))
+                        shortcutCard(item)
                     }
                 }
             }
@@ -384,6 +383,7 @@ struct NotchSettings: View {
             switchRow(NotchControlItem.keepAwake.symbol, activities.keepAwakeActivity,
                       caption: activities.keepAwakeActivityHint, isOn: $keepAwakeActivity)
                 .disabled(!AppFeature.keepAwake.isAvailable)
+            switchRow("pin", text.hidePinned, caption: text.hidePinnedHint, isOn: $hidePinned)
         case .music:
             let music = FeatureStrings.notchMusicExtras(l10n.language)
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
@@ -690,6 +690,17 @@ struct NotchSettings: View {
 
     /// A control that opens a page is off while that page is hidden, or while
     /// the feature behind it is disabled; the others follow their feature.
+    /// A shortcut already pinned around the island reads as such instead of
+    /// looking switched on while the island leaves it out.
+    private func shortcutCard(_ item: NotchControlItem) -> some View {
+        let pinnedItems = NotchSupport.pinned()
+        let pinned = item.isAvailable() && pinnedItems.contains(item)
+        return toggleCard(item.title(l10n), symbol: item.symbol, value: controlBinding(item), available: item.isAvailable() && !pinned,
+                          reason: pinned ? text.pinnedAroundIsland : controlReason(item),
+                          reservesReason: !orderedShortcuts.allSatisfy { $0.isAvailable() && !pinnedItems.contains($0) },
+                          unavailableAction: pinned ? nil : controlUnavailableAction(item))
+    }
+
     private func controlReason(_ item: NotchControlItem) -> String {
         switch item.setupRequirement {
         case .feature(let feature): return enableFeatureReason(feature)

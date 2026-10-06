@@ -1061,8 +1061,39 @@ enum NotchTests {
                      "a saved island choice stays configured even if the master switch was never used")
 
         suite.expect(!NotchSupport.isEnabled(in: defaults), "notch is opt-in")
-        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar],
-               "home defaults prioritize playback and everyday system controls")
+        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .keepAwake, .timer, .calendar],
+               "home controls leave out shortcuts to pinned sections but keep live tiles like music and the timer")
+        defaults.set(false, forKey: DefaultsKey.notchHidePinned)
+        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .mixer, .keepAwake, .timer, .calendar]
+               && !NotchSupport.isPinned(.timer, in: defaults),
+               "turning the pinned filter off shows every tile again")
+        defaults.removeObject(forKey: DefaultsKey.notchHidePinned)
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore, .control(.keepAwake)])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(NotchSupport.controls(in: defaults) == [.volume, .brightness, .music, .mixer, .timer, .calendar],
+               "unpinned sections return as tiles and a pinned control leaves the tiles")
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore, .control(.scratchpad)])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(NotchSupport.pinned(in: defaults).modules == [.scratchpad] && NotchSupport.isPinned(.scratchpad, in: defaults),
+               "a control button counts for its section too")
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore, .control(.music)])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(NotchSupport.controls(in: defaults).contains(.music), "pinned music control keeps playback card")
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.calendar), .control(.timer)])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(NotchSupport.controls(in: defaults).contains(.timer) && NotchSupport.controls(in: defaults).contains(.calendar),
+               "pinned timer and calendar keep the running clock and next appointment tiles")
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.scratchpad)])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
+        let savedHidden = defaults.string(forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("scratchpad", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(!NotchSupport.isPinned(.scratchpad, in: defaults), "hidden scratchpad page no longer hides its tile")
+        defaults.set(savedHidden, forKey: DefaultsKey.notchHiddenModules)
+        defaults.set(false, forKey: DefaultsKey.notchScratchpad)
+        suite.expect(!NotchSupport.isPinned(.scratchpad, in: defaults), "routing off: section button is a different destination")
+        defaults.removeObject(forKey: DefaultsKey.notchScratchpad)
+        defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore])),
+                     forKey: DefaultsKey.notchQuickAccessLayout)
         defaults.set(false, forKey: DefaultsKey.notchTimerEnabled)
         defaults.set(false, forKey: DefaultsKey.notchCalendarEnabled)
         suite.expect(!NotchSupport.controls(in: defaults).contains(.timer)
@@ -1149,6 +1180,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.microphone, in: defaults), "a removed microphone mute announces nothing in the island")
         defaults.set(true, forKey: AppFeature.micMute.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchTrackChange)
+        defaults.removeObject(forKey: DefaultsKey.notchQuickAccessLayout)
         let initialLayout = NotchQuickAccessConfiguration.current(in: defaults)
         suite.expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
                && initialLayout.buttons.filter { $0.side == .right }.compactMap(\.action) == [.settings, .module(.mixer)]

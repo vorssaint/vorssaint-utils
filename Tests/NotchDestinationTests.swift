@@ -153,6 +153,8 @@ enum NotchDestinationContract {
             suite.expect(service.expanded && service.selected == .music && service.panel?.acceptsKeyFocus == true,
                    "hiding automatic music preserves explicit opening of its controls")
             service.open(.controls)
+            defaults.set(try! JSONEncoder().encode(NotchQuickAccessConfiguration(side: .left, actions: [.explore])),
+                         forKey: DefaultsKey.notchQuickAccessLayout)
             suite.expect(service.expanded && service.selected == .controls
                    && NotchSupport.controls(in: defaults).contains(.music),
                    "hiding automatic music preserves playback controls on the island's home page")
