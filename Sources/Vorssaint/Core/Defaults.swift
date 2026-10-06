@@ -370,6 +370,7 @@ enum DefaultsKey {
     static let panelToggleScreenSaver = "panelToggleScreenSaver"
     static let panelToggleHidePointerIdle = "panelToggleHidePointerIdle"
     static let panelToggleDockRevealDelay = "panelToggleDockRevealDelay"
+    static let panelToggleHotCorners = "panelToggleHotCorners"
 
     // System monitor — live metrics shown next to the menu bar icon (opt-in).
     static let menuBarCPU = "menuBarCPU"
@@ -1557,6 +1558,7 @@ enum Defaults {
         DefaultsKey.pointerHideIdleEnabled: false,
         DefaultsKey.pointerHideIdleSeconds: PointerHideSupport.defaultThreshold,
         DefaultsKey.panelToggleDockRevealDelay: true,
+        DefaultsKey.panelToggleHotCorners: true,
         // Menu bar metrics start off (the icon stays clean) and are opt-in.
         // The panel shows every monitoring block by default; users hide what
         // they don't want.

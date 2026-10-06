@@ -85,6 +85,7 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleScreenSaver) private var showScreenSaver = true
     @AppStorage(DefaultsKey.panelToggleHidePointerIdle) private var showHidePointerIdle = true
     @AppStorage(DefaultsKey.panelToggleDockRevealDelay) private var showDockRevealDelay = true
+    @AppStorage(DefaultsKey.panelToggleHotCorners) private var showHotCorners = true
     @AppStorage(DefaultsKey.panelToggleOrder) private var toggleOrderRaw = ""
 
     let editing: Bool
@@ -121,7 +122,8 @@ struct QuickTogglesList: View {
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
                     DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
                     DefaultsKey.panelToggleHidePointerIdle,
-                    DefaultsKey.panelToggleDockRevealDelay] {
+                    DefaultsKey.panelToggleDockRevealDelay,
+                    DefaultsKey.panelToggleHotCorners] {
             defaults.set(true, forKey: key)
         }
     }
@@ -167,6 +169,7 @@ struct QuickTogglesList: View {
         case .screenSaver: return $showScreenSaver
         case .hidePointerIdle: return $showHidePointerIdle
         case .dockRevealDelay: return $showDockRevealDelay
+        case .hotCorners: return $showHotCorners
         }
     }
 
@@ -326,6 +329,33 @@ struct QuickTogglesList: View {
                            isEditing: editing,
                            showsDragHandle: true,
                            visibility: visibilityBinding(item))
+        case .hotCorners:
+            // The caption is the stop the next click lands on, not the one
+            // currently set: a cycle has no "on" for a switch to show, and
+            // naming the destination is what makes the click predictable.
+            UtilityActionButton(title: strings.hotCornerTitle,
+                                caption: caption(for: item, idle: nextHotCornerName(strings)),
+                                systemImage: "rectangle.bottomright.filled",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: visibilityBinding(item),
+                                captionStaysVisible: reportsState(item),
+                                action: {
+                                    QuickTogglesService.shared.cycleHotCorners()
+                                })
+        }
+    }
+
+    /// The name of the stop the cycle advances to next. Localized here rather
+    /// than in the service so the four corner names travel with the rest of
+    /// the row's copy in all fifteen locales.
+    private func nextHotCornerName(_ strings: QuickToggleFeatureStrings) -> String {
+        let next = QuickTogglesSupport.nextHotCornerState(toggles.hotCornerState)
+        switch next {
+        case .none: return strings.hotCornerStateNone
+        case .bottomLeft: return strings.hotCornerStateBottomLeft
+        case .bottomRight: return strings.hotCornerStateBottomRight
+        case .both: return strings.hotCornerStateBoth
         }
     }
 

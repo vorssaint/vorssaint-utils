@@ -38,6 +38,11 @@ struct QuickToggleFeatureStrings {
     let dockRevealDelayTitle: String
     let dockRevealDelayRestoreTitle: String
     let dockRevealDelayCaption: String
+    let hotCornerTitle: String
+    let hotCornerStateNone: String
+    let hotCornerStateBottomLeft: String
+    let hotCornerStateBottomRight: String
+    let hotCornerStateBoth: String
 }
 
 extension FeatureStrings {
@@ -95,6 +100,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Skip the Dock's reveal delay",
         dockRevealDelayRestoreTitle: "Restore the Dock's reveal delay",
         dockRevealDelayCaption: "The Dock appears as soon as the pointer reaches it.",
+        hotCornerTitle: "Cycle hot corners",
+        hotCornerStateNone: "None",
+        hotCornerStateBottomLeft: "Bottom left",
+        hotCornerStateBottomRight: "Bottom right",
+        hotCornerStateBoth: "Both corners"
     )
 
     static let ptBR = QuickToggleFeatureStrings(
@@ -129,6 +139,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Ignorar o atraso de exibição do Dock",
         dockRevealDelayRestoreTitle: "Restaurar o atraso de exibição do Dock",
         dockRevealDelayCaption: "O Dock aparece assim que o ponteiro chega nele.",
+        hotCornerTitle: "Alternar os cantos ativos",
+        hotCornerStateNone: "Nenhum",
+        hotCornerStateBottomLeft: "Base esquerda",
+        hotCornerStateBottomRight: "Base direita",
+        hotCornerStateBoth: "Os dois cantos"
     )
 
     static let tr = QuickToggleFeatureStrings(
@@ -163,6 +178,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Dock’un açılma gecikmesini kaldır",
         dockRevealDelayRestoreTitle: "Dock’un açılma gecikmesini geri getir",
         dockRevealDelayCaption: "Dock, işaretçi ona ulaşır ulaşmaz görünür.",
+        hotCornerTitle: "Aktif köşeleri sırayla değiştir",
+        hotCornerStateNone: "Yok",
+        hotCornerStateBottomLeft: "Sol alt",
+        hotCornerStateBottomRight: "Sağ alt",
+        hotCornerStateBoth: "İki köşe"
     )
 
     static let ru = QuickToggleFeatureStrings(
@@ -197,6 +217,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Пропустить задержку появления Dock",
         dockRevealDelayRestoreTitle: "Восстановить задержку появления Dock",
         dockRevealDelayCaption: "Dock появляется, как только указатель до него доходит.",
+        hotCornerTitle: "Переключать активные углы",
+        hotCornerStateNone: "Нет",
+        hotCornerStateBottomLeft: "Нижний левый угол",
+        hotCornerStateBottomRight: "Нижний правый угол",
+        hotCornerStateBoth: "Оба угла"
     )
 
     static let es = QuickToggleFeatureStrings(
@@ -231,6 +256,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Omitir el retardo de aparición del Dock",
         dockRevealDelayRestoreTitle: "Restaurar el retardo de aparición del Dock",
         dockRevealDelayCaption: "El Dock aparece en cuanto el puntero lo alcanza.",
+        hotCornerTitle: "Alternar las esquinas activas",
+        hotCornerStateNone: "Ninguna",
+        hotCornerStateBottomLeft: "Abajo a la izquierda",
+        hotCornerStateBottomRight: "Abajo a la derecha",
+        hotCornerStateBoth: "Ambas esquinas"
     )
 
     static let sk = QuickToggleFeatureStrings(
@@ -265,6 +295,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Preskočiť oneskorenie zobrazenia Docku",
         dockRevealDelayRestoreTitle: "Obnoviť oneskorenie zobrazenia Docku",
         dockRevealDelayCaption: "Dock sa zobrazí hneď, ako naň kurzor dosiahne.",
+        hotCornerTitle: "Prepnúť aktívne rohy",
+        hotCornerStateNone: "Žiadne",
+        hotCornerStateBottomLeft: "Vľavo dole",
+        hotCornerStateBottomRight: "Vpravo dole",
+        hotCornerStateBoth: "Oba rohy"
     )
 
     static let de = QuickToggleFeatureStrings(
@@ -299,6 +334,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Verzögerung beim Einblenden des Docks überspringen",
         dockRevealDelayRestoreTitle: "Verzögerung beim Einblenden des Docks wiederherstellen",
         dockRevealDelayCaption: "Das Dock erscheint, sobald der Zeiger es erreicht.",
+        hotCornerTitle: "Aktive Ecken durchwechseln",
+        hotCornerStateNone: "Keine",
+        hotCornerStateBottomLeft: "Unten links",
+        hotCornerStateBottomRight: "Unten rechts",
+        hotCornerStateBoth: "Beide Ecken"
     )
 
     static let fr = QuickToggleFeatureStrings(
@@ -333,6 +373,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Ignorer le délai d’affichage du Dock",
         dockRevealDelayRestoreTitle: "Rétablir le délai d’affichage du Dock",
         dockRevealDelayCaption: "Le Dock apparaît dès que le pointeur l’atteint.",
+        hotCornerTitle: "Alterner les coins actifs",
+        hotCornerStateNone: "Aucun",
+        hotCornerStateBottomLeft: "En bas à gauche",
+        hotCornerStateBottomRight: "En bas à droite",
+        hotCornerStateBoth: "Les deux coins"
     )
 
     static let it = QuickToggleFeatureStrings(
@@ -367,6 +412,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Salta il ritardo di comparsa del Dock",
         dockRevealDelayRestoreTitle: "Ripristina il ritardo di comparsa del Dock",
         dockRevealDelayCaption: "Il Dock compare appena il puntatore lo raggiunge.",
+        hotCornerTitle: "Alterna gli angoli attivi",
+        hotCornerStateNone: "Nessuno",
+        hotCornerStateBottomLeft: "In basso a sinistra",
+        hotCornerStateBottomRight: "In basso a destra",
+        hotCornerStateBoth: "Entrambi gli angoli"
     )
 
     static let ja = QuickToggleFeatureStrings(
@@ -401,6 +451,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Dock の表示を待たせない",
         dockRevealDelayRestoreTitle: "Dock の表示待ちを元に戻す",
         dockRevealDelayCaption: "ポインタが Dock に触れるとすぐに表示されます。",
+        hotCornerTitle: "アクティブコーナーを切り替える",
+        hotCornerStateNone: "なし",
+        hotCornerStateBottomLeft: "左下",
+        hotCornerStateBottomRight: "右下",
+        hotCornerStateBoth: "両コーナー"
     )
 
     static let ko = QuickToggleFeatureStrings(
@@ -435,6 +490,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Dock 표시 지연 건너뛰기",
         dockRevealDelayRestoreTitle: "Dock 표시 지연 복원",
         dockRevealDelayCaption: "포인터가 닿는 즉시 Dock이 나타납니다.",
+        hotCornerTitle: "활성 모서리 순환",
+        hotCornerStateNone: "사용 안 함",
+        hotCornerStateBottomLeft: "왼쪽 아래",
+        hotCornerStateBottomRight: "오른쪽 아래",
+        hotCornerStateBoth: "양쪽 모서리"
     )
 
     static let zhHans = QuickToggleFeatureStrings(
@@ -469,6 +529,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "跳过程序坞显示延迟",
         dockRevealDelayRestoreTitle: "恢复程序坞显示延迟",
         dockRevealDelayCaption: "指针一到程序坞，程序坞就立即显示。",
+        hotCornerTitle: "循环切换热区",
+        hotCornerStateNone: "无",
+        hotCornerStateBottomLeft: "左下角",
+        hotCornerStateBottomRight: "右下角",
+        hotCornerStateBoth: "两个角落"
     )
 
     static let zhTW = QuickToggleFeatureStrings(
@@ -503,6 +568,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "略過 Dock 顯示延遲",
         dockRevealDelayRestoreTitle: "恢復 Dock 顯示延遲",
         dockRevealDelayCaption: "游標一移到 Dock，Dock 就會立即顯示。",
+        hotCornerTitle: "循環切換熱區",
+        hotCornerStateNone: "無",
+        hotCornerStateBottomLeft: "左下角",
+        hotCornerStateBottomRight: "右下角",
+        hotCornerStateBoth: "兩個角落"
     )
 
     static let zhHK = QuickToggleFeatureStrings(
@@ -537,6 +607,11 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "略過 Dock 顯示延遲",
         dockRevealDelayRestoreTitle: "恢復 Dock 顯示延遲",
         dockRevealDelayCaption: "游標一移到 Dock，Dock 就會立即顯示。",
+        hotCornerTitle: "循環切換熱區",
+        hotCornerStateNone: "無",
+        hotCornerStateBottomLeft: "左下角",
+        hotCornerStateBottomRight: "右下角",
+        hotCornerStateBoth: "兩個角落"
     )
     static let uk = QuickToggleFeatureStrings(
         pageTitle: "Швидкі перемикачі",
@@ -570,5 +645,10 @@ extension QuickToggleFeatureStrings {
         dockRevealDelayTitle: "Пропустити затримку появи Dock",
         dockRevealDelayRestoreTitle: "Відновити затримку появи Dock",
         dockRevealDelayCaption: "Dock з’являється, щойно вказівник його досягає.",
+        hotCornerTitle: "Перемикати активні кути",
+        hotCornerStateNone: "Немає",
+        hotCornerStateBottomLeft: "Внизу ліворуч",
+        hotCornerStateBottomRight: "Внизу праворуч",
+        hotCornerStateBoth: "Обидва кути"
     )
 }

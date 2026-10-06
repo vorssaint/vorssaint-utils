@@ -146,4 +146,93 @@ enum QuickTogglesSupport {
     static func toggledRevealDelay(_ current: Double?) -> Double {
         revealDelayIsInstant(current) ? systemRevealDelay : instantRevealDelay
     }
+
+    // The two hot-corner codes below are undocumented system values. Apple
+    // publishes no list of them; they are corroborated across independent
+    // sources that agree, which is the strongest evidence available for an
+    // interface that has no documentation at all. A future release could
+    // renumber them, so re-verify rather than trust this comment -- and rather
+    // than assume the codes the toggle does not write are safe to touch, which
+    // is why only these two exist here.
+
+    /// Undocumented hot-corner code for "do nothing".
+    static let hotCornerActionNone = 0
+    /// Undocumented hot-corner code for "Show Desktop".
+    static let hotCornerActionShowDesktop = 4
+
+    static let bottomLeftCornerKey = "wvous-bl-corner"
+    static let bottomRightCornerKey = "wvous-br-corner"
+
+    /// Which of the two bottom corners carry the Show Desktop hot corner.
+    enum DockHotCorner: String, CaseIterable, Equatable {
+        case none, bottomLeft, bottomRight, both
+    }
+
+    /// The cycle order. `none` first because switching the feature off is the
+    /// state a user returns to when they want the corners back.
+    static func nextHotCornerState(_ state: DockHotCorner) -> DockHotCorner {
+        switch state {
+        case .none: return .bottomLeft
+        case .bottomLeft: return .bottomRight
+        case .bottomRight: return .both
+        case .both: return .none
+        }
+    }
+
+    /// What the two corner codes currently say. A corner counts as on when its
+    /// code is Show Desktop specifically — not merely non-zero — because a corner
+    /// the user assigned Mission Control to is not one this toggle owns, and
+    /// reporting it as "on" would promise a Desktop corner it will not give.
+    static func hotCornerState(bottomLeft: Any?, bottomRight: Any?) -> DockHotCorner {
+        hotCornerState(bottomLeftCode: cornerCode(bottomLeft),
+                       bottomRightCode: cornerCode(bottomRight))
+    }
+
+    /// A raw corner value as the integer the code comparison wants, or "no
+    /// action" when the key is unset or holds something unreadable — both of
+    /// which read as off, which is what they are.
+    private static func cornerCode(_ value: Any?) -> Int {
+        guard let number = dockNumber(value) else { return hotCornerActionNone }
+        return Int(number)
+    }
+
+    /// The code each corner needs for a given state.
+    static func hotCornerCodes(for state: DockHotCorner) -> (bottomLeft: Int, bottomRight: Int) {
+        switch state {
+        case .none:
+            return (hotCornerActionNone, hotCornerActionNone)
+        case .bottomLeft:
+            return (hotCornerActionShowDesktop, hotCornerActionNone)
+        case .bottomRight:
+            return (hotCornerActionNone, hotCornerActionShowDesktop)
+        case .both:
+            return (hotCornerActionShowDesktop, hotCornerActionShowDesktop)
+        }
+    }
+
+    /// The state a set of codes reads back as. Exists so the cycle can be proven
+    /// to survive a round trip through the preference layer instead of assumed to.
+    static func hotCornerState(bottomLeftCode: Int, bottomRightCode: Int) -> DockHotCorner {
+        let left = bottomLeftCode == hotCornerActionShowDesktop
+        let right = bottomRightCode == hotCornerActionShowDesktop
+        switch (left, right) {
+        case (false, false): return .none
+        case (true, false): return .bottomLeft
+        case (false, true): return .bottomRight
+        case (true, true): return .both
+        }
+    }
+
+    // The toggle OWNS the two bottom corners while it has them on Show Desktop.
+    // Switching a corner off and back on leaves it on Show Desktop, not on
+    // whatever action the user had before: the original codes are deliberately
+    // not stored, because a toggle that has to keep a shadow copy consistent
+    // with a preference another app and System Settings both write is a worse
+    // bug than a corner that comes back as Desktop. The user reassigns a corner
+    // in System Settings, which is where every other hot corner is chosen too,
+    // and the row's caption says which corner the next click will take.
+    //
+    // The top two corners (wvous-tl-corner, wvous-tr-corner) are never read and
+    // never written. The cycle covers only the corners a pointer reaches without
+    // travelling, and a key the toggle does not touch is a key it cannot undo.
 }

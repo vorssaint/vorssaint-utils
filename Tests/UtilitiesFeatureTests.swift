@@ -1328,6 +1328,42 @@ enum UtilitiesFeatureTests {
                     QuickTogglesSupport.toggledRevealDelay(nil))
                 == QuickTogglesSupport.systemRevealDelay,
                "two clicks leave the delay where the system would have put it")
+
+
+        let showDesktop = QuickTogglesSupport.hotCornerActionShowDesktop
+        let otherAction = QuickTogglesSupport.hotCornerActionNone + 2
+        suite.expect(QuickTogglesSupport.hotCornerState(bottomLeftCode: 0, bottomRightCode: 0) == .none
+                && QuickTogglesSupport.hotCornerState(bottomLeftCode: showDesktop, bottomRightCode: 0) == .bottomLeft
+                && QuickTogglesSupport.hotCornerState(bottomLeftCode: 0, bottomRightCode: showDesktop) == .bottomRight
+                && QuickTogglesSupport.hotCornerState(bottomLeftCode: showDesktop, bottomRightCode: showDesktop) == .both,
+               "each pair of corner codes reads back as the state that wrote it")
+        suite.expect(QuickTogglesSupport.hotCornerState(bottomLeft: otherAction, bottomRight: otherAction) == .none
+                && QuickTogglesSupport.hotCornerState(bottomLeft: showDesktop, bottomRight: otherAction) == .bottomLeft,
+               "a corner set to some other action counts as off, so the row never promises a Desktop corner it will not give")
+        suite.expect(QuickTogglesSupport.hotCornerState(bottomLeft: nil, bottomRight: nil) == .none
+                && QuickTogglesSupport.hotCornerState(bottomLeft: "0", bottomRight: "4") == .bottomRight,
+               "absent and string-valued corner codes are read the way the Dock stores them")
+
+        suite.expect(QuickTogglesSupport.DockHotCorner.allCases.count == 4,
+               "the hot corner cycle has four stops")
+        var visitedHotCorners: [QuickTogglesSupport.DockHotCorner] = []
+        var cornerWalk: QuickTogglesSupport.DockHotCorner = .none
+        for _ in 0..<QuickTogglesSupport.DockHotCorner.allCases.count {
+            visitedHotCorners.append(cornerWalk)
+            cornerWalk = QuickTogglesSupport.nextHotCornerState(cornerWalk)
+        }
+        suite.expect(visitedHotCorners.sorted { $0.rawValue < $1.rawValue }
+                == QuickTogglesSupport.DockHotCorner.allCases.sorted { $0.rawValue < $1.rawValue },
+               "the cycle visits every corner state before it repeats")
+        suite.expect(cornerWalk == .none,
+               "the cycle comes home after one round, so it never strands a user on a dead stop")
+
+        for hotCorner in QuickTogglesSupport.DockHotCorner.allCases {
+            let codes = QuickTogglesSupport.hotCornerCodes(for: hotCorner)
+            suite.expect(QuickTogglesSupport.hotCornerState(bottomLeftCode: codes.bottomLeft,
+                                                          bottomRightCode: codes.bottomRight) == hotCorner,
+                   "the \(hotCorner.rawValue) codes survive a write and read back as \(hotCorner.rawValue)")
+        }
         // MARK: A sleeping clock
         for shareService in ["Sources/Vorssaint/Services/QuickTools/ScreenshotShareService.swift",
                              "Sources/Vorssaint/Services/Recorder/RecordingShareService.swift"] {
