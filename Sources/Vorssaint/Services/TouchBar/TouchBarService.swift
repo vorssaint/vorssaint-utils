@@ -7,6 +7,9 @@ import Combine
 final class TouchBarService: NSObject, NSTouchBarDelegate {
     static let shared = TouchBarService()
 
+    private static let groupItemIdentifier =
+        NSTouchBarItem.Identifier("com.vorssaint.touchbar.group")
+
     private static let keepAwakeItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.keep-awake")
     private static let micMuteItemIdentifier =
@@ -15,8 +18,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.clipboard")
     private static let systemMetricsItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.system-metrics")
-    private static let mediaItemIdentifier =
-        NSTouchBarItem.Identifier("com.vorssaint.touchbar.media")
     private static let quickLauncherItemIdentifier =
         NSTouchBarItem.Identifier("com.vorssaint.touchbar.quick-launcher")
     private static let killProcessItemIdentifier =
@@ -54,12 +55,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
             }
             .store(in: &cancellables)
 
-        NotchMusicService.shared.$playback
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] playback in
-                self?.updateMediaToggleButton(isPlaying: playback?.isPlaying ?? false)
-            }
-            .store(in: &cancellables)
     }
 
     func syncWithPreferences() {
@@ -77,13 +72,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 : .none
         )
 
-        let mediaVisible = shouldBeActive
-            && TouchBarControl.visibleOrdered.contains(.media)
-        if mediaVisible {
-            NotchMusicService.shared.start(for: .touchBar)
-        } else {
-            NotchMusicService.shared.stop(for: .touchBar)
-        }
 
         if shouldBeActive {
             touchBar = makeTouchBar()
@@ -95,24 +83,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private func makeTouchBar() -> NSTouchBar {
         let bar = NSTouchBar()
         bar.delegate = self
-        bar.defaultItemIdentifiers = TouchBarControl.visibleOrdered.map { control in
-            switch control {
-            case .keepAwake:
-                return Self.keepAwakeItemIdentifier
-            case .micMute:
-                return Self.micMuteItemIdentifier
-            case .clipboard:
-                return Self.clipboardItemIdentifier
-            case .systemMetrics:
-                return Self.systemMetricsItemIdentifier
-            case .media:
-                return Self.mediaItemIdentifier
-            case .quickLauncher:
-                return Self.quickLauncherItemIdentifier
-            case .killProcess:
-                return Self.killProcessItemIdentifier
-            }
-        }
+        bar.defaultItemIdentifiers = [Self.groupItemIdentifier]
         return bar
     }
 
@@ -121,6 +92,9 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         makeItemForIdentifier identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem? {
         switch identifier {
+        case Self.groupItemIdentifier:
+            return makeGroupItem(identifier: identifier)
+
         case Self.keepAwakeItemIdentifier:
             return makeKeepAwakeItem(identifier: identifier)
 
@@ -133,8 +107,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         case Self.systemMetricsItemIdentifier:
             return makeSystemMetricsItem(identifier: identifier)
 
-        case Self.mediaItemIdentifier:
-            return makeMediaItem(identifier: identifier)
 
         case Self.quickLauncherItemIdentifier:
             return makeQuickLauncherItem(identifier: identifier)
@@ -145,6 +117,86 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         default:
             return nil
         }
+    }
+
+    private func makeGroupItem(
+        identifier: NSTouchBarItem.Identifier
+    ) -> NSTouchBarItem {
+        let item = NSCustomTouchBarItem(identifier: identifier)
+
+        let controlViews: [NSView] = TouchBarControl.visibleOrdered.compactMap { control in
+            switch control {
+            case .keepAwake:
+                return makeKeepAwakeItem(
+                    identifier: Self.keepAwakeItemIdentifier
+                ).view
+            case .micMute:
+                return makeMicMuteItem(
+                    identifier: Self.micMuteItemIdentifier
+                ).view
+            case .clipboard:
+                return makeClipboardItem(
+                    identifier: Self.clipboardItemIdentifier
+                ).view
+            case .systemMetrics:
+                return makeSystemMetricsItem(
+                    identifier: Self.systemMetricsItemIdentifier
+                ).view
+            case .quickLauncher:
+                return makeQuickLauncherItem(
+                    identifier: Self.quickLauncherItemIdentifier
+                ).view
+            case .killProcess:
+                return makeKillProcessItem(
+                    identifier: Self.killProcessItemIdentifier
+                ).view
+            }
+        }
+
+        var arrangedViews: [NSView] = []
+
+        for (index, view) in controlViews.enumerated() {
+            if index > 0 {
+                let separator = NSView()
+                separator.wantsLayer = true
+                separator.layer?.backgroundColor = NSColor.white
+                    .withAlphaComponent(0.14)
+                    .cgColor
+
+                separator.translatesAutoresizingMaskIntoConstraints = false
+                NSLayoutConstraint.activate([
+                    separator.widthAnchor.constraint(equalToConstant: 1),
+                    separator.heightAnchor.constraint(equalToConstant: 20)
+                ])
+
+                arrangedViews.append(separator)
+            }
+
+            arrangedViews.append(view)
+        }
+
+        let stack = NSStackView(views: arrangedViews)
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 7
+        stack.edgeInsets = NSEdgeInsets(
+            top: 4,
+            left: 9,
+            bottom: 4,
+            right: 9
+        )
+
+        stack.wantsLayer = true
+        stack.layer?.cornerRadius = 6
+        stack.layer?.backgroundColor = NSColor.white
+            .withAlphaComponent(0.16)
+            .cgColor
+
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        stack.heightAnchor.constraint(equalToConstant: 30).isActive = true
+
+        item.view = stack
+        return item
     }
 
     private func makeKillProcessItem(
@@ -312,14 +364,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         return NSImage(
             systemSymbolName: symbol,
             accessibilityDescription: "Microphone Mute"
-        ) ?? NSImage()
-    }
-
-    private func updateMediaToggleButton(isPlaying: Bool) {
-        let symbol = isPlaying ? "pause.fill" : "play.fill"
-        mediaToggleButton?.image = NSImage(
-            systemSymbolName: symbol,
-            accessibilityDescription: "Play/Pause"
         ) ?? NSImage()
     }
 

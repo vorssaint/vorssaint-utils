@@ -938,7 +938,6 @@ enum DefaultsKey {
     static let touchBarShowMicMute = "touchBarShowMicMute"
     static let touchBarShowClipboard = "touchBarShowClipboard"
     static let touchBarShowSystemMetrics = "touchBarShowSystemMetrics"
-    static let touchBarShowMedia = "touchBarShowMedia"
     static let touchBarShowQuickLauncher = "touchBarShowQuickLauncher"
     static let touchBarShowKillProcess = "touchBarShowKillProcess"
 
@@ -1950,7 +1949,6 @@ enum Defaults {
         DefaultsKey.touchBarShowMicMute: true,
         DefaultsKey.touchBarShowClipboard: true,
         DefaultsKey.touchBarShowSystemMetrics: true,
-        DefaultsKey.touchBarShowMedia: true,
         DefaultsKey.touchBarShowQuickLauncher: true,
         DefaultsKey.touchBarShowKillProcess: true,
     ]

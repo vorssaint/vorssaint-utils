@@ -10,7 +10,6 @@ struct TouchBarSettings: View {
     @AppStorage(DefaultsKey.touchBarShowMicMute) private var showMicMute = true
     @AppStorage(DefaultsKey.touchBarShowClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.touchBarShowSystemMetrics) private var showSystemMetrics = true
-    @AppStorage(DefaultsKey.touchBarShowMedia) private var showMedia = true
     @AppStorage(DefaultsKey.touchBarShowQuickLauncher) private var showQuickLauncher = true
     @AppStorage(DefaultsKey.touchBarShowKillProcess) private var showKillProcess = true
     @State private var order = TouchBarControl.ordered
@@ -49,7 +48,6 @@ struct TouchBarSettings: View {
         .onChange(of: showMicMute) { _, _ in refreshTouchBar() }
         .onChange(of: showClipboard) { _, _ in refreshTouchBar() }
         .onChange(of: showSystemMetrics) { _, _ in refreshTouchBar() }
-        .onChange(of: showMedia) { _, _ in refreshTouchBar() }
         .onChange(of: showQuickLauncher) { _, _ in refreshTouchBar() }
         .onChange(of: showKillProcess) { _, _ in refreshTouchBar() }
     }
@@ -64,8 +62,6 @@ struct TouchBarSettings: View {
             return $showClipboard
         case .systemMetrics:
             return $showSystemMetrics
-        case .media:
-            return $showMedia
         case .quickLauncher:
             return $showQuickLauncher
         case .killProcess:
@@ -89,7 +85,6 @@ private struct TouchBarControlRow: View {
         case .micMute: return "Microphone Mute"
         case .clipboard: return "Clipboard"
         case .systemMetrics: return "System Metrics"
-        case .media: return "Media"
         case .quickLauncher: return "Quick Launcher"
         case .killProcess: return "Kill Process"
         }
@@ -101,7 +96,6 @@ private struct TouchBarControlRow: View {
         case .micMute: return "mic.fill"
         case .clipboard: return "doc.on.clipboard"
         case .systemMetrics: return "chart.bar.fill"
-        case .media: return "playpause.fill"
         case .quickLauncher: return "square.grid.2x2"
         case .killProcess: return "xmark.octagon"
         }
