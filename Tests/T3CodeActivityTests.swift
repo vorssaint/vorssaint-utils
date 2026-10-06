@@ -162,6 +162,12 @@ enum T3CodeActivityTests {
                                                                 taskAlreadyRunning: false,
                                                                 hasConnection: true),
                      "a saved T3 connection does not poll while AI Agents is disabled")
+        suite.expect(T3CodeActivityService.hasSavedConnection(endpoint: "http://127.0.0.1:3773",
+                                                               environmentID: "env-local")
+                        && !T3CodeActivityService.hasSavedConnection(endpoint: "", environmentID: "env-local")
+                        && !T3CodeActivityService.hasSavedConnection(endpoint: "http://127.0.0.1:3773",
+                                                                      environmentID: ""),
+                     "saved connections remain disconnectable regardless of current token state")
         suite.expect(T3CodeActivityService.shouldStartPolling(featureEnabled: true,
                                                                taskAlreadyRunning: false,
                                                                hasConnection: true)

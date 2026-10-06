@@ -19,14 +19,23 @@ struct NotchAgentStrip: View {
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var focus = NotchAgentLimitFocus.mostUsed.rawValue
     private var activeT3: [T3ThreadActivity] { t3.activities.filter { $0.state.isActive } }
 
+    private struct Activity: Equatable {
+        let live: [AgentLiveSession]
+        let threads: [T3ThreadActivity]
+
+        var shows: Bool { !live.isEmpty || !threads.isEmpty }
+    }
+
+    private var activity: Activity { Activity(live: usage.snapshot.live, threads: activeT3) }
+
     private func working(_ live: [AgentLiveSession]) -> [AgentProvider] {
         AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
 
     var body: some View {
         // The last agent stopping empties the list before the strip has left.
-        NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty || !activeT3.isEmpty) {
-            strip(live: $0, t3: activeT3)
+        NotchStripHold(activity, shows: activity.shows) {
+            strip(live: $0.live, t3: $0.threads)
         }
         .onChange(of: t3.activities) { _, _ in
             DispatchQueue.main.async { service.refreshPresentation() }

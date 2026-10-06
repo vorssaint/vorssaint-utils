@@ -185,7 +185,7 @@ struct NotchAgentsSettingsControls: View {
                         .foregroundStyle(t3.state == .connected ? .green : .secondary)
                 }
                 Spacer()
-                if t3.state == .connected || t3.state == .reconnecting {
+                if t3.hasSavedConnection {
                     Button(t3Text.disconnect) {
                         t3.disconnect()
                         t3Error = nil

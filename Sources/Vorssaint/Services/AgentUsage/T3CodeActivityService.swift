@@ -268,6 +268,13 @@ final class T3CodeActivityService: ObservableObject {
 
     var endpoint: String { defaults.string(forKey: DefaultsKey.notchAgentsT3Endpoint) ?? "" }
     var configuredEnvironment: String { defaults.string(forKey: DefaultsKey.notchAgentsT3Environment) ?? "" }
+    var hasSavedConnection: Bool {
+        Self.hasSavedConnection(endpoint: endpoint, environmentID: configuredEnvironment)
+    }
+
+    static func hasSavedConnection(endpoint: String, environmentID: String) -> Bool {
+        !endpoint.isEmpty && !environmentID.isEmpty
+    }
 
     @MainActor func connect(endpoint rawEndpoint: String, pairingCode: String) async throws {
         let endpoint = try client.validateEndpoint(rawEndpoint)
