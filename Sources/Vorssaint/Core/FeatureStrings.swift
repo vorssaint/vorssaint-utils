@@ -301,7 +301,8 @@ extension WindowLayoutFeatureStrings {
         gapMedium: "중간",
         gapLarge: "크게",
         gapExtraLarge: "아주 크게",
-        hideAllWindows: "모든 창 가리기"
+        hideAllWindows: "모든 창 가리기",
+        minimizeAllWindows: "모든 창 최소화",
     )
 }
 
@@ -1411,6 +1412,8 @@ struct WindowLayoutFeatureStrings {
     let gapLarge: String
     let gapExtraLarge: String
     let hideAllWindows: String
+    let minimizeAllWindows: String
+    let unminimizeAllWindows: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1500,7 +1503,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Medium",
         gapLarge: "Large",
         gapExtraLarge: "Extra large",
-        hideAllWindows: "Hide all windows"
+        hideAllWindows: "Hide all windows",
+        minimizeAllWindows: "Minimize all windows",
+        unminimizeAllWindows: "Unminimize all windows",
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1591,7 +1596,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Médio",
         gapLarge: "Grande",
         gapExtraLarge: "Extragrande",
-        hideAllWindows: "Ocultar todas as janelas"
+        hideAllWindows: "Ocultar todas as janelas",
+        minimizeAllWindows: "Minimizar todas as janelas",
+        unminimizeAllWindows: "Restaurar todas as janelas",
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1682,7 +1689,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Orta",
         gapLarge: "Büyük",
         gapExtraLarge: "Çok büyük",
-        hideAllWindows: "Tüm pencereleri gizle"
+        hideAllWindows: "Tüm pencereleri gizle",
+        minimizeAllWindows: "Tüm pencereleri simge durumuna küçült",
+        unminimizeAllWindows: "Tüm pencereleri geri yükle",
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1773,7 +1782,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Средний",
         gapLarge: "Большой",
         gapExtraLarge: "Очень большой",
-        hideAllWindows: "Скрыть все окна"
+        hideAllWindows: "Скрыть все окна",
+        minimizeAllWindows: "Свернуть все окна",
+        unminimizeAllWindows: "Восстановить все окна",
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1864,7 +1875,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Mediano",
         gapLarge: "Grande",
         gapExtraLarge: "Extragrande",
-        hideAllWindows: "Ocultar todas las ventanas"
+        hideAllWindows: "Ocultar todas las ventanas",
+        minimizeAllWindows: "Minimizar todas las ventanas",
+        unminimizeAllWindows: "Restaurar todas las ventanas",
     )
 
     static let sk = WindowLayoutFeatureStrings(
@@ -1955,7 +1968,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Stredná",
         gapLarge: "Veľká",
         gapExtraLarge: "Extra veľká",
-        hideAllWindows: "Skryť všetky okná"
+        hideAllWindows: "Skryť všetky okná",
+        minimizeAllWindows: "Minimize všetkých okien",
+        unminimizeAllWindows: "Obnoviť všetky okná",
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -2046,7 +2061,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Mittel",
         gapLarge: "Groß",
         gapExtraLarge: "Sehr groß",
-        hideAllWindows: "Alle Fenster ausblenden"
+        hideAllWindows: "Alle Fenster ausblenden",
+        minimizeAllWindows: "Alle Fenster minimieren",
+        unminimizeAllWindows: "Alle Fenster wiederherstellen",
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -2137,7 +2154,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Moyen",
         gapLarge: "Grand",
         gapExtraLarge: "Très grand",
-        hideAllWindows: "Masquer toutes les fenêtres"
+        hideAllWindows: "Masquer toutes les fenêtres",
+        minimizeAllWindows: "Réduire toutes les fenêtres",
+        unminimizeAllWindows: "Restaurer toutes les fenêtres",
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -2228,7 +2247,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Medio",
         gapLarge: "Grande",
         gapExtraLarge: "Molto grande",
-        hideAllWindows: "Nascondi tutte le finestre"
+        hideAllWindows: "Nascondi tutte le finestre",
+        minimizeAllWindows: "Riduci a icona tutte le finestre",
+        unminimizeAllWindows: "Ripristina tutte le finestre",
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -2319,7 +2340,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "中",
         gapLarge: "大",
         gapExtraLarge: "特大",
-        hideAllWindows: "すべてのウィンドウを隠す"
+        hideAllWindows: "すべてのウィンドウを隠す",
+        minimizeAllWindows: "すべてのウィンドウをしまう",
+        unminimizeAllWindows: "すべてのウィンドウを復元",
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -2410,7 +2433,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "中",
         gapLarge: "大",
         gapExtraLarge: "特大",
-        hideAllWindows: "隐藏所有窗口"
+        hideAllWindows: "隐藏所有窗口",
+        minimizeAllWindows: "最小化所有窗口",
+        unminimizeAllWindows: "还原所有窗口",
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -2501,7 +2526,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "中",
         gapLarge: "大",
         gapExtraLarge: "特大",
-        hideAllWindows: "隱藏所有視窗"
+        hideAllWindows: "隱藏所有視窗",
+        minimizeAllWindows: "縮到所有視窗",
+        unminimizeAllWindows: "還原所有視窗",
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -2592,7 +2619,9 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "中",
         gapLarge: "大",
         gapExtraLarge: "特大",
-        hideAllWindows: "隱藏所有視窗"
+        hideAllWindows: "隱藏所有視窗",
+        minimizeAllWindows: "縮到所有視窗",
+        unminimizeAllWindows: "還原所有視窗",
     )
 }
 
@@ -3249,7 +3278,9 @@ extension WindowLayoutFeatureStrings {
         gapMedium: "Середній",
         gapLarge: "Великий",
         gapExtraLarge: "Дуже великий",
-        hideAllWindows: "Сховати всі вікна"
+        hideAllWindows: "Сховати всі вікна",
+        minimizeAllWindows: "Згорнути всі вікна",
+        unminimizeAllWindows: "Відновити всі вікна",
     )
 }
 

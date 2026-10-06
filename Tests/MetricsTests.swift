@@ -33,7 +33,8 @@ struct MetricsTests {
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite)
-                HideAllWindowsTests.run(suite) }),
+                HideAllWindowsTests.run(suite)
+                WindowBulkActionsTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)
