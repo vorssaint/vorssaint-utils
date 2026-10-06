@@ -212,27 +212,45 @@ enum T3ActivityPresentation {
 struct T3ActivityReducer {
     private(set) var activities: [String: T3ThreadActivity] = [:]
     private var announcedRuns: Set<String> = []
+    private var activityStarts: [String: Date] = [:]
     private var hasBaseline = false
 
     mutating func apply(_ next: [T3ThreadActivity]) -> [T3ActivityCompletion] {
         let previous = activities
         let nextByID = Dictionary(next.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         var completed: [T3ActivityCompletion] = []
-        if hasBaseline {
-            for activity in next where activity.state == .completed {
-                guard let old = previous[activity.id], old.state.isActive,
+        var nextStarts: [String: Date] = [:]
+        for activity in next {
+            let old = previous[activity.id]
+            if activity.state.isActive {
+                let start: Date?
+                if let old, old.state.isActive, Self.continues(old, as: activity) {
+                    start = activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
+                } else {
+                    start = activity.startedAt
+                }
+                if let start { nextStarts[activity.id] = start }
+            } else if hasBaseline, activity.state == .completed,
+                      let old, old.state.isActive,
                       let runID = activity.latestRunID,
-                      announcedRuns.insert("\(activity.environmentID):\(activity.threadID):\(runID)").inserted else { continue }
-                let duration = (old.startedAt ?? activity.startedAt).flatMap { start in
+                      announcedRuns.insert("\(activity.environmentID):\(activity.threadID):\(runID)").inserted {
+                let start = Self.continues(old, as: activity)
+                    ? activityStarts[activity.id] ?? old.startedAt ?? activity.startedAt
+                    : activity.startedAt
+                let duration = start.flatMap { start in
                     activity.completedAt.map { max(0, $0.timeIntervalSince(start)) }
                 } ?? 0
                 completed.append(T3ActivityCompletion(activity: activity, duration: duration))
             }
-        } else {
-            hasBaseline = true
         }
+        hasBaseline = true
+        activityStarts = nextStarts
         activities = nextByID
         return completed
+    }
+
+    private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
+        old.latestRunID == next.latestRunID || old.backgroundTaskCount > 0 || old.state != .working
     }
 }
 

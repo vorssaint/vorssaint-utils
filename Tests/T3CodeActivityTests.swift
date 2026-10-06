@@ -137,6 +137,38 @@ enum T3CodeActivityTests {
         suite.expect(backgroundCompletion?.duration == 300,
                      "completion across a background wake with a new run id keeps the activity duration")
 
+        var directWakeCompletion = T3ActivityReducer()
+        _ = directWakeCompletion.apply(rootWork)
+        _ = directWakeCompletion.apply(pendingMonitor)
+        let completedWake = snapshot(status: "completed", activeRun: nil,
+                                     completedAt: "2026-10-06T12:05:00Z", startedAt: "2026-10-06T12:04:55Z",
+                                     activityStartedAt: nil, latestRunID: "run-2")
+        suite.expect(directWakeCompletion.apply(completedWake).first?.duration == 300,
+                     "a wake that completes between polls keeps the original duration after activity start clears")
+
+        var unrelatedRun = T3ActivityReducer()
+        _ = unrelatedRun.apply(working)
+        let shortNewRun = snapshot(status: "completed", activeRun: nil,
+                                   completedAt: "2026-10-06T12:10:02Z", startedAt: "2026-10-06T12:10:00Z",
+                                   latestRunID: "run-2")
+        suite.expect(unrelatedRun.apply(shortNewRun).first?.duration == 2,
+                     "a distinct new user run does not inherit the previous task duration")
+
+        var chainedWake = T3ActivityReducer()
+        _ = chainedWake.apply(rootWork)
+        _ = chainedWake.apply(pendingMonitor)
+        let completedWakeWithMonitor = snapshot(status: "completed", activeRun: nil,
+                                                completedAt: "2026-10-06T12:05:00Z",
+                                                startedAt: "2026-10-06T12:04:55Z", activityStartedAt: nil,
+                                                latestRunID: "run-2", backgroundKinds: ["monitor"])
+        _ = chainedWake.apply(completedWakeWithMonitor)
+        let nextWakeFinished = snapshot(status: "completed", activeRun: nil,
+                                         completedAt: "2026-10-06T12:10:00Z",
+                                         startedAt: "2026-10-06T12:09:55Z", activityStartedAt: nil,
+                                         latestRunID: "run-3")
+        suite.expect(chainedWake.apply(nextWakeFinished).first?.duration == 600,
+                     "the original activity duration survives a completed wake with another monitor pending")
+
         var reconnect = T3ActivityReducer()
         _ = reconnect.apply(working)
         _ = reconnect.apply([])
