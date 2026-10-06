@@ -269,11 +269,10 @@ struct T3ActivityReducer {
         if let runID = old.latestRunID, runID == next.latestRunID,
            let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
         // T3 may have a queued latest run while a previous run still owns the
-        // activity. Carry across changed/unknown run IDs only when stable user
-        // authored input and pending background work prove this is a wake.
+        // activity. A stable user-authored timestamp identifies wake/continuation
+        // runs; a new user request changes it, even when the prior run was waiting.
         guard let oldMessage = old.latestUserAuthoredMessageAt,
-              oldMessage == next.latestUserAuthoredMessageAt,
-              old.backgroundTaskCount > 0 else { return false }
+              oldMessage == next.latestUserAuthoredMessageAt else { return false }
         return true
     }
 }
