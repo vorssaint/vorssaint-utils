@@ -1596,6 +1596,47 @@ enum NotchSupport {
         return min(1, max(0, current + Double(direction.signum()) / (fine ? 64 : 16)))
     }
 
+    /// The steps a volume key takes, as `volumeLevel` above gives them: a
+    /// full step on its own, a quarter of one with the fine modifiers.
+    static let fullVolumeKeyStep = 1.0 / 16
+    static let finestVolumeKeyStep = 1.0 / 64
+
+    /// How long an output that has just moved its own level is assumed to
+    /// still be moving it. Measured from AirPods Pro adapting to the room:
+    /// each ramp walks the level a hundredth at a time and closes with a
+    /// coarser correction about 1.7 s after its last fine step, so a window
+    /// slightly wider than that keeps one ramp together.
+    static let volumeRideWindow: TimeInterval = 2
+
+    /// What an observed change of the system output level means.
+    enum VolumeChangeOrigin: Equatable {
+        /// Something a person did: the island confirms it.
+        case announces
+        /// The output riding its own level, which is state to keep rather
+        /// than news to show.
+        case rides
+    }
+
+    /// Reads an observed level change. An output that adapts to its
+    /// surroundings moves the level in steps finer than a key press makes,
+    /// and keeps moving it for as long as the room is noisy, so those steps
+    /// ride quietly. A full key step always announces itself, however busy
+    /// the output is, and so does a level pressed against either end, where a
+    /// press moves it by less than a step or not at all. In between, a step
+    /// belongs to a ramp already under way if it lands inside its window.
+    static func volumeChangeOrigin(from previous: Double, to next: Double,
+                                   sinceRide: TimeInterval) -> VolumeChangeOrigin {
+        guard previous.isFinite, next.isFinite else { return .announces }
+        if next <= 0 || next >= 1 { return .announces }
+        let delta = abs(next - previous)
+        // An output that keeps its level in hundredths lands a key step a
+        // little short of its nominal size, so a full step is recognized
+        // with half of the finest one to spare.
+        if delta + finestVolumeKeyStep / 2 >= fullVolumeKeyStep { return .announces }
+        if delta + 1e-9 < finestVolumeKeyStep { return .rides }
+        return sinceRide < volumeRideWindow ? .rides : .announces
+    }
+
     /// A laptop with its lid closed has no built-in screen to show on, so the
     /// built-in choice hides the island there. A Mac without a built-in panel
     /// never has one, so that choice keeps the main display. The pointer

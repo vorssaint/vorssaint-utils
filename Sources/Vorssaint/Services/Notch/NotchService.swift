@@ -246,6 +246,9 @@ final class NotchService: ObservableObject {
     private var volumeDeviceUID: String?
     /// System uptime until which an output change counts as the island's own.
     private var ownVolumeAdjustmentUntil: TimeInterval = 0
+    /// When the output last moved its own level, so the rest of that ramp
+    /// stays quiet with it.
+    private var lastVolumeRide: TimeInterval = -.infinity
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private var menuSpaceReading = false
@@ -3630,10 +3633,27 @@ final class NotchService: ObservableObject {
 
     private func volumeChanged(_ volume: Double?, muted: Bool?) {
         defer { volumeBaseline = volume; muteBaseline = muted }
-        guard volumeDeviceUID != nil, let volume, volumeBaseline != nil,
-              volume != volumeBaseline || (muteBaseline != nil && muted != muteBaseline) else { return }
+        guard volumeDeviceUID != nil, let volume, let baseline = volumeBaseline,
+              volume != baseline || (muteBaseline != nil && muted != muteBaseline) else { return }
         // Volume keys still announce themselves through showCurrentVolume.
         guard !expanded || ProcessInfo.processInfo.systemUptime >= ownVolumeAdjustmentUntil else { return }
+        // A level the output set on its own carries no news: adaptive volume
+        // rides the level for as long as the room is noisy, and each step
+        // used to reschedule the indicator's dismissal, so it never left the
+        // screen. Those steps move the state quietly, the way an automatic
+        // brightness change raises no notice of its own. Muting always
+        // reports, and so does a key step.
+        let muteChanged = muteBaseline != nil && muted != muteBaseline
+        if !muteChanged {
+            let origin = NotchSupport.volumeChangeOrigin(
+                from: baseline, to: volume,
+                sinceRide: ProcessInfo.processInfo.systemUptime - lastVolumeRide)
+            guard origin == .announces else {
+                lastVolumeRide = ProcessInfo.processInfo.systemUptime
+                return
+            }
+        }
+        lastVolumeRide = -.infinity
         showVolume(volume, muted: muted)
     }
 
