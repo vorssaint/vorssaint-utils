@@ -554,6 +554,7 @@ extension AppFeature {
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
                     || (boolFor(DefaultsKey.displayVolumeEnabled) && boolFor(DefaultsKey.displayVolumeKeysEnabled))
+                    || boolFor(DefaultsKey.brightnessBuiltInExtendedDimming)
                     || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)
