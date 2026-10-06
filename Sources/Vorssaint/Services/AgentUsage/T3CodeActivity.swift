@@ -36,6 +36,7 @@ struct T3ThreadActivity: Equatable, Identifiable {
     let completedAt: Date?
     let updatedAt: Date
     let latestRunID: String?
+    let latestRunStartedAt: Date?
     let activityRunID: String?
     let activityRunStartedAt: Date?
     let latestUserAuthoredMessageAt: Date?
@@ -142,7 +143,10 @@ struct T3ShellSnapshot: Decodable {
                 model: thread.modelSelection?.model ?? "", state: state,
                 startedAt: startedAt, completedAt: thread.latestRunCompletedAt.flatMap(Self.date),
                 updatedAt: updatedAt, latestRunID: thread.latestRunID,
-                activityRunID: thread.activeRunID ?? thread.latestRunID,
+                latestRunStartedAt: thread.latestRunStartedAt.flatMap(Self.date),
+                // latestRunId can refer to a queued run while a different run
+                // still owns the activity. Only activeRunId proves run ownership.
+                activityRunID: thread.activeRunID,
                 activityRunStartedAt: activityStartedAt,
                 latestUserAuthoredMessageAt: thread.latestUserAuthoredMessageAt.flatMap(Self.date),
                 backgroundTaskCount: tasks.count)
@@ -261,7 +265,13 @@ struct T3ActivityReducer {
     }
 
     private static func continues(_ old: T3ThreadActivity, as next: T3ThreadActivity) -> Bool {
+        // A waiting activity can coexist with a newer queued latest run. Once
+        // that run starts, do not carry the waiting owner's duration into it.
+        if old.activityRunID == nil, let runID = old.latestRunID, runID == next.latestRunID,
+           old.latestRunStartedAt == nil, next.latestRunStartedAt != nil { return false }
         if let runID = old.activityRunID, runID == next.activityRunID { return true }
+        if let runID = old.latestRunID, runID == next.latestRunID,
+           let startedAt = old.latestRunStartedAt, startedAt == next.latestRunStartedAt { return true }
         if old.state == .waitingForApproval || old.state == .waitingForInput { return true }
         guard let oldMessage = old.latestUserAuthoredMessageAt,
               oldMessage == next.latestUserAuthoredMessageAt else { return false }

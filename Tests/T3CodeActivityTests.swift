@@ -189,17 +189,28 @@ enum T3CodeActivityTests {
         let firstRun = snapshot(status: "running", activity: "running", startedAt: "2026-10-06T12:00:00Z",
                                 activityStartedAt: "2026-10-06T12:00:00Z", latestUserAuthoredAt: "2026-10-06T12:00:00Z",
                                 latestRunID: "run-1")
-        let queuedSecondRun = snapshot(status: "waiting", startedAt: "2026-10-06T12:00:00Z",
+        let queuedSecondRun = snapshot(status: "waiting", activeRun: nil, startedAt: nil,
                                        activityStartedAt: "2026-10-06T12:00:00Z",
-                                       latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
+                                       latestUserAuthoredAt: nil, latestRunID: "run-2")
         let secondRunFinished = snapshot(status: "completed", activeRun: nil,
                                          completedAt: "2026-10-06T12:10:02Z",
                                          startedAt: "2026-10-06T12:10:00Z",
                                          latestUserAuthoredAt: "2026-10-06T12:10:00Z", latestRunID: "run-2")
         _ = queuedRun.apply(firstRun)
         _ = queuedRun.apply(queuedSecondRun)
+        suite.expect(queuedSecondRun.first?.activityRunID == nil,
+                     "a waiting activity does not claim ownership of the latest queued run")
         suite.expect(queuedRun.apply(secondRunFinished).first?.duration == 2,
                      "a queued latest run does not inherit the still-active run's start")
+
+        var approvalWithQueuedRun = T3ActivityReducer()
+        _ = approvalWithQueuedRun.apply(firstRun)
+        let approvalWhileQueued = snapshot(status: "waiting", request: "permission", activeRun: nil,
+                                           startedAt: nil, activityStartedAt: "2026-10-06T12:00:00Z",
+                                           latestUserAuthoredAt: nil, latestRunID: "run-2")
+        _ = approvalWithQueuedRun.apply(approvalWhileQueued)
+        suite.expect(approvalWithQueuedRun.apply(secondRunFinished).first?.duration == 2,
+                     "approval state does not make an unstarted queued run inherit the waiting duration")
 
         var chainedWake = T3ActivityReducer()
         _ = chainedWake.apply(rootWork)
