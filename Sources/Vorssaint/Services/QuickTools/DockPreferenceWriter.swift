@@ -57,6 +57,30 @@ enum DockPreferenceWriter {
         write(key, value: NSNumber(value: value))
     }
 
+    /// Writes several preferences as one change. The Dock is restarted once
+    /// for the whole batch, not once per key: a toggle that owns two keys
+    /// would otherwise bounce the Dock off the screen and back twice for a
+    /// single click, which reads as a glitch rather than a setting changing.
+    /// A key a configuration profile owns refuses the whole batch, since a
+    /// half-applied pair would leave the two corners disagreeing.
+    @discardableResult
+    static func write(_ values: [String: Int]) -> Bool {
+        let domain = QuickTogglesSupport.dockDomain as CFString
+        for key in values.keys where CFPreferencesAppValueIsForced(key as CFString, domain) {
+            return false
+        }
+        for (key, value) in values {
+            CFPreferencesSetValue(key as CFString,
+                                  NSNumber(value: value),
+                                  domain,
+                                  kCFPreferencesCurrentUser,
+                                  kCFPreferencesAnyHost)
+        }
+        guard CFPreferencesAppSynchronize(domain) else { return false }
+        restartDock()
+        return values.allSatisfy { confirms($0.key, wrote: NSNumber(value: $0.value)) }
+    }
+
     private static func write(_ key: String, value: NSNumber) -> Bool {
         let domain = QuickTogglesSupport.dockDomain as CFString
         let name = key as CFString
