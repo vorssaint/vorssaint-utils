@@ -359,6 +359,78 @@ enum NotchAgentTests {
         _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
         store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: NotchAgentSupport.idleTurn)
         suite.expect(store.live.isEmpty, "a turn that has written nothing for a while stops showing as working")
+        claudeBackgroundSubagents(suite)
+    }
+
+    /// A background subagent goes on after the turn that started it ended.
+    private static func claudeBackgroundSubagents(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-21T23:50:00.000Z")!
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        var main = AgentLogState()
+        var side = AgentLogState()
+        func feedMain(_ data: Data) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseClaude(data, state: &main, now: now), file: "main", provider: .claude,
+                        tracksTurns: true, modified: now, now: now)
+        }
+        func feedSide(_ data: Data, at moment: Date = now) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseClaude(data, state: &side, now: moment), file: "main/subagents/agent-a.jsonl",
+                        provider: .claude, tracksTurns: false, parent: "main", modified: moment, now: moment)
+        }
+        _ = feedMain(claudeUser(time: "2026-09-21T23:40:00.000Z"))
+        _ = feedMain(claudeAssistant(stop: "end_turn", time: "2026-09-21T23:41:00.000Z"))
+        suite.expect(store.live.isEmpty, "the turn that launched a background subagent ends")
+        let events = feedSide(claudeAssistant(id: "msg_s1", request: "req_s1", stop: "tool_use",
+                                              time: "2026-09-21T23:49:00.000Z", sidechain: true))
+        suite.expect(events.isEmpty && store.live.count == 1 && store.live.first?.id == "main",
+                     "a background subagent's work shows its session working again")
+        suite.expect(store.live.first?.project == "app" && store.live.first?.model == "claude-opus-5-5"
+                        && (store.live.first?.cost ?? 0) > 0,
+                     "a session shown working for a subagent alone carries its project, model and spend")
+        _ = feedSide(claudeAssistant(id: "msg_s2", request: "req_s2", stop: "end_turn",
+                                     time: "2026-09-21T23:49:30.000Z", sidechain: true))
+        suite.expect(store.live.count == 1, "one session shows once, however many responses its subagent writes")
+        store.closeIdleTurns(now: now.addingTimeInterval(NotchAgentSupport.idleTurn), after: NotchAgentSupport.idleTurn)
+        suite.expect(store.live.isEmpty, "a subagent that stops writing stops showing as working")
+
+        let history = AgentUsageStore()
+        var old = AgentLogState()
+        history.apply(AgentLogParser.parseClaude(claudeAssistant(id: "msg_s3", request: "req_s3",
+                                                                 time: "2026-09-21T23:00:00.000Z", sidechain: true),
+                                                 state: &old, now: now),
+                      file: "main/subagents/agent-b.jsonl", provider: .claude, tracksTurns: false, parent: "main",
+                      modified: now, now: now)
+        suite.expect(history.live.isEmpty && history.records.count == 1,
+                     "a subagent's old responses count but show nothing working")
+
+        // The first read of the logs takes a session's own log before its
+        // subagents', so a foreground subagent's last reply, written a minute
+        // before its parent finished, is read after that finish.
+        func replay(parent lines: [Data], modified: Date) -> AgentUsageStore {
+            let store = AgentUsageStore()
+            var parent = AgentLogState(), child = AgentLogState()
+            for data in lines {
+                store.apply(AgentLogParser.parseClaude(data, state: &parent, now: now), file: "main", provider: .claude,
+                            tracksTurns: true, modified: modified, now: now)
+            }
+            store.apply(AgentLogParser.parseClaude(claudeAssistant(id: "msg_f1", request: "req_f1", stop: "end_turn",
+                                                                   time: "2026-09-21T23:48:00.000Z", sidechain: true),
+                                                   state: &child, now: now),
+                        file: "main/subagents/agent-c.jsonl", provider: .claude, tracksTurns: false, parent: "main",
+                        modified: now, now: now)
+            return store
+        }
+        let finished = replay(parent: [claudeUser(time: "2026-09-21T23:45:00.000Z"),
+                                       claudeAssistant(stop: "end_turn", time: "2026-09-21T23:49:00.000Z")], modified: now)
+        suite.expect(finished.live.isEmpty && finished.records.count == 2,
+                     "a subagent reply from before its parent finished, read after, leaves the session finished")
+        let cancelled = replay(parent: [claudeUser(time: "2026-09-21T23:45:00.000Z"),
+                                        line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user]"}]}}"#)],
+                               modified: AgentTimestamp.parse("2026-09-21T23:49:00.000Z")!)
+        suite.expect(cancelled.live.isEmpty, "a subagent reply from before its parent was cancelled leaves the session stopped")
+        let outlived = replay(parent: [claudeUser(time: "2026-09-21T23:45:00.000Z"),
+                                       claudeAssistant(stop: "end_turn", time: "2026-09-21T23:47:00.000Z")], modified: now)
+        suite.expect(outlived.live.count == 1, "a subagent reply from after its parent finished, read the same way, shows it working")
     }
 
     // MARK: Codex logs
