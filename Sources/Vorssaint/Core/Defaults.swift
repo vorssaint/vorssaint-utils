@@ -284,6 +284,8 @@ enum DefaultsKey {
     static let whatsAppOrganizerDestinationPath = "whatsAppOrganizerDestinationPath"
     static let whatsAppOrganizerDelayMinutes = "whatsAppOrganizerDelayMinutes"
     static let whatsAppOrganizerCategories = "whatsAppOrganizerCategories"
+    static let downloadOrganizerSources = "downloadOrganizerSources"
+    static let downloadOrganizerExtensions = "downloadOrganizerExtensions"
     static let whatsAppOrganizerLayout = "whatsAppOrganizerLayout"
     static let whatsAppOrganizerDuplicateAction = "whatsAppOrganizerDuplicateAction"
     static let whatsAppOrganizerRecords = "whatsAppOrganizerRecords"
@@ -1393,6 +1395,8 @@ enum Defaults {
         DefaultsKey.whatsAppOrganizerDestinationPath: "",
         DefaultsKey.whatsAppOrganizerDelayMinutes: 5,
         DefaultsKey.whatsAppOrganizerCategories: "image,video,audio,document,archive,other",
+        DefaultsKey.downloadOrganizerSources: "WhatsApp",
+        DefaultsKey.downloadOrganizerExtensions: "",
         DefaultsKey.whatsAppOrganizerLayout: "flat",
         DefaultsKey.whatsAppOrganizerDuplicateAction: "trashNew",
         DefaultsKey.whatsAppOrganizerRecords: Data(),
