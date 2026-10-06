@@ -20,6 +20,7 @@ enum AppToggleTests {
         finderKeyDecision(suite)
         finderKeyStaysReversible(suite)
         stringsCoverEveryLanguage(suite)
+        roleDefaultsAreDistinct(suite)
     }
 
     /// The decision itself: visible means hide, hidden means bring it back.
@@ -68,5 +69,24 @@ enum AppToggleTests {
                              "the Finder toggle is translated in \(language.rawValue)")
             }
         }
+    }
+
+    /// Every role's shipped default is distinct. `conflict(for:)` only sees
+    /// a clash once both roles are saved, so a default that duplicates
+    /// another role's builds green, passes every other check, and only
+    /// surfaces to the person as a combination that never fires. Walking
+    /// every role and comparing defaults directly makes a collision fail
+    /// loudly instead. This is also what guards `.toggleFinder` landing on
+    /// a free key: the check automatically covers the role the moment it
+    /// joins `allCases`.
+    private static func roleDefaultsAreDistinct(_ suite: TestSuite) {
+        let defaults = GlobalShortcutRole.allCases.map(\.defaultShortcut)
+        let duplicate = Dictionary(grouping: GlobalShortcutRole.allCases,
+                                   by: \.defaultShortcut)
+            .first { $0.value.count > 1 }
+        suite.expect(defaults.count == Set(defaults).count,
+                     duplicate.map {
+                         "roles \($0.value.map(\.storageKey)) share the default \($0.key.storageValue)"
+                     } ?? "no two roles ship the same default shortcut")
     }
 }
