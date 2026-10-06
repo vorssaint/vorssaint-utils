@@ -16,9 +16,11 @@ enum T3CodeActivityTests {
     private static func snapshot(status: String, activity: String? = nil, request: String? = nil,
                                  activeRun: String? = "run-1", completedAt: String? = nil,
                                  startedAt: String? = "2026-10-06T12:00:00Z", updatedAt: String = "2026-10-06T12:01:00Z",
+                                 activityStartedAt: String? = nil,
                                  backgroundKinds: [String] = [], duplicateProject: Bool = false) -> [T3ThreadActivity] {
         let runStatus = activity.map { "\"\($0)\"" } ?? "null"
         let runStart = startedAt.map { "\"\($0)\"" } ?? "null"
+        let activityStart = activityStartedAt.map { "\"\($0)\"" } ?? "null"
         let completed = completedAt.map { "\"\($0)\"" } ?? "null"
         let active = activeRun.map { "\"\($0)\"" } ?? "null"
         let pending = request.map { "{\"kind\":\"\($0)\"}" } ?? "null"
@@ -31,8 +33,8 @@ enum T3CodeActivityTests {
         let json = """
         {"threads":[{"id":"thread-1","projectId":"project-1","title":"Fix USB recovery",
           "providerInstanceId":"codex","modelSelection":{"instanceId":"codex","model":"gpt-5.4"},
-          "status":"\(status)","activityRunStatus":\(runStatus),"activityRunStartedAt":\(runStart),
-          "latestRunStartedAt":"2026-10-06T12:00:00Z","latestRunCompletedAt":\(completed),
+          "status":"\(status)","activityRunStatus":\(runStatus),"activityRunStartedAt":\(activityStart),
+          "latestRunStartedAt":\(runStart),"latestRunCompletedAt":\(completed),
           "latestRunId":"run-1","activeRunId":\(active),"pendingRuntimeRequest":\(pending),
           "pendingBackgroundTasks":\(background),"updatedAt":"\(updatedAt)"}],
          "archivedThreads":[],"projects":\(projects)}
@@ -101,6 +103,17 @@ enum T3CodeActivityTests {
                         && completions.first?.duration == 120,
                      "completion duration uses run completion time, not thread modification time")
         suite.expect(reducer.apply(finished).isEmpty, "repeated completion snapshots do not duplicate events")
+
+        var resumedRun = T3ActivityReducer()
+        let resumed = snapshot(status: "running", activity: "running",
+                               startedAt: "2026-10-06T12:04:55Z", activityStartedAt: "2026-10-06T12:00:00Z")
+        let resumedFinished = snapshot(status: "completed", activeRun: nil,
+                                        completedAt: "2026-10-06T12:05:00Z", startedAt: "2026-10-06T12:04:55Z",
+                                        updatedAt: "2026-10-06T12:05:00Z", activityStartedAt: nil)
+        _ = resumedRun.apply(resumed)
+        let resumedCompletion = resumedRun.apply(resumedFinished).first
+        suite.expect(resumedCompletion?.duration == 300,
+                     "completion after a wake run keeps the original active work start")
 
         var reconnect = T3ActivityReducer()
         _ = reconnect.apply(working)

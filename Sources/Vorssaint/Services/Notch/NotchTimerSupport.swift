@@ -317,4 +317,10 @@ enum NotchTimerSupport {
     static func stripAgentMarkSize(height: CGFloat, working: Int) -> CGFloat {
         min(working > 1 ? 11 : 14, max(8, height - NotchLayout.compactEdgeGap * 2 - 4))
     }
+    static func stripAgentMarkCount(providers: Int, showsT3: Bool) -> Int {
+        max(0, providers) + (showsT3 ? 1 : 0)
+    }
+    static func stripAgentMarkAccessibilityLabel(providers: [String], t3Source: String?) -> String {
+        (providers + [t3Source].compactMap { $0 }).joined(separator: ", ")
+    }
 }

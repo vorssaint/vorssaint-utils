@@ -18,6 +18,7 @@ struct NotchTimerStrip: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var t3 = T3CodeActivityService.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
 
@@ -115,6 +116,7 @@ struct NotchCompanionMark: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var t3 = T3CodeActivityService.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
 
     var body: some View {
@@ -123,8 +125,15 @@ struct NotchCompanionMark: View {
             downloadIndicator
         case .agents:
             let working = Self.working
+            let showsT3 = Self.showsT3
+            let markCount = NotchTimerSupport.stripAgentMarkCount(providers: working.count, showsT3: showsT3)
             HStack(spacing: 1) {
-                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry)) }
+                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(markCount, geometry)) }
+                if showsT3 {
+                    Text("T3")
+                        .font(.system(size: markCount > 1 ? 9 : 10, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                }
             }
         case .calendar:
             if let countdown = calendar.countdown {
@@ -159,6 +168,10 @@ struct NotchCompanionMark: View {
         return AgentProvider.allCases.filter { provider in live.contains { $0.provider == provider } }
     }
 
+    private static var showsT3: Bool {
+        T3CodeActivityService.shared.activities.contains { $0.state.isActive }
+    }
+
     private static func agentMarkSize(_ working: Int, _ geometry: NotchGeometry) -> CGFloat {
         NotchTimerSupport.stripAgentMarkSize(height: geometry.compactActivityContentHeight, working: working)
     }
@@ -168,7 +181,8 @@ struct NotchCompanionMark: View {
     static func inset(_ companion: NotchCompactActivity, geometry: NotchGeometry) -> CGFloat {
         switch companion {
         case .agents:
-            let side = agentMarkSize(working.count, geometry)
+            let markCount = NotchTimerSupport.stripAgentMarkCount(providers: working.count, showsT3: showsT3)
+            let side = agentMarkSize(markCount, geometry)
             return geometry.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
         case .music:
             return geometry.compactMusicArtworkInset
@@ -185,7 +199,8 @@ struct NotchCompanionMark: View {
         case .downloads:
             return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents:
-            return working.map(\.displayName).joined(separator: ", ")
+            return NotchTimerSupport.stripAgentMarkAccessibilityLabel(
+                providers: working.map(\.displayName), t3Source: showsT3 ? T3CodeStrings(language).source : nil)
         case .calendar:
             let text = FeatureStrings.notchCalendar(language)
             guard let countdown = NotchCalendarService.shared.countdown else { return text.title }

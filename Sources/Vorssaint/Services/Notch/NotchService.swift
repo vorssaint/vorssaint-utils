@@ -658,9 +658,10 @@ final class NotchService: ObservableObject {
         case .music:
             return provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
         case .agents:
-            let working = max(Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count,
-                              T3CodeActivityService.shared.activities.filter { $0.state.isActive }.count)
-            let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: working)
+            let providers = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+            let showsT3 = T3CodeActivityService.shared.activities.contains { $0.state.isActive }
+            let working = NotchTimerSupport.stripAgentMarkCount(providers: providers, showsT3: showsT3)
+            let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: max(1, working))
             return CGFloat(max(1, working)) * (side * 1.45 + 1) + CGFloat(max(0, working - 1))
                 + provisional.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
         case .calendar:
