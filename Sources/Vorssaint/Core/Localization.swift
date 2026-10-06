@@ -370,6 +370,10 @@ struct Strings {
     let micUnmutePartialHUD: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
+    let micMuteWhileTypingToggle: String
+    let micMuteWhileTypingCaption: String
+    let micMuteWhileTypingNeedsAccessibility: String
+    let micMuteWhileTypingUnmuteDelay: String
     let pastePlainName: String
     let pastePlainCaption: String
     let launcherName: String
@@ -1539,8 +1543,12 @@ extension Strings {
         micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
         micUnmutePartialHUD: "Alguns microfones continuam silenciados",
-        micMuteMenuBarToggle: "Mostrar na barra de menus enquanto ativo",
-        micMuteMenuBarCaption: "O microfone vermelho na barra de menus indica que o recurso está ativo. Isso não garante que todos os apps deixem de captar áudio.",
+        micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
+        micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus enquanto este recurso o silencia.",
+        micMuteWhileTypingToggle: "Silenciar enquanto digita",
+        micMuteWhileTypingCaption: "Corta todo microfone do Mac enquanto você digita e o devolve quando a digitação para.",
+        micMuteWhileTypingNeedsAccessibility: "Precisa da permissão de Acessibilidade para observar o teclado.",
+        micMuteWhileTypingUnmuteDelay: "Esperar antes de religar",
         pastePlainName: "Colar como texto puro",
         pastePlainCaption: "Cola o que foi copiado sem cores, fontes ou formatação. O conteúdo original continua no clipboard.",
         launcherName: "Painel rápido",
@@ -2670,8 +2678,12 @@ extension Strings {
         micUnmutedHUD: "Mic Mute off",
         micMutePartialHUD: "Some microphones could not be muted",
         micUnmutePartialHUD: "Some microphones are still muted",
-        micMuteMenuBarToggle: "Show in the menu bar while Mic Mute is on",
-        micMuteMenuBarCaption: "The red mic in the menu bar indicates that Mic Mute is on. It does not guarantee that all apps stop capturing audio.",
+        micMuteMenuBarToggle: "Show in the menu bar while muted",
+        micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar while this feature mutes it.",
+        micMuteWhileTypingToggle: "Mute while typing",
+        micMuteWhileTypingCaption: "Cuts every microphone while you type and brings them back once you stop.",
+        micMuteWhileTypingNeedsAccessibility: "Needs Accessibility permission to watch the keyboard.",
+        micMuteWhileTypingUnmuteDelay: "Wait before unmuting",
         pastePlainName: "Paste as plain text",
         pastePlainCaption: "Pastes what you copied without colors, fonts or formatting. The original stays on the clipboard.",
         launcherName: "Quick panel",
