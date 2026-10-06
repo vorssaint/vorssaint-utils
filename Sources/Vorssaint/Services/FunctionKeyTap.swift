@@ -117,8 +117,8 @@ final class FunctionKeyTap {
     // MARK: - Tap lifecycle
 
     private func installTap() {
-        let thread = tapLock.withLock { () -> Thread? in
-            if thread != nil {
+        let newThread = tapLock.withLock { () -> Thread? in
+            if self.thread != nil {
                 if shouldStopThread { pendingRestart = true }
                 return nil
             }
@@ -130,7 +130,7 @@ final class FunctionKeyTap {
             self.thread = thread
             return thread
         }
-        thread?.start()
+        newThread?.start()
     }
 
     private func removeTap() {

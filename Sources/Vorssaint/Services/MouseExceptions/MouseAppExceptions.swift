@@ -141,7 +141,7 @@ final class MouseAppExceptions: ObservableObject {
         let app = NSWorkspace.shared.frontmostApplication
         let identity = Self.identity(for: app)
         let pid = app?.processIdentifier
-        let (lookups, sources) = lock.withLock { (lookups, sourceProcessIDs) }
+        let (lookups, sources) = lock.withLock { (self.lookups, self.sourceProcessIDs) }
         var matches = Set<MouseExceptionScope>()
         for scope in MouseExceptionScope.allCases where scope.keysOffFrontmostApp {
             guard let exceptions = lookups[scope], !exceptions.isEmpty else { continue }
