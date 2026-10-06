@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vorssaint
 
 import Darwin
-import MachO
 
 enum MemoryCleanupService {
     @discardableResult
