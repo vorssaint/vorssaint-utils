@@ -616,7 +616,7 @@ extension Strings {
         soundInputSwitcherDevices: "Мікрофони в циклі перемикання",
         soundInputSwitcherNoAvailableSelection: "Виберіть хоча б один доступний мікрофон.",
         soundInputSwitcherNoDevices: "Мікрофони не знайдені",
-        systemMuteShortcutToggle: "Вимкати системні звуки",
+        systemMuteShortcutToggle: "Вимикати системні звуки",
         mixerCapVolumeAfterWakeToggle: "Обмежити гучність після пробудження",
         mixerCapVolumeAfterWakeCaption: "Після пробудження знижує системну гучність до цієї стелі. Лише знижує: ніколи не підвищує і ніколи не вмикає звук знову.",
         mixerWakeVolumeCapPercent: "Стеля після пробудження",
