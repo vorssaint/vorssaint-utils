@@ -84,38 +84,10 @@ final class DockClickService: ObservableObject {
 
     private init() {
         hideAllHotkey.onPress = { [weak self] in _ = self?.hideAllWindows() }
-        minimizeAllHotkey.onPress = { [weak self] in
-            // Cross-process reads must not run on main: dispatch off, enumerate,
-            // then hop back for the bookkeeping `performMinimize` writes there.
-            guard let self else { return }
-            let excludingFrontmost = true
-            let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                guard let self else { return }
-                var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
-                for app in NSWorkspace.shared.runningApplications {
-                    guard !app.isTerminated,
-                          app.activationPolicy == .regular,
-                          !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
-                    else { continue }
-                    let pid = app.processIdentifier
-                    let isFrontmost = app.isActive || frontmostPID == pid
-                    if excludingFrontmost, isFrontmost { continue }
-                    guard Self.windowServerHasStandardWindows(pid: pid) else { continue }
-                    let unminimized = Self.standardWindows(pid: pid).unminimized
-                    guard !unminimized.isEmpty else { continue }
-                    perApp.append((pid: pid, windows: unminimized))
-                }
-                let now = CFAbsoluteTimeGetCurrent()
-                DispatchQueue.main.async { [weak self] in
-                    guard let self else { return }
-                    for entry in perApp {
-                        self.performMinimize(pid: entry.pid, targets: entry.windows, actionTime: now)
-                    }
-                }
-            }
-        }
-        unminimizeAllHotkey.onPress = { [weak self] in _ = self?.unminimizeAllWindows() }
+        // Both bulk keys own their off-main enumeration inside the service
+        // method, so a hung app in the sweep never stalls the main queue.
+        minimizeAllHotkey.onPress = { [weak self] in self?.minimizeAllWindows(excludingFrontmost: true) }
+        unminimizeAllHotkey.onPress = { [weak self] in self?.unminimizeAllWindows() }
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
     }
 
@@ -488,69 +460,73 @@ final class DockClickService: ObservableObject {
                       delay: DockClickSupport.minimizeSweepDelay)
     }
 
-    /// Minimizes every app with a normal on-screen window and returns how many
-    /// apps were acted on. The hotkey press dispatches the enumeration
-    /// off-main and hops back for `performMinimize`: `standardWindows`
-    /// performs cross-process Accessibility reads with a 0.35 s timeout per
-    /// app, and a sweep across every running app would stall the main queue
-    /// for seconds against one hung app. `performMinimize` itself only
-    /// records state and dispatches, so the bookkeeping lands where
-    /// `lastAction` lives, on main.
-    @discardableResult
-    func minimizeAllWindows(excludingFrontmost: Bool) -> Int {
+    /// Minimizes every app with a normal on-screen window, except the
+    /// frontmost one, so a user can collapse everything else and keep working
+    /// in what they are typing in. The enumeration runs off-main:
+    /// `standardWindows` performs cross-process Accessibility reads with a
+    /// 0.35 s timeout per app, and a sweep across every running app would
+    /// stall the main queue for seconds against one hung app. The bookkeeping
+    /// `performMinimize` writes hops back to main, where `lastAction` lives.
+    func minimizeAllWindows(excludingFrontmost: Bool) {
         let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
-        let now = CFAbsoluteTimeGetCurrent()
-        var candidates: [(pid: pid_t, isFrontmost: Bool, hasVisibleWindow: Bool)] = []
-        for app in NSWorkspace.shared.runningApplications {
-            guard !app.isTerminated,
-                  app.activationPolicy == .regular,
-                  !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
-            else { continue }
-            let pid = app.processIdentifier
-            // Launcher-style apps misreport isActive; the workspace's idea of
-            // the frontmost app is the tiebreaker, same as the tap's.
-            let isFrontmost = app.isActive || frontmostPID == pid
-            candidates.append((pid: pid, isFrontmost: isFrontmost,
-                               hasVisibleWindow: Self.windowServerHasStandardWindows(pid: pid)))
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var candidates: [(pid: pid_t, isFrontmost: Bool, hasVisibleWindow: Bool)] = []
+            for app in NSWorkspace.shared.runningApplications {
+                guard !app.isTerminated,
+                      app.activationPolicy == .regular,
+                      !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+                else { continue }
+                let pid = app.processIdentifier
+                // Launcher-style apps misreport isActive; the workspace's idea
+                // of the frontmost app is the tiebreaker, same as the tap's.
+                let isFrontmost = app.isActive || frontmostPID == pid
+                candidates.append((pid: pid, isFrontmost: isFrontmost,
+                                   hasVisibleWindow: Self.windowServerHasStandardWindows(pid: pid)))
+            }
+            var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
+            for pid in DockClickSupport.minimizeTargets(excludingFrontmost: excludingFrontmost, from: candidates) {
+                let unminimized = Self.standardWindows(pid: pid).unminimized
+                guard !unminimized.isEmpty else { continue }
+                perApp.append((pid: pid, windows: unminimized))
+            }
+            let now = CFAbsoluteTimeGetCurrent()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for entry in perApp {
+                    self.performMinimize(pid: entry.pid, targets: entry.windows, actionTime: now)
+                }
+            }
         }
-        var acted = 0
-        for pid in DockClickSupport.minimizeTargets(excludingFrontmost: excludingFrontmost, from: candidates) {
-            let unminimized = Self.standardWindows(pid: pid).unminimized
-            guard !unminimized.isEmpty else { continue }
-            performMinimize(pid: pid, targets: unminimized, actionTime: now)
-            acted += 1
-        }
-        return acted
     }
 
-    /// Unminimizes every app with minimized windows and returns how many
-    /// apps were acted on. The hotkey press dispatches the enumeration
-    /// off-main and hops back for `restoreBackToFront`: `standardWindows`
-    /// performs cross-process Accessibility reads with a 0.35 s timeout per
-    /// app, and a sweep across every running app would stall the main queue
-    /// for seconds against one hung app.
-    @discardableResult
-    func unminimizeAllWindows() -> Int {
-        let now = CFAbsoluteTimeGetCurrent()
-        var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
-        for app in NSWorkspace.shared.runningApplications {
-            guard !app.isTerminated,
-                  app.activationPolicy == .regular,
-                  !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
-            else { continue }
-            let pid = app.processIdentifier
-            let minimized = Self.standardWindows(pid: pid).minimized
-            guard !minimized.isEmpty else { continue }
-            perApp.append((pid: pid, windows: minimized))
+    /// Unminimizes every app with minimized windows. Like `minimizeAllWindows`
+    /// the enumeration runs off-main and the `restoreBackToFront` bookkeeping
+    /// hops back to main, where `minimizeZOrder` lives.
+    func unminimizeAllWindows() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
+            for app in NSWorkspace.shared.runningApplications {
+                guard !app.isTerminated,
+                      app.activationPolicy == .regular,
+                      !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+                else { continue }
+                let pid = app.processIdentifier
+                let minimized = Self.standardWindows(pid: pid).minimized
+                guard !minimized.isEmpty else { continue }
+                perApp.append((pid: pid, windows: minimized))
+            }
+            let now = CFAbsoluteTimeGetCurrent()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for entry in perApp {
+                    let frontToBack = self.minimizeZOrder[entry.pid] ?? []
+                    self.restoreBackToFront(entry.windows, pid: entry.pid,
+                                            frontToBack: frontToBack, actionTime: now)
+                }
+            }
         }
-        var acted = 0
-        for entry in perApp {
-            let frontToBack = minimizeZOrder[entry.pid] ?? []
-            restoreBackToFront(entry.windows, pid: entry.pid,
-                               frontToBack: frontToBack, actionTime: now)
-            acted += 1
-        }
-        return acted
     }
 
     /// The one thing the click's hide and the hotkey's hide must share: the

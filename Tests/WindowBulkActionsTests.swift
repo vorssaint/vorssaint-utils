@@ -85,5 +85,44 @@ enum WindowBulkActionsTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.minimizeAllWindowsShortcut] as? String
                         == GlobalShortcut.minimizeAllWindowsDefault.storageValue,
                "the registered minimize-all combination is its default")
+
+        // MARK: - Unminimize-all role
+
+        suite.expect(GlobalShortcutRole.unminimizeAllWindows.storageKey
+                == DefaultsKey.unminimizeAllWindowsShortcut
+                && GlobalShortcutRole.unminimizeAllWindows.defaultShortcut == .unminimizeAllWindowsDefault
+                && GlobalShortcutRole.unminimizeAllWindows.requiredEnableKeys
+                    == [DefaultsKey.unminimizeAllWindowsShortcutEnabled]
+                && GlobalShortcutRole.unminimizeAllWindows.feature == .windowLayout,
+               "the unminimize-all shortcut is wired to its own keys and Window Layout")
+        suite.expect(GlobalShortcutRole.conflict(for: .unminimizeAllWindowsDefault,
+                                                excluding: .micMute,
+                                                isOn: { _ in true },
+                                                isAvailable: { _ in true }) == .unminimizeAllWindows,
+               "the same shortcut on unminimize-all and another role surfaces a conflict")
+        suite.expect(GlobalShortcutRole.conflict(for: .unminimizeAllWindowsDefault,
+                                                excluding: .unminimizeAllWindows,
+                                                isOn: { _ in true },
+                                                isAvailable: { _ in true }) == nil,
+               "no other role holds the unminimize-all default, so editing it reports no conflict")
+        suite.expect(GlobalShortcut.unminimizeAllWindowsDefault
+                == GlobalShortcut(keyCode: Int64(kVK_ANSI_R), modifiers: [.control, .option, .command]),
+               "the unminimize-all default stays on its documented combination")
+        // R also carries Window Layout's restore action, but on ⌃⌥ — a
+        // different combination, so the role default stays unambiguous.
+        suite.expect(!GlobalShortcutRole.allCases.contains { $0 != .unminimizeAllWindows
+                    && $0.defaultShortcut == GlobalShortcut.unminimizeAllWindowsDefault },
+               "no other role ships the unminimize-all default, so the combination is unambiguous")
+        for language in AppLanguage.allCases {
+            suite.expect(!FeatureStrings.windowLayout(language).unminimizeAllWindows.isEmpty,
+                         "\(language.rawValue) names the unminimize-all action")
+        }
+        suite.expect(FeatureStrings.windowLayout(.enUS).unminimizeAllWindows == "Unminimize all windows",
+               "the English unminimize-all label reads as the action it performs")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.unminimizeAllWindowsShortcutEnabled] as? Bool == false,
+               "unminimize-all ships opt-in like every other shortcut toggle")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.unminimizeAllWindowsShortcut] as? String
+                        == GlobalShortcut.unminimizeAllWindowsDefault.storageValue,
+               "the registered unminimize-all combination is its default")
     }
 }
