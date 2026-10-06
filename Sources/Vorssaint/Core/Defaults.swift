@@ -746,6 +746,10 @@ enum DefaultsKey {
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
     static let hideAllWindowsShortcutEnabled = "hideAllWindowsShortcutEnabled" // opt-in hide-everything hotkey under Window Layout
     static let hideAllWindowsShortcut = "hideAllWindowsShortcut" // saved combination for the hide-everything hotkey
+    static let minimizeAllWindowsShortcutEnabled = "minimizeAllWindowsShortcutEnabled" // opt-in minimize-everything hotkey under Window Layout
+    static let minimizeAllWindowsShortcut = "minimizeAllWindowsShortcut" // saved combination for the minimize-everything hotkey
+    static let unminimizeAllWindowsShortcutEnabled = "unminimizeAllWindowsShortcutEnabled" // opt-in unminimize-everything hotkey under Window Layout
+    static let unminimizeAllWindowsShortcut = "unminimizeAllWindowsShortcut" // saved combination for the unminimize-everything hotkey
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
@@ -1921,6 +1925,10 @@ enum Defaults {
         DefaultsKey.pointerDisplayShortcut: GlobalShortcut.pointerNextDisplayDefault.storageValue,
         DefaultsKey.hideAllWindowsShortcutEnabled: false,
         DefaultsKey.hideAllWindowsShortcut: GlobalShortcut.hideAllWindowsDefault.storageValue,
+        DefaultsKey.minimizeAllWindowsShortcutEnabled: false,
+        DefaultsKey.minimizeAllWindowsShortcut: GlobalShortcut.minimizeAllWindowsDefault.storageValue,
+        DefaultsKey.unminimizeAllWindowsShortcutEnabled: false,
+        DefaultsKey.unminimizeAllWindowsShortcut: GlobalShortcut.unminimizeAllWindowsDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowEdgeSnapDisabledZones: "",
         DefaultsKey.windowEdgeSnapZoneActions: "",
