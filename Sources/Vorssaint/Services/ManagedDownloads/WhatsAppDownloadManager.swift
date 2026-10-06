@@ -251,6 +251,7 @@ final class WhatsAppDownloadManager: ObservableObject {
 
     private struct SettingsSnapshot {
         let retentionDays: Int
+        let sources: [String]
         let categories: Set<WhatsAppDownloadCategory>
         let includeExisting: Bool
         let automaticStartDate: Date?
@@ -264,6 +265,8 @@ final class WhatsAppDownloadManager: ObservableObject {
                 defaults.integer(forKey: DefaultsKey.whatsAppDownloadsRetentionDays)),
             categories: WhatsAppDownloadSupport.decodedCategories(
                 defaults.string(forKey: DefaultsKey.whatsAppDownloadsCategories)),
+            sources: DownloadRouter.decodedSources(
+                defaults.string(forKey: DefaultsKey.downloadOrganizerSources)),
             includeExisting: defaults.bool(forKey: DefaultsKey.whatsAppDownloadsIncludeExisting),
             automaticStartDate: start > 0 ? Date(timeIntervalSince1970: start) : nil)
     }
@@ -297,8 +300,9 @@ final class WhatsAppDownloadManager: ObservableObject {
               values.isAliasFile != true,
               values.isHidden != true,
               let quarantine = values.quarantineProperties,
-              WhatsAppDownloadSupport.isWhatsAppAgent(
-                quarantine["LSQuarantineAgentName"] as? String),
+              DownloadRouter.matchesAgent(
+                quarantine["LSQuarantineAgentName"] as? String,
+                configured: settings.sources),
               let downloadedAt = (quarantine["LSQuarantineTimeStamp"] as? Date)
                 ?? values.addedToDirectoryDate ?? values.creationDate,
               let fingerprint = fingerprint(for: standardizedURL)

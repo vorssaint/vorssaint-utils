@@ -73,11 +73,6 @@ enum WhatsAppDownloadSupport {
         return decoded
     }
 
-    static func isWhatsAppAgent(_ value: String?) -> Bool {
-        value?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .caseInsensitiveCompare("WhatsApp") == .orderedSame
-    }
-
     static func isIncompleteFile(extension rawExtension: String) -> Bool {
         incompleteExtensions.contains(rawExtension.lowercased())
     }
