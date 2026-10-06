@@ -576,6 +576,11 @@ enum DefaultsKey {
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    // Mute-while-typing behind the existing micMute feature. The unmute wait
+    // is stored in seconds and always read through the sanitizer, so any
+    // previously stored value stays inside the debounce range.
+    static let micMuteWhileTypingEnabled = "micMuteWhileTypingEnabled"
+    static let micMuteWhileTypingUnmuteDelay = "micMuteWhileTypingUnmuteDelay"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
@@ -1725,6 +1730,8 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.micMuteWhileTypingEnabled: false,
+        DefaultsKey.micMuteWhileTypingUnmuteDelay: 2.0,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
