@@ -310,7 +310,7 @@ extension WindowLayoutFeatureStrings {
         gapExtraLarge: "아주 크게",
         hideAllWindows: "모든 창 가리기",
         minimizeAllWindows: "모든 창 최소화",
-        unminimizeAllWindows: "모든 창 복원",
+        unminimizeAllWindows: "모든 창 복원"
     )
 }
 
@@ -1575,7 +1575,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extra large",
         hideAllWindows: "Hide all windows",
         minimizeAllWindows: "Minimize all windows",
-        unminimizeAllWindows: "Unminimize all windows",
+        unminimizeAllWindows: "Unminimize all windows"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1671,7 +1671,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extragrande",
         hideAllWindows: "Ocultar todas as janelas",
         minimizeAllWindows: "Minimizar todas as janelas",
-        unminimizeAllWindows: "Restaurar todas as janelas",
+        unminimizeAllWindows: "Restaurar todas as janelas"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1767,7 +1767,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Çok büyük",
         hideAllWindows: "Tüm pencereleri gizle",
         minimizeAllWindows: "Tüm pencereleri simge durumuna küçült",
-        unminimizeAllWindows: "Tüm pencereleri geri yükle",
+        unminimizeAllWindows: "Tüm pencereleri geri yükle"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1863,7 +1863,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Очень большой",
         hideAllWindows: "Скрыть все окна",
         minimizeAllWindows: "Свернуть все окна",
-        unminimizeAllWindows: "Восстановить все окна",
+        unminimizeAllWindows: "Восстановить все окна"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1959,7 +1959,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extragrande",
         hideAllWindows: "Ocultar todas las ventanas",
         minimizeAllWindows: "Minimizar todas las ventanas",
-        unminimizeAllWindows: "Restaurar todas las ventanas",
+        unminimizeAllWindows: "Restaurar todas las ventanas"
     )
 
     static let sk = WindowLayoutFeatureStrings(
@@ -2055,7 +2055,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extra veľká",
         hideAllWindows: "Skryť všetky okná",
         minimizeAllWindows: "Minimize všetkých okien",
-        unminimizeAllWindows: "Obnoviť všetky okná",
+        unminimizeAllWindows: "Obnoviť všetky okná"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -2151,7 +2151,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Sehr groß",
         hideAllWindows: "Alle Fenster ausblenden",
         minimizeAllWindows: "Alle Fenster minimieren",
-        unminimizeAllWindows: "Alle Fenster wiederherstellen",
+        unminimizeAllWindows: "Alle Fenster wiederherstellen"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -2247,7 +2247,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Très grand",
         hideAllWindows: "Masquer toutes les fenêtres",
         minimizeAllWindows: "Réduire toutes les fenêtres",
-        unminimizeAllWindows: "Restaurer toutes les fenêtres",
+        unminimizeAllWindows: "Restaurer toutes les fenêtres"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -2343,7 +2343,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Molto grande",
         hideAllWindows: "Nascondi tutte le finestre",
         minimizeAllWindows: "Riduci a icona tutte le finestre",
-        unminimizeAllWindows: "Ripristina tutte le finestre",
+        unminimizeAllWindows: "Ripristina tutte le finestre"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -2439,7 +2439,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "特大",
         hideAllWindows: "すべてのウィンドウを隠す",
         minimizeAllWindows: "すべてのウィンドウをしまう",
-        unminimizeAllWindows: "すべてのウィンドウを復元",
+        unminimizeAllWindows: "すべてのウィンドウを復元"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -2535,7 +2535,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "特大",
         hideAllWindows: "隐藏所有窗口",
         minimizeAllWindows: "最小化所有窗口",
-        unminimizeAllWindows: "还原所有窗口",
+        unminimizeAllWindows: "还原所有窗口"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -2631,7 +2631,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "特大",
         hideAllWindows: "隱藏所有視窗",
         minimizeAllWindows: "縮到所有視窗",
-        unminimizeAllWindows: "還原所有視窗",
+        unminimizeAllWindows: "還原所有視窗"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -2727,7 +2727,7 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "特大",
         hideAllWindows: "隱藏所有視窗",
         minimizeAllWindows: "縮到所有視窗",
-        unminimizeAllWindows: "還原所有視窗",
+        unminimizeAllWindows: "還原所有視窗"
     )
 }
 
@@ -3393,7 +3393,7 @@ extension WindowLayoutFeatureStrings {
         gapExtraLarge: "Дуже великий",
         hideAllWindows: "Сховати всі вікна",
         minimizeAllWindows: "Згорнути всі вікна",
-        unminimizeAllWindows: "Відновити всі вікна",
+        unminimizeAllWindows: "Відновити всі вікна"
     )
 }
 
