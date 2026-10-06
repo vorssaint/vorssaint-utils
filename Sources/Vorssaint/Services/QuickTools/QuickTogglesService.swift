@@ -10,7 +10,7 @@ enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // because it is the tab's headline action (issue request). Quit all sits
     // next to Empty the Trash (issue #855).
     case darkMode, keyboardLight, micMute, emptyTrash, quitAllApps, ejectDisks, hiddenFiles,
-         desktopIcons, lockScreen, displayOff, screenSaver, hidePointerIdle
+         desktopIcons, lockScreen, displayOff, screenSaver, hidePointerIdle, dockRevealDelay
 
     var id: String { rawValue }
 
@@ -277,6 +277,45 @@ final class QuickTogglesService: ObservableObject {
         guard available else { return }
         PointerHideService.shared.setEnabled(enabled)
         states[.hidePointerIdle] = nil
+    }
+
+    // MARK: - Dock
+
+    /// Cached rather than read while a row renders: naming what the next click
+    /// will do needs the current value, and a row must not be doing preference
+    /// I/O in `body`. Refreshed when the panel appears and after every write.
+    @Published private(set) var dockRevealDelayInstant = false
+
+    func refreshDockPreferenceStates() {
+        workQueue.async {
+            let delay = QuickTogglesSupport.dockNumber(
+                DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
+            let instant = QuickTogglesSupport.revealDelayIsInstant(delay)
+            DispatchQueue.main.async { [weak self] in
+                self?.dockRevealDelayInstant = instant
+            }
+        }
+    }
+
+    /// Zeroes the Dock's reveal delay, or puts back the one macOS ships with.
+    /// The Dock reads these at launch, so the write ends in a restart, and it
+    /// reports failure rather than claiming a change the Dock never took.
+    func toggleDockRevealDelay() {
+        guard available, beginRun(.dockRevealDelay) else { return }
+        workQueue.async {
+            let current = QuickTogglesSupport.dockNumber(
+                DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
+            let wrote = DockPreferenceWriter.write(QuickTogglesSupport.dockRevealDelayKey,
+                                                   seconds: QuickTogglesSupport.toggledRevealDelay(current))
+            let instant = QuickTogglesSupport.revealDelayIsInstant(
+                QuickTogglesSupport.dockNumber(
+                    DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey)))
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.dockRevealDelayInstant = instant
+                self.finishRun(.dockRevealDelay, state: wrote ? nil : .failed)
+            }
+        }
     }
 
     // MARK: - Screen
