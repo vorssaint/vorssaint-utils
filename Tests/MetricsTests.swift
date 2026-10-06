@@ -48,7 +48,8 @@ struct MetricsTests {
                 DiskImageHomebrewTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite)
-                HideAllWindowsTests.run(suite) }),
+                HideAllWindowsTests.run(suite)
+                WindowBulkActionsTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerRenderContinuityTests.run(suite)

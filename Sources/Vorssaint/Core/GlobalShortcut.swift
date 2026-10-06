@@ -193,6 +193,16 @@ struct GlobalShortcut: Equatable, Hashable {
     // restore.
     static let hideAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
                                                       modifiers: [.control, .option, .command])
+    // O for out of the way, beside hide-all's A on the same free
+    // control-option-command layer. Checked against every ⌃⌥⌘ default in
+    // this file before choosing; O appears in no default here, and R beside
+    // it is the sibling restore. H is recent captures', M is mic mute's.
+    static let minimizeAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+                                                          modifiers: [.control, .option, .command])
+    // R for restore, beside minimize-all's O on the same free
+    // control-option-command layer.
+    static let unminimizeAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_R),
+                                                          modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -748,6 +758,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case pointerNextDisplay
     case notch
     case hideAllWindows
+    case minimizeAllWindows
+    case unminimizeAllWindows
 
     var id: String { storageKey }
 
@@ -787,6 +799,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
         case .hideAllWindows: return DefaultsKey.hideAllWindowsShortcut
+        case .minimizeAllWindows: return DefaultsKey.minimizeAllWindowsShortcut
+        case .unminimizeAllWindows: return DefaultsKey.unminimizeAllWindowsShortcut
         }
     }
 
@@ -826,6 +840,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
         case .hideAllWindows: return .hideAllWindowsDefault
+        case .minimizeAllWindows: return .minimizeAllWindowsDefault
+        case .unminimizeAllWindows: return .unminimizeAllWindowsDefault
         }
     }
 
@@ -897,6 +913,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
         case .hideAllWindows: return FeatureStrings.windowLayout(L10n.shared.language).hideAllWindows
+        case .minimizeAllWindows: return FeatureStrings.windowLayout(L10n.shared.language).minimizeAllWindows
+        case .unminimizeAllWindows: return FeatureStrings.windowLayout(L10n.shared.language).unminimizeAllWindows
         }
     }
 
@@ -960,6 +978,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
         case .hideAllWindows: return [DefaultsKey.hideAllWindowsShortcutEnabled]
+        case .minimizeAllWindows: return [DefaultsKey.minimizeAllWindowsShortcutEnabled]
+        case .unminimizeAllWindows: return [DefaultsKey.unminimizeAllWindowsShortcutEnabled]
         }
     }
 
@@ -994,6 +1014,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
         case .hideAllWindows: return .windowLayout
+        case .minimizeAllWindows: return .windowLayout
+        case .unminimizeAllWindows: return .windowLayout
         }
     }
 
