@@ -29,7 +29,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private weak var keepAwakeButton: NSButton?
     private weak var micMuteButton: NSButton?
     private weak var systemMetricsButton: NSButton?
-    private weak var mediaToggleButton: NSButton?
+    private weak var memoryCleanupButton: NSButton?
     private var cancellables = Set<AnyCancellable>()
 
     private override init() {
@@ -231,65 +231,36 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         return item
     }
 
-    private func makeMediaItem(
-        identifier: NSTouchBarItem.Identifier
-    ) -> NSTouchBarItem {
-        let item = NSCustomTouchBarItem(identifier: identifier)
-
-        let previous = NSButton(
-            image: NSImage(
-                systemSymbolName: "backward.end.fill",
-                accessibilityDescription: "Previous"
-            ) ?? NSImage(),
-            target: self,
-            action: #selector(mediaPrevious(_:))
-        )
-
-        let toggle = NSButton(
-            image: NSImage(
-                systemSymbolName: "play.fill",
-                accessibilityDescription: "Play/Pause"
-            ) ?? NSImage(),
-            target: self,
-            action: #selector(mediaToggle(_:))
-        )
-
-        mediaToggleButton = toggle
-
-        let next = NSButton(
-            image: NSImage(
-                systemSymbolName: "forward.end.fill",
-                accessibilityDescription: "Next"
-            ) ?? NSImage(),
-            target: self,
-            action: #selector(mediaNext(_:))
-        )
-
-        for button in [previous, toggle, next] {
-            button.imagePosition = .imageOnly
-            button.isBordered = false
-        }
-
-        let stack = NSStackView(views: [previous, toggle, next])
-        stack.orientation = .horizontal
-        stack.spacing = 4
-
-        item.view = stack
-        return item
-    }
-
     private func makeSystemMetricsItem(
         identifier: NSTouchBarItem.Identifier
     ) -> NSTouchBarItem {
         let item = NSCustomTouchBarItem(identifier: identifier)
-        let button = NSButton(
+
+        let metrics = NSButton(
             title: "CPU --% · RAM --%",
             target: self,
             action: #selector(showMemoryMetric(_:))
         )
-        button.isBordered = false
-        systemMetricsButton = button
-        item.view = button
+        metrics.isBordered = false
+        systemMetricsButton = metrics
+
+        let cleanup = NSButton(
+            image: NSImage(
+                systemSymbolName: "eraser",
+                accessibilityDescription: "Free RAM"
+            ) ?? NSImage(),
+            target: self,
+            action: #selector(freeRAM(_:))
+        )
+        cleanup.imagePosition = .imageOnly
+        cleanup.isBordered = false
+        memoryCleanupButton = cleanup
+
+        let stack = NSStackView(views: [metrics, cleanup])
+        stack.orientation = .horizontal
+        stack.spacing = 2
+
+        item.view = stack
         return item
     }
 
@@ -379,6 +350,19 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         }
 
         systemMetricsButton?.title = "CPU \(cpu) · RAM \(ram)"
+
+        let cleanupSymbol: String
+        switch snapshot.memoryPressure {
+        case .warning, .critical:
+            cleanupSymbol = "eraser.fill"
+        case .normal, .unknown:
+            cleanupSymbol = "eraser"
+        }
+
+        memoryCleanupButton?.image = NSImage(
+            systemSymbolName: cleanupSymbol,
+            accessibilityDescription: "Free RAM"
+        )
     }
 
     @objc private func showMemoryMetric(_ sender: NSButton) {
@@ -391,6 +375,35 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
     private func updateMicMuteButton() {
         micMuteButton?.image = micMuteImage()
+    }
+
+    @objc private func freeRAM(_ sender: NSButton) {
+        let result = MemoryCleanupService.freeRAM()
+
+        guard result == KERN_SUCCESS else {
+            NSSound.beep()
+            return
+        }
+
+        sender.image = NSImage(
+            systemSymbolName: "checkmark",
+            accessibilityDescription: "RAM cleanup completed"
+        )
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak sender] in
+            guard let sender else { return }
+
+            let pressure = SystemMonitor.shared.snapshot.memoryPressure
+            let symbol = switch pressure {
+            case .warning, .critical: "eraser.fill"
+            case .normal, .unknown: "eraser"
+            }
+
+            sender.image = NSImage(
+                systemSymbolName: symbol,
+                accessibilityDescription: "Free RAM"
+            )
+        }
     }
 
     @objc private func showKillProcess(_ sender: NSButton) {
@@ -406,19 +419,15 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     }
 
     @objc private func showQuickLauncher(_ sender: NSButton) {
-        QuickLauncherService.shared.show()
-    }
-
-    @objc private func mediaPrevious(_ sender: NSButton) {
-        NotchMusicService.shared.send(.previous)
-    }
-
-    @objc private func mediaToggle(_ sender: NSButton) {
-        NotchMusicService.shared.send(.toggle)
-    }
-
-    @objc private func mediaNext(_ sender: NSButton) {
-        NotchMusicService.shared.send(.next)
+        if AppFeature.quickLauncher.isAvailable {
+            QuickLauncherService.shared.show()
+        } else {
+            SettingsRouter.shared.request(
+                FeatureSettingsDestination(.features),
+                targetFeature: .quickLauncher
+            )
+            (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        }
     }
 
     @objc private func toggleClipboard(_ sender: NSButton) {
