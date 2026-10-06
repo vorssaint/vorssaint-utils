@@ -923,18 +923,34 @@ struct ScreenshotEditorView: View {
     }
 
     private var bottomRow: some View {
-        // One row, no stacking: the chips can never collide with the style
-        // bar on a narrow window.
-        HStack(alignment: .center, spacing: 10) {
-            infoChip
-            Spacer(minLength: 6)
-            if model.tool == .crop, model.cropDraft != nil {
-                cropBar
-            } else {
-                styleBar
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 10) {
+                infoChip
+                Spacer(minLength: 6)
+                contextualBar
+                Spacer(minLength: 6)
+                zoomChip
             }
-            Spacer(minLength: 6)
-            zoomChip
+            .fixedSize(horizontal: true, vertical: false)
+            // Small captures open at the minimum window width. Keep the
+            // controls inside it rather than letting this row widen the root.
+            VStack(spacing: 6) {
+                contextualBar
+                HStack {
+                    infoChip
+                    Spacer()
+                    zoomChip
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var contextualBar: some View {
+        if model.tool == .crop, model.cropDraft != nil {
+            cropBar
+        } else {
+            styleBar
         }
     }
 
@@ -970,13 +986,18 @@ struct ScreenshotEditorView: View {
                 }
                 Divider().frame(height: 16)
             }
-            if showsLayerControls {
+            // Reserve the layer actions so a second annotation cannot widen
+            // the footer and change the hosting window's minimum size.
+            HStack(spacing: 10) {
                 layerButton(.backward, symbol: "square.2.layers.3d.bottom.filled",
                             label: strings.sendBackward)
                 layerButton(.forward, symbol: "square.2.layers.3d.top.filled",
                             label: strings.bringForward)
                 Divider().frame(height: 16)
             }
+            .opacity(showsLayerControls ? 1 : 0)
+            .allowsHitTesting(showsLayerControls)
+            .accessibilityHidden(!showsLayerControls)
             annotationShadowButton
             Divider().frame(height: 16)
             backdropButton
