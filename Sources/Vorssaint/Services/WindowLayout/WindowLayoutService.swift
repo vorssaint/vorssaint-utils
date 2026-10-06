@@ -147,6 +147,10 @@ final class WindowLayoutService: ObservableObject {
 
         // Its key pauses for a listed app like the ones above.
         PointerDisplayService.shared.syncWithPreferences()
+
+        // Its key acts on Finder rather than on the app in front, so it does
+        // not stand down for an Ignore-apps entry the way the one above does.
+        FinderToggleService.shared.syncWithPreferences()
     }
 
     private func syncIgnoredAppsActivationObserver(inputsEnabled: Bool) {
