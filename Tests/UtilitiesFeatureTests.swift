@@ -1297,6 +1297,37 @@ enum UtilitiesFeatureTests {
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.diskEjectExcludedVolumes),
                "disk eject exclusions travel in backups")
 
+        // MARK: Dock preferences
+
+        suite.expect(QuickTogglesSupport.dockNumber(0.2) == 0.2
+                && QuickTogglesSupport.dockNumber(NSNumber(value: 0)) == 0
+                && QuickTogglesSupport.dockNumber("0.25") == 0.25,
+               "a Dock preference reads the same as a number, an NSNumber or a decimal string")
+        suite.expect(QuickTogglesSupport.dockNumber("soon") == nil
+                && QuickTogglesSupport.dockNumber(nil) == nil,
+               "an unreadable or absent Dock preference is nil, never a guess")
+
+        suite.expect(!QuickTogglesSupport.revealDelayIsInstant(nil),
+               "an unset reveal delay is Apple's own, which is not instant")
+        suite.expect(!QuickTogglesSupport.revealDelayIsInstant(0.2)
+                && !QuickTogglesSupport.revealDelayIsInstant(0.5),
+               "a delay the Dock still waits for is not instant")
+        suite.expect(QuickTogglesSupport.revealDelayIsInstant(0),
+               "a zero reveal delay is instant")
+        suite.expect(!QuickTogglesSupport.revealDelayIsInstant(-1),
+               "a negative delay is not instant either, so it is not claimed as one")
+
+        suite.expect(QuickTogglesSupport.toggledRevealDelay(nil) == QuickTogglesSupport.instantRevealDelay,
+               "the first click on a Mac that never set the delay removes the wait")
+        suite.expect(QuickTogglesSupport.toggledRevealDelay(0.2) == QuickTogglesSupport.instantRevealDelay
+                && QuickTogglesSupport.toggledRevealDelay(0.5) == QuickTogglesSupport.instantRevealDelay,
+               "any delay still in force is toggled away")
+        suite.expect(QuickTogglesSupport.toggledRevealDelay(0) == QuickTogglesSupport.systemRevealDelay,
+               "an instant delay is toggled back to Apple's own")
+        suite.expect(QuickTogglesSupport.toggledRevealDelay(
+                    QuickTogglesSupport.toggledRevealDelay(nil))
+                == QuickTogglesSupport.systemRevealDelay,
+               "two clicks leave the delay where the system would have put it")
         // MARK: A sleeping clock
         for shareService in ["Sources/Vorssaint/Services/QuickTools/ScreenshotShareService.swift",
                              "Sources/Vorssaint/Services/Recorder/RecordingShareService.swift"] {
@@ -1361,3 +1392,4 @@ enum UtilitiesFeatureTests {
 
     }
 }
+

@@ -100,4 +100,50 @@ enum QuickTogglesSupport {
         }
         return false
     }
+
+    // MARK: - Dock preferences
+
+    /// The Dock reads these once, at launch, so every write here is paired
+    /// with a restart: the preference file on its own changes nothing the
+    /// user can see.
+    static let dockDomain = "com.apple.dock"
+    static let dockRevealDelayKey = "autohide-delay"
+
+    /// Zero wait. The value the toggle writes to remove the delay.
+    static let instantRevealDelay: Double = 0
+    /// The delay macOS ships with, restored when the toggle is switched off.
+    /// An absent key already means this, so writing it back leaves the Dock
+    /// exactly as it found it rather than only approximately right.
+    static let systemRevealDelay: Double = 0.2
+
+    /// A Dock preference arrives as an NSNumber, a Double or a decimal string
+    /// depending on who wrote it last; anything unreadable is nil, and nil means
+    /// "not set", which the toggle treats as Apple's default.
+    static func dockNumber(_ value: Any?) -> Double? {
+        switch value {
+        case let number as Double:
+            return number
+        case let number as NSNumber:
+            return number.doubleValue
+        case let string as String:
+            return Double(string)
+        default:
+            return nil
+        }
+    }
+
+    /// Whether the reveal is already instant, so the row can name what the next
+    /// click will do instead of reporting the state after the fact.
+    static func revealDelayIsInstant(_ current: Double?) -> Bool {
+        guard let current else { return false }
+        return current == instantRevealDelay
+    }
+
+    /// The value the toggle writes: instant when the delay is not already gone,
+    /// Apple's default when it is. Nil (unset) counts as Apple's default, so the
+    /// first click on a Mac that never set the key removes the delay and the
+    /// second puts back the value the system would have used anyway.
+    static func toggledRevealDelay(_ current: Double?) -> Double {
+        revealDelayIsInstant(current) ? systemRevealDelay : instantRevealDelay
+    }
 }
