@@ -153,6 +153,11 @@ enum DefaultsKey {
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
+    // The microphones the input cycle steps through. The list is the user's
+    // selection, not a device read: unavailable entries are skipped by the
+    // switcher rather than dropped here.
+    static let soundInputSwitcherEnabled = "soundInputSwitcherEnabled"
+    static let soundInputSwitcherDeviceUIDs = "soundInputSwitcherDeviceUIDs"
     // Audio device priority: ordered output and microphone lists the feature
     // enforces automatically when its enable flags are on.
     static let audioPriorityOutputEnabled = "audioPriorityOutputEnabled"
@@ -1260,6 +1265,7 @@ enum Defaults {
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
+        DefaultsKey.soundInputSwitcherEnabled: false,
         // The feature itself ships uninstalled. On first install both halves
         // work immediately; an explicit off choice is persisted and wins over
         // these registered defaults on later launches or reinstalls.

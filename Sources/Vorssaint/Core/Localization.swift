@@ -798,6 +798,11 @@ struct Strings {
     let soundOutputSwitcherCaption: String
     let soundOutputSwitcherDevices: String
     let soundOutputSwitcherNoAvailableSelection: String
+    let soundInputSwitcherEnable: String
+    let soundInputSwitcherCaption: String
+    let soundInputSwitcherDevices: String
+    let soundInputSwitcherNoAvailableSelection: String
+    let soundInputSwitcherNoDevices: String
     let mixerInputTitle: String
     let mixerInputNoDevices: String
     let mixerInputUnavailable: String
@@ -1919,6 +1924,11 @@ extension Strings {
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
         soundOutputSwitcherDevices: "Saídas no ciclo",
         soundOutputSwitcherNoAvailableSelection: "Selecione pelo menos uma saída disponível.",
+        soundInputSwitcherEnable: "Alternar microfones com atalho",
+        soundInputSwitcherCaption: "Escolha os microfones e use o atalho para passar para o próximo disponível.",
+        soundInputSwitcherDevices: "Microfones no ciclo",
+        soundInputSwitcherNoAvailableSelection: "Selecione pelo menos um microfone disponível.",
+        soundInputSwitcherNoDevices: "Nenhum microfone encontrado",
         mixerInputTitle: "Microfone",
         mixerInputNoDevices: "Nenhum microfone encontrado",
         mixerInputUnavailable: "Microfone indisponível",
@@ -3018,6 +3028,11 @@ extension Strings {
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
         soundOutputSwitcherDevices: "Outputs in cycle",
         soundOutputSwitcherNoAvailableSelection: "Select at least one available output.",
+        soundInputSwitcherEnable: "Switch microphones with shortcut",
+        soundInputSwitcherCaption: "Choose microphones and use the shortcut to move to the next available one.",
+        soundInputSwitcherDevices: "Microphones in cycle",
+        soundInputSwitcherNoAvailableSelection: "Select at least one available microphone.",
+        soundInputSwitcherNoDevices: "No microphones found",
         mixerInputTitle: "Microphone",
         mixerInputNoDevices: "No microphones found",
         mixerInputUnavailable: "Microphone unavailable",

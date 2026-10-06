@@ -577,6 +577,20 @@ enum CommandBarCatalog {
             }
         }
 
+        if AppFeature.soundOutputSwitcher.isAvailable, AppFeature.mixer.isAvailable,
+           UserDefaults.standard.bool(forKey: DefaultsKey.soundInputSwitcherEnabled) {
+            entries.append(CommandBarEntry(
+                id: "action.soundInputNext",
+                title: s.soundInputSwitcherEnable,
+                subtitle: area(.soundOutputSwitcher),
+                keywords: s.mixerInputTitle,
+                icon: .symbol("mic"),
+                isActive: false,
+                run: { _ in
+                    if !SoundOutputSwitcher.shared.switchToNextInput() { NSSound.beep() }
+                }))
+        }
+
         if AppFeature.quickToggles.isAvailable {
             let toggles = QuickTogglesService.shared
             let togglesText = FeatureStrings.quickToggles(language)
