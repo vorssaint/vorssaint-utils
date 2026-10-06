@@ -145,7 +145,7 @@ extension BluetoothSleepStrings {
         enable: "Mac이 잠자기에 들어가면 Bluetooth 끄기",
         enableCaption: "잠자기 전에 이미 꺼져 있던 Bluetooth는 건드리지 않고 깨어난 뒤에도 꺼진 채로 둡니다.",
         restoreToggle: "Mac이 깨어나면 Bluetooth 다시 켜기",
-        restoreCaption: "Vorssaint가 껐을 때만 다시 켭니다.",
+        restoreCaption: "Vorssaint가 껐을 때만 다시 켜집니다.",
         unsupported: "이 Mac에는 Bluetooth 컨트롤러가 없습니다."
     )
 
