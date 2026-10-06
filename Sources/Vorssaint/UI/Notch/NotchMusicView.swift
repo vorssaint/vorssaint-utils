@@ -11,6 +11,7 @@ struct NotchMusicView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
+    @ObservedObject private var spotify = NotchSpotifyService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
@@ -26,6 +27,20 @@ struct NotchMusicView: View {
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
     private var showsVolume: Bool { showVolume && AppFeature.mixer.isAvailable }
+    /// Spotify's own app always has the heart, so it opens with the rest
+    /// of the row and fills in when Spotify answers; not yet connected, it
+    /// leads to setup. Another player, such as the web player, shows it once
+    /// Spotify names the same song.
+    private var showsHeart: Bool {
+        guard AppFeature.notchSpotify.isAvailable, let playback = service.playback else { return false }
+        if playback.track.appBundleIdentifier == NotchSpotifySupport.bundleIdentifier { return true }
+        return spotify.connection == .connected && spotify.saved != nil
+            && spotify.item.map { NotchSpotifySupport.sameSong(playback.track.title, $0.name) } == true
+    }
+    /// The answer belongs to the song on screen, not one Spotify left behind.
+    private var heartAnswered: Bool {
+        spotify.saved != nil && spotify.item.map { NotchSpotifySupport.sameSong(service.playback?.track.title, $0.name) } == true
+    }
     private var openExtra: MusicExtra? {
         guard service.playback != nil else { return nil }
         switch extra {
@@ -92,6 +107,7 @@ struct NotchMusicView: View {
             syncExtras()
             service.refreshAutomation()
             shuffle.refresh(for: service.playback)
+            spotify.reload()
         }
         .onChange(of: extra) { syncExtras() }
         .onChange(of: service.playback.map(NotchMusicIdentity.init)) {
@@ -232,6 +248,20 @@ struct NotchMusicView: View {
         NotchIconButton(symbol: symbol, title: title, selected: extra == target) {
             extra = extra == target ? nil : target
         }
+    }
+
+    private func heartButton(compact: Bool) -> some View {
+        let strings = FeatureStrings.notchSpotify(l10n.language)
+        let connected = spotify.connection == .connected
+        let liked = connected && heartAnswered && spotify.saved == true
+        let title = !connected ? strings.connect : spotify.actionFailed ? strings.likeFailed : liked ? strings.unlike : strings.like
+        // Until Spotify answers, a tap has nothing to change; the heart stays
+        // in the row rather than arriving after everything else.
+        return NotchMusicSideButton(symbol: spotify.actionFailed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
+                                    title: title, active: liked, tint: accent, compact: compact) {
+            if !connected { NotchService.shared.openSettings(showing: .music) } else if heartAnswered { spotify.toggleSaved() }
+        }
+        .disabled(spotify.busy)
     }
 
     /// The player's own shuffle switch. A player not yet allowed to be
