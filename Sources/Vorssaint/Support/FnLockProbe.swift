@@ -33,9 +33,16 @@ enum FnLockProbe {
     private static let sessionSeconds: TimeInterval = 300
 
     /// Launched through LaunchServices (`open -a`), a GUI process has no
-    /// usable stdout, so the lines also land here. A fixed path, because the
-    /// point of the probe is to be readable by someone else afterwards.
-    private static let logPath = "/tmp/vorssaint-fn-probe.log"
+    /// usable stdout, so the lines also land here. A per-user temp directory,
+    /// not the shared `/tmp`, so unrelated typed text cannot be reconstructed
+    /// from the log and the file is removed when the probe exits.
+    private static let logPath: String = {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-fn-probe", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true,
+                                                  attributes: [.posixPermissions: 0o700])
+        return dir.appendingPathComponent("fn-probe.log").path
+    }()
 
     private static func print(_ line: String) {
         Swift.print(line)
@@ -53,7 +60,6 @@ enum FnLockProbe {
         let systemDefined = CGEventType(rawValue: 14)!
         let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
             | CGEventMask(1 << CGEventType.keyUp.rawValue)
-            | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
             | CGEventMask(1 << systemDefined.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, _ in
             Self.describe(type: type, event: event)
@@ -73,6 +79,7 @@ enum FnLockProbe {
                                           userInfo: nil) else {
             print("fn-probe: the session refused an active tap; this binary"
                   + " needs the Accessibility grant the installed app has")
+            cleanup()
             exit(1)
         }
         print("fn-probe: press F1-F12 bare, then hold Fn and press them again.")
@@ -95,13 +102,21 @@ enum FnLockProbe {
             print("fn-probe: session over")
             CGEvent.tapEnable(tap: tap, enable: false)
             CFMachPortInvalidate(tap)
+            cleanup()
             exit(0)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + sessionSeconds, execute: deadline)
         CFRunLoopRun()
         CGEvent.tapEnable(tap: tap, enable: false)
         CFMachPortInvalidate(tap)
+        cleanup()
         exit(0)
+    }
+
+    /// Removes the log file so nothing from the probe session remains after
+    /// it exits.
+    private static func cleanup() {
+        try? FileManager.default.removeItem(atPath: logPath)
     }
 
     private static func describe(type: CGEventType, event: CGEvent) {
@@ -117,9 +132,13 @@ enum FnLockProbe {
         let fn = flags.contains(.maskSecondaryFn) ? 1 : 0
         let repeatBit = event.getIntegerValueField(.keyboardEventAutorepeat) != 0 ? 1 : 0
         switch type {
-        case .keyDown, .keyUp, .flagsChanged:
+        case .keyDown, .keyUp:
             let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
-            let name = type == .keyDown ? "down " : (type == .keyUp ? "up   " : "flags")
+            // Only the function row and its media keyDown forms are relevant;
+            // everything else is unrelated typing and is not recorded.
+            guard FnLockSupport.functionRowKeyCodes.contains(keyCode)
+                || FnLockSupport.mediaKeyDownToFunction[keyCode] != nil else { return }
+            let name = type == .keyDown ? "down " : "up   "
             print("fn-probe: \(name) keycode=\(keyCode) fn=\(fn) repeat=\(repeatBit) "
                   + "flags=\(String(describing: flags))")
         default:

@@ -58,9 +58,9 @@ enum FnLockTests {
             suite.expect(!FnLockSupport.systemFunctionKeysDefault(read: { _ in nil }),
                           "absent preference means off (factory default)")
             suite.expect(FnLockSupport.systemFunctionKeysDefault(read: { _ in true }),
-                          "fnState true means on")
+                          "com.apple.keyboard.fnState true means on")
             suite.expect(!FnLockSupport.systemFunctionKeysDefault(read: { _ in false }),
-                          "fnState false means off")
+                          "com.apple.keyboard.fnState false means off")
         }
 
         suite.run("FnLockSupport.keyDownAction.forwardDirection") {

@@ -101,12 +101,15 @@ enum FnLockSupport {
 
     /// Whether the system's own checkbox is on: F1-F12 are function keys
     /// everywhere unless the Fn key is held. Read from the preference the
-    /// Keyboard pane writes; an unreadable or absent value means off, which
-    /// is the factory default on every Mac.
+    /// Keyboard pane writes to `NSGlobalDomain` as
+    /// `com.apple.keyboard.fnState`; an unreadable or absent value means
+    /// off, which is the factory default on every Mac.
     static func systemFunctionKeysDefault(read: (String) -> Bool? = {
-        UserDefaults(suiteName: "com.apple.symbolicnotions")?.bool(forKey: $0)
+        UserDefaults.standard.object(forKey: $0) as? Bool
+            ?? (UserDefaults.standard.object(forKey: $0) as? Int).map { $0 != 0 }
+            ?? false
     }) -> Bool {
-        read("fnState") ?? false
+        read("com.apple.keyboard.fnState") ?? false
     }
 
     /// The states an NX system-defined media event carries in data1: a press
@@ -314,20 +317,29 @@ enum FnLockKeyEvents {
         return event
     }
 
-    /// A synthetic media action in the NX form the system acts on, with the
-    /// same shape the volume roller's own posts carry.
-    static func mediaEvent(nxKey: Int32, isKeyDown: Bool) -> CGEvent? {
+    /// A synthetic media action in the NX form the system acts on. The
+    /// incoming press's modifiers and repeat bit are carried through so a
+    /// plain key keeps its normal step, a modified press retains its
+    /// behavior, and an autorepeat arrives as a repeat.
+    static func mediaEvent(nxKey: Int32, isKeyDown: Bool,
+                           flags: CGEventFlags = [], isRepeat: Bool = false) -> CGEvent? {
         let state = isKeyDown ? FnLockSupport.nxKeyDownState : FnLockSupport.nxKeyUpState
-        let fineFlags: UInt = 0x80000 | 0x20000
+        // Carry only the standard modifiers the system-defined event packs
+        // alongside the NX state, not the Fn flag or other CG-only bits.
+        let carryMask = CGEventFlags.maskAlternate.rawValue
+            | CGEventFlags.maskShift.rawValue
+            | CGEventFlags.maskControl.rawValue
+            | CGEventFlags.maskCommand.rawValue
+        let carryFlags = UInt(flags.rawValue & carryMask)
         guard let nsEvent = NSEvent.otherEvent(
             with: .systemDefined,
             location: .zero,
-            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(state << 8) | fineFlags),
+            modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(state << 8) | carryFlags),
             timestamp: 0,
             windowNumber: 0,
             context: nil,
             subtype: 8,
-            data1: Int((nxKey << 16) | Int32(state << 8)),
+            data1: Int((nxKey << 16) | Int32(state << 8) | (isRepeat ? 1 : 0)),
             data2: -1),
               let event = nsEvent.cgEvent else { return nil }
         event.setIntegerValueField(.eventSourceUserData, value: postedMarker)

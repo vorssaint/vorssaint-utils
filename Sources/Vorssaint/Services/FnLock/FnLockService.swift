@@ -58,9 +58,20 @@ final class FnLockService: ObservableObject {
     private var pendingFunctionKeyUps = Set<Int>()
     /// NX media ids whose synthetic press went out and whose release has not.
     private var pendingMediaUps = Set<Int32>()
+    /// Function-row keycodes whose in-place rewrite went out and whose
+    /// release has not, mapped to the target keycode the app received, so a
+    /// release that arrives after the engagement ended is rewritten to match
+    /// the down the app saw, not the original key the hardware sent.
+    private var translatedPresses = [Int: Int]()
     private var dedup = FnLockSupport.TranslationDedup()
 
     private var exceptionObservation: AnyCancellable?
+    /// Observes the global keyboard preference so a change in System
+    /// Settings is picked up without waiting for the next frontmost switch.
+    private var defaultsObservation: AnyCancellable?
+    /// Observes the app list so adding the first app or removing the last
+    /// one starts or stops the listener without waiting for a full sync.
+    private var listObservation: AnyCancellable?
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
@@ -72,6 +83,8 @@ final class FnLockService: ObservableObject {
             && defaults.bool(forKey: DefaultsKey.fnLockEnabled)
             && SessionActivity.shared.isActive
         syncExceptionMonitoring(enabled: enabled && AXIsProcessTrusted())
+        syncDefaultsObservation(enabled: enabled)
+        syncListObservation(enabled: enabled && AXIsProcessTrusted())
         // An empty list has nothing to translate for anyone, so the listener
         // is not registered at all and the shared tap stays down when no
         // other feature wants it.
@@ -120,6 +133,39 @@ final class FnLockService: ObservableObject {
         exceptions.setSourceTracking(enabled, for: .fnLock)
     }
 
+    /// Observes the global F-keys preference so a change in System Settings
+    /// refreshes the snapshot without waiting for the next frontmost switch,
+    /// including while the same listed app stays in front.
+    private func syncDefaultsObservation(enabled: Bool) {
+        if enabled {
+            if defaultsObservation == nil {
+                defaultsObservation = NotificationCenter.default
+                    .publisher(for: UserDefaults.didChangeNotification)
+                    .debounce(for: .seconds(0.3), scheduler: DispatchQueue.main)
+                    .sink { [weak self] _ in self?.syncEngagement() }
+            }
+        } else {
+            defaultsObservation = nil
+        }
+    }
+
+    /// Observes the app list so the listener starts the moment the first app
+    /// is added and stops the moment the last is removed, without waiting
+    /// for another full sync.
+    private func syncListObservation(enabled: Bool) {
+        if enabled {
+            if listObservation == nil {
+                listObservation = MouseAppExceptions.shared.$lists
+                    .map { !($0[.fnLock]?.isEmpty ?? true) }
+                    .removeDuplicates()
+                    .receive(on: DispatchQueue.main)
+                    .sink { [weak self] _ in self?.syncWithPreferences() }
+            }
+        } else {
+            listObservation = nil
+        }
+    }
+
     /// Reads the engagement from the published answer and samples the
     /// system's own checkbox with it, so a change in System Settings is
     /// picked up on the next frontmost change at the latest. Main thread.
@@ -139,15 +185,17 @@ final class FnLockService: ObservableObject {
     /// has since ended, so the app in front never holds a key down that no
     /// one will release. Main thread.
     private func flushPendingReleases() {
-        let (keyUps, mediaUps) = stateLock.withLock { () -> (Set<Int>, Set<Int32>) in
+        let (keyUps, mediaUps, rewritten) = stateLock.withLock { () -> (Set<Int>, Set<Int32>, [Int: Int]) in
             let keyUps = pendingFunctionKeyUps
             let mediaUps = pendingMediaUps
+            let rewritten = translatedPresses
             pendingFunctionKeyUps = []
             pendingMediaUps = []
+            translatedPresses = [:]
             dedup.reset()
-            return (keyUps, mediaUps)
+            return (keyUps, mediaUps, rewritten)
         }
-        guard !keyUps.isEmpty || !mediaUps.isEmpty else { return }
+        guard !keyUps.isEmpty || !mediaUps.isEmpty || !rewritten.isEmpty else { return }
         for keyCode in keyUps {
             FnLockKeyEvents.functionKeyEvent(keyCode: keyCode, isKeyDown: false,
                                              isRepeat: false, flags: [.maskSecondaryFn])?
@@ -155,6 +203,13 @@ final class FnLockService: ObservableObject {
         }
         for nxKey in mediaUps {
             FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false)?
+                .post(tap: .cgSessionEventTap)
+        }
+        // Post the releases of in-place rewrites so the app that received
+        // the target keycode also gets its up.
+        for (_, target) in rewritten {
+            FnLockKeyEvents.functionKeyEvent(keyCode: target, isKeyDown: false,
+                                             isRepeat: false, flags: [.maskSecondaryFn])?
                 .post(tap: .cgSessionEventTap)
         }
     }
@@ -204,27 +259,46 @@ final class FnLockService: ObservableObject {
 
     private func routeKey(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         let keyCode = Int(event.getIntegerValueField(.keyboardEventKeycode))
+        let isKeyDown = type == .keyDown
+        // Complete any release we own before checking engagement: a press
+        // we translated while engaged must have its release translated the
+        // same way even if the app in front has since changed, so no key is
+        // left held in one form and released in another.
+        if !isKeyDown {
+            if let owned = stateLock.withLock({ translatedPresses.removeValue(forKey: keyCode) }) {
+                event.setIntegerValueField(.keyboardEventKeycode, value: Int64(owned))
+                var flags = event.flags
+                flags.insert(.maskSecondaryFn)
+                event.flags = flags
+                recordTranslation(source: .keyCode(keyCode), target: .keyCode(owned), isKeyDown: false)
+                return Unmanaged.passUnretained(event)
+            }
+            if let nxKey = FnLockSupport.functionToNXKey[keyCode],
+               stateLock.withLock({ pendingMediaUps.remove(nxKey) }) != nil {
+                recordTranslation(source: .keyCode(keyCode), target: .nxKey(nxKey), isKeyDown: false)
+                FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false, flags: event.flags)?
+                    .post(tap: .cgSessionEventTap)
+                return nil
+            }
+        }
         let (engaged, forward) = stateLock.withLock { (engagedSnapshot, systemFunctionKeysDefault) }
         guard engaged else { return Unmanaged.passUnretained(event) }
         let action = FnLockSupport.keyDownAction(keyCode: keyCode,
-                                                 isKeyDown: type == .keyDown,
+                                                 isKeyDown: isKeyDown,
                                                  systemFunctionKeysDefault: forward)
         switch action {
         case .passThrough:
             return Unmanaged.passUnretained(event)
         case .rewrite(let target):
-            // The key already arrived in the form the tap can rewrite in
-            // place; the release matches the same table, so no pairing
-            // state is needed for it. The Fn flag goes on in both
-            // directions: the probe measured every form of this row,
-            // media and function alike, arriving with it set, so a
-            // rewritten press keeps the shape of the genuine one.
             event.setIntegerValueField(.keyboardEventKeycode, value: Int64(target))
             var flags = event.flags
             flags.insert(.maskSecondaryFn)
             event.flags = flags
             recordTranslation(source: .keyCode(keyCode), target: .keyCode(target),
-                              isKeyDown: type == .keyDown)
+                              isKeyDown: isKeyDown)
+            if isKeyDown {
+                stateLock.withLock { translatedPresses[keyCode] = target }
+            }
             if forward {
                 stateLock.withLock {
                     dedup.record(functionKey: keyCode, at: ProcessInfo.processInfo.systemUptime)
@@ -237,14 +311,17 @@ final class FnLockService: ObservableObject {
                 dedup.record(functionKey: keyCode, at: ProcessInfo.processInfo.systemUptime)
             }
             recordTranslation(source: .keyCode(keyCode), target: .nxKey(nxKey), isKeyDown: true)
-            FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: true)?
+            let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+            FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: true,
+                                       flags: event.flags, isRepeat: isRepeat)?
                 .post(tap: .cgSessionEventTap)
             return nil
         case .postMediaUp(let nxKey):
             let owned = stateLock.withLock { pendingMediaUps.remove(nxKey) != nil }
             guard owned else { return Unmanaged.passUnretained(event) }
             recordTranslation(source: .keyCode(keyCode), target: .nxKey(nxKey), isKeyDown: false)
-            FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false)?
+            FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false,
+                                       flags: event.flags)?
                 .post(tap: .cgSessionEventTap)
             return nil
         case .consume:
@@ -259,6 +336,20 @@ final class FnLockService: ObservableObject {
         let nxKey = Int32((raw >> 16) & 0xFFFF)
         let state = Int((raw >> 8) & 0xFF)
         let isRepeat = raw & 0x1 != 0
+        let isKeyDown = state == FnLockSupport.nxKeyDownState
+        // Complete any release we own before checking engagement: a
+        // synthetic function-key down we posted while engaged must have
+        // its up posted too, even if the app in front has since changed.
+        if !isKeyDown, let function = FnLockSupport.nxKeyToFunction[nxKey] {
+            let owned = stateLock.withLock { pendingFunctionKeyUps.remove(function) != nil }
+            if owned {
+                recordTranslation(source: .nxKey(nxKey), target: .keyCode(function), isKeyDown: false)
+                FnLockKeyEvents.functionKeyEvent(keyCode: function, isKeyDown: false,
+                                                 isRepeat: false, flags: [.maskSecondaryFn])?
+                    .post(tap: .cgSessionEventTap)
+                return nil
+            }
+        }
         let (engaged, forward) = stateLock.withLock { (engagedSnapshot, systemFunctionKeysDefault) }
         guard engaged else { return Unmanaged.passUnretained(event) }
         let action = FnLockSupport.systemDefinedAction(nxKey: nxKey, state: state,
@@ -269,11 +360,12 @@ final class FnLockService: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         // The same physical press may reach the tap in the plain key form
         // first; that form was already rewritten in place, so this copy is
-        // consumed rather than delivered twice.
-        let blocked = stateLock.withLock { dedup.blocks(functionKey: functionKey, at: now) }
+        // consumed rather than delivered twice. Only the down is deduped:
+        // a release within the window is a genuine up that completes the
+        // pair, not an echo, so it always goes through.
+        let blocked = isKeyDown && stateLock.withLock { dedup.blocks(functionKey: functionKey, at: now) }
         if blocked { return nil }
-        stateLock.withLock { dedup.record(functionKey: functionKey, at: now) }
-        let isKeyDown = state == FnLockSupport.nxKeyDownState
+        if isKeyDown { stateLock.withLock { dedup.record(functionKey: functionKey, at: now) } }
         if isKeyDown { _ = stateLock.withLock { pendingFunctionKeyUps.insert(functionKey) } }
         else { _ = stateLock.withLock { pendingFunctionKeyUps.remove(functionKey) } }
         recordTranslation(source: .nxKey(nxKey), target: .keyCode(functionKey), isKeyDown: isKeyDown)
