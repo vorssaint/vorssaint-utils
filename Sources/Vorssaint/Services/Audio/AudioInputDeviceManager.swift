@@ -179,6 +179,28 @@ final class AudioInputDeviceManager: ObservableObject {
         }
     }
 
+    /// Cycles the system input through the selected microphones. Mirrors
+    /// `AppVolumeMixer.switchToNextSoundOutput(in:)`: with an available
+    /// selection, no next device means the only selected microphone is
+    /// already live and that is not a failure. The handoff itself runs
+    /// through the existing async setter, so `true` means a next microphone
+    /// was chosen and handed off, not that the HAL has published it yet.
+    @discardableResult
+    func switchToNextSoundInput(in selectedUIDs: [String]) -> Bool {
+        let availableUIDs = Set(inputDevices.map(\.uid))
+        guard let nextUID = MixerRoutingSupport.nextSelectedOutputDeviceUID(
+            currentUID: currentInputDeviceUID,
+            selectedUIDs: selectedUIDs,
+            availableUIDs: availableUIDs) else {
+            // With an available selection, no next input means the only one is already live.
+            return selectedUIDs.contains { rawUID in
+                MixerRoutingSupport.sanitizedDeviceUID(rawUID).map { availableUIDs.contains($0) } ?? false
+            }
+        }
+        setCurrentInputDeviceUID(nextUID)
+        return true
+    }
+
     func setInputVolume(_ volume: Double) {
         guard listenerInstalled, volume.isFinite,
               let muteLifetime = MicMuteService.shared.inputVolumeAdjustmentLifetime,
