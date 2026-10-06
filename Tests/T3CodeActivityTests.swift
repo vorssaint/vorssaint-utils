@@ -12,6 +12,7 @@ enum T3CodeActivityTests {
         connectionConfiguration(suite)
         aggregation(suite)
         connectionLifecycle(suite)
+        MainActor.assumeIsolated { expiryLifecycle(suite) }
         localization(suite)
     }
 
@@ -609,6 +610,79 @@ enum T3CodeActivityTests {
                      "an expired credential is surfaced when no endpoint can poll")
         suite.expect(T3CodeActivityService.aggregateConnectionState([.connected], pairingInProgress: true) == .connecting,
                      "adding an environment shows pairing progress without stopping healthy connections")
+    }
+
+    @MainActor
+    private static func expiryLifecycle(_ suite: TestSuite) {
+        struct Scheduled {
+            let delay: TimeInterval
+            let action: T3ActivityExpiryController.ScheduledAction
+            var cancelled = false
+        }
+        var scheduled: [Scheduled] = []
+        let controller = T3ActivityExpiryController(schedule: { delay, action in
+            let index = scheduled.count
+            scheduled.append(Scheduled(delay: delay, action: action))
+            return { scheduled[index].cancelled = true }
+        })
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        var generations = ["env-a": "a1", "env-b": "b1"]
+        var expired: [String] = []
+
+        controller.recordSuccess(connectionID: "env-a", at: start)
+        controller.expireAfterTransientFailure(connectionID: "env-a", now: start.addingTimeInterval(2),
+            isGenerationCurrent: { generations["env-a"] == "a1" },
+            onExpire: { expired.append("env-a") })
+        suite.expect(scheduled.count == 1 && scheduled[0].delay == 8,
+                     "transient failure schedules expiry for the remaining grace period")
+        scheduled[0].action()
+        suite.expect(expired == ["env-a"],
+                     "scheduled expiry clears activity even if the polling request has not returned")
+
+        controller.recordSuccess(connectionID: "env-a", at: start)
+        controller.expireAfterTransientFailure(connectionID: "env-a", now: start.addingTimeInterval(1),
+            isGenerationCurrent: { generations["env-a"] == "a1" },
+            onExpire: { expired.append("stale-success") })
+        let afterSuccess = scheduled.count - 1
+        controller.recordSuccess(connectionID: "env-a", at: start.addingTimeInterval(3))
+        scheduled[afterSuccess].action()
+        suite.expect(scheduled[afterSuccess].cancelled && !expired.contains("stale-success"),
+                     "a successful poll cancels expiry and stale callbacks cannot clear refreshed activity")
+
+        controller.expireAfterTransientFailure(connectionID: "env-a", now: start.addingTimeInterval(4),
+            isGenerationCurrent: { generations["env-a"] == "a1" },
+            onExpire: { expired.append("disconnected") })
+        let afterDisconnect = scheduled.count - 1
+        controller.cancel(connectionID: "env-a", clearLastSuccess: true)
+        scheduled[afterDisconnect].action()
+        suite.expect(scheduled[afterDisconnect].cancelled && !expired.contains("disconnected"),
+                     "disconnect cancels expiry and ignores a stale callback")
+
+        controller.recordSuccess(connectionID: "env-a", at: start)
+        controller.expireAfterTransientFailure(connectionID: "env-a", now: start.addingTimeInterval(1),
+            isGenerationCurrent: { generations["env-a"] == "a1" },
+            onExpire: { expired.append("replaced-generation") })
+        let replaced = scheduled.count - 1
+        generations["env-a"] = "a2"
+        scheduled[replaced].action()
+        suite.expect(!expired.contains("replaced-generation"),
+                     "an expiry callback from a replaced connection generation is ignored")
+
+        controller.recordSuccess(connectionID: "env-a", at: start)
+        controller.recordSuccess(connectionID: "env-b", at: start)
+        controller.expireAfterTransientFailure(connectionID: "env-a", now: start.addingTimeInterval(1),
+            isGenerationCurrent: { generations["env-a"] == "a2" },
+            onExpire: { expired.append("env-a-final") })
+        controller.expireAfterTransientFailure(connectionID: "env-b", now: start.addingTimeInterval(1),
+            isGenerationCurrent: { generations["env-b"] == "b1" },
+            onExpire: { expired.append("env-b") })
+        let environmentA = scheduled.count - 2
+        let environmentB = scheduled.count - 1
+        scheduled[environmentA].action()
+        suite.expect(expired.contains("env-a-final") && !expired.contains("env-b"),
+                     "one environment's expiry does not clear another environment's activity")
+        scheduled[environmentB].action()
+        suite.expect(expired.contains("env-b"), "each environment expires its own retained activity")
     }
 
     private static func localization(_ suite: TestSuite) {

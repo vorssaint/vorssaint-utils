@@ -340,6 +340,77 @@ struct T3ConfiguredConnectionStore {
     }
 }
 
+final class T3ActivityExpiryController {
+    typealias Cancellation = () -> Void
+    typealias ScheduledAction = @MainActor () -> Void
+    typealias Scheduler = (TimeInterval, @escaping ScheduledAction) -> Cancellation
+
+    private struct PendingExpiry {
+        let id: UUID
+        let cancel: Cancellation
+    }
+
+    private let schedule: Scheduler
+    private var lastSuccessfulPollAt: [String: Date] = [:]
+    private var pending: [String: PendingExpiry] = [:]
+
+    init(schedule: Scheduler? = nil) {
+        self.schedule = schedule ?? Self.scheduleTask
+    }
+
+    func recordSuccess(connectionID: String, at date: Date) {
+        cancelPending(connectionID: connectionID)
+        lastSuccessfulPollAt[connectionID] = date
+    }
+
+    func expireAfterTransientFailure(connectionID: String, now: Date,
+                                     isGenerationCurrent: @escaping () -> Bool,
+                                     onExpire: @escaping () -> Void) {
+        guard let lastSuccess = lastSuccessfulPollAt[connectionID],
+              let delay = T3CodeActivityService.activityExpiryDelay(lastSuccessfulPollAt: lastSuccess, now: now),
+              delay > 0 else {
+            cancel(connectionID: connectionID, clearLastSuccess: true)
+            onExpire()
+            return
+        }
+        guard pending[connectionID] == nil else { return }
+
+        let pendingID = UUID()
+        let cancel = schedule(delay) { [weak self] in
+            guard let self, self.pending[connectionID]?.id == pendingID,
+                  self.lastSuccessfulPollAt[connectionID] == lastSuccess,
+                  isGenerationCurrent() else { return }
+            self.pending[connectionID] = nil
+            self.lastSuccessfulPollAt[connectionID] = nil
+            onExpire()
+        }
+        pending[connectionID] = PendingExpiry(id: pendingID, cancel: cancel)
+    }
+
+    func cancel(connectionID: String, clearLastSuccess: Bool) {
+        cancelPending(connectionID: connectionID)
+        if clearLastSuccess { lastSuccessfulPollAt[connectionID] = nil }
+    }
+
+    func cancelAll() {
+        for connectionID in Array(pending.keys) { cancelPending(connectionID: connectionID) }
+        lastSuccessfulPollAt.removeAll()
+    }
+
+    private func cancelPending(connectionID: String) {
+        pending.removeValue(forKey: connectionID)?.cancel()
+    }
+
+    private static let scheduleTask: Scheduler = { delay, action in
+        let task = Task { @MainActor in
+            do { try await Task.sleep(for: .seconds(delay)) }
+            catch { return }
+            action()
+        }
+        return { task.cancel() }
+    }
+}
+
 final class T3CodeActivityService: ObservableObject {
     static let shared = T3CodeActivityService()
     static let transientFailureActivityGrace: TimeInterval = 10
@@ -360,8 +431,7 @@ final class T3CodeActivityService: ObservableObject {
     private var runtimeStates: [String: T3CodeConnectionState] = [:]
     private var errorsByConnection: [String: T3CodeConnectionError] = [:]
     private var tokens: [String: String] = [:]
-    private var lastSuccessfulPollAt: [String: Date] = [:]
-    private var activityExpiryTasks: [String: Task<Void, Never>] = [:]
+    private let activityExpiryController = T3ActivityExpiryController()
     private var pairingInProgress = false
     private var pairingGeneration = UUID()
 
@@ -580,9 +650,7 @@ final class T3CodeActivityService: ObservableObject {
                     self.activitiesByConnection[id] = next
                     let successfulPollAt = Date()
                     self.lastUpdated = successfulPollAt
-                    self.activityExpiryTasks[id]?.cancel()
-                    self.activityExpiryTasks[id] = nil
-                    self.lastSuccessfulPollAt[id] = successfulPollAt
+                    self.activityExpiryController.recordSuccess(connectionID: id, at: successfulPollAt)
                     self.runtimeStates[id] = .connected
                     self.errorsByConnection[id] = nil
                     self.publishAggregate()
@@ -624,15 +692,13 @@ final class T3CodeActivityService: ObservableObject {
         generations[connectionID] = UUID()
         tasks[connectionID]?.cancel()
         tasks[connectionID] = nil
-        activityExpiryTasks[connectionID]?.cancel()
-        activityExpiryTasks[connectionID] = nil
+        activityExpiryController.cancel(connectionID: connectionID, clearLastSuccess: clearActivity)
         tokens[connectionID] = nil
         runtimeStates[connectionID] = nil
         errorsByConnection[connectionID] = nil
         if clearActivity {
             reducers[connectionID] = nil
             activitiesByConnection[connectionID] = nil
-            lastSuccessfulPollAt[connectionID] = nil
         }
     }
 
@@ -642,37 +708,22 @@ final class T3CodeActivityService: ObservableObject {
     }
 
     private func clearActivity(connectionID: String) {
-        activityExpiryTasks[connectionID]?.cancel()
-        activityExpiryTasks[connectionID] = nil
+        activityExpiryController.cancel(connectionID: connectionID, clearLastSuccess: true)
         activitiesByConnection[connectionID] = nil
         reducers[connectionID] = T3ActivityReducer()
-        lastSuccessfulPollAt[connectionID] = nil
         publishAggregate()
     }
 
     private func clearActivityAfterTransientFailure(connectionID: String, generation: UUID, now: Date = .now) {
-        guard let lastSuccess = lastSuccessfulPollAt[connectionID],
-              let delay = Self.activityExpiryDelay(lastSuccessfulPollAt: lastSuccess, now: now), delay > 0 else {
-            clearActivity(connectionID: connectionID)
-            return
-        }
-        guard activityExpiryTasks[connectionID] == nil else { return }
-        activityExpiryTasks[connectionID] = Task { @MainActor [weak self] in
-            do { try await Task.sleep(for: .seconds(delay)) }
-            catch { return }
-            guard let self, self.generations[connectionID] == generation,
-                  self.lastSuccessfulPollAt[connectionID] == lastSuccess else { return }
-            self.activityExpiryTasks[connectionID] = nil
-            self.clearActivity(connectionID: connectionID)
-        }
+        activityExpiryController.expireAfterTransientFailure(connectionID: connectionID, now: now,
+            isGenerationCurrent: { [weak self] in self?.generations[connectionID] == generation },
+            onExpire: { [weak self] in self?.clearActivity(connectionID: connectionID) })
     }
 
     private func clearAllActivities() {
         activitiesByConnection.removeAll()
         reducers.removeAll()
-        lastSuccessfulPollAt.removeAll()
-        activityExpiryTasks.values.forEach { $0.cancel() }
-        activityExpiryTasks.removeAll()
+        activityExpiryController.cancelAll()
         activities = []
         lastUpdated = nil
     }
