@@ -180,6 +180,16 @@ struct GlobalShortcut: Equatable, Hashable {
     // free control-option-command layer.
     static let pointerNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Z),
                                                           modifiers: [.control, .option, .command])
+    // A for all, beside the pointer's Z on the same free
+    // control-option-command layer. Checked against every ⌃⌥⌘ default in
+    // this file before choosing: K D V S Z C T M W 4 3 U E H P Space N L 5
+    // and RightArrow are taken, and M already belongs to mic mute. H looks
+    // like the mnemonic here but is recent captures' key, so a binding on it
+    // would put two roles on one combination and have the conflict report
+    // blame whichever was saved second. O and R beside it are minimize and
+    // restore.
+    static let hideAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
+                                                      modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -724,6 +734,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessIncrease
     case pointerNextDisplay
     case notch
+    case hideAllWindows
 
     var id: String { storageKey }
 
@@ -759,6 +770,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
+        case .hideAllWindows: return DefaultsKey.hideAllWindowsShortcut
         }
     }
 
@@ -794,6 +806,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
+        case .hideAllWindows: return .hideAllWindowsDefault
         }
     }
 
@@ -858,6 +871,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
+        case .hideAllWindows: return FeatureStrings.windowLayout(L10n.shared.language).hideAllWindows
         }
     }
 
@@ -916,6 +930,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
+        case .hideAllWindows: return [DefaultsKey.hideAllWindowsShortcutEnabled]
         }
     }
 
@@ -948,6 +963,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
+        case .hideAllWindows: return .windowLayout
         }
     }
 
