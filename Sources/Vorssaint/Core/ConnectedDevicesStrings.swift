@@ -55,13 +55,13 @@ private extension ConnectedDevicesFeatureStrings {
     )
 
     static let sv = ConnectedDevicesFeatureStrings(
-        title: "Connected Devices",
-        hubDescription: "Count connected external USB peripherals",
-        noDevices: "No external devices connected",
-        unnamedDevice: "USB Device",
+        title: "Anslutna enheter",
+        hubDescription: "Räkna anslutna externa USB-enheter",
+        noDevices: "Inga externa enheter anslutna",
+        unnamedDevice: "USB-enhet",
         menuBarLabel: "USB",
-        oneConnected: "1 device connected",
-        devicesConnectedFormat: "%d devices connected"
+        oneConnected: "1 enhet ansluten",
+        devicesConnectedFormat: "%d enheter anslutna"
     )
 
     static let ptBR = ConnectedDevicesFeatureStrings(
