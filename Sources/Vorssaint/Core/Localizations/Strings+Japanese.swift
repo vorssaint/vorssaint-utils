@@ -746,6 +746,7 @@ extension Strings {
         networkMeasuring: "計測中…",
         networkApps: "通信中のアプリ",
         networkAppsIdle: "現在ネットワークを使用中のアプリはありません",
+        networkUsageSinceStartup: "総データ使用量",
 
         diskSection: "ディスク",
         diskUsed: "使用済み",

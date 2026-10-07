@@ -746,6 +746,7 @@ extension Strings {
         networkMeasuring: "Ölçülüyor…",
         networkApps: "Ağı kullanan uygulamalar",
         networkAppsIdle: "Şu anda ağı kullanan uygulama yok",
+        networkUsageSinceStartup: "Toplam veri kullanımı",
 
         diskSection: "Diskler",
         diskUsed: "kullanıldı",

@@ -56,6 +56,8 @@ struct SystemSnapshot {
     var netUpBytesPerSec: Double?
     var netTotalDown: UInt64?      // since the app started watching
     var netTotalUp: UInt64?
+    var totalDownloadSinceBootUp: UInt64?       // since data usage Mac boot
+    var totalUploadSinceBootUp: UInt64?
 
     // Power
     var power: PowerReading?
@@ -747,6 +749,8 @@ final class SystemMonitor: ObservableObject {
                     next.netUpBytesPerSec = network.upBytesPerSec
                     next.netTotalDown = network.totalDown
                     next.netTotalUp = network.totalUp
+                    next.totalDownloadSinceBootUp = network.totalDownloadSinceBootUp
+                    next.totalUploadSinceBootUp = network.totalUploadSinceBootUp
                     if let down = network.downBytesPerSec { self.netDownHistory.push(down) }
                     if let up = network.upBytesPerSec { self.netUpHistory.push(up) }
                 }

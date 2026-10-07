@@ -514,6 +514,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ShellSupport.swift
         Sources/Vorssaint/Services/PortManager/PortManagerSupport.swift
         Sources/Vorssaint/Services/Metrics/NetworkProcessSupport.swift
+        Sources/Vorssaint/Services/Metrics/NetworkDataUsageAccumulator.swift
         Sources/Vorssaint/Services/Metrics/NetworkSampler.swift
         Sources/Vorssaint/Services/Metrics/NetworkAddressService.swift
         Sources/Vorssaint/Services/Metrics/SpeedTest.swift

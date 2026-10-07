@@ -722,6 +722,7 @@ extension Strings {
         networkMeasuring: "Вимірювання…",
         networkApps: "Програми, що використовують мережу",
         networkAppsIdle: "Зараз немає програм, що використовують мережу",
+        networkUsageSinceStartup: "Загальне споживання даних",
         diskSection: "Диски",
         diskUsed: "зайнято",
         diskFree: "вільно",

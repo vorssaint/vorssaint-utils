@@ -747,6 +747,7 @@ extension Strings {
         networkMeasuring: "측정 중…",
         networkApps: "네트워크를 사용하는 앱",
         networkAppsIdle: "현재 네트워크를 사용하는 앱이 없습니다",
+        networkUsageSinceStartup: "총 데이터 사용량",
 
         diskSection: "디스크",
         diskUsed: "사용됨",

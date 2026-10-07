@@ -5,12 +5,29 @@ import Foundation
 
 /// Cumulative interface byte counters (since boot), read from the kernel.
 /// 64-bit so they never wrap on fast links — the reason totals stay accurate.
-struct NetworkCounters: Equatable {
+struct NetworkCounters: Equatable, Codable {
     var received: UInt64 = 0
     var sent: UInt64 = 0
 }
 
-/// Detects the macOS failure mode where outbound interface counters keep moving
+extension NetworkCounters {
+
+    static func sumUpData(_ lhs: UInt64, _ rhs: UInt64) -> UInt64 {
+        let result = lhs.addingReportingOverflow(rhs)
+        return result.overflow ? .max : result.partialValue
+    }
+
+    static func totalData(_ counters: [String: NetworkCounters]) -> NetworkCounters {
+        var totalData = NetworkCounters()
+        for value in counters.values {
+            totalData.received = sumUpData(totalData.received, value.received)
+            totalData.sent = sumUpData(totalData.sent, value.sent)
+        }
+        return totalData
+    }
+}
+
+/// Detects the macOS failure where outbound interface counters keep moving
 /// while inbound counters stay frozen. The first suspect sample only primes the
 /// process reader; a second consecutive sample is required before using it.
 struct NetworkCounterFallback {

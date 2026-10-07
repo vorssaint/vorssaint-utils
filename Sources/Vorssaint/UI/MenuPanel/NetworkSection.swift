@@ -238,22 +238,43 @@ struct NetworkSection: View {
                                systemImage: "sum",
                                isVisible: $netTotals)
         } else {
-            HStack(spacing: 6) {
-                Text(l10n.s.networkThisSession)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                if let down = monitor.snapshot.netTotalDown, let up = monitor.snapshot.netTotalUp {
-                    Text("↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                totalsLine(title: l10n.s.networkThisSession, value: thisSessionRow())
+                totalsLine(title: l10n.s.networkUsageSinceStartup, value: totalDataUsageRow())
                 if editing {
-                    PanelInlineHideButton(isVisible: $netTotals)
+                    HStack {
+                        Spacer()
+                        PanelInlineHideButton(isVisible: $netTotals)
+                    }
                 }
             }
         }
+    }
+
+    private func totalsLine(title: String, value: String?) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            if let value {
+                Text(value)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func thisSessionRow() -> String? {
+        guard let down = monitor.snapshot.netTotalDown, let up = monitor.snapshot.netTotalUp else { return nil }
+        return "↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))"
+    }
+
+    private func totalDataUsageRow() -> String? {
+        guard let down = monitor.snapshot.totalDownloadSinceBootUp,
+              let up = monitor.snapshot.totalUploadSinceBootUp else { return nil }
+        return MetricFormat.bytes(down + up)
     }
 
     /// On-demand internet speed test (latency, download, upload).

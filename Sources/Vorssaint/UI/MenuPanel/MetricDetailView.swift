@@ -402,6 +402,7 @@ struct MetricDetailView: View {
                 row(l10n.s.networkUpload,
                     snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkThisSession, sessionNetworkText(snapshot)),
+                row(l10n.s.networkUsageSinceStartup, totalDataUsageSinceBootUpText(snapshot)),
             ]
         case .disk:
             guard let disk = primaryDisk(from: snapshot.disk) else {
@@ -763,6 +764,13 @@ struct MetricDetailView: View {
     private func sessionNetworkText(_ snapshot: SystemSnapshot) -> String {
         guard let down = snapshot.netTotalDown, let up = snapshot.netTotalUp else { return "-" }
         return "↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))"
+    }
+
+    private func totalDataUsageSinceBootUpText(_ snapshot: SystemSnapshot) -> String {
+        guard let download = snapshot.totalDownloadSinceBootUp,
+              let upload = snapshot.totalUploadSinceBootUp else { return "-" }
+        let totalDataUsage: UInt64 = download + upload
+        return MetricFormat.bytes(totalDataUsage)
     }
 
     private func adapterText(_ power: PowerReading?) -> String {

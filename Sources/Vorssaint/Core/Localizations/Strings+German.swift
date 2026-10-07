@@ -746,6 +746,7 @@ extension Strings {
         networkMeasuring: "Wird gemessen…",
         networkApps: "Apps mit Netzwerkverkehr",
         networkAppsIdle: "Keine App nutzt gerade das Netzwerk",
+        networkUsageSinceStartup: "Gesamtdatenverbrauch",
 
         diskSection: "Festplatten",
         diskUsed: "belegt",

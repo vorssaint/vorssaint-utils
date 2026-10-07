@@ -69,14 +69,9 @@ enum SelfTest {
             warnings.append("AirPlay routing unavailable; the mixer does not offer AirPlay")
         }
 
-        // Network counters should be readable and never run backwards.
-        let net1 = NetworkSampler.readCounters()
-        let net2 = NetworkSampler.readCounters()
-        if let net1, let net2 {
-            if net2.received < net1.received || net2.sent < net1.sent {
-                failures.append("network counters decreased")
-            }
-        } else {
+        // Network counters should be readable. The since-boot accumulator keeps
+        // them monotonic across interface churn and counter resets.
+        if NetworkSampler.readCounters()?.isEmpty != false {
             warnings.append("network counters unavailable")
         }
 

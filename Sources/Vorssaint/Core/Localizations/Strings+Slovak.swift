@@ -746,6 +746,7 @@ extension Strings {
         networkMeasuring: "Meria sa…",
         networkApps: "Aplikácie používajúce sieť",
         networkAppsIdle: "Sieť teraz nepoužíva žiadna aplikácia",
+        networkUsageSinceStartup: "Celková spotreba dát",
 
         diskSection: "Disky",
         diskUsed: "využité",

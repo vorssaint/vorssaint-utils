@@ -936,6 +936,7 @@ struct Strings {
     let networkMeasuring: String
     let networkApps: String
     let networkAppsIdle: String
+    let networkUsageSinceStartup: String
 
     // MARK: Panel — disk
     let diskSection: String
@@ -2043,6 +2044,7 @@ extension Strings {
         networkMeasuring: "Medindo…",
         networkApps: "Apps usando rede",
         networkAppsIdle: "Nenhum app usando rede agora",
+        networkUsageSinceStartup: "Uso Total de Dados",
 
         diskSection: "Discos",
         diskUsed: "usado",
@@ -3138,6 +3140,7 @@ extension Strings {
         networkMeasuring: "Measuring…",
         networkApps: "Apps using network",
         networkAppsIdle: "No apps using network now",
+        networkUsageSinceStartup: "Total Data Usage",
 
         diskSection: "Disks",
         diskUsed: "used",

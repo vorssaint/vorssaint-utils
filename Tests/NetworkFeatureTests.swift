@@ -13,6 +13,15 @@ import VMStatisticsCompat
 
 enum NetworkFeatureTests {
     static func run(_ suite: TestSuite) {
+
+        // isolated UserDefaults without touching the real defaults.
+        func dataUsageUserDefaults(_ suffix: String) -> UserDefaults {
+            let name = "com.vorssaint.tests.networkBoot.\(suffix)"
+            let defaults = UserDefaults(suiteName: name)!
+            defaults.removePersistentDomain(forName: name)
+            return defaults
+        }
+
         // MARK: Network speed math
 
         let slow = NetworkCounters(received: 1000, sent: 500)
@@ -78,11 +87,11 @@ enum NetworkFeatureTests {
         var fallbackProcessIndex = 0
         let fallbackSampler = NetworkSampler(counterReader: {
             defer { fallbackCounterIndex += 1 }
-            return fallbackCounters[fallbackCounterIndex]
+            return ["en0": fallbackCounters[fallbackCounterIndex]]
         }, processReader: {
             defer { fallbackProcessIndex += 1 }
             return fallbackProcessSamples[fallbackProcessIndex]
-        })
+        }, defaults: dataUsageUserDefaults("fallback"))
         let fallbackBaseline = fallbackSampler.sample(now: 0)
         let fallbackProbe = fallbackSampler.sample(now: 2)
         let fallbackReading = fallbackSampler.sample(now: 4)
@@ -104,17 +113,17 @@ enum NetworkFeatureTests {
         suite.expect(fallbackProcessIndex == 2,
                "network sampler invokes the process reader only for suspect interface samples")
 
-        let intermittentCounters: [NetworkCounters?] = [
+        let intermittentCounters: [[String: NetworkCounters]?] = [
             nil,
-            NetworkCounters(received: 1_000_000, sent: 500_000),
-            NetworkCounters(received: 1_000_200, sent: 500_100),
+            ["en0": NetworkCounters(received: 1_000_000, sent: 500_000)],
+            ["en0": NetworkCounters(received: 1_000_200, sent: 500_100)],
             nil, nil,
-            NetworkCounters(received: 1_000_800, sent: 500_400),
+            ["en0": NetworkCounters(received: 1_000_800, sent: 500_400)],
             nil,
-            NetworkCounters(received: 2_000_000, sent: 900_000),
-            NetworkCounters(received: 2_000_200, sent: 900_100),
-            NetworkCounters(),
-            NetworkCounters(received: 200, sent: 100),
+            ["en0": NetworkCounters(received: 2_000_000, sent: 900_000)],
+            ["en0": NetworkCounters(received: 2_000_200, sent: 900_100)],
+            ["en0": NetworkCounters()],
+            ["en0": NetworkCounters(received: 200, sent: 100)],
         ]
         var intermittentCounterIndex = 0
         var unexpectedProcessReads = 0
@@ -124,10 +133,12 @@ enum NetworkFeatureTests {
         }, processReader: {
             unexpectedProcessReads += 1
             return nil
-        })
+        }, defaults: dataUsageUserDefaults("intermittent"))
         let intermittentTimes: [TimeInterval] = [0, 1, 2, 3, 4, 5, 6, 20, 21, 22, 23]
         let expectedDownRates: [Double?] = [nil, nil, 200, nil, nil, 200, nil, nil, 200, 0, 200]
         let expectedDownTotals: [UInt64] = [0, 0, 200, 200, 200, 800, 800, 800, 1_000, 1_000, 1_200]
+        let expectedSinceBootDown: [UInt64?] = [nil, 1_000_000, 1_000_200, 1_000_200, 1_000_200, 1_000_800, 1_000_800, 2_000_000, 2_000_200, 2_000_200, 2_000_400]
+        let expectedSinceBootUp: [UInt64?] = [nil, 500_000, 500_100, 500_100, 500_100, 500_400, 500_400, 900_000, 900_100, 900_100, 900_200]
         for index in intermittentTimes.indices {
             let reading = intermittentSampler.sample(now: intermittentTimes[index])
             suite.expect(reading.downBytesPerSec == expectedDownRates[index]
@@ -136,9 +147,69 @@ enum NetworkFeatureTests {
             suite.expect(reading.totalDown == expectedDownTotals[index]
                     && reading.totalUp == expectedDownTotals[index] / 2,
                    "network reading \(index) preserves totals through failures, long gaps and valid counter resets")
+            suite.expect(reading.totalDownloadSinceBootUp == expectedSinceBootDown[index]
+                    && reading.totalUploadSinceBootUp == expectedSinceBootUp[index],
+                   "network reading \(index) reports total data usage as soon as counters are available")
         }
         suite.expect(unexpectedProcessReads == 0,
                "unavailable interface counters never trigger process sampling")
+
+        // MARK: Data Usage accumulator
+
+        var totalDataAccumulator = NetworkDataUsageAccumulator()
+        suite.expect(!totalDataAccumulator.isSeeded, "total data accumulator starts unseeded")
+
+        totalDataAccumulator.seed(current: ["en0": NetworkCounters(received: 1_000, sent: 500)], persisted: nil as (down: UInt64, up: UInt64)?)
+        suite.expect(totalDataAccumulator.isSeeded && totalDataAccumulator.totalDownload == 1_000
+                && totalDataAccumulator.totalUpload == 500,
+               "seed starts the total data usage from the current sum")
+
+        let forward = totalDataAccumulator.observe(["en0": NetworkCounters(received: 1_200, sent: 600)])
+        suite.expect(forward.down == 1_200 && forward.up == 600,
+               "forward progress adds only the per-interface delta")
+
+        let withNew = totalDataAccumulator.observe(["en0": NetworkCounters(received: 1_200, sent: 600),
+                                           "en1": NetworkCounters(received: 5_000, sent: 3_000)])
+        suite.expect(withNew.down == 1_200 && withNew.up == 600,
+               "a new interface adds nothing until it has a baseline")
+
+        let afterLeave = totalDataAccumulator.observe(["en0": NetworkCounters(received: 1_200, sent: 700)])
+        suite.expect(afterLeave.down == 1_200 && afterLeave.up == 700,
+               "a vanished interface keeps its counted bytes and drops only its baseline")
+
+        let afterBootReset = totalDataAccumulator.observe(["en0": NetworkCounters(received: 300, sent: 900)])
+        suite.expect(afterBootReset.down == 1_200 && afterBootReset.up == 900,
+               "a backward counter adds nothing for that direction and re-baselines")
+
+        let afterRecovery = totalDataAccumulator.observe(["en0": NetworkCounters(received: 500, sent: 950)])
+        suite.expect(afterRecovery.down == 1_400 && afterRecovery.up == 950,
+               "forward progress resumes from the re-baselined counter")
+
+        var resumed = NetworkDataUsageAccumulator()
+        resumed.seed(current: ["en0": NetworkCounters(received: 2_000, sent: 1_000)],
+                     persisted: (down: 6_000, up: 3_000))
+        suite.expect(resumed.totalDownload == 6_000 && resumed.totalUpload == 3_000,
+               "seeding never lowers a persisted same-boot total")
+
+        var stale = NetworkDataUsageAccumulator()
+        stale.seed(current: ["en0": NetworkCounters(received: 9_000, sent: 4_000)],
+                   persisted: (down: 6_000, up: 3_000))
+        suite.expect(stale.totalDownload == 9_000 && stale.totalUpload == 4_000,
+               "seeding adopts a higher current sum over a stale persisted value")
+
+        // MARK: total data usage persistence
+
+        let storeDefaults = dataUsageUserDefaults("store")
+        suite.expect(LoadTotalDataUsage.load(bootID: "boot-a", defaults: storeDefaults) == nil,
+               "an empty store has no persisted totals")
+        LoadTotalDataUsage.save(bootID: "boot-a", down: 1_234, up: 5_678, defaults: storeDefaults)
+        let loaded = LoadTotalDataUsage.load(bootID: "boot-a", defaults: storeDefaults)
+        suite.expect(loaded?.down == 1_234 && loaded?.up == 5_678,
+               "persisted totals round-trip within the same boot")
+        suite.expect(LoadTotalDataUsage.load(bootID: "boot-b", defaults: storeDefaults) == nil,
+               "a different boot id must not load another boot's totals")
+        suite.expect(!LoadTotalDataUsage.currentBootID().isEmpty,
+               "boot id resolves from the kernel")
 
 
         let nettopCSV = """

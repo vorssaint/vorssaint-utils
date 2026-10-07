@@ -746,6 +746,7 @@ extension Strings {
         networkMeasuring: "测量中…",
         networkApps: "正在使用网络的 App",
         networkAppsIdle: "当前没有 App 使用网络",
+        networkUsageSinceStartup: "总数据使用量",
 
         diskSection: "磁盘",
         diskUsed: "已用",
