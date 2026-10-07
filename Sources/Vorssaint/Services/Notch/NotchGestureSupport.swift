@@ -59,9 +59,14 @@ struct NotchGestureSupport {
         guard timestamp.isFinite, x.isFinite, y.isFinite else { self = Self(); return nil }
         // A quick flick lifts the fingers before the swipe has travelled far
         // enough. Its momentum can finish the opening or closing it began,
-        // never a track change.
-        if momentum {
-            guard coasting, !fired, let origin, lastTimestamp.map({ timestamp >= $0 }) == true else {
+        // never a track change. Trackpads can send one phaseless event between
+        // the lift and the momentum; it belongs to the same flick. Momentum
+        // that pauses, or turns sideways like the end of a track swipe, stops.
+        let transition = coasting && !momentum && !hasPhase && precise
+            && lastTimestamp.map({ timestamp >= $0 && timestamp - $0 <= 0.1 }) == true
+        if momentum || transition {
+            guard coasting, !fired, let origin, let last = lastTimestamp,
+                  timestamp >= last, timestamp - last <= 0.35, abs(y) >= abs(x) * 1.5 else {
                 self = Self(); return nil
             }
             lastTimestamp = timestamp

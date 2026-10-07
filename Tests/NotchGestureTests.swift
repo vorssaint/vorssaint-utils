@@ -49,7 +49,7 @@ enum NotchGestureTests {
         suite.expect(feed(0, -100, expanded: true) == nil,
                "the remainder of an opening gesture cannot immediately close the notch")
         suite.expect(feed(0, 0, ended: true) == nil && feed(0, -80, momentum: true, expanded: true) == nil,
-               "momentum after lifting the fingers never changes presentation")
+               "momentum after a swipe that already acted never changes presentation")
         suite.expect(feed(0, -30, began: true, expanded: true) == .close,
                "a separate upward gesture closes an expanded panel")
         suite.expect(feed(-10, 0, began: true) == nil && feed(-15, 0) == nil && feed(-20, 0) == .nextTrack,
@@ -85,6 +85,24 @@ enum NotchGestureTests {
         suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil
                && feed(0, 40) == nil && feed(0, 40, momentum: true, phased: false) == nil,
                "a lifted flick cannot resume from a later changed event")
+        // Trackpads and Magic Mouse can send one phaseless event between the
+        // lift and the momentum (see ScrollWheelSupport.isMouseWheel).
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 4) == nil && feed(0, 0, ended: true) == nil
+               && feed(0, 0, phased: false) == nil && feed(0, 8, momentum: true, phased: false) == .open,
+               "a phaseless transition between the lift and the momentum keeps the flick")
+        suite.expect(feed(0, -6, began: true, expanded: true) == nil
+               && feed(0, 0, ended: true, expanded: true) == nil
+               && feed(0, -2, phased: false, expanded: true) == nil
+               && feed(0, -12, momentum: true, phased: false, expanded: true) == .close,
+               "a phaseless transition carrying travel keeps an upward flick")
+        suite.expect(feed(0, 5, began: true) == nil && feed(-30, 1) == nil && feed(0, 0, ended: true) == nil
+               && feed(-120, 12, momentum: true, phased: false) == nil,
+               "the vertical part of a sideways momentum never opens the island")
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil,
+               "late momentum fixture lifts a swipe below the threshold")
+        time += 10
+        suite.expect(feed(0, 20, momentum: true, phased: false) == nil,
+               "momentum arriving long after the lift cannot finish an old swipe")
         suite.expect(feed(0, 5, began: true) == nil && feed(-80, 0) == nil,
                "an established vertical gesture cannot become a track skip")
         suite.expect(feed(-20, 0, began: true) == nil && feed(-19, 0) == nil && feed(-1, 0) == .nextTrack,
