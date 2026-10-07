@@ -7,10 +7,8 @@ import Foundation
 /// which folders are searched and what never comes back. Pure, so every rule
 /// here is pinned by tests instead of being discovered against one Mac's disk.
 ///
-/// Two of them are structural rather than preferences, and no setting can undo
-/// them: a hidden path and the inside of a package are never offered. They are
-/// what lets the whole feature work without asking for a single new permission,
-/// because what is left is what the person can already see in Finder.
+/// Filename discovery excludes hidden paths and package contents. An explicit
+/// path names exactly one target instead, without discovering its siblings.
 enum CommandBarFileSearchSupport {
     /// Names that are almost never what somebody meant, and that a search
     /// through a home folder otherwise fills up with. Shipped rather than
@@ -32,6 +30,14 @@ enum CommandBarFileSearchSupport {
     /// How many rows survive to be ranked. Past this the ranking is deciding
     /// between files nobody will scroll to.
     static let resultLimit = 200
+
+    /// A pasted path is literal: spaces and shell metacharacters belong to the
+    /// name. Only the current user's home shorthand is expanded.
+    static func explicitPath(for query: String, homeDirectory: String) -> String? {
+        guard query.hasPrefix("/") || query.hasPrefix("~/"),
+              !query.contains("\0") else { return nil }
+        return expandingTilde(query, home: homeDirectory)
+    }
 
     // MARK: - What is asked of Spotlight
 

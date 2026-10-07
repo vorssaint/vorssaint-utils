@@ -231,6 +231,8 @@ final class CommandBarService: ObservableObject {
     /// The selected row's id, so a rebuilt list keeps the selection on the
     /// same command instead of on the same position.
     private var selectedID: String?
+    /// An asynchronous path may replace the default row, never a deliberate choice.
+    private var selectionWasMoved = false
     /// What the ranking last ran on, to tell a keystroke apart from a list
     /// rebuilt underneath by a background load.
     private var lastRankedQuery: String?
@@ -1394,6 +1396,8 @@ final class CommandBarService: ObservableObject {
         switch mode {
         case .search:
             let trimmed = query.trimmingCharacters(in: .whitespaces)
+            let explicitPath = CommandBarFileSearchSupport.explicitPath(
+                for: query, homeDirectory: NSHomeDirectory())
             if trimmed.isEmpty {
                 let showsBrowse = CommandBarHome.showsBrowseList(
                     compact: compactMode,
@@ -1439,7 +1443,7 @@ final class CommandBarService: ObservableObject {
                 // here. Only on the typed list: the headings of the browse list
                 // are keyed by position, and dropping a row under them would
                 // shift every heading below it.
-                rows = CommandBarService.uniqued(searchRows(for: trimmed))
+                rows = CommandBarService.uniqued(searchRows(for: query))
                 // A typed query is one ranked list, so it carries no headings
                 // of its own. Inside a category it carries exactly one, because
                 // a filtered search that looks unfiltered turns "nothing here"
@@ -1448,16 +1452,17 @@ final class CommandBarService: ObservableObject {
                     ?? [:]
                 isShowingSuggestions = false
             }
-            // Typing always lands on the best match; a background load never
-            // moves the selection at all.
-            //
-            // Those are two different refreshes and they were treated as one:
-            // keeping the selection by id across a KEYSTROKE meant the row
-            // picked at "f" stayed picked all the way through "fire", so the
-            // list showed the flame on top and Return opened the browser.
-            let queryChanged = trimmed != lastRankedQuery
-            lastRankedQuery = trimmed
-            if queryChanged {
+            // Literal paths include their trailing whitespace. Once their
+            // answer arrives it replaces the default selection, unless the
+            // person already chose a different row while waiting.
+            let selectionQuery = explicitPath == nil ? trimmed : query
+            let queryChanged = selectionQuery != lastRankedQuery
+            lastRankedQuery = selectionQuery
+            if queryChanged { selectionWasMoved = false }
+            if !selectionWasMoved, activeCategory == nil, let explicitPath,
+               let index = rows.firstIndex(where: { $0.id == "file.\(explicitPath)" }) {
+                selectedIndex = index
+            } else if queryChanged {
                 selectedIndex = 0
             } else if let keepID = selectedID,
                       let index = rows.firstIndex(where: { $0.id == keepID }) {
@@ -1639,7 +1644,8 @@ final class CommandBarService: ObservableObject {
             CommandBarLinks.rankingTitle(name: entry.title, query: query))
     }
 
-    private func searchRows(for trimmed: String) -> [CommandBarEntry] {
+    private func searchRows(for query: String) -> [CommandBarEntry] {
+        let trimmed = query.trimmingCharacters(in: .whitespaces)
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         // Inside a category, typing filters that category and nothing else:
         // no answer row, no caps per kind, just the ranking over one list.
@@ -1746,16 +1752,17 @@ final class CommandBarService: ObservableObject {
             scriptRunner.cancelPending()
         }
 
-        // Files, once the person has named a folder to look in. Asked for
-        // rather than waited on: the answer lands a moment later and refreshes
-        // the list, the way a saved script's answer does.
+        // An explicit path needs no search scope. Both lookups run off the
+        // main thread and refresh the list when their answer is ready.
+        let isExplicitPath = CommandBarFileSearchSupport.explicitPath(
+            for: query, homeDirectory: NSHomeDirectory()) != nil
         var fileRows: [CommandBarEntry] = []
-        if isEnabled(.files), !fileScopeCache.isEmpty {
-            if let paths = fileSearch.cachedPaths(for: trimmed) {
+        if isEnabled(.files), isExplicitPath || !fileScopeCache.isEmpty {
+            if let paths = fileSearch.cachedPaths(for: query) {
                 fileSearch.cancelPending()
                 fileRows = CommandBarCatalog.fileEntries(paths, bar: bar)
             } else {
-                fileSearch.schedule(query: trimmed,
+                fileSearch.schedule(query: query,
                                     scopes: fileScopeCache,
                                     patterns: fileIgnoreCache)
             }
@@ -1815,7 +1822,7 @@ final class CommandBarService: ObservableObject {
             pool.append(contentsOf: menuEntries)
         }
         pool.append(contentsOf: clipboard)
-        pool.append(contentsOf: fileRows)
+        if !isExplicitPath { pool.append(contentsOf: fileRows) }
 
         // The kind of each surviving row, worked out once: the ranking below
         // needs the same answer and working it out twice would double a walk
@@ -1890,7 +1897,9 @@ final class CommandBarService: ObservableObject {
         // known; a conversion asked for with "to" leads like any answer.
         let colorPreview = answer?.id == "color.preview" ? answer : nil
         var counts: [String: Int] = [:]
-        var result: [CommandBarEntry] = []
+        // A full path will not match its basename in ordinary ranking. The
+        // exact target leads, retaining the file row's open/reveal actions.
+        var result = isExplicitPath ? fileRows.filter { !hidden.contains($0.stableKey) } : []
         if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
@@ -1948,6 +1957,7 @@ final class CommandBarService: ObservableObject {
 
     func select(_ index: Int) {
         guard rows.indices.contains(index) else { return }
+        selectionWasMoved = true
         selectedIndex = index
         selectedID = rows[index].id
     }
