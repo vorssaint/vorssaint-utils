@@ -18,8 +18,8 @@ struct NotchControlsView: View {
 
     var body: some View {
         let items = NotchSupport.controls()
-        let levels = items.filter { $0 == .volume || $0 == .brightness }
-        let shortcuts = items.filter { $0 != .volume && $0 != .brightness && $0 != .music }
+        let levels = items.filter(\.isLevel)
+        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
         let layout = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
                                           shortcutCount: shortcuts.count, width: size.width, height: size.height)
         if items.isEmpty {
@@ -40,8 +40,8 @@ struct NotchControlsView: View {
         }
     }
 
-    /// Playback shares the row with the levels: two of them fold into one
-    /// slim card beside it, a single one keeps its full card.
+    /// Playback shares the row with the levels: two or three of them fold
+    /// into one slim card beside it, a single one keeps its full card.
     @ViewBuilder private func cards(levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
         let musicWidth = NotchLayout.musicCardMinimumWidth(height: height)
         let required = music ? musicWidth + (levels.isEmpty ? 0 : 160 + NotchLayout.rowSpacing) : 0
@@ -61,27 +61,41 @@ struct NotchControlsView: View {
             if music {
                 NotchMusicControlsView(notch: service, height: height)
                 if levels.count > 1 {
-                    VStack(spacing: 6) {
-                        ForEach(levels) { level($0, style: .row, showsDevice: false) }
-                    }
-                    .padding(.horizontal, 12)
-                    .frame(width: 160, height: height)
-                    .modifier(NotchControlSurface(cornerRadius: 18))
+                    levelRows(levels, height: height)
+                        .padding(.horizontal, 12)
+                        .frame(width: 160, height: height)
+                        .modifier(NotchControlSurface(cornerRadius: 18))
                 } else if let single = levels.first {
                     level(single, style: .card, showsDevice: height >= 88).frame(width: 160, height: height)
                 }
             } else {
+                let details = NotchLayout.levelCardsShowDetails(levels, height: height)
                 ForEach(levels) { item in
-                    level(item, style: .card, showsDevice: height >= 88).frame(maxWidth: .infinity).frame(height: height)
+                    level(item, style: .card, showsDevice: details).frame(maxWidth: .infinity).frame(height: height)
                 }
             }
         }
         .frame(height: height)
     }
 
+    /// Three rows need the card's full height; a shortened card scrolls
+    /// them rather than letting the last one spill out of it.
+    @ViewBuilder private func levelRows(_ levels: [NotchControlItem], height: CGFloat) -> some View {
+        let rows = VStack(spacing: 6) {
+            ForEach(levels) { level($0, style: .row, showsDevice: false) }
+        }
+        if CGFloat(levels.count) * 28 + CGFloat(levels.count - 1) * 6 > height {
+            ScrollView { rows }.scrollIndicators(.never)
+        } else {
+            rows
+        }
+    }
+
     @ViewBuilder private func level(_ item: NotchControlItem, style: NotchLevelStyle, showsDevice: Bool) -> some View {
         if item == .volume {
             NotchAudioControls(notch: service, style: style, showsDevice: showsDevice)
+        } else if item == .keyboardLight {
+            NotchKeyboardLightControls(style: style, showsTitle: showsDevice)
         } else if brightnessEnabled {
             NotchBrightnessControls(style: style, showsDevice: showsDevice)
         } else {
@@ -139,7 +153,7 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
-        case .volume, .brightness, .music: EmptyView()
+        case .volume, .brightness, .keyboardLight, .music: EmptyView()
         }
     }
 }
@@ -149,6 +163,7 @@ extension NotchControlItem {
         switch self {
         case .volume: return FeatureStrings.notch(l10n.language).volume
         case .brightness: return FeatureStrings.notch(l10n.language).brightness
+        case .keyboardLight: return FeatureStrings.brightness(l10n.language).keyboardLight
         case .keepAwake: return l10n.s.keepAwakeTitle
         case .microphone: return l10n.s.micMuteName
         case .screenshot: return FeatureStrings.recentCaptures(l10n.language).screenshot
@@ -295,7 +310,7 @@ struct NotchAudioControls: View {
 
     private var readoutMenu: some View {
         NotchLevelReadoutMenu(title: l10n.s.mixerSystemOutputTitle, items: outputItems) { percent }
-            .help(deviceName)
+            .help(mixer.outputSwitchError ?? deviceName)
             .accessibilityValue(deviceName)
     }
 
@@ -434,6 +449,105 @@ private struct NotchBrightnessControls: View {
     }
 }
 
+/// The keyboard light as a level beside volume and brightness. It has no
+/// device to choose, so it ends on the bare percent, in the room the others
+/// give their readout menu.
+private struct NotchKeyboardLightControls: View {
+    var style: NotchLevelStyle = .card
+    var showsTitle = true
+    @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private var title: String { FeatureStrings.brightness(l10n.language).keyboardLight }
+
+    var body: some View {
+        Group {
+            if style == .row {
+                HStack(spacing: 8) {
+                    glyph
+                    slider
+                    readout
+                }
+                .frame(height: 28)
+                .help(title)
+            } else {
+                VStack(spacing: 6) {
+                    HStack(spacing: 7) {
+                        glyph
+                        if showsTitle {
+                            Text(title).lineLimit(1)
+                            Spacer(minLength: 0)
+                            percent
+                        } else {
+                            Spacer(minLength: 0)
+                            readout
+                        }
+                    }
+                    .font(.system(size: 12, weight: .semibold))
+                    slider
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, showsTitle ? 10 : 5)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .modifier(NotchControlSurface(cornerRadius: 18))
+            }
+        }
+        .onAppear { service.refreshKeyboardLight() }
+    }
+
+    /// The switch the panel has, where volume keeps its mute button: off,
+    /// or back on at the level the light last had.
+    private var glyph: some View {
+        Button {
+            if let enabled = service.keyboardLightEnabled { service.setKeyboardLightEnabled(!enabled) }
+        } label: {
+            Image(systemName: service.keyboardLightEnabled == false ? "light.min" : "light.max")
+                .font(.system(size: 12, weight: .medium))
+                .contentTransition(.symbolEffect(.replace))
+                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: service.keyboardLightEnabled)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 6))
+        .disabled(service.keyboardLightEnabled == nil)
+        .accessibilityLabel(title)
+    }
+
+    /// The readout menu's layout with its chevron hidden, so this slider
+    /// starts and ends where the volume and brightness ones do.
+    private var readout: some View {
+        HStack(spacing: 5) {
+            percent.frame(width: 36, alignment: .trailing)
+            Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold)).hidden()
+        }
+        .padding(.horizontal, 4)
+        .frame(height: 24)
+    }
+
+    @ViewBuilder private var percent: some View {
+        if let level = service.keyboardLightLevel {
+            Text("\(BrightnessSupport.wholePercent(Double(level)))%")
+                .font(.system(size: 12, weight: .semibold))
+                .monospacedDigit()
+                .contentTransition(.numericText())
+                .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: level)
+        }
+    }
+
+    @ViewBuilder private var slider: some View {
+        if let level = service.keyboardLightLevel {
+            NotchLevelSlider(value: Binding(get: { Double(level) }, set: {
+                service.setKeyboardLightLevel(Float($0))
+            }), label: title, onEditingChanged: service.keyboardLightDragChanged)
+                .frame(height: style == .card ? 28 : 24)
+        } else {
+            Text(FeatureStrings.notchEditor(l10n.language).keyboardLightUnavailable)
+                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(2)
+                .frame(maxWidth: .infinity, minHeight: style == .card ? 28 : 24, alignment: .leading)
+        }
+    }
+}
+
 /// How an active tile reads. Recording and a muted microphone are states the
 /// person has to notice, so they carry their own colour instead of the neutral
 /// selection fill. A timer keeps the orange it has across the island.
@@ -534,7 +648,8 @@ struct NotchActionTile: View {
 }
 
 /// A running timer, focus cycle or stopwatch keeps its clock on the tile:
-/// opening the island covers the reading the closed island showed.
+/// opening the island covers the reading the closed island showed, and a
+/// countdown hidden from the closed island can still be read here.
 private struct NotchTimerTile: View {
     let service: NotchService
     @ObservedObject private var timer = NotchTimerService.shared

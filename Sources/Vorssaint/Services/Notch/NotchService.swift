@@ -407,7 +407,7 @@ final class NotchService: ObservableObject {
     private var mascotWantsRoom: Bool { NotchMascotSupport.isEnabled() }
 
     var hasTimerActivity: Bool {
-        NotchTimerSupport.showsActivity(hasSession: NotchTimerService.shared.session.hasSession)
+        NotchTimerSupport.showsActivity(NotchTimerService.shared.session)
     }
 
     var hasWatchActivity: Bool {
@@ -757,8 +757,8 @@ final class NotchService: ObservableObject {
                           detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
                           capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
-        let sliders = controls.filter { $0 == .volume || $0 == .brightness }.count
-        let shortcuts = controls.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count
+        let sliders = controls.filter(\.isLevel).count
+        let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
         let musicExtras = NotchLyricsSupport.isEnabled() || NotchQueueSupport.isEnabled()
         return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
                                      shortcutCount: shortcuts,
@@ -1701,7 +1701,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
-            case .volume, .brightness: select(.controls)
+            case .volume, .brightness, .keyboardLight: select(.controls)
             }
         }
     }

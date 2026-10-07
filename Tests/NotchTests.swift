@@ -1241,6 +1241,46 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.mixer.availabilityKey)
         suite.expect(NotchControlItem.allCases.filter { $0.setupRequirement == .none } == [.panel],
                      "every unavailable island control with a setup path has a navigation target")
+        suite.expect(NotchControlItem.allCases.filter(\.isLevel) == [.volume, .brightness, .keyboardLight]
+                     && !NotchQuickAction.optionalActions.contains(.control(.keyboardLight)),
+                     "levels draw as sliders in the card row and are not offered as shortcuts")
+        let savedHiddenControls = defaults.string(forKey: DefaultsKey.notchHiddenControls)
+        let savedBrightness = defaults.object(forKey: AppFeature.brightness.availabilityKey)
+        defaults.set(true, forKey: AppFeature.brightness.availabilityKey)
+        defaults.removeObject(forKey: DefaultsKey.notchHiddenControls)
+        let lightHiddenByDefault = !NotchSupport.controls(in: defaults).contains(.keyboardLight)
+        defaults.set("", forKey: DefaultsKey.notchHiddenControls)
+        let lightShown = NotchSupport.controls(in: defaults).contains(.keyboardLight)
+        let supportsKeyboardLight = NotchControlItem.keyboardLightIsSupported
+        NotchControlItem.keyboardLightIsSupported = { false }
+        let lightNeedsHardware = !NotchSupport.controls(in: defaults).contains(.keyboardLight)
+            && NotchSupport.controls(in: defaults).contains(.brightness)
+        NotchControlItem.keyboardLightIsSupported = supportsKeyboardLight
+        defaults.set(false, forKey: AppFeature.brightness.availabilityKey)
+        let lightGated = !NotchSupport.controls(in: defaults).contains(.keyboardLight)
+        suite.expect(lightHiddenByDefault && lightShown && lightGated
+                     && NotchControlItem.keyboardLight.setupRequirement == .feature(.brightness),
+                     "the keyboard light level is opt-in and follows the brightness feature")
+        suite.expect(lightNeedsHardware,
+                     "a level restored from a Mac with a keyboard light stays out of an island without one")
+        let launch = (try? String(contentsOfFile: "Sources/Vorssaint/main.swift", encoding: .utf8)) ?? ""
+        suite.expect(launch.contains("NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }"),
+                     "launch asks the brightness service whether this Mac has a keyboard light")
+        suite.expect(NotchLayout.levelCardsShowDetails([.volume, .brightness], height: 96)
+                     && NotchLayout.levelCardsShowDetails([.keyboardLight], height: 96)
+                     && !NotchLayout.levelCardsShowDetails([.volume, .brightness], height: 80)
+                     && !NotchLayout.levelCardsShowDetails([.brightness, .keyboardLight], height: 96)
+                     && !NotchLayout.levelCardsShowDetails([.volume, .brightness, .keyboardLight], height: 96),
+                     "level cards fold to their readouts beside the keyboard light and three across")
+        let controlsView = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchControlsView.swift", encoding: .utf8)) ?? ""
+        let layoutEditor = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchLayoutEditor.swift", encoding: .utf8)) ?? ""
+        suite.expect(controlsView.contains("let details = NotchLayout.levelCardsShowDetails(levels, height: height)")
+                     && controlsView.contains("level(item, style: .card, showsDevice: details)")
+                     && layoutEditor.contains("let details = NotchLayout.levelCardsShowDetails(levels, height: height)")
+                     && layoutEditor.contains("levelCard($0, height: height, details: details)"),
+                     "the island and its Settings preview fold level cards by the same rule")
+        defaults.set(savedHiddenControls, forKey: DefaultsKey.notchHiddenControls)
+        defaults.set(savedBrightness, forKey: AppFeature.brightness.availabilityKey)
         suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
                      && NotchControlItem.recording.setupRequirement == .feature(.screenRecorder)
                      && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad),
