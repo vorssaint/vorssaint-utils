@@ -84,6 +84,76 @@ enum NotchModule: String, CaseIterable, Identifiable {
     }
 }
 
+/// The names sections carry in the island instead of the ones they come
+/// with. Only a renamed section is stored, so every other one keeps the name
+/// the app gives it and follows the app's language as before.
+struct NotchSectionNames: Equatable, Codable {
+    private var names: [String: String]
+    private var version = 1
+    /// Room for a name of two or three words: the island's header gives it
+    /// one line and a tile in the gallery two.
+    static let maximumLength = 32
+
+    init(_ names: [String: String] = [:]) { self.names = Self.sanitized(names) }
+
+    /// A name typed by hand: one line, trimmed, and no longer than the island
+    /// can show. Nothing left of it means the section keeps its own name.
+    static func sanitized(_ name: String) -> String? {
+        let line = String(name.components(separatedBy: .newlines).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines).prefix(maximumLength))
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return line.isEmpty ? nil : line
+    }
+
+    private static func sanitized(_ names: [String: String]) -> [String: String] {
+        names.reduce(into: [:]) { stored, pair in
+            guard NotchModule(rawValue: pair.key) != nil, let name = sanitized(pair.value) else { return }
+            stored[pair.key] = name
+        }
+    }
+
+    /// Nil wherever the section keeps the name it comes with.
+    func name(for module: NotchModule) -> String? { names[module.rawValue] }
+
+    var isEmpty: Bool { names.isEmpty }
+
+    /// A blank name gives the section its own name back.
+    func renaming(_ module: NotchModule, to name: String) -> Self {
+        var result = names
+        result[module.rawValue] = Self.sanitized(name)
+        return Self(result)
+    }
+
+    var encoded: Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        return (try? encoder.encode(self)) ?? Data()
+    }
+
+    static func stored(in defaults: UserDefaults = .standard) -> Self {
+        guard let data = defaults.data(forKey: DefaultsKey.notchSectionNames), !data.isEmpty, data.count <= 8_192,
+              let value = try? JSONDecoder().decode(Self.self, from: data), value.version == 1 else { return Self() }
+        // A name read back from disk goes through the same gate as a typed one.
+        return Self(value.names)
+    }
+
+    static func save(_ names: Self, in defaults: UserDefaults = .standard) {
+        defaults.set(names.encoded, forKey: DefaultsKey.notchSectionNames)
+    }
+}
+
+extension NotchModule {
+    /// What the island calls the section: the name given to it by hand, else
+    /// the one it comes with.
+    func name(_ language: AppLanguage, custom: NotchSectionNames) -> String {
+        custom.name(for: self) ?? title(language)
+    }
+
+    func name(_ language: AppLanguage, in defaults: UserDefaults = .standard) -> String {
+        name(language, custom: NotchSectionNames.stored(in: defaults))
+    }
+}
+
 enum NotchReopeningDestination: String, CaseIterable {
     case appPanel, explore
 }

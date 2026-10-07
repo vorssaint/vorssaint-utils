@@ -291,6 +291,7 @@ struct NotchSettings: View {
                                        reason: available ? nil : moduleFeature(module).map(enableFeatureReason) ?? text.disabled) {
                         SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: moduleFeature(module))
                     }
+                    SettingsCard(title: text.sectionName) { NotchSectionNameField(module: module) }
                     if !wide { preview(width: detailWidth, limit: 280) }
                     if available, hasOptions(module) {
                         SettingsCard { moduleOptions(module) }
@@ -591,10 +592,10 @@ struct NotchSettings: View {
                         Text(text.panel).tag(NotchReopeningDestination.appPanel.rawValue)
                         Text(text.sectionsTitle).tag(NotchReopeningDestination.explore.rawValue)
                         ForEach(NotchSupport.modules()) { module in
-                            Text(module.title(l10n.language)).tag(module.rawValue)
+                            Text(notch.name(for: module)).tag(module.rawValue)
                         }
                         if let saved = NotchModule(rawValue: homeModule), !NotchSupport.modules().contains(saved) {
-                            Text(saved.title(l10n.language)).tag(homeModule).disabled(true)
+                            Text(notch.name(for: saved)).tag(homeModule).disabled(true)
                         }
                     }
                     .pickerStyle(.menu)
@@ -737,7 +738,7 @@ struct NotchSettings: View {
 
     private func pageReason(_ module: NotchModule, feature: AppFeature?) -> String {
         if let feature, !feature.isAvailable { return enableFeatureReason(feature) }
-        return editor.showPage(module.title(l10n.language))
+        return editor.showPage(notch.name(for: module))
     }
 
     private var clipboardFeedbackReason: String {

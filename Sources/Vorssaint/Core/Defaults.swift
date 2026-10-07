@@ -877,6 +877,8 @@ enum DefaultsKey {
     static let notchOpensActivity = "notchOpensActivity"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
+    // Names the sections carry in the island instead of their own.
+    static let notchSectionNames = "notchSectionNames"
     static let notchQuickAccessLayout = "notchQuickAccessLayout"
     static let notchQuickAccessSide = "notchQuickAccessSide"
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
@@ -1452,6 +1454,7 @@ enum Defaults {
         DefaultsKey.notchOpensActivity: true,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
+        DefaultsKey.notchSectionNames: Data(),
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchMicrophone: true,

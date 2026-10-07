@@ -275,7 +275,9 @@ extension NotchQuickAction {
         case .explore: return FeatureStrings.notch(l10n.language).sectionsTitle
         case .settings: return l10n.s.menuSettings
         case .pin: return FeatureStrings.notch(l10n.language).pin
-        case .module(let module): return module.title(l10n.language)
+        // A button that opens a section says what the island calls it, a
+        // name given to the section by hand included.
+        case .module(let module): return module.name(l10n.language)
         case .control(let item): return item.title(l10n)
         }
     }

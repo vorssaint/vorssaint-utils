@@ -324,6 +324,65 @@ enum NotchTests {
         }
     }
 
+    /// A section can carry a name given by hand, and that name is what the
+    /// island shows, measures its header against and searches.
+    private static func sectionNameContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-section-names"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+
+        suite.expect(NotchSectionNames().isEmpty
+                     && NotchModule.music.name(.enUS, custom: NotchSectionNames()) == NotchModule.music.title(.enUS),
+                     "a section nobody renamed keeps the name it comes with")
+        let named = NotchSectionNames().renaming(.music, to: "  Tocando\nagora  ")
+        suite.expect(named.name(for: .music) == "Tocando agora"
+                     && NotchModule.music.name(.enUS, custom: named) == "Tocando agora"
+                     && named.name(for: .timer) == nil,
+                     "a typed name is trimmed onto one line and renames only its own section")
+        let long = String(repeating: "a", count: NotchSectionNames.maximumLength + 20)
+        suite.expect(NotchSectionNames().renaming(.timer, to: long).name(for: .timer)?.count
+                     == NotchSectionNames.maximumLength,
+                     "a name longer than the island can show is cut to its limit")
+        suite.expect(NotchSectionNames().renaming(.timer, to: "  ").isEmpty
+                     && named.renaming(.music, to: "").name(for: .music) == nil,
+                     "clearing a name gives the section the name it comes with back")
+        suite.expect(NotchSectionNames(["music": "Som", "nothing": "Nope", "timer": "   "])
+                     == NotchSectionNames(["music": "Som"]),
+                     "a stored name for an unknown section, or none at all, is dropped")
+
+        suite.expect(NotchSectionNames.stored(in: defaults).isEmpty, "no stored name reads as no rename")
+        NotchSectionNames.save(named, in: defaults)
+        suite.expect(NotchSectionNames.stored(in: defaults) == named
+                     && NotchModule.music.name(.enUS, in: defaults) == "Tocando agora"
+                     && NotchModule.timer.name(.enUS, in: defaults) == NotchModule.timer.title(.enUS),
+                     "a saved name reads back for its section alone")
+        defaults.set(Data("{\"names\":{\"music\":\"x\"},\"version\":7}".utf8), forKey: DefaultsKey.notchSectionNames)
+        suite.expect(NotchSectionNames.stored(in: defaults).isEmpty,
+                     "names written in a format this version does not know are ignored")
+        defaults.set(Data("not json".utf8), forKey: DefaultsKey.notchSectionNames)
+        suite.expect(NotchSectionNames.stored(in: defaults).isEmpty, "unreadable names leave every section its own")
+
+        // The header asks for the room the name it draws needs, not the one
+        // the section came with.
+        let renamed = NotchSectionNames().renaming(.controls, to: "Controles do sistema")
+        suite.expect(NotchLayout.headerTitleWidth(NotchModule.controls.name(.enUS, custom: renamed), button: false)
+                     > NotchLayout.headerTitleWidth(NotchModule.controls.title(.enUS), button: false),
+                     "a longer name asks the header for more room than the original title did")
+        let modules: [NotchModule] = [.music, .timer, .controls]
+        suite.expect(NotchSupport.filteredModules(modules, query: "tocando") { module in
+                         [renamedName(module, named), module.title(.enUS), module.rawValue].joined(separator: " ")
+                     } == [.music]
+                     && NotchSupport.filteredModules(modules, query: "now playing") { module in
+                         [renamedName(module, named), module.title(.enUS), module.rawValue].joined(separator: " ")
+                     } == [.music],
+                     "a renamed section answers to its new name and to the one it came with")
+    }
+
+    private static func renamedName(_ module: NotchModule, _ names: NotchSectionNames) -> String {
+        names.name(for: module) ?? ""
+    }
+
     private static func noticeLayoutContracts(_ suite: TestSuite) {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
         func width(_ text: String) -> CGFloat {
@@ -935,6 +994,7 @@ enum NotchTests {
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
         headerTitleContracts(suite)
+        sectionNameContracts(suite)
         noticeLayoutContracts(suite)
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)

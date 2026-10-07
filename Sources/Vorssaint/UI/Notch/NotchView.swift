@@ -411,7 +411,7 @@ struct NotchView: View {
                     if !quickActions.contains(.explore) {
                         NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                     }
-                    Text(service.selected.title(l10n.language))
+                    Text(service.name(for: service.selected))
                         .font(Font(NotchLayout.headerTitleFont as CTFont))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -601,7 +601,7 @@ struct NotchView: View {
     private var navigationTitle: String {
         let destination = service.reopeningDestination
         return destination.appPanel || destination.sections
-            ? text.sectionsTitle : destination.module.title(l10n.language)
+            ? text.sectionsTitle : service.name(for: destination.module)
     }
 
     private var navigation: some View {

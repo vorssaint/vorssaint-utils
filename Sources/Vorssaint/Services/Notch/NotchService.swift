@@ -126,6 +126,9 @@ final class NotchService: ObservableObject {
     /// The gallery's first visible row; the rows above it have stepped away.
     @Published private(set) var sectionRow = 0
     @Published private(set) var modules: [NotchModule] = []
+    /// The names sections were given by hand. Published, so a rename reaches
+    /// the gallery, the header and the room the header's title asks for.
+    @Published private(set) var sectionNames = NotchSectionNames.stored()
     @Published private(set) var notice: NotchNotice?
     @Published private(set) var noticeExpanded = false
     /// A compact notice stays drawn while the island closes around it.
@@ -733,7 +736,7 @@ final class NotchService: ObservableObject {
 
     private func previewGeometry(for module: NotchModule, sectionsButton: Bool) -> NotchGeometry {
         var result = geometry
-        result.headerTitleWidth = NotchLayout.headerTitleWidth(module.title(L10n.shared.language), button: sectionsButton)
+        result.headerTitleWidth = NotchLayout.headerTitleWidth(name(for: module), button: sectionsButton)
         return result
     }
 
@@ -800,7 +803,7 @@ final class NotchService: ObservableObject {
         guard !showingSections else { return 0 }
         let detail = showingAppPanel || selectedMetric != nil
         guard detail || modules.isEmpty else {
-            return NotchLayout.headerTitleWidth(selected.title(L10n.shared.language), button: headerShowsSectionsButton)
+            return NotchLayout.headerTitleWidth(name(for: selected), button: headerShowsSectionsButton)
         }
         return NotchLayout.headerTitleWidth(detailTitle, font: NotchLayout.detailTitleFont, button: detail)
     }
@@ -1008,6 +1011,10 @@ final class NotchService: ObservableObject {
 
     func syncWithPreferences() {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
+        // Read before the guards below: a restored backup renames sections
+        // whether or not the island is on, and Settings previews it either way.
+        let names = NotchSectionNames.stored()
+        if names != sectionNames { sectionNames = names }
         guard NotchSupport.isEnabled() else { stop(); return }
         if !running {
             running = true
@@ -1548,8 +1555,25 @@ final class NotchService: ObservableObject {
         NotchSupport.filteredModules(modules, query: sectionQuery) { module in
             let language = L10n.shared.language
             let music = module == .music ? FeatureStrings.notch(language).music : ""
-            return [module.title(language), module.rawValue, music].joined(separator: " ")
+            // A renamed section answers to its new name and to the one it
+            // came with, which is still what its shortcut and Settings say.
+            let renamed = sectionNames.name(for: module) ?? ""
+            return [renamed, module.title(language), module.rawValue, music].joined(separator: " ")
         }
+    }
+
+    /// What the island calls a section, a name given by hand included.
+    func name(for module: NotchModule) -> String {
+        module.name(L10n.shared.language, custom: sectionNames)
+    }
+
+    /// A blank name gives the section the name it comes with back. The island
+    /// takes the new name at once, and so does the room its header asks for.
+    func renameSection(_ module: NotchModule, to name: String) {
+        let renamed = sectionNames.renaming(module, to: name)
+        guard renamed != sectionNames else { return }
+        NotchSectionNames.save(renamed)
+        mutatePresentation { sectionNames = renamed }
     }
 
     func searchSections(_ query: String) {

@@ -100,6 +100,7 @@ struct NotchSectionsView: View {
     private func tile(_ module: NotchModule, visible: Bool) -> some View {
         let highlighted = service.highlightedSection == module
         let current = service.selected == module
+        let title = service.name(for: module)
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         return Button { service.select(module) } label: {
             VStack(spacing: 6) {
@@ -107,7 +108,7 @@ struct NotchSectionsView: View {
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(tint(for: module))
                     .frame(width: 25, height: 25)
-                Text(module.title(l10n.language))
+                Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
                     .minimumScaleFactor(0.85)
@@ -135,12 +136,30 @@ struct NotchSectionsView: View {
             .contentShape(shape)
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 16, lifts: false))
-        .accessibilityLabel(module.title(l10n.language))
+        .contextMenu {
+            Button(text.renameSection) { presentRename(module) }
+        }
+        .accessibilityLabel(title)
         .accessibilityAddTraits(current ? .isSelected : [])
         .accessibilityIdentifier("notch.module.\(module.rawValue)")
+        .accessibilityAction(named: text.renameSection) { presentRename(module) }
         // A stepped-away row sits under the header, clipped; it keeps no
         // tooltip there.
-        .help(visible ? module.title(l10n.language) + "  ⌥⌘" + module.shortcutKey.uppercased() : "")
+        .help(visible ? title + "  ⌥⌘" + module.shortcutKey.uppercased() : "")
+    }
+
+    /// The name a section carries here, in the island's own header and on its
+    /// quick-access button. Blank gives the section its own name back, which
+    /// the field shows as its prompt.
+    private func presentRename(_ module: NotchModule) {
+        DispatchQueue.main.async {
+            guard let name = NotchIslandAlert.askForName(
+                title: text.renameSection, message: text.renameSectionHint,
+                value: service.sectionNames.name(for: module) ?? "",
+                prompt: module.title(l10n.language),
+                save: text.saveName, cancel: text.cancel, service: service) else { return }
+            service.renameSection(module, to: name)
+        }
     }
 
     private func tint(for module: NotchModule) -> Color {

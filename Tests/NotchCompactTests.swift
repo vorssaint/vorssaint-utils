@@ -76,6 +76,20 @@ enum NotchCompactTests {
         func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
     }
+    /// The question the island asks before renaming or closing something.
+    /// Inert here: these contracts open no window and run no modal session,
+    /// so a question answers with whatever a test put in `answer`.
+    enum NotchIslandAlert {
+        /// The answer to the next question, nil to leave it cancelled.
+        static var answer: String?
+        static func run(_ alert: NSAlert, service: NotchService) -> NSApplication.ModalResponse {
+            answer == nil ? .alertSecondButtonReturn : .alertFirstButtonReturn
+        }
+        static func askForName(title: String, message: String?, value: String, prompt: String,
+                               save: String, cancel: String, service: NotchService) -> String? {
+            answer
+        }
+    }
     struct NotchEmptyView: View {
         let symbol: String
         let message: String

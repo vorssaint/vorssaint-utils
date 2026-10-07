@@ -41,7 +41,7 @@ struct NotchIslandPreview: View {
             .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: module)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(editor.preview)
-            .accessibilityValue(module.title(l10n.language) + (hidden ? ", " + editor.hiddenInIsland : ""))
+            .accessibilityValue(notch.name(for: module) + (hidden ? ", " + editor.hiddenInIsland : ""))
             .onAppear { monitor(windowVisible && module == .system) }
             .onChange(of: module) { _, value in monitor(windowVisible && value == .system) }
             .onChange(of: windowVisible) { _, visible in monitor(visible && module == .system) }
@@ -133,7 +133,7 @@ struct NotchIslandPreview: View {
                         .foregroundStyle(.white.opacity(0.55))
                         .frame(width: 28, height: 28)
                 }
-                Text(module.title(l10n.language))
+                Text(notch.name(for: module))
                     .font(Font(NotchLayout.headerTitleFont as CTFont))
                     .lineLimit(1)
             }
@@ -259,9 +259,10 @@ struct NotchSectionListRow: View {
     @Binding var dragging: NotchModule?
     let select: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var notch = NotchService.shared
     @State private var hovering = false
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
-    private var title: String { module.title(l10n.language) }
+    private var title: String { notch.name(for: module) }
 
     var body: some View {
         PanelReorderableItem(item: module, order: $order, dragging: $dragging) {
@@ -317,13 +318,14 @@ struct NotchSectionHeader: View {
     let reason: String?
     let openFeatures: () -> Void
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var notch = NotchService.shared
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             NotchSectionTile(module: module, shown: shown, side: 38)
             VStack(alignment: .leading, spacing: 3) {
-                Text(module.title(l10n.language)).font(.title3.weight(.semibold))
+                Text(notch.name(for: module)).font(.title3.weight(.semibold))
                 Text(editor.summary(module))
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -342,6 +344,82 @@ struct NotchSectionHeader: View {
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// The name a section carries in the island, given by hand. At rest it is
+/// only the name and a pencil, as elsewhere in the app; the pencil opens the
+/// field, and Return, the checkmark or clicking away keeps what was typed.
+/// An empty field gives the section the name it comes with back, which is
+/// what the field shows as its prompt and which follows the app's language.
+struct NotchSectionNameField: View {
+    let module: NotchModule
+    @ObservedObject private var notch = NotchService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @State private var editing = false
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+    private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
+
+    var body: some View {
+        Group {
+            if editing { field } else { resting }
+        }
+        // Another section's name is another question: it opens at rest.
+        .onChange(of: module) { _, _ in editing = false }
+    }
+
+    private var resting: some View {
+        HStack(spacing: 8) {
+            Text(notch.name(for: module))
+            Button {
+                draft = notch.sectionNames.name(for: module) ?? ""
+                editing = true
+            } label: {
+                Image(systemName: "pencil")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(text.renameSection)
+            .accessibilityLabel(text.renameSection)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var field: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField(text.sectionName, text: $draft, prompt: Text(module.title(l10n.language)))
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 260)
+                    .focused($focused)
+                    .accessibilityLabel(text.sectionName)
+                    .onSubmit(commit)
+                    // The caret lands in the field as it opens. Only Return,
+                    // the checkmark and the original name rename the section:
+                    // a draft left behind is never saved by clicking away,
+                    // and Escape drops it.
+                    .onAppear { focused = true }
+                    .onExitCommand { editing = false }
+                Button(action: commit) {
+                    Image(systemName: "checkmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .help(text.saveName)
+                .accessibilityLabel(text.saveName)
+                Button(text.originalName) { draft = ""; commit() }
+                    .disabled(draft.isEmpty)
+            }
+            Text(text.renameSectionHint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func commit() {
+        notch.renameSection(module, to: draft)
+        editing = false
     }
 }
 
