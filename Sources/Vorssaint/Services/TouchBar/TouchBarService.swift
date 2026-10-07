@@ -32,6 +32,10 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
     private weak var memoryCleanupButton: NSButton?
     private var cancellables = Set<AnyCancellable>()
 
+    private var localizedStrings: TouchBarFeatureStrings {
+        FeatureStrings.touchBar(L10n.shared.language)
+    }
+
     private override init() {
         super.init()
 
@@ -48,13 +52,13 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 self?.updateMicMuteButton()
             }
             .store(in: &cancellables)
+
         SystemMonitor.shared.$snapshot
             .receive(on: DispatchQueue.main)
             .sink { [weak self] snapshot in
                 self?.updateSystemMetricsLabel(snapshot)
             }
             .store(in: &cancellables)
-
     }
 
     func syncWithPreferences() {
@@ -71,7 +75,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
                 ? SystemMonitorPanelNeeds(cpu: true, memory: true)
                 : .none
         )
-
 
         if shouldBeActive {
             touchBar = makeTouchBar()
@@ -106,7 +109,6 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
         case Self.systemMetricsItemIdentifier:
             return makeSystemMetricsItem(identifier: identifier)
-
 
         case Self.quickLauncherItemIdentifier:
             return makeQuickLauncherItem(identifier: identifier)
@@ -220,7 +222,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         let button = NSButton(
             image: NSImage(
                 systemSymbolName: "square.grid.2x2",
-                accessibilityDescription: "Quick Launcher"
+                accessibilityDescription: localizedStrings.quickLauncher
             ) ?? NSImage(),
             target: self,
             action: #selector(showQuickLauncher(_:))
@@ -247,7 +249,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         let cleanup = NSButton(
             image: NSImage(
                 systemSymbolName: "eraser",
-                accessibilityDescription: "Free RAM"
+                accessibilityDescription: localizedStrings.freeRAM
             ) ?? NSImage(),
             target: self,
             action: #selector(freeRAM(_:))
@@ -271,7 +273,9 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
         let button = NSButton(
             image: NSImage(
                 systemSymbolName: "doc.on.clipboard",
-                accessibilityDescription: "Clipboard"
+                accessibilityDescription: FeatureStrings.clipboard(
+                    L10n.shared.language
+                ).title
             ) ?? NSImage(),
             target: self,
             action: #selector(toggleClipboard(_:))
@@ -323,7 +327,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
         return NSImage(
             systemSymbolName: symbol,
-            accessibilityDescription: "Keep Awake"
+            accessibilityDescription: localizedStrings.keepAwake
         ) ?? NSImage()
     }
 
@@ -334,7 +338,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
         return NSImage(
             systemSymbolName: symbol,
-            accessibilityDescription: "Microphone Mute"
+            accessibilityDescription: localizedStrings.microphoneMute
         ) ?? NSImage()
     }
 
@@ -361,7 +365,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
         memoryCleanupButton?.image = NSImage(
             systemSymbolName: cleanupSymbol,
-            accessibilityDescription: "Free RAM"
+            accessibilityDescription: localizedStrings.freeRAM
         )
     }
 
@@ -387,7 +391,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
         sender.image = NSImage(
             systemSymbolName: "checkmark",
-            accessibilityDescription: "RAM cleanup completed"
+            accessibilityDescription: localizedStrings.ramCleanupCompleted
         )
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak sender] in
@@ -401,7 +405,7 @@ final class TouchBarService: NSObject, NSTouchBarDelegate {
 
             sender.image = NSImage(
                 systemSymbolName: symbol,
-                accessibilityDescription: "Free RAM"
+                accessibilityDescription: self.localizedStrings.freeRAM
             )
         }
     }

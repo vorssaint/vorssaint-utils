@@ -80,13 +80,16 @@ private struct TouchBarControlRow: View {
     let dragProvider: () -> NSItemProvider
 
     private var title: String {
+        let language = L10n.shared.language
+        let strings = FeatureStrings.touchBar(language)
+
         switch control {
-        case .keepAwake: return "Keep Awake"
-        case .micMute: return "Microphone Mute"
-        case .clipboard: return "Clipboard"
-        case .systemMetrics: return "System Metrics"
-        case .quickLauncher: return "Quick Launcher"
-        case .killProcess: return "Kill Process"
+        case .keepAwake: return strings.keepAwake
+        case .micMute: return strings.microphoneMute
+        case .clipboard: return FeatureStrings.clipboard(language).title
+        case .systemMetrics: return strings.systemMetrics
+        case .quickLauncher: return strings.quickLauncher
+        case .killProcess: return FeatureStrings.killProcess(language).pageTitle
         }
     }
 
