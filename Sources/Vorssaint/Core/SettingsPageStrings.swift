@@ -69,16 +69,16 @@ extension SettingsPageStrings {
     )
 
     static let sv = SettingsPageStrings(
-        energyDescription: "Keep the Mac awake, control your displays and save battery.",
-        monitorDescription: "What the menu bar and the panel show about your Mac, and when to warn you.",
-        mouseDescription: "Give the wheel, the side buttons and the trackpad new jobs.",
-        switcherDescription: "Switch between apps and windows your way.",
+        energyDescription: "Håll datorn vaken, styr bildskärmarna och spara batteri.",
+        monitorDescription: "Vad menyraden och panelen visar om datorn och när du ska varnas.",
+        mouseDescription: "Ge rullhjulet, sidoknapparna och styrplattan nya uppgifter.",
+        switcherDescription: "Växla mellan appar och fönster på ditt sätt.",
         dockTitle: "Dock",
-        dockDescription: "See an app’s windows from its Dock icon, and choose what a click on it does.",
-        switcherLayoutWindows: "Window previews",
-        switcherLayoutWindowsCaption: "One preview per window, minimized ones included.",
-        switcherLayoutIcons: "Large icons",
-        switcherLayoutSimple: "Simple list"
+        dockDescription: "Se en apps fönster från dess Dock-symbol och välj vad ett klick på den gör.",
+        switcherLayoutWindows: "Fönsterförhandsvisningar",
+        switcherLayoutWindowsCaption: "En förhandsvisning per fönster, även minimerade.",
+        switcherLayoutIcons: "Stora symboler",
+        switcherLayoutSimple: "Enkel lista"
     )
 
     static let ptBR = SettingsPageStrings(
