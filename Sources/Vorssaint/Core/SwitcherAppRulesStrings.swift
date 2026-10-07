@@ -50,14 +50,14 @@ extension SwitcherAppRulesStrings {
     )
 
     static let sv = SwitcherAppRulesStrings(
-        listTitle: "Rules by app",
+        listTitle: "Regler per app",
         addButton: "Lägg till en app...",
         removeButton: "Ta bort",
-        behaviorLabel: "Switcher behavior",
-        showWithoutWindows: "Show without windows",
-        windowsOnly: "Windows only",
-        hidden: "Never show",
-        caption: "Choose how each app appears. Apps without a rule use the choice above."
+        behaviorLabel: "Beteende i växlaren",
+        showWithoutWindows: "Visa utan fönster",
+        windowsOnly: "Endast fönster",
+        hidden: "Visa aldrig",
+        caption: "Välj hur varje app visas. Appar utan regel använder valet ovan."
     )
 
     static let ptBR = SwitcherAppRulesStrings(
