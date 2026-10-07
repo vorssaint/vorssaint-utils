@@ -324,7 +324,7 @@ extension RecorderFeatureStrings {
         qualityHigh: "Hög",
         qualityCaption: "Balanserad passar oftast. Hög kvalitet behåller alla detaljer men ger större filer.",
         frameRateLabel: "Bildrutor per sekund",
-        frameRateFormat: "%d fps",
+        frameRateFormat: "%d bildrutor/s",
         systemAudioToggle: "Spela in datorns ljud",
         systemAudioCaption: "Allt du hör läggs i inspelningen på ett eget spår, så att du kan stänga av ljudet senare.",
         folderLabel: "Spara till",
