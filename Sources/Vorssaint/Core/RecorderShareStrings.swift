@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func recorderShare(_ language: AppLanguage) -> RecorderShareStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -48,6 +49,18 @@ extension RecorderShareStrings {
         tooLarge: "This recording cannot fit under 100 MB without losing too much quality.",
         failed: "The temporary link could not be created",
         tourCaption: "Compress a finished recording on this Mac and share it for 1 or 6 hours."
+    )
+
+    static let pl = RecorderShareStrings(
+        caption: "Wybierz 1 lub 6 godzin. Ostateczny film jest kompresowany na tym komputerze Mac do rozmiaru poniżej 100 MB i automatycznie usuwany.",
+        privacyData: "Vorssaint wysyła tylko ostateczny film utworzony na podstawie tego nagrania, łącznie z zachowanym dźwiękiem i wybraną datą wygaśnięcia. Nie wysyła Twojego imienia i nazwiska, konta ani identyfikatora urządzenia.",
+        privacyStorage: "Dostawcy sieci i usługa tymczasowo przetwarzają Twój publiczny adres IP, aby zapobiec nadużyciom. Metadane wideo i linku są trwale usuwane po usunięciu linku lub upływie jego czasu. Usługa nie tworzy kopii zapasowych.",
+        privacyAccess: "Każda osoba mająca link może oglądać, pobierać, zapisywać i rozpowszechniać wideo. Aktywne linki są dostępne dla operatora usługi w celu moderowania nadużyć. Udostępniaj tylko zaufanym osobom.",
+        compressing: "Kompresja w celu udostępnienia…",
+        uploading: "Bezpieczne przesyłanie…",
+        tooLarge: "To nagranie nie może zmieścić się poniżej 100 MB bez utraty zbyt dużej jakości.",
+        failed: "Nie można utworzyć łącza tymczasowego",
+        tourCaption: "Skompresuj gotowe nagranie na tym komputerze Mac i udostępniaj je przez 1 lub 6 godzin."
     )
 
     static let ptBR = RecorderShareStrings(

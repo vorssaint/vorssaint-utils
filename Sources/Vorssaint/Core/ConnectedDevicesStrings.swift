@@ -24,6 +24,7 @@ extension FeatureStrings {
     static func connectedDevices(_ language: AppLanguage) -> ConnectedDevicesFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -51,6 +52,16 @@ private extension ConnectedDevicesFeatureStrings {
         menuBarLabel: "USB",
         oneConnected: "1 device connected",
         devicesConnectedFormat: "%d devices connected"
+    )
+
+    static let pl = ConnectedDevicesFeatureStrings(
+        title: "Podłączone urządzenia",
+        hubDescription: "Policz podłączone zewnętrzne urządzenia peryferyjne USB",
+        noDevices: "Nie podłączono żadnych urządzeń zewnętrznych",
+        unnamedDevice: "Urządzenie USB",
+        menuBarLabel: "USB",
+        oneConnected: "Podłączono 1 urządzenie",
+        devicesConnectedFormat: "Podłączone urządzenia %d"
     )
 
     static let ptBR = ConnectedDevicesFeatureStrings(

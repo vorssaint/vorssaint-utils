@@ -67,6 +67,9 @@ enum AlertSoundStrings {
         case .enUS:
             return english
 
+        case .pl:
+            return english
+
         case .ptBR:
             return portugueseBrazil
 

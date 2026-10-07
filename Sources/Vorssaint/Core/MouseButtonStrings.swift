@@ -46,6 +46,7 @@ extension FeatureStrings {
     static func mouseButtons(_ language: AppLanguage) -> MouseButtonFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -98,6 +99,41 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "That button already has a shortcut. Pick another one.",
         spacesFollowsDragLabel: "Spaces follow the drag",
         spacesFollowsDragCaption: "Dragging right brings the Space on the left, the way a trackpad swipe carries it along with your fingers."
+    )
+
+    static let pl = MouseButtonFeatureStrings(
+        pageTitle: "Skróty klawiszowe myszy",
+        hubDescription: "Dodatkowe przyciski i wskazówki pokrętła bocznego umożliwiają naciśnięcie wybranej kombinacji klawiszy.",
+        enableLabel: "Użyj dodatkowych przycisków jako skrótów",
+        enableCaption: "Każdy dodatkowy przycisk lub kierunek pokrętła bocznego może nacisnąć kombinację klawiszy. Chociaż ma skrót, przestaje robić to, co robił wcześniej.",
+        addButton: "Dodaj przycisk lub boczne kółko",
+        captureWaiting: "Teraz naciśnij dodatkowy przycisk lub przesuń boczne koło.",
+        captureCancel: "Anuluj",
+        captureBlind: "Vorssaint nie może teraz obserwować myszy.",
+        captureUnsupported: "To wejście nie może wymagać skrótu. Użyj dodatkowego przycisku lub kierunku koła bocznego.",
+        captureWheel: "Ten przycisk już otwiera menu promieniowe. Wybierz inny lub najpierw go tam uwolnij.",
+        captureExists: "Ten przycisk lub kierunek znajduje się już na poniższej liście.",
+        captureHint: "Jeśli nic się nie stanie, być może oprogramowanie Twojej myszy już korzysta z tego elementu sterującego.",
+        backButtonName: "Przycisk z tyłu",
+        forwardButtonName: "Przycisk boczny do przodu",
+        otherButtonFormat: "Przycisk %d",
+        setShortcutButton: "Ustaw skrót",
+        removeButton: "Usuń",
+        emptyCaption: "Nie ma jeszcze skrótów. Dodaj przycisk lub kierunek koła bocznego.",
+        rowWheelNote: "Ten przycisk otwiera teraz menu kołowe, więc skrót czeka.",
+        manageButton: "Skonfiguruj…",
+        panelCaption: "Dodatkowe przyciski i wskazówki pokrętła bocznego Naciśnij wybrane kombinacje klawiszy.",
+        sideWheelLeftName: "Koło boczne lewe",
+        sideWheelRightName: "Koło boczne, prawe",
+        spacesEnableLabel: "Przełącz biurka, przeciągając z przyciskiem myszy",
+        spacesEnableCaption: "Przytrzymaj wybrany przycisk i przeciągnij. Ruch w lewo lub prawo przełącza o jedno biurko, w górę otwiera Mission Control, a w dół App Exposé. Krótkie kliknięcie nadal działa jak zwykle.",
+        spacesPickButton: "Wybierz przycisk",
+        spacesShortcutsOffNote: "Skróty klawiaturowe Mission Control są wyłączone w Ustawieniach systemu, więc ten gest nie ma o co prosić.",
+        spacesCaptureWaiting: "Teraz naciśnij dodatkowy przycisk.",
+        spacesCaptureUnsupported: "Tego wejścia nie można przeciągnąć. Użyj dodatkowego przycisku.",
+        spacesCaptureExists: "Ten przycisk ma już skrót. Wybierz inny.",
+        spacesFollowsDragLabel: "Biurka podążają za przeciąganiem",
+        spacesFollowsDragCaption: "Przeciągnięcie w prawo przełącza na biurko po lewej, podobnie jak gest przesuwania na gładziku."
     )
 
     static let ptBR = MouseButtonFeatureStrings(

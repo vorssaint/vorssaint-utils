@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -78,6 +79,32 @@ extension WallpaperFeatureStrings {
         applyFailed: "Could not set the wallpaper",
         previousPage: "Previous",
         nextPage: "Next"
+    )
+
+    static let pl = WallpaperFeatureStrings(
+        pageTitle: "Tapeta",
+        hubDescription: "Wybierz nieruchomą tapetę bez otwierania Ustawień systemowych",
+        panelDescription: "Wybierz nieruchomą tapetę bez otwierania Ustawień systemowych.",
+        filterAll: "Wszystko",
+        filterOwn: "Twoje zdjęcia",
+        filterApple: "Apple",
+        applyAllDisplays: "Pokaż na wszystkich biurkach Spaces",
+        addImage: "Dodaj obraz",
+        addFolder: "Dodaj folder",
+        removeAdded: "Usuń",
+        doneRemoving: "Gotowe",
+        sourceUnavailable: "Niedostępne",
+        addImagePrompt: "Wybierz obrazy, które chcesz zachować na liście tapet Vorssaint",
+        addFolderPrompt: "Wybierz folder ze zdjęciami, który chcesz umieścić na liście tapet Vorssaint",
+        openSystemSettings: "Otwórz ustawienia tapety",
+        emptyAll: "Nie znaleziono tapet",
+        emptyOwn: "Nie dodano jeszcze żadnych zdjęć",
+        emptyApple: "Nie znaleziono zdjęć Apple",
+        downloading: "Pobieranie…",
+        downloadFailed: "Nie można pobrać tapety",
+        applyFailed: "Nie można ustawić tapety",
+        previousPage: "Poprzedni",
+        nextPage: "Następny"
     )
 
     static let ptBR = WallpaperFeatureStrings(

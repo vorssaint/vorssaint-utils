@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func diskExclusions(_ language: AppLanguage) -> DiskExclusionStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -42,6 +43,15 @@ extension DiskExclusionStrings {
         removeButton: "Remove",
         customPlaceholder: "Drive or volume name",
         caption: "Drives in this list are never unmounted when using Eject all disks."
+    )
+
+    static let pl = DiskExclusionStrings(
+        listTitle: "Wykluczone dyski",
+        addButton: "Dodaj dysk…",
+        otherDrive: "Inna nazwa dysku…",
+        removeButton: "Usuń",
+        customPlaceholder: "Nazwa dysku lub woluminu",
+        caption: "Dyski na tej liście nigdy nie są odłączane podczas korzystania z opcji Wysuń wszystkie dyski."
     )
 
     static let ptBR = DiskExclusionStrings(

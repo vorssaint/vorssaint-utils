@@ -12,6 +12,7 @@ extension FeatureStrings {
     static func monitorLayout(_ language: AppLanguage) -> MonitorLayoutFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -32,6 +33,8 @@ extension FeatureStrings {
 
 extension MonitorLayoutFeatureStrings {
     static let enUS = MonitorLayoutFeatureStrings(shared: "Readings and alerts")
+
+    static let pl = MonitorLayoutFeatureStrings(shared: "Odczyty i alerty")
     static let ptBR = MonitorLayoutFeatureStrings(shared: "Leituras e alertas")
     static let tr = MonitorLayoutFeatureStrings(shared: "Ölçümler ve uyarılar")
     static let ru = MonitorLayoutFeatureStrings(shared: "Показания и оповещения")

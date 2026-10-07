@@ -8,6 +8,7 @@ struct WindowDirectionalStrings {
     static func localized(_ language: AppLanguage) -> WindowDirectionalStrings {
         switch language {
         case .enUS: return .init(title: "Shortcut + pointer layout", caption: "Hold the shortcut, move the pointer toward an edge or corner, then release to place the active window.")
+        case .pl: return .init(title: "Układ skrótu i ​​wskaźnika", caption: "Przytrzymaj skrót, przesuń wskaźnik w stronę krawędzi lub narożnika, a następnie zwolnij, aby umieścić aktywne okno.")
         case .ptBR: return .init(title: "Atalho + ponteiro", caption: "Segure o atalho, mova o ponteiro para uma borda ou canto e solte para posicionar a janela ativa.")
         case .tr: return .init(title: "Kestirme + işaretçi düzeni", caption: "Kestirmeyi basılı tutun, işaretçiyi bir kenara veya köşeye götürün ve etkin pencereyi yerleştirmek için bırakın.")
         case .ru: return .init(title: "Сочетание + указатель", caption: "Удерживайте сочетание, переместите указатель к краю или углу и отпустите, чтобы разместить активное окно.")

@@ -763,11 +763,42 @@ enum ShelfFeatureTests {
             suite.expect(slovakStrings.form(for: count) == wanted,
                    "a language that reads the whole number asks for the right form at \(count)")
         }
-        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .uk]
+        suite.expect(AppLanguage.allCases.filter { $0.countAgreement != .oneAndMany } == [.ru, .sk, .pl, .uk]
                && AppLanguage.ru.countAgreement == .byLastDigits
                && AppLanguage.uk.countAgreement == .byLastDigits
-               && AppLanguage.sk.countAgreement == .byWholeNumber,
-               "Russian, Slovak and Ukrainian are the three languages of the fifteen that ask for the middle form, each by its own rule")
+               && AppLanguage.sk.countAgreement == .byWholeNumber
+               && AppLanguage.pl.countAgreement == .polish,
+               "Russian, Slovak, Polish and Ukrainian each use their own rule for the middle form")
+
+        let pl = Strings.pl
+        let polishStrings = ShelfTooltipStrings(itemsFormat: pl.shelfTooltipItemsFormat,
+                                                itemsFew: pl.shelfTooltipItemsFew,
+                                                imageSingular: pl.shelfTooltipImageSingular,
+                                                imageFew: pl.shelfTooltipImageFew,
+                                                imagePlural: pl.shelfTooltipImagePlural,
+                                                fileSingular: pl.shelfTooltipFileSingular,
+                                                fileFew: pl.shelfTooltipFileFew,
+                                                filePlural: pl.shelfTooltipFilePlural,
+                                                noteSingular: pl.shelfTooltipNoteSingular,
+                                                noteFew: pl.shelfTooltipNoteFew,
+                                                notePlural: pl.shelfTooltipNotePlural,
+                                                linkSingular: pl.shelfTooltipLinkSingular,
+                                                linkFew: pl.shelfTooltipLinkFew,
+                                                linkPlural: pl.shelfTooltipLinkPlural,
+                                                agreement: AppLanguage.pl.countAgreement)
+        for (count, wanted) in [(0, "0 plików"), (1, "1 plik"), (2, "2 pliki"), (4, "4 pliki"),
+                                (5, "5 plików"), (12, "12 plików"), (14, "14 plików"),
+                                (21, "21 plików"), (22, "22 pliki"), (24, "24 pliki"),
+                                (101, "101 plików"), (112, "112 plików"), (122, "122 pliki")] {
+            let format: String
+            switch polishStrings.form(for: count) {
+            case .one: format = polishStrings.fileSingular
+            case .few: format = polishStrings.fileFew
+            case .many: format = polishStrings.filePlural
+            }
+            suite.expect(String(format: format, count) == wanted,
+                         "Polish file count renders correctly at \(count)")
+        }
 
         expectEqual(ShelfTooltipSupport.text(forFileNamed: "risaPOGCHAMP.gif", resolvedKind: "GIF Image"),
                     "risaPOGCHAMP.gif\nGIF Image",
