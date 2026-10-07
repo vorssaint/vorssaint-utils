@@ -17,6 +17,7 @@ struct NotchMascotSettings: View {
     @AppStorage(DefaultsKey.notchMascotEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchMascotVisits) private var visits = true
     @AppStorage(DefaultsKey.notchMascotReactions) private var reactions = true
+    @AppStorage(DefaultsKey.notchMascotHidesWhenIdle) private var hidesWhenIdle = false
     @AppStorage(DefaultsKey.notchMascotStyle) private var style = NotchMascotStyle.minimal.rawValue
     @AppStorage(DefaultsKey.notchMascotShape) private var shape = NotchMascotShape.ball.rawValue
     @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotPalette.pearl.rawValue
@@ -54,7 +55,8 @@ struct NotchMascotSettings: View {
                 header
                 if !islandOn { islandNote }
                 NotchMascotStageCard(look: look, side: restingSide, awake: enabled, canGreet: enabled && islandOn,
-                                     visits: visits, reactions: reactions, text: text, language: l10n.language)
+                                     visits: visits, reactions: reactions, hides: hidesWhenIdle, text: text,
+                                     language: l10n.language)
                 appearance
                 behavior
                 commandBarCard
@@ -210,6 +212,7 @@ struct NotchMascotSettings: View {
                 }
                 .padding(.leading, settingsRowTextInset)
             }
+            switchRow("eye.slash", text.hidesWhenIdle, caption: text.hidesWhenIdleHint, isOn: $hidesWhenIdle)
             switchRow("figure.walk", text.visits, caption: text.visitsHint, isOn: $visits)
             if visits {
                 SettingsChoiceRow(symbol: "clock", title: text.frequency, selection: $frequency) {
@@ -277,6 +280,7 @@ private struct NotchMascotStageCard: View {
     /// Turned on, each plays at once what it brings.
     let visits: Bool
     let reactions: Bool
+    let hides: Bool
     let text: NotchMascotStrings
     let language: AppLanguage
     @State private var visit: NotchMascotVisit?
@@ -341,9 +345,11 @@ private struct NotchMascotStageCard: View {
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onChange(of: awake) { _, awake in
             // A moment still playing ends; switched on, it wakes up with a
-            // stretch, and off, it yawns and dozes off.
+            // stretch, and off, it yawns and dozes off. Hidden a moment ago
+            // to show how it hides, it is back in its place for that.
             playingWork?.cancel(); playingWork = nil
             playing = nil
+            if visit?.kind == NotchMascotSupport.hideAway { visit = nil }
             react(awake ? .wakeUp : .yawn)
         }
         .onChange(of: side) { _, _ in
@@ -359,6 +365,22 @@ private struct NotchMascotStageCard: View {
             // Reacting again, it perks up.
             if reactions, awake, visit == nil { react(.perk) }
         }
+        .onChange(of: hides) { _, hides in
+            // Set to hide when idle, it shows how it goes into the island,
+            // and a moment later comes back out, as the preview keeps it in sight.
+            guard hides, awake, visit == nil else { return }
+            playingWork?.cancel()
+            playing = nil
+            let away = NotchMascotVisit(id: UUID(), kind: NotchMascotSupport.hideAway, greeting: .idle,
+                                        start: CACurrentMediaTime())
+            visit = away
+            let work = DispatchWorkItem {
+                guard visit?.id == away.id else { return }
+                startVisit(.arrive, greeting: .wink)
+            }
+            playingWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + away.duration + 0.8, execute: work)
+        }
         .onChange(of: look) { _, _ in
             // A new look, and it is glad of it, once the choosing settles.
             lookWork?.cancel()
@@ -370,6 +392,8 @@ private struct NotchMascotStageCard: View {
         .onDisappear {
             playingWork?.cancel()
             lookWork?.cancel()
+            // Never left hidden for the next time the page shows.
+            if visit?.kind == NotchMascotSupport.hideAway { visit = nil }
         }
     }
 

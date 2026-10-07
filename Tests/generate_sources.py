@@ -782,6 +782,16 @@ def main():
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func handleScroll(", "    private func handleSectionScroll("])
           + "}\n}\n")
+    write("NotchMascotHiding.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension NotchMascotHidingContract {\nfinal class Service: State {\n"
+          + "".join(declaration(notch, prefix).replace("    fileprivate ", "    ", 1).replace("    private ", "    ", 1)
+                    for prefix in ["    fileprivate func syncMascotHiding(", "    fileprivate func noteMascotStirred()",
+                                   "    private func scheduleMascotTuck(", "    private func tuckMascotIfQuiet(",
+                                   "    private func stageMascotTuck()", "    private func untuckMascot()"])
+              .replace("    func noteMascotStirred()", "    override func noteMascotStirred()")
+              .replace("NotchMascotSupport.hidesWhenIdle()", "hidesWhenIdle")
+              .replace("CACurrentMediaTime()", "mediaTime()")
+          + "}\n}\n")
     write("NotchKeyMonitor.swift", "import Foundation\nextension NotchKeyMonitorTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func installEventMonitors()").replace("private func", "func", 1)
           + "}\n}\n")

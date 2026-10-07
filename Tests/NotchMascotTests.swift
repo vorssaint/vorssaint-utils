@@ -19,6 +19,7 @@ enum NotchMascotTests {
         crossContracts(suite)
         arriveContracts(suite)
         lingerContracts(suite)
+        hidingContracts(suite)
         previewContracts(suite)
         countdownContracts(suite)
         activityTrackContracts(suite)
@@ -158,7 +159,8 @@ enum NotchMascotTests {
         let keys = [DefaultsKey.notchMascotEnabled, DefaultsKey.notchMascotVisits, DefaultsKey.notchMascotReactions,
                     DefaultsKey.notchMascotStyle,
                     DefaultsKey.notchMascotShape, DefaultsKey.notchMascotPalette, DefaultsKey.notchCommandBar,
-                    DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency]
+                    DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency,
+                    DefaultsKey.notchMascotHidesWhenIdle]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil && $0.hasPrefix("notch") }
                      && SettingsBackupSupport.exportKeys().isSuperset(of: keys),
                      "every companion preference travels in a settings backup with the island's")
@@ -396,6 +398,59 @@ enum NotchMascotTests {
                              "in a capsule it walks out past the far end")
             }
         }
+    }
+
+    /// Hiding when idle: chosen, it goes into the island a quiet while after
+    /// it last did anything, with a yawn where it rests, and still comes out
+    /// to visit and to react.
+    private static func hidingContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-mascot-hiding"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        defaults.set(true, forKey: AppFeature.notch.availabilityKey)
+        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
+        suite.expect(!NotchMascotSupport.hidesWhenIdle(in: defaults),
+                     "the companion stays beside the camera unless it is set to hide when idle")
+        defaults.set(true, forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        suite.expect(NotchMascotSupport.hidesWhenIdle(in: defaults) && NotchMascotSupport.visits(in: defaults)
+                     && NotchMascotSupport.reacts(in: defaults),
+                     "hiding when idle, it still visits and reacts")
+        defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
+        suite.expect(!NotchMascotSupport.hidesWhenIdle(in: defaults), "switched off, it has nothing to hide from")
+
+        let away = NotchMascotSupport.hideAway
+        suite.expect(away.endsOutOfSight && away.reaction == .yawn && NotchMascotMotion.duration(of: away) < 2.5,
+                     "it goes into the island with a yawn, out of sight within a couple of seconds")
+        let left = NotchMascotSupport.track(stripWidth: 268, stripHeight: 32, wing: 44, cameraWidth: 180,
+                                            floats: false, bodyHeight: 32)
+        let right = NotchMascotSupport.track(stripWidth: 268, stripHeight: 32, wing: 44, cameraWidth: 180,
+                                             floats: false, bodyHeight: 32, side: .right)
+        let capsule = NotchMascotSupport.track(stripWidth: 76, stripHeight: 24, wing: 0, cameraWidth: 0,
+                                               floats: true, bodyHeight: 20)
+        for (name, track) in [("left wing", left), ("right wing", right), ("capsule", capsule)] {
+            let path = NotchMascotMotion.path(for: away, on: track)
+            suite.expect(abs((path.x.first ?? 0) - track.rest) < 0.01 && (path.lift.first ?? 1) == 0,
+                         "hiding from a \(name), it yawns where it rests, so nothing jumps as it starts")
+            if let hidden = track.hidden {
+                let end = path.x.last ?? 0
+                suite.expect(end - track.size / 2 >= hidden.lowerBound && end + track.size / 2 <= hidden.upperBound,
+                             "hiding from a \(name), it ends behind the camera before the wings fold")
+            } else {
+                suite.expect((path.x.last ?? 0) >= track.width + track.size / 2,
+                             "hiding from a capsule, it walks out past the far end before the capsule shrinks")
+            }
+        }
+        // Late at night its eyes grow heavy after its fewest blinks, each
+        // at least the shortest wait apart.
+        let doze = Double(NotchMascotSupport.blinksBeforeSleep(hour: 23))
+            * NotchMascotSupport.blinkInterval(lowPower: false).lowerBound
+        suite.expect(NotchMascotSupport.hideDelay < doze && NotchMascotSupport.hideRetry < NotchMascotSupport.hideDelay,
+                     "it hides before it could doze off where it rests, even late at night")
     }
 
     private static func lingerContracts(_ suite: TestSuite) {
