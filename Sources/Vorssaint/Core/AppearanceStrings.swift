@@ -44,11 +44,11 @@ extension AppearanceStrings {
     )
 
     static let sv = AppearanceStrings(
-        label: "Appearance",
+        label: "Utseende",
         system: "System",
-        light: "Light",
-        dark: "Dark",
-        liquidGlass: "Liquid Glass"
+        light: "Ljust",
+        dark: "Mörkt",
+        liquidGlass: "Flytande glas"
     )
 
     static let ptBR = AppearanceStrings(

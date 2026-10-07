@@ -46,12 +46,12 @@ extension DiskExclusionStrings {
     )
 
     static let sv = DiskExclusionStrings(
-        listTitle: "Excluded drives",
-        addButton: "Add drive…",
-        otherDrive: "Other drive name…",
+        listTitle: "Undantagna enheter",
+        addButton: "Lägg till enhet…",
+        otherDrive: "Annat enhetsnamn…",
         removeButton: "Ta bort",
-        customPlaceholder: "Drive or volume name",
-        caption: "Drives in this list are never unmounted when using Eject all disks."
+        customPlaceholder: "Namn på enhet eller volym",
+        caption: "Enheter i den här listan matas aldrig ut när du använder Mata ut alla diskar."
     )
 
     static let ptBR = DiskExclusionStrings(

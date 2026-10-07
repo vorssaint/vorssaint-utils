@@ -42,10 +42,10 @@ extension ClipboardIgnoredAppsStrings {
     )
 
     static let sv = ClipboardIgnoredAppsStrings(
-        listTitle: "Apps to skip",
+        listTitle: "Appar att hoppa över",
         addButton: "Lägg till en app...",
         removeButton: "Ta bort",
-        caption: "Nothing you copy in these apps is saved to the history."
+        caption: "Inget du kopierar i de här apparna sparas i historiken."
     )
 
     static let ptBR = ClipboardIgnoredAppsStrings(
