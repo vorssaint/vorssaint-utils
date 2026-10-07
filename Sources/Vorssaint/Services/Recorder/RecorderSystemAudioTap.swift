@@ -84,14 +84,20 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     private var ioProc: AudioDeviceIOProcID?
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
-    private var deviceListener: AudioObjectPropertyListenerBlock?
-    private var rateListener: AudioObjectPropertyListenerBlock?
+    /// The retained relays handed to the two listeners. See `ListenerRelay`.
+    private var deviceListener: UnsafeMutableRawPointer?
+    private var rateListener: UnsafeMutableRawPointer?
     private var stopped = false
 
     /// Destroying a device or a tap can park inside a broken audio path, so
     /// it never happens on a queue anything waits for. Serial, so the device
     /// that hosts a tap is always gone before the tap itself.
     private static let teardownQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.teardown",
+                                                     qos: .utility)
+    /// Where the default output listener is given back. It waits on no
+    /// device, and behind a destroy parked on the teardown queue it would
+    /// stay registered for the rest of the session.
+    private static let listenerQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.listeners",
                                                      qos: .utility)
 
     /// The tap, or nothing when the audio system refuses one.
@@ -126,9 +132,13 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     }
 
     deinit {
-        let tapID = self.tapID
+        // `stop` already destroyed the tap, and the audio system may have
+        // given its id to another tap since.
+        let tapID = stopped ? 0 : self.tapID
         let aggregateID = self.aggregateID
         let ioProc = self.ioProc
+        Self.stopListening(deviceListener)
+        Self.stopListening(rateListener)
         Self.destroy(aggregateID: aggregateID, ioProc: ioProc, tapID: tapID)
     }
 
@@ -157,12 +167,8 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         await withCheckedContinuation { continuation in
             queue.async { [self] in
                 stopped = true
-                if let deviceListener {
-                    var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
-                    AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                                           &address, queue, deviceListener)
-                    self.deviceListener = nil
-                }
+                Self.stopListening(deviceListener)
+                deviceListener = nil
                 teardownPipeline()
                 Self.destroy(aggregateID: 0, ioProc: nil, tapID: tapID)
                 continuation.resume()
@@ -252,10 +258,7 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         if let ioProc {
             AudioDeviceStop(aggregateID, ioProc)
         }
-        if let rateListener {
-            var address = Self.address(kAudioDevicePropertyNominalSampleRate)
-            AudioObjectRemovePropertyListenerBlock(aggregateID, &address, queue, rateListener)
-        }
+        Self.stopListening(rateListener)
         Self.destroy(aggregateID: aggregateID, ioProc: ioProc, tapID: 0)
     }
 
@@ -277,23 +280,76 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
 
     private func watchDefaultOutputDevice() {
         guard deviceListener == nil else { return }
-        var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
-        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.rebuildPipelineIfChanged()
-        }
-        if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                               &address, queue, listener) == noErr {
-            deviceListener = listener
-        }
+        deviceListener = listen(to: AudioObjectID(kAudioObjectSystemObject),
+                                kAudioHardwarePropertyDefaultOutputDevice)
     }
 
     private func watchSampleRate(of aggregateID: AudioObjectID) {
-        var address = Self.address(kAudioDevicePropertyNominalSampleRate)
-        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.rebuildPipelineIfChanged()
+        rateListener = listen(to: aggregateID, kAudioDevicePropertyNominalSampleRate)
+    }
+
+    /// Hands the audio system's announcements to a tap without keeping it
+    /// alive. The registration holds the relay, so an announcement that
+    /// arrives after the tap is gone finds nothing to call rather than freed
+    /// memory. It is a plain callback with a pointer, as in the mixer, because
+    /// a listener block handed back for removal is reported removed and keeps
+    /// firing (measured 2026-10-07), which left one listener behind every
+    /// recording. It also keeps where it listens, so the removal always
+    /// matches the registration.
+    private final class ListenerRelay {
+        weak var tap: RecorderSystemAudioTap?
+        let object: AudioObjectID
+        let selector: AudioObjectPropertySelector
+
+        init(_ tap: RecorderSystemAudioTap, object: AudioObjectID, selector: AudioObjectPropertySelector) {
+            self.tap = tap
+            self.object = object
+            self.selector = selector
         }
-        if AudioObjectAddPropertyListenerBlock(aggregateID, &address, queue, listener) == noErr {
-            rateListener = listener
+    }
+
+    /// Both announcements ask whether the reader still sits on the right
+    /// device at the right rate. They arrive on an audio system thread, so
+    /// the answer hops to the tap's queue, without keeping the tap alive
+    /// once the session lets it go.
+    private static let deviceChanged: AudioObjectPropertyListenerProc = { _, _, _, client in
+        guard let client,
+              let tap = Unmanaged<ListenerRelay>.fromOpaque(client).takeUnretainedValue().tap
+        else { return noErr }
+        tap.queue.async { [weak tap] in tap?.rebuildPipelineIfChanged() }
+        return noErr
+    }
+
+    /// The relay the new registration holds, or nil when the audio system
+    /// refused it.
+    private func listen(to object: AudioObjectID,
+                        _ selector: AudioObjectPropertySelector) -> UnsafeMutableRawPointer? {
+        var address = Self.address(selector)
+        let relay = Unmanaged.passRetained(ListenerRelay(self, object: object, selector: selector)).toOpaque()
+        guard AudioObjectAddPropertyListener(object, &address, Self.deviceChanged, relay) == noErr else {
+            Unmanaged<ListenerRelay>.fromOpaque(relay).release()
+            return nil
+        }
+        return relay
+    }
+
+    /// Gives a registration back away from any queue something waits on. A
+    /// device's goes on the teardown queue, ahead of the device itself, and
+    /// the system object's on a queue of its own. The removal waits for a
+    /// callback already running (measured 2026-10-07), so releasing the relay
+    /// right after it is safe. A removal the audio system refuses keeps the
+    /// relay, so a late announcement still lands on it.
+    private static func stopListening(_ relay: UnsafeMutableRawPointer?) {
+        guard let relay else { return }
+        let listener = Unmanaged<ListenerRelay>.fromOpaque(relay).takeUnretainedValue()
+        let removalQueue = listener.object == AudioObjectID(kAudioObjectSystemObject)
+            ? listenerQueue
+            : teardownQueue
+        removalQueue.async {
+            var address = Self.address(listener.selector)
+            if AudioObjectRemovePropertyListener(listener.object, &address, Self.deviceChanged, relay) == noErr {
+                Unmanaged<ListenerRelay>.fromOpaque(relay).release()
+            }
         }
     }
 
