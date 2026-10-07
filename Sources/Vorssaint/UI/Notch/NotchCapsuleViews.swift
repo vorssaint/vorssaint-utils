@@ -172,6 +172,7 @@ private struct NotchCapsuleTrackArtwork: View {
 struct NotchCapsuleRestingView: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var music = NotchMusicService.shared
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let size: CGSize
     /// Another display's capsule, when the island shows on every display.
@@ -222,7 +223,8 @@ struct NotchCapsuleRestingView: View {
                                         radius: CapsuleLayout.artworkSide(geometry) / 2)
                     }
                     if music.playback?.isPlaying == true {
-                        NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10, tint: music.artworkTint?.color ?? .white)
+                        NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10,
+                                               tint: accentEnabled ? (music.artworkTint?.color ?? .white) : .white)
                     }
                 case .none:
                     EmptyView()
@@ -244,6 +246,7 @@ struct NotchCapsuleMusicStrip: View {
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
 
     private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.geometry }
     /// A new song stays off the strip until its notice has shown it.
@@ -271,7 +274,7 @@ struct NotchCapsuleMusicStrip: View {
                                        bars: NotchLayout.compactMusicBarCount,
                                        barWidth: NotchLayout.compactMusicBarWidth,
                                        height: CapsuleLayout.barsHeight(geometry),
-                                       tint: tint?.color ?? .white)
+                                       tint: accentEnabled ? (tint?.color ?? .white) : .white)
             }
             .modifier(NotchMusicSwipeFeedback(enabled: snapshot == nil))
         }

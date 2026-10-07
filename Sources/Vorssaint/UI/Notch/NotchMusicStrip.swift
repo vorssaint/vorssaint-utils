@@ -20,6 +20,7 @@ struct NotchMusicStrip: View {
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
 
     private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.compactActivityGeometry }
     /// A new song stays off the strip until its notice has shown it.
@@ -80,7 +81,7 @@ struct NotchMusicStrip: View {
                                                bars: NotchLayout.compactMusicBarCount,
                                                barWidth: NotchLayout.compactMusicBarWidth,
                                                height: geometry.compactMusicBarHeight,
-                                               tint: tint?.color ?? .white)
+                                               tint: accentEnabled ? (tint?.color ?? .white) : .white)
                     }
                 }
                 .padding(.leading, innerInset)

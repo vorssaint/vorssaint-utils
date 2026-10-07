@@ -763,6 +763,7 @@ struct NotchRestingStrip: View {
     /// Another display's strip, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
@@ -815,7 +816,7 @@ struct NotchRestingStrip: View {
                         case .music:
                             if music.playback?.isPlaying == true {
                                 NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                                       tint: music.artworkTint?.color ?? .white)
+                                                       tint: accentEnabled ? (music.artworkTint?.color ?? .white) : .white)
                             }
                         case .battery:
                             if let percent = service.power.chargePercent {

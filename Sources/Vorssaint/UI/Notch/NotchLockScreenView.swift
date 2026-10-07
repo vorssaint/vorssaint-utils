@@ -44,6 +44,7 @@ struct NotchLockScreenIsland: View {
     var window: CGSize? = nil
     var origin: CGPoint = .zero
     @ObservedObject private var music = NotchMusicService.shared
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -66,7 +67,7 @@ struct NotchLockScreenIsland: View {
                     Spacer(minLength: 0)
                     NotchEqualizerBars(isPlaying: playing, bars: NotchLayout.compactMusicBarCount,
                                        barWidth: NotchLayout.compactMusicBarWidth, height: geometry.compactMusicBarHeight,
-                                       tint: music.artworkTint?.color ?? .white)
+                                       tint: accentEnabled ? (music.artworkTint?.color ?? .white) : .white)
                         .opacity(playing ? 1 : 0)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
                         .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))
@@ -155,12 +156,14 @@ struct NotchLockScreenPlayer: View {
     let size: CGSize
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchArtworkGlowEnabled) private var glowEnabled = true
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// What a tap on play or pause asked for, shown at once as the island's
     /// own player shows it, until the player says so.
     @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var accent: Color { music.artworkTint?.color ?? .white }
+    private var accent: Color { accentEnabled ? (music.artworkTint?.color ?? .white) : .white }
 
     var body: some View {
         let shown = model.showsMusic(music.playback)
@@ -236,7 +239,7 @@ struct NotchLockScreenPlayer: View {
 
     private func cover(size: CGFloat, playback: NotchPlayback) -> some View {
         NotchArtwork(image: music.artwork, size: size)
-            .shadow(color: (music.artworkTint?.color ?? .black).opacity(0.5), radius: size * 0.28, y: size * 0.1)
+            .shadow(color: (glowEnabled ? (music.artworkTint?.color ?? .black) : .black).opacity(0.5), radius: size * 0.28, y: size * 0.1)
             .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.92)
             .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: playback.isPlaying)
     }
