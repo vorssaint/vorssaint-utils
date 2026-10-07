@@ -16,6 +16,7 @@ struct ScreenshotEditorView: View {
     @FocusState private var textFieldFocused: Bool
     @State private var dragInFlight = false
     @State private var dragStartView: CGPoint = .zero
+    @State private var dragCanvasArea: CGSize?
     @State private var appeared = false
     @State private var backdropPopoverShown = false
     @State private var watermarkPopoverShown = false
@@ -113,15 +114,22 @@ struct ScreenshotEditorView: View {
 
     private var canvasArea: some View {
         GeometryReader { proxy in
-            let zoom = zoomFactor(available: proxy.size)
+            // A click can change the selection, and with it the footer's
+            // controls and row count. Until the drag ends the canvas and its
+            // scroll view keep the region they started in, so neither the
+            // fit nor a scroll offset clamped to a new height moves the
+            // canvas under a still cursor and turns the click into a drag.
+            let available = dragCanvasArea ?? proxy.size
+            let zoom = zoomFactor(available: available)
             let canvasSize = CGSize(width: contentPixelSize.width * zoom,
                                     height: contentPixelSize.height * zoom)
             ScrollView([.horizontal, .vertical]) {
-                canvas(zoom: zoom, canvasSize: canvasSize)
+                canvas(zoom: zoom, canvasSize: canvasSize, available: available)
                     .frame(width: canvasSize.width, height: canvasSize.height)
-                    .padding(canvasInsets(available: proxy.size, canvas: canvasSize))
+                    .padding(canvasInsets(available: available, canvas: canvasSize))
             }
             .scrollIndicators(.never)
+            .frame(width: available.width, height: available.height, alignment: .topLeading)
             // Trackpad pinch, anchored at the zoom the gesture started from.
             .simultaneousGesture(
                 MagnificationGesture()
@@ -134,6 +142,7 @@ struct ScreenshotEditorView: View {
                     .onEnded { _ in magnifyBase = nil }
             )
         }
+        .clipped()
     }
 
     @State private var magnifyBase: CGFloat?
@@ -166,7 +175,7 @@ struct ScreenshotEditorView: View {
                    trailing: max((available.width - canvas.width) / 2, Self.canvasMargin))
     }
 
-    private func canvas(zoom: CGFloat, canvasSize: CGSize) -> some View {
+    private func canvas(zoom: CGFloat, canvasSize: CGSize, available: CGSize) -> some View {
         let outerRadius = model.showsBackdrop
             ? 6
             : max(4, model.cardCornerPixels * zoom)
@@ -198,7 +207,7 @@ struct ScreenshotEditorView: View {
                 appeared = true
             }
         }
-        .gesture(canvasGesture(zoom: zoom))
+        .gesture(canvasGesture(zoom: zoom, available: available))
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
@@ -341,13 +350,14 @@ struct ScreenshotEditorView: View {
 
     // MARK: - Gestures
 
-    private func canvasGesture(zoom: CGFloat) -> some Gesture {
+    private func canvasGesture(zoom: CGFloat, available: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 let point = imagePoint(from: value.location, zoom: zoom)
                 if !dragInFlight {
                     dragInFlight = true
                     dragStartView = value.location
+                    dragCanvasArea = available
                     commitEditingTextIfNeeded()
                     model.beginDrag(at: point)
                 } else {
@@ -356,6 +366,7 @@ struct ScreenshotEditorView: View {
             }
             .onEnded { value in
                 dragInFlight = false
+                dragCanvasArea = nil
                 let point = imagePoint(from: value.location, zoom: zoom)
                 // A click is a click in screen points, whatever the zoom.
                 let isTap = hypot(value.location.x - dragStartView.x,
@@ -884,10 +895,12 @@ struct ScreenshotEditorView: View {
         return selected.tool == .arrow
     }
 
-    /// Depth only means something once a shape is picked, and only when there
-    /// is something else for it to pass.
+    /// Depth only means something when there is another shape to pass. The
+    /// buttons stay while there is, dimmed until a shape is picked, so picking
+    /// or dropping a shape never adds or removes them, and an empty editor
+    /// keeps no gap for them. A shape still being drawn counts once it lands.
     private var showsLayerControls: Bool {
-        model.selectedID != nil && model.annotations.count > 1
+        model.annotations.lazy.filter { $0.id != model.draftID }.count > 1
     }
 
     /// Each direction dims on its own once the shape reaches that end, so the
@@ -931,7 +944,6 @@ struct ScreenshotEditorView: View {
                 Spacer(minLength: 6)
                 zoomChip
             }
-            .fixedSize(horizontal: true, vertical: false)
             // Small captures open at the minimum window width. Keep the
             // controls inside it rather than letting this row widen the root.
             VStack(spacing: 6) {
@@ -986,18 +998,13 @@ struct ScreenshotEditorView: View {
                 }
                 Divider().frame(height: 16)
             }
-            // Reserve the layer actions so a second annotation cannot widen
-            // the footer and change the hosting window's minimum size.
-            HStack(spacing: 10) {
+            if showsLayerControls {
                 layerButton(.backward, symbol: "square.2.layers.3d.bottom.filled",
                             label: strings.sendBackward)
                 layerButton(.forward, symbol: "square.2.layers.3d.top.filled",
                             label: strings.bringForward)
                 Divider().frame(height: 16)
             }
-            .opacity(showsLayerControls ? 1 : 0)
-            .allowsHitTesting(showsLayerControls)
-            .accessibilityHidden(!showsLayerControls)
             annotationShadowButton
             Divider().frame(height: 16)
             backdropButton

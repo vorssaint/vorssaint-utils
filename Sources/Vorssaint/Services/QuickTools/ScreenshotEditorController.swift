@@ -154,7 +154,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // Gesture state, in image pixels.
     private var dragStart: CGPoint = .zero
-    private var draftID: UUID?
+    /// The shape a drag is drawing, until it lands.
+    @Published private(set) var draftID: UUID?
     private var moveOrigin: CGRect = .zero
     private var movePoints: [CGPoint] = []
     private var activeHandle: ScreenshotSupport.Handle?
