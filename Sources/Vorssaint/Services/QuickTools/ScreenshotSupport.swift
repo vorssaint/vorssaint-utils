@@ -2365,7 +2365,19 @@ enum ScreenshotSupport {
     private static func paddedTextRun(_ rect: CGRect) -> CGRect {
         // In a tall band recognition can place a box a few pixels off, or
         // stop it short of the glyphs, so the padding above and below is wider.
-        rect.insetBy(dx: -max(1, rect.height * 0.15), dy: -max(1, rect.height * 0.3))
+        // A word read one letter short ends its box before that letter, so
+        // each end reaches about a glyph further.
+        rect.insetBy(dx: -max(1, rect.height * 0.6), dy: -max(1, rect.height * 0.3))
+    }
+
+    /// Runs moved into a crop's coordinates, keeping those still on it, or
+    /// nil when there were none to move.
+    static func croppedRuns(_ runs: [CGRect]?, by crop: CGRect) -> [CGRect]? {
+        let bounds = CGRect(origin: .zero, size: crop.size)
+        return runs?.compactMap { run -> CGRect? in
+            let moved = run.offsetBy(dx: -crop.minX, dy: -crop.minY)
+            return moved.intersects(bounds) ? moved : nil
+        }
     }
 
     /// The runs a text only blur area covers: every run that reaches into it.

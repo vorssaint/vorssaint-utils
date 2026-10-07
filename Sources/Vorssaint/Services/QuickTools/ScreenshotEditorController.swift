@@ -36,6 +36,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// The recognized words joined into the runs text only blur areas cover,
     /// or nil until recognition has read all of the current capture.
     @Published private(set) var textRuns: [CGRect]?
+    /// Runs a crop carried over to the capture it made. Recognition misses a
+    /// line the crop cut through, so the cropped capture's runs keep these
+    /// once it is read, and after an undo or redo back to it.
+    private var carriedRuns: [ObjectIdentifier: [CGRect]] = [:]
     @Published private(set) var selectedWordIndexes: [Int] = []
     private var textSelectionAnchor: CGPoint?
     /// A QR code found in the capture, offered as a copy or open action.
@@ -428,8 +432,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 let observations = request.results ?? []
                 var read: [ScreenshotSupport.BandWord] = []
                 for (line, observation) in observations.enumerated() {
-                    guard let candidate = observation.topCandidates(1).first else { continue }
                     let lineBox = imageRect(observation.boundingBox)
+                    // A line read without any text is still text to cover.
+                    guard let candidate = observation.topCandidates(1).first else {
+                        read.append(ScreenshotSupport.BandWord(text: "", rect: nil, lineBox: lineBox,
+                                                               line: lineOffset + line))
+                        continue
+                    }
                     let text = candidate.string
                     var searchStart = text.startIndex
                     for raw in text.split(separator: " ") {
@@ -453,7 +462,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             DispatchQueue.main.async { [weak self] in
                 guard let self, image === self.baseImage else { return }
                 self.textWords = merged.words
-                self.textRuns = merged.runs
+                self.textRuns = merged.runs.map { $0 + (self.carriedRuns[ObjectIdentifier(image)] ?? []) }
             }
         }
     }
@@ -513,6 +522,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         guard let next = redoStack.popLast() else { return }
         undoStack.append((baseImage, annotations))
         restore(next)
+    }
+
+    /// Keeps carried runs only for captures the editor can still show.
+    private func pruneCarriedRuns() {
+        let live = Set([ObjectIdentifier(baseImage)] + (undoStack + redoStack).map { ObjectIdentifier($0.image) })
+        carriedRuns = carriedRuns.filter { live.contains($0.key) }
     }
 
     private func restore(_ state: (image: CGImage, annotations: [ScreenshotSupport.Annotation])) {
@@ -1099,6 +1114,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             return
         }
         registerUndo()
+        let previousImage = baseImage
         baseImage = cropped
         pixelated = [:]
         softBlurred = [:]
@@ -1111,12 +1127,14 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             return ScreenshotSupport.RecognizedWord(text: word.text, rect: moved, line: word.line)
         }
         // Moved runs still cover the cropped capture's text, including what
-        // the words alone miss. If the old one was never read, text only
-        // areas keep waiting for recognition.
-        textRuns = textRuns?.compactMap { run -> CGRect? in
-            let moved = run.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)
-            return moved.intersects(croppedBounds) ? moved : nil
+        // the words alone miss, and stay once it is read again. If the old
+        // one was never read, text only areas keep waiting for recognition.
+        let previousCarried = carriedRuns[ObjectIdentifier(previousImage)]
+        textRuns = ScreenshotSupport.croppedRuns(textRuns, by: cropRect)
+        if let carried = textRuns ?? ScreenshotSupport.croppedRuns(previousCarried, by: cropRect), !carried.isEmpty {
+            carriedRuns[ObjectIdentifier(cropped)] = carried
         }
+        pruneCarriedRuns()
         annotations = annotations.map { annotation in
             var moved = annotation
             moved.rect = annotation.rect.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)

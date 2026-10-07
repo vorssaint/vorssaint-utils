@@ -1958,10 +1958,18 @@ enum ScreenshotFeatureTests {
         ]
         let textRuns = ScreenshotSupport.textRuns(from: runWords)
         suite.expect(textRuns.count == 3
-                && sameRect(textRuns[0], CGRect(x: 7, y: 4, width: 82, height: 32))
-                && sameRect(textRuns[1], CGRect(x: 297, y: 4, width: 56, height: 32))
-                && sameRect(textRuns[2], CGRect(x: 7, y: 34, width: 46, height: 32)),
+                && sameRect(textRuns[0], CGRect(x: -2, y: 4, width: 100, height: 32))
+                && sameRect(textRuns[1], CGRect(x: 288, y: 4, width: 74, height: 32))
+                && sameRect(textRuns[2], CGRect(x: -2, y: 34, width: 64, height: 32)),
                "close words on a line share a padded run, far ones and other lines get their own")
+        // A crop through a line keeps the run that covered it, moved into the
+        // cropped capture, since recognition may miss the line it cut.
+        let crop = CGRect(x: 20, y: 30, width: 200, height: 100)
+        let carried = ScreenshotSupport.croppedRuns(
+            [CGRect(x: 10, y: 20, width: 120, height: 20), CGRect(x: 400, y: 40, width: 50, height: 20)], by: crop)
+        suite.expect(carried?.count == 1 && carried.map { sameRect($0[0], CGRect(x: -10, y: -10, width: 120, height: 20)) } == true
+                && ScreenshotSupport.croppedRuns(nil, by: crop) == nil,
+               "a crop keeps the runs still on it, moved, and an unread capture stays unread")
         let pickedRuns = ScreenshotSupport.blurTextRuns(in: CGRect(x: 0, y: 0, width: 60, height: 30),
                                                         from: textRuns)
         suite.expect(pickedRuns.count == 1 && sameRect(pickedRuns[0], textRuns[0])
