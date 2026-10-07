@@ -149,6 +149,60 @@ enum NotchSpotifySupport {
         return !left.isEmpty && left == right
     }
 
+    // MARK: Queue
+
+    /// Spotify does not share its upcoming songs with the system's Now
+    /// Playing, so Up next reads them from the account, as many as the
+    /// system queue would show.
+    static let maximumQueueItems = NotchQueueSupport.maximumItems
+    static let queueURL = apiBase.appendingPathComponent("me/player/queue")
+    static let imageHost = "i.scdn.co"
+
+    struct QueueItem: Equatable, Identifiable {
+        /// Its place too, since the same song can be queued twice.
+        let id: String
+        let uri: String
+        let name: String
+        let artist: String
+        let imageURL: URL?
+    }
+
+    struct Queue: Equatable {
+        let current: Item?
+        let items: [QueueItem]
+    }
+
+    static func queue(from data: Data) -> Queue? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = object["queue"] as? [[String: Any]] else { return nil }
+        var items: [QueueItem] = []
+        for row in rows where items.count < maximumQueueItems {
+            guard let uri = row["uri"] as? String, validItemURI(uri),
+                  let name = row["name"] as? String, !name.isEmpty, name.utf8.count <= 4096 else { continue }
+            let artists = (row["artists"] as? [[String: Any]])?.compactMap { $0["name"] as? String } ?? []
+            let artist = artists.isEmpty ? ((row["show"] as? [String: Any])?["name"] as? String ?? "") : artists.joined(separator: ", ")
+            let images = ((row["album"] as? [String: Any])?["images"] ?? row["images"]) as? [[String: Any]] ?? []
+            items.append(QueueItem(id: "\(items.count):\(uri)", uri: uri, name: name, artist: String(artist.prefix(1024)),
+                                   imageURL: smallestImage(images)))
+        }
+        let current = (object["currently_playing"] as? [String: Any]).flatMap { item -> Item? in
+            guard let uri = item["uri"] as? String, validItemURI(uri), let name = item["name"] as? String else { return nil }
+            return Item(uri: uri, name: name)
+        }
+        return Queue(current: current, items: items)
+    }
+
+    /// Spotify lists a cover's sizes largest first; the island's rows need
+    /// the smallest. Only Spotify's own image host is ever asked.
+    static func smallestImage(_ images: [[String: Any]]) -> URL? {
+        let sized = images.compactMap { image -> (URL, Int)? in
+            guard let text = image["url"] as? String, let url = URL(string: text),
+                  url.scheme == "https", url.host == imageHost else { return nil }
+            return (url, (image["width"] as? Int) ?? .max)
+        }
+        return sized.min { $0.1 < $1.1 }?.0
+    }
+
     static func libraryURL(_ path: String, uri: String) -> URL? {
         var components = URLComponents(url: apiBase.appendingPathComponent(path), resolvingAgainstBaseURL: false)
         components?.queryItems = [URLQueryItem(name: "uris", value: uri)]

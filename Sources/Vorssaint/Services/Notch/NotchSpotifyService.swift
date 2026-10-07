@@ -22,6 +22,13 @@ final class NotchSpotifyService: ObservableObject {
     @Published private(set) var saved: Bool?
     @Published private(set) var busy = false
     @Published private(set) var actionFailed = false
+    /// Up next for Spotify's own app, read while the queue is open. Nil
+    /// until Spotify answers for the song on screen.
+    @Published private(set) var queue: [NotchSpotifySupport.QueueItem]?
+    @Published private(set) var queueLoading = false
+    @Published private(set) var queueArtwork: [URL: NSImage] = [:]
+    private var queueVisible = false
+    private var queueTask: Task<Void, Never>?
 
     private var tokens: NotchSpotifySupport.Tokens?
     private var listener: NWListener?
@@ -100,6 +107,7 @@ final class NotchSpotifyService: ObservableObject {
         lookupTitle = nil
         item = nil
         saved = nil
+        setQueueVisible(false)
     }
 
     func disconnect() {
@@ -110,6 +118,7 @@ final class NotchSpotifyService: ObservableObject {
         TokenStore.delete()
         item = nil
         saved = nil
+        clearQueue()
         connection = .disconnected
     }
 
@@ -214,6 +223,8 @@ final class NotchSpotifyService: ObservableObject {
         guard connection == .connected, AppFeature.notchSpotify.isAvailable else { return }
         guard title != lookupTitle else { return }
         lookupTitle = title
+        // A new song moves the queue along with it.
+        if queueVisible { loadQueue() }
         lookup?.cancel()
         if item.map({ !NotchSpotifySupport.sameSong(title, $0.name) }) ?? true { item = nil; saved = nil }
         guard title != nil else { return }
@@ -262,6 +273,77 @@ final class NotchSpotifyService: ObservableObject {
                     if !Task.isCancelled { self?.actionFailed = false }
                 }
             }
+        }
+    }
+
+    // MARK: Up next
+
+    /// Whether Up next reads Spotify's queue for this playback: Spotify's
+    /// own app, with an account connected.
+    func providesQueue(for playback: NotchPlayback?) -> Bool {
+        connection == .connected && AppFeature.notchSpotify.isAvailable
+            && playback?.track.appBundleIdentifier == NotchSpotifySupport.bundleIdentifier
+    }
+
+    func setQueueVisible(_ visible: Bool) {
+        guard visible != queueVisible else { return }
+        queueVisible = visible
+        if visible { loadQueue() } else { clearQueue() }
+    }
+
+    /// Spotify can trail the island by a moment after a skip, so an answer
+    /// for another song is asked again, as the heart does.
+    func loadQueue() {
+        let playback = NotchMusicService.shared.playback
+        guard queueVisible, providesQueue(for: playback) else { clearQueue(); return }
+        let title = playback?.track.title
+        queueTask?.cancel()
+        queueLoading = true
+        queueTask = Task { [weak self] in
+            var answer: NotchSpotifySupport.Queue?
+            for attempt in 0..<3 {
+                if attempt > 0 { try? await Task.sleep(for: .seconds(1.5)) }
+                guard let self, !Task.isCancelled else { return }
+                guard let read = await self.readQueue() else { continue }
+                answer = read
+                if read.current.map({ NotchSpotifySupport.sameSong(title, $0.name) }) == true { break }
+            }
+            guard let self, !Task.isCancelled else { return }
+            self.queueLoading = false
+            guard let answer, answer.current.map({ NotchSpotifySupport.sameSong(title, $0.name) }) == true else {
+                self.queue = nil; return
+            }
+            self.queue = answer.items
+            await self.loadArtwork(for: answer.items)
+        }
+    }
+
+    private func clearQueue() {
+        queueTask?.cancel()
+        queueTask = nil
+        queue = nil
+        queueLoading = false
+        queueArtwork = [:]
+    }
+
+    private func readQueue() async -> NotchSpotifySupport.Queue? {
+        guard let (data, status) = await api("GET", url: NotchSpotifySupport.queueURL), status == 200 else { return nil }
+        return NotchSpotifySupport.queue(from: data)
+    }
+
+    /// Small covers, kept only while the queue that shows them is open.
+    private func loadArtwork(for items: [NotchSpotifySupport.QueueItem]) async {
+        let wanted = Set(items.compactMap(\.imageURL))
+        queueArtwork = queueArtwork.filter { wanted.contains($0.key) }
+        for url in wanted where queueArtwork[url] == nil {
+            guard !Task.isCancelled, queueVisible else { return }
+            var request = URLRequest(url: url)
+            request.httpMethod = "GET"
+            guard let (data, response) = try? await session.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200, response.url?.host == NotchSpotifySupport.imageHost,
+                  data.count <= NotchQueueSupport.maximumArtworkBytes, let image = NSImage(data: data) else { continue }
+            guard !Task.isCancelled, queueVisible else { return }
+            queueArtwork[url] = image
         }
     }
 
