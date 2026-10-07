@@ -34,6 +34,7 @@ struct WallpaperFeatureStrings {
 extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -65,6 +66,32 @@ extension WallpaperFeatureStrings {
         addImage: "Add image",
         addFolder: "Add folder",
         removeAdded: "Remove",
+        doneRemoving: "Done",
+        sourceUnavailable: "Unavailable",
+        addImagePrompt: "Choose images to keep in Vorssaint’s wallpaper list",
+        addFolderPrompt: "Choose a folder of images to keep in Vorssaint’s wallpaper list",
+        openSystemSettings: "Open Wallpaper settings",
+        emptyAll: "No wallpapers found",
+        emptyOwn: "No pictures added yet",
+        emptyApple: "No Apple stills found",
+        downloading: "Downloading…",
+        downloadFailed: "Could not download the wallpaper",
+        applyFailed: "Could not set the wallpaper",
+        previousPage: "Previous",
+        nextPage: "Next"
+    )
+
+    static let sv = WallpaperFeatureStrings(
+        pageTitle: "Tapet",
+        hubDescription: "Pick a still wallpaper without opening System Settings",
+        panelDescription: "Pick a still wallpaper without opening System Settings.",
+        filterAll: "Alla",
+        filterOwn: "Your pictures",
+        filterApple: "Apple",
+        applyAllDisplays: "Show on all Spaces",
+        addImage: "Add image",
+        addFolder: "Add folder",
+        removeAdded: "Ta bort",
         doneRemoving: "Done",
         sourceUnavailable: "Unavailable",
         addImagePrompt: "Choose images to keep in Vorssaint’s wallpaper list",

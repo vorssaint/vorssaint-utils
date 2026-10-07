@@ -19,6 +19,7 @@ struct MenuBarAppearanceStrings {
 extension FeatureStrings {
     static func menuBarAppearance(_ language: AppLanguage) -> MenuBarAppearanceStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -40,6 +41,19 @@ extension FeatureStrings {
 
 extension MenuBarAppearanceStrings {
     static let enUS = MenuBarAppearanceStrings(
+        label: "Usage display",
+        values: "Values",
+        bars: "Bars",
+        caption: "Bars apply to CPU, GPU, memory and disk usage. Other readings stay numeric.",
+        customize: "Bar colors and limits",
+        normalColor: "Normal color",
+        mediumColor: "Medium color",
+        highColor: "High color",
+        mediumFrom: "Medium from",
+        highFrom: "High from"
+    )
+
+    static let sv = MenuBarAppearanceStrings(
         label: "Usage display",
         values: "Values",
         bars: "Bars",

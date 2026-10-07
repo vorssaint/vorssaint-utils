@@ -77,6 +77,7 @@ struct SnippetFeatureStrings {
 extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -299,6 +300,74 @@ extension SnippetFeatureStrings {
         soundToggle: "Play a sound when a typed trigger expands",
         soundCaption: "A short system sound plays each time a typed trigger expands.",
         soundPickerLabel: "Sound",
+        soundUnavailable: "Sound unavailable"
+    )
+
+    static let sv = SnippetFeatureStrings(
+        pageTitle: "Text snippets",
+        hubDescription: "Short triggers expand into full text",
+        enable: "Expand snippets while typing",
+        enableCaption: "Type a trigger anywhere and it becomes its text. Everything stays on this Mac.",
+        addButton: "Add snippet",
+        newTitle: "New snippet",
+        editTitle: "Edit snippet",
+        nameLabel: "Namn",
+        namePlaceholder: "Personal email",
+        triggerLabel: "Trigger",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Text",
+        replacementPlaceholder: "myemail@example.com",
+        expansionLabel: "Expand",
+        expansionImmediate: "Right away",
+        expansionDelimiter: "After space, Tab or Return",
+        variablesHint: "Variables: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "They become the date, the time and the copied text at the moment of expansion.",
+        emptyList: "No snippets yet. Add the first one.",
+        duplicateTrigger: "Another snippet already uses this trigger.",
+        triggerTooShort: "The trigger needs at least 2 characters.",
+        deleteButton: "Delete",
+        saveButton: "Spara",
+        manageButton: "Manage snippets",
+        ignoreCaseLabel: "Ignore capitalization",
+        libraryTitle: "Quick snippet menu",
+        libraryToggle: "Open snippets from a menu",
+        libraryCaption: "The shortcut opens a searchable menu. Picking a snippet types it right where your cursor is.",
+        librarySearchPlaceholder: "Search snippets",
+        libraryNoResults: "No snippet matches the search.",
+        libraryEmpty: "Nothing to show yet. Add snippets, or turn on “Show in the quick menu” for the ones you use most.",
+        libraryFooterHint: "↩ inserts · esc closes",
+        folderLabel: "Folder",
+        folderPlaceholder: "Work",
+        showInLibraryLabel: "Show in the quick menu",
+        variablesFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "A format after a colon picks how they look, like {{date:yyyy-MM-dd}}, or use the date/time button above. A -tz(...) part sets the timezone, like {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insert date/time",
+        dateTimeEditButton: "Edit date/time",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Date",
+        dateTimeKindTime: "Time",
+        dateTimeKindDateTime: "DateTime",
+        dateTimeStyleLabel: "Style",
+        dateTimeStyleShort: "Short",
+        dateTimeStyleMedium: "Medium",
+        dateTimeStyleLong: "Long",
+        dateTimeStyleFull: "Full",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Anpassad",
+        dateTimeStyleLocaleNote: "A named style saves the format your Mac’s region uses right now.",
+        dateTimeTimezoneLabel: "Timezone",
+        dateTimeTimezoneDeviceDefault: "Device default",
+        dateTimeTimezoneValid: "Valid timezone",
+        dateTimeTimezoneInvalid: "Unrecognized timezone",
+        dateTimeTimezoneClear: "Clear timezone",
+        dateTimeTimezoneSearchPlaceholder: "Search timezones",
+        dateTimePatternLabel: "Pattern",
+        dateTimePreviewLabel: "Preview",
+        dateTimeConfirmInsert: "Insert",
+        dateTimeConfirmUpdate: "Update",
+        soundToggle: "Play a sound when a typed trigger expands",
+        soundCaption: "A short system sound plays each time a typed trigger expands.",
+        soundPickerLabel: "Ljud",
         soundUnavailable: "Sound unavailable"
     )
 

@@ -15,6 +15,7 @@ struct DiskExclusionStrings {
 extension FeatureStrings {
     static func diskExclusions(_ language: AppLanguage) -> DiskExclusionStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -40,6 +41,15 @@ extension DiskExclusionStrings {
         addButton: "Add drive…",
         otherDrive: "Other drive name…",
         removeButton: "Remove",
+        customPlaceholder: "Drive or volume name",
+        caption: "Drives in this list are never unmounted when using Eject all disks."
+    )
+
+    static let sv = DiskExclusionStrings(
+        listTitle: "Excluded drives",
+        addButton: "Add drive…",
+        otherDrive: "Other drive name…",
+        removeButton: "Ta bort",
         customPlaceholder: "Drive or volume name",
         caption: "Drives in this list are never unmounted when using Eject all disks."
     )

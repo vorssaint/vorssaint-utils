@@ -39,6 +39,11 @@ extension MonitorLayoutFeatureStrings {
         networkSpeedUnit: "Network speed unit"
     )
 
+    static let sv = MonitorLayoutFeatureStrings(
+        shared: "Avläsningar och varningar",
+        networkSpeedUnit: "Enhet för nätverkshastighet"
+    )
+
     static let ptBR = MonitorLayoutFeatureStrings(
         shared: "Leituras e alertas",
         networkSpeedUnit: "Unidade de velocidade da rede"

@@ -20,6 +20,18 @@ struct NotchNotificationStrings {
 extension FeatureStrings {
     static func notchNotifications(_ language: AppLanguage) -> NotchNotificationStrings {
         switch language {
+        case .sv: return NotchNotificationStrings(
+            title: "Aviseringar",
+            description: "Nya systemaviseringar i Dynamic Island.",
+            privacy: "Visa bara nya synliga banderoller. Meddelanden lagras i minnet och rensas när du låser datorn eller stänger av detta.",
+            empty: "Nya aviseringar visas här",
+            waiting: "Väntar på systemets aviseringstjänst",
+            open: "Öppna",
+            dismiss: "Avfärda",
+            clearAll: "Rensa alla",
+            unavailable: "Den här aviseringen kan inte längre ta emot åtgärden.",
+            hideSystemBanner: "Dölj systembanderollen",
+            hideSystemBannerHint: "Dölj originalet medan Dynamic Island visar det.")
         case .enUS: return NotchNotificationStrings(
             title: "Notifications",
             description: "New system notifications in the Dynamic Island.",

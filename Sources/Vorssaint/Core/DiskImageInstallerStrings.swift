@@ -29,6 +29,7 @@ struct DiskImageInstallerStrings {
 extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -50,6 +51,29 @@ extension FeatureStrings {
 
 extension DiskImageInstallerStrings {
     static let enUS = DiskImageInstallerStrings(
+        title: "Disk image installer",
+        hubDescription: "Install the single app inside a disk image and clean up the download",
+        useUserApplications: "Install in the Applications folder inside your home folder",
+        applicationsFolder: "the Applications folder",
+        userApplicationsFolder: "the Applications folder inside your home folder",
+        promptTitle: "Install this app?",
+        promptBodyFormat: "%@ will be copied to %@ and the disk image ejected.",
+        installButton: "Install",
+        installedTitle: "App installed",
+        installedBodyFormat: "%@ is ready in %@. The disk image was ejected and its download moved to Trash.",
+        installedKeepingMountBodyFormat: "%@ is installed in %@, but the disk image could not be ejected. Its download was kept.",
+        installedKeepingDownloadBodyFormat: "%@ is installed in %@ and the disk image was ejected, but its download could not be moved to Trash.",
+        failedTitle: "Could not install",
+        failedBody: "Nothing was changed. You can still drag the app to Applications.",
+        verificationFailedBody: "This Mac could not verify the app, so nothing was installed.",
+        alreadyInstalledBodyFormat: "%@ is already in Applications.",
+        trashDownloadOption: "Move the download to Trash",
+        revealAppOption: "Show the installed app in Finder",
+        installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
+        installingFormat: "Installing %@…"
+    )
+
+    static let sv = DiskImageInstallerStrings(
         title: "Disk image installer",
         hubDescription: "Install the single app inside a disk image and clean up the download",
         useUserApplications: "Install in the Applications folder inside your home folder",
