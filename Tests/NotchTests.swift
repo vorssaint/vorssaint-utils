@@ -2443,6 +2443,7 @@ enum NotchTests {
         suite.expect(!NotchCalendarSupport.isEnabled(in: defaults), "the master switch also stops calendar reads")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
+                                                                 DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
@@ -2491,13 +2492,17 @@ enum NotchTests {
                "an all-day-only calendar has no timed appointment")
         suite.expect(NotchCalendarSupport.nextRefresh(entries, now: now) == now.addingTimeInterval(300),
                "the next refresh chooses the nearest future event boundary")
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        suite.expect(hour == 3600 && NotchCalendarSupport.timeLeftLeadTime == 3600,
+                     "a start keeps its hour lead until another is chosen, and an end always has its hour")
         func countdownFor(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = true,
-                          ends: Bool = false) -> NotchCalendarCountdown? {
-            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends)
+                          ends: Bool = false, lead: TimeInterval = hour) -> NotchCalendarCountdown? {
+            NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
+                                           leadTime: lead)
         }
-        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false) -> Date? {
-            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends)
+        func transition(_ events: [NotchCalendarEvent], starts: Bool = true, ends: Bool = false,
+                        lead: TimeInterval = hour) -> Date? {
+            NotchCalendarSupport.countdownTransition(events, now: now, starts: starts, ends: ends, leadTime: lead)
         }
         suite.expect(countdownFor(entries) == NotchCalendarCountdown(event: later, ongoing: false)
                      && countdownFor([allDay, current]) == nil,
@@ -2518,6 +2523,70 @@ enum NotchTests {
         suite.expect(transition([event("future", hour + 600, hour + 900)]) == now.addingTimeInterval(600)
                      && transition([later]) == later.start,
                      "a refresh is scheduled when the hour window opens and when an event starts")
+        let in45 = event("in 45", 45 * 60, 75 * 60)
+        let in90 = event("in 90", 90 * 60, 120 * 60)
+        suite.expect(countdownFor([in45], lead: 1800) == nil && countdownFor([in45])?.event == in45
+                     && countdownFor([in45], lead: 7200)?.event == in45,
+                     "an event 45 minutes away waits for a 30 minute lead and shows with one or two hours")
+        suite.expect(countdownFor([in90], lead: 1800) == nil && countdownFor([in90]) == nil
+                     && countdownFor([in90], lead: 7200)?.event == in90,
+                     "an event 90 minutes away shows only with a two hour lead")
+        suite.expect(transition([in45], lead: 1800) == now.addingTimeInterval(15 * 60)
+                     && countdownFor([in45], at: 15 * 60, lead: 1800)?.event == in45
+                     && transition([in90], lead: 7200) == in90.start,
+                     "a refresh is scheduled when the chosen lead opens, not the hour")
+        defaults.set(0, forKey: DefaultsKey.notchCalendarCountdownLead)
+        let shortest = NotchCalendarSupport.countdownLeadTime(in: defaults)
+        defaults.set(10_000, forKey: DefaultsKey.notchCalendarCountdownLead)
+        suite.expect(shortest == 5 * 60 && NotchCalendarSupport.countdownLeadTime(in: defaults) == 240 * 60,
+                     "a restored or hand-edited lead stays between five minutes and four hours")
+        defaults.removeObject(forKey: DefaultsKey.notchCalendarCountdownLead)
+        // Two meetings at once and one 15 minutes later: none of them may go unseen.
+        let pcf = event("pcf", 300, 2100)
+        let krista = event("krista", 300, 2400)
+        let sync = event("sync", 1200, 3000)
+        let all = NotchCalendarSupport.countdowns([sync, krista, pcf], now: now, starts: true, ends: false,
+                                                  leadTime: hour)
+        suite.expect(all.map(\.event.id) == ["pcf", "krista", "sync"]
+                     && countdownFor([sync, krista, pcf]) == all.first,
+                     "every start in the lead counts down, nearest first, and the strip's countdown is the first")
+        let stack = NotchCalendarStack(all)
+        suite.expect(NotchCalendarStack([]) == nil && stack?.others == 2
+                     && stack?.together.map(\.event.id) == ["pcf", "krista"] && stack?.then == nil,
+                     "a stack keeps the events sharing the nearest start together, with a +2 for the rest")
+        let turn = NotchCalendarStack.turn
+        let base = Date(timeIntervalSinceReferenceDate: 1_000 * turn)
+        suite.expect(stack?.shown(at: base).event.id == "pcf"
+                     && stack?.shown(at: base.addingTimeInterval(turn - 1)).event.id == "pcf"
+                     && stack?.shown(at: base.addingTimeInterval(turn)).event.id == "krista"
+                     && stack?.shown(at: base.addingTimeInterval(2 * turn)).event.id == "pcf",
+                     "events starting together take turns on the strip every few seconds")
+        let staggered = NotchCalendarStack(NotchCalendarSupport.countdowns(
+            [pcf, sync], now: now, starts: true, ends: false, leadTime: hour))
+        let locale = Locale(identifier: "en_US")
+        suite.expect(staggered?.together.count == 1 && staggered?.then?.event == sync
+                     && staggered.map { $0.shown(at: base).event } == pcf,
+                     "a later start does not take turns; it follows the nearest one")
+        let endsTogether = NotchCalendarStack([NotchCalendarCountdown(event: event("a", -600, 900), ongoing: true),
+                                               NotchCalendarCountdown(event: event("b", -300, 900), ongoing: true)])
+        let endMeetsStart = NotchCalendarStack([NotchCalendarCountdown(event: event("ending", -600, 900), ongoing: true),
+                                                NotchCalendarCountdown(event: event("next", 900, 2700), ongoing: false)])
+        suite.expect(stack?.startsTogether == true && staggered?.startsTogether == false
+                     && endsTogether?.startsTogether == false && endMeetsStart?.startsTogether == false,
+                     "only events starting at the same moment read as starting together, not shared or touching ends")
+        suite.expect(staggered.map { NotchCalendarSupport.stackTimeText($0, shown: $0.first, then: "then", locale: locale) }
+                     == "·\u{2009}then " + sync.start.formatted(.dateTime.hour().minute().locale(locale))
+                     && stack.map { NotchCalendarSupport.stackTimeText($0, shown: $0.first, then: "then", locale: locale) }
+                     == NotchCalendarSupport.timeText(all[0], locale: locale),
+                     "beside the clock, a later start reads as \"then\" its time, and events together keep their own time")
+        let dot = NotchCalendarSupport.stripDotWidth
+        suite.expect(NotchCalendarSupport.titleMarkWidth(1, spacing: 4) == dot + 4
+                     && NotchCalendarSupport.titleMarkWidth(2, spacing: 4) == 0
+                     && NotchCalendarSupport.titleMarkWidth(5, spacing: 4) == 0,
+                     "one event leads its title with its dot; several drop it for the +1 after the title")
+        suite.expect(NotchCalendarSupport.clockMarkWidth(1) == dot
+                     && NotchCalendarSupport.clockMarkWidth(3) == NotchCapsuleLayout.calendarBadgeWidth(2),
+                     "beside another activity, one event shows its dot and several show their +N")
         // A meeting that ends in 30 minutes, 15 minutes before the next one starts.
         let meeting = event("meeting", -1800, 1800)
         let afterGap = event("after gap", 2700, 4500)
@@ -2542,8 +2611,12 @@ enum NotchTests {
                      && countdownFor([long], at: 600, ends: true) == NotchCalendarCountdown(event: long, ongoing: true)
                      && countdownFor([allDay], ends: true) == nil,
                      "time left appears only in the hour before a timed end")
-        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now)
-                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end),
+        suite.expect(countdownFor([meeting], starts: false, ends: true, lead: 900)?.target == meeting.end
+                     && countdownFor([long], starts: false, ends: true, lead: 7200) == nil
+                     && transition([long], starts: false, ends: true, lead: 7200) == now.addingTimeInterval(600),
+                     "the lead before a start leaves time left on its hour")
+        suite.expect(!NotchCalendarCountdown(event: later, ongoing: true).isShown(at: now, leadTime: hour)
+                     && !NotchCalendarCountdown(event: meeting, ongoing: true).isShown(at: meeting.end, leadTime: hour),
                      "an end is never shown before its event begins or once it has passed")
         suite.expect(transition([long], ends: true) == now.addingTimeInterval(600)
                      && transition([afterGap], starts: false, ends: true) == afterGap.start,
@@ -2616,7 +2689,7 @@ enum NotchTests {
     /// Events chosen from their menu in the island, with the countdown for
     /// every event off.
     private static func chosenCountdownContracts(_ suite: TestSuite, defaults: UserDefaults, now: Date) {
-        let hour = NotchCalendarSupport.countdownLeadTime
+        let hour = NotchCalendarSupport.timeLeftLeadTime
         func event(_ key: String, _ start: Double, _ end: Double) -> NotchCalendarEvent {
             NotchCalendarEvent(id: key + ":" + String(start), title: key, calendar: "Personal",
                                start: now.addingTimeInterval(start), end: now.addingTimeInterval(end),
@@ -2635,9 +2708,10 @@ enum NotchTests {
         let other = event("other", 600, 900)
         let unkeyed = event("", 300, 600)
         func countdown(_ events: [NotchCalendarEvent], at offset: Double = 0, starts: Bool = false,
-                       ends: Bool = false, choices: Set<String> = ["chosen"]) -> NotchCalendarCountdown? {
+                       ends: Bool = false, choices: Set<String> = ["chosen"],
+                       lead: TimeInterval = hour) -> NotchCalendarCountdown? {
             NotchCalendarSupport.countdown(events, now: now.addingTimeInterval(offset), starts: starts, ends: ends,
-                                           chosen: choices)
+                                           chosen: choices, leadTime: lead)
         }
         suite.expect(countdown([other, chosen]) == NotchCalendarCountdown(event: chosen, ongoing: false)
                      && countdown([other, chosen], choices: []) == nil,
@@ -2651,10 +2725,17 @@ enum NotchTests {
                      "a chosen event counts down to its start; time left in it follows its own option")
         let ahead = event("ahead", hour + 1800, hour + 3600)
         suite.expect(NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                              chosen: ["ahead"]) == now.addingTimeInterval(1800)
+                                                              chosen: ["ahead"], leadTime: hour)
+                        == now.addingTimeInterval(1800)
                      && NotchCalendarSupport.countdownTransition([ahead], now: now, starts: false, ends: false,
-                                                                 chosen: []) == nil,
-                     "a refresh is scheduled when a chosen event's hour opens, and none for an event not chosen")
+                                                                 chosen: [], leadTime: hour) == nil,
+                     "a refresh is scheduled when a chosen event's lead opens, and none for an event not chosen")
+        suite.expect(countdown([chosen], lead: 900) == nil
+                     && NotchCalendarSupport.countdownTransition([chosen], now: now, starts: false, ends: false,
+                                                                 chosen: ["chosen"], leadTime: 900)
+                        == now.addingTimeInterval(300)
+                     && countdown([ahead], choices: ["ahead"], lead: 7200)?.event == ahead,
+                     "a chosen event follows the lead with the countdown for every event off")
         suite.expect(NotchCalendarSupport.chosenCountdowns(in: defaults).isEmpty, "no event starts chosen")
         NotchCalendarSupport.setCountdown(true, for: chosen, in: defaults)
         NotchCalendarSupport.setCountdown(true, for: unkeyed, in: defaults)
