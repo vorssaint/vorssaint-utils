@@ -196,7 +196,7 @@ extension KeepAwakeAutomationStrings {
         automationSection: "Automatisering",
         automationCaption: "Startar när något valt villkor är aktivt.",
         automationOff: "AV",
-        externalDisplayToggle: "Extern display",
+        externalDisplayToggle: "Extern bildskärm",
         externalDisplayActive: "Aktiv medan en extern skärm är ansluten",
         powerToggle: "Effekt",
         powerActive: "Aktiv när den är ansluten till ström",
