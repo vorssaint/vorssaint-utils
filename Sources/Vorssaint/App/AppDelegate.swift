@@ -446,7 +446,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // out, so the panel keeps the inset content there.
         popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
-        let host = TouchBarHostingController(rootView: MenuPanelView())
+        let host = NSHostingController(rootView: MenuPanelView())
         host.sizingOptions = .preferredContentSize
         popover.contentViewController = host
         AppAppearanceController.shared.follow(panel: popover)
