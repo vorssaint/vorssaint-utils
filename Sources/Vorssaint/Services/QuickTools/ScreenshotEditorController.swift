@@ -34,7 +34,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// Words recognized in the capture and selectable with the select tool.
     @Published private(set) var textWords: [ScreenshotSupport.RecognizedWord] = []
     /// The recognized words joined into the runs text only blur areas cover,
-    /// or nil until recognition has read the current capture.
+    /// or nil until recognition has read all of the current capture.
     @Published private(set) var textRuns: [CGRect]?
     @Published private(set) var selectedWordIndexes: [Int] = []
     private var textSelectionAnchor: CGPoint?
@@ -397,9 +397,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         let image = baseImage
         let width = CGFloat(image.width)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            var words: [ScreenshotSupport.RecognizedWord] = []
+            let tiles = ScreenshotSupport.recognitionTiles(width: image.width, height: image.height)
+            // One read per band, nil for a band recognition failed on. A band
+            // left out or failed keeps text only areas covering all of
+            // themselves, because its text is unknown.
+            var reads: [[ScreenshotSupport.BandWord]?] = []
             var lineOffset = 0
-            for band in ScreenshotSupport.recognitionTiles(width: image.width, height: image.height) {
+            for band in tiles {
                 guard let current = self, image === current.baseImage else { return }
                 let tileY = band.rect.minY
                 let currentHeight = band.rect.height
@@ -409,38 +413,47 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 request.usesLanguageCorrection = true
                 request.automaticallyDetectsLanguage = true
                 let handler = VNImageRequestHandler(cgImage: tile, options: [:])
-                try? handler.perform([request])
+                do {
+                    try handler.perform([request])
+                } catch {
+                    reads.append(nil)
+                    continue
+                }
+                func imageRect(_ box: CGRect) -> CGRect {
+                    CGRect(x: box.minX * width,
+                           y: tileY + (1 - box.maxY) * currentHeight,
+                           width: box.width * width,
+                           height: box.height * currentHeight)
+                }
                 let observations = request.results ?? []
+                var read: [ScreenshotSupport.BandWord] = []
                 for (line, observation) in observations.enumerated() {
                     guard let candidate = observation.topCandidates(1).first else { continue }
+                    let lineBox = imageRect(observation.boundingBox)
                     let text = candidate.string
                     var searchStart = text.startIndex
                     for raw in text.split(separator: " ") {
                         let word = String(raw)
                         guard let range = text.range(of: word,
-                                                   range: searchStart..<text.endIndex),
-                              let box = try? candidate.boundingBox(for: range)?.boundingBox
+                                                   range: searchStart..<text.endIndex)
                         else { continue }
                         searchStart = range.upperBound
-                        let rect = CGRect(x: box.minX * width,
-                                          y: tileY + (1 - box.maxY) * currentHeight,
-                                          width: box.width * width,
-                                          height: box.height * currentHeight)
-                        // Bands share rows, so a word is kept once, by the
-                        // band that owns its middle.
-                        guard band.ownedRows.contains(rect.midY) else { continue }
-                        words.append(ScreenshotSupport.RecognizedWord(
+                        let box = try? candidate.boundingBox(for: range)?.boundingBox
+                        read.append(ScreenshotSupport.BandWord(
                             text: word,
-                            rect: rect,
+                            rect: box.map(imageRect),
+                            lineBox: lineBox,
                             line: lineOffset + line))
                     }
                 }
+                reads.append(read)
                 lineOffset += observations.count
             }
+            let merged = ScreenshotSupport.mergedRecognition(reads, tiles: tiles)
             DispatchQueue.main.async { [weak self] in
                 guard let self, image === self.baseImage else { return }
-                self.textWords = words
-                self.textRuns = ScreenshotSupport.textRuns(from: words)
+                self.textWords = merged.words
+                self.textRuns = merged.runs
             }
         }
     }
@@ -1090,16 +1103,20 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         pixelated = [:]
         softBlurred = [:]
         clearTextSelection()
+        let croppedBounds = CGRect(origin: .zero, size: CGSize(width: cropped.width,
+                                                               height: cropped.height))
         textWords = textWords.compactMap { word in
             let moved = word.rect.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)
-            guard moved.intersects(CGRect(origin: .zero, size: CGSize(width: cropped.width,
-                                                                      height: cropped.height)))
-            else { return nil }
+            guard moved.intersects(croppedBounds) else { return nil }
             return ScreenshotSupport.RecognizedWord(text: word.text, rect: moved, line: word.line)
         }
-        // Moved words still fit the cropped capture. If the old one was never
-        // read, text only areas keep waiting for recognition.
-        textRuns = textRuns == nil ? nil : ScreenshotSupport.textRuns(from: textWords)
+        // Moved runs still cover the cropped capture's text, including what
+        // the words alone miss. If the old one was never read, text only
+        // areas keep waiting for recognition.
+        textRuns = textRuns?.compactMap { run -> CGRect? in
+            let moved = run.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)
+            return moved.intersects(croppedBounds) ? moved : nil
+        }
         annotations = annotations.map { annotation in
             var moved = annotation
             moved.rect = annotation.rect.offsetBy(dx: -cropRect.minX, dy: -cropRect.minY)

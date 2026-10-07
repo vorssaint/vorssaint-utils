@@ -1958,9 +1958,9 @@ enum ScreenshotFeatureTests {
         ]
         let textRuns = ScreenshotSupport.textRuns(from: runWords)
         suite.expect(textRuns.count == 3
-                && sameRect(textRuns[0], CGRect(x: 7, y: 6, width: 82, height: 28))
-                && sameRect(textRuns[1], CGRect(x: 297, y: 6, width: 56, height: 28))
-                && sameRect(textRuns[2], CGRect(x: 7, y: 36, width: 46, height: 28)),
+                && sameRect(textRuns[0], CGRect(x: 7, y: 4, width: 82, height: 32))
+                && sameRect(textRuns[1], CGRect(x: 297, y: 4, width: 56, height: 32))
+                && sameRect(textRuns[2], CGRect(x: 7, y: 34, width: 46, height: 32)),
                "close words on a line share a padded run, far ones and other lines get their own")
         let pickedRuns = ScreenshotSupport.blurTextRuns(in: CGRect(x: 0, y: 0, width: 60, height: 30),
                                                         from: textRuns)
@@ -1970,7 +1970,9 @@ enum ScreenshotFeatureTests {
                 && ScreenshotSupport.blurTextRuns(in: CGRect(x: 1, y: 2, width: 3, height: 4), from: nil)
                     == [CGRect(x: 1, y: 2, width: 3, height: 4)],
                "a text only area covers the runs it reaches, and all of itself before recognition")
-        let bandSizes = [(3456, 2234), (5120, 2880), (6016, 3384), (2000, 20_000), (300, 200)]
+        // 12032 pixels wide makes bands 997 rows tall, whose quarter is odd.
+        let bandSizes = [(3456, 2234), (5120, 2880), (6016, 3384), (2000, 20_000), (12_032, 20_000),
+                         (300, 200)]
         let bandsHold = bandSizes.allSatisfy { size in
             let bands = ScreenshotSupport.recognitionTiles(width: size.0, height: size.1)
             guard let first = bands.first, let last = bands.last,
@@ -1988,7 +1990,7 @@ enum ScreenshotFeatureTests {
         }
         suite.expect(bandsHold && ScreenshotSupport.recognitionTiles(width: 3456, height: 2234).count == 1
                 && ScreenshotSupport.recognitionTiles(width: 5120, height: 2880).count == 2,
-               "recognition bands overlap where they meet, so a line on the seam is read, and keep each word once")
+               "recognition bands overlap so a line on a seam is read, and their owned rows meet exactly")
         func picture(width: Int, height: Int,
                      _ color: (Int, Int) -> (UInt8, UInt8, UInt8)) -> CGImage? {
             var bytes = [UInt8](repeating: 255, count: width * height * 4)
@@ -2142,6 +2144,264 @@ enum ScreenshotFeatureTests {
         } else {
             suite.expect(false, "the soft blur scene and its samples are built")
         }
+        // Blur areas over pixels with alpha. A window capture keeps its
+        // window's alpha (a translucent terminal, rounded corners), so a
+        // covered area must replace what is under it, not blend over it.
+        func rgbaPicture(width: Int, height: Int,
+                         _ pixel: (Int, Int) -> (UInt8, UInt8, UInt8, UInt8)) -> CGImage? {
+            var bytes = [UInt8](repeating: 0, count: width * height * 4)
+            for y in 0..<height {
+                for x in 0..<width {
+                    let (red, green, blue, alpha) = pixel(x, y)
+                    let offset = (y * width + x) * 4
+                    bytes[offset] = red
+                    bytes[offset + 1] = green
+                    bytes[offset + 2] = blue
+                    bytes[offset + 3] = alpha
+                }
+            }
+            guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+            return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,
+                           bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                           bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                           provider: provider, decode: nil, shouldInterpolate: false,
+                           intent: .defaultIntent)
+        }
+        // How far each glyph column (even x inside `box`) stands out from the
+        // mean of the background columns on both sides, in red. A smooth fill,
+        // even a steep gradient, scores near zero; glyphs showing through do not.
+        func glyphContrast(_ pixels: [UInt8], width: Int, in box: CGRect) -> Int {
+            var largest = 0
+            for y in Int(box.minY)..<Int(box.maxY) {
+                for x in stride(from: Int(box.minX), to: Int(box.maxX) - 1, by: 2) {
+                    let sides = rgb(pixels, width: width, x - 1, y)[0] + rgb(pixels, width: width, x + 1, y)[0]
+                    largest = max(largest, abs(2 * rgb(pixels, width: width, x, y)[0] - sides) / 2)
+                }
+            }
+            return largest
+        }
+        // Opaque white glyph columns on a dark background at 80 % alpha
+        // (premultiplied), like a window capture of a translucent terminal.
+        let glyphBox = CGRect(x: 30, y: 24, width: 60, height: 12)
+        if let translucent = rgbaPicture(width: 120, height: 60, { x, y in
+            glyphBox.contains(CGPoint(x: x, y: y)) && x % 2 == 0 ? (255, 255, 255, 255) : (16, 16, 16, 204)
+        }), let soft = ScreenshotRenderer.softBlurredImage(from: translucent) {
+            let area = CGRect(x: 20, y: 16, width: 80, height: 28)
+            let erased = exportedPixels(translucent,
+                [ScreenshotSupport.Annotation(tool: .pixelate, rect: area, blurStyle: .erase)],
+                .init(image: translucent))
+            let blurred = exportedPixels(translucent,
+                [ScreenshotSupport.Annotation(tool: .pixelate, rect: area, blurStyle: .blur)],
+                .init(softBlurs: [3: soft]))
+            let erasedContrast = erased.map { glyphContrast($0, width: 120, in: glyphBox) } ?? 255
+            let blurredContrast = blurred.map { glyphContrast($0, width: 120, in: glyphBox) } ?? 255
+            suite.expect(erasedContrast <= 4,
+                   "erasing text on a translucent capture leaves no glyph showing through (\(erasedContrast))")
+            suite.expect(blurredContrast <= 6,
+                   "blurring text on a translucent capture leaves no glyph showing through (\(blurredContrast))")
+        } else {
+            suite.expect(false, "the translucent scene renders")
+        }
+        // Opaque white content with black glyph columns, and a fully
+        // transparent margin on the left, like a window's rounded corner.
+        let cornerGlyphs = CGRect(x: 24, y: 20, width: 16, height: 12)
+        if let cornered = rgbaPicture(width: 120, height: 60, { x, y in
+            if x < 20 { return (0, 0, 0, 0) }
+            return cornerGlyphs.contains(CGPoint(x: x, y: y)) && x % 2 == 0 ? (0, 0, 0, 255) : (255, 255, 255, 255)
+        }), let erased = exportedPixels(cornered,
+            [ScreenshotSupport.Annotation(tool: .pixelate, rect: CGRect(x: 20, y: 14, width: 48, height: 24),
+                                          blurStyle: .erase)],
+            .init(image: cornered)) {
+            let contrast = glyphContrast(erased, width: 120, in: cornerGlyphs)
+            // The fill itself bends near the transparent side, so allow some
+            // curvature; glyphs showing through stand out by about 130.
+            suite.expect(contrast <= 16,
+                   "erasing beside a transparent margin leaves no glyph showing through (\(contrast))")
+        } else {
+            suite.expect(false, "the corner scene renders")
+        }
+        // Each sample is shifted by its own small random amount, so two
+        // mosaics of one flat picture differ, but never by more than the shift.
+        if let gray = picture(width: 600, height: 400, { _, _ in (128, 128, 128) }),
+           let firstMosaic = ScreenshotRenderer.pixelatedImage(from: gray),
+           let secondMosaic = ScreenshotRenderer.pixelatedImage(from: gray) {
+            func sampleBytes(_ image: CGImage) -> [UInt8] {
+                var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
+                bytes.withUnsafeMutableBytes { buffer in
+                    guard let context = CGContext(data: buffer.baseAddress, width: image.width,
+                                                  height: image.height, bitsPerComponent: 8,
+                                                  bytesPerRow: image.width * 4,
+                                                  space: CGColorSpaceCreateDeviceRGB(),
+                                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+                    else { return }
+                    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                }
+                return bytes
+            }
+            let first = sampleBytes(firstMosaic)
+            let second = sampleBytes(secondMosaic)
+            let spread = zip(first, second).enumerated()
+                .filter { $0.offset % 4 != 3 }
+                .map { abs(Int($0.element.0) - Int($0.element.1)) }
+                .max() ?? 0
+            suite.expect(first.count == second.count && spread >= 10 && spread <= 18,
+                   "every mosaic sample takes a fresh shift of at most 9 levels (spread \(spread))")
+        } else {
+            suite.expect(false, "the flat mosaics are built")
+        }
+        // Erase fills are kept between redraws however many runs an area has,
+        // and dropped once a redraw stops using them or recognition brings
+        // other runs.
+        if let page = picture(width: 400, height: 6200, { _, _ in (255, 255, 255) }) {
+            let manyRuns = (0..<300).map { CGRect(x: 10, y: CGFloat($0) * 20 + 4, width: 300, height: 14) }
+            let cache = ScreenshotRenderer.EraseCache()
+            // Each redraw asks for every run in order, as drawing does.
+            func redraw(_ runs: [CGRect], textRuns: [CGRect]) -> [CGImage?] {
+                cache.beginPass(image: page, textRuns: textRuns)
+                return runs.map { cache.patch(for: $0, in: page, skipping: textRuns)?.image }
+            }
+            func reused(_ earlier: [CGImage?], _ later: [CGImage?]) -> Int {
+                zip(earlier, later).filter { pair in
+                    guard let before = pair.0, let after = pair.1 else { return false }
+                    return before === after
+                }.count
+            }
+            let firstRedraw = redraw(manyRuns, textRuns: manyRuns)
+            let secondRedraw = redraw(manyRuns, textRuns: manyRuns)
+            _ = redraw(manyRuns.map { $0.offsetBy(dx: 40, dy: 0) }, textRuns: manyRuns)
+            let afterOthers = redraw(manyRuns, textRuns: manyRuns)
+            let newText = redraw(Array(manyRuns.prefix(10)), textRuns: Array(manyRuns.dropLast()))
+            suite.expect(firstRedraw.allSatisfy { $0 != nil } && reused(firstRedraw, secondRedraw) == 300,
+                   "an area with 300 erased text runs reuses every fill on the next redraw")
+            suite.expect(reused(secondRedraw, afterOthers) == 0,
+                   "erase fills a redraw stopped using are dropped once there are many")
+            suite.expect(newText.allSatisfy { $0 != nil } && reused(afterOthers, newText) == 0,
+                   "new text runs from recognition drop the erase fills made with the old ones")
+        } else {
+            suite.expect(false, "the erase cache page renders")
+        }
+        // Drawing starts each pass on the editor's cache, so an export
+        // reuses the last one's fills and drops them for new text runs.
+        if let smallPage = picture(width: 200, height: 120, { _, _ in (255, 255, 255) }) {
+            let cache = ScreenshotRenderer.EraseCache()
+            let smallRuns = [CGRect(x: 20, y: 20, width: 120, height: 14),
+                             CGRect(x: 20, y: 50, width: 120, height: 14),
+                             CGRect(x: 20, y: 80, width: 120, height: 14)]
+            let erasing = [ScreenshotSupport.Annotation(tool: .pixelate,
+                                                        rect: CGRect(x: 10, y: 10, width: 160, height: 100),
+                                                        blurStyle: .erase, blurTextOnly: true)]
+            func exportedFill(_ textRuns: [CGRect]) -> CGImage? {
+                _ = exportedPixels(smallPage, erasing, .init(image: smallPage, eraseCache: cache, textRuns: textRuns))
+                return cache.patch(for: smallRuns[0], in: smallPage, skipping: textRuns)?.image
+            }
+            if let first = exportedFill(smallRuns), let again = exportedFill(smallRuns),
+               let renewed = exportedFill(Array(smallRuns.dropLast())) {
+                suite.expect(first === again && renewed !== first,
+                       "drawing reuses the erase fills of the last pass and drops them for new text runs")
+            } else {
+                suite.expect(false, "the cached erase fills are made")
+            }
+        } else {
+            suite.expect(false, "the small erase page renders")
+        }
+        // Recognition reads a tall capture in bands that share rows. Each
+        // band places a word there a few pixels from where the other does,
+        // or misses it, and the merge keeps every line once.
+        let mergeTiles = ScreenshotSupport.recognitionTiles(width: 1200, height: 9000)
+        func bandRead(_ text: String, x: CGFloat, midY: CGFloat, line: Int,
+                      width: CGFloat = 80, height: CGFloat = 30,
+                      hasBox: Bool = true) -> ScreenshotSupport.BandWord {
+            let rect = CGRect(x: x, y: midY - height / 2, width: width, height: height)
+            return ScreenshotSupport.BandWord(text: text, rect: hasBox ? rect : nil,
+                                              lineBox: CGRect(x: 100, y: rect.minY, width: 600, height: height),
+                                              line: line)
+        }
+        // The first seam sits at row 3968 and the second at 7808.
+        let upperBand = [
+            bandRead("alpha", x: 100, midY: 1000, line: 0),
+            bandRead("beta", x: 200, midY: 1000, line: 0, hasBox: false),
+            // Guessed just past the seam here, and just before it below.
+            bandRead("lemon", x: 100, midY: 3968, line: 1),
+            bandRead("monkey", x: 190, midY: 3968, line: 1),
+            bandRead("bridge", x: 280, midY: 3968, line: 1),
+            // Guessed before the seam here, and past it below.
+            bandRead("pencil", x: 700, midY: 3965, line: 2),
+            bandRead("river", x: 790, midY: 3965, line: 2),
+            // Read only here, in rows the next band owns.
+            bandRead("orphan", x: 1000, midY: 4000, line: 3),
+            // A line just above another one the next band reads.
+            bandRead("first", x: 500, midY: 3880, line: 4),
+            // Cut by this band's edge, so read short.
+            bandRead("anch", x: 100, midY: 4088, line: 5, width: 50, height: 16),
+        ]
+        let middleBand = [
+            bandRead("lemon", x: 103, midY: 3966.5, line: 10),
+            bandRead("monkey", x: 193, midY: 3966.5, line: 10),
+            bandRead("bridge", x: 283, midY: 3966.5, line: 10),
+            bandRead("pencil", x: 698, midY: 3972, line: 11),
+            bandRead("river", x: 788, midY: 3972, line: 11),
+            // Read only here, in rows the band above owns.
+            bandRead("stray", x: 1000, midY: 3940, line: 12),
+            bandRead("second", x: 500, midY: 3905, line: 13),
+            bandRead("anchor", x: 100, midY: 4095, line: 14),
+            bandRead("middle", x: 100, midY: 6000, line: 15),
+        ]
+        let lowerBand = [
+            bandRead("lone", x: 100, midY: 7790, line: 20),
+            bandRead("tail", x: 100, midY: 8500, line: 21),
+        ]
+        let merged = ScreenshotSupport.mergedRecognition([upperBand, middleBand, lowerBand], tiles: mergeTiles)
+        let mergedTexts = merged.words.map(\.text)
+        let everyWordOnce: [String] = ["alpha", "anchor", "bridge", "first", "lemon", "lone", "middle",
+                                       "monkey", "orphan", "pencil", "river", "second", "stray", "tail"]
+        suite.expect(mergeTiles.count == 3 && mergeTiles[0].ownedRows.upperBound == 3968
+                && mergeTiles[1].ownedRows.upperBound == 7808
+                && mergedTexts.sorted() == everyWordOnce,
+               "every line read on a band seam is kept once, whichever band read it and wherever each guessed it")
+        suite.expect(merged.words.first { $0.text == "lemon" }?.line == 1
+                && merged.words.first { $0.text == "pencil" }?.line == 11
+                && merged.words.first { $0.text == "anchor" }?.line == 14,
+               "a word both bands read is kept from the band that owns the middle of the two guesses")
+        let mergedOwners = merged.words.map { word in
+            mergeTiles.firstIndex { $0.ownedRows.contains(word.rect.midY) } ?? -1
+        }
+        suite.expect(mergedOwners == mergedOwners.sorted(),
+               "merged words come band by band, so a copied selection across a seam keeps its lines in order")
+        // The same word in one column on two close lines, like a table. The
+        // band above reads both lines and the next band only the lower one,
+        // a few pixels up, so the upper line has no other read to pair with.
+        let columnAbove = [
+            bandRead("Yes", x: 1100, midY: 4040, line: 6, width: 40, height: 22),
+            bandRead("Yes", x: 1100, midY: 4068, line: 7, width: 40, height: 22),
+            bandRead("Yes", x: 400, midY: 3990, line: 8, width: 40, height: 22),
+            bandRead("Yes", x: 400, midY: 4018, line: 9, width: 40, height: 22),
+        ]
+        let columnBelow = [
+            bandRead("Yes", x: 1100, midY: 4060, line: 16, width: 40, height: 22),
+            bandRead("Yes", x: 400, midY: 4010, line: 17, width: 40, height: 22),
+        ]
+        let sameColumn = ScreenshotSupport.mergedRecognition([columnAbove, columnBelow, []], tiles: mergeTiles)
+        suite.expect(sameColumn.words.map(\.line).sorted() == [6, 8, 16, 17],
+               "a line one band missed is not paired with the same word on the next line")
+        let seamWords = ["lemon", "monkey", "bridge", "pencil", "river"]
+        let seamGuesses = (upperBand + middleBand).filter { seamWords.contains($0.text) }.compactMap(\.rect)
+        let boxlessLine = CGRect(x: 100, y: 985, width: 600, height: 30)
+        let mustCover = merged.words.map(\.rect) + seamGuesses + [boxlessLine]
+        suite.expect(merged.runs.map { runs in
+            mustCover.allSatisfy { rect in runs.contains { $0.contains(rect) } }
+        } == true, "text only runs cover both guesses of a seam word, and a word without a box of its own")
+        suite.expect(!mergedTexts.contains("beta"),
+               "a word recognition gave no box is covered but cannot be selected")
+        let failedMiddle = ScreenshotSupport.mergedRecognition([upperBand, nil, lowerBand], tiles: mergeTiles)
+        suite.expect(failedMiddle.runs == nil
+                && failedMiddle.words.contains { $0.text == "alpha" }
+                && failedMiddle.words.contains { $0.text == "tail" }
+                && ScreenshotSupport.mergedRecognition([upperBand, middleBand], tiles: mergeTiles).runs == nil,
+               "a band recognition could not read keeps text only areas covering all of themselves")
+        suite.expect(screenshotEditorSource.contains("ScreenshotSupport.mergedRecognition(reads, tiles: tiles)")
+                && screenshotEditorSource.contains("self.textRuns = merged.runs")
+                && screenshotEditorSource.contains("reads.append(nil)"),
+               "the editor publishes the merged words and runs, and marks a band recognition failed on")
         suite.expect(screenshotEditorSource.contains("annotations[index].blurStyle = blurStyle")
                 && screenshotEditorSource.contains("annotations[index].blurTextOnly = blurTextOnly")
                 && screenshotEditorSource.contains("blurStyle: blurStyle, blurTextOnly: blurTextOnly"),

@@ -2363,7 +2363,9 @@ enum ScreenshotSupport {
     }
 
     private static func paddedTextRun(_ rect: CGRect) -> CGRect {
-        rect.insetBy(dx: -max(1, rect.height * 0.15), dy: -max(1, rect.height * 0.2))
+        // In a tall band recognition can place a box a few pixels off, or
+        // stop it short of the glyphs, so the padding above and below is wider.
+        rect.insetBy(dx: -max(1, rect.height * 0.15), dy: -max(1, rect.height * 0.3))
     }
 
     /// The runs a text only blur area covers: every run that reaches into it.
@@ -2557,12 +2559,13 @@ enum ScreenshotSupport {
     /// Bands of the capture that text recognition reads one at a time, so a
     /// tall capture never becomes one huge request. Neighboring bands share
     /// some rows, because recognition misses a line cut by a band's edge, and
-    /// each band owns the rows up to the middle of what it shares, so every
-    /// word is kept once.
+    /// each band owns the rows up to the middle of what it shares.
+    /// `mergedRecognition` uses that seam to keep a word read twice once.
     static func recognitionTiles(width: Int, height: Int) -> [(rect: CGRect, ownedRows: Range<CGFloat>)] {
         let maximumTilePixels = 12_000_000
         let tileHeight = min(height, max(512, min(4096, maximumTilePixels / max(width, 1))))
-        let overlap = tileHeight < height ? min(256, tileHeight / 4) : 0
+        // Even, so the owned rows of two bands meet on the same row.
+        let overlap = tileHeight < height ? min(256, tileHeight / 4) & ~1 : 0
         var tiles: [(rect: CGRect, ownedRows: Range<CGFloat>)] = []
         var tileY = 0
         while tileY < height {
@@ -2575,6 +2578,103 @@ enum ScreenshotSupport {
             tileY += bandHeight - overlap
         }
         return tiles
+    }
+
+    /// A word one recognition band read, in image pixels. `rect` is nil when
+    /// recognition gave the word no box of its own, and its line's box then
+    /// stands in for it wherever text must be covered.
+    struct BandWord: Equatable {
+        let text: String
+        let rect: CGRect?
+        let lineBox: CGRect
+        let line: Int
+    }
+
+    /// Joins what each band read into the capture's words and the runs text
+    /// only blur areas cover. `reads` follows `tiles`, and nil marks a band
+    /// recognition could not read.
+    ///
+    /// Two bands read the rows they share, and each places a word there a few
+    /// pixels from where the other does, so neither guess alone can say which
+    /// band keeps it. A word both bands read is kept once, from the band that
+    /// owns the middle of the two guesses, and a word only one band read is
+    /// always kept. Runs also take the second guess near a seam, so the text
+    /// stays covered whichever guess was off. Runs stay nil unless every band
+    /// was read, so text only areas keep covering all of themselves. Words
+    /// come band by band, each in the band that owns its middle.
+    static func mergedRecognition(_ reads: [[BandWord]?],
+                                  tiles: [(rect: CGRect, ownedRows: Range<CGFloat>)])
+        -> (words: [RecognizedWord], runs: [CGRect]?) {
+        let bands = zip(tiles, reads).map { (tile: $0.0, words: $0.1 ?? []) }
+        var dropped = bands.map { [Bool](repeating: false, count: $0.words.count) }
+        for upper in bands.indices.dropLast() {
+            let lower = upper + 1
+            let shared = bands[lower].tile.rect.minY..<bands[upper].tile.rect.maxY
+            let seam = bands[upper].tile.ownedRows.upperBound
+            func sharedWords(_ band: Int) -> [(index: Int, rect: CGRect)] {
+                bands[band].words.indices.compactMap { index -> (index: Int, rect: CGRect)? in
+                    guard let rect = bands[band].words[index].rect,
+                          rect.maxY > shared.lowerBound, rect.minY < shared.upperBound
+                    else { return nil }
+                    return (index, rect)
+                }
+            }
+            var unpaired = sharedWords(lower)
+            for (index, rect) in sharedWords(upper) {
+                let text = bands[upper].words[index].text
+                // The other band's read of this word has the same text over
+                // at least half its height, or a box covering at least half of
+                // the smaller one. The same word on the next line is not it,
+                // or it would take the only read of a line one band missed.
+                let match = unpaired.indices.compactMap { candidate -> (candidate: Int, score: CGFloat)? in
+                    let other = unpaired[candidate].rect
+                    let common = rect.intersection(other)
+                    guard !common.isNull, common.width > 0, common.height > 0 else { return nil }
+                    let share = common.width * common.height
+                        / min(rect.width * rect.height, other.width * other.height)
+                    let sameText = bands[lower].words[unpaired[candidate].index].text == text
+                        && common.height >= min(rect.height, other.height) / 2
+                    guard sameText || share >= 0.5 else { return nil }
+                    return (candidate, share + (sameText ? 1 : 0))
+                }.max { $0.score < $1.score }
+                guard let match else { continue }
+                let other = unpaired.remove(at: match.candidate)
+                if (rect.midY + other.rect.midY) / 2 < seam {
+                    dropped[lower][other.index] = true
+                } else {
+                    dropped[upper][index] = true
+                }
+            }
+        }
+        // Kept words follow the band that owns each, so a word kept from
+        // the other band of a seam still copies among the lines around it.
+        var ownedWords = [[RecognizedWord]](repeating: [], count: bands.count)
+        var covered: [RecognizedWord] = []
+        for (index, band) in bands.enumerated() {
+            // Both guesses of a word near a seam become runs: each band's
+            // owned rows reach a quarter of the shared rows past the seam.
+            let above = index > 0
+                ? (bands[index - 1].tile.rect.maxY - band.tile.rect.minY) / 4 : 0
+            let below = index + 1 < bands.count
+                ? (band.tile.rect.maxY - bands[index + 1].tile.rect.minY) / 4 : 0
+            let nearOwned = (band.tile.ownedRows.lowerBound - above)
+                ..< (band.tile.ownedRows.upperBound + below)
+            for (position, word) in band.words.enumerated() {
+                guard let rect = word.rect else {
+                    covered.append(RecognizedWord(text: word.text, rect: word.lineBox, line: word.line))
+                    continue
+                }
+                let kept = !dropped[index][position]
+                let recognized = RecognizedWord(text: word.text, rect: rect, line: word.line)
+                if kept {
+                    let owner = bands.firstIndex { $0.tile.ownedRows.contains(rect.midY) } ?? index
+                    ownedWords[owner].append(recognized)
+                }
+                if kept || nearOwned.contains(rect.midY) { covered.append(recognized) }
+            }
+        }
+        let everyBandRead = reads.count == tiles.count && !reads.contains { $0 == nil }
+        return (ownedWords.flatMap { $0 }, everyBandRead ? textRuns(from: covered) : nil)
     }
 
     /// Words a selection drag touches, in reading order. A hairline drag

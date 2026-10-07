@@ -259,12 +259,14 @@ struct ScreenshotEditorView: View {
                                width: model.imageSize.width * zoom,
                                height: model.imageSize.height * zoom)
 
+        var cardPath: CGPath?
         if model.showsBackdrop {
             // The capture sits on the fill like a card: soft shadow and the
             // user's corner rounding, exactly what the exporter composes.
             let corner = model.cardCornerPixels * zoom
             let path = CGPath(roundedRect: imageRect,
                               cornerWidth: corner, cornerHeight: corner, transform: nil)
+            cardPath = path
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
@@ -275,23 +277,36 @@ struct ScreenshotEditorView: View {
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
             cg.restoreGState()
+        }
+
+        func enterImageSpace() {
+            cg.scaleBy(x: zoom, y: zoom)
+            cg.translateBy(x: model.backdropPaddingPixels, y: model.backdropPaddingPixels)
+            if model.showsBackdrop {
+                // The exporter composes annotations before the backdrop, so they
+                // never spill onto the margin; the live canvas must agree.
+                cg.clip(to: CGRect(origin: .zero, size: model.imageSize))
+            }
+        }
+
+        // Blur areas replace the pixels under them. With any on the canvas,
+        // the capture and its annotations draw in a layer of their own, as
+        // the exporter flattens them, so that never reaches the card's
+        // shadow or the backdrop. Without one, the layer is skipped, since
+        // it costs a canvas-sized buffer on every redraw.
+        let isolatesBlurAreas = model.annotations.contains { $0.tool == .pixelate }
+        if isolatesBlurAreas { cg.beginTransparencyLayer(auxiliaryInfo: nil) }
+        if let cardPath {
             cg.saveGState()
-            cg.addPath(path)
+            cg.addPath(cardPath)
             cg.clip()
             drawImageUpright(cg, in: imageRect, canvasHeight: size.height)
             cg.restoreGState()
         } else {
             drawImageUpright(cg, in: imageRect, canvasHeight: size.height)
         }
-
         cg.saveGState()
-        cg.scaleBy(x: zoom, y: zoom)
-        cg.translateBy(x: model.backdropPaddingPixels, y: model.backdropPaddingPixels)
-        if model.showsBackdrop {
-            // The exporter composes annotations before the backdrop, so they
-            // never spill onto the margin; the live canvas must agree.
-            cg.clip(to: CGRect(origin: .zero, size: model.imageSize))
-        }
+        enterImageSpace()
         ScreenshotRenderer.drawAnnotations(model.annotations,
                                            in: cg,
                                            blurSources: model.blurSources,
@@ -299,6 +314,11 @@ struct ScreenshotEditorView: View {
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
                                            skippingText: model.editingTextID)
+        cg.restoreGState()
+        if isolatesBlurAreas { cg.endTransparencyLayer() }
+
+        cg.saveGState()
+        enterImageSpace()
         ScreenshotRenderer.drawWatermark(model.watermarkStyle,
                                          image: model.watermarkImage,
                                          in: cg,

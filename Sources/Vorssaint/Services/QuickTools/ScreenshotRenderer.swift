@@ -51,6 +51,7 @@ enum ScreenshotRenderer {
                                 scale: CGFloat,
                                 annotationShadowsEnabled: Bool,
                                 skippingText editingID: UUID? = nil) {
+        blurSources.eraseCache?.beginPass(image: blurSources.image, textRuns: blurSources.textRuns)
         for annotation in annotations {
             switch annotation.tool {
             case .pixelate:
@@ -325,15 +326,20 @@ enum ScreenshotRenderer {
                        clippedTo: runs.map { $0.intersection(rect) }, interpolation: .high)
         case .erase:
             guard let image = sources.image else { return }
+            // The fill is read around the whole run, so an area that cuts
+            // through a word never samples the word itself. Text runs are
+            // skipped while reading, and a run's own never lies in what is
+            // read around it, so one list serves every run.
+            let text = annotation.blurTextOnly ? (sources.textRuns ?? []) : []
+            let bounds = CGRect(origin: .zero, size: imageSize)
             for run in runs {
-                // The fill is read around the whole run, so an area that cuts
-                // through a word never samples the word itself.
-                let otherText = annotation.blurTextOnly
-                    ? (sources.textRuns ?? []).filter { $0 != run } : []
-                guard let patch = sources.eraseCache?.patch(for: run, in: image, skipping: otherText)
-                        ?? erasePatch(for: run, in: image, skipping: otherText) else { continue }
+                guard let patch = sources.eraseCache?.patch(for: run, in: image, skipping: text)
+                        ?? erasePatch(for: run, in: image, skipping: text) else { continue }
                 context.saveGState()
-                context.clip(to: run.intersection(rect))
+                context.clip(to: run.intersection(rect).intersection(bounds))
+                // Replace what is under the run. Blending would let text in a
+                // translucent capture show through a fill with alpha.
+                context.setBlendMode(.copy)
                 // CGContext.draw expects an unflipped space, so flip around the patch.
                 context.translateBy(x: 0, y: patch.rect.minY + patch.rect.maxY)
                 context.scaleBy(x: 1, y: -1)
@@ -352,7 +358,11 @@ enum ScreenshotRenderer {
                                    clippedTo regions: [CGRect],
                                    interpolation: CGInterpolationQuality) {
         context.saveGState()
+        context.clip(to: CGRect(origin: .zero, size: imageSize))
         context.clip(to: regions)
+        // Replace what is under the regions. Blending would let text in a
+        // translucent capture show through a sample with alpha.
+        context.setBlendMode(.copy)
         // Flip locally because CGContext.draw expects an unflipped space.
         context.translateBy(x: 0, y: imageSize.height)
         context.scaleBy(x: 1, y: -1)
@@ -504,13 +514,17 @@ enum ScreenshotRenderer {
     /// never samples to the same values twice.
     private static func scrambleSamples(in context: CGContext) {
         guard let data = context.data else { return }
-        var generator = SystemRandomNumberGenerator()
         let bytes = data.bindMemory(to: UInt8.self,
                                     capacity: context.bytesPerRow * context.height)
+        // Random bytes come a row at a time. Asking a generator for every
+        // sample is slow in unoptimized builds, and a soft blur sample can
+        // hold over a million of them.
+        var randomRow = [UInt8](repeating: 0, count: context.width)
         for row in 0..<context.height {
+            arc4random_buf(&randomRow, randomRow.count)
             for column in 0..<context.width {
                 let offset = row * context.bytesPerRow + column * 4
-                let noise = Int.random(in: -9...9, using: &generator)
+                let noise = Int(randomRow[column] % 19) - 9
                 for channel in 0..<3 {
                     let value = Int(bytes[offset + channel]) + noise
                     bytes[offset + channel] = UInt8(max(0, min(255, value)))
@@ -522,19 +536,44 @@ enum ScreenshotRenderer {
     // MARK: - Erasing
 
     /// Erase fills already made, so a redraw does not read the pixels around
-    /// every erased area again. Fills belong to one capture and are dropped
-    /// when another one comes in.
+    /// every erased area again. Fills belong to one capture and its text
+    /// runs, and are dropped when either changes.
     final class EraseCache {
         private struct Key: Hashable {
             let x, y, width, height: Int
             let skipsText: Bool
         }
 
-        private var image: CGImage?
-        private var patches: [Key: (image: CGImage, rect: CGRect)] = [:]
+        private struct Entry {
+            let image: CGImage
+            let rect: CGRect
+            var pass: Int
+        }
 
-        /// Text runs never change for one capture, so whether any were
-        /// skipped is all the key needs to know about them.
+        private var image: CGImage?
+        private var textRuns: [CGRect]?
+        private var patches: [Key: Entry] = [:]
+        private var pass = 0
+
+        /// Starts a redraw. Dragging an area makes a new fill on every move,
+        /// so once there are many, the fills the last redraw did not use are
+        /// dropped. That happens only here, so a redraw with many erased runs
+        /// keeps every fill it needs for the next one.
+        func beginPass(image: CGImage?, textRuns: [CGRect]?) {
+            if self.image !== image || self.textRuns != textRuns {
+                // A fill skipped the text runs of its time, and new runs
+                // can change what it should have read.
+                self.image = image
+                self.textRuns = textRuns
+                patches.removeAll()
+            } else if patches.count > 256 {
+                patches = patches.filter { $0.value.pass == pass }
+            }
+            pass += 1
+        }
+
+        /// The runs skipped while reading are the ones `beginPass` was given,
+        /// so whether any were skipped is all the key needs to know about them.
         func patch(for region: CGRect, in image: CGImage,
                    skipping text: [CGRect] = []) -> (image: CGImage, rect: CGRect)? {
             if self.image !== image {
@@ -545,12 +584,12 @@ enum ScreenshotRenderer {
             let key = Key(x: Int(area.minX), y: Int(area.minY),
                           width: Int(area.width), height: Int(area.height),
                           skipsText: !text.isEmpty)
-            if let patch = patches[key] { return patch }
+            if let entry = patches[key] {
+                patches[key]?.pass = pass
+                return (entry.image, entry.rect)
+            }
             guard let patch = erasePatch(for: region, in: image, skipping: text) else { return nil }
-            // Dragging an area makes a new fill on every move, so start over
-            // now and then instead of keeping them all.
-            if patches.count >= 256 { patches.removeAll() }
-            patches[key] = patch
+            patches[key] = Entry(image: patch.image, rect: patch.rect, pass: pass)
             return patch
         }
     }
