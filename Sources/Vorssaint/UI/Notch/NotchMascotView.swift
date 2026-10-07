@@ -1291,9 +1291,11 @@ struct NotchMascotTrackView: NSViewRepresentable {
         view.followsPointer = rests && awake
         view.followsIsland = followsIsland && rests && awake
         view.yieldsToActivities = yieldsToActivities
-        // A countdown is watched from the camera's left whatever the side.
-        let stand = visit?.kind.watchesTimer == true ? track.leftSide.rest : track.rest
-        view.playVisit(visit, path: NotchMascotMotion.path(for: visit?.kind ?? .pass, on: track),
+        // A countdown is watched over the timer's mark whatever the side.
+        let rightToLeft = context.environment.layoutDirection == .rightToLeft
+        let stand = visit?.kind.watchesTimer == true ? track.timerSide(rightToLeft: rightToLeft).rest : track.rest
+        view.playVisit(visit, path: NotchMascotMotion.path(for: visit?.kind ?? .pass, on: track,
+                                                            rightToLeft: rightToLeft),
                        baseline: track.baseline, stand: CGPoint(x: stand, y: track.baseline),
                        lift: track.hop(0.22))
         if rests { view.react(reaction, lift: track.hop(0.22)) }
@@ -1311,6 +1313,7 @@ struct NotchMascotActivityVisit: ViewModifier {
     @ObservedObject var service: NotchService
     let track: NotchMascotTrack?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
 
     func body(content: Content) -> some View {
         // A lap or a homecoming ends where it rests, which an activity's
@@ -1327,8 +1330,9 @@ struct NotchMascotActivityVisit: ViewModifier {
         let hidden = track?.hidden
         let ownWing = visit?.kind.takesOnlyItsWing == true && hidden != nil
         let stepsAside = visit != nil && service.mascotStepsAside && !ownWing
-        // A countdown is watched from the camera's left whatever the side.
-        let rightWing = track?.mirrored == true && visit?.kind.watchesTimer == false
+        // A countdown is watched over the timer's mark whatever the side.
+        let rightWing = visit?.kind.watchesTimer == true
+            ? layoutDirection == .rightToLeft : track?.mirrored == true
         content
             .opacity(stepsAside ? 0 : 1)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: stepsAside)
@@ -1340,6 +1344,10 @@ struct NotchMascotActivityVisit: ViewModifier {
                         .frame(width: rightWing ? track.width - hidden.upperBound : hidden.lowerBound,
                                height: track.height)
                         .offset(x: rightWing ? hidden.upperBound : 0)
+                        // The wing is the camera's, measured from its left
+                        // edge, so it stays put in a right-to-left language.
+                        .frame(width: track.width, height: track.height, alignment: .topLeading)
+                        .unmirroredLayout()
                         .transition(.opacity)
                 }
             }

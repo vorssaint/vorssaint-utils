@@ -55,7 +55,7 @@ enum CommandBarExtras {
             case .sleep: return "moon.zzz"
             case .restart: return "arrow.clockwise.circle"
             case .shutDown: return "power"
-            case .logOut: return "rectangle.portrait.and.arrow.right"
+            case .logOut: return "rectangle.portrait.and.arrow.forward"
             }
         }
 

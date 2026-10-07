@@ -1338,7 +1338,7 @@ enum RecorderFeatureTests {
         // number and is how the app already words several other counts. The
         // ones left out need no agreement: Turkish keeps the noun singular
         // after a number, and Chinese, Japanese and Korean do not inflect.
-        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .uk, .es, .de, .fr, .it]
+        let agreeingLanguages: [AppLanguage] = [.enUS, .ptBR, .ru, .uk, .es, .de, .fr, .it, .ar]
         for language in agreeingLanguages {
             let selection = FeatureStrings.commandBar(language).selectionCountFormat
             suite.expect(!selection.hasPrefix("%d"),

@@ -608,6 +608,12 @@ enum NotchMascotTests {
         let mirrored = NotchMascotMotion.path(for: .countdown(5), on: right)
         suite.expect(mirrored.x == NotchMascotMotion.path(for: .countdown(5), on: left).x,
                      "resting on the right, it still watches from the left, where the timer's mark is")
+        let leftToRight = NotchMascotMotion.path(for: .countdown(5), on: left)
+        let rightToLeft = NotchMascotMotion.path(for: .countdown(5), on: left, rightToLeft: true)
+        suite.expect(rightToLeft.x == leftToRight.x.map { left.width - $0 } && rightToLeft.gaze == leftToRight.gaze.map { -$0 }
+                     && NotchMascotMotion.path(for: .countdown(5), on: right, rightToLeft: true).x == rightToLeft.x
+                     && left.timerSide(rightToLeft: true).rest == left.width - left.rest,
+                     "a mirrored timer strip has it watch from the camera's right, where the mark is then")
         let retreat = NotchMascotMotion.path(for: .retreat, on: right)
         suite.expect(abs((retreat.x.first ?? 0) - left.rest) < 0.01 && behind(retreat.x.last ?? 0)
                      && retreat.duration == NotchMascotMotion.duration(of: .retreat),
@@ -703,6 +709,9 @@ enum NotchMascotTests {
         let short = NotchMascotSupport.readingGaze(for: "f"), long = NotchMascotSupport.readingGaze(for: String(repeating: "f", count: 60))
         suite.expect((short?.x ?? 0) >= 0.06 && (long?.x ?? 0) > (short?.x ?? 0) && (long?.x ?? 1) <= 0.12,
                      "its eyes go along the text beside it, further as it grows, and stay on its face")
+        let mirroredGaze = NotchMascotSupport.readingGaze(for: "f", rightToLeft: true)
+        suite.expect(mirroredGaze?.x == -(short?.x ?? 0) && mirroredGaze?.y == short?.y,
+                     "in a right-to-left field its eyes go along the text on its left")
         let ahead = NotchMascotSupport.pointerGaze(from: CGPoint(x: 26, y: 16), to: CGPoint(x: 26, y: 16), size: 20)
         let right = NotchMascotSupport.pointerGaze(from: CGPoint(x: 26, y: 16), to: CGPoint(x: 400, y: 16), size: 20)
         let left = NotchMascotSupport.pointerGaze(from: CGPoint(x: 26, y: 16), to: CGPoint(x: 0, y: 30), size: 20)
@@ -714,6 +723,10 @@ enum NotchMascotTests {
         let edge = CommandBarDropletMotion.rootDepth
         let field = CGRect(x: 28, y: edge + CommandBarDropletMotion.landingGap, width: 560, height: 50)
         let icon = CGPoint(x: field.minX + 27, y: field.midY)
+        let mirroredIcon = CommandBarDropletMotion.iconCenter(in: field, rightToLeft: true)
+        suite.expect(CommandBarDropletMotion.iconCenter(in: field, rightToLeft: false) == icon
+                     && mirroredIcon.x == field.maxX - 27 && mirroredIcon.y == field.midY,
+                     "the drop lands the companion at the field's leading end, the right one in a right-to-left bar")
         let centerX: CGFloat = 308
         let drop = CommandBarDropletMotion.drop(edge: edge, centerX: centerX, field: field, icon: icon)
         let structure = elements(CommandBarDropletMotion.neckPath(drop.frames[0], edge: edge, centerX: centerX))

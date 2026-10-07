@@ -55,6 +55,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -423,4 +424,27 @@ extension SuperKeyStrings {
         mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
         keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
     )
+
+    static let ar = SuperKeyStrings(
+        pageTitle: "المفتاح الخارق",
+        hubDescription: "يحوّل مفتاحًا واحدًا إلى مجموعة المعدِّلات التي تختارها.",
+        enableToggle: "استخدام هذا المفتاح كمفتاح خارق",
+        enableCaption: "استمر بالضغط عليه واضغط أي مفتاح. اختر معدِّلًا واحدًا أو أكثر أدناه.",
+        modifierKeysNote: "أبقِ هذا المفتاح على إجرائه الافتراضي في إعدادات النظام › لوحة المفاتيح › مفاتيح التعديل.",
+        sourceKey: "المفتاح المضغوط",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ الأيمن",
+        holdHint: "استمر بالضغط",
+        soloSection: "ضغطة منفردة",
+        soloCaption: "ما تفعله الضغطة السريعة عندما لا يكون أي مفتاح آخر مضغوطًا.",
+        soloNothing: "لا شيء",
+        soloCapsLock: "تشغيل الأحرف الكبيرة وإيقافها",
+        soloEscape: "الضغط على Escape",
+        activeNow: "يعمل الآن",
+        panelCaptionFormat: "%1$@ يقوم بدور %2$@.",
+        manageButton: "الإعداد…",
+        soloInputSource: "تبديل مصدر الإدخال؛ واستمر بالضغط لـ Caps Lock",
+        mappingForeignMapping: "يستخدم تعيين مفاتيح تطبيق آخر المفتاح المحدد. أزِل التعيين من داخل ذلك التطبيق: إنهاؤه وحده لا يكفي.",
+        mappingSystemRefused: "رفض macOS تعيين المفتاح. أعِد توصيل لوحة المفاتيح أو أعِد تشغيل الـ Mac، ثم فعّل هذا مجددًا.",
+        keyboardTapRefused: "لم يسمح macOS لـ Vorssaint بمراقبة لوحة المفاتيح. أوقف Vorssaint ثم أعد تفعيله من إعدادات النظام › الخصوصية والأمن › تسهيلات الاستخدام، ثم شغّل هذا الخيار مرة أخرى.")
 }

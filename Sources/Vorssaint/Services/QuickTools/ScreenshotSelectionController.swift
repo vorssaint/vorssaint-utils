@@ -961,8 +961,8 @@ private final class ScreenshotOverlayView: NSView {
     private let strings: ScreenshotFeatureStrings
     private let purpose: String?
     private let screenCaptureOptions: ScreenCaptureSelectionOptions?
-    private let guideHost: PassThroughHostingView<CaptureGuideView>
-    private let fullScreenHost: PassThroughHostingView<FullScreenCaptureButton>
+    private let guideHost: PassThroughHostingView<MirroredView<CaptureGuideView>>
+    private let fullScreenHost: PassThroughHostingView<MirroredView<FullScreenCaptureButton>>
     private var notchCaptureControlsHeight: CGFloat?
     private var fullScreenControlHovered = false
     private var deferredNotchCaptureControlsHeight: CGFloat?
@@ -1038,7 +1038,7 @@ private final class ScreenshotOverlayView: NSView {
             requiresDraggedRegion: controller.requiresDraggedRegion,
             scrollingCaptureEnabled: controller.scrollingCaptureEnabled,
             loupeEnabled: controller.loupeEnabled,
-            screenCaptureOptions: screenCaptureOptions))
+            screenCaptureOptions: screenCaptureOptions).appLayoutDirection())
         host.passesThrough = screenCaptureOptions == nil
         guideHost = host
         let hoverRelay = FullScreenControlHoverRelay()
@@ -1047,7 +1047,7 @@ private final class ScreenshotOverlayView: NSView {
                 guard let controller, let panel else { return }
                 controller.captureFullScreenFromControl(on: panel)
             },
-            hoverChanged: { hoverRelay.update($0) }))
+            hoverChanged: { hoverRelay.update($0) }).appLayoutDirection())
         fullScreenHost = fullScreen
         super.init(frame: frame)
         hoverRelay.changed = { [weak self] in self?.fullScreenControlHoverChanged($0) }
@@ -1146,7 +1146,7 @@ private final class ScreenshotOverlayView: NSView {
             requiresDraggedRegion: controller?.requiresDraggedRegion ?? false,
             scrollingCaptureEnabled: controller?.scrollingCaptureEnabled ?? false,
             loupeEnabled: controller?.loupeEnabled ?? false,
-            screenCaptureOptions: screenCaptureOptions)
+            screenCaptureOptions: screenCaptureOptions).appLayoutDirection()
     }
 
     func captureToolDidChange() {

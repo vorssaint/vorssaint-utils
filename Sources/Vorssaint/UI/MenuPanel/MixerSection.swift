@@ -97,11 +97,11 @@ struct MixerSection: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        .disclosureRotation(open: optionsExpanded)
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -708,10 +708,10 @@ struct MixerOptionsControls: View {
                          : "\(l10n.s.mixerHiddenCountLabel): \(mixer.hiddenApps.count)")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                        .disclosureRotation(open: showListChooser)
                 }
                 .contentShape(Rectangle())
             }
@@ -1397,6 +1397,7 @@ private struct LiquidGlassMixerSlider: View {
     let accessibilityLabel: String
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.layoutDirection) private var layoutDirection
 
     private let knobWidth: CGFloat = 24
     private let knobHeight: CGFloat = 15
@@ -1485,10 +1486,11 @@ private struct LiquidGlassMixerSlider: View {
         }
     }
 
+    /// A volume bar is a magnitude along the reading order, so it mirrors with
+    /// the rest of the row rather than being pinned like a time axis.
     private func updateValue(at x: CGFloat, width: CGFloat) {
-        let travel = max(width - knobWidth, 1)
-        let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * maximum
+        value = MixerSliderTrack.fraction(at: x, width: width, knobWidth: knobWidth,
+                                         rightToLeft: layoutDirection == .rightToLeft) * maximum
     }
 }
 #endif

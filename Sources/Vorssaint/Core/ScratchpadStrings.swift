@@ -69,6 +69,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -777,6 +778,52 @@ extension ScratchpadFeatureStrings {
         formatMarks: "Форматування",
         textSize: "Розмір тексту"
     )
+
+    static let ar = ScratchpadFeatureStrings(
+        pageTitle: "المفكرة",
+        hubDescription: "لوحات عائمة للملاحظات السريعة",
+        panelCaption: "ملاحظات سريعة في علامات تبويب منفصلة",
+        openButton: "فتح المفكرة",
+        placeholder: "اكتب ما تشاء. يُحفظ تلقائيًا.",
+        copyAll: "نسخ الكل",
+        copied: "تم النسخ",
+        exportAction: "الحفظ كملف",
+        exportFailed: "تعذّر حفظ الملف",
+        loadFailed: "تعذّر فتح ملاحظاتك. وقد تُركت دون تغيير.",
+        saveFailed: "تعذّر حفظ ملاحظاتك. انسخها إلى مكان آخر قبل الإنهاء.",
+        clearAction: "مسح",
+        retentionTitle: "المسح التلقائي",
+        retentionNever: "أبدًا",
+        retentionDay: "بعد يوم دون استخدام",
+        retentionWeek: "بعد أسبوع دون استخدام",
+        retentionMonth: "بعد شهر دون استخدام",
+        retentionCaption: "تُفرِغ اللوحة نفسها متى مضت هذه المدة على النص دون تعديل.",
+        closeOnClickOutside: "الإغلاق عند النقر في الخارج",
+        keepOpen: "الإبقاء مفتوحًا",
+        backgroundOpacity: "خلفية اللوحة",
+        backgroundTranslucent: "شبه شفافة",
+        backgroundOpaque: "معتمة",
+        newPad: "مفكرة جديدة",
+        padActions: "إجراءات المفكرة",
+        renamePad: "إعادة تسمية المفكرة",
+        closePad: "إغلاق المفكرة",
+        saveName: "حفظ",
+        cancel: "إلغاء",
+        deletePadMessageFormat: "حذف “%@” وكل ما فيها؟",
+        padLimitFormat: "الحد الأقصى للمفكرات: %d",
+        previewFormatting: "إظهار التنسيق",
+        editText: "تحرير النص",
+        markBold: "عريض",
+        markItalic: "مائل",
+        markStrikethrough: "يتوسطه خط",
+        markHeading: "عنوان",
+        markBullet: "قائمة نقطية",
+        markNumbered: "قائمة مرقّمة",
+        markQuote: "اقتباس",
+        markCode: "شيفرة",
+        markLink: "رابط",
+        formatMarks: "التنسيق",
+        textSize: "حجم النص")
 }
 
 extension ScratchpadFeatureStrings {

@@ -8,11 +8,19 @@ import UniformTypeIdentifiers
 enum NotchFileToolsSupport {
     static let dropSpacing: CGFloat = 12
 
-    static func mediaDropArea(in geometry: NotchGeometry, size: CGSize) -> CGRect {
+    /// Which half of the drop row belongs to the media tools. The row draws
+    /// files first and the tools second, so in a mirrored interface the tools
+    /// sit on the left; the hit test has to follow, or the highlight lands on
+    /// the tile opposite the pointer and a file dropped on the shelf's own
+    /// half opens the tools instead.
+    static func mediaDropArea(in geometry: NotchGeometry, size: CGSize,
+                              rightToLeft: Bool = false) -> CGRect {
         let content = geometry.contentSize(for: size)
-        return CGRect(x: size.width / 2 + dropSpacing / 2,
+        let half = max(0, (content.width - dropSpacing) / 2)
+        let leading = size.width / 2 + dropSpacing / 2
+        return CGRect(x: rightToLeft ? leading - half - dropSpacing : leading,
                       y: geometry.headerTopInset + geometry.headerRowHeight + NotchLayout.spacing,
-                      width: max(0, (content.width - dropSpacing) / 2), height: content.height)
+                      width: half, height: content.height)
     }
 
     static func optimizationTool(for urls: [URL]) -> MediaTool? {

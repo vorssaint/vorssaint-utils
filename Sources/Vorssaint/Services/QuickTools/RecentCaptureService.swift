@@ -109,7 +109,7 @@ final class RecentCaptureService: ObservableObject {
         panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         let host = NSHostingController(rootView: RecentCapturesWindowView(
-            onClose: { [weak self] in self?.hideHistoryWindow() }))
+            onClose: { [weak self] in self?.hideHistoryWindow() }).appLayoutDirection())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

@@ -600,6 +600,9 @@ private struct NotchAgentTrendCard: View {
         .foregroundStyle(.tertiary)
         .lineLimit(1)
         .frame(height: 10)
+        // The bars above run oldest to newest left to right, so their dates
+        // have to run the same way or each label names a different bar.
+        .unmirroredLayout()
     }
 }
 

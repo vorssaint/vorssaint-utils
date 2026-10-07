@@ -797,6 +797,17 @@ struct NotchMascotTrack: Equatable {
         return left
     }
 
+    /// Where it watches a countdown from: over the timer's mark, on the
+    /// camera's left, or on its right when a right-to-left language mirrors
+    /// the timer's strip and puts the reading on the left.
+    func timerSide(rightToLeft: Bool) -> NotchMascotTrack {
+        guard rightToLeft else { return leftSide }
+        var right = leftSide
+        right.mirrored = true
+        right.rest = width - right.rest
+        return right
+    }
+
     /// Where it says hello across the strip: past the camera, as far from it
     /// as it rests, or toward a capsule's far end.
     var farSpot: CGFloat {
@@ -873,13 +884,21 @@ enum NotchMascotMotion {
 
     /// A stroll of `kind`. Resting right of the camera, it walks the left
     /// side's stroll seen in a mirror.
-    static func path(for kind: NotchMascotVisit.Kind, on track: NotchMascotTrack) -> NotchMascotPath {
+    static func path(for kind: NotchMascotVisit.Kind, on track: NotchMascotTrack,
+                     rightToLeft: Bool = false) -> NotchMascotPath {
         // A countdown is watched from the camera's left, over the timer's
-        // mark, whichever side it rests on: the reading is on the right.
-        switch kind {
-        case .countdown(let total): return countdown(on: track.leftSide, total: total)
-        case .retreat: return retreat(on: track.leftSide)
-        default: break
+        // mark, whichever side it rests on: the reading is on the right. A
+        // right-to-left strip has them the other way, and the watch with it.
+        if kind.watchesTimer {
+            var path: NotchMascotPath
+            switch kind {
+            case .countdown(let total): path = countdown(on: track.leftSide, total: total)
+            default: path = retreat(on: track.leftSide)
+            }
+            guard rightToLeft else { return path }
+            path.x = path.x.map { track.width - $0 }
+            path.gaze = path.gaze.map { -$0 }
+            return path
         }
         guard track.mirrored else {
             switch kind {
@@ -1278,9 +1297,11 @@ enum NotchMascotSupport {
 
     /// Where its eyes go while something is typed: along the text beside
     /// it, a little further as the text grows. Nil when the field is empty.
-    static func readingGaze(for query: String) -> CGPoint? {
+    /// A right-to-left field grows its text on the face's left.
+    static func readingGaze(for query: String, rightToLeft: Bool = false) -> CGPoint? {
         guard !query.isEmpty else { return nil }
-        return CGPoint(x: 0.07 + 0.04 * min(1, CGFloat(query.count) / 28), y: 0.01)
+        let along = 0.07 + 0.04 * min(1, CGFloat(query.count) / 28)
+        return CGPoint(x: rightToLeft ? -along : along, y: 0.01)
     }
 
     /// Where its eyes go for a pointer at `pointer`, with its center at

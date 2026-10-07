@@ -397,10 +397,10 @@ struct SystemSection: View {
                                                  kind: BreakdownKind, isInteractive: Bool,
                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == kind ? 90 : 0))
+                .disclosureRotation(open: expanded == kind)
                 .opacity(isInteractive ? 1 : 0.35)
             Text(label)
                 .font(.system(size: 11))
@@ -481,10 +481,10 @@ struct SystemSection: View {
 
     private func memoryRowContent(isInteractive: Bool) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == .memory ? 90 : 0))
+                .disclosureRotation(open: expanded == .memory)
                 .opacity(isInteractive ? 1 : 0.35)
             Text(l10n.s.memoryPressure)
                 .font(.system(size: 11))
@@ -521,10 +521,10 @@ struct SystemSection: View {
                         alertsExpanded.toggle()
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "chevron.forward")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(alertsExpanded ? 90 : 0))
+                                .disclosureRotation(open: alertsExpanded)
                             subsectionLabel(text.section)
                             Spacer(minLength: 0)
                         }

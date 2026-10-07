@@ -26,6 +26,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -46,4 +47,5 @@ extension MonitorLayoutFeatureStrings {
     static let zhTW = MonitorLayoutFeatureStrings(shared: "讀數與提醒")
     static let zhHK = MonitorLayoutFeatureStrings(shared: "讀數與提醒")
     static let uk = MonitorLayoutFeatureStrings(shared: "Показники та сповіщення")
+    static let ar = MonitorLayoutFeatureStrings(shared: "القراءات والتنبيهات")
 }

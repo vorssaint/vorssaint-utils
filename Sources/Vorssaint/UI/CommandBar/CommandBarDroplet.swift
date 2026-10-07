@@ -61,7 +61,7 @@ final class CommandBarDroplet {
         let edge = CommandBarDropletMotion.rootDepth
         let centerX = island.midX - area.minX
         let fieldRect = local(field)
-        let icon = CGPoint(x: fieldRect.minX + 16 + CommandBarDropletMotion.mascotSize / 2, y: fieldRect.midY)
+        let icon = CommandBarDropletMotion.iconCenter(in: fieldRect, rightToLeft: L10n.shared.language.isRightToLeft)
         let motion = CommandBarDropletMotion.drop(edge: edge, centerX: centerX, field: fieldRect, icon: icon)
         let begin = CACurrentMediaTime()
         fall = (motion, edge, centerX, begin)
@@ -137,7 +137,7 @@ final class CommandBarDroplet {
         let edge = CommandBarDropletMotion.rootDepth
         let centerX = island.midX - area.minX
         let fieldRect = local(field)
-        let icon = CGPoint(x: fieldRect.minX + 16 + CommandBarDropletMotion.mascotSize / 2, y: fieldRect.midY)
+        let icon = CommandBarDropletMotion.iconCenter(in: fieldRect, rightToLeft: L10n.shared.language.isRightToLeft)
         let motion = CommandBarDropletMotion.retract(edge: edge, centerX: centerX, bar: local(bar), field: fieldRect, icon: icon)
         prepare(in: area, look: look, mood: mood)
         play(motion, edge: edge, centerX: centerX, begin: CACurrentMediaTime()) { [weak self] in

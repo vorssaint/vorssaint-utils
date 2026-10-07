@@ -43,6 +43,15 @@ enum SwitcherModelFeatureTests {
                      "trackpad momentum does not change the selection")
         suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began)) == -1,
                      "a horizontal trackpad gesture changes the selection")
+        // A sideways swipe names a direction on screen, so a mirrored row steps
+        // the other way; a vertical wheel keeps next and previous everywhere.
+        var mirrored = SwitcherScrollNavigation()
+        suite.expect(mirrored.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began),
+                                             rightToLeft: true) == 1,
+                     "a sideways swipe follows the displayed order in a mirrored row")
+        var mirroredWheel = SwitcherScrollNavigation()
+        suite.expect(mirroredWheel.selectionDelta(for: event(-3), rightToLeft: true) == 1,
+                     "a vertical wheel keeps stepping next in a mirrored row")
         _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
         suite.expect(navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == 0
                      && navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == -1,

@@ -15,6 +15,12 @@ enum CountAgreement {
     /// and only two through four the middle one, so 21 and 22 read
     /// "21 súborov" and "22 súborov" the same way 25 does.
     case byWholeNumber
+    /// Arabic: the last two digits decide, and the middle slot holds the
+    /// ordinary plural rather than a form of its own. Three through ten of
+    /// every hundred take it, so 103 and 110 do too, while 11 through 99
+    /// return to the singular noun after the numeral. Two goes with them,
+    /// since the dual is a word of its own and never follows a numeral.
+    case byLastTwoDigits
 }
 
 /// Languages the interface can use. The first launch defaults to the system
@@ -35,17 +41,19 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     case zhHans = "zh-Hans"
     case zhTW = "zh-TW"
     case zhHK = "zh-HK"
+    case ar = "ar"
 
     var id: String { rawValue }
 
     /// How this language agrees a counted noun with the number in front of
-    /// it. Three of the fifteen put a distinct form between one and many, and
+    /// it. Four of the sixteen put a distinct form between one and many, and
     /// they disagree on which numbers take it, so the count itself is not
     /// enough to pick a form without knowing the language's rule.
     var countAgreement: CountAgreement {
         switch self {
         case .ru, .uk: return .byLastDigits
         case .sk: return .byWholeNumber
+        case .ar: return .byLastTwoDigits
         default: return .oneAndMany
         }
     }
@@ -68,17 +76,30 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         case .zhHK: return "繁體中文（香港）"
         case .zhTW: return "繁體中文（台灣）"
         case .uk: return "Українська"
+        case .ar: return "العربية"
+        }
+    }
+
+    /// Languages written right to left. The app picks its own language instead
+    /// of following the system one, so nothing mirrors the interface on its own:
+    /// every window root reads this and sets the layout direction itself.
+    var isRightToLeft: Bool {
+        switch self {
+        case .ar: return true
+        default: return false
         }
     }
 
     /// Dates and times in this language, arranged the way System Settings
-    /// asks: region, 12- or 24-hour clock and first day of the week. A locale
-    /// made from the language alone would bring that language's own clock.
+    /// asks: region, 12- or 24-hour clock, first day of the week and digits.
+    /// A locale made from the language alone would bring that language's own
+    /// clock, and Arabic its own digits beside counts that stay Western.
     func formattingLocale(system: Locale = .autoupdatingCurrent) -> Locale {
         var components = Locale.Components(identifier: rawValue)
         components.region = system.region
         components.hourCycle = system.hourCycle
         components.firstDayOfWeek = system.firstDayOfWeek
+        components.numberingSystem = system.numberingSystem
         return Locale(components: components)
     }
 
@@ -97,6 +118,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         let matches: [(String, AppLanguage)] = [
             ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
             ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
+            ("ar", .ar),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
         return .enUS
@@ -144,6 +166,7 @@ extension Strings {
         case .zhHK: return .zhHK
         case .zhTW: return .zhTW
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -739,23 +762,26 @@ struct Strings {
     let shelfHint: String
     let shelfItemImage: String
     // Three forms, not two: Russian and Ukrainian agree a noun with the number
-    // in front of it as one, as two through four, and as five or more. Every other
+    // in front of it as one, as two through four, and as five or more. Arabic
+    // asks for a middle form too, but on its own boundaries, the ordinary
+    // plural from three through ten of every hundred, so the slot holds what
+    // each language's own rule asks for rather than a fixed range. Every other
     // language here needs only the first and the last, and repeats the last
     // in the middle slot. A pile always holds two or more, so the items count
-    // has no singular of its own.
-    let shelfTooltipItemsFormat: String      // + count, five or more
-    let shelfTooltipItemsFew: String         // + count, two through four
+    // has no singular of its own. `CountAgreement` is what picks between them.
+    let shelfTooltipItemsFormat: String      // + count, the last form
+    let shelfTooltipItemsFew: String         // + count, the middle form
     let shelfTooltipImageSingular: String    // + count == 1
-    let shelfTooltipImageFew: String         // + count, two through four
+    let shelfTooltipImageFew: String         // + count, the middle form
     let shelfTooltipImagePlural: String      // + count
     let shelfTooltipFileSingular: String     // + count == 1
-    let shelfTooltipFileFew: String          // + count, two through four
+    let shelfTooltipFileFew: String          // + count, the middle form
     let shelfTooltipFilePlural: String       // + count
     let shelfTooltipNoteSingular: String     // + count == 1
-    let shelfTooltipNoteFew: String          // + count, two through four
+    let shelfTooltipNoteFew: String          // + count, the middle form
     let shelfTooltipNotePlural: String       // + count
     let shelfTooltipLinkSingular: String     // + count == 1
-    let shelfTooltipLinkFew: String          // + count, two through four
+    let shelfTooltipLinkFew: String          // + count, the middle form
     let shelfTooltipLinkPlural: String       // + count
     let shelfActionOpen: String
     let shelfActionOpenWith: String
