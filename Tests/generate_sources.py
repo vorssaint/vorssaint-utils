@@ -927,10 +927,20 @@ def main():
     settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
     text_inset = next(line for line in (ROOT / settings_card).read_text().splitlines()
                       if line.startswith("let settingsRowTextInset:"))
+    # The Features page's wording and route live outside the tests, so the
+    # row's copy speaks the feature's name and goes nowhere.
+    feature_row = declaration(settings_card, "struct SettingsFeatureSwitchRow")
+    for call, stand_in in [("feature.enableReason(l10n)", "feature.rawValue"), ("feature.showInFeatures()", "_ = feature")]:
+        if call not in feature_row:
+            raise ValueError(f"Expected {call!r} in SettingsFeatureSwitchRow")
+        feature_row = feature_row.replace(call, stand_in)
     write("NotchSettingsChoice.swift", "import SwiftUI\n" + text_inset + "\n\nextension NotchSettingsChoiceTests {\n"
           + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
+          + "final class FeatureRuntime: ObservableObject {\nstatic let shared = FeatureRuntime()\nvar installed = true\n"
+          + "func isAvailable(_ feature: AppFeature) -> Bool { installed }\n}\n"
           + declaration(settings_card, "struct SettingsCard<")
           + declaration(settings_card, "struct SettingsRow<")
+          + feature_row
           + declaration(settings_card, "struct SettingsChoiceRow<")
           + declaration(settings_card, "struct SettingsMenuRow<")
           + "struct Destination: View {\nlet language: AppLanguage\nlet title: String\n"

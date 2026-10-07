@@ -1212,6 +1212,49 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.notchTimer.availabilityKey)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
                "reinstalled utilities return to their original positions")
+        defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions == [.explore, .module(.timer), .settings, .module(.mixer)],
+               "a section switched off takes its button out of the island")
+        var held = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
+        let incoming = NotchQuickButton(action: .control(.panel), side: .right)
+        held.buttons.append(incoming)
+        held.move(incoming.id, to: .left)
+        suite.expect(!held.hasRoom(on: .left) && held.buttons.first(where: { $0.id == incoming.id })?.side == .right
+               && held.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.music), .settings],
+               "a hidden button keeps its place, so a side it fills takes no other")
+        var reordered = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
+        let ids = reordered.buttons.map(\.id)
+        let swapped = reordered.reorder(ids[2], by: -1)
+        let pastTheTop = reordered.reorder(ids[0], by: -1)
+        suite.expect(swapped && !pastTheTop && reordered.actions == [.explore, .settings, .module(.music)],
+               "moving a button swaps it with its neighbour, hidden or not, and a move past either end changes nothing")
+        let savedIdle = defaults.object(forKey: DefaultsKey.notchIdleContent)
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(!NotchSupport.canRest(with: .music, in: defaults) && NotchSupport.idleContent(in: defaults) == .none
+               && defaults.string(forKey: DefaultsKey.notchIdleContent) == NotchIdleContent.music.rawValue,
+               "a resting choice whose section is off waits, still chosen, while the island rests empty")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
+               "a section switched back on returns its button to its place")
+        suite.expect(NotchSupport.canRest(with: .music, in: defaults) && NotchSupport.idleContent(in: defaults) == .music,
+               "the island rests with a waiting choice again once its section is back")
+        let saved = [DefaultsKey.notchEnabled, AppFeature.notchAgents.availabilityKey, DefaultsKey.notchAgentsEnabled,
+                     AppFeature.monitorPower.availabilityKey].map { ($0, defaults.object(forKey: $0)) }
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: AppFeature.notchAgents.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(NotchSupport.canRest(with: .agents, in: defaults) && NotchSupport.idleContent(in: defaults) == .agents,
+               "the island's own switch leaves an AI resting choice as it is")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        suite.expect(!NotchSupport.canRest(with: .agents, in: defaults) && NotchSupport.idleContent(in: defaults) == .none,
+               "an AI resting choice waits while its section is off, and the island rests empty meanwhile")
+        defaults.set(false, forKey: AppFeature.monitorPower.availabilityKey)
+        defaults.set(NotchIdleContent.battery.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(!NotchSupport.canRest(with: .battery, in: defaults) && NotchSupport.idleContent(in: defaults) == .none,
+               "a battery resting choice waits while power monitoring is uninstalled")
+        for (key, value) in saved { defaults.set(value, forKey: key) }
+        defaults.set(savedIdle, forKey: DefaultsKey.notchIdleContent)
         defaults.set("right", forKey: DefaultsKey.notchQuickAccessSide)
         suite.expect(NotchQuickAccessConfiguration.stored(in: defaults) == .init(side: .right, actions: [.explore, .settings]),
                "a saved legacy side retains the former Settings companion")
@@ -1636,8 +1679,10 @@ enum NotchTests {
         suite.expect(layout.buttons.first(where: { $0.id == placements[0].id })?.side == .bottom
                && layout.buttons.filter { $0.side == .bottom }.map(\.id) == [placements[0].id, placements[2].id],
                "moving a button preserves its identity and inserts it in the chosen order")
-        let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) }).sanitized()
-        suite.expect(crowded.buttons.count == 3, "restored layouts cannot overfill an edge")
+        let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
+        defaults.set(crowded.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(crowded.sanitized().buttons.count == 3 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 3,
+               "restored layouts cannot overfill an edge")
         var invalidButton = NotchQuickButton(action: .settings, side: .left, label: "  Name\nwith line  ")
         invalidButton.actionID = "unrecognized-action"
         suite.expect(NotchQuickAccessConfiguration(buttons: [invalidButton]).sanitized().buttons.isEmpty,

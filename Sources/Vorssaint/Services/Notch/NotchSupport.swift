@@ -1199,13 +1199,37 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     static func current(in defaults: UserDefaults = .standard) -> Self {
         var configuration = stored(in: defaults)
-        configuration.buttons.removeAll { $0.action?.isAvailable(in: defaults) != true }
+        configuration.buttons = configuration.shown(in: defaults)
         return configuration
+    }
+
+    /// The buttons the island shows. One whose section or feature is off
+    /// keeps its place, so it comes back there once that is on again.
+    func shown(in defaults: UserDefaults = .standard) -> [NotchQuickButton] {
+        buttons.filter { $0.action?.isAvailable(in: defaults) == true }
+    }
+
+    /// Whether a side has a free place. A hidden button still holds its own.
+    func hasRoom(on side: NotchQuickAccessSide) -> Bool {
+        buttons.filter { $0.side == side }.count < Self.maximumPerSide
+    }
+
+    /// Swaps a button with its neighbour on the same side. False when it is
+    /// already at that end, so there is nothing to save.
+    @discardableResult
+    mutating func reorder(_ id: UUID, by offset: Int) -> Bool {
+        guard let from = buttons.firstIndex(where: { $0.id == id }) else { return false }
+        let side = buttons[from].side
+        let items = buttons.filter { $0.side == side }
+        guard let index = items.firstIndex(where: { $0.id == id }), items.indices.contains(index + offset),
+              let to = buttons.firstIndex(where: { $0.id == items[index + offset].id }) else { return false }
+        buttons.swapAt(from, to)
+        return true
     }
 
     mutating func move(_ id: UUID, to side: NotchQuickAccessSide, before target: UUID? = nil) {
         guard let index = buttons.firstIndex(where: { $0.id == id }),
-              buttons[index].side == side || buttons.filter({ $0.side == side }).count < Self.maximumPerSide else { return }
+              buttons[index].side == side || hasRoom(on: side) else { return }
         var item = buttons.remove(at: index)
         item.side = side
         let destination = target.flatMap { target in buttons.firstIndex(where: { $0.id == target && $0.side == side }) }
@@ -1505,10 +1529,19 @@ enum NotchSupport {
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
-        if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }
-        if choice == .music, !modules(in: defaults).contains(.music) { return .none }
-        if choice == .agents, !NotchAgentSupport.isEnabled(in: defaults) { return .none }
-        return choice
+        return canRest(with: choice, in: defaults) ? choice : .none
+    }
+
+    /// Whether the closed island can rest with this content now. A choice it
+    /// cannot show waits, still chosen, until its section or feature is back.
+    /// The island's own switch stands apart, since it rules out every choice.
+    static func canRest(with content: NotchIdleContent, in defaults: UserDefaults = .standard) -> Bool {
+        switch content {
+        case .none: return true
+        case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
+        case .music: return modules(in: defaults).contains(.music)
+        case .agents: return NotchAgentSupport.sectionShows(in: defaults)
+        }
     }
 
     static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {

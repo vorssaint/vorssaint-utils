@@ -11,6 +11,9 @@ struct NotchLayoutEditor: View {
     var editContents: () -> Void
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var notch = NotchService.shared
+    /// Redraws when a feature behind a button is installed or removed, which
+    /// dims the button or brings it back.
+    @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var addingSide: NotchQuickAccessSide?
@@ -24,6 +27,7 @@ struct NotchLayoutEditor: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     var body: some View {
+        let layout = configuration
         VStack(spacing: 12) {
             GeometryReader { proxy in
                 let scale = scale(in: proxy.size)
@@ -59,7 +63,7 @@ struct NotchLayoutEditor: View {
                         .frame(width: frame.width, height: frame.height)
                         .position(x: frame.midX, y: frame.midY)
                     ForEach(NotchQuickAccessSide.allCases, id: \.self) { side in
-                        let items = configuration.buttons.filter { $0.side == side }
+                        let items = layout.buttons.filter { $0.side == side }
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, button in
                             let center = point(index, count: items.count, side: side, island: frame)
                             bubble(button)
@@ -78,7 +82,7 @@ struct NotchLayoutEditor: View {
                                 .position(center)
                                 .zIndex(draggingID == button.id ? 3 : 1)
                         }
-                        if items.count < NotchQuickAccessConfiguration.maximumPerSide {
+                        if layout.hasRoom(on: side) {
                             Button { addingSide = side } label: {
                                 Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
                                     .frame(width: 30, height: 30)
@@ -91,7 +95,7 @@ struct NotchLayoutEditor: View {
                             .popover(isPresented: Binding(get: { addingSide == side }, set: { if !$0 { addingSide = nil } }),
                                      arrowEdge: side == .left ? .trailing : side == .right ? .leading : .top) {
                                 NotchActionChooser(title: editor.addButton) { action in
-                                    guard configuration.buttons.filter({ $0.side == side }).count < NotchQuickAccessConfiguration.maximumPerSide else { return }
+                                    guard configuration.hasRoom(on: side) else { return }
                                     configuration.buttons.append(NotchQuickButton(action: action, side: side))
                                     addingSide = nil
                                 }
@@ -121,7 +125,7 @@ struct NotchLayoutEditor: View {
                 .coordinateSpace(name: "island.editor")
             }
             .frame(height: Self.canvasHeight)
-            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: configuration)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: layout)
             Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -198,16 +202,21 @@ struct NotchLayoutEditor: View {
 
     private func bubble(_ button: NotchQuickButton) -> some View {
         let title = button.label.isEmpty ? button.action?.title(l10n) ?? editor.editButton : button.label
+        // The island leaves out a button whose section or feature is off. It
+        // stays here, dimmed, in the place it takes back once that is on.
+        let hidden = button.action?.isAvailable() != true
         return Button { editingName = button.label; editingID = button.id } label: {
             Image(systemName: button.action?.symbol ?? "questionmark")
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 30, height: 30).background(.black, in: Circle())
                 .overlay { Circle().strokeBorder(editingID == button.id ? Color.accentColor : .white.opacity(0.2), lineWidth: 1.5) }
                 .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
+                .opacity(hidden ? 0.4 : 1)
         }
         .buttonStyle(.plain)
-        .help(title)
+        .help(hidden ? title + ", " + editor.hiddenInIsland : title)
         .accessibilityLabel(editor.editButton + ", " + title)
+        .accessibilityValue(hidden ? editor.hiddenInIsland : "")
         .popover(isPresented: Binding(get: { editingID == button.id }, set: { if !$0 { editingID = nil } }),
                  arrowEdge: button.side == .left ? .trailing : button.side == .right ? .leading : .top) {
             VStack(alignment: .leading, spacing: 14) {
@@ -218,10 +227,14 @@ struct NotchLayoutEditor: View {
                     }
                 Picker(editor.position, selection: Binding(get: {
                     configuration.buttons.first { $0.id == button.id }?.side ?? button.side
-                }, set: { configuration.move(button.id, to: $0) })) {
+                }, set: { side in
+                    // Choosing the side it is on again leaves it where it is.
+                    guard side != configuration.buttons.first(where: { $0.id == button.id })?.side else { return }
+                    configuration.move(button.id, to: side)
+                })) {
                     ForEach(NotchQuickAccessSide.allCases, id: \.self) { side in
                         Text(side.title(l10n)).tag(side)
-                            .disabled(side != button.side && configuration.buttons.filter { $0.side == side }.count >= NotchQuickAccessConfiguration.maximumPerSide)
+                            .disabled(side != button.side && !configuration.hasRoom(on: side))
                     }
                 }.pickerStyle(.segmented)
                 HStack {
@@ -239,13 +252,11 @@ struct NotchLayoutEditor: View {
         }
     }
 
+    /// Saves only a move that happened, so a press at either end leaves an
+    /// untouched layout unsaved.
     private func reorder(_ id: UUID, by offset: Int) {
-        guard let item = configuration.buttons.first(where: { $0.id == id }) else { return }
-        let items = configuration.buttons.filter { $0.side == item.side }
-        guard let index = items.firstIndex(where: { $0.id == id }), items.indices.contains(index + offset),
-              let from = configuration.buttons.firstIndex(where: { $0.id == id }),
-              let to = configuration.buttons.firstIndex(where: { $0.id == items[index + offset].id }) else { return }
-        configuration.buttons.swapAt(from, to)
+        var layout = configuration
+        if layout.reorder(id, by: offset) { configuration = layout }
     }
 
     /// The home page as the island lays it out: the same items, rules and
