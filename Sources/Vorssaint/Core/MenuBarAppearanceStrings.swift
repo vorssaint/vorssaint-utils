@@ -54,16 +54,16 @@ extension MenuBarAppearanceStrings {
     )
 
     static let sv = MenuBarAppearanceStrings(
-        label: "Usage display",
-        values: "Values",
-        bars: "Bars",
-        caption: "Bars apply to CPU, GPU, memory and disk usage. Other readings stay numeric.",
-        customize: "Bar colors and limits",
-        normalColor: "Normal color",
-        mediumColor: "Medium color",
-        highColor: "High color",
-        mediumFrom: "Medium from",
-        highFrom: "High from"
+        label: "Visning av användning",
+        values: "Värden",
+        bars: "Staplar",
+        caption: "Staplar gäller användning av CPU, GPU, minne och disk. Övriga avläsningar förblir numeriska.",
+        customize: "Stapelfärger och gränser",
+        normalColor: "Normal färg",
+        mediumColor: "Mellanläge",
+        highColor: "Hög färg",
+        mediumFrom: "Mellanläge från",
+        highFrom: "Högt från"
     )
 
     static let ptBR = MenuBarAppearanceStrings(
