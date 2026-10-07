@@ -14,6 +14,7 @@ struct MonitorLayoutFeatureStrings {
 extension FeatureStrings {
     static func monitorLayout(_ language: AppLanguage) -> MonitorLayoutFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
