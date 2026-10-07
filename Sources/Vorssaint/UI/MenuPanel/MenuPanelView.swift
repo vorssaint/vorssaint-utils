@@ -150,7 +150,7 @@ struct MenuPanelView: View {
             return selectedMetric.monitorNeeds
         }
         switch activeSection {
-        case .system: return SystemMonitorPanelNeeds(system: true, connectedDevices: true)
+        case .system: return SystemMonitorPanelNeeds(system: true)
         case .network: return SystemMonitorPanelNeeds(network: true)
         case .disk: return SystemMonitorPanelNeeds(disk: true)
         case .power: return SystemMonitorPanelNeeds(power: true)

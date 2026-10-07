@@ -557,7 +557,11 @@ final class SystemMonitor: ObservableObject {
             plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
                 || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
         }
-        plan.needConnectedDevices = menuPanelNeeds.connectedDevices
+        // The island preview in Settings shows the device card too; the
+        // panel's System card reads USB only for its device row's count.
+        plan.needConnectedDevices = fullMonitorVisible
+            || (menuPanelNeeds.system && defaults.bool(forKey: DefaultsKey.monitorSysConnectedDevices))
+            || menuPanelNeeds.connectedDevices
             || defaults.bool(forKey: DefaultsKey.menuBarConnectedDevices)
 
         // The hub gates whole metric families: an unavailable metric never

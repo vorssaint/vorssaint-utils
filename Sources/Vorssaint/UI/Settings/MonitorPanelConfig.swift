@@ -23,6 +23,7 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
+    @AppStorage(DefaultsKey.monitorSysConnectedDevices) private var sysConnectedDevices = true
 
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorNetSpeed) private var netSpeed = true
@@ -131,6 +132,10 @@ struct MonitorPanelConfig: View {
                          options: AnyView(chartOption($graphMemory)), summary: chartSummary(graphMemory))
             }
             itemTile(l10n.s.monitorItemUptime, symbol: "clock", value: $sysUptime, available: available)
+            if AppFeature.connectedDevices.isAvailable {
+                itemTile(FeatureStrings.connectedDevices(l10n.language).title, symbol: "cable.connector",
+                         value: $sysConnectedDevices, available: available)
+            }
         case .network:
             itemTile(l10n.s.monitorItemNetSpeed, symbol: "speedometer", value: $netSpeed, available: available,
                      options: AnyView(chartOption($graphNetwork)), summary: chartSummary(graphNetwork))
@@ -203,6 +208,9 @@ struct MonitorPanelConfig: View {
                     Toggle(l10n.s.memorySection, isOn: $sysMemory)
                 }
                 Toggle(l10n.s.monitorItemUptime, isOn: $sysUptime)
+                if AppFeature.connectedDevices.isAvailable {
+                    Toggle(FeatureStrings.connectedDevices(l10n.language).title, isOn: $sysConnectedDevices)
+                }
             }
         }
         if AppFeature.monitorNetwork.isAvailable {

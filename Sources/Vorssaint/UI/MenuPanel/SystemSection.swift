@@ -43,6 +43,7 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysAlerts) private var sysAlerts = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
+    @AppStorage(DefaultsKey.monitorSysConnectedDevices) private var sysConnectedDevices = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
     @State private var draggingBlock: Block?
 
@@ -138,7 +139,7 @@ struct SystemSection: View {
         case .memory: return sysMemory
         case .alerts: return sysAlerts
         case .uptime: return sysUptime
-        case .connectedDevices: return true
+        case .connectedDevices: return sysConnectedDevices
         }
     }
 
@@ -151,6 +152,7 @@ struct SystemSection: View {
         sysMemory = true
         sysAlerts = true
         sysUptime = true
+        sysConnectedDevices = true
     }
 
     @ViewBuilder
@@ -161,30 +163,53 @@ struct SystemSection: View {
         case .memory: memoryRows(editing: editing)
         case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
-        case .connectedDevices: connectedDevicesRow
+        case .connectedDevices: connectedDevicesRow(editing: editing)
         }
     }
 
-    private var connectedDevicesRow: some View {
+    // MARK: Connected devices
+
+    /// Opens the device list. While editing it is only a row to reorder or
+    /// hide, like the usage rows, so a drag cannot open the detail.
+    @ViewBuilder
+    private func connectedDevicesRow(editing: Bool) -> some View {
         let strings = FeatureStrings.connectedDevices(l10n.language)
-        return Button(action: showConnectedDevices) {
-            HStack(spacing: 8) {
-                Label(strings.title, systemImage: "cable.connector")
-                    .font(.system(size: 11, weight: .medium))
-                Spacer(minLength: 0)
-                Text("\(monitor.snapshot.connectedDevices.count)")
-                    .font(.system(size: 11, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.secondary)
+        if !sysConnectedDevices {
+            PanelHiddenItemRow(title: strings.title, systemImage: "cable.connector",
+                               isVisible: $sysConnectedDevices)
+        } else if editing {
+            connectedDevicesRowContent(title: strings.title, isInteractive: false) {
+                PanelInlineHideButton(isVisible: $sysConnectedDevices)
             }
-            .contentShape(Rectangle())
+        } else {
+            Button(action: showConnectedDevices) {
+                connectedDevicesRowContent(title: strings.title, isInteractive: true) {
+                    EmptyView()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(strings.title)
+            .accessibilityValue(strings.formattedCount(monitor.snapshot.connectedDevices.count))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(strings.title)
-        .accessibilityValue(strings.formattedCount(monitor.snapshot.connectedDevices.count))
+    }
+
+    private func connectedDevicesRowContent<Trailing: View>(title: String, isInteractive: Bool,
+                                                             @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: "cable.connector")
+                .font(.system(size: 11, weight: .medium))
+            Spacer(minLength: 0)
+            Text("\(monitor.snapshot.connectedDevices.count)")
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .opacity(isInteractive ? 1 : 0.35)
+            trailing()
+        }
     }
 
     // MARK: Per-app breakdown

@@ -289,6 +289,14 @@ def main():
           + declaration("Sources/Vorssaint/Services/SystemMonitor/SystemMonitor.swift",
                         "    private func readCPUUsage(").replace("private func", "func", 1)
           + "}\n}\n")
+    monitor = "Sources/Vorssaint/Services/SystemMonitor/SystemMonitor.swift"
+    write("SystemMonitorPlan.swift", "import Foundation\n"
+          + "extension SystemMonitorPlanTests {\n"
+          + declaration(monitor, "struct SystemMonitorPanelNeeds")
+          + "final class Monitor: Fixture {\n"
+          + declaration(monitor, "    private struct SamplingPlan").replace("private struct", "struct", 1)
+          + declaration(monitor, "    private func currentPlan(").replace("private func", "func", 1)
+          + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
     write("QuickPaste.swift", "import Foundation\n"

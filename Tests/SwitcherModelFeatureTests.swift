@@ -3030,6 +3030,9 @@ enum SwitcherModelFeatureTests {
                "disk monitor panel section is shown by default")
         suite.expect(registeredDefaults[DefaultsKey.monitorSysAlerts] as? Bool == true,
                "system alert controls are shown by default")
+        suite.expect(registeredDefaults[DefaultsKey.monitorSysConnectedDevices] as? Bool == true
+                     && SettingsBackupSupport.exportKeys().contains(DefaultsKey.monitorSysConnectedDevices),
+               "the System card's connected devices row is shown by default and travels in backups")
         suite.expect(registeredDefaults[DefaultsKey.monitorGraphDisk] as? Bool == true,
                "disk monitor graph is shown by default")
         suite.expect(registeredDefaults[DefaultsKey.monitorNetApps] as? Bool == true,
