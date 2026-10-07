@@ -25,6 +25,10 @@ final class NotchDecorativeClock {
 
     var isRunning: Bool { link != nil }
 
+    /// The display link while it runs, so tests can check its rate and that
+    /// stopping takes it off the run loop.
+    var displayLink: CADisplayLink? { link }
+
     /// Steps in time with the display that shows `view`.
     func start(in view: NSView) {
         guard link == nil else { return }

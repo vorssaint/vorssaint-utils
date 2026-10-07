@@ -13,7 +13,7 @@ struct NotchEqualizerBars: View {
     var height: CGFloat = 14
     var tint: Color = .white
     /// Band levels from 0 to 1 read from the player's audio. When present the
-    /// bars follow them instead of the compositor's synthetic motion.
+    /// bars follow them instead of the stepped synthetic motion.
     var live: [Double]? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

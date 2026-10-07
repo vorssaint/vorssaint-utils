@@ -123,6 +123,29 @@ enum NotchEqualizerTests {
             releasedClock = clock
         }
         expect(releasedClock == nil, "a running motion clock is released with the view that owns it")
+        // The run loop keeps a scheduled display link until it is invalidated.
+        // A link left behind would wake the app thirty times a second after
+        // its clock stopped or went away.
+        let keptClock = NotchDecorativeClock { _ in }
+        weak var stoppedLink: CADisplayLink?
+        var range: CAFrameRateRange?
+        autoreleasepool {
+            keptClock.start(in: container)
+            stoppedLink = keptClock.displayLink
+            range = keptClock.displayLink?.preferredFrameRateRange
+        }
+        expect(stoppedLink != nil, "a running motion clock steps from a display link")
+        expect(range.map { $0.minimum >= 15 && $0.maximum <= 30 && $0.preferred.map { $0 > 0 && $0 <= 30 } ?? false } == true,
+               "the motion clock asks for at most thirty steps a second")
+        autoreleasepool { keptClock.stop() }
+        expect(stoppedLink == nil, "stopping a motion clock takes its display link off the run loop")
+        weak var discardedLink: CADisplayLink?
+        autoreleasepool {
+            let clock = NotchDecorativeClock { _ in }
+            clock.start(in: container)
+            discardedLink = clock.displayLink
+        }
+        expect(discardedLink == nil, "a discarded running clock takes its display link off the run loop")
 
         let swing = (0...40).map { NotchDecorativeClock.swing(Double($0) / 10) }
         expect(abs(swing[0]) < 1e-9 && abs(swing[10] - 1) < 1e-9 && abs(swing[20]) < 1e-9
