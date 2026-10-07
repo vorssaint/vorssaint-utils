@@ -176,22 +176,22 @@ enum NotchPlaybackRoutingTests {
         do {
             let contents = bundleURL.appendingPathComponent("Contents")
             try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
-            let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "io.mpv"],
+            let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "org.example.player"],
                                                            format: .xml, options: 0)
             try plist.write(to: contents.appendingPathComponent("Info.plist"))
-            var terminalPlayer = Adapter.NSRunningApplication(bundleIdentifier: nil, processIdentifier: 303)
-            terminalPlayer.bundleURL = bundleURL
-            let target = Adapter.makeTarget(terminalPlayer)
-            suite.expect(target?.bundleIdentifier == "io.mpv" && target?.pid == 303,
-                         "a terminal player resolves its registered bundle identity without losing its exact process")
-            terminalPlayer = Adapter.NSRunningApplication(bundleIdentifier: "test.explicit", processIdentifier: 303)
-            terminalPlayer.bundleURL = bundleURL
-            suite.expect(Adapter.bundleIdentifier(for: terminalPlayer) == "test.explicit",
+            var player = Adapter.NSRunningApplication(bundleIdentifier: nil, processIdentifier: 303)
+            player.bundleURL = bundleURL
+            let target = Adapter.makeTarget(player)
+            suite.expect(target?.bundleIdentifier == "org.example.player" && target?.pid == 303,
+                         "a player without a process bundle identifier resolves its registered bundle identity without losing its exact process")
+            player = Adapter.NSRunningApplication(bundleIdentifier: "test.explicit", processIdentifier: 303)
+            player.bundleURL = bundleURL
+            suite.expect(Adapter.resolvedBundleIdentifier(for: player) == "test.explicit",
                          "the running process identity takes precedence over the bundle fallback")
             suite.expect(Adapter.makeTarget(Adapter.NSRunningApplication(bundleIdentifier: nil, processIdentifier: 404)) == nil,
                          "a process without either identity cannot become a playback destination")
         } catch {
-            suite.expect(false, "terminal player bundle fixture can be created: \(error)")
+            suite.expect(false, "registered player bundle fixture can be created: \(error)")
         }
         Adapter.available = true
         var title: String?
