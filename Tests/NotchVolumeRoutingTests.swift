@@ -6,7 +6,6 @@ import Foundation
 
 private typealias ProductionNotchSupport = NotchSupport
 
-/// The production key route and mixer run on controlled queues, without posting OS events.
 enum NotchVolumeRoutingTests {
     typealias DispatchQueue = MixerOutputAdjustmentContract.DispatchQueue
     enum AppVolumeMixer { static var shared = MixerOutputAdjustmentContract.Mixer() }
