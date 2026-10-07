@@ -368,11 +368,11 @@ struct SettingsCategoryStrings {
 
     static let sv = SettingsCategoryStrings(
         essentials: "Basutrustning",
-        windowsControls: "Window controls",
-        files: "Files",
-        utilities: "Utilities",
+        windowsControls: "Fönster och reglage",
+        files: "Filer",
+        utilities: "Verktyg",
         app: "App",
-        appManagement: "App management"
+        appManagement: "Apphantering"
     )
 
     static let ptBR = SettingsCategoryStrings(
@@ -2834,38 +2834,38 @@ struct MonitorAlertFeatureStrings {
     )
 
     static let sv = MonitorAlertFeatureStrings(
-        section: "Alerts",
-        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
-        notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
-        cpu: "High CPU",
-        cpuTemperature: "High CPU temperature",
-        memory: "Critical memory pressure",
-        disk: "Low disk space",
-        battery: "Low battery",
-        cpuThreshold: "CPU above",
-        cpuTemperatureThreshold: "Temperature above",
-        diskThreshold: "Free space below",
-        batteryThreshold: "Battery below",
-        cooldown: "Repeat the same alert after",
+        section: "Varningar",
+        caption: "Varningar visas när deras valda gränser nås. Varningar för CPU-användning och temperatur ignorerar toppar som är kortare än ungefär 12 sekunder. Inställningen för upprepning begränsar bara upprepningar av samma varning.",
+        notificationsDenied: "Notiser för Vorssaint är avstängda i Systeminställningar, så varningar kan inte visas.",
+        cpu: "Hög CPU-användning",
+        cpuTemperature: "Hög CPU-temperatur",
+        memory: "Kritiskt minnestryck",
+        disk: "Lite diskutrymme",
+        battery: "Lågt batteri",
+        cpuThreshold: "CPU över",
+        cpuTemperatureThreshold: "Temperatur över",
+        diskThreshold: "Ledigt utrymme under",
+        batteryThreshold: "Batteri under",
+        cooldown: "Upprepa samma varning efter",
         cooldown2: "2 minutes",
         cooldown5: "5 minutes",
         cooldown15: "15 minutes",
         cooldown30: "30 minutes",
         cooldown60: "1 hour",
-        cpuTitle: "High CPU",
-        cpuBodyFormat: "CPU stayed above %d%% for a few seconds.",
-        cpuTemperatureTitle: "Hot CPU",
-        cpuTemperatureBodyFormat: "CPU reached %@.",
-        memoryTitle: "Critical memory",
-        memoryBody: "Memory pressure reached the critical level.",
-        diskTitle: "Low disk space",
-        diskBodyFormat: "%@ has less than %d%% free.",
-        batteryTitle: "Low battery",
-        batteryBodyFormat: "Battery is at %d%%.",
-        batteryTemperature: "High battery temperature",
-        batteryTemperatureThreshold: "Temperature above",
-        batteryTemperatureTitle: "Hot battery",
-        batteryTemperatureBodyFormat: "Battery reached %@."
+        cpuTitle: "Hög CPU-användning",
+        cpuBodyFormat: "CPU-användningen låg över %d%% i några sekunder.",
+        cpuTemperatureTitle: "Varm CPU",
+        cpuTemperatureBodyFormat: "CPU-temperaturen nådde %@.",
+        memoryTitle: "Kritiskt minne",
+        memoryBody: "Minnestrycket nådde kritisk nivå.",
+        diskTitle: "Lite diskutrymme",
+        diskBodyFormat: "%@ har mindre än %d%% ledigt.",
+        batteryTitle: "Lågt batteri",
+        batteryBodyFormat: "Batteriet är på %d%%.",
+        batteryTemperature: "Hög batteritemperatur",
+        batteryTemperatureThreshold: "Temperatur över",
+        batteryTemperatureTitle: "Varmt batteri",
+        batteryTemperatureBodyFormat: "Batteriet nådde %@."
     )
 
     static let ptBR = MonitorAlertFeatureStrings(
