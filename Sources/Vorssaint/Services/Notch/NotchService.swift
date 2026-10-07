@@ -176,6 +176,11 @@ final class NotchService: ObservableObject {
     /// triggers, so the island eases to the new width rather than springing.
     private var noticeFitsInPlace = false
     private var noticeWork: DispatchWorkItem?
+    /// A small card under the closed island naming the events counting
+    /// down, each with its clock and Join; see `showCalendarHeadsUp`.
+    @Published private(set) var calendarHeadsUp = false
+    /// Folds the heads-up card.
+    private var calendarHeadsUpWork: DispatchWorkItem?
     private var departureWork: DispatchWorkItem?
     private var musicDepartureWork: DispatchWorkItem?
     private var presentedMusic: NotchCompactMusicSnapshot?
@@ -364,7 +369,7 @@ final class NotchService: ObservableObject {
 
     /// Full screen keeps a clickable black cutout until the user opens it.
     var fullscreenCompact: Bool {
-        hiddenInFullscreen && !expanded && !peeking
+        hiddenInFullscreen && !expanded && !peeking && !calendarHeadsUp
     }
 
     /// A simulated cutout covers no camera, so in full screen it stays out
@@ -433,7 +438,7 @@ final class NotchService: ObservableObject {
               countdown.ongoing ? NotchCalendarSupport.showsTimeLeft()
                 : NotchCalendarSupport.showsCountdown(chosen: calendar.isChosen(countdown.event))
         else { return false }
-        return countdown.isShown(at: Date())
+        return countdown.isShown(at: Date(), leadTime: calendar.countdownLeadTime)
     }
 
     var hasKeepAwakeActivity: Bool {
@@ -571,7 +576,7 @@ final class NotchService: ObservableObject {
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
-                                                    paired: companion != nil)
+                                                    paired: companion != nil, marks: calendarStackMarks)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
@@ -598,11 +603,11 @@ final class NotchService: ObservableObject {
     }
 
     /// The wider of the two sides, measured with the strip's fonts and its
-    /// clearance from the curve: alone, the event's title or its clock and
-    /// the time beside it; paired, the event's dot and clock or the mark of
-    /// what shares the island, with air beside the camera.
+    /// clearance from the curve: alone, one event's dot or the "+1", and the
+    /// title, or the clock and the time beside it; paired, the mark and clock or the
+    /// mark of what shares the island, with air beside the camera.
     private func calendarStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat {
-        guard let countdown = NotchCalendarService.shared.countdown else {
+        guard let stack = NotchCalendarService.shared.stack else {
             return NotchGeometry.calendarWingRange.upperBound
         }
         // Measured at the narrowest wing the strip may take.
@@ -618,16 +623,27 @@ final class NotchService: ObservableObject {
             (text as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
         }
         let language = L10n.shared.language
-        let trimmed = countdown.event.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let title = trimmed.isEmpty ? FeatureStrings.notchCalendar(language).untitled : trimmed
-        let titleSide = NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripTitleSpacing
-            + width(title, .systemFont(ofSize: 11, weight: .semibold))
+        let text = FeatureStrings.notchCalendar(language)
+        let locale = language.formattingLocale()
+        // Events taking turns keep the widest one's room, so the island
+        // holds still as they change.
+        let together = stack.together
+        let titleWidth = together.map {
+            width(NotchCalendarStrip.displayTitle($0.event, untitled: text.untitled), .systemFont(ofSize: 11, weight: .semibold))
+        }.max() ?? 0
+        let badge = stack.others > 0
+            ? NotchCalendarSupport.stripTitleSpacing + NotchCapsuleLayout.calendarBadgeWidth(stack.others) : 0
+        let titleSide = NotchCalendarSupport.titleMarkWidth(stack.countdowns.count,
+                                                            spacing: NotchCalendarSupport.stripTitleSpacing)
+            + titleWidth + badge
         // The widest clock the hour can show, so the island keeps its size
         // while the minutes count down.
+        let timeWidth = together.map {
+            width(NotchCalendarSupport.stackTimeText(stack, shown: $0, then: text.then, locale: locale),
+                  .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+        }.max() ?? 0
         let clockSide = width("00:00", .monospacedDigitSystemFont(ofSize: 13, weight: .medium))
-            + NotchCalendarSupport.stripClockSpacing
-            + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                    .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
+            + NotchCalendarSupport.stripClockSpacing + timeWidth
         return inset + max(titleSide, clockSide)
     }
 
@@ -670,10 +686,19 @@ final class NotchService: ObservableObject {
         }
     }
 
-    /// An event's dot and the widest clock its hour can show, so the island
-    /// keeps its size while the minutes count down.
+    /// What several countdowns add beside the title: the "+1" in place of
+    /// the dot. The wing may grow by this much past its usual limit, so a
+    /// title keeps the room it has alone.
+    private var calendarStackMarks: CGFloat {
+        guard let stack = NotchCalendarService.shared.stack, stack.others > 0 else { return 0 }
+        return max(0, NotchCapsuleLayout.calendarBadgeWidth(stack.others) - NotchCalendarSupport.stripDotWidth)
+    }
+
+    /// An event's dot, or the "+1" for several, and the widest clock its
+    /// hour can show, so the island keeps its size while the minutes count down.
     private var calendarClockWidth: CGFloat {
-        NotchCalendarSupport.stripDotWidth + NotchCalendarSupport.stripClockSpacing
+        NotchCalendarSupport.clockMarkWidth(NotchCalendarService.shared.countdowns.count)
+            + NotchCalendarSupport.stripClockSpacing
             + ("00:00" as NSString).size(withAttributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
             ]).width.rounded(.up)
@@ -817,7 +842,7 @@ final class NotchService: ObservableObject {
         // The Command Bar keeps the island black, as its drop is: it changes
         // height with every keystroke, and the glass is drawn a frame behind
         // the shape, which showed rows outside it for that frame.
-        (expanded && !showingCommandBar) || peeking || dragPlaceholder || noticeExpanded
+        (expanded && !showingCommandBar) || peeking || dragPlaceholder || noticeExpanded || calendarHeadsUp
             || (captureControls != nil && !captureControlsCollapsed)
     }
 
@@ -839,6 +864,7 @@ final class NotchService: ObservableObject {
             return captureControlsLayout.size
         }
         if expanded { return showingCommandBar ? commandBarSurfaceSize : expandedSize }
+        if calendarHeadsUp { return calendarHeadsUpSize }
         if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }
         if let notice {
             guard noticeExpanded else { return geometry.noticeSize(wings: notice.wings(in: geometry)) }
@@ -876,7 +902,7 @@ final class NotchService: ObservableObject {
     /// other and are as wide as what they show. Open, peeking or choosing an
     /// activity, it takes the island's own sizes. Nil when the island hangs.
     private var capsuleSurfaceSize: CGSize? {
-        guard geometry.floats, !fullscreenCompact, !expanded, !dragPlaceholder else { return nil }
+        guard geometry.floats, !fullscreenCompact, !expanded, !calendarHeadsUp, !dragPlaceholder else { return nil }
         if captureControls != nil { return captureControlsCollapsed ? NotchCapsuleLayout.captureSurface(geometry: geometry) : nil }
         if let notice { return noticeExpanded ? nil : capsuleNoticeSize(notice) }
         if peeking || showsCompactActivityPicker { return nil }
@@ -938,7 +964,8 @@ final class NotchService: ObservableObject {
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
                                                                               locale: Locale(identifier: language.rawValue)),
                                        companion: companion, workingAgents: working,
-                                       downloadPercent: download?.fraction != nil, geometry: geometry, language: language)
+                                       downloadPercent: download?.fraction != nil, geometry: geometry, language: language,
+                                       events: NotchCalendarService.shared.countdowns.count)
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
@@ -948,15 +975,13 @@ final class NotchService: ObservableObject {
                                                          focus: NotchAgentSupport.limitFocus(), now: Date())
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
-            guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
+            guard let stack = NotchCalendarService.shared.stack else { return geometry.restingSize(showsContent: false) }
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
-                                                  language: language)
+                                                  language: language, events: stack.countdowns.count)
             }
-            return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
-                                          time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                                          geometry: geometry)
+            return layout.calendarSurface(stack, geometry: geometry, language: language)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -1148,6 +1173,10 @@ final class NotchService: ObservableObject {
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
+        // The calendar reader stops after the subscriptions go, so the card's
+        // empty-countdown clear never runs; a replacement window starts bare.
+        calendarHeadsUpWork?.cancel(); calendarHeadsUpWork = nil
+        calendarHeadsUp = false
         endDeparture()
         finishMusicDeparture()
         presentedMusic = nil
@@ -1295,6 +1324,7 @@ final class NotchService: ObservableObject {
             if pinned { self.pinned = true }
             selectedMetric = metric
             peeking = false
+            calendarHeadsUp = false
             openedByHover = !takeFocus
             expanded = true
             // The open island covers a mirrored banner, and the inbox keeps
@@ -1319,8 +1349,9 @@ final class NotchService: ObservableObject {
         hoverWork?.cancel(); hoverWork = nil
         if noticeExpanded { noticeWork?.cancel(); noticeWork = nil }
         let mascotFrom = mascotBridgeStart(opening: false)
-        mutatePresentation(transitionContent: expanded || peeking || noticeExpanded ? .dismiss : .none) {
+        mutatePresentation(transitionContent: expanded || peeking || noticeExpanded || calendarHeadsUp ? .dismiss : .none) {
             if noticeExpanded { notice = nil; noticeExpanded = false }
+            calendarHeadsUp = false
             expanded = false
             openedByHover = false
             peeking = false
@@ -1406,6 +1437,8 @@ final class NotchService: ObservableObject {
         // activities compete. Clicking the strip still opens its full page.
         if showsCompactActivityPicker { return }
         if inside {
+            // The heads-up card stays as it is, so its Join is in reach.
+            if calendarHeadsUp { return }
             if holdsNotification, let id = notice?.notificationID { holdNotification(id); return }
             guard !hoverState.suppressed, (notice == nil || hiddenUntilHover), !expanded, !peeking, !dragPlaceholder,
                   UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
@@ -1419,7 +1452,7 @@ final class NotchService: ObservableObject {
                 // decides whether it is still needed.
                 guard self.running, !self.suspended, self.inside, !self.hoverState.suppressed,
                       !self.expanded, !self.peeking, !self.pinned, !self.heldDrag, !self.keepsWorkingSurface,
-                      !self.showsCompactActivityPicker,
+                      !self.showsCompactActivityPicker, !self.calendarHeadsUp,
                       self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
                       UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
                       self.windowHost?.blocksHoverReveal() == false,
@@ -2117,6 +2150,55 @@ final class NotchService: ObservableObject {
         return true
     }
 
+    /// How long the heads-up card stays before folding back into the strip.
+    static let calendarHeadsUpDuration: TimeInterval = 6
+
+    /// The card under the closed island: the events counting down, each with
+    /// its clock and Join, and nothing else of the island. It takes no focus,
+    /// and folds after `calendarHeadsUpDuration` unless the pointer is on it.
+    /// Never interrupts an open island or a capture. Over a full-screen app it
+    /// shows only when the person asked for that; otherwise it waits.
+    private func showCalendarHeadsUp() {
+        let overFullscreen = hiddenInFullscreen && acceptsUserInteraction && NotchCalendarSupport.announcesInFullscreen()
+        guard showsSystemFeedback || overFullscreen, !expanded, !peeking, !dragPlaceholder, captureControls == nil,
+              modules.contains(.calendar), NotchCalendarService.shared.stack != nil else { return }
+        // A hover already waiting to open or peek would replace the card.
+        hoverWork?.cancel(); hoverWork = nil
+        mutatePresentation(transitionContent: calendarHeadsUp ? .none : .reveal) { calendarHeadsUp = true }
+        // Announced only once the island is on screen to show it.
+        guard panel?.isVisible == true else { endCalendarHeadsUp(); return }
+        NotchCalendarService.shared.headsUpShown()
+        scheduleCalendarHeadsUpDismissal(after: Self.calendarHeadsUpDuration)
+    }
+
+    var calendarHeadsUpSize: CGSize {
+        guard let stack = NotchCalendarService.shared.stack else { return geometry.restingSize(showsContent: false) }
+        return geometry.notificationPreviewSize(contentHeight: NotchCalendarUpNextLayout.height(
+            stack, limit: NotchCalendarUpNextLayout.headsUpRows))
+    }
+
+    /// The pointer on the card holds it, a second at a time.
+    private func scheduleCalendarHeadsUpDismissal(after delay: TimeInterval) {
+        calendarHeadsUpWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.calendarHeadsUp else { return }
+            self.calendarHeadsUpWork = nil
+            if self.windowHost?.containsHover(NSEvent.mouseLocation) == true {
+                self.scheduleCalendarHeadsUpDismissal(after: 1)
+                return
+            }
+            self.endCalendarHeadsUp()
+        }
+        calendarHeadsUpWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func endCalendarHeadsUp() {
+        calendarHeadsUpWork?.cancel(); calendarHeadsUpWork = nil
+        guard calendarHeadsUp else { return }
+        mutatePresentation(transitionContent: .dismiss) { calendarHeadsUp = false }
+    }
+
     func activateNotice(_ selectedNotice: NotchNotice) {
         guard notice == selectedNotice else { return }
         if let id = selectedNotice.notificationID {
@@ -2406,7 +2488,7 @@ final class NotchService: ObservableObject {
             removeScreenEdgeClickMonitors()
             return
         }
-        let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
+        let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil || calendarHeadsUp
         guard open || (!hiddenAtRestInFullscreen && (geometry.isNotched || geometry.compactSideRoom != nil)) else {
             finishMusicDeparture()
             presentedMusic = nil
@@ -2461,7 +2543,8 @@ final class NotchService: ObservableObject {
         let activationRect: CGRect
         if captureControls != nil {
             activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero
-        } else if notice != nil || dragPlaceholder {
+        } else if notice != nil || dragPlaceholder || calendarHeadsUp {
+            // The heads-up card's rows take their own clicks.
             activationRect = .zero
         } else if showsCompactActivityPicker {
             let strip = compactActivityGeometry.compactActivitySize
@@ -3512,13 +3595,25 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {
-            NotchCalendarService.shared.$countdown.removeDuplicates()
+            NotchCalendarService.shared.$countdowns.removeDuplicates()
                 .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in
+                .sink { [weak self] countdowns in
+                    // Nothing left to count down leaves the card nothing to say.
+                    if countdowns.isEmpty { self?.endCalendarHeadsUp() }
                     self?.syncMascotCalendar()
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
+                }.store(in: &subscriptions)
+            NotchCalendarService.shared.headsUp.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showCalendarHeadsUp() }
+                .store(in: &subscriptions)
+            // Leaving full screen reads again, so a heads-up held back while
+            // the island was hidden shows now if it still applies.
+            NotificationCenter.default.publisher(for: Self.fullscreenVisibilityDidChange, object: self)
+                .filter { $0.userInfo?["hidden"] as? Bool == false }
+                .sink { _ in
+                    if NotchCalendarService.shared.hasPendingHeadsUp { NotchCalendarService.shared.refresh() }
                 }.store(in: &subscriptions)
         }
         // The companion is wide awake while Keep Awake holds the Mac up, and

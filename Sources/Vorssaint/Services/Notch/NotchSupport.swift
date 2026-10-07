@@ -825,32 +825,44 @@ enum NotchCapsuleLayout {
 
     /// A timer's mark, or the mark of what shares the capsule with a timer
     /// or an event: a download's arrow and percentage, the working agents,
-    /// the cover or the event's dot and countdown.
+    /// the cover or the events' dots and countdown.
     static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
-                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+                               geometry: NotchGeometry, language: AppLanguage, events: Int = 1) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
-        case .calendar: return calendarClockWidth
+        case .calendar: return calendarClockWidth(events: events)
         default: return symbolWidth
         }
     }
 
-    /// An event's dot and its countdown at its widest, as a pair shows it.
-    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+    /// The event's dot, or the "+1" for several, and the countdown at its
+    /// widest, as a pair shows them.
+    static func calendarClockWidth(events: Int = 1) -> CGFloat {
+        NotchCalendarSupport.clockMarkWidth(events, dot: calendarDotSide) + markSpacing + width("00:00", font: readingFont)
+    }
+
+    /// The "+1" after the title when more events count down than the one shown.
+    static let calendarBadgeFont = NSFont.systemFont(ofSize: 10, weight: .bold)
+    static let calendarBadgePadding: CGFloat = 4
+    static func calendarBadgeWidth(_ others: Int) -> CGFloat {
+        width("+\(others)", font: calendarBadgeFont) + calendarBadgePadding * 2
+    }
 
     /// Between a mark and the reading beside it; an event's countdown is a
     /// group of its own, so a pair with one keeps two clocks apart.
     static func markGap(_ companion: NotchCompactActivity?) -> CGFloat { companion == .calendar ? groupSpacing : spacing }
 
     /// A timer's reading beside its mark, measured by its shape, so the
-    /// capsule only moves when a character comes or goes.
+    /// capsule only moves when a character comes or goes. `events` is how
+    /// many dots an event beside the timer draws.
     static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
-                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage,
+                             events: Int = 1) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
-                                  geometry: geometry, language: language)
+                                  geometry: geometry, language: language, events: events)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -860,10 +872,10 @@ enum NotchCapsuleLayout {
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
-                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                                    geometry: NotchGeometry, language: AppLanguage, events: Int = 1) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth(events: events),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -897,8 +909,27 @@ enum NotchCapsuleLayout {
     /// An event's color and title, then its countdown at its widest and the
     /// time it starts or ends.
     static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
-        let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
-            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+        calendarSurface(mark: calendarDotSide + spacing, title: width(title, font: titleFont),
+                        time: width(time, font: smallFont), geometry: geometry)
+    }
+
+    /// Several events counting down: no dot, the widest title of those
+    /// taking turns and the "+1", then the clock and the widest time beside it.
+    static func calendarSurface(_ stack: NotchCalendarStack, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+        let text = FeatureStrings.notchCalendar(language)
+        let locale = language.formattingLocale()
+        let together = stack.together
+        let title = together.map { width(calendarTitle($0, language: language), font: titleFont) }.max() ?? 0
+        let time = together.map {
+            width(NotchCalendarSupport.stackTimeText(stack, shown: $0, then: text.then, locale: locale), font: smallFont)
+        }.max() ?? 0
+        let badge = stack.others > 0 ? spacing + calendarBadgeWidth(stack.others) : 0
+        let mark = NotchCalendarSupport.titleMarkWidth(stack.countdowns.count, dot: calendarDotSide, spacing: spacing)
+        return calendarSurface(mark: mark, title: title + badge, time: time, geometry: geometry)
+    }
+
+    private static func calendarSurface(mark: CGFloat, title: CGFloat, time: CGFloat, geometry: NotchGeometry) -> CGSize {
+        let content = mark + title + groupSpacing + width("00:00", font: readingFont) + markSpacing + time
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
     }
 
@@ -1990,14 +2021,15 @@ struct NotchGeometry: Equatable {
     /// menus leave less than a readable wing, a physical notch uses one row
     /// below the camera. Paired with another activity, the wings hold no
     /// title, only the event's clock and the other's mark, so they fit those
-    /// as a timer's pair does instead of keeping a title's minimum.
+    /// as a timer's pair does instead of keeping a title's minimum. `marks`
+    /// is what other events add beside the title, which raises the limit.
     var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
-    func compactCalendarGeometry(wing: CGFloat, paired: Bool = false) -> NotchGeometry {
+    func compactCalendarGeometry(wing: CGFloat, paired: Bool = false, marks: CGFloat = 0) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
         let range = Self.calendarWingRange
         let lowest = paired ? NotchTimerSupport.stripWingRange.lowerBound : range.lowerBound
-        let fitted = min(range.upperBound, max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
+        let fitted = min(range.upperBound + max(0, marks), max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
         // The narrowest wing still drawn: a readable title, or a whole pair.
         let readable = min(fitted, range.lowerBound)
         compact.compactSideRoom = room.isFinite && room >= readable ? min(fitted, room) : 0

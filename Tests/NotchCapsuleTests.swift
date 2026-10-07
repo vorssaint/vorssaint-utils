@@ -239,11 +239,21 @@ enum NotchCapsuleTests {
                      "the cover is a circle concentric with the capsule's round end, an even gap inside it")
         let eventAndMusic = Layout.calendarPairSurface(companion: .music, workingAgents: 0, downloadPercent: false,
                                                        geometry: geometry, language: .enUS)
-        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth
+        let eventAndMusicContent = Layout.artworkInset(geometry) + cover + Layout.groupSpacing + Layout.calendarClockWidth()
             + Layout.endPadding
         suite.expect(abs(visible(eventAndMusic) - max(visible(geometry.restingSize(showsContent: false)),
                                                       eventAndMusicContent)) < 1,
                      "an event paired with music hugs the cover and the event's countdown, its title left out")
+        for events in [2, 3] {
+            func timerAndEvents(_ count: Int) -> CGFloat {
+                Layout.timerSurface(reading: "9m", companion: .calendar, workingAgents: 0, downloadPercent: false,
+                                    geometry: geometry, language: .enUS, events: count).width
+            }
+            let mark = NotchCalendarSupport.clockMarkWidth(events, dot: Layout.calendarDotSide)
+                - NotchCalendarSupport.clockMarkWidth(1, dot: Layout.calendarDotSide)
+            suite.expect(abs(timerAndEvents(events) - timerAndEvents(1) - mark) < 1,
+                         "a timer beside \(events) events keeps room for their +N")
+        }
         for font in [Layout.titleFont, Layout.detailFont, Layout.levelFont, Layout.readingFont, Layout.smallFont] {
             suite.expect((geometry.stripBodyHeight - font.capHeight) / 2 >= 4,
                          "the capsule's text keeps clear of its top and bottom: \(font.pointSize) pt")

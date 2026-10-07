@@ -380,9 +380,9 @@ private struct NotchCapsuleCompanionMark: View {
             let side = CapsuleLayout.artworkSide(geometry)
             NotchMusicCover(artwork: music.artwork, side: side, radius: side / 2)
         case .calendar:
-            if let countdown = calendar.countdown {
+            if let stack = calendar.stack {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
+                    NotchCapsuleCalendarStrip.clockMark(stack, stack.shown(at: context.date), now: context.date)
                 }
             }
         case .timer, .keepAwake, .watch:
@@ -521,7 +521,8 @@ struct NotchCapsuleWatchStrip: View {
 }
 
 /// The next timed event, or the one under way: its color and title, and
-/// the countdown with the time it starts or ends.
+/// the countdown with the time it starts or ends. More events add their
+/// dots and a "+1", as the strip beside the camera shows them.
 struct NotchCapsuleCalendarStrip: View {
     @ObservedObject var service: NotchService
     let size: CGSize
@@ -536,13 +537,14 @@ struct NotchCapsuleCalendarStrip: View {
     var body: some View {
         // An event ending moves the countdown on, or clears it, before the
         // strip has left.
-        NotchStripHold(calendar.countdown, shows: service.compactActivity == .calendar) { content($0) }
+        NotchStripHold(calendar.stack, shows: service.compactActivity == .calendar) { content($0) }
     }
 
-    @ViewBuilder private func content(_ countdown: NotchCalendarCountdown?) -> some View {
-        if let countdown {
+    @ViewBuilder private func content(_ stack: NotchCalendarStack?) -> some View {
+        if let stack {
             let companion = service.compactCompanion
             TimelineView(.periodic(from: .now, by: 1)) { context in
+                let countdown = stack.shown(at: context.date)
                 let title = CapsuleLayout.calendarTitle(countdown, language: l10n.language)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
                 NotchCapsuleRow(size: size, geometry: geometry,
@@ -552,18 +554,21 @@ struct NotchCapsuleCalendarStrip: View {
                         // and the title moves to the tooltip and VoiceOver.
                         HStack(spacing: CapsuleLayout.markGap(.calendar)) {
                             NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
-                            Self.clockMark(countdown, now: context.date)
+                            Self.clockMark(stack, countdown, now: context.date)
                         }
                     } else {
                         HStack(spacing: CapsuleLayout.spacing) {
-                            Self.dot(countdown.event)
+                            NotchCalendarStrip.leadingDot(stack, shown: countdown, side: CapsuleLayout.calendarDotSide)
                             Text(title).capsuleTitle().truncationMode(.tail)
+                                .id(countdown.event.id).transition(.opacity)
+                            if stack.others > 0 { NotchCalendarStrip.badge(stack.others) }
                             // The time left keeps its place; the start or end time
                             // beside it gives way first when the bar is short.
                             ViewThatFits(in: .horizontal) {
                                 HStack(spacing: CapsuleLayout.markSpacing) {
                                     Self.clock(remaining, ongoing: countdown.ongoing)
-                                    Text(NotchCalendarSupport.timeText(countdown, locale: l10n.language.formattingLocale()))
+                                    Text(NotchCalendarSupport.stackTimeText(stack, shown: countdown, then: text.then,
+                                                                            locale: l10n.language.formattingLocale()))
                                         .font(Font(CapsuleLayout.smallFont as CTFont))
                                         .foregroundStyle(.white.opacity(0.55))
                                         .lineLimit(1).fixedSize()
@@ -575,8 +580,12 @@ struct NotchCapsuleCalendarStrip: View {
                         }
                     }
                 }
+                .animation(.easeInOut(duration: 0.3), value: countdown.event.id)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(countdown.ongoing ? text.ongoing : text.next): \(title)")
+                .accessibilityLabel("\(countdown.ongoing ? text.ongoing : text.next): "
+                                    + ([countdown] + stack.countdowns.filter { $0 != countdown })
+                                        .map { CapsuleLayout.calendarTitle($0, language: l10n.language) }
+                                        .joined(separator: ", "))
                 .accessibilityValue(NotchCalendarSupport.countdownAccessibilityText(
                     until: countdown.target, now: context.date, locale: l10n.language.formattingLocale()))
                 .accessibilityHint(FeatureStrings.notch(l10n.language).open)
@@ -586,18 +595,12 @@ struct NotchCapsuleCalendarStrip: View {
         }
     }
 
-    /// The event's dot and its countdown, as a pair shows the event.
-    static func clockMark(_ countdown: NotchCalendarCountdown, now: Date) -> some View {
+    /// The event's dot, or the "+1" for several, and the countdown, as a pair shows them.
+    static func clockMark(_ stack: NotchCalendarStack, _ countdown: NotchCalendarCountdown, now: Date) -> some View {
         HStack(spacing: CapsuleLayout.markSpacing) {
-            dot(countdown.event)
+            NotchCalendarStrip.countMark(stack, shown: countdown, side: CapsuleLayout.calendarDotSide)
             clock(NotchCalendarSupport.countdownText(until: countdown.target, now: now), ongoing: countdown.ongoing)
         }
-    }
-
-    private static func dot(_ event: NotchCalendarEvent) -> some View {
-        Circle().fill(event.color.color)
-            .frame(width: CapsuleLayout.calendarDotSide, height: CapsuleLayout.calendarDotSide)
-            .overlay { Circle().strokeBorder(.white.opacity(0.5), lineWidth: 0.5) }
     }
 
     /// Time left in an event under way takes the agenda's "happening now"

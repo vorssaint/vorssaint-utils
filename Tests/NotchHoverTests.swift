@@ -76,6 +76,8 @@ enum NotchHoverTests {
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
         var noticeExpanded = false
+        var calendarHeadsUp = false
+        var calendarHeadsUpSize = CGSize.zero
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
         var departureWork: DispatchWorkItem?
@@ -286,6 +288,12 @@ enum NotchHoverTests {
             for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
             suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                    "the first move after the hover-opened island closed releases the pointer observers")
+            let carded = fixture(physical: physical)
+            carded.hover(true)
+            carded.calendarHeadsUp = true
+            DispatchQueue.main.advance(0.26)
+            suite.expect(carded.openings == 0 && !carded.peeking && carded.calendarHeadsUp,
+                         "a hover already waiting when the calendar card appears does not replace the card")
         }
         for physical in [false, true] {
             for local in [false, true] {
