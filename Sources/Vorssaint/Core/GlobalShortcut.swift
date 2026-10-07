@@ -234,6 +234,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // layer, matching how the system numbers its own capture keys.
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
+    // The emoji grid's key: the system picker's own ⌃⌘Space, so the person who
+    // takes it over keeps the muscle memory and only the grid changes.
+    static let commandBarEmojiDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
+                                                       modifiers: [.control, .command])
 
     static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut {
         if let raw = UserDefaults.standard.string(forKey: key),
@@ -714,6 +718,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case scratchpad
     case snippetLibrary
     case commandBar
+    case commandBarEmoji
     case screenRecorder
     case displayBrightnessDecrease
     case displayBrightnessIncrease
@@ -748,6 +753,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return DefaultsKey.scratchpadShortcut
         case .snippetLibrary: return DefaultsKey.snippetLibraryShortcut
         case .commandBar: return DefaultsKey.commandBarShortcut
+        case .commandBarEmoji: return DefaultsKey.commandBarEmojiShortcut
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .displayBrightnessDecrease: return DefaultsKey.displayBrightnessDecreaseShortcut
         case .displayBrightnessIncrease: return DefaultsKey.displayBrightnessIncreaseShortcut
@@ -782,6 +788,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpadDefault
         case .snippetLibrary: return .snippetLibraryDefault
         case .commandBar: return .commandBarDefault
+        case .commandBarEmoji: return .commandBarEmojiDefault
         case .screenRecorder: return .screenRecorderDefault
         case .displayBrightnessDecrease: return .displayBrightnessDecreaseDefault
         case .displayBrightnessIncrease: return .displayBrightnessIncreaseDefault
@@ -797,6 +804,11 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     /// The switcher's event tap can handle its native combinations without
     /// changing the system takeover setting. Other system actions stay reserved.
+    /// The emoji grid's default key is the system picker's own ⌃⌘Space, but it
+    /// is not pre-permitted: taking the picker's key over is an offer the
+    /// person must accept, so until the claim is held the combination stays
+    /// macOS's and the recorder asks. Permitted ids name shortcuts a feature
+    /// answers without any take-over at all, which the picker's key is not.
     var permittedSystemShortcutIDs: Set<Int32> {
         switch self {
         case .switcher:
@@ -841,6 +853,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
         case .snippetLibrary: return FeatureStrings.snippets(L10n.shared.language).libraryTitle
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .commandBarEmoji: return FeatureStrings.commandBar(L10n.shared.language).sourceEmoji
         case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
         case .displayBrightnessDecrease:
             return FeatureStrings.brightness(L10n.shared.language).displayBrightnessDecrease
@@ -902,6 +915,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return [DefaultsKey.scratchpadShortcutEnabled]
         case .snippetLibrary: return [DefaultsKey.snippetLibraryEnabled]
         case .commandBar: return [DefaultsKey.commandBarShortcutEnabled]
+        case .commandBarEmoji: return [DefaultsKey.commandBarEmojiShortcutEnabled]
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .displayBrightnessDecrease, .displayBrightnessIncrease:
             return [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayBrightnessShortcutsEnabled]
@@ -935,6 +949,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
+        case .commandBarEmoji: return .commandBar
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness

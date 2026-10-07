@@ -480,6 +480,59 @@ def main():
             .replace("CGEvent.tapCreate(", "Tap.create(")
           + "}\n}\n")
 
+    # The recording tap's drain, verbatim, against a stub state: no tap, no
+    # keyboard and no run loop. Only the environment the bodies touch changes;
+    # the drain logic itself — routing, generation guards, settling — is read
+    # from production on every build.
+    tap = "Sources/Vorssaint/Services/ShortcutRecordingTap.swift"
+    write("ShortcutRecordingTap.swift", "import ApplicationServices\nimport Carbon.HIToolbox\n"
+          + "import CoreGraphics\nimport Foundation\n"
+          + "enum ShortcutRecordingTapContract {\n"
+          + "final class SuperKeyStub {\n"
+          + "    static var isEngaged = false\n"
+          + "    static let shared = SuperKeyStub()\n"
+          + "    var modifiers = GlobalShortcutModifiers()\n"
+          + "}\n"
+          + "final class Host {\n"
+          + "    var tapIsAlive = true\n"
+          + "    var sessionIsActive = true\n"
+          + "    var isPaused = false\n"
+          + "    var pausedOfferID: UUID?\n"
+          + "    var heldKeyCode: Int64?\n"
+          + "    var drainingKeyCode: Int64?\n"
+          + "    var drainGeneration = 0\n"
+          + "    var drainWatchdog: DispatchWorkItem?\n"
+          + "    var tap: CFMachPort?\n"
+          + "    var runLoopSource: CFRunLoopSource?\n"
+          + "    var handler: ((Int64, GlobalShortcutModifiers, CGEventFlags) -> Void)?\n"
+          + "    var pausedKeyRouter = CommandBarRowShortcuts.PausedKeyRouter()\n"
+          + "    var superState = SuperKeySupport.State()\n"
+          + "    var watchdogArms = 0\n"
+          + "    var tearDownCalls = 0\n"
+          + "    var captureEndCalls = 0\n"
+          + "    func armDrainWatchdog() { watchdogArms += 1 }\n"
+          + "    func captureEnd() { captureEndCalls += 1 }\n"
+          + declaration(tap, "    private static var drainIsSettled: Bool {")
+            .replace("    private static var", "    var", 1)
+          + declaration(tap, "    private static func tearDown() {")
+            .replace("    private static func", "    func", 1)
+            .replace("        drainWatchdog = nil",
+                     "        drainWatchdog = nil\n        tearDownCalls += 1", 1)
+          + declaration(tap, "    static func end() {")
+            .replace("    static func", "    func", 1)
+            .replace("guard tap != nil else { return }", "guard tapIsAlive else { return }", 1)
+          + declaration(tap, "    private static func applyKeyboardSnapshot(keyIsDown: [Int64: Bool],")
+            .replace("    private static func", "    func", 1)
+            .replace("guard tap != nil else { return }", "guard tapIsAlive else { return }", 1)
+          + declaration(tap, "    private static func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {")
+            .replace("    private static func", "    func", 1)
+            .replace("SessionActivity.shared.isActive", "sessionIsActive", 1)
+            .replace("ShortcutCapture.end()", "captureEnd()", 1)
+            .replace("DispatchQueue.main.async { tearDown(); captureEnd() }",
+                     "DispatchQueue.main.async { self.tearDown(); self.captureEnd() }", 1)
+            .replace("SuperKeyService", "SuperKeyStub")
+          + "}\n}\n")
+
     write("CleanerLastRun.swift", "import Foundation\nextension CleanerLastRunContract {\n"
           + "final class Scheduler: SchedulerState {\n"
           + declaration("Sources/Vorssaint/Services/Cleaner/CleanerScheduler.swift", "    private func finishRun(")
