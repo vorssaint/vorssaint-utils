@@ -91,27 +91,27 @@ extension SuperKeyStrings {
     )
 
     static let sv = SuperKeyStrings(
-        pageTitle: "Super key",
-        hubDescription: "Turns one key into the modifier combination you choose.",
-        enableToggle: "Use this key as the super key",
-        enableCaption: "Hold it and press any key. Choose one or more modifiers below.",
-        modifierKeysNote: "Keep this key set to its default action in System Settings › Keyboard › Modifier Keys.",
-        sourceKey: "Key to hold",
+        pageTitle: "Supertangent",
+        hubDescription: "Gör en tangent till den tangentkombination du väljer.",
+        enableToggle: "Använd den här tangenten som supertangent",
+        enableCaption: "Håll ned den och tryck på valfri tangent. Välj en eller flera väljartangenter nedan.",
+        modifierKeysNote: "Behåll den här tangentens standardåtgärd i Systeminställningar › Tangentbord › Väljartangenter.",
+        sourceKey: "Tangent att hålla ned",
         capsLockKey: "Caps Lock",
-        rightKeyFormat: "Right %@",
-        holdHint: "Hold",
-        soloSection: "A tap on its own",
-        soloCaption: "What a quick tap does when no other key is pressed.",
-        soloNothing: "Nothing",
-        soloCapsLock: "Turn capitals on and off",
-        soloEscape: "Press Escape",
-        activeNow: "Working now",
-        panelCaptionFormat: "%1$@ holds %2$@.",
-        manageButton: "Set up…",
-        soloInputSource: "Switch input source; hold for Caps Lock",
-        mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
-        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
-        keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
+        rightKeyFormat: "Höger %@",
+        holdHint: "Håll ned",
+        soloSection: "Ett enskilt tryck",
+        soloCaption: "Vad ett snabbt tryck gör när ingen annan tangent trycks ned.",
+        soloNothing: "Ingenting",
+        soloCapsLock: "Slå på och av versalläge",
+        soloEscape: "Tryck på Escape",
+        activeNow: "Aktiv nu",
+        panelCaptionFormat: "%1$@ håller ned %2$@.",
+        manageButton: "Ställ in…",
+        soloInputSource: "Byt inmatningskälla; håll ned för Caps Lock",
+        mappingForeignMapping: "En annan apps tangentmappning använder den valda tangenten. Ta bort den i den appen; det räcker inte att avsluta den.",
+        mappingSystemRefused: "macOS nekade tangentmappningen. Anslut tangentbordet igen eller starta om datorn och slå sedan på detta igen.",
+        keyboardTapRefused: "macOS tillät inte att Vorssaint övervakar tangentbordet. Stäng av och slå på Vorssaint igen i Systeminställningar › Integritet och säkerhet › Hjälpmedel och slå sedan på detta igen."
     )
 
     static let ptBR = SuperKeyStrings(
