@@ -4025,7 +4025,18 @@ extension NotchService {
         mascotVisitWork?.cancel()
         mascotStepBackWork?.cancel(); mascotStepBackWork = nil
         mascotVisit = tuck
-        mascotStepsAside = false
+        // An activity arriving as it yawns finds its wing covered, as for any
+        // reaction it stays to play, and has it back as the companion goes
+        // behind the camera, timed as setMascotVisit times every reaction.
+        mascotStepsAside = true
+        if let handBack = NotchMascotMotion.handBack(of: tuck.kind, floats: geometry.floats) {
+            let back = DispatchWorkItem { [weak self] in
+                self?.mascotStepBackWork = nil
+                self?.mascotStepsAside = false
+            }
+            mascotStepBackWork = back
+            DispatchQueue.main.asyncAfter(deadline: .now() + handBack, execute: back)
+        }
         let work = DispatchWorkItem { [weak self] in self?.endMascotVisit() }
         mascotVisitWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + tuck.duration, execute: work)

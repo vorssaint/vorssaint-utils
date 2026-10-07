@@ -18,6 +18,8 @@ enum NotchMascotHidingContract {
         func containsHover(_ point: CGPoint) -> Bool { pointerInside }
     }
     class State {
+        struct Geometry { var floats = false }
+        var geometry = Geometry()
         var running = true, mascotOn = true, expanded = false
         /// The closed island has nothing else to show and room for it.
         var restsInPlace = true, canHost = true
@@ -32,7 +34,7 @@ enum NotchMascotHidingContract {
         var mascotBridging = false, mascotInBar = false
         var mascotVisitWork: DispatchWorkItem?
         var mascotStepBackWork: DispatchWorkItem?
-        var mascotStepsAside = true
+        var mascotStepsAside = false
         var windowHost: Host? = Host()
         var refreshes = 0, visitEnds = 0
         var entrances: [Bool] = []
@@ -68,6 +70,13 @@ enum NotchMascotHidingContract {
         let delay = NotchMascotSupport.hideDelay, retry = NotchMascotSupport.hideRetry
         let away = NotchMascotMotion.duration(of: NotchMascotSupport.hideAway)
 
+        let plain = fresh()
+        let plainSynced = !plain.syncMascotHiding(switchedOn: false) && !plain.mascotTucked
+            && plain.mascotTuckWork == nil
+        DispatchQueue.main.advance(delay * 3)
+        suite.expect(plainSynced && !plain.mascotTucked && plain.mascotVisit == nil && plain.refreshes == 0,
+                     "not set to hide when idle, it rests beside the camera from launch on and nothing counts")
+
         let launched = fresh()
         launched.hidesWhenIdle = true
         suite.expect(!launched.syncMascotHiding(switchedOn: false) && launched.mascotTucked
@@ -82,9 +91,15 @@ enum NotchMascotHidingContract {
         suite.expect(!switched.mascotTucked, "it stays out until the quiet while is over")
         DispatchQueue.main.advance(1)
         suite.expect(switched.mascotTucked && switched.mascotVisit?.kind == NotchMascotSupport.hideAway
-                     && !switched.mascotStepsAside && switched.refreshes == 1,
+                     && switched.refreshes == 1,
                      "a quiet while after it last stirred it yawns and hops into the island")
-        DispatchQueue.main.advance(away)
+        suite.expect(switched.mascotStepsAside,
+                     "an activity arriving as it yawns has its wing covered until the companion is gone")
+        let handBack = NotchMascotMotion.handBack(of: NotchMascotSupport.hideAway, floats: false) ?? away
+        DispatchQueue.main.advance(handBack)
+        suite.expect(!switched.mascotStepsAside && switched.mascotVisit != nil,
+                     "the wing comes back as it goes behind the camera, before its visit is over")
+        DispatchQueue.main.advance(away - handBack)
         suite.expect(switched.visitEnds == 1 && switched.mascotVisit == nil && switched.mascotTuckWork == nil,
                      "once it is behind the camera the visit ends, so the wings fold, and nothing is left counting")
 

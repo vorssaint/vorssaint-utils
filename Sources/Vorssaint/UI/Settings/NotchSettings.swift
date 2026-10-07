@@ -31,6 +31,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
     @AppStorage(DefaultsKey.notchMascotEnabled) private var mascotEnabled = false
+    @AppStorage(DefaultsKey.notchMascotHidesWhenIdle) private var mascotHidesWhenIdle = false
     @AppStorage(DefaultsKey.notchMascotStyle) private var mascotStyle = NotchMascotStyle.minimal.rawValue
     @AppStorage(DefaultsKey.notchMascotShape) private var mascotShape = NotchMascotShape.ball.rawValue
     @AppStorage(DefaultsKey.notchMascotPalette) private var mascotPalette = NotchMascotPalette.pearl.rawValue
@@ -472,7 +473,8 @@ struct NotchSettings: View {
             SettingsCard(title: editor.resting) {
                 HStack(spacing: 10) {
                     // With the companion on, the island rests with it when it
-                    // has nothing else to show, so that choice is the companion.
+                    // has nothing else to show, so that choice is the companion,
+                    // unless it hides in the island when idle.
                     idleChoice(.none, title: restsWithMascot ? FeatureStrings.notchMascot(l10n.language).title : text.idleNone,
                                symbol: "minus")
                     if PowerSampler.hasInternalBattery {
@@ -773,7 +775,9 @@ struct NotchSettings: View {
         return choice == .agents && !offersAgentsResting ? .none : choice
     }
 
-    private var restsWithMascot: Bool { enabled && mascotEnabled && features.isAvailable(.notchMascot) }
+    private var restsWithMascot: Bool {
+        enabled && mascotEnabled && !mascotHidesWhenIdle && features.isAvailable(.notchMascot)
+    }
 
     /// The companion where it rests, beside a camera drawn black on black.
     private var restingMascot: some View {
