@@ -7,8 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Dynamic Island
+- Controls can show a keyboard light slider next to Volume and Brightness, and its icon turns the light off and on. Settings → Dynamic Island → Content → Controls.
 - Up next says when the player does not share its upcoming songs, instead of showing an empty queue.
 - The volume indicator stays hidden while headphones like AirPods Pro adjust their own level. Volume keys still show it.
+- With Hide timer countdown on, the closed island shows the timer when time is up and keeps it until you dismiss it.
+- The music bars and AI agent animations use much less GPU and battery, most of all on 120 Hz displays.
+- Switching between Timer, Pomodoro and Stopwatch animates as changing pages does, instead of the island jumping to its new size.
 - Now Playing follows music and videos from browsers and other apps on its own, and a paused video stays instead of switching to paused music. Settings → Dynamic Island → Content → Music → Automatically include videos and other apps.
 
 ### Changed
@@ -18,7 +22,7 @@ All notable changes to this project are documented here. The format follows
 - In the Clipboard history window, a new copy no longer moves the highlight, so Return pastes the entry you picked.
 
 ### Contributors
-Thanks to @djc041006-bot, @mugurc and @PathGao. Feedback: Martimm500.
+Thanks to @djc041006-bot, @mugurc, @nik2k-7 and @PathGao. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 

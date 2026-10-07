@@ -474,6 +474,7 @@ final class SystemMonitor: ObservableObject {
         var needNetwork = false
         var needDisk = false
         var needPower = false
+        var needPowerDraw = false
         var needPeripheralBattery = false
         var needGPUUsage = false
         var needCPUTemperature = false
@@ -483,6 +484,10 @@ final class SystemMonitor: ObservableObject {
         var needConnectedDevices = false
 
         var needSMC: Bool { needPower || needTemperature || needFanSpeed }
+
+        /// The power reading keeps the chosen interval while its watts are in
+        /// the menu bar; battery charge and time alone stay on the slow stride.
+        var powerKind: MonitorSamplingKind { needPowerDraw ? .powerDraw : .power }
 
         var needTemperature: Bool {
             needCPUTemperature || needGPUTemperature || needBatteryTemperature
@@ -541,6 +546,7 @@ final class SystemMonitor: ObservableObject {
             || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBattery))
             || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBatteryTime))
             || alertBattery
+        plan.needPowerDraw = defaults.bool(forKey: DefaultsKey.menuBarPower)
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery || notchAccessoryMonitoring
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
         plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
@@ -578,6 +584,7 @@ final class SystemMonitor: ObservableObject {
         if !available(.monitorDisk) { plan.needDisk = false }
         if !available(.monitorPower) {
             plan.needPower = false
+            plan.needPowerDraw = false
             plan.needPeripheralBattery = false
             plan.needBatteryTemperature = false
         }
@@ -629,7 +636,7 @@ final class SystemMonitor: ObservableObject {
         if plan.needMemory { kinds.append(.memory) }
         if plan.needNetwork { kinds.append(.network) }
         if plan.needDisk { kinds.append(.disk) }
-        if plan.needPower { kinds.append(.power) }
+        if plan.needPower { kinds.append(plan.powerKind) }
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
@@ -772,7 +779,7 @@ final class SystemMonitor: ObservableObject {
             }
 
             if plan.needPower, let powerSampler = self.powerSampler {
-                if take(.power) {
+                if take(plan.powerKind) {
                     let power = powerSampler.sample()
                     self.lastPowerReading = power
                     next.power = power
