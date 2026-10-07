@@ -6,10 +6,40 @@ import Foundation
 enum NotchSpotifyTests {
     static func run(_ suite: TestSuite) {
         support(suite)
+        queue(suite)
         listener(suite)
         settings(suite)
     }
 
+
+    private static func queue(_ suite: TestSuite) {
+        typealias Spotify = NotchSpotifySupport
+        let one = "4uLU6hMCjMI75M1A2tKUQC", two = "7ouMYWpwJ422jRcDASZB7P", show = "512ojhOuo1ktJprKbVcKyQ"
+        func track(_ id: String, _ name: String, image: String = "https://i.scdn.co/image/small") -> String {
+            #"{"uri":"spotify:track:\#(id)","name":"\#(name)","artists":[{"name":"A"},{"name":"B"}],"#
+                + #""album":{"images":[{"url":"https://i.scdn.co/image/large","width":640},{"url":"\#(image)","width":64}]}}"#
+        }
+        let episode = #"{"uri":"spotify:episode:\#(show)","name":"Episode","show":{"name":"Show"},"images":[]}"#
+        let body = #"{"currently_playing":\#(track(one, "Now")),"queue":[\#(track(two, "Next")),\#(episode),"#
+            + #"{"uri":"spotify:local:a:b:c:1","name":"Local"},\#(track(two, "Next"))]}"#
+        let read = Spotify.queue(from: Data(body.utf8))
+        suite.expect(read?.current?.name == "Now" && read?.items.map(\.name) == ["Next", "Episode", "Next"],
+                     "the queue keeps Spotify's order, repeats included, and leaves out what cannot be named safely")
+        suite.expect(read?.items.first?.artist == "A, B" && read?.items[1].artist == "Show"
+                     && read?.items.first?.imageURL?.absoluteString == "https://i.scdn.co/image/small" && read?.items[1].imageURL == nil,
+                     "a song shows its artists and its smallest cover; an episode shows its show")
+        suite.expect(Set(read?.items.map(\.id) ?? []).count == 3, "a song queued twice is still two rows")
+        let foreign = track(two, "Next", image: "https://example.com/x.jpg")
+            .replacingOccurrences(of: "https://i.scdn.co/image/large", with: "http://i.scdn.co/image/large")
+        let elsewhere = Spotify.queue(from: Data(#"{"currently_playing":null,"queue":[\#(foreign)]}"#.utf8))
+        suite.expect(elsewhere?.current == nil && elsewhere?.items.first?.imageURL == nil,
+                     "covers load only over HTTPS from Spotify's image host")
+        let long = "[" + Array(repeating: track(two, "Next"), count: 40).joined(separator: ",") + "]"
+        suite.expect(Spotify.queue(from: Data(#"{"currently_playing":null,"queue":\#(long)}"#.utf8))?.items.count == Spotify.maximumQueueItems,
+                     "the queue is capped like the system queue")
+        suite.expect(Spotify.queue(from: Data("[]".utf8)) == nil && Spotify.queue(from: Data(#"{"queue":"x"}"#.utf8)) == nil,
+                     "an answer that is not a queue is not shown as an empty one")
+    }
 
     private static func support(_ suite: TestSuite) {
         typealias Spotify = NotchSpotifySupport
