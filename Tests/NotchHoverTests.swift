@@ -75,6 +75,7 @@ enum NotchHoverTests {
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
+        var t3CompletionNotice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?

@@ -162,6 +162,7 @@ final class NotchService: ObservableObject {
     private var captureControlsCancel: (() -> Void)?
     private var captureControlsSubscription: AnyCancellable?
     private var captureControlsWork: DispatchWorkItem?
+    private var compactT3CompletionWork: DispatchWorkItem?
     private var heldDrag = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var subscriptions = Set<AnyCancellable>()
@@ -176,6 +177,7 @@ final class NotchService: ObservableObject {
     /// triggers, so the island eases to the new width rather than springing.
     private var noticeFitsInPlace = false
     private var noticeWork: DispatchWorkItem?
+    private var t3CompletionNotice: NotchNotice?
     private var departureWork: DispatchWorkItem?
     private var musicDepartureWork: DispatchWorkItem?
     private var presentedMusic: NotchCompactMusicSnapshot?
@@ -424,7 +426,8 @@ final class NotchService: ObservableObject {
     }
 
     var hasAgentActivity: Bool {
-        NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
+        NotchAgentSupport.showsLiveActivity() && (!AgentUsageService.shared.snapshot.live.isEmpty
+            || T3ActivityPresentation.compactSummary(T3CodeActivityService.shared.activities) != nil)
     }
 
     var hasCalendarActivity: Bool {
@@ -657,8 +660,10 @@ final class NotchService: ObservableObject {
         case .music:
             return provisional.compactMusicArtworkSide + provisional.compactMusicArtworkInset
         case .agents:
-            let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
-            let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: working)
+            let providers = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+            let showsT3 = T3ActivityPresentation.compactSummary(T3CodeActivityService.shared.activities) != nil
+            let working = NotchTimerSupport.stripAgentMarkCount(providers: providers, showsT3: showsT3)
+            let side = NotchTimerSupport.stripAgentMarkSize(height: height, working: max(1, working))
             return CGFloat(max(1, working)) * (side * 1.45 + 1) + CGFloat(max(0, working - 1))
                 + provisional.compactActivityEdgeInset(boxHeight: side + 4, radius: (side + 4) / 2)
         case .calendar:
@@ -685,6 +690,15 @@ final class NotchService: ObservableObject {
     private func agentStripWing(in geometry: NotchGeometry) -> CGFloat {
         let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let t3Activities = T3CodeActivityService.shared.activities
+        if let summary = T3ActivityPresentation.compactSummary(t3Activities) {
+            let text = summary.compactReadout
+            let width = (text as NSString).size(withAttributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
+            ]).width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+            return min(NotchAgentSupport.compactT3WingMaximum,
+                       max(width, 38) + NotchAgentSupport.stripCameraGap)
+        }
         let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
             AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
             display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
@@ -781,9 +795,11 @@ final class NotchService: ObservableObject {
         let usage = AgentUsageService.shared.snapshot
         guard usage.loaded else { return nil }
         let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
-        guard !providers.isEmpty else { return 0 }
-        return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
+        let cardsHeight = providers.isEmpty ? 0 : NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
+        let threadsHeight = T3ActivityPresentation.contentHeight(
+            count: T3ActivityPresentation.visible(T3CodeActivityService.shared.activities).count)
+        return cardsHeight + threadsHeight + (cardsHeight > 0 && threadsHeight > 0 ? NotchAgentSupport.spacing : 0)
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -927,6 +943,7 @@ final class NotchService: ObservableObject {
         let language = L10n.shared.language
         let download = NotchDownloadService.shared.items.first { $0.active && !$0.completed }
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
+        let t3Summary = T3ActivityPresentation.compactSummary(T3CodeActivityService.shared.activities)
         switch activity {
         case .music:
             let playback = heldMusic?.playback ?? NotchMusicService.shared.playback
@@ -938,19 +955,22 @@ final class NotchService: ObservableObject {
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
                                                                               locale: Locale(identifier: language.rawValue)),
                                        companion: companion, workingAgents: working,
+                                       showsT3: companion == .agents && t3Summary != nil,
                                        downloadPercent: download?.fraction != nil, geometry: geometry, language: language)
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
         case .agents:
-            let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
-                                                         display: NotchAgentSupport.limitDisplay(),
-                                                         focus: NotchAgentSupport.limitFocus(), now: Date())
-            return layout.agentSurface(reading: reading, working: working, geometry: geometry)
+            let localReading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot,
+                readout: NotchAgentSupport.readout(), display: NotchAgentSupport.limitDisplay(),
+                focus: NotchAgentSupport.limitFocus(), now: Date())
+            let reading = t3Summary.map { String($0.compactReadout.dropFirst("T3 · ".count)) } ?? localReading
+            return layout.agentSurface(reading: reading, working: working, showsT3: t3Summary != nil, geometry: geometry)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
+                                                  showsT3: companion == .agents && t3Summary != nil,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
                                                   language: language)
             }
@@ -1023,7 +1043,10 @@ final class NotchService: ObservableObject {
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
-        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchAgentSupport.isEnabled() {
+            AgentUsageService.shared.stop()
+            T3CodeActivityService.shared.stop(clearActivity: true)
+        }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -1039,6 +1062,7 @@ final class NotchService: ObservableObject {
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
         AgentUsageService.shared.syncWithPreferences()
+        T3CodeActivityService.shared.syncWithPreferences()
         followsPointer = displayPreference == .pointer || displayPreference == .all
         showsOnAllDisplays = displayPreference == .all
         updateFullscreenDisplays()
@@ -1104,6 +1128,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        T3CodeActivityService.shared.pause()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -1164,6 +1189,7 @@ final class NotchService: ObservableObject {
         NotchCalendarService.shared.stop()
         NotchNotificationService.shared.stop()
         AgentUsageService.shared.pause()
+        T3CodeActivityService.shared.pause()
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -2076,6 +2102,7 @@ final class NotchService: ObservableObject {
     func show(_ incoming: NotchNotice) -> Bool {
         guard showsSystemFeedback, NotchSupport.routes(incoming.event),
               NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
+        t3CompletionNotice = nil
         noticeWork?.cancel(); noticeWork = nil
         var incoming = incoming
         if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
@@ -2225,6 +2252,7 @@ final class NotchService: ObservableObject {
 
     private func dismissNotice() {
         noticeWork?.cancel(); noticeWork = nil
+        t3CompletionNotice = nil
         endDeparture()
         let transition: NotchContentTransition = notice == nil || !noticeCanPresent ? .none
             : noticeExpanded ? .dismiss : .depart
@@ -2365,7 +2393,27 @@ final class NotchService: ObservableObject {
                                                   tint: tint, geometry: compactActivityGeometry)
     }
 
+    private func scheduleCompactT3CompletionExpiry() {
+        compactT3CompletionWork?.cancel()
+        compactT3CompletionWork = nil
+        let activities = T3CodeActivityService.shared.activities
+        guard let expiry = T3ActivityPresentation.compactCompletionExpiry(activities) else { return }
+
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.compactT3CompletionWork = nil
+            // Re-evaluate compact status even when the strip is a calendar or
+            // timer companion and no standalone agent strip is mounted.
+            self.syncMenuSpaceMonitoring()
+            self.objectWillChange.send()
+            self.refreshPresentation(animated: false)
+        }
+        compactT3CompletionWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0, expiry.timeIntervalSinceNow), execute: work)
+    }
+
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        scheduleCompactT3CompletionExpiry()
         let fitsNoticeInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
         noticeFitsInPlace = false
         syncMascotKeepAwake()
@@ -3500,6 +3548,17 @@ final class NotchService: ObservableObject {
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
+            T3CodeActivityService.shared.$activities
+                .map { T3ActivityPresentation.layoutKey($0) }
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    self.dismissT3CompletionNoticeIfNeeded()
+                    self.syncMenuSpaceMonitoring()
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {
             NotchCalendarService.shared.$countdown.removeDuplicates()
@@ -3531,6 +3590,9 @@ final class NotchService: ObservableObject {
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
+                .store(in: &subscriptions)
+            T3CodeActivityService.shared.completed.receive(on: DispatchQueue.main)
+                .sink { [weak self] completion in self?.showT3Completion(completion) }
                 .store(in: &subscriptions)
         }
         stopPower()
@@ -3594,6 +3656,29 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
         }
+    }
+
+    private func showT3Completion(_ completion: T3ActivityCompletion) {
+        guard let minimum = NotchAgentSupport.finishMinimum(), completion.duration >= minimum else { return }
+        guard T3ActivityPresentation.allowsCompletionNotice(T3CodeActivityService.shared.activities) else { return }
+        let strings = T3CodeStrings(L10n.shared.language)
+        let detail = [completion.activity.title, AgentFormat.duration(completion.duration,
+            locale: L10n.shared.language.formattingLocale())].filter { !$0.isEmpty }.joined(separator: " · ")
+        let incoming = NotchNotice(event: .agents, title: "\(strings.source) · \(strings.completed)", detail: detail,
+                                   symbol: "checkmark.circle.fill")
+        guard show(incoming) else { return }
+        t3CompletionNotice = notice
+        reactMascot(.celebrate)
+    }
+
+    private func dismissT3CompletionNoticeIfNeeded() {
+        guard let t3CompletionNotice else { return }
+        guard notice == t3CompletionNotice else {
+            self.t3CompletionNotice = nil
+            return
+        }
+        guard !T3ActivityPresentation.allowsCompletionNotice(T3CodeActivityService.shared.activities) else { return }
+        dismissNotice()
     }
 
     func showCurrentVolume() {

@@ -35,6 +35,7 @@ enum NotchAgentTests {
         preferences(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
+        T3CodeActivityTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
     }
 

@@ -845,6 +845,13 @@ enum DefaultsKey {
     static let notchAgentsCodex = "notchAgentsCodex"
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
     static let notchAgentsCopilot = "notchAgentsCopilot"
+    static let notchAgentsT3Endpoint = "notchAgentsT3Endpoint"
+    static let notchAgentsT3Environment = "notchAgentsT3Environment"
+    static let notchAgentsT3CredentialID = "notchAgentsT3CredentialID"
+    static let notchAgentsT3Label = "notchAgentsT3Label"
+    static let notchAgentsT3Machine = "notchAgentsT3Machine"
+    static let notchAgentsT3Expiry = "notchAgentsT3Expiry"
+    static let notchAgentsT3Connections = "notchAgentsT3Connections"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
@@ -1413,6 +1420,11 @@ enum Defaults {
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCopilot: true,
+        DefaultsKey.notchAgentsT3Endpoint: "",
+        DefaultsKey.notchAgentsT3Environment: "",
+        DefaultsKey.notchAgentsT3CredentialID: "",
+        DefaultsKey.notchAgentsT3Label: "",
+        DefaultsKey.notchAgentsT3Machine: "",
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: "",
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,

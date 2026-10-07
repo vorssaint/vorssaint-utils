@@ -189,6 +189,8 @@ enum NotchAgentSupport {
     static let stripWingRange: ClosedRange<CGFloat> = 44...80
     /// Air between the camera and what sits beside it.
     static let stripCameraGap: CGFloat = 6
+    /// T3 uses a short status token in the menu bar; keep its wings narrow.
+    static let compactT3WingMaximum: CGFloat = 56
 
     static func stripTextSize(height: CGFloat) -> CGFloat { min(15, height - 7) }
 

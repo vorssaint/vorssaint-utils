@@ -166,6 +166,15 @@ enum SettingsBackupSupport {
         // policy remains portable, but another Mac need not inherit the value.
         DefaultsKey.screenshotLoupeLastZoom,
         DefaultsKey.screenshotSharingDeveloperEndpoint,
+        // A T3 endpoint identifies one environment on one network; credentials
+        // are held separately in Keychain and must never move with a backup.
+        DefaultsKey.notchAgentsT3Endpoint,
+        DefaultsKey.notchAgentsT3Environment,
+        DefaultsKey.notchAgentsT3CredentialID,
+        DefaultsKey.notchAgentsT3Label,
+        DefaultsKey.notchAgentsT3Machine,
+        DefaultsKey.notchAgentsT3Expiry,
+        DefaultsKey.notchAgentsT3Connections,
         // Whether the audio system let a recording hear the Mac's sound is a
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,

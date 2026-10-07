@@ -175,6 +175,15 @@ enum NotchActivityTests {
     }
 
     private static func timerContracts(_ suite: TestSuite) {
+        let t3Source = T3CodeStrings(.enUS).source
+        suite.expect(NotchTimerSupport.stripAgentMarkCount(providers: 0, showsT3: true) == 1
+                     && NotchTimerSupport.stripAgentMarkCount(providers: 2, showsT3: true) == 3
+                     && NotchTimerSupport.stripAgentMarkCount(providers: 0, showsT3: false) == 0,
+                     "the timer companion reserves one distinct mark for T3 regardless of thread count")
+        suite.expect(NotchTimerSupport.stripAgentMarkAccessibilityLabel(providers: [], t3Source: t3Source) == t3Source
+                     && NotchTimerSupport.stripAgentMarkAccessibilityLabel(providers: ["Codex"], t3Source: t3Source)
+                        == "Codex, \(t3Source)",
+                     "the timer companion labels T3 activity for VoiceOver")
         var session = NotchTimerSession()
         suite.expect(!session.hasSession, "an unused timer has no active session")
         session.start(mode: .timer, minutes: 5, now: 100)
