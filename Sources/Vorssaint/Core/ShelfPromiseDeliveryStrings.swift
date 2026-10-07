@@ -14,7 +14,7 @@ struct ShelfPromiseDeliveryStrings {
         switch language {
         case .sv:
             return .init(
-                failedTitle: "Couldn’t add attachment",
+                failedTitle: "Kunde inte lägga till bilagan",
                 failedBody: "Filen blev aldrig färdigsparad på hyllan.",
                 fullTitle: "Shelf is full",
                 fullBody: "Bilagan sparades färdigt men det finns inget utrymme kvar på hyllan.",
