@@ -74,26 +74,26 @@ extension DiskImageInstallerStrings {
     )
 
     static let sv = DiskImageInstallerStrings(
-        title: "Disk image installer",
-        hubDescription: "Install the single app inside a disk image and clean up the download",
-        useUserApplications: "Install in the Applications folder inside your home folder",
-        applicationsFolder: "the Applications folder",
-        userApplicationsFolder: "the Applications folder inside your home folder",
-        promptTitle: "Install this app?",
-        promptBodyFormat: "%@ will be copied to %@ and the disk image ejected.",
-        installButton: "Install",
-        installedTitle: "App installed",
-        installedBodyFormat: "%@ is ready in %@. The disk image was ejected and its download moved to Trash.",
-        installedKeepingMountBodyFormat: "%@ is installed in %@, but the disk image could not be ejected. Its download was kept.",
-        installedKeepingDownloadBodyFormat: "%@ is installed in %@ and the disk image was ejected, but its download could not be moved to Trash.",
-        failedTitle: "Could not install",
-        failedBody: "Nothing was changed. You can still drag the app to Applications.",
-        verificationFailedBody: "This Mac could not verify the app, so nothing was installed.",
-        alreadyInstalledBodyFormat: "%@ is already in Applications.",
-        trashDownloadOption: "Move the download to Trash",
-        revealAppOption: "Show the installed app in Finder",
-        installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
-        installingFormat: "Installing %@…"
+        title: "Installerare för skivavbild",
+        hubDescription: "Installera det enda programmet i en skivavbild och städa upp hämtningen",
+        useUserApplications: "Installera i mappen Program i din hemkatalog",
+        applicationsFolder: "mappen Program",
+        userApplicationsFolder: "mappen Program i din hemkatalog",
+        promptTitle: "Installera programmet?",
+        promptBodyFormat: "%@ kopieras till %@ och skivavbilden matas ut.",
+        installButton: "Installera",
+        installedTitle: "Programmet har installerats",
+        installedBodyFormat: "%@ är klart i %@. Skivavbilden har matats ut och hämtningen flyttats till papperskorgen.",
+        installedKeepingMountBodyFormat: "%@ har installerats i %@, men skivavbilden kunde inte matas ut. Hämtningen behölls.",
+        installedKeepingDownloadBodyFormat: "%@ har installerats i %@ och skivavbilden har matats ut, men hämtningen kunde inte flyttas till papperskorgen.",
+        failedTitle: "Det gick inte att installera",
+        failedBody: "Inget ändrades. Du kan fortfarande dra programmet till Program.",
+        verificationFailedBody: "Datorn kunde inte verifiera programmet, så ingenting installerades.",
+        alreadyInstalledBodyFormat: "%@ finns redan i Program.",
+        trashDownloadOption: "Flytta hämtningen till papperskorgen",
+        revealAppOption: "Visa det installerade programmet i Finder",
+        installedKeptDownloadBodyFormat: "%@ är klart i %@. Skivavbilden har matats ut och hämtningen behölls.",
+        installingFormat: "Installerar %@…"
     )
 
     static let ptBR = DiskImageInstallerStrings(
