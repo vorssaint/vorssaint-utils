@@ -291,6 +291,8 @@ enum DefaultsKey {
     static let urlCleanerCustomParameters = "urlCleanerCustomParameters"
     static let urlCleanerSiteParameters = "urlCleanerSiteParameters"       // host|name pairs added to one site
     static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
+    static let urlCleanerImportedParameters = "urlCleanerImportedParameters" // host|name pairs from a rules file
+    static let urlCleanerImportedSource = "urlCleanerImportedSource"         // file name|import date of those pairs
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let windowMaximizeExcludedApps = "windowMaximizeExcludedApps" // [bundle id] whose green button stays native
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"

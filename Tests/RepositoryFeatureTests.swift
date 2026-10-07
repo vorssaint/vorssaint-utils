@@ -12,6 +12,31 @@ import ImageIO
 import VMStatisticsCompat
 
 enum RepositoryFeatureTests {
+    /// Run the production `result` and `copy` of the manual cleaner in
+    /// Settings and in the menu panel, with a cleaner whose rules the test
+    /// changes, recording what reaches the clipboard.
+    final class URLCleanerManualCleaner {
+        var rules = URLCleaning.Rules.none
+        var copied: [String] = []
+        func clean(_ text: String) -> URLCleaning.Result? { URLCleaning.clean(text, rules: rules) }
+        func copy(_ urlString: String) { copied.append(urlString) }
+    }
+    protocol URLCleanerManualSurface: AnyObject {
+        var cleaner: URLCleanerManualCleaner { get }
+        var input: String { get set }
+        func copy()
+    }
+    final class URLCleanerManualSettings: URLCleanerManualSurface {
+        let cleaner = URLCleanerManualCleaner()
+        var input = ""
+        var copied: String?
+    }
+    final class URLCleanerManualPanel: URLCleanerManualSurface {
+        let cleaner = URLCleanerManualCleaner()
+        var input = ""
+        var copied: String?
+    }
+
     private struct SourceRead: Sendable {
         let path: String
         let source: String?
@@ -117,6 +142,19 @@ enum RepositoryFeatureTests {
         }
     }
 
+    /// Runs the production site switch of the rules list against stored
+    /// switched off names the test reads back.
+    final class URLCleanerSiteSwitchHost {
+        var disabledNames = ""
+    }
+
+    /// Runs the production import preview text of Settings against the
+    /// imported rules already stored.
+    final class URLCleanerImportSummaryHost {
+        let importText = URLCleanerImportStrings.enUS
+        var importedNames = ""
+    }
+
     static func run(_ suite: TestSuite) {
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
@@ -190,6 +228,23 @@ enum RepositoryFeatureTests {
                 == urlCleanerSettingsSource.components(separatedBy: ".labelsHidden()").count,
                "every Clean URL field hides its label so the field owns the row")
 
+        // The manual result is worked out from the field, so editing the link
+        // or the rules can never leave an older result for Copy to take.
+        let manualSurfaces: [(String, URLCleanerManualSurface)] = [
+            ("Settings", URLCleanerManualSettings()), ("menu panel", URLCleanerManualPanel()),
+        ]
+        for (surface, host) in manualSurfaces {
+            host.input = "https://youtu.be/abc?si=x"
+            host.copy()
+            host.input = "https://example.com/?utm_source=a&keep=1"
+            host.copy()
+            host.cleaner.rules = URLCleaning.rules(globalNames: "keep", siteNames: nil, disabledNames: nil)
+            host.copy()
+            suite.expect(host.cleaner.copied == ["https://youtu.be/abc", "https://example.com/?keep=1",
+                                                 "https://example.com/"],
+                   "\(surface) Copy takes the field's link under the current rules: \(host.cleaner.copied)")
+        }
+
         // Rules are stored as a difference from the built-in tables, never as
         // a copy of them, so names a later version adds still reach someone
         // who has already edited their rules.
@@ -233,7 +288,7 @@ enum RepositoryFeatureTests {
         } == true, "the utm names that row already covers are not listed again")
         suite.expect(ruleGroups.first?.entries.contains { $0.name == "fbclid" && !$0.isEnabled } == true,
                "a switched off built-in stays listed so it can be switched back on")
-        suite.expect(ruleGroups.first?.entries.contains { $0.name == "ref" && !$0.isBuiltIn } == true,
+        suite.expect(ruleGroups.first?.entries.contains { $0.name == "ref" && $0.source == .custom } == true,
                "names the user added share the list with the built-in ones")
         suite.expect(ruleGroups.contains { $0.site == "weibo.com" },
                "a site the user added gets a row of its own")
@@ -246,6 +301,96 @@ enum RepositoryFeatureTests {
             .flatMap(\.entries).map(\.name).filter { $0 != $0.lowercased() }
         suite.expect(upperCaseBuiltIns.isEmpty,
                "built-in names are lowercase, since matching and switched off names are: \(upperCaseBuiltIns)")
+        let siteSwitch = URLCleanerSiteSwitchHost()
+        siteSwitch.disabledNames = "youtube.com|si"
+        func switchedRules() -> URLCleaning.Rules {
+            URLCleaning.rules(globalNames: nil, siteNames: "weibo.com|sudaref", disabledNames: siteSwitch.disabledNames)
+        }
+        func switchedGroup(_ site: String) -> URLCleaning.RuleGroup? {
+            URLCleaning.ruleGroups(rules: switchedRules()).first { $0.site == site }
+        }
+        for site in ["weibo.com", "youtube.com"] {
+            switchedGroup(site).map { siteSwitch.setSite($0, enabled: false) }
+        }
+        suite.expect(switchedGroup("weibo.com")?.entries.map(\.name) == ["sudaref"]
+                && switchedGroup("weibo.com")?.enabledCount == 0
+                && URLCleaning.clean("https://weibo.com/a?sudaref=x", rules: switchedRules())?.removed == [],
+               "switching a site off keeps the name the user added to it, switched off")
+        for site in ["weibo.com", "youtube.com"] {
+            switchedGroup(site).map { siteSwitch.setSite($0, enabled: true) }
+        }
+        suite.expect(URLCleaning.clean("https://weibo.com/a?sudaref=x", rules: switchedRules())?.removed == ["sudaref"]
+                && URLCleaning.clean("https://youtu.be/a?si=x", rules: switchedRules())?.removed == ["si"],
+               "switching a site back on turns on every name it lists")
+        // An imported rules file is a layer of its own under the user's edits.
+        let importedRules = URLCleaning.rules(globalNames: "fbid", siteNames: nil,
+                                              disabledNames: "|_gl,facebook.com|refid",
+                                              importedNames: "|_ga,|_gl,facebook.com|fbid,facebook.com|refid,"
+                                                + "facebook.com|hc_ref,youtube.com|si")
+        expectEqual(URLCleaning.clean("https://www.facebook.com/a?hc_ref=1&refid=2&_ga=3&_gl=4&id=5",
+                                      rules: importedRules)?.url ?? "",
+                    "https://www.facebook.com/a?refid=2&_gl=4&id=5",
+                    "imported names clean their site and every site, and switching one off keeps it")
+        expectEqual(URLCleaning.clean("https://example.com/?hc_ref=1&_ga=2", rules: importedRules)?.url ?? "",
+                    "https://example.com/?hc_ref=1", "an imported site name never reaches another site")
+        let importedGroups = URLCleaning.ruleGroups(rules: importedRules)
+        let facebookEntries = importedGroups.first { $0.site == "facebook.com" }?.entries ?? []
+        suite.expect(facebookEntries.map(\.name) == ["fbid", "hc_ref", "refid"]
+                && facebookEntries.allSatisfy { $0.source == .imported }
+                && importedGroups.first?.entries.contains { $0.name == "fbid" && $0.source == .custom } == true
+                && importedGroups.first { $0.site == "youtube.com" }?.entries.filter { $0.name == "si" }
+                    .map(\.source) == [.builtIn],
+               "a site only the imported rules know is listed, and a name counts as built in, then the user's, then imported")
+        // A cut of the real ClearURLs file: names written as patterns, sites
+        // matched by any top-level domain or a path, and redirects are left out;
+        // a name listed twice (Bilibili's share_source) is not a reason to refuse.
+        let clearURLs = Data(#"""
+            {"providers": {
+              "globalRules": {"urlPattern": ".*", "completeProvider": false,
+                "rules": ["(?:%3F)?utm(?:_[a-z_]*)?", "(?:%3F)?_ga", "(?:%3F)?_gl"],
+                "referralMarketing": ["(?:%3F)?ref_?"], "exceptions": ["^file:\\/\\/.*", "^https?:\\/\\/localhost"]},
+              "youtube": {"urlPattern": "^https?:\\/\\/(?:[a-z0-9-]+\\.)*?(youtube\\.com|youtu\\.be)",
+                "rules": ["feature", "gclid", "kw", "si"],
+                "redirections": ["^https?:\\/\\/(?:[a-z0-9-]+\\.)*?youtube\\.com\\/redirect?.*?q=([^&]*)"]},
+              "youtube_pagead": {"urlPattern": "^https?:\\/\\/(?:[a-z0-9-]+\\.)*?youtube\\.com\\/pagead", "rules": ["x"]},
+              "amazon": {"urlPattern": "^https?:\\/\\/(?:[a-z0-9-]+\\.)*?amazon(?:\\.[a-z]{2,}){1,}", "rules": ["qid"]},
+              "bilibili.com": {"urlPattern": "^https?:\\/\\/(?:[a-z0-9-]+\\.)*?bilibili\\.com",
+                "rules": ["share_source", "share_source", "Spm_id_from"],
+                "exceptions": ["^https?:\\/\\/space\\.bilibili\\.com"]},
+              "reddit": {"urlPattern": "^https?:\\/\\/(?:[a-z0-9-]+\\.)*?reddit\\.com", "rules": ["%24deep_link"]}
+            }}
+            """#.utf8)
+        let clearURLsImport = try? URLCleaning.clearURLsImport(from: clearURLs)
+        suite.expect(clearURLsImport == URLCleaning.ClearURLsImport(
+            parameters: ["": ["_ga", "_gl"], "youtube.com": ["feature", "gclid", "kw", "si"],
+                         "youtu.be": ["feature", "gclid", "kw", "si"],
+                         "bilibili.com": ["share_source", "spm_id_from"], "reddit.com": ["$deep_link"]],
+            skipped: 4, exceptions: 3),
+               "a ClearURLs file gives its plain names per site and counts what it leaves out: \(String(describing: clearURLsImport))")
+        for (data, expected, file) in [
+            (Data("[]".utf8), URLCleaning.ClearURLsImportError.notClearURLs, "a file that is not ClearURLs rules"),
+            (Data(#"{"providers": {"a": {"urlPattern": ".*", "rules": ["x[0-9]"]}}}"#.utf8), .nothingUsable,
+             "a file with nothing usable"),
+            (Data(("{\"providers\": {\"a\": {\"urlPattern\": \".*\", \"rules\": ["
+                   + (0...5_000).map { "\"n\($0)\"" }.joined(separator: ",") + "]}}}").utf8), .tooManyNames,
+             "a file with more than 5000 names"),
+        ] {
+            var thrown: URLCleaning.ClearURLsImportError?
+            do { _ = try URLCleaning.clearURLsImport(from: data) } catch { thrown = error as? URLCleaning.ClearURLsImportError }
+            suite.expect(thrown == expected, "\(file) is refused as a whole: \(String(describing: thrown))")
+        }
+
+        let importPreview = URLCleanerImportSummaryHost()
+        let newerFile = URLCleaning.ClearURLsImport(parameters: ["": ["_ga"], "youtube.com": ["kw", "si"]],
+                                                    skipped: 2, exceptions: 0)
+        expectEqual(importPreview.importSummary(newerFile),
+                    "This file adds rules. Sites: 1. Parameters: 3.\n\n"
+                        + "Rules left out because the app cannot use them (patterns, redirects and rules for one page): 2.\n\n"
+                        + "Parameters you switched off stay off.",
+                    "a first import says what it adds and what it leaves out")
+        importPreview.importedNames = "|_ga,youtube.com|pp,youtube.com|si"
+        suite.expect(importPreview.importSummary(newerFile).hasPrefix("Parameters added: 1. Removed: 1. Unchanged: 2."),
+               "replacing the imported rules says what the newer file adds, drops and keeps")
         expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
                     "weibo.com", "the site field takes a pasted link and keeps the host")
         suite.expect(URLCleaning.siteKey(from: "not a host") == nil,
@@ -264,6 +409,8 @@ enum RepositoryFeatureTests {
                 DefaultsKey.urlCleanerDisabledParameters].allSatisfy {
                     Defaults.registeredDefaults[$0] as? String == ""
                         && SettingsBackupSupport.exportKeys().contains($0)
+                } && [DefaultsKey.urlCleanerImportedParameters, DefaultsKey.urlCleanerImportedSource].allSatisfy {
+                    Defaults.registeredDefaults[$0] == nil && SettingsBackupSupport.exportKeys().contains($0)
                 },
                "URL cleaner rules start empty and travel in Settings backups")
         suite.expect(URLCleaning.clean("not a url") == nil,

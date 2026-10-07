@@ -76,6 +76,8 @@ enum SettingsBackupSupport {
         DefaultsKey.panelPowerOrder,
         DefaultsKey.panelCollapsedSections,
         DefaultsKey.quickLauncherItemOrder,
+        DefaultsKey.urlCleanerImportedParameters,
+        DefaultsKey.urlCleanerImportedSource,
         // Legacy island layouts stay restorable; absence selects the new layout.
         DefaultsKey.notchQuickAccessSide,
         DefaultsKey.notchQuickAccessSecond,

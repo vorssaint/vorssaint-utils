@@ -291,10 +291,27 @@ def main():
           + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
+    for host, path in [("Settings", "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift"),
+                       ("Panel", "Sources/Vorssaint/UI/MenuPanel/PanelURLCleanerView.swift")]:
+        write(f"URLCleanerManual{host}.swift", "import Foundation\n"
+              + f"extension RepositoryFeatureTests.URLCleanerManual{host} {{\n"
+              + "".join(declaration(path, prefix).replace("private ", "", 1)
+                        for prefix in ["    private var result:", "    private func copy("])
+              + "}\n")
     write("QuickPaste.swift", "import Foundation\n"
           + "extension ClipboardFeatureTests.QuickPasteHost {\n"
           + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
                         "    private func pasteIntoPreviousApp(").replace("private func", "func", 1)
+          + "}\n")
+    write("URLCleanerSiteSwitch.swift", "import Foundation\n"
+          + "extension RepositoryFeatureTests.URLCleanerSiteSwitchHost {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift",
+                        "    private func setSite(").replace("private ", "", 1)
+          + "}\n")
+    write("URLCleanerImportSummary.swift", "import Foundation\n"
+          + "extension RepositoryFeatureTests.URLCleanerImportSummaryHost {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift",
+                        "    private func importSummary(").replace("private ", "", 1)
           + "}\n")
     write("CommandBarCopyAnswer.swift", "import Foundation\n"
           + "extension CommandBarFeatureTests.CopyAnswerHost {\n"

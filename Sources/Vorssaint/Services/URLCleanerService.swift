@@ -174,7 +174,8 @@ final class URLCleanerService: ObservableObject {
         return URLCleaning.rules(
             globalNames: defaults.string(forKey: DefaultsKey.urlCleanerCustomParameters),
             siteNames: defaults.string(forKey: DefaultsKey.urlCleanerSiteParameters),
-            disabledNames: defaults.string(forKey: DefaultsKey.urlCleanerDisabledParameters))
+            disabledNames: defaults.string(forKey: DefaultsKey.urlCleanerDisabledParameters),
+            importedNames: defaults.string(forKey: DefaultsKey.urlCleanerImportedParameters))
     }
 
     @discardableResult

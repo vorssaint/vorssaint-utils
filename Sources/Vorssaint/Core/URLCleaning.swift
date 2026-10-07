@@ -66,9 +66,14 @@ enum URLCleaning {
     /// copy of the tables, so names added in a later version of the app still
     /// reach someone who has already edited their rules.
     ///
-    /// Both maps are keyed the way `hostParameters` is, with `allSites` for
+    /// `imported` is a rules file the user imported, kept as its own layer
+    /// under their edits so it can be replaced or removed as a whole without
+    /// touching what they added or switched off.
+    ///
+    /// Every map is keyed the way `hostParameters` is, with `allSites` for
     /// the rules that apply everywhere.
     struct Rules: Equatable {
+        var imported: [String: Set<String>] = [:]
         var added: [String: Set<String>] = [:]
         var disabled: [String: Set<String>] = [:]
 
@@ -85,10 +90,17 @@ enum URLCleaning {
 
         struct Entry: Identifiable, Equatable {
             let name: String
-            let isBuiltIn: Bool
+            let source: Source
             let isEnabled: Bool
 
             var id: String { name }
+        }
+
+        /// Where a name comes from. A name in more than one place counts as
+        /// the first of these, so one the user added stays theirs after the
+        /// imported rules are removed.
+        enum Source: Equatable {
+            case builtIn, custom, imported
         }
     }
 
@@ -124,14 +136,16 @@ enum URLCleaning {
         return result.url == trimmed ? .unchanged : .rewritten
     }
 
-    /// Reads the three stored strings into one value. The global additions
-    /// keep the plain comma-separated key they have always used, so nothing
-    /// has to be migrated when site rules arrive.
-    static func rules(globalNames: String?, siteNames: String?, disabledNames: String?) -> Rules {
+    /// Reads the stored strings into one value. The global additions keep
+    /// the plain comma-separated key they have always used, so nothing has to
+    /// be migrated when site rules arrive.
+    static func rules(globalNames: String?, siteNames: String?, disabledNames: String?,
+                      importedNames: String? = nil) -> Rules {
         var added = tokens(from: siteNames)
         added[allSites] = customParameters(from: globalNames)
         added = added.filter { !$0.value.isEmpty }
-        return Rules(added: added, disabled: tokens(from: disabledNames).filter { !$0.value.isEmpty })
+        return Rules(imported: tokens(from: importedNames).filter { !$0.value.isEmpty },
+                     added: added, disabled: tokens(from: disabledNames).filter { !$0.value.isEmpty })
     }
 
     static func clean(_ text: String, rules: Rules = .none) -> Result? {
@@ -177,6 +191,7 @@ enum URLCleaning {
 
     static func ruleGroups(rules: Rules) -> [RuleGroup] {
         let sites = Set(hostParameters.keys)
+            .union(rules.imported.keys)
             .union(rules.added.keys)
             .union(rules.disabled.keys)
             .subtracting([allSites])
@@ -278,11 +293,12 @@ enum URLCleaning {
         var names = trackedParameters.filter {
             !$0.hasPrefix("utm_") && !disabledGlobally.contains($0)
         }
-        names.formUnion((rules.added[allSites] ?? []).subtracting(disabledGlobally))
+        names.formUnion((rules.added[allSites] ?? []).union(rules.imported[allSites] ?? [])
+            .subtracting(disabledGlobally))
         for site in siteKeys(matching: host, rules: rules) {
             let disabled = rules.disabled[site] ?? []
             names.formUnion((hostParameters[site] ?? []).filter { !disabled.contains($0) })
-            names.formUnion((rules.added[site] ?? []).subtracting(disabled))
+            names.formUnion((rules.added[site] ?? []).union(rules.imported[site] ?? []).subtracting(disabled))
         }
         return Matcher(names: names, matchesUTMPrefix: !disabledGlobally.contains(utmWildcard))
     }
@@ -291,7 +307,8 @@ enum URLCleaning {
     /// set, and a host that matches nothing keeps only the global rules.
     private static func siteKeys(matching host: String, rules: Rules) -> [String] {
         let normalized = host.lowercased()
-        return Set(hostParameters.keys).union(rules.added.keys).union(rules.disabled.keys)
+        return Set(hostParameters.keys).union(rules.imported.keys)
+            .union(rules.added.keys).union(rules.disabled.keys)
             .filter { !$0.isEmpty && (normalized == $0 || normalized.hasSuffix("." + $0)) }
             .sorted()
     }
@@ -299,11 +316,11 @@ enum URLCleaning {
     private static func group(for site: String, builtIn: [String], rules: Rules) -> RuleGroup {
         let disabled = rules.disabled[site] ?? []
         let added = (rules.added[site] ?? []).subtracting(builtIn)
-        let entries = builtIn.map {
-            RuleGroup.Entry(name: $0, isBuiltIn: true, isEnabled: !disabled.contains($0))
-        } + added.sorted().map {
-            RuleGroup.Entry(name: $0, isBuiltIn: false, isEnabled: !disabled.contains($0))
-        }
+        let imported = (rules.imported[site] ?? []).subtracting(builtIn).subtracting(added)
+        let entries = [(builtIn, RuleGroup.Source.builtIn), (added.sorted(), .custom), (imported.sorted(), .imported)]
+            .flatMap { names, source in
+                names.map { RuleGroup.Entry(name: $0, source: source, isEnabled: !disabled.contains($0)) }
+            }
         return RuleGroup(site: site, entries: entries)
     }
 
@@ -312,6 +329,75 @@ enum URLCleaning {
             .split(whereSeparator: { $0 == "," || $0.isNewline })
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
+    }
+
+    // MARK: - ClearURLs import
+
+    /// The names a ClearURLs rules file (`data.min.json`) can give the
+    /// imported layer, and how much of the file had to be left out.
+    struct ClearURLsImport: Equatable {
+        var parameters: [String: Set<String>] = [:]
+        /// Rules this cleaner cannot carry out: names written as patterns,
+        /// sites matched by pattern or path, redirects, rewrites and blocks.
+        var skipped = 0
+        /// ClearURLs' "leave this link alone" patterns, which do not apply
+        /// here, so a name may also go from a link ClearURLs would keep.
+        var exceptions = 0
+    }
+
+    enum ClearURLsImportError: Error {
+        case notClearURLs, tooManyNames, nothingUsable
+    }
+
+    /// Takes what fits this cleaner's model of a site and a parameter name:
+    /// a literal host (or several) under ClearURLs' standard prefix, or every
+    /// site, and the names in `rules` that are plain text. The referral codes
+    /// are left out on purpose: a global `ref` would break links such as a
+    /// branch on GitHub.
+    static func clearURLsImport(from data: Data) throws -> ClearURLsImport {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let providers = root["providers"] as? [String: Any] else {
+            throw ClearURLsImportError.notClearURLs
+        }
+        let sitePrefix = #"^https?:\/\/(?:[a-z0-9-]+\.)*?"#
+        let hostCharacters = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-.")
+        let patternCharacters = CharacterSet(charactersIn: #"\^$.|?*+()[]{}"#)
+        var result = ClearURLsImport()
+        for case let provider as [String: Any] in providers.values {
+            var pattern = provider["urlPattern"] as? String ?? ""
+            var sites = pattern == ".*" ? [allSites] : []
+            if pattern.hasPrefix(sitePrefix) {
+                pattern.removeFirst(sitePrefix.count)
+                if pattern.hasPrefix("("), pattern.hasSuffix(")") {
+                    pattern = String(pattern.dropFirst(pattern.hasPrefix("(?:") ? 3 : 1).dropLast())
+                }
+                sites = pattern.split(separator: "|").map { $0.replacingOccurrences(of: #"\."#, with: ".") }
+                let literal = sites.allSatisfy {
+                    $0.unicodeScalars.allSatisfy(hostCharacters.contains) && siteKey(from: $0) == $0
+                }
+                if !literal { sites = [] }
+            }
+            guard !sites.isEmpty, provider["completeProvider"] as? Bool != true else {
+                result.skipped += 1
+                continue
+            }
+            result.skipped += ((provider["redirections"] as? [Any])?.count ?? 0)
+                + ((provider["rawRules"] as? [Any])?.count ?? 0)
+            result.exceptions += (provider["exceptions"] as? [Any])?.count ?? 0
+            for rule in provider["rules"] as? [String] ?? [] {
+                let literal = rule.hasPrefix("(?:%3F)?") ? String(rule.dropFirst(8)) : rule
+                guard literal.rangeOfCharacter(from: patternCharacters) == nil,
+                      let name = parameterName(from: literal.removingPercentEncoding ?? literal) else {
+                    result.skipped += 1
+                    continue
+                }
+                for site in sites { result.parameters[site, default: []].insert(name) }
+            }
+        }
+        let count = result.parameters.values.reduce(0) { $0 + $1.count }
+        guard count <= 5_000 else { throw ClearURLsImportError.tooManyNames }
+        guard count > 0 else { throw ClearURLsImportError.nothingUsable }
+        return result
     }
 
     // MARK: - Automatic rewrite
