@@ -64,6 +64,12 @@ def main():
                     for prefix in ["    private func refreshLaunchAtLogin()",
                                    "    private func setLaunchAtLogin("])
           + "}\n")
+    cleaner_view = "Sources/Vorssaint/UI/Cleaner/CleanerView.swift"
+    write("CleanerLayout.swift", "import SwiftUI\nextension CleanerLayoutTests.Results {\n"
+          + "".join(declaration(cleaner_view, prefix).replace("    private ", "    @ViewBuilder\n    ", 1)
+                    for prefix in ["    private var resultsState:", "    private var resultsGroups:",
+                                   "    private func section("])
+          + "}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))
