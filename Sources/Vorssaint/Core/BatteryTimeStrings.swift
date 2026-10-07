@@ -40,9 +40,9 @@ extension BatteryTimeFeatureStrings {
     )
 
     static let sv = BatteryTimeFeatureStrings(
-        title: "Battery time remaining",
-        systemEstimate: "System estimate",
-        calculating: "Calculating…"
+        title: "Återstående batteritid",
+        systemEstimate: "Systemuppskattning",
+        calculating: "Beräknar…"
     )
 
     static let ptBR = BatteryTimeFeatureStrings(
