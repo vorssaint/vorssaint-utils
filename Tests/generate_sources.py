@@ -477,6 +477,11 @@ def main():
               "    private func isCurrentOutputAdjustment(", "    private var hasCurrentOutputAdjustment:",
               "    private func applyOutputControls(", "    private func drainOutputAdjustment("])
           + "}\n}\n")
+    write("NotchVolumeRouting.swift", "import Foundation\nimport CoreGraphics\n"
+          + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
+                        "    private func routeNotchVolume(").replace("private func", "func", 1)
+          + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
           + "".join(declaration(mixer_section, prefix).replace("private func", "func", 1) for prefix in [
