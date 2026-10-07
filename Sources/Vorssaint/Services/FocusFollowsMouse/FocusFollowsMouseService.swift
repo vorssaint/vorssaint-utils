@@ -263,20 +263,19 @@ final class FocusFollowsMouseService {
     private func focusedWindowBlocks(_ windowID: CGWindowID, in application: AXUIElement) -> Bool {
         guard var element = elementAttribute(application, kAXFocusedWindowAttribute as String) else { return false }
         AXUIElementSetMessagingTimeout(element, 0.25)
-        var modal: CFTypeRef?
-        if AXUIElementCopyAttributeValue(element, kAXModalAttribute as CFString, &modal) == .success,
-           modal as? Bool == true {
-            return true
-        }
         // A confirmation can sit on top of a sheet, so walk up to the window.
         for _ in 0..<4 {
-            guard stringAttribute(element, kAXRoleAttribute as String) == (kAXSheetRole as String),
-                  let parent = elementAttribute(element, kAXParentAttribute as String)
-            else { return false }
+            guard stringAttribute(element, kAXRoleAttribute as String) == (kAXSheetRole as String) else { break }
+            guard let parent = elementAttribute(element, kAXParentAttribute as String) else { return false }
+            AXUIElementSetMessagingTimeout(parent, 0.25)
             if AXWindowResolver.windowID(for: parent) == windowID { return true }
             element = parent
         }
-        return false
+        // Sheets have no AXModal. The window they hang from does, so a sheet
+        // on an app-modal dialog still blocks every other window of the app.
+        var modal: CFTypeRef?
+        return AXUIElementCopyAttributeValue(element, kAXModalAttribute as CFString, &modal) == .success
+            && modal as? Bool == true
     }
 
     private func topLevelWindow(from element: AXUIElement) -> AXUIElement? {
