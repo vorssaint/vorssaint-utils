@@ -60,7 +60,9 @@ struct NotchPlaybackSource: Equatable {
 
     /// Automatic playback follows music apps and, unless the user turns them
     /// off, other players too. A manual source choice always takes precedence.
-    /// Paused music keeps its resume control when nothing eligible is playing.
+    /// Paused music keeps its resume control when nothing eligible is playing,
+    /// except that a followed player that is not a music app keeps its place
+    /// while paused.
     static func preferred(in sources: [Self], previousPID: Int32?, systemPID: Int32?, selection: Selection? = nil,
                           includeOtherPlayers: Bool = false) -> Self? {
         let available = sources.filter { $0.pid > 0 && $0.hasTrack }
@@ -72,8 +74,8 @@ struct NotchPlaybackSource: Equatable {
         // paused music app as its system player. Other players follow their
         // live playback too; ownership only breaks a tie between eligible clients.
         let other = includeOtherPlayers ? available.filter { !$0.isMusicApp } : []
-        // The followed player keeps its resume control while paused, so
-        // pausing a video never hands the play button to music paused earlier.
+        // The followed player keeps its place while paused, so pausing a
+        // video never switches playback to music paused earlier.
         for candidates in [music.filter(\.isPlaying), other.filter(\.isPlaying),
                            other.filter { $0.pid == previousPID }, music] {
             if let previous = candidates.first(where: { $0.pid == previousPID }) { return previous }
