@@ -1848,7 +1848,8 @@ final class WindowLayoutService: ObservableObject {
         return WindowEdgeSnapSupport.target(at: appKitPoint,
                                             screens: screens,
                                             velocity: CGVector(dx: velocity.dx, dy: -velocity.dy),
-                                            enabledZones: enabledEdgeSnapZones)
+                                            enabledZones: enabledEdgeSnapZones,
+                                            layout: edgeSnapLayout)
     }
 
     /// A pointer that stops at a seam after moving fast sends no further
@@ -1945,6 +1946,12 @@ final class WindowLayoutService: ObservableObject {
     private var enabledEdgeSnapZones: Set<WindowEdgeSnapZone> {
         WindowEdgeSnapZone.enabledZones(
             from: UserDefaults.standard.string(forKey: DefaultsKey.windowEdgeSnapDisabledZones)
+        )
+    }
+
+    private var edgeSnapLayout: WindowEdgeSnapLayout {
+        WindowEdgeSnapLayout(
+            storageValue: UserDefaults.standard.string(forKey: DefaultsKey.windowEdgeSnapZoneActions)
         )
     }
 

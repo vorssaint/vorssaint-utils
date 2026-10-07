@@ -3090,6 +3090,8 @@ enum SwitcherModelFeatureTests {
                "dragging windows to screen edges is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.windowEdgeSnapDisabledZones] as? String == "",
                "every visual edge snap zone starts enabled")
+        suite.expect(registeredDefaults[DefaultsKey.windowEdgeSnapZoneActions] as? String == "",
+               "every edge snap zone starts with its usual placement")
         suite.expect(registeredDefaults[DefaultsKey.windowGestureEnabled] as? Bool == false,
                "window move and resize gestures are opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mouseSpacesGestureEnabled] as? Bool == false

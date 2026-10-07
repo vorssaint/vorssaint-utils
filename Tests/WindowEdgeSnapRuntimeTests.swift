@@ -125,9 +125,10 @@ enum WindowEdgeSnapRuntimeTests {
                                                            enabledZones: enabledZones)
         }
         static func target(at point: CGPoint, screens: [WindowEdgeSnapScreen], velocity: CGVector,
-                           enabledZones: Set<WindowEdgeSnapZone>) -> WindowEdgeSnapTarget? {
+                           enabledZones: Set<WindowEdgeSnapZone>,
+                           layout: WindowEdgeSnapLayout) -> WindowEdgeSnapTarget? {
             EdgeSnapGeometry.target(at: point, screens: screens, velocity: velocity,
-                                    enabledZones: enabledZones)
+                                    enabledZones: enabledZones, layout: layout)
         }
     }
     /// The displays the real target lookup sees, in AppKit coordinates. The
@@ -221,8 +222,10 @@ enum WindowEdgeSnapRuntimeTests {
         var pendingGesture: Bool?
         let edgeSnapSampleInterval: TimeInterval = 0
         var enabledEdgeSnapZones = WindowEdgeSnapZone.allEnabled
+        var edgeSnapLayout = WindowEdgeSnapLayout.standard
         var previews = 0
         var placements: [WindowLayoutFrame] = []
+        var placedActions: [WindowLayoutAction] = []
 
         func syncWithPreferences() {}
         func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
@@ -262,6 +265,7 @@ enum WindowEdgeSnapRuntimeTests {
                             visibleFrame: CGRect, historyFrame: WindowLayoutFrame,
                             cyclesRepeatedAction: Bool) -> Bool {
             placements.append(historyFrame)
+            placedActions.append(action)
             return true
         }
     }
@@ -439,6 +443,37 @@ enum WindowEdgeSnapRuntimeTests {
         suite.expect(previewedWhileHeld && mainAXWhileHeld == 0 && titleBar.placements
                         == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
                      "a window dragged to an edge previews the zone, snaps on release and keeps its starting frame for Restore")
+
+        reset()
+        let chosenEdge = Host()
+        chosenEdge.edgeSnapLayout = WindowEdgeSnapLayout(storageValue: "right=rightThird")
+        send(chosenEdge, .leftMouseDown, pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(chosenEdge, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(chosenEdge, .leftMouseDragged, edgePoint)
+        send(chosenEdge, .leftMouseUp, edgePoint)
+        suite.expect(chosenEdge.placedActions == [.rightThird],
+                     "a window dropped on an area set to another placement lands in that placement")
+
+        reset()
+        let splitEdge = Host()
+        splitEdge.edgeSnapLayout.setPartCount(2, for: .right)
+        send(splitEdge, .leftMouseDown, pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(splitEdge, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(splitEdge, .leftMouseDragged, edgePoint)
+        let lowerArea = CGPoint(x: edgePoint.x, y: 600)
+        currentFrame = movedToEdge.offsetBy(dx: 0, dy: lowerArea.y - edgePoint.y)
+        send(splitEdge, .leftMouseDragged, lowerArea)
+        send(splitEdge, .leftMouseUp, lowerArea)
+        suite.expect(splitEdge.previews == 2 && splitEdge.placedActions == [.bottomHalf],
+                     "sliding down a split edge previews each area in turn and drops into the one under the pointer")
 
         reset()
         let flick = Host()
