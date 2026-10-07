@@ -63,7 +63,7 @@ struct NotchGestureSupport {
         // the lift and the momentum; it belongs to the same flick. Momentum
         // that pauses, or turns sideways like the end of a track swipe, stops.
         let transition = coasting && !momentum && !hasPhase && precise
-            && lastTimestamp.map({ timestamp >= $0 && timestamp - $0 <= 0.1 }) == true
+            && lastTimestamp.map({ timestamp >= $0 && timestamp - $0 <= 0.35 }) == true
         if momentum || transition {
             guard coasting, !fired, let origin, let last = lastTimestamp,
                   timestamp >= last, timestamp - last <= 0.35, abs(y) >= abs(x) * 1.5 else {

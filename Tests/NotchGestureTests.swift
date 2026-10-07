@@ -103,6 +103,23 @@ enum NotchGestureTests {
         time += 10
         suite.expect(feed(0, 20, momentum: true, phased: false) == nil,
                "momentum arriving long after the lift cannot finish an old swipe")
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil, "paced momentum fixture")
+        time += 0.29
+        let pacedFirst = feed(0, 4, momentum: true, phased: false)
+        time += 0.29
+        suite.expect(pacedFirst == nil && feed(0, 8, momentum: true, phased: false) == .open,
+               "momentum a third of a second apart still finishes the flick")
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil, "paused momentum fixture")
+        time += 0.39
+        suite.expect(feed(0, 20, momentum: true, phased: false) == nil,
+               "momentum that pauses for longer stops the flick")
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil, "late transition fixture")
+        time += 0.5
+        suite.expect(feed(0, 0, phased: false) == nil && feed(0, 20, momentum: true, phased: false) == nil,
+               "a phaseless event well after the lift ends the flick")
+        suite.expect(feed(0, 6, began: true) == nil && feed(0, 0, ended: true) == nil
+               && feed(0, 12, precise: false, phased: false) == nil,
+               "a wheel tick after a lifted swipe starts its own sequence instead of finishing the flick")
         suite.expect(feed(0, 5, began: true) == nil && feed(-80, 0) == nil,
                "an established vertical gesture cannot become a track skip")
         suite.expect(feed(-20, 0, began: true) == nil && feed(-19, 0) == nil && feed(-1, 0) == .nextTrack,
