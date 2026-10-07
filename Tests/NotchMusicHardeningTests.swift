@@ -285,7 +285,7 @@ enum NotchMusicHardeningTests {
         let service = Contract.Service()
         service.start()
         suite.expect(service.launches == 1 && !service.includeOtherPlayers,
-                     "automatic playback starts with music apps only")
+                     "music-only automatic playback starts the adapter without other players")
         service.start()
         suite.expect(service.launches == 1, "an unchanged playback scope does not restart the adapter")
         service.chosenSource = .init(pid: 20, bundleIdentifier: "test.browser")
@@ -550,7 +550,7 @@ enum NotchMusicHardeningTests {
                      "music-only automatic playback ignores videos, even when they own the system session")
         suite.expect(choose([browser, paused], previous: 10, includeOtherPlayers: true) == browser
                      && choose([browser], includeOtherPlayers: true) == browser,
-                     "the opt-in restores automatic playback from other apps")
+                     "with other players included, automatic playback follows other apps")
         suite.expect(choose([paused, browser], previous: 10, system: 10, includeOtherPlayers: true) == browser,
                      "a playing browser takes over when the system player still points at paused music")
         suite.expect(choose([browser], previous: nil, system: 99, includeOtherPlayers: true) == browser,
@@ -563,6 +563,14 @@ enum NotchMusicHardeningTests {
                      "an explicit browser selection overrides simultaneous music playback")
         suite.expect(choose([paused, idleBrowser], previous: 10, system: 10, includeOtherPlayers: true) == paused,
                      "an unrelated paused browser cannot replace a music resume control")
+        suite.expect(choose([paused, idleBrowser], previous: 20, system: 20, includeOtherPlayers: true) == idleBrowser
+                     && choose([paused, idleBrowser], previous: 20, system: 20) == paused,
+                     "pausing a followed browser keeps its place instead of switching to paused music")
+        let otherVideo = source(40, music: false)
+        suite.expect(choose([paused, idleBrowser, otherVideo], previous: 20, system: 20, includeOtherPlayers: true) == otherVideo
+                     && choose([idleBrowser, otherVideo], previous: 20, system: 20, includeOtherPlayers: true) == otherVideo
+                     && choose([music, idleBrowser], previous: 20, system: 20, includeOtherPlayers: true) == music,
+                     "another playing player or playing music takes over from a paused followed browser")
         suite.expect(NotchPlaybackSource.preferred(in: [music, idleBrowser], previousPID: 20, systemPID: 10,
                                                    selection: browser.selection) == idleBrowser,
                      "pausing a chosen browser keeps its resume control reachable")

@@ -16,6 +16,7 @@ enum NotchAgentTests {
         pricing(suite)
         claudeParsing(suite)
         claudeTurns(suite)
+        offlineTurns(suite)
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
@@ -276,6 +277,104 @@ enum NotchAgentTests {
                     file: "a", provider: .claude, tracksTurns: false, modified: now)
         suite.expect(store.records.count == 1 && store.records.first?.tokens.output == 400,
                      "dropping old history keeps later lookups consistent")
+    }
+
+    private static func offlineTurns(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-21T23:45:00.000Z")!
+        let drop = AgentTimestamp.parse("2026-09-21T23:43:00.000Z")!
+        let grace = AgentUsageStore.offlineGrace
+        var state = AgentLogState()
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func feed(_ data: Data) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseClaude(data, state: &state, now: now), file: "main", provider: .claude,
+                        tracksTurns: true, modified: now, now: now)
+        }
+        var codexState = AgentLogState()
+        func codex(_ json: String) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseCodex(line(json), state: &codexState, now: now), file: "rollout",
+                        provider: .codex, tracksTurns: true, modified: now, now: now)
+        }
+        func finished(_ events: [AgentUsageEvent], _ wanted: AgentProvider) -> Bool {
+            events.contains { if case .finished(let provider, _, _, _, _) = $0 { provider == wanted } else { false } }
+        }
+        _ = feed(claudeUser())
+        _ = feed(claudeAssistant(stop: "tool_use"))
+        _ = codex(#"{"timestamp":"2026-09-21T23:41:00.000Z","type":"event_msg","payload":{"type":"task_started"}}"#)
+        _ = store.apply([.turnBegan(now)], file: "events", provider: .copilot, tracksTurns: true, modified: now, now: now)
+        _ = store.apply([.turnBegan(now)], file: "db#s1", provider: .opencode, tracksTurns: true, modified: now, now: now)
+        suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace - 1) && store.live.count == 4,
+                     "a short drop, as when the Mac changes networks, ends no turn")
+        suite.expect(store.closeOfflineTurns(since: drop, lasting: grace)
+                        && Set(store.live.map(\.provider)) == [.codex, .copilot, .opencode],
+                     "a Claude turn ends once the Mac stays offline, and other agents' turns are left alone")
+        suite.expect(finished(codex(#"{"timestamp":"2026-09-21T23:44:50.000Z","type":"event_msg","payload":{"type":"task_complete","duration_ms":230000}}"#), .codex),
+                     "a Codex task that goes on through a long drop still reports its finish")
+        suite.expect(feed(claudeAssistant(id: "msg_2", request: "req_2", stop: "tool_use", time: "2026-09-21T23:44:00.000Z")).isEmpty
+                        && store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:00.000Z"),
+                     "a retry that gets through opens a turn of its own")
+        let retried = store.live.first { $0.provider == .claude }
+        suite.expect(retried?.tokens.total == AgentTokens(input: 2, cacheWrite: 17_218, cacheRead: 43_134, output: 225).total
+                        && (retried?.cost ?? 0) > 0,
+                     "the reply that gets through counts toward the turn it opens")
+        suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace + 60) && store.live.contains { $0.provider == .claude },
+                     "a turn whose model replied since the drop, as a model on the Mac does, keeps working offline")
+        store.closeIdleTurns(now: now, after: 0)
+        store.closeOfflineTurns(since: AgentTimestamp.parse("2026-09-21T23:44:10.000Z")!, lasting: grace)
+        _ = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "tool_use", time: "2026-09-21T23:44:30.000Z"))
+        suite.expect(store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:30.000Z"),
+                     "a quiet turn ends offline too, so a later retry does not take it up again")
+
+        func call(_ tool: String, _ id: String) -> Data {
+            line(#"{"type":"assistant","timestamp":"2026-09-21T23:44:40.000Z","sessionId":"s1","message":{"id":"msg_\#(id)","model":"<synthetic>","stop_reason":"tool_use","content":[{"type":"tool_use","id":"\#(id)","name":"\#(tool)","input":{}}]}}"#)
+        }
+        func result(_ id: String) -> Data {
+            line(#"{"type":"user","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"\#(id)","content":"ok"}]}}"#)
+        }
+        // After the last reply, so only the command keeps the turn.
+        let late = AgentTimestamp.parse("2026-09-21T23:44:45.000Z")!
+        _ = feed(call("WebFetch", "toolu_web"))
+        _ = feed(call("Bash", "toolu_sh"))
+        suite.expect(state.runningCommands == ["toolu_sh"], "only a shell command counts as work on the Mac")
+        suite.expect(!store.closeOfflineTurns(since: late, lasting: grace, keeping: ["main"])
+                        && store.live.contains { $0.provider == .claude },
+                     "a turn waiting on a shell command keeps working offline")
+        _ = feed(result("toolu_web"))
+        suite.expect(state.runningCommands == ["toolu_sh"], "another tool's result leaves the command running")
+        _ = feed(result("toolu_sh"))
+        suite.expect(state.runningCommands.isEmpty, "the command's result means the next step needs the network")
+        suite.expect(store.closeOfflineTurns(since: late, lasting: grace) && !store.live.contains { $0.provider == .claude },
+                     "once its command is done, a turn ends offline")
+        _ = feed(call("Bash", "toolu_left"))
+        _ = feed(line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#))
+        _ = feed(claudeUser(time: "2026-09-21T23:44:50.000Z"))
+        suite.expect(state.runningCommands.isEmpty, "a new prompt forgets a command the last turn left")
+
+        // A session killed in the middle of a command leaves its turn open
+        // in the log; resumed there, its next prompt reads as work going on.
+        var killed = AgentLogState()
+        for data in [claudeUser(), call("Bash", "toolu_killed"), claudeUser(meta: true),
+                     line(#"{"type":"user","isSidechain":true,"sessionId":"s1","message":{"role":"user","content":"Explore the repo"}}"#)] {
+            _ = AgentLogParser.parseClaude(data, state: &killed, now: now)
+        }
+        suite.expect(killed.runningCommands == ["toolu_killed"], "a meta line or a subagent's prompt leaves a command running")
+        _ = AgentLogParser.parseClaude(claudeUser("Go on", time: "2026-09-21T23:44:55.000Z"), state: &killed, now: now)
+        suite.expect(killed.turnOpen && killed.runningCommands.isEmpty,
+                     "a prompt typed into a turn left open forgets the command a killed session left")
+
+        let blip = AgentUsageStore()
+        blip.reportsTransitions = true
+        var blipState = AgentLogState()
+        func feedBlip(_ data: Data) -> [AgentUsageEvent] {
+            blip.apply(AgentLogParser.parseClaude(data, state: &blipState, now: now), file: "blip", provider: .claude,
+                       tracksTurns: true, modified: now, now: now)
+        }
+        _ = feedBlip(claudeUser())
+        _ = feedBlip(claudeAssistant(stop: "tool_use"))
+        blip.closeOfflineTurns(since: drop, lasting: grace - 1)
+        suite.expect(finished(feedBlip(claudeAssistant(id: "msg_9", request: "req_9", stop: "end_turn",
+                                                       time: "2026-09-21T23:44:55.000Z")), .claude),
+                     "a turn that reconnects after a short drop still reports its finish")
     }
 
     private static func claudeTurns(_ suite: TestSuite) {

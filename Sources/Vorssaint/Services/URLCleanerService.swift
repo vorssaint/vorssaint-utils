@@ -157,11 +157,66 @@ final class URLCleanerService: ObservableObject {
         // because writing to the pasteboard discards whatever else the copy
         // carried, and a link the cleaner did not need to touch is the one
         // most likely to come back spelled differently.
-        guard URLCleaning.canRewritePasteboard(types: (pasteboard.types ?? []).map(\.rawValue)),
+        let types = (pasteboard.types ?? []).map(\.rawValue)
+        guard URLCleaning.canRewritePasteboard(types: types),
+              // The rewrite writes one item, so a copy of several is left alone.
+              pasteboard.pasteboardItems?.count == 1,
               let text = pasteboard.string(forType: .string) ?? pasteboard.string(forType: urlType),
               let cleaned = URLCleaning.clean(text, rules: rules),
               !cleaned.removed.isEmpty,
               !token.isCancelled else {
+            return PollResult(changeCount: changeCount, cleaned: nil)
+        }
+        // The rewrite drops the HTML, which is only right when the HTML adds
+        // nothing to the link but formatting. When every anchor leads to this
+        // link, whatever the copy shows, such as the page title, goes like any
+        // formatting of it (#1760). A picture's markup, an anchor to another
+        // address, or markup without anchors that shows more than the link is
+        // left alone, as the bare link would lose it (#1432).
+        if types.contains("public.html") {
+            let rawHTML = pasteboard.string(forType: .html) ?? ""
+            // A copy of one link is a few hundred bytes. Far larger markup is
+            // left alone rather than searched on the shared pasteboard queue.
+            guard rawHTML.utf8.count <= 64 * 1024 else {
+                return PollResult(changeCount: changeCount, cleaned: nil)
+            }
+            // Browsers write the address they resolved, percent-encoded and
+            // with a slash for an empty path, so links compare as addresses.
+            // Case folds after parsing, which writes its escapes in upper case.
+            func address(_ string: String) -> String {
+                guard let url = URL(string: string),
+                      var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+                    return string.lowercased()
+                }
+                if components.path.isEmpty { components.path = "/" }
+                return (components.string ?? string).lowercased()
+            }
+            let link = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let linkAddress = address(link)
+            // Head, style, script and title are never shown, and a head links
+            // the document's own files, not the copy. One left open ends at
+            // the body or the end, and a tag never spans a '<', so markup that
+            // never closes is read once instead of once per '<'.
+            let shown = rawHTML.replacingOccurrences(
+                of: #"<(head|style|script|title)\b[^<>]*>[\s\S]*?(?:</\1\s*>|(?=<body\b)|\z)"#,
+                with: "", options: [.regularExpression, .caseInsensitive])
+            let targets = shown.replacingOccurrences(of: "href=", with: "href=", options: .caseInsensitive)
+                .components(separatedBy: "href=").dropFirst()
+                .map { address(String($0.dropFirst().prefix { $0 != "\"" && $0 != "'" })
+                    .replacingOccurrences(of: "&amp;", with: "&")) }
+            let html = rawHTML.lowercased()
+            let visible = shown.lowercased().replacingOccurrences(of: "&amp;", with: "&")
+                .replacingOccurrences(of: "<[^<>]*>", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let media = ["<img", "<video", "<audio", "<picture", "<svg", "<iframe", "<object", "<embed"]
+            guard !media.contains(where: html.contains), targets.allSatisfy({ $0 == linkAddress }),
+                  !targets.isEmpty || visible.isEmpty || visible == link.lowercased() else {
+                return PollResult(changeCount: changeCount, cleaned: nil)
+            }
+        }
+        // Another app may have copied since the read. Nothing compares and
+        // swaps across processes, so this narrows the window, not closes it.
+        guard pasteboard.changeCount == changeCount else {
             return PollResult(changeCount: changeCount, cleaned: nil)
         }
 

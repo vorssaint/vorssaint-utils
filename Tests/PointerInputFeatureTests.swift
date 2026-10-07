@@ -960,18 +960,28 @@ enum PointerInputFeatureTests {
                    "focus follows mouse preserves a supported delay of \(delay) ms")
         }
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
-            targetWindowID: 42, focusedWindowID: nil, targetAppIsFrontmost: true),
+            targetWindowID: 42, focusedWindowID: nil, focusedWindowBlocksTarget: false,
+            targetAppIsFrontmost: true),
                "hover leaves the active app alone when its focused window cannot be read")
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
-            targetWindowID: 42, focusedWindowID: 42, targetAppIsFrontmost: true),
+            targetWindowID: 42, focusedWindowID: 42, focusedWindowBlocksTarget: false,
+            targetAppIsFrontmost: true),
                "hover does not reactivate the app's focused window")
         suite.expect(FocusFollowsMouseSupport.shouldActivate(
-            targetWindowID: 42, focusedWindowID: 43, targetAppIsFrontmost: true),
+            targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: false,
+            targetAppIsFrontmost: true),
                "hover can still switch to another window within the active app")
+        suite.expect(!FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: true,
+            targetAppIsFrontmost: true),
+               "hover leaves focus on a sheet or modal window that blocks the hovered window")
         for focusedWindowID: CGWindowID? in [nil, 42, 43] {
-            suite.expect(FocusFollowsMouseSupport.shouldActivate(
-                targetWindowID: 42, focusedWindowID: focusedWindowID, targetAppIsFrontmost: false),
-                   "hover can activate a background app regardless of its last focused window")
+            for focusedWindowBlocksTarget in [false, true] {
+                suite.expect(FocusFollowsMouseSupport.shouldActivate(
+                    targetWindowID: 42, focusedWindowID: focusedWindowID,
+                    focusedWindowBlocksTarget: focusedWindowBlocksTarget, targetAppIsFrontmost: false),
+                       "hover can activate a background app regardless of its last focused window")
+            }
         }
         suite.expect(FocusFollowsMouseSupport.shouldRestoreFocus(
             to: 42, reportedFocusedWindowID: 42, appIsFrontmost: true),

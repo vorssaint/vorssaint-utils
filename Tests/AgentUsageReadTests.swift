@@ -84,6 +84,7 @@ enum AgentUsageReadTests {
         func readClaudeApp(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
+        func watchNetwork() {}
         func publish() {
             snapshot = store.snapshot(plans: [:], providers: enabled, now: Date())
             publications.append(snapshot)

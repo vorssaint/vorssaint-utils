@@ -189,15 +189,42 @@ enum CommandBarMath {
         let closingBrackets: String
     }
 
+    /// How this Mac writes numbers, plus the one other separator people type.
+    /// The alternate is whichever of "." and "," is not the decimal point, so
+    /// both work everywhere. A Mac that groups thousands with a space or an
+    /// apostrophe keeps that character as grouping only.
+    private struct Separators {
+        let decimal: Character
+        let alternate: Character
+        let groupingOnly: Character?
+
+        init(decimalSeparator: String, groupingSeparator: String) {
+            let decimal = Character(decimalSeparator.first.map(String.init) ?? ".")
+            let grouping = Character(groupingSeparator.first.map(String.init) ?? ",")
+            let groupingIsPunctuation = grouping == "." || grouping == ","
+            self.decimal = decimal
+            if groupingIsPunctuation, grouping != decimal {
+                alternate = grouping
+                groupingOnly = nil
+            } else {
+                alternate = decimal == "," ? "." : ","
+                groupingOnly = grouping == decimal ? nil : grouping
+            }
+        }
+
+        func isPart(ofNumber character: Character) -> Bool {
+            character.isNumber || character == decimal || character == alternate || character == groupingOnly
+        }
+    }
+
     /// The one validation/parsing path shared by evaluation and bracket hints.
     private static func parse(_ input: String,
                               decimalSeparator: String,
                               groupingSeparator: String) -> ParsedInput? {
         guard let expression = expressionWithoutTrailingEquals(input) else { return nil }
         guard expression.count <= 120, !expression.isEmpty, !looksLikeDateOrTime(expression) else { return nil }
-        guard var tokens = tokenize(expression,
-                                    decimalSeparator: Character(decimalSeparator.first.map(String.init) ?? "."),
-                                    groupingSeparator: Character(groupingSeparator.first.map(String.init) ?? ",")),
+        let separators = Separators(decimalSeparator: decimalSeparator, groupingSeparator: groupingSeparator)
+        guard var tokens = tokenize(expression, separators: separators),
               isCalculation(tokens),
               let closings = virtualClosings(for: tokens)
         else { return nil }
@@ -240,9 +267,7 @@ enum CommandBarMath {
     }
 
     /// Recognizes only supported mathematical symbols, numbers, and identifiers.
-    private static func tokenize(_ input: String,
-                                 decimalSeparator: Character,
-                                 groupingSeparator: Character) -> [Token]? {
+    private static func tokenize(_ input: String, separators: Separators) -> [Token]? {
         var tokens: [Token] = []
         var characters = Array(input)
         var index = 0
@@ -270,10 +295,8 @@ enum CommandBarMath {
                 index += 1
                 continue
             }
-            if character.isNumber || character == decimalSeparator || character == groupingSeparator {
-                guard let number = readNumber(&characters, &index,
-                                              decimalSeparator: decimalSeparator,
-                                              groupingSeparator: groupingSeparator)
+            if separators.isPart(ofNumber: character) {
+                guard let number = readNumber(&characters, &index, separators: separators)
                 else { return nil }
                 tokens.append(.number(number))
                 continue
@@ -318,23 +341,35 @@ enum CommandBarMath {
         return tokens.isEmpty ? nil : tokens
     }
 
-    /// Reads one number, deciding what each separator means. When both appear,
-    /// the last one is the decimal point. When only one appears, it is grouping
-    /// only if it looks the part: the Mac's grouping separator followed by
-    /// exactly three digits. An optional ASCII scientific exponent follows.
+    /// Reads one number, deciding what each separator means. When the decimal
+    /// and the alternate both appear, the last one is the decimal point. When
+    /// only the alternate appears, it is grouping only if it looks the part:
+    /// groups of exactly three digits. A grouping-only space or apostrophe must
+    /// always look the part. An optional ASCII scientific exponent follows.
     private static func readNumber(_ characters: inout [Character],
                                    _ index: inout Int,
-                                   decimalSeparator: Character,
-                                   groupingSeparator: Character) -> Double? {
-        var raw = ""
+                                   separators: Separators) -> Double? {
+        var written = ""
         while index < characters.count {
             let character = characters[index]
-            guard character.isNumber || character == decimalSeparator || character == groupingSeparator
-            else { break }
-            raw.append(character)
+            guard separators.isPart(ofNumber: character) else { break }
+            // A grouping character only groups when a digit follows it, so a
+            // no-break space after the last digit is read as a plain space.
+            if character == separators.groupingOnly,
+               !(index + 1 < characters.count && characters[index + 1].isNumber) { break }
+            written.append(character)
             index += 1
         }
-        guard !raw.isEmpty else { return nil }
+        guard !written.isEmpty else { return nil }
+
+        var raw = written
+        if let groupingOnly = separators.groupingOnly, written.contains(groupingOnly) {
+            let integerPart = written.prefix { $0 != separators.decimal && $0 != separators.alternate }
+            guard looksLikeGrouping(String(integerPart), separator: groupingOnly) else { return nil }
+            raw = written.filter { $0 != groupingOnly }
+        }
+        let decimalSeparator = separators.decimal
+        let alternateSeparator = separators.alternate
 
         var exponent = ""
         if index < characters.count, characters[index] == "e" || characters[index] == "E" {
@@ -353,22 +388,22 @@ enum CommandBarMath {
         }
 
         let hasDecimal = raw.contains(decimalSeparator)
-        let hasGrouping = decimalSeparator != groupingSeparator && raw.contains(groupingSeparator)
+        let hasAlternate = decimalSeparator != alternateSeparator && raw.contains(alternateSeparator)
         var normalized = raw
-        if hasDecimal, hasGrouping {
+        if hasDecimal, hasAlternate {
             let lastDecimal = raw.lastIndex(of: decimalSeparator)
-            let lastGrouping = raw.lastIndex(of: groupingSeparator)
-            if let lastDecimal, let lastGrouping, lastGrouping > lastDecimal {
+            let lastAlternate = raw.lastIndex(of: alternateSeparator)
+            if let lastDecimal, let lastAlternate, lastAlternate > lastDecimal {
                 normalized = raw.replacingOccurrences(of: String(decimalSeparator), with: "")
-                normalized = normalized.replacingOccurrences(of: String(groupingSeparator), with: ".")
+                normalized = normalized.replacingOccurrences(of: String(alternateSeparator), with: ".")
             } else {
-                normalized = raw.replacingOccurrences(of: String(groupingSeparator), with: "")
+                normalized = raw.replacingOccurrences(of: String(alternateSeparator), with: "")
                 normalized = normalized.replacingOccurrences(of: String(decimalSeparator), with: ".")
             }
-        } else if hasGrouping {
-            normalized = looksLikeGrouping(raw, separator: groupingSeparator)
-                ? raw.replacingOccurrences(of: String(groupingSeparator), with: "")
-                : raw.replacingOccurrences(of: String(groupingSeparator), with: ".")
+        } else if hasAlternate {
+            normalized = looksLikeGrouping(raw, separator: alternateSeparator)
+                ? raw.replacingOccurrences(of: String(alternateSeparator), with: "")
+                : raw.replacingOccurrences(of: String(alternateSeparator), with: ".")
         } else if hasDecimal {
             normalized = raw.replacingOccurrences(of: String(decimalSeparator), with: ".")
         }
@@ -377,10 +412,12 @@ enum CommandBarMath {
         return value
     }
 
-    /// Distinguishes grouped thousands from a decimal written with the alternate separator.
+    /// Distinguishes grouped thousands from a decimal written with the alternate
+    /// separator. Thousands never start at zero, so 0.125 always has decimals.
     private static func looksLikeGrouping(_ raw: String, separator: Character) -> Bool {
         let parts = raw.split(separator: separator, omittingEmptySubsequences: false)
-        guard parts.count >= 2, let first = parts.first, !first.isEmpty, first.count <= 3 else { return false }
+        guard parts.count >= 2, let first = parts.first, !first.isEmpty, first.count <= 3,
+              first.first != "0" else { return false }
         return parts.dropFirst().allSatisfy { $0.count == 3 }
     }
 

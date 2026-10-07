@@ -1348,6 +1348,16 @@ final class NotchService: ObservableObject {
         mutatePresentation { musicDetailVisible = visible }
     }
 
+    /// The Pomodoro's readouts add a row to the timer's page, so choosing a
+    /// mode can change the open island's height. The new mode fades in as a
+    /// new page does while the island springs to its size. Left to the
+    /// preference sync, the open island jumped there a moment later.
+    func selectTimerMode(_ mode: NotchTimerMode) {
+        guard mode != NotchTimerSupport.savedMode() else { return }
+        UserDefaults.standard.set(mode.rawValue, forKey: DefaultsKey.notchTimerMode)
+        refreshPresentation(transitionContent: .replace)
+    }
+
     @discardableResult
     func showClipboard(toggle: Bool = false) -> Bool {
         guard acceptsUserInteraction, NotchSupport.routesClipboardWindow() else { return false }

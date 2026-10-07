@@ -107,7 +107,7 @@ struct NotchTimerView: View {
         HStack(spacing: NotchTimerSupport.ModePicker.spacing) {
             ForEach(NotchTimerMode.allCases, id: \.self) { candidate in
                 let selected = mode == candidate
-                Button { mode = candidate } label: {
+                Button { NotchService.shared.selectTimerMode(candidate) } label: {
                     Text(title(for: candidate))
                         .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
                         .lineLimit(1)

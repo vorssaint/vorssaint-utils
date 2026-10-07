@@ -19,7 +19,9 @@ struct NotchGestureSupport {
     private var pendingY = 0.0
     private var distance = 0.0
     private var fired = false
+    private var coasting = false
     private var lastTimestamp: TimeInterval?
+    private static let verticalThreshold = 16.0
 
     static func nativeInteraction(at view: NSView?) -> (control: Bool, scroll: Bool) {
         var control = false
@@ -55,7 +57,28 @@ struct NotchGestureSupport {
                          began: Bool, ended: Bool, momentum: Bool, precise: Bool, hasPhase: Bool,
                          allowVertical: Bool, allowHorizontal: Bool, expanded: Bool) -> Action? {
         guard timestamp.isFinite, x.isFinite, y.isFinite else { self = Self(); return nil }
-        if ended || momentum { self = Self(); return nil }
+        // A quick flick lifts the fingers before the swipe has travelled far
+        // enough. Its momentum can finish the opening or closing it began,
+        // never a track change. Trackpads can send one phaseless event between
+        // the lift and the momentum; it belongs to the same flick. Momentum
+        // that pauses, or turns sideways like the end of a track swipe, stops.
+        let transition = coasting && !momentum && !hasPhase && precise
+            && lastTimestamp.map({ timestamp >= $0 && timestamp - $0 <= 0.35 }) == true
+        if momentum || transition {
+            guard coasting, !fired, let origin, let last = lastTimestamp,
+                  timestamp >= last, timestamp - last <= 0.35, abs(y) >= abs(x) * 1.5 else {
+                self = Self(); return nil
+            }
+            lastTimestamp = timestamp
+            distance += y
+            return verticalAction(expanded: origin.expanded)
+        }
+        if ended {
+            coasting = origin != nil && axis == .vertical && !fired
+            if coasting { lastTimestamp = timestamp } else { self = Self() }
+            return nil
+        }
+        if coasting { self = Self() }
         if hasPhase {
             if began {
                 self = Self()
@@ -98,13 +121,17 @@ struct NotchGestureSupport {
             fired = true
             return distance < 0 ? .nextTrack : .previousTrack
         case .vertical where allowVertical:
-            guard abs(distance) >= 24 else { return nil }
-            fired = true
-            if distance > 0, !expanded { return .open }
-            if distance < 0, expanded { return .close }
-            return nil
+            return verticalAction(expanded: expanded)
         default:
             return nil
         }
+    }
+
+    private mutating func verticalAction(expanded: Bool) -> Action? {
+        guard abs(distance) >= Self.verticalThreshold else { return nil }
+        fired = true
+        if distance > 0, !expanded { return .open }
+        if distance < 0, expanded { return .close }
+        return nil
     }
 }

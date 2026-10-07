@@ -22,6 +22,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
+    @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = true
     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
@@ -56,7 +57,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCapture) private var capture = true
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
-    @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = false
+    @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = true
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchHiddenControls) private var hiddenControls = NotchControlItem.defaultHidden
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
@@ -421,6 +422,7 @@ struct NotchSettings: View {
             switchRow("calendar.badge.clock", calendar.countdown, caption: calendar.countdownHint,
                       isOn: $calendarCountdown)
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
+            switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }
         case .timer:
             let activities = FeatureStrings.notchActivities(l10n.language)

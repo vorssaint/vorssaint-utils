@@ -165,6 +165,50 @@ enum CommandBarFeatureTests {
         suite.expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
                "three digits after the grouping separator read as thousands")
 
+        // Macs that group thousands with a space or an apostrophe.
+        for (name, grouping) in [("pt_PT", "\u{00A0}"), ("fr_FR", "\u{202F}")] {
+            suite.expect(mathValue("1.5+1", decimal: ",", grouping: grouping) == 2.5
+                    && mathValue("0.1+0.2", decimal: ",", grouping: grouping) == 0.3,
+                   "a dot decimal still works where the comma is the decimal point: \(name)")
+            suite.expect(mathValue("1.500+1", decimal: ",", grouping: grouping) == 1501
+                    && mathValue("1.234,5+1", decimal: ",", grouping: grouping) == 1235.5
+                    && mathValue("1,234.5+1", decimal: ",", grouping: grouping) == 1235.5,
+                   "the dot reads as thousands only when it looks the part: \(name)")
+            suite.expect(mathValue("1\(grouping)234,5+1", decimal: ",", grouping: grouping) == 1235.5,
+                   "the Mac's own grouping space still reads as thousands: \(name)")
+            suite.expect(mathValue("1\(grouping)5+1", decimal: ",", grouping: grouping) == nil,
+                   "a grouping space is never a decimal point: \(name)")
+        }
+        suite.expect(mathValue("1,5+1", decimal: ".", grouping: "'") == 2.5
+                && mathValue("1,234.5+1", decimal: ".", grouping: "'") == 1235.5
+                && mathValue("1'234.5+1", decimal: ".", grouping: "'") == 1235.5,
+               "a comma decimal works where thousands are grouped with an apostrophe")
+        suite.expect(mathValue("1.2.3+1", decimal: ",", grouping: "\u{00A0}") == nil,
+               "a repeated alternate separator that is not thousands has no answer")
+
+        // A grouping space or apostrophe groups only when digits follow it.
+        suite.expect(mathValue("1\u{00A0}+ 2", decimal: ",", grouping: "\u{00A0}") == 3,
+               "a no-break space after a number before an operator is just a space")
+        suite.expect(mathValue("200*15\u{202F}%", decimal: ",", grouping: "\u{202F}") == 30,
+               "a narrow no-break space before percent still answers")
+        suite.expect(mathValue("2\u{00A0}(3)", decimal: ",", grouping: "\u{00A0}") == 6,
+               "a no-break space before a bracket keeps the implicit product")
+        suite.expect(mathValue("1,5\u{00A0}+ 2", decimal: ",", grouping: "\u{00A0}") == 3.5,
+               "a decimal followed by a no-break space reads as that decimal")
+        suite.expect(mathValue("1\u{00A0}234\u{00A0}+ 1", decimal: ",", grouping: "\u{00A0}") == 1235,
+               "grouped thousands followed by a no-break space still answer")
+        suite.expect(mathValue("1\u{00A0}5+1", decimal: ",", grouping: "\u{00A0}") == nil,
+               "a grouping space between digits is never a decimal point")
+        // Thousands never start at zero.
+        for (decimal, grouping) in [(",", "\u{00A0}"), (",", "\u{202F}"), (".", "'"), (",", "."), (".", ",")] {
+            let alternate = decimal == "," ? "." : ","
+            suite.expect(mathValue("0\(alternate)125*8", decimal: decimal, grouping: grouping) == 1
+                    && mathValue("0\(alternate)500+1", decimal: decimal, grouping: grouping) == 1.5,
+                   "a number that starts at zero has decimals, never thousands, with \(decimal) and \(grouping)")
+        }
+        suite.expect(mathValue("0\u{00A0}125+1", decimal: ",", grouping: "\u{00A0}") == nil,
+               "a grouping space after a lone zero is not thousands")
+
         suite.expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
                 && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
                "virtual closers preserve bracket kind and nesting")
@@ -956,6 +1000,48 @@ enum CommandBarFeatureTests {
                                        locale: Locale(identifier: "pt_BR"))
                 .map { abs($0.value - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
+
+        // A first group of 0 is never thousands, so "0,250" is a quarter where
+        // the dot is decimal, while "1,050" still groups.
+        let dotDecimalInputs: [(String, Double)] = [
+            ("1.5", 150.0), ("1,5", 150.0), ("-1,5", -150.0),
+            ("1,500", 150_000.0), ("-123,456", -12_345_600.0),
+            ("1,234.5", 123_450.0), ("1.234,5", 123_450.0),
+            ("1,234,567", 123_456_700.0),
+            ("0,250", 25.0), ("-0,500", -50.0), ("1,050", 105_000.0),
+        ]
+        let commaDecimalInputs: [(String, Double)] = [
+            ("1,5", 150.0), ("1.5", 150.0), ("-1.5", -150.0),
+            ("1.500", 150_000.0), ("-123.456", -12_345_600.0),
+            ("1.234,5", 123_450.0), ("1,234.5", 123_450.0),
+            ("1.234.567", 123_456_700.0),
+            ("0.250", 25.0), ("-0.500", -50.0), ("1.050", 105_000.0),
+        ]
+        // de_CH groups thousands with an apostrophe, pt_PT with a no-break
+        // space and fr_FR with a narrow one. There the alternate is whichever
+        // of "." and "," is not the decimal, the same as in the calculator.
+        for (region, decimal, grouping, inputs) in [
+            ("en_US", ".", ",", dotDecimalInputs),
+            ("de_CH", ".", "'", dotDecimalInputs),
+            ("de_DE", ",", ".", commaDecimalInputs),
+            ("pt_PT", ",", "\u{00A0}", commaDecimalInputs),
+            ("fr_FR", ",", "\u{202F}", commaDecimalInputs),
+        ] {
+            for (number, expected) in inputs {
+                let converted = CommandBarUnits.convert("\(number) m to cm",
+                                                       decimalSeparator: decimal,
+                                                       groupingSeparator: grouping,
+                                                       locale: Locale(identifier: "en_US"))
+                suite.expect(converted.map { abs($0.value - expected) < 0.001 } == true,
+                             "unit conversion in \(region) reads \(number) as \(expected) cm")
+            }
+            for number in ["1,,5", "1..5", "--1", "1-5"] {
+                suite.expect(CommandBarUnits.convert("\(number) m to cm",
+                                                     decimalSeparator: decimal,
+                                                     groupingSeparator: grouping) == nil,
+                             "unit conversion in \(region) refuses malformed number \(number)")
+            }
+        }
 
         // MeasurementFormatter words the unit from the localization data of the
         // macOS it runs on, not from the locale it is handed, so pinning

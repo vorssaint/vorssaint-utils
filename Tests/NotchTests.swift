@@ -1016,8 +1016,8 @@ enum NotchTests {
                      "installed island sections and activity indicators start enabled")
         suite.expect(firstDefaults[DefaultsKey.notchLiveEqualizer] as? Bool == false,
                      "the live equalizer starts off because it asks for system audio recording")
-        suite.expect(firstDefaults[DefaultsKey.notchIncludeOtherPlayers] as? Bool == false,
-                     "new island setups follow music apps only unless broader playback is enabled")
+        suite.expect(firstDefaults[DefaultsKey.notchIncludeOtherPlayers] as? Bool == true,
+                     "new island setups follow every player unless limited to music apps")
 
         let priorInstall = "com.vorssaint.tests.notch-existing-\(UUID().uuidString)"
         let existing = UserDefaults(suiteName: priorInstall)!
@@ -2401,6 +2401,7 @@ enum NotchTests {
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchCalendarEnabled,
                                                                  DefaultsKey.notchCalendarCountdown,
                                                                  DefaultsKey.notchCalendarTimeLeft,
+                                                                 DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
@@ -2668,6 +2669,48 @@ enum NotchTests {
             suite.expect(row >= 16 && row <= 30 && row == row.rounded() && grid <= height,
                    "the strip's month grid keeps six readable rows inside every preset and the lowest custom height")
         }
+        for (firstWeekday, minimumDays) in [(1, 1), (2, 4), (7, 1)] {
+            calendar.firstWeekday = firstWeekday
+            calendar.minimumDaysInFirstWeek = minimumDays
+            for month in [date(2026, 12, 15), date(2027, 1, 15), leapDay] {
+                let days = NotchCalendarSupport.monthDays(containing: month, calendar: calendar)
+                let rows = stride(from: 0, to: days.count, by: 7).map { Array(days[$0..<min($0 + 7, days.count)]) }
+                suite.expect(days.filter { NotchCalendarSupport.startsWeek($0, calendar: calendar) } == rows.compactMap(\.first),
+                       "a week number is drawn once per row, ahead of the row's first day")
+                suite.expect(rows.allSatisfy { row in
+                    Set(row.map { NotchCalendarSupport.weekNumber(of: $0, calendar: calendar) }).count == 1
+                }, "every day of a row shares the row's week number, whatever day the week starts on")
+            }
+        }
+        calendar.firstWeekday = 2
+        calendar.minimumDaysInFirstWeek = 4
+        suite.expect(NotchCalendarSupport.weekNumber(of: date(2026, 12, 31), calendar: calendar) == 53
+               && NotchCalendarSupport.weekNumber(of: date(2027, 1, 3), calendar: calendar) == 53
+               && NotchCalendarSupport.weekNumber(of: date(2027, 1, 4), calendar: calendar) == 1,
+               "a Monday-first calendar numbers the turn of the year as ISO weeks do")
+        calendar.firstWeekday = 1
+        calendar.minimumDaysInFirstWeek = 1
+        suite.expect(NotchCalendarSupport.weekNumber(of: date(2026, 12, 26), calendar: calendar) == 52
+               && NotchCalendarSupport.weekNumber(of: date(2027, 1, 1), calendar: calendar) == 1
+               && NotchCalendarSupport.weekNumber(of: date(2026, 12, 27), calendar: calendar) == 1,
+               "a Sunday-first calendar starts week 1 with the row that holds January 1")
+        for language in AppLanguage.allCases {
+            let text = FeatureStrings.notchCalendar(language)
+            let label = NotchCalendarSupport.weekNumberLabel(of: date(2026, 12, 26), text: text, calendar: calendar)
+            let words = label.replacingOccurrences(of: "52", with: "")
+                .trimmingCharacters(in: CharacterSet.whitespaces.union(.punctuationCharacters))
+            suite.expect(TestFormat.parse(text.weekNumber)?.conversions == ["d"]
+                   && text.weekNumber.components(separatedBy: "%d").count == 2
+                   && label.contains("52") && !words.isEmpty,
+                   "VoiceOver reads a row's week number as that week in \(language.rawValue)")
+        }
+        let monthView = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchCalendarMonthView.swift",
+                                     encoding: .utf8)) ?? ""
+        let weekNumberView = monthView.components(separatedBy: "struct NotchCalendarWeekNumber: View {").last ?? ""
+        suite.expect(monthView.components(separatedBy: "NotchCalendarWeekNumber(date: date, text: text,").count == 3
+               && weekNumberView.contains(".accessibilityLabel(NotchCalendarSupport.weekNumberLabel(of: date, text: text))")
+               && !weekNumberView.contains(".accessibilityHidden(true)"),
+               "both month grids give VoiceOver each row's week number")
         let march = NotchCalendarSupport.monthDays(containing: date(2026, 3, 15), calendar: calendar)
         suite.expect(march.contains(date(2026, 3, 8)) && march.contains(date(2026, 3, 9))
                && date(2026, 3, 9).timeIntervalSince(date(2026, 3, 8)) == 23 * 3600,

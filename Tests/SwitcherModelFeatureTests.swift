@@ -3920,8 +3920,8 @@ enum SwitcherModelFeatureTests {
                                        hasFullscreenWindows: false,
                                        hasModifiers: false,
                                        minimizeEnabled: false,
-                                       hideEnabled: true) == .hide,
-               "hiding also works for a frontmost app with no windows")
+                                       hideEnabled: true) == .passThrough,
+               "a frontmost app with no windows lets the Dock open a new one")
         suite.expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,

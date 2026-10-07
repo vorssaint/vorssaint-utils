@@ -8,12 +8,21 @@ struct PanelURLCleanerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var cleaner = URLCleanerService.shared
     @AppStorage(DefaultsKey.urlCleanerEnabled) private var autoClean = false
+    // The service reads the rules itself. `result` reads them too, so a rule
+    // changed in Settings while the panel sits beside it redraws the result.
+    @AppStorage(DefaultsKey.urlCleanerCustomParameters) private var globalNames = ""
+    @AppStorage(DefaultsKey.urlCleanerSiteParameters) private var siteNames = ""
+    @AppStorage(DefaultsKey.urlCleanerDisabledParameters) private var disabledNames = ""
     @State private var input = ""
-    @State private var output = ""
-    @State private var message: String?
+    @State private var copied: String?
 
     var onClose: () -> Void
-    private var canClearInput: Bool { !input.isEmpty || !output.isEmpty || message != nil }
+    /// Worked out from the field on every render, so Copy always takes the
+    /// link that is in the field now under the rules in force now.
+    private var result: URLCleaning.Result? {
+        _ = (globalNames, siteNames, disabledNames)
+        return cleaner.clean(input)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -76,27 +85,23 @@ struct PanelURLCleanerView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.secondary.opacity(canClearInput ? 1 : 0.35))
+                        .foregroundStyle(Color.secondary.opacity(input.isEmpty ? 0.35 : 1))
                         .frame(width: 20, height: 20)
                 }
                 .buttonStyle(.plain)
                 .help(l10n.s.urlCleanerClearButton)
-                .disabled(!canClearInput)
+                .disabled(input.isEmpty)
             }
             HStack(spacing: 7) {
                 Button(l10n.s.urlCleanerPasteButton) {
                     paste()
                 }
-                Button(l10n.s.urlCleanerCleanButton) {
-                    clean()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Spacer()
                 Button(l10n.s.urlCleanerCopyButton) {
                     copy()
                 }
-                .disabled(output.isEmpty)
+                .buttonStyle(.borderedProminent)
+                .disabled(result == nil)
             }
             .controlSize(.small)
 
@@ -107,24 +112,33 @@ struct PanelURLCleanerView: View {
 
     @ViewBuilder
     private var resultView: some View {
-        if output.isEmpty {
-            Text(message ?? l10n.s.urlCleanerOutputPlaceholder)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .lineLimit(2)
-        } else {
+        if let output = result?.url {
             VStack(alignment: .leading, spacing: 5) {
                 Text(output)
                     .font(.system(size: 10.5, design: .monospaced))
                     .lineLimit(3)
                     .truncationMode(.middle)
                     .textSelection(.enabled)
-                if let message {
-                    Text(message)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+                Text(message)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
+        } else {
+            Text(input.isEmpty ? l10n.s.urlCleanerOutputPlaceholder : message)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .lineLimit(2)
+        }
+    }
+
+    private var message: String {
+        if let copied, copied == result?.url { return l10n.s.urlCleanerCopied }
+        switch URLCleaning.outcome(for: result, input: input) {
+        case .notAURL: return l10n.s.urlCleanerNoURL
+        case .unchanged: return l10n.s.urlCleanerNoChange
+        case .rewritten: return l10n.s.urlCleanerCleaned
+        case .removed(let names):
+            return String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
         }
     }
 
@@ -136,31 +150,17 @@ struct PanelURLCleanerView: View {
             NSPasteboard.general.string(forType: .string) ?? ""
         }, then: { pasted in
             self.input = pasted
-            self.clean()
         })
     }
 
-    private func clean() {
-        let result = cleaner.clean(input)
-        output = result?.url ?? ""
-        switch URLCleaning.outcome(for: result, input: input) {
-        case .notAURL: message = l10n.s.urlCleanerNoURL
-        case .unchanged: message = l10n.s.urlCleanerNoChange
-        case .rewritten: message = l10n.s.urlCleanerCleaned
-        case .removed(let names):
-            message = String(format: l10n.s.urlCleanerRemovedFormat, names.joined(separator: ", "))
-        }
-    }
-
     private func copy() {
-        guard !output.isEmpty else { return }
-        cleaner.copy(output)
-        message = l10n.s.urlCleanerCopied
+        guard let url = result?.url else { return }
+        cleaner.copy(url)
+        copied = url
     }
 
     private func clearInput() {
         input = ""
-        output = ""
-        message = nil
+        copied = nil
     }
 }

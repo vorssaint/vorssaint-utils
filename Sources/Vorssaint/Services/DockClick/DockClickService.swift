@@ -230,10 +230,13 @@ final class DockClickService {
         if case .toggle(let toggled) = decision {
             windows = Self.standardWindows(pid: pid)
             action = toggled
-        } else if hideEnabled, !cycleEnabled {
-            // Hiding is an app-level AppKit action. It needs no AX window walk,
-            // keeping this common path out of the event tap's timeout budget.
-            action = frontmost ? .hide : .passThrough
+        } else if hideEnabled, !cycleEnabled, !frontmost {
+            action = .passThrough
+        } else if hideEnabled, !cycleEnabled, Self.windowServerHasStandardWindows(pid: pid) {
+            // Hiding is an app-level AppKit action. A window on screen settles
+            // it without an AX window walk, keeping this common path out of the
+            // event tap's timeout budget.
+            action = .hide
         } else {
             windows = Self.standardWindows(pid: pid)
             if windows.unminimized.isEmpty, windows.minimized.isEmpty {

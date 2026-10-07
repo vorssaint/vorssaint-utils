@@ -126,6 +126,23 @@ enum NotchCalendarSupport {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarTimeLeft)
     }
 
+    /// The number beside a row of the month grid. Rows start on the calendar's
+    /// first weekday, so the same calendar numbers them: every day of a row
+    /// then shares one number, where ISO weeks would straddle two rows on a
+    /// Mac whose week starts on Sunday.
+    static func weekNumber(of date: Date, calendar: Calendar = .current) -> Int {
+        calendar.component(.weekOfYear, from: date)
+    }
+
+    /// What VoiceOver reads for that number, since no day's label names its week.
+    static func weekNumberLabel(of date: Date, text: NotchCalendarStrings, calendar: Calendar = .current) -> String {
+        String(format: text.weekNumber, weekNumber(of: date, calendar: calendar))
+    }
+
+    static func startsWeek(_ date: Date, calendar: Calendar = .current) -> Bool {
+        calendar.component(.weekday, from: date) == calendar.firstWeekday
+    }
+
     /// Names the event a countdown was chosen for across refreshes, edits and
     /// relaunches: the event itself or, in a series, one occurrence by the
     /// date it first fell on, which moving that occurrence leaves unchanged.
