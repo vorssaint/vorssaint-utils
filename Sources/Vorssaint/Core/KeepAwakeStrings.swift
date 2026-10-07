@@ -47,6 +47,7 @@ struct KeepAwakeDisplaySleepStrings {
 extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -67,6 +68,7 @@ extension FeatureStrings {
 
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -90,6 +92,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let enUS = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Allow the display to sleep",
         allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
+    )
+
+    static let sv = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Låt displayen vila",
+        allowDisplaySleepCaption: "Håller Mac: n vaken medan displayen följer sin normala sömntimer."
     )
 
     static let ptBR = KeepAwakeDisplaySleepStrings(
@@ -183,6 +190,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Any",
         matchAll: "All",
         automationCaptionAll: "Starts only when every selected condition is active."
+    )
+
+    static let sv = KeepAwakeAutomationStrings(
+        automationSection: "Automatisering",
+        automationCaption: "Startar när något valt villkor är aktivt.",
+        automationOff: "AV",
+        externalDisplayToggle: "Extern display",
+        externalDisplayActive: "Aktiv medan en extern skärm är ansluten",
+        powerToggle: "Effekt",
+        powerActive: "Aktiv när den är ansluten till ström",
+        runningAppsToggle: "Applikationer",
+        runningAppsActive: "Aktiv medan en vald app körs",
+        runningAppsListTitle: "Valda appar",
+        runningAppsAddButton: "Lägg till en app...",
+        runningAppsRemoveButton: "Ta bort",
+        runningAppsListCaption: "Håll dig vaken startar medan någon av dessa appar är öppen, även i bakgrunden.",
+        automationActive: "Aktiv eftersom ett automatiskt villkor är uppfyllt",
+        pauseWhenLockedToggle: "Pausa medan Mac är låst",
+        pauseWhenLockedCaption: "Följer normala sömnregler medan du är låst och återupptar den återstående sessionen efter att du låst upp.",
+        matchAny: "Alla",
+        matchAll: "Alla",
+        automationCaptionAll: "Startar endast när varje valt villkor är aktivt."
     )
 
     static let ptBR = KeepAwakeAutomationStrings(

@@ -54,6 +54,7 @@ struct ScratchpadFeatureStrings {
 extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -104,6 +105,53 @@ extension ScratchpadFeatureStrings {
         closePad: "Close scratchpad",
         saveName: "Save",
         cancel: "Cancel",
+        deletePadMessageFormat: "Delete “%@” and everything in it?",
+        padLimitFormat: "You can keep up to %d scratchpads",
+        previewFormatting: "Show formatting",
+        editText: "Edit text",
+        markBold: "Bold",
+        markItalic: "Italic",
+        markStrikethrough: "Strikethrough",
+        markHeading: "Heading",
+        markBullet: "Bulleted list",
+        markNumbered: "Numbered list",
+        markQuote: "Quote",
+        markCode: "Code",
+        markLink: "Link",
+        formatMarks: "Formatting",
+        textSize: "Text size"
+    )
+
+    static let sv = ScratchpadFeatureStrings(
+        pageTitle: "Scratchpad",
+        hubDescription: "Floating pads for short-lived notes",
+        panelCaption: "Quick notes in separate tabs",
+        openButton: "Open scratchpad",
+        placeholder: "Type anything. It saves by itself.",
+        copyAll: "Copy all",
+        copied: "Copied",
+        exportAction: "Save as file",
+        exportFailed: "The file could not be saved",
+        loadFailed: "Your notes could not be opened. They were left unchanged.",
+        saveFailed: "Your notes could not be saved. Copy them elsewhere before quitting.",
+        clearAction: "Clear",
+        retentionTitle: "Clear on its own",
+        retentionNever: "Never",
+        retentionDay: "After a day unused",
+        retentionWeek: "After a week unused",
+        retentionMonth: "After a month unused",
+        retentionCaption: "The pad empties itself once the text goes that long without edits.",
+        closeOnClickOutside: "Close when I click outside",
+        keepOpen: "Keep open",
+        backgroundOpacity: "Pad background",
+        backgroundTranslucent: "Translucent",
+        backgroundOpaque: "Opaque",
+        newPad: "New scratchpad",
+        padActions: "Scratchpad actions",
+        renamePad: "Rename scratchpad",
+        closePad: "Close scratchpad",
+        saveName: "Spara",
+        cancel: "Avbryt",
         deletePadMessageFormat: "Delete “%@” and everything in it?",
         padLimitFormat: "You can keep up to %d scratchpads",
         previewFormatting: "Show formatting",

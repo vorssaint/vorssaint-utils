@@ -135,6 +135,31 @@ struct NotchMascotStrings {
 extension FeatureStrings {
     static func notchMascot(_ language: AppLanguage) -> NotchMascotStrings {
         switch language {
+        case .sv: return NotchMascotStrings(
+            title: "Följeslagare",
+            hint: "En liten vän som bor i Dynamic Island. Den vilar där när inget annat visas och kommer fram över musik och aktiviteter för att hälsa och reagera på det som händer.",
+            visits: "Visa sig då och då",
+            visitsHint: "Varje några minuter passerar den genom ön med en kort animering.",
+            style: "Stil", minimal: "Minimal", robot: "Robot",
+            shape: "Form", ball: "Boll", egg: "Ägg", squircle: "Avrundad fyrkant", pill: "Kapsel",
+            color: "Färg", pearl: "Pärla", mint: "Mynta", peach: "Persika", lilac: "Lila", lemon: "Citron", rose: "Ros",
+            commandBar: "Kommandorad på ön",
+            commandBarHint: "Med kortkommandot kommer kommandoraden fram från ön med följeslagaren som ansikte. Den reagerar medan du söker.",
+            opensAs: "Öppnas som", droplet: "Droppe", openIsland: "Öppen ö",
+            preview: "Förhandsvisning av följeslagaren", previewHint: "Klicka för att se den reagera.",
+            side: "Sida av kameran", left: "Vänster", right: "Höger",
+            frequency: "Hur ofta", rare: "Sällan", normal: "Ibland", frequent: "Ofta",
+            sky: "Himmel",
+            hubDescription: "En liten vän i Dynamic Island som hälsar då och då och reagerar på det som händer på datorn.",
+            appearance: "Utseende", behavior: "Beteende",
+            reactions: "Reagera på det som händer",
+            reactionsHint: "Den kommer fram för att reagera på musik, tidtagare, hämtningar, skärmbilder, mikrofonen, Håll vaken och mycket annat.",
+            sayHi: "Hälsa", sayHiHint: "Visar ett besök i Dynamic Island nu.",
+            momentsTitle: "Se hur den reagerar",
+            visitMoment: "Ett besök", timerStarted: "Tidtagare startad", downloadFailed: "Hämtningen misslyckades", unlocked: "Datorn låstes upp",
+            petTip: "Låt pekaren vila på den för att klappa den. Lämnas den ensam slumrar den tills du kommer tillbaka.",
+            livesInIsland: "Följeslagaren bor i Dynamic Island.",
+            keywords: "maskot husdjur följeslagare figur")
         case .enUS: return NotchMascotStrings(
             title: "Companion",
             hint: "A little friend who lives in the Dynamic Island. It rests there when nothing else is showing, and comes out over music and activities to say hello and react to what happens.",

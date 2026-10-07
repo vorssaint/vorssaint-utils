@@ -58,6 +58,7 @@ struct AppUpdateStrings {
 extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -114,6 +115,57 @@ extension AppUpdateStrings {
         includeHomebrewToggle: "Include Homebrew apps",
         onlineBadge: "Online",
         openApp: "Open",
+        openAppHint: "Opens the app so its own updater can finish",
+        includeOnlineToggle: "Include other installed apps",
+        includeOnlineCaption: "Checks directly with app developers when supported, then uses a public catalog. The app’s own updater installs the update.",
+        incompleteCheck: "Check incomplete",
+        onlineUnavailable: "The online check could not be completed. Other results are still shown.",
+        skipVersionFormat: "Skip version %@",
+        excludeApp: "Don’t check this app",
+        rulesTitle: "Update rules",
+        skippedVersionFormat: "Skipped version %@",
+        excludedApp: "Not checked until this rule is removed",
+        removeRule: "Remove rule",
+        rulesHint: "Skipping a version still allows newer releases. After removing an app exclusion, use Check now to refresh it.",
+        noVisibleUpdates: "No updates outside your rules"
+    )
+
+    static let sv = AppUpdateStrings(
+        pageTitle: "App updates",
+        hubDescription: "Find and install updates for the apps you have",
+        caption: "Looks for newer versions of the apps on this Mac and helps you finish each update from its original source.",
+        panelCaption: "See which apps have a newer version",
+        checkNow: "Check now",
+        checking: "Checking",
+        lastCheckFormat: "Last checked %@",
+        neverChecked: "Not checked yet",
+        upToDate: "No updates found",
+        partialUpToDate: "No updates found in this partial check",
+        coverageNote: "Checks the original sources of installed apps and a public catalog. Updates install through their original source.",
+        selectAll: "Select all",
+        clearSelection: "Clear",
+        updateSelectedFormat: "Update %d",
+        updateOne: "Update",
+        openAppStore: "Open the App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Opens the App Store, where this update is installed",
+        frequencyLabel: "Check in the background",
+        frequencyOff: "AV",
+        frequencyDaily: "Every day",
+        frequencyWeekly: "Every week",
+        nextCheckFormat: "Next check %@",
+        notifyToggle: "Tell me when an app has an update",
+        includeStoreToggle: "Include apps from the App Store",
+        includeStoreCaption: "Checks store versions using this Mac’s region. Apple installs these updates.",
+        packageMissing: "Homebrew is not installed, so apps cannot be updated from here yet.",
+        notificationBodyFormat: "%@ apps have a newer version.",
+        notificationBodyOne: "One app has a newer version.",
+        showInPanel: "Show in panel",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Sources",
+        includeHomebrewToggle: "Include Homebrew apps",
+        onlineBadge: "Online",
+        openApp: "Öppna",
         openAppHint: "Opens the app so its own updater can finish",
         includeOnlineToggle: "Include other installed apps",
         includeOnlineCaption: "Checks directly with app developers when supported, then uses a public catalog. The app’s own updater installs the update.",

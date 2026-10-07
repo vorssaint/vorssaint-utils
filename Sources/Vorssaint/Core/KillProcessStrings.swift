@@ -42,6 +42,7 @@ struct KillProcessFeatureStrings {
 extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -63,6 +64,39 @@ extension FeatureStrings {
 
 extension KillProcessFeatureStrings {
     static let enUS = KillProcessFeatureStrings(
+        pageTitle: "Kill Process",
+        browseSubtitle: "Browse & Kill",
+        hubDescription: "Search running processes and force quit, restart, or kill process trees",
+        searchPlaceholder: "Filter by name",
+        columnProcess: "Process",
+        columnCPU: "CPU",
+        columnMemory: "Memory",
+        columnPID: "PID",
+        groupToggle: "Group related processes",
+        groupCaption: "Groups helper processes under the app responsible for them.",
+        commandBarToggle: "Show in Command Bar",
+        commandBarCaption: "Adds running processes to the Command Bar, so you can find and kill them without opening Settings.",
+        refreshTooltip: "Refresh",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Processes: %d",
+        killButton: "Kill",
+        forceKillButton: "Force Kill",
+        killAllFormat: "Kill All “%@”",
+        killTreeButton: "Kill Process Tree",
+        restartButton: "Restart",
+        copyPID: "Copy PID",
+        copyPath: "Copy Path",
+        emptyStateTitle: "No Processes Found",
+        confirmKillFormat: "Kill %@?",
+        confirmForceKillFormat: "Force Kill %@?",
+        confirmKillAllFormat: "Kill all “%@” processes?",
+        confirmKillTreeFormat: "Kill %@ and all its child processes?",
+        killFailedTitle: "Couldn’t Kill Process",
+        killFailedMessage: "The process may have already exited or require additional privileges.",
+        adminPromptFormat: "Vorssaint needs administrator access to end “%@”."
+    )
+
+    static let sv = KillProcessFeatureStrings(
         pageTitle: "Kill Process",
         browseSubtitle: "Browse & Kill",
         hubDescription: "Search running processes and force quit, restart, or kill process trees",

@@ -37,6 +37,7 @@ struct WhatsAppOrganizerStrings {
 
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
@@ -65,6 +66,39 @@ extension WhatsAppOrganizerStrings {
         enabledCaption: "WhatsApp may download a moved file again. Vorssaint cannot prevent the network download, but it can detect and discard an identical extra copy.",
         destination: "Destination folder",
         chooseFolder: "Choose…",
+        useDefault: "Use Downloads/WhatsApp",
+        invalidDestination: "Choose a folder other than Downloads itself.",
+        organization: "Folder structure",
+        flat: "No subfolders",
+        byType: "By file type",
+        byMonth: "By year and month",
+        delay: "Wait before moving",
+        minutesFormat: "%d minutes",
+        duplicateAction: "When the same file is downloaded again",
+        trashDuplicate: "Move the new copy to Trash",
+        keepBoth: "Keep both copies",
+        replaceExisting: "Replace the organized copy",
+        duplicateCaption: "Duplicates are confirmed with a private SHA-256 digest. The organized copy is rechecked before another copy is discarded.",
+        organizeNow: "Organize eligible files now",
+        undo: "Undo last organization",
+        waiting: "Watching Downloads",
+        working: "Organizing WhatsApp files…",
+        resultFormat: "%1$d moved · %2$d duplicates · %3$d failed",
+        lastRunFormat: "Last organization %@: %d moved · %d duplicates · %d failed",
+        neverRun: "No organization has run yet.",
+        notificationTitle: "WhatsApp organization",
+        notificationFormat: "%1$d files organized. %2$d duplicate downloads handled. %3$d failed.",
+        privacyNote: "To identify exact duplicates, file bytes are read locally only while calculating a cryptographic digest. Contents and chats are never stored or uploaded."
+    )
+
+    static let sv = WhatsAppOrganizerStrings(
+        title: "Automatic organization",
+        experimental: "Experimentell",
+        description: "Moves stable WhatsApp downloads to a dedicated folder and detects exact repeat downloads.",
+        enabled: "Organize automatically",
+        enabledCaption: "WhatsApp may download a moved file again. Vorssaint cannot prevent the network download, but it can detect and discard an identical extra copy.",
+        destination: "Destination folder",
+        chooseFolder: "Välj…",
         useDefault: "Use Downloads/WhatsApp",
         invalidDestination: "Choose a folder other than Downloads itself.",
         organization: "Folder structure",

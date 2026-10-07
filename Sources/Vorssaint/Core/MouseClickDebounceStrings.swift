@@ -14,6 +14,7 @@ struct MouseClickDebounceStrings {
 extension FeatureStrings {
     static func mouseClickDebounce(_ language: AppLanguage) -> MouseClickDebounceStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -40,6 +41,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "More options",
         windowLabel: "Filter window",
         windowCaption: "A repeated click inside this interval is treated as an accidental duplicate."
+    )
+
+    static let sv = MouseClickDebounceStrings(
+        title: "Extra klickfilter",
+        caption: "Ignorerar snabba extra klick från slitna musknappar utan att sakta ner normala klick.",
+        moreOptions: "Fler alternativ",
+        windowLabel: "Filterfönster",
+        windowCaption: "Ett upprepat klick inom detta intervall behandlas som en oavsiktlig kopia."
     )
 
     static let ptBR = MouseClickDebounceStrings(

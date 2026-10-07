@@ -17,6 +17,7 @@ struct SwitcherAppRulesStrings {
 extension FeatureStrings {
     static func switcherAppRules(_ language: AppLanguage) -> SwitcherAppRulesStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -41,6 +42,17 @@ extension SwitcherAppRulesStrings {
         listTitle: "Rules by app",
         addButton: "Add an app…",
         removeButton: "Remove",
+        behaviorLabel: "Switcher behavior",
+        showWithoutWindows: "Show without windows",
+        windowsOnly: "Windows only",
+        hidden: "Never show",
+        caption: "Choose how each app appears. Apps without a rule use the choice above."
+    )
+
+    static let sv = SwitcherAppRulesStrings(
+        listTitle: "Rules by app",
+        addButton: "Lägg till en app...",
+        removeButton: "Ta bort",
         behaviorLabel: "Switcher behavior",
         showWithoutWindows: "Show without windows",
         windowsOnly: "Windows only",

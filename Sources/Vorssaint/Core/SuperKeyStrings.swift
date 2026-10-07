@@ -40,6 +40,7 @@ struct SuperKeyStrings {
 extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -66,6 +67,30 @@ extension SuperKeyStrings {
     }
 
     static let enUS = SuperKeyStrings(
+        pageTitle: "Super key",
+        hubDescription: "Turns one key into the modifier combination you choose.",
+        enableToggle: "Use this key as the super key",
+        enableCaption: "Hold it and press any key. Choose one or more modifiers below.",
+        modifierKeysNote: "Keep this key set to its default action in System Settings › Keyboard › Modifier Keys.",
+        sourceKey: "Key to hold",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Right %@",
+        holdHint: "Hold",
+        soloSection: "A tap on its own",
+        soloCaption: "What a quick tap does when no other key is pressed.",
+        soloNothing: "Nothing",
+        soloCapsLock: "Turn capitals on and off",
+        soloEscape: "Press Escape",
+        activeNow: "Working now",
+        panelCaptionFormat: "%1$@ holds %2$@.",
+        manageButton: "Set up…",
+        soloInputSource: "Switch input source; hold for Caps Lock",
+        mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
+        mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
+        keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
+    )
+
+    static let sv = SuperKeyStrings(
         pageTitle: "Super key",
         hubDescription: "Turns one key into the modifier combination you choose.",
         enableToggle: "Use this key as the super key",

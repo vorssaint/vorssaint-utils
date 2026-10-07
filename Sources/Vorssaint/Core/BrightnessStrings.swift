@@ -48,6 +48,7 @@ struct BrightnessFeatureStrings {
 extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -76,6 +77,45 @@ extension BrightnessFeatureStrings {
         externalCaption: "External displays are adjusted through the same protocol as their own buttons. When the connection cannot carry it, as with HDMI adapters, the slider dims the picture instead, so brightness control works either way.",
         noDisplays: "No display found.",
         displayOff: "Off",
+        turnOffDisplay: "Turn off display",
+        turnOnDisplay: "Turn on display",
+        lastDisplayCaption: "At least one display must stay on.",
+        switchUnavailable: "Display switching is unavailable on this Mac.",
+        switchFailed: "Could not change this display.",
+        openLidToEnable: "Open the lid to turn on the built-in display.",
+        keysToggle: "Brightness keys follow the pointer",
+        keysCaption: "The keyboard brightness keys change the display under the pointer.",
+        keyStep: "Brightness key steps",
+        keyStepCaption: "Smaller steps for each press of the brightness keys and display brightness shortcuts.",
+        keyStepStandard: "Standard",
+        keyStepHalf: "Half steps",
+        keyStepQuarter: "Quarter steps",
+        osdToggle: "Show brightness when adjusting",
+        osdCaption: "Shows the brightness percentage when you use the brightness keys or sliders.",
+        displayBrightnessShortcuts: "Use display brightness shortcuts",
+        displayBrightnessShortcutCaption: "Shortcuts adjust the primary display, or the display under the pointer when pointer following is on.",
+        displayBrightnessDecrease: "Decrease display brightness",
+        displayBrightnessIncrease: "Increase display brightness",
+        keyboardLight: "Keyboard light",
+        keyboardLightCaption: "Turns the keyboard backlight on or off.",
+        keyboardBrightnessShortcuts: "Use keyboard brightness shortcuts",
+        keyboardBrightnessDecrease: "Decrease keyboard brightness",
+        keyboardBrightnessIncrease: "Increase keyboard brightness",
+        softwareDimming: "Dim the picture",
+        extendedDimming: "Extra dimming",
+        islandPromptTitle: "Show brightness in the Dynamic Island?",
+        islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
+        islandPromptKeepOff: "Keep Off"
+    )
+
+    static let sv = BrightnessFeatureStrings(
+        pageTitle: "Displays",
+        hubDescription: "Brightness and power controls for every display",
+        enable: "Control displays",
+        enableCaption: "Brightness and on or off controls for the built-in and external displays, here and in the menu bar panel.",
+        externalCaption: "External displays are adjusted through the same protocol as their own buttons. When the connection cannot carry it, as with HDMI adapters, the slider dims the picture instead, so brightness control works either way.",
+        noDisplays: "No display found.",
+        displayOff: "AV",
         turnOffDisplay: "Turn off display",
         turnOnDisplay: "Turn on display",
         lastDisplayCaption: "At least one display must stay on.",

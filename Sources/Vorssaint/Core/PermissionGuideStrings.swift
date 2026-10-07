@@ -26,6 +26,7 @@ struct PermissionGuideStrings {
 extension FeatureStrings {
     static func permissionGuide(_ language: AppLanguage) -> PermissionGuideStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -84,6 +85,19 @@ extension PermissionGuideStrings {
         staleHint: "Already on in that list? That entry belongs to an earlier copy of the app. Start over to replace it.",
         startOver: "Start over",
         relaunch: "Relaunch to apply"
+    )
+
+    static let sv = PermissionGuideStrings(
+        title: "Ett steg kvar",
+        stepOpen: "macOS öppnade Systeminställningar i den högra listan.",
+        stepToggle: "Slå på Vorssaint i den listan.",
+        stepReturn: "Kom tillbaka. Det här kortet märker av sig självt.",
+        waiting: "Väntar på tillståndet...",
+        granted: "Tillstånd beviljat!",
+        closeHelp: "Stäng",
+        staleHint: "Redan med i den listan? Det inlägget tillhör en tidigare kopia av appen. Börja om för att byta ut den.",
+        startOver: "Börja om",
+        relaunch: "Starta om för att ansöka"
     )
 
     static let ptBR = PermissionGuideStrings(

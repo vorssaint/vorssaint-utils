@@ -15,6 +15,7 @@ struct FinderRenameFeatureStrings {
 extension FeatureStrings {
     static func finderRename(_ language: AppLanguage) -> FinderRenameFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -36,6 +37,15 @@ extension FeatureStrings {
 
 extension FinderRenameFeatureStrings {
     static let enUS = FinderRenameFeatureStrings(
+        pageTitle: "Finder shortcuts",
+        hubTitle: "Rename shortcut",
+        hubDescription: "Rename the selected file or folder with a shortcut you choose.",
+        enableLabel: "Use a shortcut to rename",
+        caption: "The shortcut only acts in Finder and leaves text fields alone. F2 works as a regular key; on keyboards where it controls brightness, use Fn-F2 or choose another shortcut.",
+        shortcutLabel: "Rename"
+    )
+
+    static let sv = FinderRenameFeatureStrings(
         pageTitle: "Finder shortcuts",
         hubTitle: "Rename shortcut",
         hubDescription: "Rename the selected file or folder with a shortcut you choose.",

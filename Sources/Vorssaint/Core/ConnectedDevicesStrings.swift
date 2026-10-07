@@ -23,6 +23,7 @@ struct ConnectedDevicesFeatureStrings {
 extension FeatureStrings {
     static func connectedDevices(_ language: AppLanguage) -> ConnectedDevicesFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -44,6 +45,16 @@ extension FeatureStrings {
 
 private extension ConnectedDevicesFeatureStrings {
     static let enUS = ConnectedDevicesFeatureStrings(
+        title: "Connected Devices",
+        hubDescription: "Count connected external USB peripherals",
+        noDevices: "No external devices connected",
+        unnamedDevice: "USB Device",
+        menuBarLabel: "USB",
+        oneConnected: "1 device connected",
+        devicesConnectedFormat: "%d devices connected"
+    )
+
+    static let sv = ConnectedDevicesFeatureStrings(
         title: "Connected Devices",
         hubDescription: "Count connected external USB peripherals",
         noDevices: "No external devices connected",

@@ -6,6 +6,7 @@ import Foundation
 enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -26,6 +27,7 @@ enum FeatureStrings {
 
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -46,6 +48,7 @@ enum FeatureStrings {
 
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -66,6 +69,7 @@ enum FeatureStrings {
 
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -86,6 +90,7 @@ enum FeatureStrings {
 
     static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -123,6 +128,8 @@ struct MixerFeatureStrings {
     let actions: String
 
     static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
+
+    static let sv = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Åtgärder")
     static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
     static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
@@ -359,6 +366,15 @@ struct SettingsCategoryStrings {
         appManagement: "App management"
     )
 
+    static let sv = SettingsCategoryStrings(
+        essentials: "Basutrustning",
+        windowsControls: "Window controls",
+        files: "Files",
+        utilities: "Utilities",
+        app: "App",
+        appManagement: "App management"
+    )
+
     static let ptBR = SettingsCategoryStrings(
         essentials: "Essenciais",
         windowsControls: "Janelas e controles",
@@ -576,6 +592,68 @@ struct ClipboardFeatureStrings {
         edit: "Edit",
         cancel: "Cancel",
         save: "Save",
+        autoClearEnable: "Auto clear clipboard with a delay of",
+        autoClearSecondsSuffix: "seconds",
+        autoClearOnSleep: "Clear clipboard on computer sleep",
+        autoClearOnDisplaySleep: "Clear clipboard on display sleep",
+        autoClearOnScreenLock: "Clear clipboard on screen lock",
+        autoClearCaption: "Clears the system clipboard only. Items already saved stay in the history.",
+        deleteSelectedFormat: "Delete %d",
+        menuBarPreview: "Show latest copy in the menu bar",
+        menuBarPreviewCaption: "Shows a shortened preview of your last copy next to the icon. Click it to open the history.",
+        menuBarPreviewLength: "Preview length",
+        menuBarPreviewLengthSuffix: "characters",
+        clearRecentConfirmFormat: "Clear unpinned (%d)?",
+        clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone."
+    )
+
+    static let sv = ClipboardFeatureStrings(
+        title: "Clipboard",
+        enable: "Save clipboard history",
+        caption: "Stores copied text so you can reuse it later. Everything stays local and can be cleared anytime.",
+        localNote: "Everything stays on this Mac. Very large items are ignored.",
+        skipSensitive: "Skip text that looks sensitive",
+        skipSensitiveCaption: "Avoids saving short no-space strings that look like passwords, tokens or keys.",
+        limit: "Limit",
+        limitUnlimited: "Unlimited",
+        showInPanel: "Show in panel",
+        shortcut: "History shortcut",
+        shortcutCaption: "Opens a quick window with search, pinned items and ⌘1 to ⌘9 shortcuts for pasting into the previous app.",
+        shortcutHint: "Click a row to paste it into the previous app. ⌘-click selects several; ⌘C copies without pasting.",
+        clickRowShortcut: "Click row",
+        commandClickShortcut: "⌘ Click",
+        pinned: "Pinned",
+        recent: "Recent",
+        pin: "Pin",
+        unpin: "Unpin",
+        clearRecent: "Clear unpinned",
+        clearRecentKeywords: "Clear recent",
+        empty: "No saved text",
+        disabled: "Enable history to start saving copied text.",
+        search: "Search copied text",
+        copy: "Kopiera",
+        copied: "Copied",
+        delete: "Delete item",
+        selectMultiple: "Add to pile",
+        unselectMultiple: "Remove from pile",
+        selectShortcutAction: "Välj",
+        pasteSelectedFormat: "Paste %d",
+        copySelectedFormat: "Copy %d",
+        clearSelection: "Clear selection",
+        moveUp: "Move up",
+        moveDown: "Move down",
+        noResults: "No results",
+        active: "Saving new text",
+        includeImagesFiles: "Also save copied images and files",
+        includeImagesFilesCaption: "Images join the history and files are remembered as links to their location. Pin and paste them like any text item.",
+        imageEntryLabel: "Image",
+        fileCountFormat: "%d files",
+        pasteImageAsFile: "Paste copied images as files",
+        pasteImageAsFileCaption: "When Finder is active, ⌘V saves a copied image as a PNG in the current folder.",
+        previewLabel: "Preview",
+        edit: "Redigera",
+        cancel: "Avbryt",
+        save: "Spara",
         autoClearEnable: "Auto clear clipboard with a delay of",
         autoClearSecondsSuffix: "seconds",
         autoClearOnSleep: "Clear clipboard on computer sleep",
@@ -1508,6 +1586,96 @@ struct WindowLayoutFeatureStrings {
         sideRepeatCycle: "Repeat Left or Right to cycle sizes",
         sideRepeatCycleCaption: "Half, then two thirds, then one third on the same display. Off, with more than one display, the repeat moves the window to the next display on that side.",
         gapNone: "None",
+        gapTiny: "Tiny",
+        gapSmall: "Small",
+        gapMedium: "Medium",
+        gapLarge: "Large",
+        gapExtraLarge: "Extra large"
+    )
+
+    static let sv = WindowLayoutFeatureStrings(
+        title: "Fönsterlayout",
+        caption: "Arrange windows into screen sections or move and resize them with a trackpad or mouse.",
+        showInPanel: "Show in panel",
+        gestureSection: "Window dragging",
+        gestureEnable: "Move and resize by dragging",
+        gestureCaption: "On a trackpad or mouse, hold the shown modifier keys and drag anywhere inside a window.",
+        gestureModifiers: "Keys to move",
+        gestureMove: "Drag to move",
+        gestureResize: "Add Shift and drag to resize",
+        gestureResizeHint: "The starting point chooses the nearest edge or corner. On a mouse, right-button drag also resizes.",
+        gestureRaiseWindow: "Bring the dragged window to front",
+        shortcuts: "Shortcuts",
+        shortcutsCaption: "Use global shortcuts to arrange the active window without opening the panel.",
+        permissionCaption: "Uses Accessibility only to move and resize windows.",
+        noWindow: "No active window found.",
+        missingPermission: "Grant Accessibility to move windows.",
+        failed: "Could not move this window.",
+        done: "Window arranged.",
+        restored: "Window restored.",
+        noRestore: "No previous layout to restore.",
+        target: "Active window",
+        halves: "Halves",
+        thirds: "Thirds",
+        quarterRows: "Quarter rows",
+        quarterColumns: "Quarter columns",
+        sixths: "Sixths",
+        corners: "Hörn",
+        other: "Åtgärder",
+        leftHalf: "Left",
+        rightHalf: "Right",
+        topHalf: "Top",
+        bottomHalf: "Bottom",
+        centerHalf: "Center half",
+        leftThird: "Left 1/3",
+        centerThird: "Center 1/3",
+        rightThird: "Right 1/3",
+        leftTwoThirds: "Left 2/3",
+        rightTwoThirds: "Right 2/3",
+        centerTwoThirds: "Center 2/3",
+        topThird: "Top 1/3",
+        middleThird: "Middle 1/3",
+        bottomThird: "Bottom 1/3",
+        topTwoThirds: "Top 2/3",
+        bottomTwoThirds: "Bottom 2/3",
+        topQuarter: "Top 1/4",
+        upperMiddleQuarter: "Upper middle 1/4",
+        lowerMiddleQuarter: "Lower middle 1/4",
+        bottomQuarter: "Bottom 1/4",
+        leftQuarter: "Left 1/4",
+        leftMiddleQuarter: "Left middle 1/4",
+        rightMiddleQuarter: "Right middle 1/4",
+        rightQuarter: "Right 1/4",
+        topLeftSixth: "Top left 1/6",
+        topCenterSixth: "Top center 1/6",
+        topRightSixth: "Top right 1/6",
+        bottomLeftSixth: "Bottom left 1/6",
+        bottomCenterSixth: "Bottom center 1/6",
+        bottomRightSixth: "Bottom right 1/6",
+        topLeft: "Top left",
+        topRight: "Top right",
+        bottomLeft: "Bottom left",
+        bottomRight: "Bottom right",
+        maximize: "Maximize",
+        center: "Center",
+        nextDisplay: "Next display",
+        restore: "Återställ",
+        fullScreen: "Full Screen",
+        previousDisplay: "Previous display",
+        edgeSnapEnable: "Snap windows at screen edges",
+        edgeSnapCaption: "Turn this on, choose the highlighted areas below, then drag a window title bar to one and release.",
+        edgeSnapSystemConflict: "macOS is using the same edges. Turn off window tiling in Desktop & Dock so Vorssaint can take over.",
+        edgeSnapOpenSystemSettings: "Open Desktop & Dock",
+        edgeSnapWaitingForSystem: "Enabled in Vorssaint. It starts working as soon as macOS tiling is off.",
+        marginMaximize: "Maximize with Margin",
+        marginPerEdge: "Margin per edge",
+        gapsSection: "Gaps",
+        gapsCaption: "Space between snapped windows, and between windows and the screen edge.",
+        windowGap: "Window gap",
+        screenGap: "Screen gap",
+        sideRepeatCycle: "Repeat Left or Right to cycle sizes",
+        sideRepeatCycleCaption: "Half, then two thirds, then one third on the same display. Off, with more than one display, the repeat moves the window to the next display on that side.",
+        gapNone: "Ingen",
         gapTiny: "Tiny",
         gapSmall: "Small",
         gapMedium: "Medium",
@@ -2631,6 +2799,41 @@ struct MonitorAlertFeatureStrings {
     let batteryTemperatureBodyFormat: String
 
     static let enUS = MonitorAlertFeatureStrings(
+        section: "Alerts",
+        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
+        notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
+        cpu: "High CPU",
+        cpuTemperature: "High CPU temperature",
+        memory: "Critical memory pressure",
+        disk: "Low disk space",
+        battery: "Low battery",
+        cpuThreshold: "CPU above",
+        cpuTemperatureThreshold: "Temperature above",
+        diskThreshold: "Free space below",
+        batteryThreshold: "Battery below",
+        cooldown: "Repeat the same alert after",
+        cooldown2: "2 minutes",
+        cooldown5: "5 minutes",
+        cooldown15: "15 minutes",
+        cooldown30: "30 minutes",
+        cooldown60: "1 hour",
+        cpuTitle: "High CPU",
+        cpuBodyFormat: "CPU stayed above %d%% for a few seconds.",
+        cpuTemperatureTitle: "Hot CPU",
+        cpuTemperatureBodyFormat: "CPU reached %@.",
+        memoryTitle: "Critical memory",
+        memoryBody: "Memory pressure reached the critical level.",
+        diskTitle: "Low disk space",
+        diskBodyFormat: "%@ has less than %d%% free.",
+        batteryTitle: "Low battery",
+        batteryBodyFormat: "Battery is at %d%%.",
+        batteryTemperature: "High battery temperature",
+        batteryTemperatureThreshold: "Temperature above",
+        batteryTemperatureTitle: "Hot battery",
+        batteryTemperatureBodyFormat: "Battery reached %@."
+    )
+
+    static let sv = MonitorAlertFeatureStrings(
         section: "Alerts",
         caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
