@@ -1312,9 +1312,11 @@ enum NotchMascotSupport {
 
     /// Where its eyes go while something is typed: along the text beside
     /// it, a little further as the text grows. Nil when the field is empty.
-    static func readingGaze(for query: String) -> CGPoint? {
+    /// A right-to-left field grows its text on the face's left.
+    static func readingGaze(for query: String, rightToLeft: Bool = false) -> CGPoint? {
         guard !query.isEmpty else { return nil }
-        return CGPoint(x: 0.07 + 0.04 * min(1, CGFloat(query.count) / 28), y: 0.01)
+        let along = 0.07 + 0.04 * min(1, CGFloat(query.count) / 28)
+        return CGPoint(x: rightToLeft ? -along : along, y: 0.01)
     }
 
     /// Where its eyes go for a pointer at `pointer`, with its center at

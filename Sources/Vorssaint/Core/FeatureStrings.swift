@@ -3325,7 +3325,9 @@ extension ClipboardFeatureStrings {
         menuBarPreview: "إظهار آخر نسخة في شريط القوائم",
         menuBarPreviewCaption: "يعرض معاينة مختصرة لآخر ما نسخته بجوار الأيقونة. انقرها لفتح السجل.",
         menuBarPreviewLength: "طول المعاينة",
-        menuBarPreviewLengthSuffix: "حرفًا")
+        menuBarPreviewLengthSuffix: "حرفًا",
+        clearRecentConfirmFormat: "مسح غير المثبّت (%d)؟",
+        clearRecentConfirmMessage: "تبقى العناصر المثبّتة، وكذلك كل ما يُنسخ بعد هذا. ولا يمكن التراجع عن ذلك.")
 }
 
 extension WindowLayoutFeatureStrings {

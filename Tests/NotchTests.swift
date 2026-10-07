@@ -963,6 +963,12 @@ enum NotchTests {
                                && screen.contains(frame)
                                && abs(frame.minX + wings.leading - (screen.midX - geometry.cameraWidth / 2)) < 0.001,
                                "content-sized notices keep the camera's gap over it, the menu height and the display bounds")
+                        // Mirrored, the notice draws its leading end, and the
+                        // companion standing in it, right of the camera.
+                        let offset = notice.mascotOffset(in: geometry)
+                        suite.expect(notice.mascotOffset(in: geometry, rightToLeft: true) == -offset
+                               && (!physical || offset < 0),
+                               "a mirrored notice stands the companion at its other end, as far from the camera")
                     }
                 }
             }

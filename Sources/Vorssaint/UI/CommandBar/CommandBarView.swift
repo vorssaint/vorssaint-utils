@@ -1268,6 +1268,7 @@ enum CommandBarIconCache {
 /// matches.
 private struct CommandBarMascot: View {
     @ObservedObject var service: CommandBarService
+    @Environment(\.layoutDirection) private var layoutDirection
     @State private var cue: NotchMascotCue?
     @State private var cueID = 0
 
@@ -1282,7 +1283,7 @@ private struct CommandBarMascot: View {
             .accessibilityHidden(true)
             // Its eyes go along what is typed, and come back once typing stops.
             .onChange(of: service.query) { _, query in
-                cue = .look(NotchMascotSupport.readingGaze(for: query))
+                cue = .look(NotchMascotSupport.readingGaze(for: query, rightToLeft: layoutDirection == .rightToLeft))
                 cueID += 1
             }
             // After the look, so results arriving with a keystroke win.

@@ -88,10 +88,12 @@ struct NotchNotice: Equatable {
 
     /// Where the companion stands in this notice, as an offset of its centre
     /// from the camera's: at the leading end, past the inset, since a notice
-    /// that carries it reads from the ends.
-    func mascotOffset(in geometry: NotchGeometry) -> CGFloat {
+    /// that carries it reads from the ends. A right-to-left notice draws its
+    /// leading end right of the camera, as `surfaceShift` reaches.
+    func mascotOffset(in geometry: NotchGeometry, rightToLeft: Bool = false) -> CGFloat {
         let wing = wings(in: geometry).leading
-        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        let offset = -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        return rightToLeft ? -offset : offset
     }
 
     func previewContentHeight(width: CGFloat) -> CGFloat {
@@ -4621,7 +4623,8 @@ extension NotchService {
         let scale = mascotNoticeScale
         // As long as the notice takes to come in.
         let duration: TimeInterval = 0.45
-        showMascotBridge(from: from, to: shown.mascotOffset(in: geometry), duration: duration, scale: (1, scale),
+        showMascotBridge(from: from, to: shown.mascotOffset(in: geometry, rightToLeft: L10n.shared.language.isRightToLeft),
+                         duration: duration, scale: (1, scale),
                          trailsGrowth: true)
         // On the way it plays the notice's reaction, in step with the notice's own.
         if NotchMascotSupport.reacts() {
@@ -4641,7 +4644,7 @@ extension NotchService {
               mascotRestsInView else { return nil }
         // Where the notice draws it, before the notice starts to leave.
         endMascotBridgeNow()
-        let from = ending.mascotOffset(in: geometry)
+        let from = ending.mascotOffset(in: geometry, rightToLeft: L10n.shared.language.isRightToLeft)
         let scale = mascotNoticeScale
         mascotBridgeLift = mascotClosedTrack.hop(0.22)
         showMascotBridge(from: from, to: from, duration: 0, scale: (scale, scale))
