@@ -151,8 +151,8 @@ struct NotchLayoutEditor: View {
         if layout == .custom { return previewGeometry.customHeight }
         let items = NotchSupport.controls()
         return previewGeometry.expandedSize(module: .controls,
-            shortcutCount: items.filter { $0 != .volume && $0 != .brightness && $0 != .music }.count,
-            sliderCount: items.filter { $0 == .volume || $0 == .brightness }.count,
+            shortcutCount: items.filter { !$0.isLevel && $0 != .music }.count,
+            sliderCount: items.filter(\.isLevel).count,
             controlsHaveMusic: items.contains(.music)).height
     }
 
@@ -252,8 +252,8 @@ struct NotchLayoutEditor: View {
     /// components as the real Controls page, at the island's real size.
     private var islandPreview: some View {
         let items = NotchSupport.controls()
-        let levels = items.filter { $0 == .volume || $0 == .brightness }
-        let shortcuts = items.filter { $0 != .volume && $0 != .brightness && $0 != .music }
+        let levels = items.filter(\.isLevel)
+        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let controls = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
@@ -318,10 +318,11 @@ struct NotchLayoutEditor: View {
                         .frame(width: 160, height: height)
                         .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
                 } else if let single = levels.first {
-                    levelCard(single, height: height).frame(width: 160)
+                    levelCard(single, height: height, details: height >= 88).frame(width: 160)
                 }
             } else {
-                ForEach(levels) { levelCard($0, height: height).frame(maxWidth: .infinity) }
+                let details = NotchLayout.levelCardsShowDetails(levels, height: height)
+                ForEach(levels) { levelCard($0, height: height, details: details).frame(maxWidth: .infinity) }
             }
         }
         .frame(height: height)
@@ -345,19 +346,18 @@ struct NotchLayoutEditor: View {
         .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
     }
 
-    private func levelCard(_ item: NotchControlItem, height: CGFloat) -> some View {
-        let showsDevice = height >= 88
-        return VStack(spacing: 6) {
+    private func levelCard(_ item: NotchControlItem, height: CGFloat, details showsDevice: Bool) -> some View {
+        VStack(spacing: 6) {
             HStack(spacing: 7) {
                 Image(systemName: item.symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
-                Text(item.title(l10n)).lineLimit(1)
+                if showsDevice { Text(item.title(l10n)).lineLimit(1) }
                 Spacer(minLength: 0)
                 Text(item == .volume ? "45%" : "65%").monospacedDigit()
             }
             .font(.system(size: 12, weight: .semibold))
             NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 22)
                 .frame(height: 28)
-            if showsDevice {
+            if showsDevice, item != .keyboardLight {
                 HStack(spacing: 4) {
                     Text(l10n.s.mixerSystemOutputTitle).lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
@@ -402,7 +402,7 @@ struct NotchActionChooser: View {
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
                     }
                     group(editor.sectionActions, actions: [.explore, .settings] + NotchModule.allCases.map(NotchQuickAction.module))
-                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { $0 != .volume && $0 != .brightness }.map(NotchQuickAction.control))
+                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control))
                 }.padding(2)
             }.frame(height: 200)
         }.padding(title.isEmpty ? 0 : 16).frame(width: title.isEmpty ? nil : 340)

@@ -221,7 +221,10 @@ enum DockClickSupport {
         if cycleWindowsEnabled, appIsFrontmost, !hasFullscreenWindows, cycleCandidateCount > 1 {
             return .cycleWindows
         }
-        if hideEnabled, appIsFrontmost { return .hide }
+        // A frontmost app with no windows at all (Finder after a desktop
+        // click) has nothing to hide: the click belongs to the Dock, which
+        // opens a new window. Hiding it would make that take a second click.
+        if hideEnabled, appIsFrontmost, hasUnminimizedWindows || hasMinimizedWindows { return .hide }
         guard !hasFullscreenWindows else { return .passThrough }
         if minimizeEnabled, appIsFrontmost, hasUnminimizedWindows { return .minimize }
         if minimizeEnabled, ownsMinimize, !hasUnminimizedWindows, hasMinimizedWindows { return .restore }

@@ -171,11 +171,12 @@ struct NotchTimerSession: Equatable {
 }
 
 enum NotchTimerSupport {
-    /// Hiding the closed island's timer activity never disables the session or
-    /// its completion alerts. The expanded timer page remains available.
-    static func showsActivity(hasSession: Bool, in defaults: UserDefaults = .standard) -> Bool {
-        hasSession && isEnabled(in: defaults)
-            && !defaults.bool(forKey: DefaultsKey.notchHideTimerCountdown)
+    /// Hiding the countdown never disables the session or its completion
+    /// alerts, and a finished timer shows in the closed island until it is
+    /// dismissed. The expanded timer page remains available.
+    static func showsActivity(_ session: NotchTimerSession, in defaults: UserDefaults = .standard) -> Bool {
+        session.hasSession && isEnabled(in: defaults)
+            && (session.completed || !defaults.bool(forKey: DefaultsKey.notchHideTimerCountdown))
     }
 
     static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {

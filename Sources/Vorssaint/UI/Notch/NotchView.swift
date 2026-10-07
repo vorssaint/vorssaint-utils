@@ -331,9 +331,9 @@ struct NotchView: View {
         switch service.selected {
         case .controls:
             let items = NotchSupport.controls()
-            let shortcuts = items.filter { $0 != .music && $0 != .volume && $0 != .brightness }
+            let shortcuts = items.filter { $0 != .music && !$0.isLevel }
             size.height = max(size.height, NotchLayout.controls(
-                hasCards: items.contains(.music) || items.contains(.volume) || items.contains(.brightness),
+                hasCards: items.contains(.music) || items.contains(where: \.isLevel),
                 shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
         case .timer:
             let session = NotchTimerService.shared.session

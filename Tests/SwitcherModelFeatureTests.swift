@@ -296,6 +296,18 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.object(forKey: DefaultsKey.notchHiddenControls) == nil
                    && migrationDefaults.bool(forKey: DefaultsKey.notchScratchpadControlHidden),
                    "a setup that never customized the controls keeps the registered default")
+            migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
+            Defaults.hideKeyboardLightControlOnce(in: migrationDefaults)
+            suite.expect(migrationDefaults.string(forKey: DefaultsKey.notchHiddenControls)
+                   == "microphone,panel,keyboardLight"
+                   && migrationDefaults.bool(forKey: DefaultsKey.notchKeyboardLightControlHidden),
+                   "a hidden-controls list saved before the keyboard light level existed hides it once")
+            migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
+            Defaults.hideKeyboardLightControlOnce(in: migrationDefaults)
+            suite.expect(migrationDefaults.string(forKey: DefaultsKey.notchHiddenControls) == "microphone,panel",
+                   "showing the keyboard light level afterwards is kept")
+            migrationDefaults.removeObject(forKey: DefaultsKey.notchKeyboardLightControlHidden)
+            migrationDefaults.removeObject(forKey: DefaultsKey.notchHiddenControls)
             let hiddenControlsKey = DefaultsKey.notchHiddenControls
             let scratchpadMigrationKey = DefaultsKey.notchScratchpadControlHidden
             suite.expect(SettingsBackupSupport.exportKeys().contains(scratchpadMigrationKey),
@@ -3908,8 +3920,8 @@ enum SwitcherModelFeatureTests {
                                        hasFullscreenWindows: false,
                                        hasModifiers: false,
                                        minimizeEnabled: false,
-                                       hideEnabled: true) == .hide,
-               "hiding also works for a frontmost app with no windows")
+                                       hideEnabled: true) == .passThrough,
+               "a frontmost app with no windows lets the Dock open a new one")
         suite.expect(DockClickSupport.action(appIsFrontmost: true,
                                        hasUnminimizedWindows: false,
                                        hasMinimizedWindows: true,

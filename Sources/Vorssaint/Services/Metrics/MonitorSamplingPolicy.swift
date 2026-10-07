@@ -9,6 +9,10 @@ enum MonitorSamplingKind: String {
     case network
     case disk
     case power
+    /// The system draw pinned to the menu bar. Unlike battery charge and
+    /// time, the watts swing from one second to the next, so the reading
+    /// keeps the chosen interval.
+    case powerDraw
     case peripheralBattery
     case gpuUsage
     case temperature
@@ -76,13 +80,13 @@ enum MonitorSamplingPolicy {
                 return 15
             case .connectedDevices:
                 return 2
-            case .cpu, .memory, .network, .disk, .power, .gpuUsage, .temperature, .fanSpeed:
+            case .cpu, .memory, .network, .disk, .power, .powerDraw, .gpuUsage, .temperature, .fanSpeed:
                 return 1
             }
         }
 
         switch kind {
-        case .cpu, .memory, .network:
+        case .cpu, .memory, .network, .powerDraw:
             return 1
         case .gpuUsage:
             return 10
