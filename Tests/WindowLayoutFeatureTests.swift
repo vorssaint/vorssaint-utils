@@ -555,6 +555,11 @@ enum WindowLayoutFeatureTests {
                && split.actions(for: .topLeft) == [.topLeft]
                && split.storageValue == "left=topHalf+bottomHalf",
                "one area brings an edge back to its default, and a corner or more than four areas never splits")
+        var kept = WindowEdgeSnapLayout(storageValue: "top=topHalf,left=leftThird+leftTwoThirds")
+        kept.setPartCount(1, for: .top)
+        kept.setPartCount(2, for: .left)
+        suite.expect(kept.storageValue == "top=topHalf,left=leftThird+leftTwoThirds",
+               "picking the number of areas an edge already has keeps the placements chosen for them")
 
         let offered = WindowEdgeSnapPlacementGroup.allCases.flatMap(\.actions)
         let pictures = offered.map(WindowEdgeSnapLayout.previewRect(for:))

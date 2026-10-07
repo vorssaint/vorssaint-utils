@@ -508,8 +508,11 @@ struct WindowEdgeSnapLayout: Equatable {
 
     /// A split edge starts with the screen's equal columns along the top or
     /// bottom, or its equal rows along a side, so each area places the window
-    /// in the column or row it sits on. One area brings the default back.
+    /// in the column or row it sits on. Going back to one area brings the
+    /// default back, and picking the count an edge already has keeps its
+    /// placements.
     mutating func setPartCount(_ count: Int, for zone: WindowEdgeSnapZone) {
+        guard count != actions(for: zone).count else { return }
         let parts: [WindowLayoutAction]
         switch (count, zone.isHorizontalEdge) {
         case (1, _): parts = [zone.defaultAction]

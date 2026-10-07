@@ -33,6 +33,8 @@ enum WindowEdgeSnapRuntimeTests {
     static var clockStart: TimeInterval = 0
     /// Off for a test about events posted with no timestamp.
     static var stampsEvents = true
+    /// The saved placements of the drop areas, read only under their own key.
+    static var zoneActions: String?
     /// A real timer fires at or after its deadline, here a millisecond after,
     /// so a look set for exactly the rest of a pause finds it complete.
     static let timerLatency: TimeInterval = 0.001
@@ -54,6 +56,9 @@ enum WindowEdgeSnapRuntimeTests {
     enum UserDefaults {
         final class Store {
             func bool(forKey key: String) -> Bool { key == DefaultsKey.windowEdgeSnapEnabled }
+            func string(forKey key: String) -> String? {
+                key == DefaultsKey.windowEdgeSnapZoneActions ? zoneActions : nil
+            }
         }
         static let standard = Store()
     }
@@ -222,7 +227,6 @@ enum WindowEdgeSnapRuntimeTests {
         var pendingGesture: Bool?
         let edgeSnapSampleInterval: TimeInterval = 0
         var enabledEdgeSnapZones = WindowEdgeSnapZone.allEnabled
-        var edgeSnapLayout = WindowEdgeSnapLayout.standard
         var previews = 0
         var placements: [WindowLayoutFrame] = []
         var placedActions: [WindowLayoutAction] = []
@@ -284,6 +288,7 @@ enum WindowEdgeSnapRuntimeTests {
         clock = 0
         clockStart = TimeInterval(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1_000_000_000
         stampsEvents = true
+        zoneActions = nil
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
@@ -445,8 +450,8 @@ enum WindowEdgeSnapRuntimeTests {
                      "a window dragged to an edge previews the zone, snaps on release and keeps its starting frame for Restore")
 
         reset()
+        zoneActions = "right=rightThird"
         let chosenEdge = Host()
-        chosenEdge.edgeSnapLayout = WindowEdgeSnapLayout(storageValue: "right=rightThird")
         send(chosenEdge, .leftMouseDown, pressPoint)
         currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
         send(chosenEdge, .leftMouseDragged, CGPoint(x: 240, y: 200))
@@ -459,8 +464,10 @@ enum WindowEdgeSnapRuntimeTests {
                      "a window dropped on an area set to another placement lands in that placement")
 
         reset()
+        var splitRight = WindowEdgeSnapLayout.standard
+        splitRight.setPartCount(2, for: .right)
+        zoneActions = splitRight.storageValue
         let splitEdge = Host()
-        splitEdge.edgeSnapLayout.setPartCount(2, for: .right)
         send(splitEdge, .leftMouseDown, pressPoint)
         currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
         send(splitEdge, .leftMouseDragged, CGPoint(x: 240, y: 200))

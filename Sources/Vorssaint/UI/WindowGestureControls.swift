@@ -13,6 +13,8 @@ struct WindowEdgeSnapZonePicker: View {
     let resetTitle: String
     var compact = false
 
+    @ObservedObject private var l10n = L10n.shared
+
     var body: some View {
         HStack(alignment: .top, spacing: compact ? 6 : 9) {
             VStack(spacing: cellSpacing) {
@@ -114,9 +116,12 @@ struct WindowEdgeSnapZonePicker: View {
     private func zoneCell(_ zone: WindowEdgeSnapZone) -> some View {
         let isOn = !disabledZones.contains(zone)
         let actions = layout.actions(for: zone)
+        let place = zoneName(zone)
         let areas = ForEach(actions.indices, id: \.self) { part in
             WindowEdgeSnapAreaButton(action: actions[part],
                                      isOn: isOn,
+                                     // Areas of a split edge also say which one they are.
+                                     place: actions.count > 1 ? "\(place) \(part + 1)/\(actions.count)" : place,
                                      title: actions[part].title(text),
                                      compact: compact) {
                 menu(for: zone, part: part)
@@ -138,6 +143,23 @@ struct WindowEdgeSnapZonePicker: View {
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
             }
+        }
+    }
+
+    /// Where the zone sits on the map, named like the same spot on the
+    /// screenshot watermark's grid of positions, so VoiceOver tells apart two
+    /// areas that hold the same placement.
+    private func zoneName(_ zone: WindowEdgeSnapZone) -> String {
+        let positions = FeatureStrings.screenshot(l10n.language)
+        switch zone {
+        case .topLeft: return positions.watermarkPositionTopLeading
+        case .top: return positions.watermarkPositionTop
+        case .topRight: return positions.watermarkPositionTopTrailing
+        case .left: return positions.watermarkPositionLeading
+        case .right: return positions.watermarkPositionTrailing
+        case .bottomLeft: return positions.watermarkPositionBottomLeading
+        case .bottom: return positions.watermarkPositionBottom
+        case .bottomRight: return positions.watermarkPositionBottomTrailing
         }
     }
 
@@ -207,6 +229,7 @@ struct WindowEdgeSnapZonePicker: View {
 private struct WindowEdgeSnapAreaButton: View {
     let action: WindowLayoutAction
     let isOn: Bool
+    let place: String
     let title: String
     let compact: Bool
     let menu: () -> [WindowEdgeSnapMenuEntry]
@@ -242,7 +265,7 @@ private struct WindowEdgeSnapAreaButton: View {
             withAnimation(.easeInOut(duration: 0.1)) { hovered = inside }
         }
         .help(title)
-        .accessibilityLabel(title)
+        .accessibilityLabel("\(place): \(title)")
         .accessibilityValue(isOn ? "1" : "0")
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
