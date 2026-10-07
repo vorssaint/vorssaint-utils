@@ -186,6 +186,29 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("1.2.3+1", decimal: ",", grouping: "\u{00A0}") == nil,
                "a repeated alternate separator that is not thousands has no answer")
 
+        // A grouping space or apostrophe groups only when digits follow it.
+        suite.expect(mathValue("1\u{00A0}+ 2", decimal: ",", grouping: "\u{00A0}") == 3,
+               "a no-break space after a number before an operator is just a space")
+        suite.expect(mathValue("200*15\u{202F}%", decimal: ",", grouping: "\u{202F}") == 30,
+               "a narrow no-break space before percent still answers")
+        suite.expect(mathValue("2\u{00A0}(3)", decimal: ",", grouping: "\u{00A0}") == 6,
+               "a no-break space before a bracket keeps the implicit product")
+        suite.expect(mathValue("1,5\u{00A0}+ 2", decimal: ",", grouping: "\u{00A0}") == 3.5,
+               "a decimal followed by a no-break space reads as that decimal")
+        suite.expect(mathValue("1\u{00A0}234\u{00A0}+ 1", decimal: ",", grouping: "\u{00A0}") == 1235,
+               "grouped thousands followed by a no-break space still answer")
+        suite.expect(mathValue("1\u{00A0}5+1", decimal: ",", grouping: "\u{00A0}") == nil,
+               "a grouping space between digits is never a decimal point")
+        // Thousands never start at zero.
+        for (decimal, grouping) in [(",", "\u{00A0}"), (",", "\u{202F}"), (".", "'"), (",", "."), (".", ",")] {
+            let alternate = decimal == "," ? "." : ","
+            suite.expect(mathValue("0\(alternate)125*8", decimal: decimal, grouping: grouping) == 1
+                    && mathValue("0\(alternate)500+1", decimal: decimal, grouping: grouping) == 1.5,
+                   "a number that starts at zero has decimals, never thousands, with \(decimal) and \(grouping)")
+        }
+        suite.expect(mathValue("0\u{00A0}125+1", decimal: ",", grouping: "\u{00A0}") == nil,
+               "a grouping space after a lone zero is not thousands")
+
         suite.expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
                 && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
                "virtual closers preserve bracket kind and nesting")

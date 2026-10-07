@@ -353,6 +353,10 @@ enum CommandBarMath {
         while index < characters.count {
             let character = characters[index]
             guard separators.isPart(ofNumber: character) else { break }
+            // A grouping character only groups when a digit follows it, so a
+            // no-break space after the last digit is read as a plain space.
+            if character == separators.groupingOnly,
+               !(index + 1 < characters.count && characters[index + 1].isNumber) { break }
             written.append(character)
             index += 1
         }
@@ -408,10 +412,12 @@ enum CommandBarMath {
         return value
     }
 
-    /// Distinguishes grouped thousands from a decimal written with the alternate separator.
+    /// Distinguishes grouped thousands from a decimal written with the alternate
+    /// separator. Thousands never start at zero, so 0.125 always has decimals.
     private static func looksLikeGrouping(_ raw: String, separator: Character) -> Bool {
         let parts = raw.split(separator: separator, omittingEmptySubsequences: false)
-        guard parts.count >= 2, let first = parts.first, !first.isEmpty, first.count <= 3 else { return false }
+        guard parts.count >= 2, let first = parts.first, !first.isEmpty, first.count <= 3,
+              first.first != "0" else { return false }
         return parts.dropFirst().allSatisfy { $0.count == 3 }
     }
 
