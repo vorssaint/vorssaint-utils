@@ -6,10 +6,52 @@ import SwiftUI
 struct NotchQueueView: View {
     let playback: NotchPlayback
     @ObservedObject private var service = NotchMusicService.shared
+    @ObservedObject private var spotify = NotchSpotifyService.shared
     @ObservedObject private var l10n = L10n.shared
     private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
 
     var body: some View {
+        if spotify.providesQueue(for: playback) { spotifyQueue } else { systemQueue }
+    }
+
+    /// Spotify does not share its upcoming songs with the system, so they
+    /// come from the connected account. Its queue is shown, not played from.
+    private var spotifyQueue: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(text.queue).font(.callout.weight(.semibold))
+                Spacer()
+                if spotify.queueLoading { ProgressView().controlSize(.mini) }
+                Button { spotify.loadQueue() } label: { Image(systemName: "arrow.clockwise") }
+                    .buttonStyle(.borderless).disabled(spotify.queueLoading)
+                    .help(text.refresh).accessibilityLabel(text.refresh)
+            }
+            if let items = spotify.queue, !items.isEmpty {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(items) { item in
+                            HStack(spacing: 10) {
+                                NotchArtwork(image: item.imageURL.flatMap { spotify.queueArtwork[$0] }, size: 34)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(item.name).font(.callout.weight(.medium)).lineLimit(1)
+                                    if !item.artist.isEmpty { Text(item.artist).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                                }.frame(maxWidth: .infinity, alignment: .leading)
+                            }.padding(.vertical, 8)
+                        }
+                    }
+                }
+                .notchScrollEdgeFade()
+            } else if !spotify.queueLoading {
+                NotchEmptyView(symbol: "list.bullet", message: spotify.queue == nil ? text.queueUnavailable : text.queueEmpty) {
+                    NotchPillButton(title: text.openPlayer, prominent: true) { RadialNowPlayingApplication.open(playback.track) }
+                }
+            }
+        }
+        .padding(.top, 6)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private var systemQueue: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(text.queue).font(.callout.weight(.semibold))
