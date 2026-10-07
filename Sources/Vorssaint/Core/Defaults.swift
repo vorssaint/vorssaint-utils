@@ -837,6 +837,7 @@ enum DefaultsKey {
     static let notchWatchCondition = "notchWatchCondition"
     static let notchCalendarEnabled = "notchCalendarEnabled"
     static let notchCalendarCountdown = "notchCalendarCountdown"
+    static let notchCalendarCountdownLead = "notchCalendarCountdownLead" // minutes before a start, chosen events included
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
@@ -1409,6 +1410,7 @@ enum Defaults {
         DefaultsKey.notchAccessoriesEnabled: true,
         DefaultsKey.notchCalendarEnabled: true,
         DefaultsKey.notchCalendarCountdown: false,
+        DefaultsKey.notchCalendarCountdownLead: NotchCalendarSupport.defaultCountdownLeadMinutes,
         DefaultsKey.notchCalendarTimeLeft: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
