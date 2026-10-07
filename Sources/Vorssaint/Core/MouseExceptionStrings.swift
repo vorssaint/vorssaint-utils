@@ -71,18 +71,18 @@ extension MouseExceptionStrings {
     )
 
     static let sv = MouseExceptionStrings(
-        listTitle: "Apps to leave alone",
-        addButton: "Lägg till en app...",
+        listTitle: "Appar att lämna i fred",
+        addButton: "Lägg till en app…",
         removeButton: "Ta bort",
-        captionSmoothScroll: "The wheel keeps its plain steps in these apps, for apps that read it their own way, like 3D and design tools.",
-        captionLinearScroll: "The wheel keeps the pace macOS gives it in these apps, for games and 3D tools that count the notches themselves.",
-        captionScrollDirection: "The wheel keeps the direction macOS gives it in these apps.",
-        captionNavigation: "The side buttons keep doing whatever these apps already do with them.",
-        captionButtonShortcuts: "Your extra mouse buttons stay quiet in these apps, and the press reaches them instead.",
-        captionMiddleClick: "A three finger click stays a normal click in these apps.",
-        captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
-        captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
-        pausedSuperKey: "Paused while a selected app is open"
+        captionSmoothScroll: "Rullhjulet behåller sina vanliga steg i de här apparna, för appar som tolkar det på sitt eget sätt, till exempel 3D- och designverktyg.",
+        captionLinearScroll: "Rullhjulet behåller den takt som macOS ger det i de här apparna, för spel och 3D-verktyg som själva räknar hacken.",
+        captionScrollDirection: "Rullhjulet behåller den riktning som macOS ger det i de här apparna.",
+        captionNavigation: "Sidoknapparna fortsätter göra det de redan gör i de här apparna.",
+        captionButtonShortcuts: "Dina extra musknappar är inaktiva i de här apparna och knapptryckningen når dem i stället.",
+        captionMiddleClick: "Ett klick med tre fingrar förblir ett vanligt klick i de här apparna.",
+        captionFocusFollowsMouse: "Att hålla muspekaren över fönstret ändrar inte fokus eller lyfter fram ett fönster i de här apparna.",
+        captionSuperKey: "När någon av de här apparna är öppen, även i bakgrunden, pausas Super Key och den valda tangenten fungerar normalt.",
+        pausedSuperKey: "Pausad medan en vald app är öppen"
     )
 
     static let ptBR = MouseExceptionStrings(
