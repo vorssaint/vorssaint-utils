@@ -21,13 +21,23 @@ enum NotchTests {
         suite.expect(NotchModule.system.isAvailable(in: defaults)
                      && NotchSupport.systemCardCount(hasBattery: false, fans: 0, in: defaults) == 0,
                      "System remains reachable while waiting for the first fan sample")
+        defaults.set(false, forKey: AppFeature.fanControl.availabilityKey)
+        defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.menuBarConnectedDevices)
+        suite.expect(NotchModule.system.isAvailable(in: defaults)
+                     && NotchSupport.systemCardCount(hasBattery: false, in: defaults) == 1,
+                     "connected devices alone keeps its System page and card reachable with the menu bar widget off")
+        defaults.set(false, forKey: AppFeature.connectedDevices.availabilityKey)
+        suite.expect(!NotchModule.system.isAvailable(in: defaults)
+                     && NotchSupport.systemCardCount(hasBattery: false, in: defaults) == 0,
+                     "uninstalling connected devices removes its System page and card")
 
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 504) == [0..<3, 3..<5, 5..<7],
                      "seven System metrics fill balanced rows instead of leaving a nearly empty column")
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 304) == [0..<2, 2..<4, 4..<6, 6..<7],
                      "narrow System rows keep readable cards and a full-width last card")
         for width: CGFloat in [20, 304, 424, 504, 744] {
-            for count in 0...8 {
+            for count in 0...9 {
                 let rows = NotchLayout.systemRowRanges(count: count, width: width)
                 suite.expect(rows.flatMap { Array($0) } == Array(0..<count),
                              "System preserves every metric exactly once in reading order")

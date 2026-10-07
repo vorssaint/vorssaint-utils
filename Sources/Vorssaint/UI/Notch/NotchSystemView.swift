@@ -75,6 +75,11 @@ struct NotchSystemView: View {
             cards.append(Card(kind: .fan, title: strings.title, symbol: "fanblades",
                               value: snapshot.fanSpeeds.first.map { String(format: strings.rpmFormat, Int($0.rounded())) }))
         }
+        if AppFeature.connectedDevices.isAvailable {
+            let strings = FeatureStrings.connectedDevices(l10n.language)
+            cards.append(Card(kind: .connectedDevices, title: strings.title, symbol: "cable.connector",
+                              value: "\(snapshot.connectedDevices.count)"))
+        }
         return cards
     }
 

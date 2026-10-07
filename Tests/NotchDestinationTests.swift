@@ -163,6 +163,7 @@ enum NotchDestinationContract {
             (.cpu, .monitorCPU), (.gpu, .monitorGPU), (.memory, .monitorMemory),
             (.network, .monitorNetwork), (.disk, .monitorDisk),
             (.battery, .monitorPower), (.power, .monitorPower), (.fan, .fanControl),
+            (.connectedDevices, .connectedDevices),
         ]
         for (metric, feature) in families {
             let service = Service()

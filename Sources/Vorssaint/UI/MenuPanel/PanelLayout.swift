@@ -82,7 +82,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .keepAwake: return [.keepAwake]
         case .brightness: return [.brightness]
         case .mixer: return [.mixer, .audioPriority]
-        case .system: return [.monitorCPU, .monitorGPU, .monitorMemory]
+        case .system: return [.monitorCPU, .monitorGPU, .monitorMemory, .connectedDevices]
         case .network: return [.monitorNetwork]
         case .disk: return [.monitorDisk]
         case .power: return [.monitorPower]

@@ -25,6 +25,7 @@ struct SystemSection: View {
     @ObservedObject private var monitor = SystemMonitor.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
+    let showConnectedDevices: () -> Void
     @State private var expanded: BreakdownKind?
     @State private var alertsExpanded = false
     @State private var breakdownRows: [ProcessUsage] = []
@@ -86,7 +87,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime, connectedDevices }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -110,6 +111,7 @@ struct SystemSection: View {
         switch block {
         case .temps, .usage: return cpuAvailable || gpuAvailable
         case .memory: return memoryAvailable
+        case .connectedDevices: return AppFeature.connectedDevices.isAvailable
         case .alerts, .uptime: return true
         }
     }
@@ -136,6 +138,7 @@ struct SystemSection: View {
         case .memory: return sysMemory
         case .alerts: return sysAlerts
         case .uptime: return sysUptime
+        case .connectedDevices: return true
         }
     }
 
@@ -158,7 +161,30 @@ struct SystemSection: View {
         case .memory: memoryRows(editing: editing)
         case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
+        case .connectedDevices: connectedDevicesRow
         }
+    }
+
+    private var connectedDevicesRow: some View {
+        let strings = FeatureStrings.connectedDevices(l10n.language)
+        return Button(action: showConnectedDevices) {
+            HStack(spacing: 8) {
+                Label(strings.title, systemImage: "cable.connector")
+                    .font(.system(size: 11, weight: .medium))
+                Spacer(minLength: 0)
+                Text("\(monitor.snapshot.connectedDevices.count)")
+                    .font(.system(size: 11, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(strings.title)
+        .accessibilityValue(strings.formattedCount(monitor.snapshot.connectedDevices.count))
     }
 
     // MARK: Per-app breakdown

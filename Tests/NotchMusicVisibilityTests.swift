@@ -20,12 +20,14 @@ enum NotchMusicVisibilityTests {
     struct MonitorNeeds {
         var disk = false
         var fanSpeed = false
+        var connectedDevices = false
         static let none = Self()
     }
     struct Metric { let monitorNeeds = MonitorNeeds.none }
     final class SystemMonitor {
         static let shared = SystemMonitor()
-        func setNotchDetailNeeds(_ needs: MonitorNeeds) {}
+        var detailNeeds = MonitorNeeds.none
+        func setNotchDetailNeeds(_ needs: MonitorNeeds) { detailNeeds = needs }
         func setNotchVisible(_ visible: Bool) {}
     }
     final class CameraPreviewService {
@@ -153,6 +155,30 @@ enum NotchMusicVisibilityTests {
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
+
+        let devices = Service()
+        devices.modules = [.system]
+        devices.selected = .system
+        defaults.set(false, forKey: DefaultsKey.menuBarConnectedDevices)
+        for installed in [true, false] {
+            defaults.set(installed, forKey: AppFeature.connectedDevices.availabilityKey)
+            for expanded in [true, false] {
+                for showingSections in [true, false] {
+                    devices.expanded = expanded
+                    devices.showingSections = showingSections
+                    devices.syncVisibleConsumers()
+                    suite.expect(SystemMonitor.shared.detailNeeds.connectedDevices == (installed && expanded && !showingSections),
+                                 "USB sampling follows the visible System page and installed feature, independently of its widget")
+                }
+            }
+        }
+        defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
+        devices.expanded = true
+        devices.showingSections = false
+        devices.syncVisibleConsumers()
+        devices.releaseMonitor()
+        suite.expect(!SystemMonitor.shared.detailNeeds.connectedDevices,
+                     "releasing the island stops its connected device sampling demand")
 
         let persistentCapture = Service()
         var persistentCloseCount = 0
