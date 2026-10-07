@@ -155,6 +155,7 @@ extension FeatureStrings {
     static func notchAgents(_ language: AppLanguage) -> NotchAgentStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -174,6 +175,120 @@ extension FeatureStrings {
 }
 
 extension NotchAgentStrings {
+    static let el = NotchAgentStrings(
+        title: "Πράκτορες AI",
+        hubDescription: "Παρακολουθήστε τα όρια συνδρομής, τα token, την αξία API και την εργασία σε εξέλιξη των Claude, Codex και OpenCode στο Dynamic Island.",
+        settingsDescription: "Διαβάζει τα δεδομένα χρήσης που καταγράφουν σε αυτό το Mac τα Claude Code, Codex και OpenCode, καθώς και τα όρια συνδρομής που αποθηκεύει η εφαρμογή Claude. Οι προτροπές, οι απαντήσεις και τα αρχεία δεν διατηρούνται ποτέ και τα δεδομένα χρήσης σας δεν φεύγουν ποτέ από το Mac σας.",
+
+        restingTitle: "Όρια AI",
+        limitsCard: "Όρια",
+        spendCard: "Δαπάνη",
+        liveCard: "Τώρα",
+        trendCard: "Τάση",
+        modelsCard: "Μοντέλα",
+        projectsCard: "Έργα",
+        activityCard: "Δραστηριότητα",
+
+        today: "Σήμερα",
+        week: "7 ημέρες",
+        month: "30 ημέρες",
+        session: "Συνεδρία",
+        weekly: "Εβδομάδα",
+
+        estimated: "Εκτίμηση από αυτό το Mac",
+        claudeLimitsHint: "Ρύθμιση ορίων συνδρομής…",
+        waitingForLimits: "Τα όρια εμφανίζονται μετά την επόμενη απάντηση",
+        noSession: "Δεν εκτελείται συνεδρία",
+
+        apiValue: "Αξία API",
+        tokensFormat: "%@ token",
+        cachedFormat: "%@ από τη μνήμη cache",
+        writtenFormat: "%@ εγγράφηκαν",
+        savedFormat: "%@ εξοικονομήθηκαν μέσω της μνήμης cache",
+        planMultipleFormat: "%1$@ της τιμής του %2$@",
+
+        idle: "Αδράνεια",
+        noActivity: "Καμία δραστηριότητα σε αυτήν την περίοδο",
+        empty: "Δεν υπάρχει ακόμη χρήση από Claude Code, Codex ή OpenCode. Θα εμφανιστεί εδώ μόλις κάποιο από αυτά εργαστεί σε αυτό το Mac.",
+        loading: "Ανάγνωση χρήσης…",
+        noCards: "Επιλέξτε τι θα εμφανίζει αυτή η σελίδα στις ρυθμίσεις του Dynamic Island.",
+        unpriced: "Ορισμένα μοντέλα δεν έχουν γνωστή τιμή, επομένως αυτή είναι η ελάχιστη εκτίμηση.",
+
+        streak: "Συνεχόμενες ημέρες",
+        activeDays: "Ενεργές ημέρες",
+        busiestDay: "Η πιο δραστήρια ημέρα",
+        finishedFormat: "Το %@ ολοκλήρωσε την εργασία",
+        limitRenewed: "Το όριο ανανεώθηκε",
+
+        budgetTitle: "Ημερήσιος προϋπολογισμός",
+        leftFormat: "Απομένει %@",
+        usedFormat: "Χρησιμοποιήθηκε %@",
+
+        agents: "Πράκτορες",
+        found: "Βρέθηκε σε αυτό το Mac",
+        notFound: "Δεν βρέθηκε σε αυτό το Mac",
+
+        cardsTitle: "Κάρτες",
+        cardsHint: "Σύρετε για αλλαγή σειράς. Τα γραφήματα καταλαμβάνουν όλο το πλάτος του Dynamic Island.",
+
+        limitsAs: "Εμφάνιση ορίων ως",
+        remaining: "Υπόλοιπο",
+        used: "Χρησιμοποιήθηκε",
+        limitFocus: "Όριο προς εμφάνιση",
+        mostUsed: "Περισσότερο χρησιμοποιημένο",
+
+        liveTitle: "Όσο εργάζεται ένας πράκτορας",
+        liveActivity: "Εμφάνιση στο κλειστό Dynamic Island",
+
+        readout: "Δίπλα στην κάμερα",
+        readoutElapsed: "Χρόνος",
+        readoutTokens: "Token που γράφτηκαν",
+        readoutLimit: "Όριο",
+
+        alerts: "Προειδοποιήσεις",
+        finishAlert: "Όταν ολοκληρώνεται μια εργασία",
+        finishAfter: "Για εργασίες μεγαλύτερες από",
+        anyLength: "Οποιαδήποτε διάρκεια",
+        limitAlert: "Κοντά σε όριο συνδρομής",
+        limitAt: "Προειδοποίηση στο",
+
+        budget: "Ημερήσιος προϋπολογισμός αξίας API",
+        off: "Απενεργοποιημένο",
+        updatedFormat: "Ενημερώθηκε %@",
+
+        claudeLimitsTitle: "Όρια συνδρομής Claude",
+        claudeLimitsCurrentFormat: "Ανάγνωση από την εφαρμογή Claude, ενημερώθηκε %@",
+        claudeLimitsStaleFormat: "Η εφαρμογή Claude τα έλεγξε τελευταία φορά %@.",
+        claudeLimitsMenuBar: "Το Claude ελέγχει τα όριά σας μόνο όσο το εικονίδιό του βρίσκεται στη γραμμή μενού. Ενεργοποιήστε το εικονίδιο στις ρυθμίσεις της εφαρμογής Claude και τα όριά σας θα εμφανιστούν εδώ μέσα σε λίγα λεπτά.",
+        claudeLimitsNoApp: "Τα όρια συνδρομής προέρχονται από την εφαρμογή Claude, η οποία δεν βρίσκεται σε αυτό το Mac. Μέχρι τότε, η συνεδρία 5 ωρών εκτιμάται από τη δραστηριότητα του Claude Code.",
+        claudeLimitsPrivacy: "Το Vorssaint διαβάζει τα ποσοστά που αποθηκεύει η εφαρμογή Claude σε αυτό το Mac. Δεν χρησιμοποιείται σύνδεση και δεν αποστέλλεται τίποτα.",
+
+        openClaude: "Άνοιγμα Claude",
+        getClaude: "Λήψη εφαρμογής Claude",
+
+        priceUpdates: "Διατήρηση τιμών ενημερωμένων",
+        priceUpdatesHint: "Κατεβάζει μία φορά την ημέρα τη δημόσια λίστα τιμών από το GitHub, ώστε τα νέα μοντέλα να αποκτούν αξία API χωρίς ενημέρωση της εφαρμογής. Δεν αποστέλλεται τίποτα σχετικά με τη χρήση σας.",
+        pricesFromFormat: "Λίστα τιμών της %@",
+        valueNote: "Η αξία API είναι το κόστος που θα είχε η ίδια εργασία με τις τιμές καταλόγου του API. Τα προγράμματα συνδρομής χρεώνουν σταθερή τιμή.",
+
+        resetsCard: "Επαναφορές",
+        useReset: "Χρήση επαναφοράς",
+        resetConfirm: "Να γίνει τώρα επαναφορά των ορίων συνεδρίας και εβδομάδας;",
+        confirmReset: "Επαναφορά",
+        resetting: "Γίνεται επαναφορά…",
+        resetDone: "Τα όρια επαναφέρθηκαν",
+        resetNotNeeded: "Η χρήση σας δεν χρειάζεται ακόμη επαναφορά",
+        resetTaken: "Αυτή η επαναφορά έχει ήδη χρησιμοποιηθεί",
+        resetFailed: "Δεν ήταν δυνατή η χρήση της επαναφοράς",
+        resetsNone: "Δεν υπάρχουν διαθέσιμες επαναφορές",
+        resetsExpiryFormat: "Η επόμενη λήγει %@",
+        resetsNeedCodex: "Απαιτείται η εφαρμογή Codex ή το CLI",
+        resetsSignIn: "Συνδεθείτε στο Codex με συνδρομή για να δείτε τις επαναφορές",
+        resetsUpdate: "Ενημερώστε το Codex για να χρησιμοποιείτε τις επαναφορές εδώ",
+        resetsCheckFailed: "Δεν ήταν δυνατός ο έλεγχος των επαναφορών",
+        resetsHelp: "Μια επαναφορά ανανεώνει ταυτόχρονα τα όρια συνεδρίας και εβδομάδας του Codex. Το Codex ελέγχει τις επαναφορές σας με τη δική του σύνδεση, την οποία το Vorssaint δεν διαβάζει ποτέ."
+    )
+
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
         hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",

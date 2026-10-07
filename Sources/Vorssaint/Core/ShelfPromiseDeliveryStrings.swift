@@ -12,6 +12,13 @@ struct ShelfPromiseDeliveryStrings {
 
     static func localized(_ language: AppLanguage) -> ShelfPromiseDeliveryStrings {
         switch language {
+        case .el:
+            return .init(
+                failedTitle: "Δεν ήταν δυνατή η προσθήκη του συνημμένου",
+                failedBody: "Δεν ολοκληρώθηκε η αποθήκευση του αρχείου στο Ράφι.",
+                fullTitle: "Το Ράφι είναι πλήρες",
+                fullBody: "Η αποθήκευση του συνημμένου ολοκληρώθηκε, αλλά δεν υπάρχει άλλος χώρος στο Ράφι.",
+                okButton: "OK")
         case .enUS:
             return .init(
                 failedTitle: "Couldn’t add attachment",

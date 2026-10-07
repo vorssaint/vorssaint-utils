@@ -43,6 +43,7 @@ extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -62,6 +63,39 @@ extension FeatureStrings {
 }
 
 extension KillProcessFeatureStrings {
+    static let el = KillProcessFeatureStrings(
+        pageTitle: "Τερματισμός διεργασίας",
+        browseSubtitle: "Περιήγηση και τερματισμός",
+        hubDescription: "Αναζητήστε διεργασίες που εκτελούνται και τερματίστε τις, επανεκκινήστε τις ή τερματίστε ολόκληρα δέντρα διεργασιών",
+        searchPlaceholder: "Φιλτράρισμα κατά όνομα",
+        columnProcess: "Διεργασία",
+        columnCPU: "CPU",
+        columnMemory: "Μνήμη",
+        columnPID: "PID",
+        groupToggle: "Ομαδοποίηση σχετικών διεργασιών",
+        groupCaption: "Ομαδοποιεί τις βοηθητικές διεργασίες κάτω από την εφαρμογή που είναι υπεύθυνη για αυτές.",
+        commandBarToggle: "Εμφάνιση στη Γραμμή εντολών",
+        commandBarCaption: "Προσθέτει τις διεργασίες που εκτελούνται στη Γραμμή εντολών, ώστε να μπορείτε να τις βρίσκετε και να τις τερματίζετε χωρίς να ανοίγετε τις Ρυθμίσεις.",
+        refreshTooltip: "Ανανέωση",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Διεργασίες: %d",
+        killButton: "Τερματισμός",
+        forceKillButton: "Εξαναγκασμένος τερματισμός",
+        killAllFormat: "Τερματισμός όλων των «%@»",
+        killTreeButton: "Τερματισμός δέντρου διεργασιών",
+        restartButton: "Επανεκκίνηση",
+        copyPID: "Αντιγραφή PID",
+        copyPath: "Αντιγραφή διαδρομής",
+        emptyStateTitle: "Δεν βρέθηκαν διεργασίες",
+        confirmKillFormat: "Τερματισμός %@;",
+        confirmForceKillFormat: "Εξαναγκασμένος τερματισμός %@;",
+        confirmKillAllFormat: "Τερματισμός όλων των διεργασιών «%@»;",
+        confirmKillTreeFormat: "Τερματισμός του %@ και όλων των θυγατρικών διεργασιών του;",
+        killFailedTitle: "Δεν ήταν δυνατός ο τερματισμός της διεργασίας",
+        killFailedMessage: "Η διεργασία ενδέχεται να έχει ήδη τερματιστεί ή να απαιτεί πρόσθετα δικαιώματα.",
+        adminPromptFormat: "Το Vorssaint χρειάζεται πρόσβαση διαχειριστή για να τερματίσει το «%@»."
+    )
+
     static let enUS = KillProcessFeatureStrings(
         pageTitle: "Kill Process",
         browseSubtitle: "Browse & Kill",

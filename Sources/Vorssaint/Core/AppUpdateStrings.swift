@@ -59,6 +59,7 @@ extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -78,6 +79,57 @@ extension FeatureStrings {
 }
 
 extension AppUpdateStrings {
+    static let el = AppUpdateStrings(
+        pageTitle: "Ενημερώσεις εφαρμογών",
+        hubDescription: "Εύρεση και εγκατάσταση ενημερώσεων για τις εφαρμογές σας",
+        caption: "Αναζητά νεότερες εκδόσεις των εφαρμογών σε αυτό το Mac και σας βοηθά να ολοκληρώσετε κάθε ενημέρωση από την αρχική της πηγή.",
+        panelCaption: "Δείτε ποιες εφαρμογές διαθέτουν νεότερη έκδοση",
+        checkNow: "Έλεγχος τώρα",
+        checking: "Έλεγχος",
+        lastCheckFormat: "Τελευταίος έλεγχος %@",
+        neverChecked: "Δεν έχει γίνει ακόμη έλεγχος",
+        upToDate: "Δεν βρέθηκαν ενημερώσεις",
+        partialUpToDate: "Δεν βρέθηκαν ενημερώσεις σε αυτόν τον μερικό έλεγχο",
+        coverageNote: "Ελέγχει τις αρχικές πηγές των εγκατεστημένων εφαρμογών και έναν δημόσιο κατάλογο. Οι ενημερώσεις εγκαθίστανται από την αρχική τους πηγή.",
+        selectAll: "Επιλογή όλων",
+        clearSelection: "Εκκαθάριση",
+        updateSelectedFormat: "Ενημέρωση %d",
+        updateOne: "Ενημέρωση",
+        openAppStore: "Άνοιγμα App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Ανοίγει το App Store, όπου εγκαθίσταται αυτή η ενημέρωση",
+        frequencyLabel: "Έλεγχος στο παρασκήνιο",
+        frequencyOff: "Απενεργοποιημένος",
+        frequencyDaily: "Καθημερινά",
+        frequencyWeekly: "Εβδομαδιαία",
+        nextCheckFormat: "Επόμενος έλεγχος %@",
+        notifyToggle: "Γνωστοποίηση όταν μια εφαρμογή έχει ενημέρωση",
+        includeStoreToggle: "Συμπερίληψη εφαρμογών από το App Store",
+        includeStoreCaption: "Ελέγχει τις εκδόσεις του καταστήματος χρησιμοποιώντας την περιοχή αυτού του Mac. Η Apple εγκαθιστά αυτές τις ενημερώσεις.",
+        packageMissing: "Το Homebrew δεν είναι εγκατεστημένο, επομένως οι εφαρμογές δεν μπορούν ακόμη να ενημερωθούν από εδώ.",
+        notificationBodyFormat: "%@ εφαρμογές έχουν νεότερη έκδοση.",
+        notificationBodyOne: "Μία εφαρμογή έχει νεότερη έκδοση.",
+        showInPanel: "Εμφάνιση στον πίνακα",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Πηγές",
+        includeHomebrewToggle: "Συμπερίληψη εφαρμογών Homebrew",
+        onlineBadge: "Online",
+        openApp: "Άνοιγμα",
+        openAppHint: "Ανοίγει την εφαρμογή ώστε να ολοκληρώσει την ενημέρωση το δικό της πρόγραμμα ενημέρωσης",
+        includeOnlineToggle: "Συμπερίληψη άλλων εγκατεστημένων εφαρμογών",
+        includeOnlineCaption: "Ελέγχει απευθείας με τους δημιουργούς των εφαρμογών όταν υποστηρίζεται και στη συνέχεια χρησιμοποιεί έναν δημόσιο κατάλογο. Η ενημέρωση εγκαθίσταται από το πρόγραμμα ενημέρωσης της ίδιας της εφαρμογής.",
+        incompleteCheck: "Ο έλεγχος δεν ολοκληρώθηκε",
+        onlineUnavailable: "Δεν ήταν δυνατή η ολοκλήρωση του online ελέγχου. Τα υπόλοιπα αποτελέσματα εξακολουθούν να εμφανίζονται.",
+        skipVersionFormat: "Παράλειψη έκδοσης %@",
+        excludeApp: "Να μην ελέγχεται αυτή η εφαρμογή",
+        rulesTitle: "Κανόνες ενημερώσεων",
+        skippedVersionFormat: "Έκδοση %@ σε παράλειψη",
+        excludedApp: "Δεν θα ελέγχεται μέχρι να αφαιρεθεί αυτός ο κανόνας",
+        removeRule: "Αφαίρεση κανόνα",
+        rulesHint: "Η παράλειψη μιας έκδοσης εξακολουθεί να επιτρέπει νεότερες εκδόσεις. Αφού αφαιρέσετε μια εξαίρεση εφαρμογής, χρησιμοποιήστε τον «Έλεγχο τώρα» για ανανέωση.",
+        noVisibleUpdates: "Δεν υπάρχουν ενημερώσεις εκτός των κανόνων σας"
+    )
+
     static let enUS = AppUpdateStrings(
         pageTitle: "App updates",
         hubDescription: "Find and install updates for the apps you have",

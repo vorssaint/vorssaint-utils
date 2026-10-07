@@ -21,6 +21,7 @@ enum CountAgreement {
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
     case enUS = "en-US"
+    case el = "el"
     case ptBR = "pt-BR"
     case tr = "tr"
     case ru = "ru"
@@ -54,6 +55,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .enUS: return "English (US)"
+        case .el: return "Ελληνικά"
         case .ptBR: return "Português (Brasil)"
         case .tr: return "Türkçe"
         case .ru: return "Русский"
@@ -95,7 +97,7 @@ enum AppLanguage: String, CaseIterable, Identifiable {
         }
 
         let matches: [(String, AppLanguage)] = [
-            ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
+            ("el", .el), ("pt", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es), ("sk", .sk), ("de", .de),
             ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko), ("uk", .uk), ("zh", .zhHans),
         ]
         for (prefix, language) in matches where preferred.hasPrefix(prefix) { return language }
@@ -130,6 +132,7 @@ extension Strings {
     static func localized(_ language: AppLanguage) -> Strings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru

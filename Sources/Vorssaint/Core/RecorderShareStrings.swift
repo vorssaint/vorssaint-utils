@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func recorderShare(_ language: AppLanguage) -> RecorderShareStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -38,6 +39,18 @@ extension FeatureStrings {
 }
 
 extension RecorderShareStrings {
+    static let el = RecorderShareStrings(
+        caption: "Επιλέξτε 1 ή 6 ώρες. Το τελικό βίντεο συμπιέζεται σε αυτό το Mac ώστε να παραμένει κάτω από 100 MB και διαγράφεται αυτόματα.",
+        privacyData: "Το Vorssaint αποστέλλει μόνο το τελικό βίντεο που δημιουργήθηκε από αυτήν την εγγραφή, μαζί με τον ήχο που διατηρήσατε και τη διάρκεια ισχύος που επιλέξατε. Δεν αποστέλλει το όνομα, τον λογαριασμό ή αναγνωριστικό της συσκευής σας.",
+        privacyStorage: "Οι πάροχοι δικτύου και η υπηρεσία επεξεργάζονται προσωρινά τη δημόσια διεύθυνση IP σας για την αποτροπή κατάχρησης. Το βίντεο και τα μεταδεδομένα του συνδέσμου διαγράφονται οριστικά όταν διαγράψετε τον σύνδεσμο ή λήξει η διάρκειά του. Η υπηρεσία δεν δημιουργεί εφεδρικά αντίγραφα.",
+        privacyAccess: "Οποιοσδήποτε διαθέτει τον σύνδεσμο μπορεί να προβάλει, να πραγματοποιήσει λήψη, να αποθηκεύσει ή να αναδιανείμει το βίντεο. Οι ενεργοί σύνδεσμοι είναι προσβάσιμοι από τον διαχειριστή της υπηρεσίας για έλεγχο κατάχρησης. Κοινοποιείτε μόνο σε άτομα που εμπιστεύεστε.",
+        compressing: "Συμπίεση για κοινή χρήση…",
+        uploading: "Ασφαλής αποστολή…",
+        tooLarge: "Αυτή η εγγραφή δεν μπορεί να μειωθεί κάτω από 100 MB χωρίς υπερβολική απώλεια ποιότητας.",
+        failed: "Δεν ήταν δυνατή η δημιουργία του προσωρινού συνδέσμου",
+        tourCaption: "Συμπιέστε μια ολοκληρωμένη εγγραφή σε αυτό το Mac και κοινοποιήστε τη για 1 ή 6 ώρες."
+    )
+
     static let enUS = RecorderShareStrings(
         caption: "Choose 1 or 6 hours. The final video is compressed on this Mac to fit under 100 MB and deleted automatically.",
         privacyData: "Vorssaint sends only the final video created from this recording, including the audio you kept, and the expiration you choose. It does not send your name, account or device identifier.",

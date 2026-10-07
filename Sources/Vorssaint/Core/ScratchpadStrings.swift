@@ -55,6 +55,7 @@ extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -74,6 +75,53 @@ extension FeatureStrings {
 }
 
 extension ScratchpadFeatureStrings {
+    static let el = ScratchpadFeatureStrings(
+        pageTitle: "Σημειωματάριο",
+        hubDescription: "Αιωρούμενα σημειωματάρια για προσωρινές σημειώσεις",
+        panelCaption: "Γρήγορες σημειώσεις σε ξεχωριστές καρτέλες",
+        openButton: "Άνοιγμα Σημειωματάριου",
+        placeholder: "Πληκτρολογήστε οτιδήποτε. Αποθηκεύεται αυτόματα.",
+        copyAll: "Αντιγραφή όλων",
+        copied: "Αντιγράφηκε",
+        exportAction: "Αποθήκευση ως αρχείο",
+        exportFailed: "Δεν ήταν δυνατή η αποθήκευση του αρχείου",
+        loadFailed: "Δεν ήταν δυνατό το άνοιγμα των σημειώσεών σας. Παρέμειναν αμετάβλητες.",
+        saveFailed: "Δεν ήταν δυνατή η αποθήκευση των σημειώσεών σας. Αντιγράψτε τις κάπου αλλού πριν τερματίσετε την εφαρμογή.",
+        clearAction: "Εκκαθάριση",
+        retentionTitle: "Αυτόματη εκκαθάριση",
+        retentionNever: "Ποτέ",
+        retentionDay: "Μετά από μία ημέρα χωρίς χρήση",
+        retentionWeek: "Μετά από μία εβδομάδα χωρίς χρήση",
+        retentionMonth: "Μετά από έναν μήνα χωρίς χρήση",
+        retentionCaption: "Το σημειωματάριο αδειάζει αυτόματα όταν το κείμενο παραμείνει χωρίς αλλαγές για αυτό το διάστημα.",
+        closeOnClickOutside: "Κλείσιμο με κλικ έξω από το παράθυρο",
+        keepOpen: "Διατήρηση ανοιχτού",
+        backgroundOpacity: "Φόντο σημειωματάριου",
+        backgroundTranslucent: "Ημιδιαφανές",
+        backgroundOpaque: "Αδιαφανές",
+        newPad: "Νέο σημειωματάριο",
+        padActions: "Ενέργειες σημειωματάριου",
+        renamePad: "Μετονομασία σημειωματάριου",
+        closePad: "Κλείσιμο σημειωματάριου",
+        saveName: "Αποθήκευση",
+        cancel: "Ακύρωση",
+        deletePadMessageFormat: "Διαγραφή του «%@» και όλων των περιεχομένων του;",
+        padLimitFormat: "Μπορείτε να διατηρείτε έως %d σημειωματάρια",
+        previewFormatting: "Εμφάνιση μορφοποίησης",
+        editText: "Επεξεργασία κειμένου",
+        markBold: "Έντονα",
+        markItalic: "Πλάγια",
+        markStrikethrough: "Διακριτή διαγραφή",
+        markHeading: "Επικεφαλίδα",
+        markBullet: "Λίστα με κουκκίδες",
+        markNumbered: "Αριθμημένη λίστα",
+        markQuote: "Παράθεση",
+        markCode: "Κώδικας",
+        markLink: "Σύνδεσμος",
+        formatMarks: "Μορφοποίηση",
+        textSize: "Μέγεθος κειμένου"
+    )
+
     static let enUS = ScratchpadFeatureStrings(
         pageTitle: "Scratchpad",
         hubDescription: "Floating pads for short-lived notes",

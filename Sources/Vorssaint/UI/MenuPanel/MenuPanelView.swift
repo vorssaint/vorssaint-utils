@@ -3053,6 +3053,7 @@ struct KeepAwakeCard: View {
 
     private func batteryNote(_ percent: Int) -> String {
         switch l10n.language {
+        case .el: return "Μπαταρία στο \(percent)%. Συνδέστε το Mac στο ρεύμα ή μειώστε το όριο μπαταρίας για να ξεκινήσει"
         case .enUS: return "Battery at \(percent)%. Plug in or lower the battery limit to start"
         case .ptBR: return "Bateria em \(percent)%. Conecte o carregador ou reduza o limite de bateria para iniciar"
         case .tr: return "Pil %\(percent). Başlatmak için şarja takın veya pil sınırını düşürün"
@@ -3072,6 +3073,7 @@ struct KeepAwakeCard: View {
 
     private var chipHint: String {
         switch l10n.language {
+        case .el: return "Κάντε κλικ σε μια επιλογή για έναρξη. Κάντε ξανά κλικ για διακοπή"
         case .enUS: return "Click a chip to start. Click it again to stop"
         case .ptBR: return "Clique em um chip para iniciar. Clique de novo para parar"
         case .tr: return "Başlatmak için bir çipe tıklayın. Durdurmak için tekrar tıklayın"

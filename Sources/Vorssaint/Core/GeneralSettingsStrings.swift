@@ -38,6 +38,7 @@ extension FeatureStrings {
     static func generalSettings(_ language: AppLanguage) -> GeneralSettingsStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -57,6 +58,35 @@ extension FeatureStrings {
 }
 
 extension GeneralSettingsStrings {
+    static let el = GeneralSettingsStrings(
+        pageDescription: "Πώς ξεκινά το Vorssaint, πώς εμφανίζεται και τι δείχνει ο πίνακάς του στη γραμμή μενού.",
+        appearanceCaption: "Εφαρμόζεται μόνο στα παράθυρα και στους πίνακες του Vorssaint, όχι σε ολόκληρο το Mac.",
+        launchAtLoginCaption: "Ανοίγει αυτόματα κάθε φορά που ενεργοποιείτε το Mac.",
+        liquidGlassCaption: "Ημιδιαφανείς πίνακες με όψη γυαλιού.",
+        liquidGlassOtherWindows: "Άλλα παράθυρα και πίνακες",
+        panelIntro: "Κάντε κλικ στο εικονίδιο του Vorssaint στη γραμμή μενού για να ανοίξετε τον πίνακα. Οι καρτέλες εμφανίζονται με αυτήν τη σειρά.",
+        panelReorderHint: "Σύρετε για αλλαγή σειράς. Απενεργοποιήστε ό,τι δεν χρειάζεστε.",
+        menuBarIconTitle: "Εικονίδιο γραμμής μενού",
+        menuBarIconCaption: "Επιλέξτε το εικονίδιο που εμφανίζει το Vorssaint στη γραμμή μενού.",
+        menuBarIconOther: "Άλλο σύμβολο",
+        menuBarIconOtherCaption: "Πληκτρολογήστε το όνομα οποιουδήποτε SF Symbol. Αφήστε το κενό για να χρησιμοποιείται το εικονίδιο του Vorssaint.",
+        menuBarIconUnknown: "Αυτό το Mac δεν διαθέτει σύμβολο με αυτό το όνομα.",
+        menuBarIconReset: "Χρήση εικονιδίου Vorssaint",
+        iconMissingTitle: "Δεν βρίσκετε το εικονίδιο;",
+        iconMissingCaption: "Μια γεμάτη γραμμή μενού μπορεί να το κρύψει, ιδιαίτερα σε Mac με εγκοπή.",
+        sectionKeepAwake: "Διατηρεί το Mac ενεργό για όσο χρόνο θέλετε.",
+        sectionDisplays: "Φωτεινότητα των οθονών σας.",
+        sectionMixer: "Ένταση ήχου κάθε εφαρμογής, με ξεχωριστό ρυθμιστικό.",
+        sectionSystem: "Επεξεργαστής, γραφικά και μνήμη με μια ματιά.",
+        sectionNetwork: "Ταχύτητα δικτύου και εφαρμογές που το χρησιμοποιούν.",
+        sectionDisks: "Ελεύθερος χώρος και δραστηριότητα δίσκων.",
+        sectionPower: "Μπαταρία, φόρτιση και κατανάλωση ενέργειας.",
+        sectionFanControl: "Ταχύτητες ανεμιστήρων και προσαρμοσμένη καμπύλη λειτουργίας.",
+        sectionUtilities: "Στιγμιότυπα οθόνης, καθαρισμός, ενημερώσεις και άλλα εργαλεία.",
+        sectionControls: "Διακόπτες για δυνατότητες ποντικιού, πληκτρολογίου και παραθύρων.",
+        sectionToggles: "Ενέργειες με ένα κλικ, όπως σκούρα εμφάνιση και σίγαση μικροφώνου."
+    )
+
     static let uk = GeneralSettingsStrings(
         pageDescription: "Як запускається Vorssaint, який має вигляд і що показує панель на смузі меню.",
         appearanceCaption: "Стосується лише вікон і панелей Vorssaint, а не всього Mac.",

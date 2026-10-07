@@ -27,6 +27,7 @@ extension FeatureStrings {
     static func permissionGuide(_ language: AppLanguage) -> PermissionGuideStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -73,6 +74,19 @@ extension PermissionGuideStrings {
 }
 
 extension PermissionGuideStrings {
+    static let el = PermissionGuideStrings(
+        title: "Απομένει ένα βήμα",
+        stepOpen: "Το macOS άνοιξε τις Ρυθμίσεις συστήματος στη σωστή λίστα.",
+        stepToggle: "Ενεργοποιήστε το Vorssaint σε αυτήν τη λίστα.",
+        stepReturn: "Επιστρέψτε εδώ. Αυτή η κάρτα θα το εντοπίσει αυτόματα.",
+        waiting: "Αναμονή για την άδεια…",
+        granted: "Η άδεια παραχωρήθηκε!",
+        closeHelp: "Κλείσιμο",
+        staleHint: "Είναι ήδη ενεργοποιημένο στη λίστα; Αυτή η καταχώριση ανήκει σε παλαιότερο αντίγραφο της εφαρμογής. Ξεκινήστε από την αρχή για να την αντικαταστήσετε.",
+        startOver: "Έναρξη από την αρχή",
+        relaunch: "Άνοιγμα ξανά για εφαρμογή"
+    )
+
     static let enUS = PermissionGuideStrings(
         title: "One step left",
         stepOpen: "macOS opened System Settings on the right list.",

@@ -47,6 +47,7 @@ struct WhatsAppDownloadStrings {
 
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
+        case .el: return .el
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
@@ -67,6 +68,60 @@ struct WhatsAppDownloadStrings {
 }
 
 extension WhatsAppDownloadStrings {
+    static let el = WhatsAppDownloadStrings(
+        title: "Λήψεις WhatsApp",
+        hubDescription: "Διατηρεί υπό έλεγχο τα αρχεία WhatsApp στις Λήψεις",
+        intro: "Εντοπίζει αρχεία που το macOS επιβεβαιώνει ότι προήλθαν από το WhatsApp. Το περιεχόμενο των αρχείων και οι συνομιλίες δεν διαβάζονται ποτέ.",
+
+        automatic: "Αυτόματη εκκαθάριση",
+        automaticCaption: "Ελέγχει μία φορά την ημέρα και μετακινεί στον Κάδο τα αντίστοιχα αρχεία που είναι παλαιότερα από το όριό σας.",
+
+        folder: "Παρακολουθούμενος φάκελος",
+        accessReady: "Οι Λήψεις είναι προσβάσιμες",
+        accessDenied: "Το Vorssaint δεν έχει πρόσβαση στις Λήψεις. Επιτρέψτε την πρόσβαση στα «Αρχεία και φάκελοι».",
+
+        fileTypes: "Τύποι αρχείων",
+        allTypes: "Όλα",
+        image: "Εικόνες",
+        video: "Βίντεο",
+        audio: "Ήχος και φωνητικά μηνύματα",
+        document: "Έγγραφα",
+        archive: "Αρχεία αρχειοθέτησης",
+        other: "Άλλα",
+
+        retention: "Διατήρηση για",
+        retentionCaption: "Για τα αρχεία που τροποποιήθηκαν πρόσφατα, η πλήρης περίοδος ξεκινά ξανά.",
+        daysFormat: "%d ημέρες",
+
+        manualIntro: "Εκτελέστε έλεγχο οποιαδήποτε στιγμή. Η αρχική επιλογή ακολουθεί τους τύπους και το όριο ηλικίας που έχετε ορίσει· μπορείτε να ελέγξετε κάθε επιβεβαιωμένο αρχείο.",
+        noFiles: "Δεν βρέθηκαν επιβεβαιωμένα αρχεία WhatsApp στις Λήψεις.",
+        resultsFormat: "%1$d επιβεβαιωμένα αρχεία · %2$@",
+        selectRules: "Επιλογή βάσει των κανόνων μου",
+        cleanSelectedFormat: "Μετακίνηση %1$d στον Κάδο · %2$@",
+
+        keep: "Διατήρηση",
+        manageAgain: "Διαχείριση ξανά",
+
+        activity: "Δραστηριότητα",
+        neverRun: "Δεν έχει πραγματοποιηθεί ακόμη εκκαθάριση.",
+        lastRunFormat: "Τελευταία εκκαθάριση %@: %d αρχεία · %@ · %d απέτυχαν",
+        nextRunFormat: "Επόμενος αυτόματος έλεγχος %@.",
+
+        firstTitle: "Τι θα γίνει με τα υπάρχοντα αρχεία;",
+        firstMessageFormat: "%d υπάρχοντα αρχεία αντιστοιχούν ήδη στους κανόνες σας. Επιλέξτε αν η αυτοματοποίηση μπορεί να διαχειρίζεται και αυτά ή μόνο τις μελλοντικές λήψεις.",
+        futureOnly: "Μόνο μελλοντικές λήψεις",
+        includeExisting: "Συμπερίληψη υπαρχόντων αρχείων",
+
+        trashNote: "Τα αρχεία μετακινούνται στον Κάδο και μπορούν να ανακτηθούν μέχρι να τον αδειάσετε.",
+        localNote: "Ελέγχονται μόνο τοπικά μεταδεδομένα αρχείων. Το Vorssaint δεν διαβάζει ποτέ συνομιλίες ή περιεχόμενο αρχείων.",
+
+        notificationTitle: "Εκκαθάριση WhatsApp",
+        notificationFormat: "%1$d αρχεία (%2$@) μετακινήθηκαν στον Κάδο. %3$d απέτυχαν.",
+
+        scanFailed: "Δεν ήταν δυνατός ο έλεγχος των Λήψεων. Ελέγξτε τα «Αρχεία και φάκελοι» στις Ρυθμίσεις συστήματος.",
+        manageButton: "Διαχείριση…"
+    )
+
     static let enUS = WhatsAppDownloadStrings(
         title: "WhatsApp downloads",
         hubDescription: "Keeps WhatsApp files in Downloads under control",
@@ -502,6 +557,22 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: uk.lastRunFormat, nextRunFormat: uk.nextRunFormat,
             firstMessageFormat: uk.firstMessageFormat, localNote: uk.localNote,
             notificationFormat: uk.notificationFormat, scanFailed: uk.scanFailed, manageButton: uk.manageButton)
+        case .el:
+            return OperationalStrings(
+                automaticCaption: el.automaticCaption,
+                retentionCaption: el.retentionCaption,
+                manualIntro: el.manualIntro,
+                resultsFormat: el.resultsFormat,
+                selectRules: el.selectRules,
+                cleanSelectedFormat: el.cleanSelectedFormat,
+                lastRunFormat: el.lastRunFormat,
+                nextRunFormat: el.nextRunFormat,
+                firstMessageFormat: el.firstMessageFormat,
+                localNote: el.localNote,
+                notificationFormat: el.notificationFormat,
+                scanFailed: el.scanFailed,
+                manageButton: el.manageButton
+            )
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,

@@ -122,6 +122,7 @@ struct KeepAwakeEndTimePicker: View {
 
     private var labels: (hour: String, minute: String) {
         switch l10n.language {
+        case .el: return ("Ώρα (0–23)", "Λεπτό")
         case .enUS: return ("Hour (0–23)", "Minute")
         case .ptBR: return ("Hora (0–23)", "Minuto")
         case .tr: return ("Saat (0–23)", "Dakika")

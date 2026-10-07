@@ -22,6 +22,7 @@ extension FeatureStrings {
     static func settingsPages(_ language: AppLanguage) -> SettingsPageStrings {
         switch language {
         case .enUS: return .enUS
+        case .el: return .el
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -41,6 +42,19 @@ extension FeatureStrings {
 }
 
 extension SettingsPageStrings {
+    static let el = SettingsPageStrings(
+        energyDescription: "Διατηρήστε το Mac ενεργό, ελέγξτε τις οθόνες σας και εξοικονομήστε μπαταρία.",
+        monitorDescription: "Τι εμφανίζουν η γραμμή μενού και ο πίνακας για το Mac σας και πότε θα σας προειδοποιούν.",
+        mouseDescription: "Δώστε νέες λειτουργίες στον τροχό, στα πλευρικά κουμπιά και στην επιφάνεια αφής.",
+        switcherDescription: "Εναλλάσσεστε μεταξύ εφαρμογών και παραθύρων με τον τρόπο που θέλετε.",
+        dockTitle: "Dock",
+        dockDescription: "Δείτε τα παράθυρα μιας εφαρμογής από το εικονίδιό της στο Dock και επιλέξτε τι θα κάνει ένα κλικ πάνω του.",
+        switcherLayoutWindows: "Προεπισκοπήσεις παραθύρων",
+        switcherLayoutWindowsCaption: "Μία προεπισκόπηση για κάθε παράθυρο, συμπεριλαμβανομένων των ελαχιστοποιημένων.",
+        switcherLayoutIcons: "Μεγάλα εικονίδια",
+        switcherLayoutSimple: "Απλή λίστα"
+    )
+
     static let uk = SettingsPageStrings(
         energyDescription: "Не давайте Mac заснути, керуйте екранами та заощаджуйте заряд акумулятора.",
         monitorDescription: "Що смуга меню й панель показують про Mac та коли попереджати вас.",
