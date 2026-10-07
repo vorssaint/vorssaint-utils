@@ -46,12 +46,12 @@ extension FinderRenameFeatureStrings {
     )
 
     static let sv = FinderRenameFeatureStrings(
-        pageTitle: "Finder shortcuts",
-        hubTitle: "Rename shortcut",
-        hubDescription: "Rename the selected file or folder with a shortcut you choose.",
-        enableLabel: "Use a shortcut to rename",
-        caption: "The shortcut only acts in Finder and leaves text fields alone. F2 works as a regular key; on keyboards where it controls brightness, use Fn-F2 or choose another shortcut.",
-        shortcutLabel: "Rename"
+        pageTitle: "Kortkommandon i Finder",
+        hubTitle: "Kortkommando för att byta namn",
+        hubDescription: "Byt namn på den valda filen eller mappen med ett kortkommando du väljer.",
+        enableLabel: "Använd ett kortkommando för att byta namn",
+        caption: "Kortkommandot fungerar bara i Finder och lämnar textfält i fred. F2 fungerar som en vanlig tangent. På tangentbord där den styr ljusstyrkan använder du Fn-F2 eller väljer ett annat kortkommando.",
+        shortcutLabel: "Byt namn"
     )
 
     static let ptBR = FinderRenameFeatureStrings(
