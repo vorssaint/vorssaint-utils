@@ -16,6 +16,7 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistorySkipSensitive) private var skipSensitive = true
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage(DefaultsKey.clipboardHistoryAutoPaste) private var autoPaste = true
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
@@ -179,6 +180,11 @@ struct ClipboardSettings: View {
                     .foregroundStyle(.orange)
             }
             Text(text.shortcutCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(text.autoPaste, isOn: $autoPaste)
+                .disabled(!enabled)
+            Text(text.autoPasteCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Button {

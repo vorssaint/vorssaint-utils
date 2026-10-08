@@ -856,6 +856,12 @@ enum ClipboardHistoryBatch {
     }
 }
 
+enum ClipboardHistoryAutoPaste {
+    static var isEnabled: Bool {
+        UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryAutoPaste)
+    }
+}
+
 enum ClipboardHistoryCapturePolicy {
     static func isCopiedScreenshot(_ paths: [String], in directory: URL?) -> Bool {
         guard paths.count == 1,

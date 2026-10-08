@@ -239,7 +239,11 @@ struct NotchClipboardView: View {
     }
 
     private func activate(_ entry: ClipboardHistoryEntry) {
-        if permissions.accessibility { paste(entry) } else { copy(entry) }
+        if ClipboardHistoryAutoPaste.isEnabled, permissions.accessibility {
+            paste(entry)
+        } else {
+            copy(entry)
+        }
     }
 
     private func paste(_ entry: ClipboardHistoryEntry) {

@@ -182,6 +182,11 @@ enum ClipboardFeatureTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryAutoPaste] as? Bool == true,
+               "clipboard history auto paste defaults on")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.clipboardHistoryAutoPaste),
+               "clipboard auto paste travels with settings backup")
+
         // MARK: Clipboard history search
 
         let clipboardCandidates = [
@@ -761,6 +766,8 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.autoClearOnScreenLock.isEmpty
                    && !clipboardStrings.autoClearCaption.isEmpty,
                    "\(language.rawValue) clipboard auto clear labels are localized")
+            suite.expect(!clipboardStrings.autoPaste.isEmpty && !clipboardStrings.autoPasteCaption.isEmpty,
+                   "\(language.rawValue) clipboard auto paste labels are localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty

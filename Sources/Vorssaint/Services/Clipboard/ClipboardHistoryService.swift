@@ -562,6 +562,10 @@ final class ClipboardHistoryService: ObservableObject {
     /// copied before. A stale entry leaves the clipboard untouched and pastes
     /// nothing at all.
     func copyQuickEntry(_ entry: ClipboardHistoryEntry) {
+        guard ClipboardHistoryAutoPaste.isEnabled else {
+            copyOnlyQuickEntry(entry)
+            return
+        }
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
@@ -575,6 +579,10 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
+        guard ClipboardHistoryAutoPaste.isEnabled else {
+            copyOnlyQuickEntries(selectedEntries)
+            return
+        }
         let target = pasteTargetApp
         hideHistoryWindow()
         pasteTargetApp = nil
