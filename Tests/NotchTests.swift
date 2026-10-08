@@ -1469,7 +1469,8 @@ enum NotchTests {
         defaults.set(savedBrightness, forKey: AppFeature.brightness.availabilityKey)
         suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
                      && NotchControlItem.recording.setupRequirement == .feature(.screenRecorder)
-                     && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad),
+                     && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad)
+                     && NotchControlItem.desktopIcons.setupRequirement == .feature(.quickToggles),
                      "feature-gated controls lead to the matching feature in the hub")
         suite.expect(NotchControlItem.music.setupRequirement == .page(.music, feature: nil)
                      && NotchControlItem.mixer.setupRequirement == .page(.mixer, feature: .mixer)
@@ -1482,7 +1483,7 @@ enum NotchTests {
                "shortcut ordering tolerates duplicate and obsolete identifiers")
         suite.expect(!controls.contains(.volume) && !controls.contains(.screenshot), "individual controls can be hidden")
         defaults.set("", forKey: DefaultsKey.notchHiddenControls)
-        suite.expect(NotchSupport.controls(in: defaults).last == .scratchpad
+        suite.expect(NotchSupport.controls(in: defaults).contains(.scratchpad)
                && NotchQuickAction(id: NotchQuickAction.control(.scratchpad).id) == .control(.scratchpad)
                && NotchQuickAction.optionalActions.contains(.control(.scratchpad)),
                "the scratchpad shortcut can be shown among the controls and placed as a floating button")

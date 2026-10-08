@@ -151,6 +151,7 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
         case .scratchpad:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
+        case .desktopIcons: NotchDesktopIconsButton()
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
@@ -173,6 +174,7 @@ extension NotchControlItem {
         case .mixer: return l10n.s.mixerSection
         case .commandBar: return FeatureStrings.commandBar(l10n.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
+        case .desktopIcons: return FeatureStrings.quickToggles(l10n.language).desktopIconsHide
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)
@@ -728,6 +730,20 @@ private struct NotchMicButton: View {
         NotchActionTile(symbol: service.isMuted ? "mic.slash.fill" : "mic.fill",
                         title: service.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName,
                         active: service.isMuted, accent: .alert, action: service.toggle)
+    }
+}
+
+/// Hides or shows the Finder's desktop icons. The state is read on demand;
+/// the service publishes each run, which redraws the label once it lands.
+private struct NotchDesktopIconsButton: View {
+    @ObservedObject private var toggles = QuickTogglesService.shared
+    @ObservedObject private var l10n = L10n.shared
+    var body: some View {
+        let strings = FeatureStrings.quickToggles(l10n.language)
+        let shown = toggles.desktopIconsShown
+        NotchActionTile(symbol: NotchControlItem.desktopIcons.symbol,
+                        title: shown ? strings.desktopIconsHide : strings.desktopIconsShow,
+                        active: !shown, action: toggles.toggleDesktopIcons)
     }
 }
 

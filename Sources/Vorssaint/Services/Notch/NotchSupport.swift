@@ -1087,8 +1087,8 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
-    static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad, desktopIcons
+    static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad,desktopIcons"
     var id: String { rawValue }
 
     /// A level draws as a slider in the card row; everything else is a tile.
@@ -1115,6 +1115,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .mixer: return NotchModule.mixer.symbol
         case .commandBar: return "command"
         case .scratchpad: return "note.text"
+        case .desktopIcons: return "desktopcomputer"
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
@@ -1131,6 +1132,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .recording: return .feature(.screenRecorder)
         case .commandBar: return .feature(.commandBar)
         case .scratchpad: return .feature(.scratchpad)
+        case .desktopIcons: return .feature(.quickToggles)
         case .panel: return .none
         case .mixer: return .page(.mixer, feature: .mixer)
         case .speedTest: return .page(.system, feature: .monitorNetwork)
@@ -1153,6 +1155,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .speedTest: return AppFeature.monitorNetwork.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.system)
         case .commandBar: return AppFeature.commandBar.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
+        case .desktopIcons: return AppFeature.quickToggles.isAvailable(in: defaults)
         case .panel: return true
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
