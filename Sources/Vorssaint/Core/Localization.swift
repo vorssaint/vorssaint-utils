@@ -370,6 +370,10 @@ struct Strings {
     let micUnmutePartialHUD: String
     let micMuteMenuBarToggle: String
     let micMuteMenuBarCaption: String
+    let micMuteWhileTypingToggle: String
+    let micMuteWhileTypingCaption: String
+    let micMuteWhileTypingNeedsAccessibility: String
+    let micMuteWhileTypingUnmuteDelay: String
     let pastePlainName: String
     let pastePlainCaption: String
     let launcherName: String
@@ -793,6 +797,15 @@ struct Strings {
     let soundOutputSwitcherCaption: String
     let soundOutputSwitcherDevices: String
     let soundOutputSwitcherNoAvailableSelection: String
+    let soundInputSwitcherEnable: String
+    let soundInputSwitcherCaption: String
+    let soundInputSwitcherDevices: String
+    let soundInputSwitcherNoAvailableSelection: String
+    let soundInputSwitcherNoDevices: String
+    let systemMuteShortcutToggle: String
+    let mixerCapVolumeAfterWakeToggle: String
+    let mixerCapVolumeAfterWakeCaption: String
+    let mixerWakeVolumeCapPercent: String
     let mixerInputTitle: String
     let mixerInputNoDevices: String
     let mixerInputUnavailable: String
@@ -1502,6 +1515,10 @@ extension Strings {
         micUnmutePartialHUD: "Alguns microfones continuam silenciados",
         micMuteMenuBarToggle: "Mostrar na barra de menus enquanto silenciado",
         micMuteMenuBarCaption: "Um microfone cortado em vermelho aparece ao lado do ícone do app na barra de menus enquanto este recurso o silencia.",
+        micMuteWhileTypingToggle: "Silenciar enquanto digita",
+        micMuteWhileTypingCaption: "Corta todo microfone do Mac enquanto você digita e o devolve quando a digitação para.",
+        micMuteWhileTypingNeedsAccessibility: "Precisa da permissão de Acessibilidade para observar o teclado.",
+        micMuteWhileTypingUnmuteDelay: "Esperar antes de religar",
         pastePlainName: "Colar como texto puro",
         pastePlainCaption: "Cola o que foi copiado sem cores, fontes ou formatação. O conteúdo original continua no clipboard.",
         launcherName: "Painel rápido",
@@ -1910,6 +1927,15 @@ extension Strings {
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
         soundOutputSwitcherDevices: "Saídas no ciclo",
         soundOutputSwitcherNoAvailableSelection: "Selecione pelo menos uma saída disponível.",
+        soundInputSwitcherEnable: "Alternar microfones com atalho",
+        soundInputSwitcherCaption: "Escolha os microfones e use o atalho para passar para o próximo disponível.",
+        soundInputSwitcherDevices: "Microfones no ciclo",
+        soundInputSwitcherNoAvailableSelection: "Selecione pelo menos um microfone disponível.",
+        soundInputSwitcherNoDevices: "Nenhum microfone encontrado",
+        systemMuteShortcutToggle: "Silenciar o som do sistema",
+        mixerCapVolumeAfterWakeToggle: "Limitar o volume ao acordar",
+        mixerCapVolumeAfterWakeCaption: "Ao acordar, baixa o volume do sistema até este teto. Só reduz: nunca aumenta nem tira o silenciamento.",
+        mixerWakeVolumeCapPercent: "Teto ao acordar",
         mixerInputTitle: "Microfone",
         mixerInputNoDevices: "Nenhum microfone encontrado",
         mixerInputUnavailable: "Microfone indisponível",
@@ -2597,6 +2623,10 @@ extension Strings {
         micUnmutePartialHUD: "Some microphones are still muted",
         micMuteMenuBarToggle: "Show in the menu bar while muted",
         micMuteMenuBarCaption: "A red crossed-out mic appears beside the app’s icon in the menu bar while this feature mutes it.",
+        micMuteWhileTypingToggle: "Mute while typing",
+        micMuteWhileTypingCaption: "Cuts every microphone while you type and brings them back once you stop.",
+        micMuteWhileTypingNeedsAccessibility: "Needs Accessibility permission to watch the keyboard.",
+        micMuteWhileTypingUnmuteDelay: "Wait before unmuting",
         pastePlainName: "Paste as plain text",
         pastePlainCaption: "Pastes what you copied without colors, fonts or formatting. The original stays on the clipboard.",
         launcherName: "Quick panel",
@@ -3005,6 +3035,15 @@ extension Strings {
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
         soundOutputSwitcherDevices: "Outputs in cycle",
         soundOutputSwitcherNoAvailableSelection: "Select at least one available output.",
+        soundInputSwitcherEnable: "Switch microphones with shortcut",
+        soundInputSwitcherCaption: "Choose microphones and use the shortcut to move to the next available one.",
+        soundInputSwitcherDevices: "Microphones in cycle",
+        soundInputSwitcherNoAvailableSelection: "Select at least one available microphone.",
+        soundInputSwitcherNoDevices: "No microphones found",
+        systemMuteShortcutToggle: "Mute system sound",
+        mixerCapVolumeAfterWakeToggle: "Cap the volume after you wake",
+        mixerCapVolumeAfterWakeCaption: "Lowers the system volume to this ceiling after waking. It only ever lowers: never raises, and never unmutes.",
+        mixerWakeVolumeCapPercent: "Ceiling after waking",
         mixerInputTitle: "Microphone",
         mixerInputNoDevices: "No microphones found",
         mixerInputUnavailable: "Microphone unavailable",

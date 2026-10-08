@@ -20,6 +20,10 @@ final class MicMuteService: ObservableObject {
 
     @Published private(set) var isMuted = false
     @Published private(set) var shortcutRegistrationFailed = false
+    /// Whether the mute-while-typing monitor is installed and able to work.
+    /// Settings observes this to explain why the toggle cannot work instead
+    /// of silently doing nothing.
+    @Published private(set) var typingMuteAvailable = false
 
     private let hotkey = QuickToolHotkey(id: 12)
     private var installedListeners: [AudioObjectPropertySelector] = []
@@ -42,6 +46,15 @@ final class MicMuteService: ObservableObject {
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
+    /// Whether THIS feature's typing monitor muted the mic. The release half
+    /// of the ownership rule: only a mute this feature performed may be undone
+    /// by it. A mic the user muted stays muted however typing starts or stops.
+    private var mutedByTyping = false
+    /// The moment of the last keypress, on the monotonic clock. The debounce
+    /// reads how long typing has been quiet against the stored wait.
+    private var lastTypingAt: TimeInterval?
+    private var typingKeyMonitor: Any?
+    private var typingUnmuteTimer: Timer?
 
     private init() {
         hotkey.onPress = { [weak self] in self?.toggle() }
@@ -74,6 +87,7 @@ final class MicMuteService: ObservableObject {
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
                                                   storageKey: DefaultsKey.micMuteShortcut)
 
+        let typingWanted = Self.typingMuteWanted
         if available {
             if wantsMute {
                 apply(muted: true, announce: false)
@@ -84,16 +98,31 @@ final class MicMuteService: ObservableObject {
                 apply(muted: false, announce: false)
             }
             isMuted = wantsMute
+            syncTypingMonitor(wanted: typingWanted)
         } else {
             // Switching the feature off must not strand a muted microphone
-            // with no control left to unmute it.
-            if wantsMute || hasOutstandingClaims {
+            // with no control left to unmute it. Only a mute the typing
+            // monitor performed is released here; a mic the user muted stays
+            // muted exactly as they left it.
+            stopTypingMonitor()
+            if mutedByTyping {
+                apply(muted: false, announce: false)
+                UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
+                mutedByTyping = false
+            } else if wantsMute || hasOutstandingClaims {
                 apply(muted: false, announce: false)
                 UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
             }
             isMuted = false
         }
         syncListeners()
+    }
+
+    /// The enable toggle and the stored wait behind it, read together so the
+    /// monitor never starts on a stale half of the preference pair.
+    private static var typingMuteWanted: Bool {
+        AppFeature.micMute.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteWhileTypingEnabled)
     }
 
     /// The listeners exist to keep an active mute true while devices come and
@@ -113,6 +142,7 @@ final class MicMuteService: ObservableObject {
     }
 
     func suspend() {
+        stopTypingMonitor()
         hotkey.unregister()
     }
 
@@ -121,6 +151,13 @@ final class MicMuteService: ObservableObject {
     }
 
     func setMuted(_ muted: Bool) {
+        // An explicit user action takes over: the typing monitor must not
+        // undo it in either direction, so its claim is dropped here. The
+        // unmute still goes through the shared path with its claims intact,
+        // which is what releases a device the monitor muted while the user
+        // happened to press the button at the same moment.
+        mutedByTyping = false
+        cancelTypingUnmuteTimer()
         apply(muted: muted, announce: true)
     }
 
@@ -152,6 +189,8 @@ final class MicMuteService: ObservableObject {
         // runs behind it on the same serial queue.
         applyGeneration += 1
         wantsMute = false
+        mutedByTyping = false
+        stopTypingMonitor()
         _ = halQueue.sync { Self.sweep(muted: false) }
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
         isMuted = false
@@ -450,8 +489,13 @@ final class MicMuteService: ObservableObject {
         }
         return devices
     }
+    /// True when a microphone is present right now. This is the "only when a
+    /// microphone is in use" condition: the enumeration already filters by
+    /// `hasInputStreams`, so no second property query is needed. Runs on
+    /// `halQueue` with the rest of the device reads.
+    internal static var anyMicrophoneInUse: Bool { !inputDevices().isEmpty }
 
-    private static func hasInputStreams(_ deviceID: AudioDeviceID) -> Bool {
+    internal static func hasInputStreams(_ deviceID: AudioDeviceID) -> Bool {
         var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreams,
                                                  mScope: kAudioDevicePropertyScopeInput,
                                                  mElement: kAudioObjectPropertyElementMain)
@@ -596,5 +640,125 @@ final class MicMuteService: ObservableObject {
                                               listenerClient)
         }
         installedListeners.removeAll()
+    }
+
+    // MARK: - Mute while typing
+
+    /// The stored wait behind the debounce, sanitized so a corrupt preference
+    /// can never hold the mic muted against the user's will.
+    private static var typingUnmuteDelay: TimeInterval {
+        MicMuteWhileTypingSupport.sanitizedUnmuteDelay(
+            UserDefaults.standard.double(forKey: DefaultsKey.micMuteWhileTypingUnmuteDelay))
+    }
+
+    /// Brings the keypress monitor in line with the preference. Called from
+    /// `syncWithPreferences`, so the feature toggle and the enable toggle
+    /// both arm and disarm it.
+    private func syncTypingMonitor(wanted: Bool) {
+        guard wanted else {
+            stopTypingMonitor()
+            return
+        }
+        // A global key monitor only delivers events when the app is trusted
+        // for Accessibility, so without the grant there is nothing to install
+        // and nothing to mute. Never prompts: the row in Settings says why.
+        guard Permissions.shared.accessibility else {
+            stopTypingMonitor()
+            return
+        }
+        // The monitor installs even while the mic is muted: it only observes,
+        // and the keypress path refuses to adopt a mute it did not perform.
+        // Gating the install on the mute state instead would disarm typing
+        // across a manual unmute until the next preference sync, silently.
+        guard typingKeyMonitor == nil else { return }
+        typingKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            self?.noteTypingKeypress(isRepeat: event.isARepeat)
+        }
+        DispatchQueue.main.async { [weak self] in self?.typingMuteAvailable = self?.typingKeyMonitor != nil }
+    }
+
+    private func stopTypingMonitor() {
+        if let typingKeyMonitor { NSEvent.removeMonitor(typingKeyMonitor) }
+        typingKeyMonitor = nil
+        cancelTypingUnmuteTimer()
+        lastTypingAt = nil
+        if Thread.isMainThread {
+            typingMuteAvailable = false
+        } else {
+            DispatchQueue.main.async { [weak self] in self?.typingMuteAvailable = false }
+        }
+    }
+
+    /// A keypress while the feature is armed. Repeats carry no new typing, so
+    /// they only hold the debounce open; anything else restarts it. Runs on
+    /// the main thread with the mute state it reads: a sweep finishing
+    /// between the claim check and the `apply` cannot interleave here, so the
+    /// owner flag and the request it records stay in step.
+    private func noteTypingKeypress(isRepeat: Bool) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.noteTypingKeypress(isRepeat: isRepeat)
+            }
+            return
+        }
+        if !isRepeat { lastTypingAt = ProcessInfo.processInfo.systemUptime }
+        let delay = Self.typingUnmuteDelay
+        // The presence read is cheap and runs on the existing audio queue
+        // with the rest of the device reads: no files, no network, no
+        // preferences from here.
+        let micInUse = halQueue.sync { Self.anyMicrophoneInUse }
+        guard MicMuteWhileTypingSupport.shouldMute(typing: true,
+                                                  idleSeconds: 0,
+                                                  unmuteDelay: delay,
+                                                  micInUse: micInUse) else { return }
+        // The release wait arms even when there is nothing to claim: typing
+        // through a user-held mute still ends, and the expiry is what lets
+        // the monitor notice it may own the next burst instead of this one.
+        scheduleTypingUnmute(delay: delay)
+        // The mute may already belong to the user: claim only when the mic is
+        // open, so the debounce never adopts their mute.
+        guard MicMuteWhileTypingSupport.shouldClaimMutedMic(isMuted: isMuted) else { return }
+        if !mutedByTyping { mutedByTyping = true }
+        apply(muted: true, announce: false)
+    }
+
+    /// Restarts the release wait after every keypress. Invalidating first is
+    /// what makes continuous typing hold the mute: the expiry only runs once
+    /// keys have been quiet for the whole wait.
+    private func scheduleTypingUnmute(delay: TimeInterval) {
+        typingUnmuteTimer?.invalidate()
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            self?.typingDebounceExpired()
+        }
+        timer.tolerance = min(0.05, delay / 10)
+        RunLoop.main.add(timer, forMode: .common)
+        typingUnmuteTimer = timer
+    }
+
+    private func cancelTypingUnmuteTimer() {
+        typingUnmuteTimer?.invalidate()
+        typingUnmuteTimer = nil
+    }
+
+    /// The debounce expired with no keypress since. Releases only under the
+    /// ownership rule: a mic the user muted, or took over mid-burst, is left
+    /// exactly as they left it.
+    private func typingDebounceExpired() {
+        typingUnmuteTimer = nil
+        let idle = MicMuteWhileTypingSupport.clampedIdleSeconds(
+            ProcessInfo.processInfo.systemUptime - (lastTypingAt ?? ProcessInfo.processInfo.systemUptime))
+        let delay = Self.typingUnmuteDelay
+        let micInUse = halQueue.sync { Self.anyMicrophoneInUse }
+        guard !MicMuteWhileTypingSupport.shouldMute(typing: false,
+                                                   idleSeconds: idle,
+                                                   unmuteDelay: delay,
+                                                   micInUse: micInUse) else {
+            scheduleTypingUnmute(delay: max(delay - idle, 0.05))
+            return
+        }
+        guard MicMuteWhileTypingSupport.shouldReleaseMic(mutedByTyping: mutedByTyping) else { return }
+        mutedByTyping = false
+        lastTypingAt = nil
+        apply(muted: false, announce: false)
     }
 }

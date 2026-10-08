@@ -153,6 +153,15 @@ enum DefaultsKey {
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
     static let soundOutputSwitcherDeviceUIDs = "soundOutputSwitcherDeviceUIDs"
+    // The microphones the input cycle steps through. The list is the user's
+    // selection, not a device read: unavailable entries are skipped by the
+    // switcher rather than dropped here.
+    static let soundInputSwitcherEnabled = "soundInputSwitcherEnabled"
+    static let soundInputSwitcherDeviceUIDs = "soundInputSwitcherDeviceUIDs"
+    // A ceiling for the level a wake may find. It only ever lowers, and never
+    // far enough to leave the room silent.
+    static let mixerWakeVolumeCapEnabled = "mixerWakeVolumeCapEnabled"
+    static let mixerWakeVolumeCapPercent = "mixerWakeVolumeCapPercent"
     // Audio device priority: ordered output and microphone lists the feature
     // enforces automatically when its enable flags are on.
     static let audioPriorityOutputEnabled = "audioPriorityOutputEnabled"
@@ -577,6 +586,13 @@ enum DefaultsKey {
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let systemMuteShortcutEnabled = "systemMuteShortcutEnabled"
+    static let systemMuteShortcut = "systemMuteShortcut"
+    // Mute-while-typing behind the existing micMute feature. The unmute wait
+    // is stored in seconds and always read through the sanitizer, so any
+    // previously stored value stays inside the debounce range.
+    static let micMuteWhileTypingEnabled = "micMuteWhileTypingEnabled"
+    static let micMuteWhileTypingUnmuteDelay = "micMuteWhileTypingUnmuteDelay"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
@@ -1263,6 +1279,9 @@ enum Defaults {
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
+        DefaultsKey.soundInputSwitcherEnabled: false,
+        DefaultsKey.mixerWakeVolumeCapEnabled: false,
+        DefaultsKey.mixerWakeVolumeCapPercent: defaultMixerWakeVolumeCapPercent,
         // The feature itself ships uninstalled. On first install both halves
         // work immediately; an explicit off choice is persisted and wins over
         // these registered defaults on later launches or reinstalls.
@@ -1738,6 +1757,10 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.systemMuteShortcutEnabled: false,
+        DefaultsKey.systemMuteShortcut: GlobalShortcut.systemMuteDefault.storageValue,
+        DefaultsKey.micMuteWhileTypingEnabled: false,
+        DefaultsKey.micMuteWhileTypingUnmuteDelay: 2.0,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
@@ -1930,6 +1953,7 @@ enum Defaults {
         migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
+        migrateSilentWakeVolumeCap(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
@@ -2548,6 +2572,25 @@ enum Defaults {
     static func sanitizedAppVolume(_ volume: Double) -> Double {
         guard volume.isFinite else { return 1 }
         return min(max(volume, 0), 2)
+    }
+
+    /// The level a wake may leave the speakers at. It guards against a room
+    /// that was loud when the lid came down, and it shares the disconnect
+    /// floor below rather than minting a second one: both features write the
+    /// speakers without being asked, and they must not disagree about what
+    /// counts as too quiet to write.
+    static let defaultMixerWakeVolumeCapPercent = 50
+
+    /// The disconnect option shipped with a stored 0, and the trap is the same
+    /// here: this one re-applies on every wake, so a stored 0 would silence
+    /// the Mac repeatedly with no way back except finding this setting. The
+    /// floor is the guard, and this moves an already-stored bad value out of
+    /// the way before it is ever read.
+    static func migrateSilentWakeVolumeCap(in defaults: UserDefaults) {
+        guard let stored = defaults.object(forKey: DefaultsKey.mixerWakeVolumeCapPercent) as? Int,
+              stored < Defaults.minimumMixerHeadphonesDisconnectVolumePercent else { return }
+        defaults.set(defaultMixerWakeVolumeCapPercent,
+                     forKey: DefaultsKey.mixerWakeVolumeCapPercent)
     }
 
     /// The volume the speakers are set to when headphones disconnect. It is a
