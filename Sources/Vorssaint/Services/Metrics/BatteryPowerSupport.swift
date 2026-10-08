@@ -46,4 +46,23 @@ enum BatteryPowerSupport {
         default: return "battery.0"
         }
     }
+
+    /// The same reading for the island's own capsule, whose glyphs are named
+    /// for the charge they draw rather than for the slot they fill: the open
+    /// capsule's icon emptied with the charge from the start, while the closed
+    /// capsule's stayed full at every level until it shared this table.
+    ///
+    /// The bolt means external power, exactly as in the menu bar, so a Mac
+    /// held at a charge limit and one sitting at full on its adapter both
+    /// still read as plugged in.
+    static func capsuleSymbol(percent: Int, isCharging: Bool, externalConnected: Bool) -> String {
+        if isCharging || externalConnected { return "battery.100percent.bolt" }
+        switch percent {
+        case 85...: return "battery.100percent"
+        case 60..<85: return "battery.75percent"
+        case 35..<60: return "battery.50percent"
+        case 10..<35: return "battery.25percent"
+        default: return "battery.0percent"
+        }
+    }
 }

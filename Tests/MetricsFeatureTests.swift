@@ -350,6 +350,51 @@ enum MetricsFeatureTests {
                     "battery.0",
                     "an unplugged Mac keeps the level thresholds it always had")
 
+        // The closed island's capsule draws the `-percent` glyph set rather
+        // than the menu bar's, so its table is checked in its own right: the
+        // level empties with the charge and the bolt rides on external power.
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 80,
+                                                      isCharging: false,
+                                                      externalConnected: true),
+                    "battery.100percent.bolt",
+                    "a charge held at a limit draws the bolt in the capsule too")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 42,
+                                                      isCharging: true,
+                                                      externalConnected: false),
+                    "battery.100percent.bolt",
+                    "a charge reported before its adapter draws the bolt")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 100,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.100percent",
+                    "a full unplugged battery draws a full glyph")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 70,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.75percent",
+                    "a three quarter charge draws three quarters")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 42,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.50percent",
+                    "the capsule empties with the charge beside it")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 20,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.25percent",
+                    "a low charge draws a quarter")
+        expectEqual(BatteryPowerSupport.capsuleSymbol(percent: 5,
+                                                      isCharging: false,
+                                                      externalConnected: false),
+                    "battery.0percent",
+                    "an empty charge draws an empty glyph")
+        let capsuleLevels = [100, 70, 42, 20, 5].map {
+            BatteryPowerSupport.capsuleSymbol(percent: $0, isCharging: false, externalConnected: false)
+        }
+        suite.expect(Set(capsuleLevels).count == capsuleLevels.count
+                        && !capsuleLevels.contains("battery.100percent.bolt"),
+               "the five levels name five distinct glyphs, which one hardcoded full battery cannot")
+
         suite.expect(BatteryPowerSupport.state(isCharging: false,
                                                externalConnected: true,
                                                hasBattery: true) == .externalPower,

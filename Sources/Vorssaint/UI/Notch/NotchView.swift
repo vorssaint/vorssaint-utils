@@ -773,23 +773,17 @@ struct NotchRestingStrip: View {
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
 
     /// Both halves of the charge turn amber, then red, together as it runs low.
+    /// The options are read here rather than from the defaults directly, so a
+    /// threshold changed in Settings redraws the wing at once.
     private var batteryTint: Color {
-        switch NotchSupport.batteryWarning(percent: service.power.chargePercent,
-                                           externalConnected: service.power.externalConnected,
-                                           tint: lowBatteryTint, threshold: lowBatteryThreshold,
-                                           early: earlyBatteryWarning, earlyThreshold: earlyBatteryThreshold) {
-        case .low: return .red
-        case .early: return .orange
-        case .none: return .white.opacity(0.9)
-        }
+        NotchBatteryDisplay.tint(for: NotchSupport.batteryWarning(
+            percent: service.power.chargePercent, externalConnected: service.power.externalConnected,
+            tint: lowBatteryTint, threshold: lowBatteryThreshold,
+            early: earlyBatteryWarning, earlyThreshold: earlyBatteryThreshold))
     }
 
     /// The icon empties with the charge, as the menu bar's does.
-    private var batterySymbol: String {
-        BatteryPowerSupport.menuBarSymbol(percent: service.power.chargePercent ?? 100,
-                                          isCharging: service.power.isCharging,
-                                          externalConnected: service.power.externalConnected)
-    }
+    private var batterySymbol: String { service.power.menuBarBatterySymbol }
 
     /// Centre battery content inside the wing's visible area, past its curved shoulder.
     private var restingBatteryInset: CGFloat {

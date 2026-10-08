@@ -208,8 +208,14 @@ struct NotchCapsuleRestingView: View {
             HStack(spacing: 5) {
                 switch service.idleContent {
                 case .battery:
-                    Image(systemName: "battery.100percent").font(.system(size: CapsuleLayout.symbolSize))
-                        .capsuleCentred("battery.100percent", weight: .regular)
+                    // The icon reads the same charge the percentage beside it
+                    // does, and takes the bolt while the Mac is on its adapter.
+                    Image(systemName: service.power.batterySymbol)
+                        .font(.system(size: CapsuleLayout.symbolSize))
+                        .foregroundStyle(NotchBatteryDisplay.tint(for: NotchSupport.batteryWarning(
+                            percent: service.power.chargePercent,
+                            externalConnected: service.power.externalConnected)))
+                        .capsuleCentred(service.power.batterySymbol, weight: .regular)
                     if let percent = service.power.chargePercent {
                         Text("\(percent)%").font(Font(CapsuleLayout.smallFont as CTFont)).lineLimit(1)
                     }
