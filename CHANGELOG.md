@@ -13,6 +13,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 - Clicking a completed file's name or icon in Downloads opens it in its default app. The Finder and Shelf buttons remain available.
 
 ### Fixed
+- The Settings sidebar can be hidden and shown again from the toolbar or with Control-Command-S, also in full screen.
 - Safari downloads show progress and completion notices, including quick downloads.
 - The Command Bar requests keyboard focus again when it appears after dropping out of the island.
 - Paste as plain text preserves images, videos and files and pastes them normally, including when its shortcut is Command-V.
@@ -22,7 +23,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 - Window switcher skips the synthetic mouse press when activating recognized Wine processes, avoiding an unmatched button press in games.
 
 ### Contributors
-Feedback: Brain, Bureka, Emirhan and Gabriel.
+Feedback: Barbel Design, Brain, Bureka, Emirhan and Gabriel.
 
 ## [3.4.1-beta.3] - 2026-10-08
 
