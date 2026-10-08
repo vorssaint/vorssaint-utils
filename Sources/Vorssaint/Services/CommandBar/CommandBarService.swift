@@ -238,6 +238,7 @@ final class CommandBarService: ObservableObject {
     /// rows. The second cache keeps already-keyed prefixes for this opening.
     private var queryHabitStore = CommandBarQueryHabitStoreCache()
     private var preparedHabitQuery = CommandBarQueryHabits.PreparationCache()
+    private let habitKey = CommandBarLearning.installationKey()
     /// The system only shows its Accessibility prompt once; after that a
     /// refusal is a beep, the pattern the other quick tools follow.
     private var promptedForAccessibility = false
@@ -246,7 +247,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
-        CommandBarLearning.discardLegacyQueryHabits()
+        queryHabitStore.reload(UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -1278,6 +1279,8 @@ final class CommandBarService: ObservableObject {
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
+        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+                                  forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
 
@@ -1688,7 +1691,7 @@ final class CommandBarService: ObservableObject {
                 : categoryContent(category, bar: bar)
             let now = Date().timeIntervalSince1970
             let habitQuery = pool.contains(where: \.countsUsage)
-                ? CommandBarQueryHabits.prepare(trimmed, cache: &preparedHabitQuery)
+                ? CommandBarQueryHabits.prepare(trimmed, key: habitKey, cache: &preparedHabitQuery)
                 : nil
             let candidates = pool.enumerated().map { index, entry in
                 let folded = normalizedByID[entry.id]
@@ -1719,7 +1722,7 @@ final class CommandBarService: ObservableObject {
             let pool = categoryContent(.emoji, bar: bar)
             guard !emojiQuery.isEmpty else { return Array(pool.prefix(40)) }
             let habitQuery = CommandBarQueryHabits.prepare(
-                emojiQuery, cache: &preparedHabitQuery)
+                emojiQuery, key: habitKey, cache: &preparedHabitQuery)
             let now = Date().timeIntervalSince1970
             let candidates = pool.enumerated().map { index, entry in
                 let folded = normalizedByID[entry.id]
@@ -1865,7 +1868,7 @@ final class CommandBarService: ObservableObject {
         // and folding is four allocations a time.
         let foldedQuery = CommandBarSearch.normalized(effectiveQuery)
         let habitQuery = CommandBarQueryHabits.prepare(
-            effectiveQuery, cache: &preparedHabitQuery)
+            effectiveQuery, key: habitKey, cache: &preparedHabitQuery)
         let candidates = pool.enumerated().map { index, entry in
             let folded = normalizedByID[entry.id]
             // A name the person gave outranks every title in the catalog:
@@ -2701,13 +2704,15 @@ final class CommandBarService: ObservableObject {
             UserDefaults.standard.set(CommandBarUsage.encode(next), forKey: DefaultsKey.commandBarUsage)
             usageCache = next
         }
-        if entry.countsUsage, !learningQuery.isEmpty {
+        if entry.countsUsage, isVisible, !learningQuery.isEmpty {
             let prepared = CommandBarQueryHabits.prepare(
-                learningQuery, cache: &preparedHabitQuery)
+                learningQuery, key: habitKey, cache: &preparedHabitQuery)
             if !prepared.isEmpty {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
+                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+                                          forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
     }

@@ -134,17 +134,17 @@ enum ScreenshotCaptureEngine {
         let ownWindowIDs = Set(content.windows.compactMap { window in
             window.owningApplication?.processID == getpid() ? window.windowID : nil
         })
-        var excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
+        // The island has its own preference for captures, independent of
+        // hiding the app's ordinary windows. It leaves itself out while it is
+        // the capture interface, so a selection's photograph, taken before
+        // the island turns into the controls, shows it as people saw it.
+        let islandIDs = !keepsIslandOut && NotchSupport.isEnabled()
+            ? NotchService.shared.captureVisibleWindowIDs : []
+        let excludedIDs = ScreenshotCapturePolicy.excludedWindowIDs(
             hideVorssaintWindows: hideVorssaintWindows,
             ownWindowIDs: ownWindowIDs,
-            protectedWindowIDs: protectedWindowIDs)
-        // The notch has its own explicit recording preference, independent
-        // of hiding the app's ordinary windows and capture tools. During an
-        // active on-screen selection it stays excluded regardless, since it is
-        // then part of the capture interface and what sits behind it is wanted.
-        if !keepsIslandOut, NotchSupport.isEnabled(), !ScreenshotSelectionController.isSessionOnScreen {
-            excludedIDs.subtract(NotchService.shared.captureVisibleWindowIDs)
-        }
+            protectedWindowIDs: protectedWindowIDs,
+            islandWindowIDs: islandIDs)
         return content.windows.filter { excludedIDs.contains($0.windowID) }
     }
 

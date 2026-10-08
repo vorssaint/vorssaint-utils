@@ -13,6 +13,21 @@ import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
+    /// Runs the production placement of the history window on a panel that is
+    /// never shown, against a fixed screen and defaults of its own.
+    final class PanelPlacementHost {
+        enum Screen {
+            static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+        }
+        typealias NSScreen = Screen
+        enum UserDefaults {
+            static let name = "com.vorssaint.tests.clipboard-panel"
+            static let standard = Foundation.UserDefaults(suiteName: name)!
+        }
+        var quickLayout = ClipboardHistoryLayout.cards
+        var quickPreviewPresented = false
+    }
+
     /// Runs the production `pasteIntoPreviousApp` with a target app, the
     /// Accessibility grant, the beep and the paste all recorded as events.
     final class QuickPasteHost {
@@ -638,6 +653,143 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        // MARK: Clipboard history layout
+
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryLayout] as? String
+                        == ClipboardHistoryLayout.list.rawValue,
+               "the clipboard history opens as the list until the cards are chosen")
+        let layoutDefaults = UserDefaults(suiteName: "com.vorssaint.tests.clipboard-layout")!
+        layoutDefaults.removePersistentDomain(forName: "com.vorssaint.tests.clipboard-layout")
+        suite.expect(ClipboardHistoryLayout.current(in: layoutDefaults) == .list,
+               "an unset clipboard history layout reads as the list")
+        layoutDefaults.set(ClipboardHistoryLayout.cards.rawValue, forKey: DefaultsKey.clipboardHistoryLayout)
+        suite.expect(ClipboardHistoryLayout.current(in: layoutDefaults) == .cards,
+               "a chosen cards layout reads back as the cards")
+        layoutDefaults.set("grid", forKey: DefaultsKey.clipboardHistoryLayout)
+        suite.expect(ClipboardHistoryLayout.current(in: layoutDefaults) == .list,
+               "a layout this version does not know reads as the list")
+        layoutDefaults.removePersistentDomain(forName: "com.vorssaint.tests.clipboard-layout")
+        suite.expect(ClipboardHistoryLayout.cards.sideArrowsMoveSelection
+                        && !ClipboardHistoryLayout.list.sideArrowsMoveSelection,
+               "side arrows walk the cards, while the list leaves them to the search field")
+
+        // MARK: Clipboard quick window sizing
+
+        let desktop = NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let compactSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        let previewSize = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 0, savedHeight: 0, visibleFrame: desktop)
+        suite.expect(compactSize == NSSize(width: 560, height: 420)
+                && previewSize == NSSize(width: 840, height: 500),
+               "clipboard quick window retains its original compact and preview sizes by default")
+        suite.expect(ClipboardHistoryWindowSizing.minimumSize(preview: false)
+                == NSSize(width: 560, height: 300)
+                && ClipboardHistoryWindowSizing.minimumSize(preview: true)
+                    == NSSize(width: 840, height: 380),
+               "the narrowest clipboard window leaves room for batch actions in both layouts")
+        let taller = ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 700, savedHeight: 640, visibleFrame: desktop)
+        suite.expect(taller == NSSize(width: 980, height: 720)
+                && ClipboardHistoryWindowSizing.savedCompactSize(from: taller, preview: true)
+                    == NSSize(width: 700, height: 640),
+               "a resized preview returns to the same chosen list size")
+        let shortScreen = NSRect(x: 0, y: 0, width: 1050, height: 700)
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: true, savedWidth: 1000, savedHeight: 900, visibleFrame: shortScreen)
+                == NSSize(width: 1018, height: 668),
+               "a saved size is limited to the visible display")
+        suite.expect(ClipboardHistoryWindowSizing.contentSize(
+            preview: false, savedWidth: .infinity, savedHeight: -1, visibleFrame: desktop)
+                == compactSize,
+               "invalid saved dimensions fall back to the original size")
+
+        // MARK: Clipboard history window placement
+
+        _ = NSApplication.shared
+        let placement = PanelPlacementHost()
+        let placementDefaults = PanelPlacementHost.UserDefaults.standard
+        placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+        let placementPanel = NSPanel(contentRect: .zero,
+                                     styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+                                     backing: .buffered, defer: true)
+        let placementScreen = PanelPlacementHost.Screen.pointerVisibleFrame
+        placement.position(placementPanel)
+        suite.expect(!placementPanel.styleMask.contains(.resizable)
+                     && placementPanel.frame == NSRect(x: placementScreen.minX + 16, y: placementScreen.minY + 8,
+                                                       width: placementScreen.width - 32, height: 318),
+               "the cards make a shelf along the bottom of the screen that does not resize")
+        placement.quickLayout = .list
+        placement.position(placementPanel)
+        suite.expect(placementPanel.styleMask.contains(.resizable)
+                     && placementPanel.frame.size == NSSize(width: 560, height: 420)
+                     && abs(placementPanel.frame.midX - placementScreen.midX) < 1,
+               "the list opens as a resizable window at its original size, centered: \(placementPanel.frame)")
+        placementPanel.setFrame(NSRect(origin: placementPanel.frame.origin, size: NSSize(width: 700, height: 500)),
+                                display: false)
+        placement.savePanelSize(placementPanel)
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.size == NSSize(width: 700, height: 500),
+               "the list reopens at the size the user gave it")
+        placement.quickPreviewPresented = true
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.size == NSSize(width: 980, height: 580),
+               "the preview widens the list's chosen size")
+        placement.quickPreviewPresented = false
+        placement.quickLayout = .cards
+        placement.position(placementPanel)
+        suite.expect(!placementPanel.styleMask.contains(.resizable),
+               "back to the cards after the list, the shelf stops resizing")
+        placement.savePanelSize(placementPanel)
+        placement.quickLayout = .list
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.size == NSSize(width: 700, height: 500),
+               "the shelf leaves the list's chosen size alone")
+        let sizeLimit = ClipboardPanelSizeLimit { placement.panelMinimumContentSize() }
+        suite.expect(sizeLimit.windowWillResize(placementPanel, to: NSSize(width: 300, height: 200))
+                        == NSSize(width: 560, height: 300),
+               "resizing the list stops at its minimum")
+        placement.quickPreviewPresented = true
+        suite.expect(sizeLimit.windowWillResize(placementPanel, to: NSSize(width: 300, height: 200))
+                        == NSSize(width: 840, height: 380),
+               "with the preview open, resizing the list stops where the preview still fits")
+        placement.quickLayout = .cards
+        suite.expect(sizeLimit.windowWillResize(placementPanel, to: NSSize(width: 300, height: 200))
+                        == NSSize(width: 300, height: 200),
+               "the shelf sets no minimum")
+        placement.quickPreviewPresented = false
+
+        // Each opening reads the layout again, so a choice made in Settings
+        // applies the next time the window opens.
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryLayout)
+        placement.refreshQuickLayout()
+        suite.expect(placement.quickLayout == .list, "an opening with no choice shows the list")
+        placementDefaults.set(ClipboardHistoryLayout.cards.rawValue, forKey: DefaultsKey.clipboardHistoryLayout)
+        placement.refreshQuickLayout()
+        suite.expect(placement.quickLayout == .cards, "an opening after choosing the cards shows the cards")
+        placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+
+        // MARK: Clipboard history arrow keys
+
+        func step(_ layout: ClipboardHistoryLayout, _ keyCode: Int,
+                  _ modifiers: NSEvent.ModifierFlags = [], key: String? = nil) -> Int? {
+            ClipboardHistoryNavigation.step(keyCode: UInt16(keyCode), modifiers: modifiers, key: key, layout: layout)
+        }
+        for layout in ClipboardHistoryLayout.allCases {
+            suite.expect(step(layout, kVK_DownArrow) == 1 && step(layout, kVK_UpArrow) == -1
+                         && step(layout, kVK_ANSI_N, [.control], key: "n") == 1
+                         && step(layout, kVK_ANSI_P, [.control], key: "p") == -1,
+                   "down, up, Control-N and Control-P move the highlight in the \(layout.rawValue) layout")
+            suite.expect(step(layout, kVK_RightArrow, [.shift]) == nil && step(layout, kVK_LeftArrow, [.option]) == nil
+                         && step(layout, kVK_ANSI_N, key: "n") == nil,
+                   "a side arrow with a modifier, or a plain letter, stays with the search field "
+                       + "in the \(layout.rawValue) layout")
+        }
+        suite.expect(step(.cards, kVK_RightArrow) == 1 && step(.cards, kVK_LeftArrow) == -1,
+               "plain side arrows walk the cards")
+        suite.expect(step(.list, kVK_RightArrow) == nil && step(.list, kVK_LeftArrow) == nil,
+               "the list leaves plain side arrows to the search field's caret")
+
         // MARK: Clipboard menu bar preview
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryMenuBarPreview] as? Bool == false,
@@ -761,6 +913,11 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.autoClearOnScreenLock.isEmpty
                    && !clipboardStrings.autoClearCaption.isEmpty,
                    "\(language.rawValue) clipboard auto clear labels are localized")
+            suite.expect(!clipboardStrings.historyLayout.isEmpty
+                   && !clipboardStrings.historyLayoutCards.isEmpty
+                   && !clipboardStrings.historyLayoutList.isEmpty
+                   && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
+                   "\(language.rawValue) clipboard history layout choice is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty

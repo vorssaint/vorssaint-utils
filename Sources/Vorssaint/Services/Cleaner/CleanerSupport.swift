@@ -65,7 +65,9 @@ enum CleanerSupport {
         if lowered == "com.apple" || lowered.hasPrefix("vorss.") {
             return true
         }
-        return sharedInfrastructurePrefixes.contains { lowered.hasPrefix($0) }
+        // A domain ends at a dot: com.segment covers com.segment.analytics,
+        // not the unrelated com.segmentfault.
+        return sharedInfrastructurePrefixes.contains { lowered == $0 || lowered.hasPrefix($0 + ".") }
     }
 
     /// Whether a Library entry name is shaped like a reverse DNS bundle
@@ -104,13 +106,16 @@ enum CleanerSupport {
     /// Returns nil when the name does not clearly belong to one bundle.
     static func bundleIDCandidate(fromEntryName rawName: String) -> String? {
         var name = rawName
-        for suffix in [".plist", ".savedState", ".binarycookies", ".prefPane",
-                       ".qlgenerator", ".mdimporter", ".service", ".appex",
-                       ".plugin", ".webplugin", ".saver", ".colorPicker",
-                       ".wdgt", ".app", ".framework", ".component", ".vst",
-                       ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
-                       ".safariextz", ".mailbundle"] where
-            name.lowercased().hasSuffix(suffix.lowercased()) {
+        // An entry has one extension. Removing every match in turn also took
+        // an identifier's last component when it is spelled like one, so
+        // com.vendor.Service.plist was credited to com.vendor.
+        let lowered = name.lowercased()
+        if let suffix = [".plist", ".savedState", ".binarycookies", ".prefPane",
+                         ".qlgenerator", ".mdimporter", ".service", ".appex",
+                         ".plugin", ".webplugin", ".saver", ".colorPicker",
+                         ".wdgt", ".app", ".framework", ".component", ".vst",
+                         ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
+                         ".safariextz", ".mailbundle"].first(where: { lowered.hasSuffix($0.lowercased()) }) {
             name.removeLast(suffix.count)
         }
         name = strippingTrailingUUIDComponent(name)

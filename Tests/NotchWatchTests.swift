@@ -30,6 +30,9 @@ enum NotchWatchTests {
     private static func readingContracts(_ suite: TestSuite) {
         suite.expect(NotchWatchSupport.headline(from: "Exporting video\n73 % complete") == "73%",
                      "a percentage anywhere in the area is its reading")
+        suite.expect(NotchWatchSupport.headline(from: "All cores\n1250% CPU") == "1250%"
+                        && NotchWatchSupport.headline(from: "Change today\n\u{2212}5 %") == "\u{2212}5%",
+                     "a percentage keeps all its digits and a typeset minus sign")
         suite.expect(NotchWatchSupport.headline(from: "  Build Succeeded \n") == "Build Succeeded",
                      "a short first line is shown as it is")
         suite.expect(NotchWatchSupport.headline(from: "Your order will arrive at the door at 14:30 today") == "14:30",
@@ -56,6 +59,8 @@ enum NotchWatchTests {
             ("45%", 45), ("Progress 12,5 %", 12.5), ("1,234 of 5,000 files", 1234),
             ("1.234,5 MB", 1234.5), ("1,234.5 MB", 1234.5), ("Score -3", -3),
             ("3 of 10, then 80% done", 80), ("No numbers here", nil), ("1.234.567", 1234567),
+            ("1250%", 1250), ("Zoom 1,250%", 1250), ("CPU 1250.5 %", 1250.5),
+            ("\u{2212}5%", -5), ("Change \u{2212}12,5 %", -12.5), ("-5%", -5),
         ]
         for (text, expected) in cases {
             suite.expect(NotchWatchSupport.number(in: text) == expected,

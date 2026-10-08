@@ -1839,8 +1839,8 @@ enum RepositoryFeatureTests {
                 && !queryHabitSupportSource.contains("import Security")
                 && !selfUninstallSource.contains("removeInstallationKey")
                 && !uninstallScriptSource.contains("delete-generic-password")
-                && !queryHabitServiceSource.contains("DefaultsKey.commandBarQueryHabits"),
-               "query learning and uninstall never access Keychain or persist query habits")
+                && queryHabitServiceSource.contains("DefaultsKey.commandBarQueryHabits"),
+               "query learning persists locally without Keychain access")
         let requiredSubpaths = ["Library/Application Support", "Library/Caches", "Library/HTTPStorages"]
         for subpath in requiredSubpaths {
             suite.expect(selfUninstallSource.contains(subpath) && uninstallScriptSource.contains(subpath),

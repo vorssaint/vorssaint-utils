@@ -209,7 +209,10 @@ extension ClipboardFeatureStrings {
         menuBarPreviewLength: "미리보기 길이",
         menuBarPreviewLengthSuffix: "자",
         clearRecentConfirmFormat: "고정되지 않은 항목 %d개를 지울까요?",
-        clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다."
+        clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다.",
+        historyLayout: "기록 레이아웃",
+        historyLayoutCards: "카드",
+        historyLayoutList: "목록"
     )
 }
 
@@ -531,6 +534,9 @@ struct ClipboardFeatureStrings {
     let menuBarPreviewLengthSuffix: String
     let clearRecentConfirmFormat: String
     let clearRecentConfirmMessage: String
+    let historyLayout: String
+    let historyLayoutCards: String
+    let historyLayoutList: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -591,7 +597,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Preview length",
         menuBarPreviewLengthSuffix: "characters",
         clearRecentConfirmFormat: "Clear unpinned (%d)?",
-        clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone."
+        clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone.",
+        historyLayout: "History layout",
+        historyLayoutCards: "Cards",
+        historyLayoutList: "List"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -653,7 +662,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Tamanho da prévia",
         menuBarPreviewLengthSuffix: "caracteres",
         clearRecentConfirmFormat: "Limpar não fixados (%d)?",
-        clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer."
+        clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer.",
+        historyLayout: "Layout do histórico",
+        historyLayoutCards: "Cartões",
+        historyLayoutList: "Lista"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -715,7 +727,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Önizleme uzunluğu",
         menuBarPreviewLengthSuffix: "karakter",
         clearRecentConfirmFormat: "%d sabitlenmemiş öğe temizlensin mi?",
-        clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz."
+        clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz.",
+        historyLayout: "Geçmiş yerleşimi",
+        historyLayoutCards: "Kartlar",
+        historyLayoutList: "Liste"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -777,7 +792,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Длина предпросмотра",
         menuBarPreviewLengthSuffix: "символов",
         clearRecentConfirmFormat: "Очистить незакреплённые (%d)?",
-        clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя."
+        clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя.",
+        historyLayout: "Макет истории",
+        historyLayoutCards: "Карточки",
+        historyLayoutList: "Список"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -839,7 +857,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Longitud de la vista previa",
         menuBarPreviewLengthSuffix: "caracteres",
         clearRecentConfirmFormat: "¿Limpiar no fijados (%d)?",
-        clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer."
+        clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer.",
+        historyLayout: "Diseño del historial",
+        historyLayoutCards: "Tarjetas",
+        historyLayoutList: "Lista"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -901,7 +922,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Dĺžka náhľadu",
         menuBarPreviewLengthSuffix: "znakov",
         clearRecentConfirmFormat: "Vymazať nepripnuté (%d)?",
-        clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť."
+        clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť.",
+        historyLayout: "Rozloženie histórie",
+        historyLayoutCards: "Karty",
+        historyLayoutList: "Zoznam"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -963,7 +987,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Vorschaulänge",
         menuBarPreviewLengthSuffix: "Zeichen",
         clearRecentConfirmFormat: "Nicht angeheftete löschen (%d)?",
-        clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen."
+        clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen.",
+        historyLayout: "Verlaufslayout",
+        historyLayoutCards: "Karten",
+        historyLayoutList: "Liste"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1025,7 +1052,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Longueur de l’aperçu",
         menuBarPreviewLengthSuffix: "caractères",
         clearRecentConfirmFormat: "Effacer non épinglés (%d)\u{00A0}?",
-        clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible."
+        clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible.",
+        historyLayout: "Disposition de l’historique",
+        historyLayoutCards: "Cartes",
+        historyLayoutList: "Liste"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1087,7 +1117,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Lunghezza dell’anteprima",
         menuBarPreviewLengthSuffix: "caratteri",
         clearRecentConfirmFormat: "Cancellare non fissati (%d)?",
-        clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare."
+        clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare.",
+        historyLayout: "Layout cronologia",
+        historyLayoutCards: "Schede",
+        historyLayoutList: "Elenco"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1149,7 +1182,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "プレビューの長さ",
         menuBarPreviewLengthSuffix: "文字",
         clearRecentConfirmFormat: "未固定の%d件を消去しますか？",
-        clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。"
+        clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。",
+        historyLayout: "履歴のレイアウト",
+        historyLayoutCards: "カード",
+        historyLayoutList: "リスト"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1211,7 +1247,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "预览长度",
         menuBarPreviewLengthSuffix: "个字符",
         clearRecentConfirmFormat: "清除 %d 个未固定项目？",
-        clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。"
+        clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。",
+        historyLayout: "历史布局",
+        historyLayoutCards: "卡片",
+        historyLayoutList: "列表"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1273,7 +1312,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "預覽長度",
         menuBarPreviewLengthSuffix: "個字元",
         clearRecentConfirmFormat: "清除 %d 個未釘選項目？",
-        clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。"
+        clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
+        historyLayout: "剪貼簿紀錄佈局",
+        historyLayoutCards: "卡片",
+        historyLayoutList: "列表"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1335,7 +1377,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "預覽長度",
         menuBarPreviewLengthSuffix: "個字元",
         clearRecentConfirmFormat: "清除 %d 個未釘選項目？",
-        clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。"
+        clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
+        historyLayout: "剪貼簿記錄佈局",
+        historyLayoutCards: "卡片",
+        historyLayoutList: "列表"
     )
 }
 
@@ -3202,7 +3247,10 @@ extension ClipboardFeatureStrings {
         menuBarPreviewLength: "Довжина перегляду",
         menuBarPreviewLengthSuffix: "симв.",
         clearRecentConfirmFormat: "Очистити незакріплене (%d)?",
-        clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна."
+        clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна.",
+        historyLayout: "Розкладка історії",
+        historyLayoutCards: "Картки",
+        historyLayoutList: "Список"
     )
 }
 
