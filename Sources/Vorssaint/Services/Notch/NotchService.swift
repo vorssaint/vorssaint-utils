@@ -1032,11 +1032,15 @@ final class NotchService: ObservableObject {
     }
 
     var protectedWindowIDs: Set<CGWindowID> {
-        NotchSupport.showsInCaptures() ? [] : islandWindowIDs
+        islandWindowIDs.subtracting(captureVisibleWindowIDs)
     }
 
     var captureVisibleWindowIDs: Set<CGWindowID> {
-        NotchSupport.showsInCaptures() ? islandWindowIDs : []
+        ScreenshotCapturePolicy.islandCaptureWindowIDs(
+            islandWindowIDs: islandWindowIDs,
+            mainWindowID: panel.flatMap { $0.windowNumber > 0 ? CGWindowID($0.windowNumber) : nil },
+            showsInCaptures: NotchSupport.showsInCaptures(),
+            showsCaptureTool: captureControls != nil || captureID.map(isCaptureVisible(id:)) == true)
     }
 
     /// The island's window and its copies on other displays, as shown.
@@ -1048,10 +1052,9 @@ final class NotchService: ObservableObject {
         })
     }
 
-    /// While a capture is choosing an area on screen, the notch is part of the
-    /// capture interface, so its window is kept out of the pixels no matter
-    /// what the everyday "show in captures" preference says. This lets people
-    /// grab whatever sits behind the notch cleanly.
+    /// Every island window, whatever the "show in captures" preference says.
+    /// Watch keeps them all out while it chooses and reads an area, since
+    /// what it watches must never be the island itself.
     var captureChromeWindowIDs: Set<CGWindowID> {
         running ? islandWindowIDs : []
     }

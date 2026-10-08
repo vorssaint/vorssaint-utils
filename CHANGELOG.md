@@ -11,6 +11,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 
 ### Dynamic Island
 - Clicking a completed file's name or icon in Downloads opens it in its default app. The Finder and Shelf buttons remain available.
+- Vorssaint screenshots show the island as it looked when the capture started, like macOS screenshots. Its capture controls and the capture just taken stay out. Settings → Dynamic Island → Behavior → Privacy → Show in screenshots and videos.
 
 ### Fixed
 - Safari downloads show progress and completion notices, including quick downloads.
@@ -22,7 +23,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 - Window switcher skips the synthetic mouse press when activating recognized Wine processes, avoiding an unmatched button press in games.
 
 ### Contributors
-Feedback: Brain, Bureka, Emirhan and Gabriel.
+Thanks to @Harshul23 and @yasinozmeen. Feedback: Barbel Design, Brain, Bureka, Emirhan and Gabriel.
 
 ## [3.4.1-beta.3] - 2026-10-08
 
