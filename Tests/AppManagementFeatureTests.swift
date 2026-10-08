@@ -892,6 +892,15 @@ enum AppManagementFeatureTests {
         suite.expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.prefPane")
                 == "com.vendor.editor",
                "preference panes map to their owning bundle identifier")
+        suite.expect(CleanerSupport.bundleIDCandidate(fromEntryName: "im.riot.app.plist") == "im.riot.app"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.Service.plist") == "com.vendor.Service"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.Dictionary.savedState")
+                == "com.vendor.Dictionary"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "io.app.plist") == "io.app",
+               "only the entry's own extension is removed, not an identifier component spelled like one")
+        suite.expect(CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.app") == "com.vendor.editor"
+               && CleanerSupport.bundleIDCandidate(fromEntryName: "com.vendor.editor.PLIST") == "com.vendor.editor",
+               "a single payload extension still unwraps to its owner in any letter case")
         suite.expect(CleanerSupport.bundleIDCandidate(fromEntryName: "app-0.0.409") == nil
                && CleanerSupport.bundleIDCandidate(fromEntryName: "0.0.409") == nil
                && CleanerSupport.bundleIDCandidate(fromEntryName: "1.57.0") == nil
@@ -939,6 +948,17 @@ enum AppManagementFeatureTests {
                    CleanerSupport.isProtectedBundleID($0)
                },
                "embedded updaters and crash reporters can never be junk owners")
+        suite.expect(CleanerSupport.isProtectedBundleID("io.sentry.Native")
+               && CleanerSupport.isProtectedBundleID("ORG.SPARKLE-PROJECT.Sparkle")
+               && CleanerSupport.isProtectedBundleID("com.google.Keystone.Agent"),
+               "anything inside a shared infrastructure domain stays protected, in any letter case")
+        suite.expect(!CleanerSupport.isProtectedBundleID("com.segmentfault.reader")
+               && !CleanerSupport.isProtectedBundleID("com.amplitudestudios.Humankind")
+               && !CleanerSupport.isProtectedBundleID("io.sentrybox.Mac")
+               && !CleanerSupport.isProtectedBundleID("org.swiftbar.app")
+               && UninstallerSupport.verifiedBundleID("com.amplitudestudios.Humankind")
+                == "com.amplitudestudios.Humankind",
+               "another vendor whose name merely starts like a shared domain is an ordinary app")
         suite.expect(CleanerSupport.bundleIDCandidate(fromEntryName: "systemgroup.com.apple.icloud.sharedsettings.plist")
                == "com.apple.icloud.sharedsettings",
                "systemgroup wrappers unwrap to the real owner")

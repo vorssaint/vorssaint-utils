@@ -222,9 +222,10 @@ final class ScreenCaptureService: ObservableObject {
                     windows = ScreenshotService.shared.protectedWindowIDsForCapture(
                         honoursVisibilityPreference: tool != nil && tool != .recording)
                 }
-                // The notch never belongs in the pixels while an area is being
-                // chosen, so what sits behind it is captured cleanly.
-                if NotchSupport.isEnabled() { windows.formUnion(NotchService.shared.captureChromeWindowIDs) }
+                // The island follows its own preference even without the
+                // screenshot feature, and the capture controls it turns into
+                // never belong in the pixels.
+                if NotchSupport.isEnabled() { windows.formUnion(NotchService.shared.protectedWindowIDs) }
                 return windows
             },
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
