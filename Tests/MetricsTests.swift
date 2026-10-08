@@ -98,6 +98,7 @@ struct MetricsTests {
             }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
+                QuickTogglesAlertTests.run(suite)
                 PortManagerRefreshTests.run(suite)
             }),
             ("settings", {
@@ -147,6 +148,7 @@ struct MetricsTests {
                 CleanerEligibilityTests.run(suite)
                 CleanerLastRunContract.run(suite)
                 CleanerScanFlowTests.run(suite)
+                CleanerLayoutTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)

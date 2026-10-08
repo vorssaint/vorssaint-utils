@@ -47,6 +47,28 @@ enum NotchSettingsChoiceTests {
                              "\(language.rawValue): \(title) keeps its menu beside the title where it fits")
             }
         }
+        // An option that cannot be used reads off and cannot be switched,
+        // whatever was saved: its feature is uninstalled, or something else
+        // rules it out.
+        for (installed, enabled) in [(true, true), (false, true), (true, false)] {
+            FeatureRuntime.shared.installed = installed
+            let row = AnyView(SettingsFeatureSwitchRow(symbol: "text.quote", title: "Lyrics", isOn: .constant(true),
+                                                       feature: .notchLyrics, enabled: enabled))
+            let toggle = switches(in: host(row, width: 500)).first
+            let usable = installed && enabled
+            suite.expect(toggle?.state == (usable ? NSControl.StateValue.on : .off) && toggle?.isEnabled == usable,
+                         "a saved option switched on reads \(usable ? "on" : "off and disabled") while its feature is "
+                         + (installed ? "installed" : "uninstalled") + (enabled ? "" : " and something else rules it out"))
+        }
+        FeatureRuntime.shared.installed = true
+    }
+
+    /// The switches a row draws: SwiftUI draws its switch style as an AppKit switch.
+    private static func switches(in view: NSView) -> [NSSwitch] {
+        view.subviews.flatMap { subview -> [NSSwitch] in
+            if let control = subview as? NSSwitch { return [control] }
+            return switches(in: subview)
+        }
     }
 
     /// How the row, in its card, fails this width: drawn past the card's
