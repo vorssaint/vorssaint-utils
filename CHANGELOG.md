@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Paste as plain text keeps images, videos and files intact and pastes them normally, including when its shortcut is Command-V.
+- Brightness keys keep their press and release together when displays reconnect, the pointer changes displays or brightness feedback changes, so macOS does not lose a key release. Thanks to Gabriel for reporting both problems.
+
 ## [3.4.1-beta.3] - 2026-10-08
 
 ### Summary
