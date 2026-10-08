@@ -170,6 +170,7 @@ enum NotchMusicHardeningTests {
         pendingCommands(suite)
         controlLifecycle(suite)
         NotchMusicAutomationTests.run(suite)
+        NotchSpotifyTests.run(suite)
     }
 
     private static func sourceSwitching(_ suite: TestSuite) {

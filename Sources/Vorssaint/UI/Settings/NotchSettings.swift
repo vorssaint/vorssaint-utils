@@ -435,6 +435,9 @@ struct NotchSettings: View {
             SettingsFeatureSwitchRow(symbol: "waveform", title: music.liveEqualizer,
                                      caption: NotchAudioLevelSupport.isSupported ? music.liveEqualizerHint : music.liveEqualizerUnavailable,
                                      isOn: $liveEqualizer, feature: .notchLiveEqualizer, enabled: NotchAudioLevelSupport.isSupported)
+            Divider()
+            NotchSpotifySettings()
+                .disabled(!AppFeature.notchSpotify.isAvailable)
         case .notifications:
             let notifications = FeatureStrings.notchNotifications(l10n.language)
             switchRow("bell.slash", notifications.hideSystemBanner, caption: notifications.hideSystemBannerHint,
