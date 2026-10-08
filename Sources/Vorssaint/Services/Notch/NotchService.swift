@@ -1292,7 +1292,12 @@ final class NotchService: ObservableObject {
         if changesPresentation, destination == .tools, !appPanel, !sections, metric == nil {
             QuickLauncherService.shared.prepareForPresentation()
         }
-        (NSApp.delegate as? AppDelegate)?.closePopover(preservingNotch: true)
+        // A panel dragged off the menu bar stays beside the island, except
+        // for the page that embeds that same panel and shares its focus and
+        // monitor sampling.
+        if appPanel || !PanelInteractionState.shared.isDetached {
+            (NSApp.delegate as? AppDelegate)?.closePopover(preservingNotch: true)
+        }
         if !expanded, modules.contains(.clipboard) { ClipboardHistoryService.shared.rememberPasteTarget() }
         panel.acceptsKeyFocus = true
         hoverState.open()

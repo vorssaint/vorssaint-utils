@@ -115,7 +115,9 @@ def main():
               "    private func showPopover(", "    func popoverWillClose(", "    func popoverDidClose(",
               "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
               "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover(",
-              "    private func closePopoverNow("])
+              "    private func closePopoverNow(",
+              "    private func scheduleMetricAnchorSwitch(", "    private func reanchorMetricPopover(",
+              "    private func switchMetricPopover(", "    func popoverDidDetach("])
           + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
           + "}\n}\n")
     write("MenuPanelKey.swift", "import Foundation\nimport Carbon.HIToolbox\n"
