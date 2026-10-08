@@ -2,7 +2,58 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Carbon.HIToolbox
 import SwiftUI
+
+/// How the history window shows its entries: a list in a window that keeps
+/// the size the user gives it, or a shelf of cards along the bottom of the
+/// screen.
+enum ClipboardHistoryLayout: String, CaseIterable {
+    case cards
+    case list
+
+    /// A value this version does not know, such as one from a newer
+    /// version, reads as the default.
+    static func current(in defaults: UserDefaults = .standard) -> ClipboardHistoryLayout {
+        defaults.string(forKey: DefaultsKey.clipboardHistoryLayout).flatMap(Self.init(rawValue:)) ?? .list
+    }
+
+    /// Cards run left to right, so a plain side arrow walks them. A list
+    /// leaves the side arrows to the search field's caret.
+    var sideArrowsMoveSelection: Bool { self == .cards }
+}
+
+enum ClipboardHistoryWindowSizing {
+    static let compactDefault = NSSize(width: 560, height: 420)
+    static let compactMinimum = NSSize(width: 560, height: 300)
+    static let previewExtra = NSSize(width: 280, height: 80)
+
+    static func minimumSize(preview: Bool) -> NSSize {
+        NSSize(width: compactMinimum.width + (preview ? previewExtra.width : 0),
+               height: compactMinimum.height + (preview ? previewExtra.height : 0))
+    }
+
+    static func contentSize(preview: Bool, savedWidth: Double, savedHeight: Double,
+                            visibleFrame: NSRect) -> NSSize {
+        let minimum = minimumSize(preview: preview)
+        let width = savedWidth.isFinite && savedWidth >= compactMinimum.width
+            ? CGFloat(savedWidth) : compactDefault.width
+        let height = savedHeight.isFinite && savedHeight >= compactMinimum.height
+            ? CGFloat(savedHeight) : compactDefault.height
+        let requested = NSSize(width: width + (preview ? previewExtra.width : 0),
+                               height: height + (preview ? previewExtra.height : 0))
+        return NSSize(width: max(minimum.width, min(requested.width, visibleFrame.width - 32)),
+                      height: max(minimum.height, min(requested.height, visibleFrame.height - 32)))
+    }
+
+    static func savedCompactSize(from contentSize: NSSize, preview: Bool) -> NSSize? {
+        let width = contentSize.width - (preview ? previewExtra.width : 0)
+        let height = contentSize.height - (preview ? previewExtra.height : 0)
+        guard width.isFinite, height.isFinite,
+              width >= compactMinimum.width, height >= compactMinimum.height else { return nil }
+        return NSSize(width: width, height: height)
+    }
+}
 
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
@@ -737,6 +788,27 @@ enum ClipboardHistorySelection {
 enum ClipboardHistoryPreview {
     static func handlesSpace(selectionIsVisible: Bool, hasModifiers: Bool) -> Bool {
         selectionIsVisible && !hasModifiers
+    }
+}
+
+enum ClipboardHistoryNavigation {
+    /// How far a key moves the highlight, or nil when it is not a move.
+    /// Down and Control-N go forward and up and Control-P back in both
+    /// layouts. The cards run left to right, so a plain side arrow walks
+    /// them too; with a modifier, or in the list, it stays with the search
+    /// field's caret.
+    static func step(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, key: String?,
+                     layout: ClipboardHistoryLayout) -> Int? {
+        let sideArrowsMove = modifiers.isEmpty && layout.sideArrowsMoveSelection
+        if keyCode == UInt16(kVK_DownArrow) || (modifiers == [.control] && key == "n")
+            || (sideArrowsMove && keyCode == UInt16(kVK_RightArrow)) {
+            return 1
+        }
+        if keyCode == UInt16(kVK_UpArrow) || (modifiers == [.control] && key == "p")
+            || (sideArrowsMove && keyCode == UInt16(kVK_LeftArrow)) {
+            return -1
+        }
+        return nil
     }
 }
 

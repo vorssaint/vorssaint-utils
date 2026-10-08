@@ -12,6 +12,9 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 ### Dynamic Island
 - Clicking a completed file's name or icon in Downloads opens it in its default app. The Finder and Shelf buttons remain available.
 
+### Changed
+- Clipboard history opens as a list in a resizable window again. The shelf of cards stays available. Settings → Clipboard → History layout.
+
 ### Fixed
 - Safari downloads show progress and completion notices, including quick downloads.
 - The Command Bar requests keyboard focus again when it appears after dropping out of the island.
@@ -22,7 +25,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 - Window switcher skips the synthetic mouse press when activating recognized Wine processes, avoiding an unmatched button press in games.
 
 ### Contributors
-Feedback: Brain, Bureka, Emirhan and Gabriel.
+Feedback: alexandrejs, Brain, Bureka, Emirhan and Gabriel.
 
 ## [3.4.1-beta.3] - 2026-10-08
 
