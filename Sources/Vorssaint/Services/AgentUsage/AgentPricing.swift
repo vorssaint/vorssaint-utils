@@ -269,6 +269,13 @@ enum AgentPricing {
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
+        if id.hasPrefix("gemini-") {
+            let parts = id.dropFirst(7).split(separator: "-").map(String.init)
+            return (["Gemini"] + parts.map(\.capitalized)).joined(separator: " ")
+        }
+        if id.lowercased() == "gemini" {
+            return "Gemini"
+        }
         if id.hasPrefix("claude-") {
             // A router's tag after a colon, like ":thinking", is a mode of the same model.
             let family = id.split(separator: ":", maxSplits: 1).first.map(String.init) ?? id
@@ -321,5 +328,10 @@ enum AgentPlans {
             return AgentPlan(name: plan.name, monthlyPrice: plan.monthly)
         }
         return AgentPlan(name: raw.prefix(1).uppercased() + raw.dropFirst(), monthlyPrice: nil)
+    }
+
+    static func antigravity(planType: String? = "Pro") -> AgentPlan? {
+        let raw = planType?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Pro"
+        return AgentPlan(name: raw.isEmpty ? "Pro" : raw, monthlyPrice: nil)
     }
 }

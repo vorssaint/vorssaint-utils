@@ -19,6 +19,7 @@ enum NotchAgentTests {
         offlineTurns(suite)
         codexParsing(suite)
         openCodeParsing(suite)
+        antigravityParsing(suite)
         CopilotAgentTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -925,6 +926,206 @@ enum NotchAgentTests {
         openCodeOpenReplies(suite)
         openCodeStoppedLoops(suite, now: now)
         openCodeQuietSessions(suite, now: now)
+    }
+
+    private static func antigravityParsing(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_088_000)
+        var state = AgentLogState()
+
+        // 1. Plan event
+        let planMsg = line("""
+        {"event":"plan","plan":"Pro","timestamp":1790088000}
+        """)
+        let planEntries = AgentLogParser.parseAntigravity(planMsg, state: &state, now: now)
+        suite.expect(planEntries == [.plan("Pro", observedAt: now)], "Antigravity plan parsed")
+
+        // 2. Limits event
+        let limitsMsg = line("""
+        {"event":"limits","timestamp":1790088000,"windows":[{"kind":"session","minutes":300,"used_percent":10.0,"resets_at":1790106000}]}
+        """)
+        let limitsEntries = AgentLogParser.parseAntigravity(limitsMsg, state: &state, now: now)
+        suite.expect(limitsEntries.count == 1, "Antigravity limits parsed")
+
+        // 3. Usage event
+        let usageMsg = line("""
+        {"event":"usage","session_id":"ag_session_1","project":"vorssaint-utils","model":"gemini-2.5-pro","timestamp":1790088000,"step_count":12,"tokens":{"input":14400,"output":3600}}
+        """)
+        let usageEntries = AgentLogParser.parseAntigravity(usageMsg, state: &state, now: now)
+        guard case .usage(let key, let rec, _)? = usageEntries.first else {
+            suite.expect(false, "Antigravity usage parsed")
+            return
+        }
+        suite.expect(key == "antigravity:ag_session_1" && rec.requests == 12 && rec.project == "vorssaint-utils",
+                     "Antigravity usage record attributes match")
+        suite.expect(rec.tokens.total == 18000, "Antigravity token total matches")
+
+        // 4. Turn began event
+        let beganMsg = line("""
+        {"event":"turnBegan","session_id":"ag_session_1","parent_session_id":"","project":"vorssaint-utils","model":"gemini-2.5-pro","timestamp":1790088000,"completed":false}
+        """)
+        let beganEntries = AgentLogParser.parseAntigravity(beganMsg, state: &state, now: now)
+        let beganDate = Date(timeIntervalSince1970: 1_790_088_000)
+        suite.expect(beganEntries == [
+            .turnBegan(beganDate),
+            .turnContext(model: "gemini-2.5-pro", project: "vorssaint-utils"),
+            .turnActive(beganDate)
+        ], "Antigravity turnBegan event marks turn began, context and active")
+        suite.expect(state.turnOpen && state.session == "ag_session_1" && state.project == "vorssaint-utils",
+                     "Antigravity parser sets session, project, and opens turn")
+
+        // 5. Turn active update
+        let activeMsg = line("""
+        {"event":"turnActive","session_id":"ag_session_1","parent_session_id":"","project":"vorssaint-utils","model":"gemini-2.5-pro","timestamp":1790088015,"completed":false}
+        """)
+        let activeDate = Date(timeIntervalSince1970: 1_790_088_015)
+        let activeEntries = AgentLogParser.parseAntigravity(activeMsg, state: &state, now: now)
+        suite.expect(activeEntries == [
+            .turnContext(model: "gemini-2.5-pro", project: "vorssaint-utils"),
+            .turnActive(activeDate)
+        ], "Antigravity turnActive updates context and activity time")
+
+        // 6. Turn ended
+        let endMsg = line("""
+        {"event":"turnEnded","session_id":"ag_session_1","parent_session_id":"","project":"vorssaint-utils","model":"gemini-2.5-pro","timestamp":1790088030,"completed":true,"duration":30}
+        """)
+        let endDate = Date(timeIntervalSince1970: 1_790_088_030)
+        let endEntries = AgentLogParser.parseAntigravity(endMsg, state: &state, now: now)
+        suite.expect(endEntries == [.turnEnded(endDate, completed: true, duration: 30)],
+                     "Antigravity turnEnded returns completed turn with duration")
+        suite.expect(!state.turnOpen, "Antigravity turn is closed on completion")
+
+        // 7. Store application and live session lifecycle
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        let file = "conversation_summaries.db#ag_session_1"
+
+        store.apply(planEntries, file: file, provider: .antigravity, tracksTurns: true, modified: beganDate, now: beganDate)
+        suite.expect(store.antigravityPlan == "Pro", "Antigravity plan stored in store")
+
+        let beganEvents = store.apply(beganEntries, file: file, provider: .antigravity,
+                                      tracksTurns: true, modified: beganDate, now: beganDate)
+        suite.expect(beganEvents.isEmpty, "Starting a turn emits no transition events yet")
+        suite.expect(store.live.contains { $0.provider == .antigravity && $0.project == "vorssaint-utils" },
+                     "Live store contains active Antigravity session")
+
+        let endEvents = store.apply(endEntries, file: file, provider: .antigravity,
+                                    tracksTurns: true, modified: endDate, now: endDate)
+        suite.expect(endEvents == [.finished(provider: .antigravity, duration: 30, cost: 0,
+                                             tokens: 0, project: "vorssaint-utils")],
+                     "Antigravity turn finish generates .finished usage event")
+        suite.expect(!store.live.contains { $0.provider == .antigravity },
+                     "Live store no longer contains Antigravity session once completed")
+
+        // 8. Test SQLite reader with temporary database
+        let tmpDir = FileManager.default.temporaryDirectory.appending(path: "vorss-antigravity-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmpDir) }
+        let dbPath = tmpDir.appending(path: "conversation_summaries.db").path
+
+        var db: OpaquePointer?
+        guard sqlite3_open(dbPath, &db) == SQLITE_OK, let db else {
+            suite.expect(false, "creating temporary Antigravity database")
+            return
+        }
+
+        let createTable = """
+        CREATE TABLE conversation_summaries (
+            conversation_id text PRIMARY KEY,
+            title text NOT NULL DEFAULT '',
+            workspace_uris text NOT NULL DEFAULT '',
+            not_fully_idle numeric NOT NULL DEFAULT 0,
+            status text NOT NULL DEFAULT '',
+            killed numeric NOT NULL DEFAULT 0,
+            last_modified_time datetime NOT NULL,
+            last_user_input_time datetime NOT NULL,
+            parent_conversation_id text NOT NULL DEFAULT '',
+            step_count integer NOT NULL DEFAULT 0
+        );
+        """
+        sqlite3_exec(db, createTable, nil, nil, nil)
+
+        // Insert active conversation
+        sqlite3_exec(db, """
+        INSERT INTO conversation_summaries VALUES (
+            'conv_1', 'Fix bug', '["file:///Users/me/repo"]', 1, 'CASCADE_RUN_STATUS_RUNNING', 0,
+            '2026-10-08 18:00:10.000000+00:00', '2026-10-08 18:00:00.000000+00:00', '', 5
+        );
+        """, nil, nil, nil)
+        sqlite3_close(db)
+
+        let cursor = AgentLogCursor(path: dbPath, provider: .antigravity)
+        var linesRead: [String] = []
+        AgentAntigravityReader.readAppended(cursor, since: Date.distantPast) { data in
+            linesRead.append(String(decoding: data, as: UTF8.self))
+        }
+
+        suite.expect(linesRead.contains { $0.contains("\"event\":\"plan\"") }, "Antigravity reader emits plan")
+        suite.expect(linesRead.contains { $0.contains("\"event\":\"usage\"") && $0.contains("repo") },
+                     "Antigravity reader emits usage for conversation steps")
+        suite.expect(linesRead.contains { $0.contains("\"event\":\"turnBegan\"") },
+                     "Antigravity reader emits turnBegan for running conversation")
+        suite.expect(linesRead.contains { $0.contains("\"event\":\"limits\"") },
+                     "Antigravity reader emits limits windows")
+        if let limitsLine = linesRead.first(where: { $0.contains("\"event\":\"limits\"") }),
+           let data = limitsLine.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let windows = obj["windows"] as? [[String: Any]],
+           let sessionWin = windows.first(where: { ($0["kind"] as? String) == "session" }),
+           let usedPercent = sessionWin["used_percent"] as? Double {
+            suite.expect(usedPercent >= 0.0 && usedPercent <= 100.0, "Antigravity session used percent is within valid bounds")
+        }
+
+        // Now update conversation to idle
+        var db2: OpaquePointer?
+        guard sqlite3_open(dbPath, &db2) == SQLITE_OK, let db2 else {
+            suite.expect(false, "re-opening Antigravity database")
+            return
+        }
+        sqlite3_exec(db2, """
+        UPDATE conversation_summaries SET
+            not_fully_idle = 0, status = 'CASCADE_RUN_STATUS_IDLE',
+            last_modified_time = '2026-10-08 18:00:30.000000+00:00'
+        WHERE conversation_id = 'conv_1';
+        """, nil, nil, nil)
+        sqlite3_close(db2)
+
+        linesRead.removeAll()
+        AgentAntigravityReader.readAppended(cursor, since: Date.distantPast) { data in
+            linesRead.append(String(decoding: data, as: UTF8.self))
+        }
+
+        suite.expect(linesRead.contains { $0.contains("\"event\":\"turnEnded\"") },
+                     "Antigravity reader emits turnEnded when conversation becomes idle")
+
+        // Now simulate user sending a new prompt: conversation becomes running again
+        var db3: OpaquePointer?
+        guard sqlite3_open(dbPath, &db3) == SQLITE_OK, let db3 else {
+            suite.expect(false, "re-opening Antigravity database for new prompt")
+            return
+        }
+        let promptTime = Date()
+        let promptIso = ISO8601DateFormatter().string(from: promptTime).replacingOccurrences(of: "T", with: " ").replacingOccurrences(of: "Z", with: "+00:00")
+        sqlite3_exec(db3, """
+        UPDATE conversation_summaries SET
+            not_fully_idle = 1, status = 'CASCADE_RUN_STATUS_RUNNING',
+            last_modified_time = '\(promptIso)'
+        WHERE conversation_id = 'conv_1';
+        """, nil, nil, nil)
+        sqlite3_close(db3)
+
+        linesRead.removeAll()
+        AgentAntigravityReader.readAppended(cursor, since: Date.distantPast) { data in
+            linesRead.append(String(decoding: data, as: UTF8.self))
+        }
+
+        if let beganLine = linesRead.first(where: { $0.contains("\"event\":\"turnBegan\"") }),
+           let data = beganLine.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let timestamp = obj["timestamp"] as? Double {
+            let startedDate = Date(timeIntervalSince1970: timestamp)
+            suite.expect(abs(promptTime.timeIntervalSince(startedDate)) < 5,
+                         "New turn begins at prompt time rather than stale input time")
+        }
     }
 
     private static func openCodeReasoningTokens(_ suite: TestSuite, now: Date) {
@@ -2588,11 +2789,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .antigravity], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .antigravity], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .antigravity], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsAntigravity)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Antigravity keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)

@@ -120,7 +120,7 @@ enum AgentUsageSummary {
         snapshot.limits = limits.filter { providers.contains($0.key) }
         snapshot.plans = plans.filter { providers.contains($0.key) }
         snapshot.live = live.filter { providers.contains($0.provider) }.sorted { $0.started < $1.started }
-        snapshot.seen = Set(snapshot.limits.keys).union(snapshot.live.map(\.provider))
+        snapshot.seen = Set(snapshot.limits.keys).union(snapshot.live.map(\.provider)).union(snapshot.plans.keys)
 
         let today = calendar.startOfDay(for: now)
         let starts: [Date] = (0..<AgentUsageSnapshot.dayCount).reversed().compactMap {
@@ -331,6 +331,7 @@ final class AgentUsageSummaryCache {
         result.live = live.filter { providers.contains($0.provider) }.sorted { $0.started < $1.started }
         result.seen.formUnion(result.limits.keys)
         result.seen.formUnion(result.live.map(\.provider))
+        result.seen.formUnion(result.plans.keys)
         var claude: [AgentUsageRecord] = []
         // Stable store order also preserves the original accumulation order.
         for position in recentPositions.sorted() {

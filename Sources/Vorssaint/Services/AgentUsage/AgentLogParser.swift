@@ -833,6 +833,87 @@ enum AgentLogParser {
         return .other
     }
 
+    // MARK: Antigravity
+
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard let json = object(line) else { return [] }
+        let sessionID = json["session_id"] as? String ?? ""
+        state.session = sessionID.isEmpty ? state.session : native(sessionID)
+        state.parentSession = json["parent_session_id"] as? String ?? ""
+
+        if let project = json["project"] as? String, !project.isEmpty {
+            state.project = projectName(project)
+        }
+        if let model = json["model"] as? String, !model.isEmpty {
+            state.model = native(model)
+        }
+
+        let date = seconds(json["timestamp"]) ?? now
+        let event = json["event"] as? String ?? ""
+
+        switch event {
+        case "plan":
+            let planName = json["plan"] as? String ?? "Pro"
+            return [.plan(planName, observedAt: date)]
+
+        case "limits":
+            guard let windowsArray = json["windows"] as? [[String: Any]] else { return [] }
+            let windows = windowsArray.compactMap { dict -> AgentLimitWindow? in
+                guard let kindRaw = dict["kind"] as? String,
+                      let kind = AgentLimitWindow.Kind(rawValue: kindRaw) else { return nil }
+                let usedPercent = (dict["used_percent"] as? NSNumber)?.doubleValue ?? 0
+                let minutes = dict["minutes"] as? Int
+                let resetsAt = seconds(dict["resets_at"])
+                let scope = dict["scope"] as? String
+                return AgentLimitWindow(id: "antigravity:\(kindRaw)", kind: kind,
+                                        minutes: minutes, scope: scope,
+                                        usedPercent: usedPercent, resetsAt: resetsAt)
+            }
+            guard !windows.isEmpty else { return [] }
+            return [.limits(AgentLimits(provider: .antigravity, windows: windows, observedAt: date, source: .sessionLog))]
+
+        case "usage":
+            let requests = max(1, json["requests"] as? Int ?? (json["step_count"] as? Int ?? 1))
+            let tokensDict = json["tokens"] as? [String: Any] ?? [:]
+            let input = int(tokensDict["input"])
+            let output = int(tokensDict["output"])
+            let tokens = AgentTokens(input: input, output: output)
+            let billable = AgentBillable(tokens: tokens, isAggregate: true)
+            let modelName = state.model.isEmpty ? "gemini-2.5-pro" : state.model
+            let priced = AgentPricing.cost(billable, model: modelName)
+            let record = AgentUsageRecord(
+                provider: .antigravity,
+                date: date,
+                model: modelName,
+                project: state.project,
+                session: state.session,
+                requests: requests,
+                tokens: tokens,
+                cost: priced.cost,
+                savings: priced.savings
+            )
+            let key = "antigravity:\(state.session)"
+            return [.usage(key: key, record: record, billable: billable)]
+
+        case "turnBegan":
+            state.turnOpen = true
+            return [.turnBegan(date), .turnContext(model: state.model, project: state.project), .turnActive(date)]
+        case "turnActive":
+            state.turnOpen = true
+            return [.turnContext(model: state.model, project: state.project), .turnActive(date)]
+        case "turnEnded":
+            state.turnOpen = false
+            let completed = json["completed"] as? Bool ?? true
+            let duration = (json["duration"] as? NSNumber)?.doubleValue
+            return [.turnEnded(date, completed: completed, duration: duration)]
+        case "reset":
+            state.turnOpen = false
+            return [.reset(now)]
+        default:
+            return []
+        }
+    }
+
     // MARK: Shared values
 
     /// The folder an agent ran in names the project. A worktree kept inside
@@ -891,7 +972,7 @@ enum AgentTimestamp {
     }
 
     private static func fast(_ b: [UInt8]) -> Date? {
-        guard b.count >= 20, b[4] == 0x2D, b[7] == 0x2D, b[10] == 0x54, b[13] == 0x3A, b[16] == 0x3A else { return nil }
+        guard b.count >= 20, b[4] == 0x2D, b[7] == 0x2D, (b[10] == 0x54 || b[10] == 0x20), b[13] == 0x3A, b[16] == 0x3A else { return nil }
         func number(_ range: Range<Int>) -> Int? {
             var value = 0
             for index in range {

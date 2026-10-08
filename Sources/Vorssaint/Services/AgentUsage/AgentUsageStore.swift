@@ -18,6 +18,8 @@ final class AgentUsageStore {
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
+    private(set) var antigravityPlan: String?
+    private var antigravityPlanObserved = Date.distantPast
     /// Open turns by log file.
     private(set) var turns: [String: AgentLiveSession] = [:]
     /// Turns gone quiet, by log file: not shown as working, but work that
@@ -80,9 +82,16 @@ final class AgentUsageStore {
             case .plan(let plan, let date):
                 // An archived session read again from its start holds an
                 // older plan than the one in use.
-                guard codexPlanObserved <= date else { continue }
-                codexPlan = plan
-                codexPlanObserved = date
+                if provider == .antigravity {
+                    guard antigravityPlanObserved <= date else { continue }
+                    antigravityPlan = plan
+                    antigravityPlanObserved = date
+                    summary.invalidate()
+                } else {
+                    guard codexPlanObserved <= date else { continue }
+                    codexPlan = plan
+                    codexPlanObserved = date
+                }
             case .turnBegan(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
@@ -234,6 +243,7 @@ final class AgentUsageStore {
             records[position].cost = newCost
             records[position].savings = priced.savings
             records[position].reportedCost = isReported
+            records[position].requests = max(old.requests, record.requests)
         } else {
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
@@ -391,14 +401,14 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+        let kept = records.indices.filter { records[$0].provider != .opencode && records[$0].provider != .antigravity }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode && $0.provider != .antigravity }.sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { $0.provider != .opencode && $0.provider != .antigravity }.sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -475,7 +485,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.antigravity, ".gemini/antigravity")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -498,6 +509,7 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .antigravity { return path == url.appending(path: AgentAntigravityReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -558,6 +570,7 @@ final class AgentLogCursor {
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
+    var antigravity = AgentAntigravityProgress()
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -672,6 +685,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        if name == AgentAntigravityReader.database || name == AgentAntigravityReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -727,6 +741,13 @@ enum AgentLogReader {
                 }
                 continue
             }
+            if root.provider == .antigravity {
+                let path = root.url.appending(path: AgentAntigravityReader.database).path
+                if let modified = AgentAntigravityReader.modified(path), modified >= horizon {
+                    found.append((path, root.provider, modified, false))
+                }
+                continue
+            }
             // A Copilot session can contain a complete workspace checkout,
             // databases and checkpoints. Its log has one fixed shallow path;
             // recursively walking the workspace can delay the first snapshot
@@ -757,6 +778,10 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .antigravity {
+            AgentAntigravityReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()

@@ -16,13 +16,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, antigravity ? .antigravity : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -303,6 +305,53 @@ private struct NotchAgentLimitsCard: View {
                                 .font(.system(size: 9.5))
                                 .foregroundStyle(.tertiary)
                         }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
+        } else if provider == .antigravity {
+            let todayUsage = snapshot.usage(.today).byProvider[.antigravity]
+            let live = snapshot.working(.antigravity).first
+            if let live {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(live.project.isEmpty ? text.session : live.project)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        Text(AgentFormat.clock(now.timeIntervalSince(live.started)))
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(provider.tint)
+                    }
+                    HStack(spacing: 4) {
+                        Text(live.model.isEmpty ? "Gemini" : AgentPricing.displayName(live.model))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        Text("\(todayUsage.requests) " + (todayUsage.requests == 1 ? "step" : "steps"))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    HStack(spacing: 4) {
+                        Text(AgentFormat.tokens(todayUsage.tokens.total))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
                         Spacer()
                         lastUsed
                     }

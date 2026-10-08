@@ -298,17 +298,17 @@ final class AgentUsageService: ObservableObject {
         // contents gave. Left out, the next launch reads it as rewritten.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode && $0.provider != .antigravity }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
 
-    /// Changes whenever a log is read further, replaced or let go. OpenCode,
-    /// which is never saved, leaves it alone.
+    /// Changes whenever a log is read further, replaced or let go. OpenCode and Antigravity,
+    /// which are never saved, leave it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
+        let records = store.records.reduce(0) { ($1.provider == .opencode || $1.provider == .antigravity) ? $0 : $0 + 1 }
         return cursors.values.reduce(records) { mark, cursor in
-            guard cursor.provider != .opencode else { return mark }
+            guard cursor.provider != .opencode && cursor.provider != .antigravity else { return mark }
             var hasher = Hasher()
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
@@ -378,9 +378,12 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
+            if cursor.provider == .opencode || cursor.provider == .antigravity {
                 // A database changes in place: its write-ahead log grows instead.
-                if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
+                let modified = cursor.provider == .opencode
+                    ? AgentOpenCodeReader.modified(path)
+                    : AgentAntigravityReader.modified(path)
+                if let modified, modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
                 continue
             }
@@ -450,11 +453,12 @@ final class AgentUsageService: ObservableObject {
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
             case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+            case .antigravity: entries = AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
-            let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
-            let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
+            let isSubagent = (provider == .opencode || provider == .antigravity) && !cursor.state.parentSession.isEmpty
+            let turnFile = (provider == .opencode || provider == .antigravity) && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)" : cursor.parent
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
@@ -575,6 +579,7 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
+        if let antigravity = AgentPlans.antigravity(planType: store.antigravityPlan) { plans[.antigravity] = antigravity }
         let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next
         checkBudget(next)
