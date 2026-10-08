@@ -256,9 +256,9 @@ enum SpaceWindowBridge {
     /// window as the one that comes up front, marked as user-initiated. Older
     /// macOS also travels to the window's Space; current macOS ignores the
     /// Space part, which is why SpaceHop verifies the outcome and escalates.
-    /// The follow-up record is a lone press that makes the window key without
-    /// clicking any of its content. It has no release, so no control can ever
-    /// be activated, and it aims far past the bottom-right of any window. A
+    /// Native apps also receive a lone press to make the window key, aimed
+    /// far past the bottom-right of any window. Wine must never receive this
+    /// press: a game capturing the mouse treats it as a button held down. A
     /// point just outside the frame lands on the invisible resize border, and
     /// the repeated focus pass then finished a resize that dragged the
     /// window's top-left corner to the screen's own. An all-ones (NaN) point
@@ -269,11 +269,17 @@ enum SpaceWindowBridge {
     /// caller can fall back to app-level activation.
     @discardableResult
     static func frontWindow(_ windowID: CGWindowID, ownerPID: pid_t) -> Bool {
-        guard let setFrontProcess, let processForPID, let postEventRecord else { return false }
+        guard let setFrontProcess, let processForPID else { return false }
+        let app = NSRunningApplication(processIdentifier: ownerPID)
+        let usesClick = SwitcherSupport.usesActivationClick(executablePath: app?.executableURL?.path,
+                                                          localizedName: app?.localizedName)
+        guard !usesClick || postEventRecord != nil else { return false }
         var psn = ProcessSerialNumber()
         guard processForPID(ownerPID, &psn) == noErr else { return false }
         let userGenerated: UInt32 = 0x200
         guard setFrontProcess(&psn, windowID, userGenerated) == .success else { return false }
+        guard usesClick else { return true }
+        guard let postEventRecord else { return false }
         var targetID = windowID
         var record = [UInt8](repeating: 0, count: 0x100)
         record[0x04] = 0xf8 // declared record length

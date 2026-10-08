@@ -22,7 +22,10 @@ struct MetricsTests {
                 SystemMonitorPlanTests.run(suite)
                 SystemSectionBreakdownTests.run(suite)
             }),
-            ("clipboard", { ClipboardFeatureTests.run(suite) }),
+            ("clipboard", {
+                ClipboardFeatureTests.run(suite)
+                PastePlainTests.run(suite)
+            }),
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)
@@ -42,6 +45,7 @@ struct MetricsTests {
                 MixerOutputAdjustmentContract.run(suite)
                 MixerLevelCompensationContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
+                MixerUniversalRoutingContract.run(suite)
                 AirPlayRingBufferContract.run(suite)
                 AirPlayRouteContract.run(suite)
                 AirPlayMixLimiterContract.run(suite)
@@ -113,6 +117,7 @@ struct MetricsTests {
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
+                BrightnessKeyRoutingTests.run(suite)
             }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
@@ -161,6 +166,7 @@ struct MetricsTests {
             ("launcher", { QuickLauncherContract.run(suite) }),
             ("dock-autohide", {
                 DockPreviewPositionTests.run(suite)
+                DockPreviewScrollTests.run(suite)
                 DockAutohideHoldTests.run(suite)
                 DockPreviewFrameRestorationTests.run(suite)
             }),

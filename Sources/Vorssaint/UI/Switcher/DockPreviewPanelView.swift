@@ -23,8 +23,14 @@ struct DockPreviewPanelView: View {
             onToggleMinimized: service.toggleMinimized,
             onTogglePinned: service.togglePinned,
             onClosePanel: service.closePreviewPanel,
-            onSelectPrevious: service.selectPreviousWindow,
-            onSelectNext: service.selectNextWindow,
+            onSelectPrevious: {
+                service.selectPreviousWindow()
+                return service.selectedWindowID
+            },
+            onSelectNext: {
+                service.selectNextWindow()
+                return service.selectedWindowID
+            },
             onBeginDrag: service.beginWindowDrag,
             onUpdateDrag: service.updateWindowDrag,
             onEndDrag: service.endWindowDrag
@@ -51,8 +57,14 @@ struct DockPreviewPinnedPanelView: View {
             onToggleMinimized: panel.toggleMinimized,
             onTogglePinned: panel.closePreviewPanel,
             onClosePanel: panel.closePreviewPanel,
-            onSelectPrevious: panel.selectPreviousWindow,
-            onSelectNext: panel.selectNextWindow,
+            onSelectPrevious: {
+                panel.selectPreviousWindow()
+                return panel.selectedWindowID
+            },
+            onSelectNext: {
+                panel.selectNextWindow()
+                return panel.selectedWindowID
+            },
             // A pinned panel is a detached copy with no session to end, so it
             // carries the tap and button actions but not drag-to-place.
             onBeginDrag: { _ in },
@@ -77,8 +89,8 @@ private struct DockPreviewPanelContent: View {
     let onToggleMinimized: (SwitcherItem) -> Void
     let onTogglePinned: () -> Void
     let onClosePanel: () -> Void
-    let onSelectPrevious: () -> Void
-    let onSelectNext: () -> Void
+    let onSelectPrevious: () -> CGWindowID?
+    let onSelectNext: () -> CGWindowID?
     let onBeginDrag: (SwitcherItem) -> Void
     let onUpdateDrag: () -> Void
     let onEndDrag: (SwitcherItem) -> Void
@@ -96,11 +108,11 @@ private struct DockPreviewPanelContent: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if DockPreviewSupport.showsPanelHeader(isPinned: isPinned) {
-                panelHeader
-            }
-            ScrollViewReader { proxy in
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                if DockPreviewSupport.showsPanelHeader(isPinned: isPinned) {
+                    panelHeader(proxy: proxy)
+                }
                 ScrollView(stacksVertically ? .vertical : .horizontal, showsIndicators: false) {
                     cardRun {
                         ForEach(windows) { window in
@@ -157,14 +169,6 @@ private struct DockPreviewPanelContent: View {
                 // scroll, and a scroll view that can move steals the drag that
                 // carries a window out of the panel.
                 .scrollDisabled(showsEveryWindow)
-                .onChange(of: selectedWindowID) { _, selectedWindowID in
-                    guard let selectedWindowID,
-                          let selected = windows.first(where: { $0.windowID == selectedWindowID })
-                    else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(selected.id, anchor: .center)
-                    }
-                }
             }
         }
         .frame(width: stacksVertically ? DockPreviewSupport.cardWidth
@@ -215,10 +219,10 @@ private struct DockPreviewPanelContent: View {
         }
     }
 
-    private var panelHeader: some View {
+    private func panelHeader(proxy: ScrollViewProxy) -> some View {
         HStack(spacing: 7) {
             dragTitleArea
-            windowNavigationButtons
+            windowNavigationButtons(proxy: proxy)
             // Both belong to the pinned panel alone. A hovered panel is
             // dismissed by moving off it, and pinning one is a named item in
             // any card's menu.
@@ -307,11 +311,11 @@ private struct DockPreviewPanelContent: View {
     }
 
     @ViewBuilder
-    private var windowNavigationButtons: some View {
+    private func windowNavigationButtons(proxy: ScrollViewProxy) -> some View {
         if windows.count > 1 {
             HStack(spacing: 1) {
                 Button {
-                    onSelectPrevious()
+                    revealSelection(onSelectPrevious(), proxy: proxy)
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 11, weight: .semibold))
@@ -321,7 +325,7 @@ private struct DockPreviewPanelContent: View {
                 .accessibilityLabel(l10n.s.dockPreviewPreviousWindow)
 
                 Button {
-                    onSelectNext()
+                    revealSelection(onSelectNext(), proxy: proxy)
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
@@ -335,6 +339,16 @@ private struct DockPreviewPanelContent: View {
             .padding(.horizontal, 3)
             .padding(.vertical, 1)
             .background(Capsule().fill(Color.white.opacity(0.10)))
+        }
+    }
+
+    private func revealSelection(_ windowID: CGWindowID?, proxy: ScrollViewProxy) {
+        guard let windowID,
+              let selected = windows.first(where: { $0.windowID == windowID }) else { return }
+        // Hover only highlights. Recentering each card that crosses the pointer
+        // during a scroll feeds another jump into the gesture.
+        withAnimation(.easeOut(duration: 0.15)) {
+            proxy.scrollTo(selected.id, anchor: .center)
         }
     }
 }
