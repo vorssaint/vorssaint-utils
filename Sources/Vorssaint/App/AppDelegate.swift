@@ -329,6 +329,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.deactivate(reason: .quit)
     }
 
+    /// Web links clicked in other apps arrive here while this app is the
+    /// default browser, including the one that launched it.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        BrowserPickerService.shared.receive(urls)
+    }
+
     /// The lifeline when the menu bar icon goes missing. Opening the app again
     /// from Finder, Spotlight or Launchpad while it's already running lands here:
     /// force the icon back and pop the panel so there's immediate proof the app is

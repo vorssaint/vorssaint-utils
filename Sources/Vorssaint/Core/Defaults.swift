@@ -292,6 +292,9 @@ enum DefaultsKey {
     static let urlCleanerCustomParameters = "urlCleanerCustomParameters"
     static let urlCleanerSiteParameters = "urlCleanerSiteParameters"       // host|name pairs added to one site
     static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
+    static let browserPickerRules = "browserPickerRules" // Data: BrowserPickerRules JSON
+    static let browserPickerPreviousBrowser = "browserPickerPreviousBrowser" // bundle id links go back to; this Mac only
+    static let browserPickerReadsProfiles = "browserPickerReadsProfiles" // Bool: settings opened, so profile lists may be read; this Mac only
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let windowMaximizeExcludedApps = "windowMaximizeExcludedApps" // [bundle id] whose green button stays native
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"

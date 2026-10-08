@@ -14,7 +14,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Calendars | Yes | Upcoming appointments in the notch |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
-| Full Disk Access | Yes | A deeper uninstaller scan |
+| Full Disk Access | Yes | A deeper uninstaller scan and Chrome-family profiles in the browser picker |
 | Administrator (one time) | Yes | Password free closed lid toggling |
 | Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
@@ -113,9 +113,9 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 **Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access.
 
-**What uses it.** The uninstaller, for a deeper scan.
+**What uses it.** The uninstaller, for a deeper scan. The browser picker also reads the names of your Chrome, Edge and other Chromium profiles from the browser's own folder, which macOS may guard; it asks about that folder the first time you open the browser picker's settings, and Full Disk Access also allows it.
 
-**If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders.
+**If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders. The browser picker still offers each browser, without choosing among its profiles.
 
 **Optional.** Yes. There is no pop up for Full Disk Access. You add Vorssaint in System Settings, under Privacy and Security, Full Disk Access, and Vorssaint opens that pane for you when the feature calls for it.
 

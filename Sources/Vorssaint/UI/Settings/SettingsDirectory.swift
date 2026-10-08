@@ -411,6 +411,10 @@ enum SettingsDirectory {
                                        featureKeywords: SettingsSearchSupport
                                         .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
+                SettingsDirectoryItem(page: .browserPicker,
+                                      title: FeatureStrings.browserPicker(language).featureName,
+                                      icon: "globe",
+                                      keywords: FeatureStrings.browserPicker(language).searchKeywords),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
