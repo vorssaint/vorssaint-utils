@@ -49,6 +49,7 @@ All notable changes to this project are documented here. The format follows
 - Vorssaint no longer stops responding at launch while macOS is slow to report Launch at Login.
 - Removing an app with the Uninstaller frees its Command Bar shortcut for another app.
 - The mute key no longer lowers the volume when the output loses its mute control right after the press.
+- In the Volume mixer, an app set below or above 100% no longer turns much quieter on outputs with four to eight channels, like a TV over HDMI or an audio interface.
 
 ### Contributors
 Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.

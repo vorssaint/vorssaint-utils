@@ -238,6 +238,145 @@ enum MixerFeatureTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a persistent mixer row waits for an audio connection before building a tap")
+
+        // The stereo mixdown tap divides by the channel pairs of the output the
+        // app plays to, so the engine has to give that level back.
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [2]), 1,
+                          "an app on a stereo output keeps its level")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [8]), 4,
+                          "an app on an eight channel output gets back the quarter the tap kept")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [4]), 2,
+                          "an app on a four channel output gets back the half the tap kept")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: []), 1,
+                          "a silent app has nothing to correct")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [8, 2]), 1,
+                          "an app on several outputs gets the smallest correction")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [1]), 1,
+                          "a mono output never turns an app down")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [512]),
+                          MixerRoutingSupport.maximumTapLevelCompensation,
+                          "a very wide output is corrected no further than the maximum")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [8, nil]), 1,
+                          "an output that cannot be read counts as stereo and never lifts the correction")
+        suite.expectClose(MixerRoutingSupport.tapLevelCompensation(streamChannels: [nil]), 1,
+                          "an app on outputs that cannot be read is left at its level")
+        let tv: AudioObjectID = 40, speakers: AudioObjectID = 41
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [], lastDevices: [tv],
+                                                               defaultOutputDevices: [tv]) == nil,
+                     "a silent app keeps its correction while its last output is still the default")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [], lastDevices: [tv, speakers],
+                                                               defaultOutputDevices: [tv, speakers]) == nil,
+                     "a silent app on an aggregate default keeps its correction while the devices inside it stay")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [], lastDevices: [tv],
+                                                               defaultOutputDevices: [tv, speakers]) == 1,
+                     "a silent app drops its correction when the default adds a device it was not corrected for")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [], lastDevices: [tv],
+                                                               defaultOutputDevices: [speakers]) == 1,
+                     "a silent app drops its correction once the default moved elsewhere")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [], lastDevices: [tv],
+                                                               defaultOutputDevices: []) == 1,
+                     "a silent app drops its correction when the default output cannot be read")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [speakers], lastDevices: [tv],
+                                                               defaultOutputDevices: []) == 1,
+                     "a move stores no correction before the new output is read")
+        suite.expect(MixerRoutingSupport.tapLevelBeforeReading(devices: [tv], lastDevices: [tv],
+                                                               defaultOutputDevices: []) == nil,
+                     "the same output keeps its correction while it is read again")
+        suite.expect(MixerRoutingSupport.tapLevelReadIsDue(immediately: true, sinceLastRead: 0),
+                     "an announced move is read at once")
+        suite.expect(!MixerRoutingSupport.tapLevelReadIsDue(immediately: false, sinceLastRead: 0.2),
+                     "the mixer's own pass skips a read made less than a second ago")
+        suite.expect(MixerRoutingSupport.tapLevelReadIsDue(
+                        immediately: false, sinceLastRead: MixerRoutingSupport.tapLevelBackstopInterval),
+                     "the mixer's own pass reads again once the interval has passed")
+        let hostTime = { (seconds: Double) -> UInt64 in
+            AudioConvertNanosToHostTime(UInt64(seconds * 1_000_000_000))
+        }
+        let firstRamp = TapLevelRamp()
+        suite.expectClose(Double(firstRamp.next(toward: 4, hostTime: hostTime(1))), 4,
+                          "the first cycle applies the correction as it is")
+        let dropped = Double(firstRamp.next(toward: 1, hostTime: hostTime(1.001)))
+        suite.expect(dropped > 1 && dropped < 4, "a lower correction eases out instead of jumping")
+        suite.expectClose(Double(firstRamp.next(toward: 1, hostTime: hostTime(1.001 + MixerRoutingSupport.tapLevelDropDuration))), 1,
+                          "a lower correction lands within its short drop")
+        let risingRamp = TapLevelRamp()
+        _ = risingRamp.next(toward: 1, hostTime: hostTime(1))
+        let risen = Double(risingRamp.next(toward: 4, hostTime: hostTime(1.001)))
+        suite.expect(risen > 1 && risen < 4, "a higher correction eases in instead of jumping")
+        suite.expect(risen < 4 / dropped, "a correction rises more gently than it drops")
+        suite.expectClose(Double(risingRamp.next(toward: 1.1, hostTime: hostTime(1.1))), 1.1,
+                          "a cycle longer than the ramp moves all the way, never past the target")
+        let rampSeconds = { (buffer: Double) -> Double in
+            let ramp = TapLevelRamp()
+            var elapsed = 0.0
+            _ = ramp.next(toward: 1, hostTime: hostTime(1))
+            repeat { elapsed += buffer } while ramp.next(toward: 4, hostTime: hostTime(1 + elapsed)) < 4 && elapsed < 1
+            return elapsed
+        }
+        let rampDuration = MixerRoutingSupport.tapLevelRampDuration
+        suite.expect([64.0, 512, 1024].allSatisfy { frames in
+                        let buffer = frames / 48000
+                        return (rampDuration - 0.0001...(rampDuration + buffer + 0.0001)).contains(rampSeconds(buffer))
+                     },
+                     "the ramp takes the same time on every buffer size, timed by the host clock")
+        let reversingRamp = TapLevelRamp()
+        _ = reversingRamp.next(toward: 4, hostTime: hostTime(1))
+        let dip = Double(reversingRamp.next(toward: 1, hostTime: hostTime(1.001)))
+        var climbed = dip
+        var climbedAt = 1.001
+        while climbed < 4, climbedAt < 1.1 {
+            climbedAt += 0.001
+            climbed = Double(reversingRamp.next(toward: 4, hostTime: hostTime(climbedAt)))
+        }
+        suite.expect(dip > 2 && climbed == 4
+                        && climbedAt - 1.001 <= MixerRoutingSupport.tapLevelRampDuration,
+                     "a no correction replaced at once by the old value dips only briefly and climbs back gently")
+        let aggregateOutput: AudioObjectID = 90, innerAggregate: AudioObjectID = 91
+        let knownDevices: [String: AudioObjectID] = ["tv": 40, "speakers": 41, "inner": innerAggregate]
+        let devicesInside = { (subDevices: [AudioObjectID: [String]]) in
+            { (output: AudioObjectID) in subDevices[output] ?? [] }
+        }
+        let outputDevices = { (output: AudioObjectID, subDevices: [AudioObjectID: [String]]) in
+            MixerRoutingSupport.outputDevices(of: output, subDeviceUIDs: devicesInside(subDevices),
+                                              deviceForUID: { knownDevices[$0] })
+        }
+        suite.expect(outputDevices(aggregateOutput, [aggregateOutput: ["tv", "speakers"]]) == [40, 41],
+                     "an aggregate output lists the devices inside it, found by UID")
+        suite.expect(outputDevices(aggregateOutput, [aggregateOutput: ["tv", "gone"]]) == [40],
+                     "a device missing from an aggregate is left out")
+        suite.expect(outputDevices(41, [:]) == [41], "a plain output lists itself")
+        suite.expect(outputDevices(aggregateOutput, [aggregateOutput: ["gone"]]) == [aggregateOutput],
+                     "an aggregate whose devices cannot be found keeps its own ID, which never keeps a correction")
+        suite.expect(outputDevices(aggregateOutput, [aggregateOutput: ["inner", "speakers"],
+                                                     innerAggregate: ["tv"]]) == [40, 41],
+                     "an aggregate inside an aggregate lists the devices inside it too")
+        suite.expect(outputDevices(aggregateOutput, [aggregateOutput: ["inner"], innerAggregate: ["inner"]])
+                        == [innerAggregate],
+                     "an aggregate nested without end stops at a depth and keeps an ID no app lists")
+        suite.expect(MixerRoutingSupport.enginesKeepingTheirOutput(
+                        engineOutputs: ["followsDefault": "tv", "pinned": "tv", "airplay": "airplay", "gone": "tv"],
+                        targets: ["followsDefault": "speakers", "pinned": "tv", "airplay": "airplay"])
+                        == ["pinned", "airplay"],
+                     "a change reads at once only the engines kept on their output, a pinned one included")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [8],
+                                                              preferredLeftChannel: 1) == 8,
+                     "a single stream output reports all of its channels")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [2, 6],
+                                                              preferredLeftChannel: 3) == 6,
+                     "the stream holding the preferred stereo pair decides")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [2, 6],
+                                                              preferredLeftChannel: 1) == 2,
+                     "a stereo pair in the first stream ignores the wider one after it")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [0, 4],
+                                                              preferredLeftChannel: 1) == 4,
+                     "a stream without channels is skipped")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [2],
+                                                              preferredLeftChannel: 9) == 2,
+                     "a stereo pair outside every stream falls back to the first stream")
+        suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [],
+                                                              preferredLeftChannel: 1) == nil,
+                     "an output without streams reports nothing")
+
         suite.expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                  volume: 1,
                                                  selectedOutputDeviceUID: nil,
@@ -494,6 +633,44 @@ enum MixerFeatureTests {
         } ?? ""
         suite.expect(teardownQueueSetup.contains("maxConcurrentOperationCount"),
                "engine teardown runs on a queue with a concurrency bound, not one thread and not one per engine")
+        suite.expect(mixerCode.contains("let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
+                     && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
+                     && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
+                     "both engines give back the level the tap's mixdown took, eased")
+        let levelWatch = mixerCode.range(of: "private final class LevelCompensationWatch")
+            .flatMap { start in
+                mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)
+                    .map { String(mixerCode[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        suite.expect(levelWatch.contains("mSelector: kAudioProcessPropertyDevices")
+                     && levelWatch.contains("mScope: kAudioObjectPropertyScopeOutput")
+                     && mixerCode.components(separatedBy: "LevelCompensationWatch.started(objects: objects)").count == 3,
+                     "both engines follow the app to another output, on the scope the HAL announces it")
+        let engineInits = ["init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String)",
+                           "init?(appID: String, objects: [AudioObjectID], gain: Float, clockDeviceUID: String)"]
+            .map { signature in
+                mixerCode.range(of: signature).flatMap { start in
+                    mixerCode.range(of: "\n    }\n", range: start.upperBound..<mixerCode.endIndex)
+                        .map { String(mixerCode[start.upperBound..<$0.lowerBound]) }
+                } ?? ""
+            }
+        let appearsInOrder = { (body: String, calls: [String]) -> Bool in
+            let positions = calls.compactMap { body.range(of: $0)?.lowerBound }
+            return positions.count == calls.count && positions == positions.sorted()
+        }
+        suite.expect(mixerCode.contains("mSelector: kAudioAggregateDevicePropertyFullSubDeviceList")
+                     && mixerCode.contains("mSelector: kAudioHardwarePropertyTranslateUIDToDevice")
+                     && levelWatch.contains("subDeviceUIDs: AppVolumeMixer.subDeviceUIDs(of:)")
+                     && levelWatch.contains("deviceForUID: AppVolumeMixer.deviceID(forUID:)"),
+                     "a paused app compares the default output's devices by UID, never by the aggregate's own objects")
+        suite.expect(levelWatch.contains("firstRead.wait(timeout: .now() + Self.firstReadWait)")
+                     && engineInits.allSatisfy { appearsInOrder($0, ["LevelCompensationWatch.started(",
+                                                                     "AudioHardwareCreateAggregateDevice(",
+                                                                     "levelWatch?.waitForFirstRead()",
+                                                                     "AudioDeviceStart("]) },
+                     "both engines read the level while the aggregate is built and wait for it only just before rendering")
+        suite.expect(levelWatch.contains("status != kAudioHardwareBadObjectError"),
+                     "a watch whose app already quit is still released, since its listener went with the process")
 
         // The IO callback's two exits, read the same way: a cycle that never
         // found its tap must hand the device silence rather than what the HAL
