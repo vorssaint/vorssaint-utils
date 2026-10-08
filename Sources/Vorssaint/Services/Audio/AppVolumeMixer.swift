@@ -40,6 +40,9 @@ struct MixerApp: Identifiable, Equatable {
     /// absence doesn't read as a bug (issue #177), but never tapped — no
     /// slider, no routing, volume pinned at unity.
     var isBypassed: Bool = false
+    /// A manual universal switch found this process still playing elsewhere.
+    /// Keep its route at unity too, without saving a per-app device preference.
+    var universalOutputRouteUID: String? = nil
     var selectedOutputDeviceUID: String?
     var effectiveOutputDeviceUID: String?
     var outputDeviceUnavailable: Bool
@@ -62,7 +65,8 @@ struct MixerHiddenApp: Identifiable, Equatable {
 /// For every app the user turns down or routes to a specific output, a muted
 /// CoreAudio process tap removes the app's sound from the original output, and
 /// an aggregate device re-renders the tapped stream with the chosen gain. Apps
-/// on the system default output at 100% are left completely untouched.
+/// already following the system default at 100% are left untouched unless the
+/// user explicitly chooses a per-app output.
 final class AppVolumeMixer: ObservableObject {
     static let shared = AppVolumeMixer()
 
@@ -71,7 +75,7 @@ final class AppVolumeMixer: ObservableObject {
         return false
     }
 
-    /// Volumes run 0...2: 1.0 is 100% (untouched passthrough), up to 2.0 is a
+    /// Volumes run 0...2: 1.0 is 100% (unity gain), up to 2.0 is a
     /// 200% boost for sources that play too quietly.
     static let maxVolume: Double = 2.0
 
@@ -113,6 +117,16 @@ final class AppVolumeMixer: ObservableObject {
     /// process runs, never written to disk.
     private var sessionVolumes: [String: Double] = [:]
     private var sessionRoutes: [String: String] = [:]
+    /// The last successful manual "all apps" choice, kept across relaunches.
+    /// It may repair a process that ignores that default. Hardware and
+    /// priority changes do not create this request.
+    private var universalOutputDeviceUID: String? {
+        get {
+            Defaults.sanitizedAppOutputDeviceUID(
+                UserDefaults.standard.string(forKey: DefaultsKey.mixerUniversalOutputDevice))
+        }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.mixerUniversalOutputDevice) }
+    }
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
     /// Device priority needs the output/default substrate without per-app
@@ -458,11 +472,13 @@ final class AppVolumeMixer: ObservableObject {
     /// keep both because input IO can already be running when output changes.
     private static let runningListenerSelectors: [AudioObjectPropertySelector] = [
         kAudioProcessPropertyIsRunningOutput, kAudioProcessPropertyIsRunning,
+        kAudioProcessPropertyDevices,
     ]
 
     private static func runningAddress(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(mSelector: selector,
-                                   mScope: kAudioObjectPropertyScopeGlobal,
+                                   mScope: selector == kAudioProcessPropertyDevices
+                                       ? kAudioObjectPropertyScopeOutput : kAudioObjectPropertyScopeGlobal,
                                    mElement: kAudioObjectPropertyElementMain)
     }
 
@@ -693,9 +709,9 @@ final class AppVolumeMixer: ObservableObject {
         return true
     }
 
-    /// 100% means bit-perfect passthrough (no tap). A value the UI would round to
-    /// 100% counts as unity, so dragging near 100% or tapping reset both restore
-    /// true passthrough; anything else (quieter or boosted) runs the gain engine.
+    /// A value the UI would round to 100% counts as unity. Without an output
+    /// route to enforce, that restores untouched passthrough; otherwise the
+    /// route keeps running at unity gain.
     private func isUnity(_ volume: Double) -> Bool { MixerRoutingSupport.isUnity(volume) }
 
     func setVolume(_ volume: Double, for app: MixerApp) {
@@ -725,6 +741,7 @@ final class AppVolumeMixer: ObservableObject {
         engineRecovery.clear(app.id)
         let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid)
         persistOutputDeviceUID(sanitized, for: app)
+        refresh.discardInFlight()
         if let sanitized, MixerRoutingSupport.isAirPlaySentinel(sanitized), !AirPlayRouteManager.shared.isConnected {
             // After the menu that asked for it closes, so the list opens at the pointer.
             DispatchQueue.main.async { AirPlayRouteManager.shared.presentPicker() }
@@ -732,7 +749,7 @@ final class AppVolumeMixer: ObservableObject {
         if let index = apps.firstIndex(where: { $0.id == app.id }) {
             apps[index].selectedOutputDeviceUID = sanitized
             applyOutputRoute(to: &apps[index],
-                             savedOutputs: [app.id: sanitized].compactMapValues { $0 },
+                             savedOutputs: savedOutputDeviceUIDs(),
                              availableUIDs: MixerRoutingSupport.routableOutputUIDs(
                                 outputDevices.map(\.uid),
                                 airPlayConnected: AirPlayRouteManager.isSpeakerConnected),
@@ -742,6 +759,7 @@ final class AppVolumeMixer: ObservableObject {
             // sound never falls back to the old output in between.
             applyRouting(for: apps[index])
         }
+        refreshApps()
     }
 
     /// Choosing a speaker from an app's menu sends that app to AirPlay too,
@@ -823,39 +841,20 @@ final class AppVolumeMixer: ObservableObject {
             volumes: savedVolumes(),
             switchSucceeded: true)
         persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
-
+        sessionRoutes.removeAll()
+        universalOutputDeviceUID = device.uid
+        // A second shortcut press can precede the HAL snapshot. Cycle from
+        // the successful choice, while the per-app routes await that read.
         currentOutputDeviceUID = device.uid
-        outputDevices = outputDevices.map { outputDevice in
-            MixerOutputDevice(id: outputDevice.id,
-                              uid: outputDevice.uid,
-                              name: outputDevice.name,
-                              isDefault: outputDevice.uid == device.uid,
-                              isHeadphones: outputDevice.isHeadphones,
-                              canBeDefaultOutput: outputDevice.canBeDefaultOutput,
-                              canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
-                              priorityTier: outputDevice.priorityTier,
-                              audioObjectID: outputDevice.audioObjectID)
-        }
 
         // Builds started for the previous device can no longer be installed;
         // the engines themselves stay live until reconciliation has their
         // replacement running on the new device.
         builds.invalidateAll()
 
-        let availableUIDs = MixerRoutingSupport.routableOutputUIDs(
-            outputDevices.map(\.uid),
-            airPlayConnected: AirPlayRouteManager.isSpeakerConnected)
-        apps = apps.map { current in
-            var app = current
-            app.volume = storedVolume(for: app.identity, saved: preferences.volumes) ?? app.volume
-            applyOutputRoute(to: &app,
-                             savedOutputs: preferences.outputDeviceUIDs,
-                             availableUIDs: availableUIDs,
-                             defaultUID: device.uid)
-            return app
-        }
-        reconcileEngines(with: apps)
-        clearPermissionIfNoActiveAdjustments()
+        // Publish app routes and reconcile from the next HAL snapshot, which
+        // knows which apps actually followed the change. Dropping their old taps
+        // before that read can return a Wine game to the speakers at 100%.
         refreshApps()
         return true
     }
@@ -926,7 +925,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         guard let targetOutputDeviceUID = app.effectiveOutputDeviceUID,
               appNeedsEngine(app) else {
-            // System default at 100% stays true passthrough.
+            // No volume or routing adjustment remains.
             discardEngine(for: app.id)
             clearPermissionIfNoActiveAdjustments()
             return
@@ -937,7 +936,7 @@ final class AppVolumeMixer: ObservableObject {
             engine.gain = Float(app.volume)
             return
         }
-        // Nothing is ever tapped on behalf of an app the user never adjusted.
+        // A tap needs a volume, per-app output or universal output request.
         guard rowMayBeTapped(app) else {
             discardEngine(for: app.id)
             clearPermissionIfNoActiveAdjustments()
@@ -1077,8 +1076,8 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
     }
 
-    /// Stops and forgets a row's engine. Used where silence is the intent
-    /// (back to 100% on the default output, row gone), never for a rebuild.
+    /// Stops and forgets a row's engine when its adjustment no longer applies
+    /// or the row went away, never for a rebuild.
     private func discardEngine(for id: String) {
         engines.removeValue(forKey: id)?.stop()
         engineChangeAt.removeValue(forKey: id)
@@ -1091,15 +1090,20 @@ final class AppVolumeMixer: ObservableObject {
         MixerRoutingSupport.rowMayBeTapped(
             savedVolume: storedVolume(for: app.identity, saved: savedVolumes()),
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
-            defaultOutputDeviceUID: currentOutputDeviceUID)
+            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
+            universalOutputRouteUID: app.universalOutputRouteUID)
     }
 
     private func appNeedsEngine(_ app: MixerApp) -> Bool {
+        // A universal route and its effective output come from one snapshot.
+        // The picker may already show the next successful choice, but that
+        // must not dismantle this route before its replacement is ready.
         MixerRoutingSupport.requiresEngine(hasAudioObjects: !app.audioObjects.isEmpty,
                                            volume: app.volume,
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
-                                           defaultOutputDeviceUID: currentOutputDeviceUID)
+                                           defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
+                                           universalOutputRouteUID: app.universalOutputRouteUID)
     }
 
     private func applyOutputRoute(to app: inout MixerApp,
@@ -1132,6 +1136,8 @@ final class AppVolumeMixer: ObservableObject {
         let savedOutputs: [String: String]
         let sessionVolumes: [String: Double]
         let sessionRoutes: [String: String]
+        let universalOutputDeviceUID: String?
+        let previouslyRoutedObjects: [String: [AudioObjectID]]
         let showFinder: Bool
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
@@ -1165,6 +1171,7 @@ final class AppVolumeMixer: ObservableObject {
         // now would read against state the first has not published yet. The
         // request is remembered and runs as soon as that one lands.
         guard let generation = refresh.begin() else { return }
+        let universalUID = universalOutputDeviceUID
         let request = RefreshRequest(
             includeApps: processMonitoringEnabled,
             previousDefaultUID: currentOutputDeviceUID,
@@ -1179,6 +1186,16 @@ final class AppVolumeMixer: ObservableObject {
             savedOutputs: savedOutputDeviceUIDs(),
             sessionVolumes: sessionVolumes,
             sessionRoutes: sessionRoutes,
+            universalOutputDeviceUID: universalUID,
+            previouslyRoutedObjects: Dictionary(uniqueKeysWithValues: apps.compactMap { app in
+                // A volume tap can already be muting the original output
+                // when "all apps" is chosen. An empty device read must not
+                // discard that established path as the gain returns to unity.
+                guard universalUID != nil,
+                      app.universalOutputRouteUID == universalUID
+                        || engines[app.id]?.tappedObjects == app.audioObjects else { return nil }
+                return (app.id, app.audioObjects)
+            }),
             showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
@@ -1316,6 +1333,13 @@ final class AppVolumeMixer: ObservableObject {
         let saved = request.savedVolumes
         let savedOutputs = request.savedOutputs
         let showFinder = request.showFinder
+        let followsUniversalOutput = request.universalOutputDeviceUID != nil
+            && request.universalOutputDeviceUID == defaultUID
+        let defaultDevices = followsUniversalOutput ? defaultDevice.map {
+            MixerRoutingSupport.outputDevices(of: $0.audioObjectID,
+                                               subDeviceUIDs: subDeviceUIDs(of:),
+                                               deviceForUID: deviceID(forUID:))
+        } ?? [] : Set<AudioObjectID>()
         var groups: [pid_t: [AudioObjectID]] = [:]
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
@@ -1419,6 +1443,11 @@ final class AppVolumeMixer: ObservableObject {
                                                      otherName: $1.name, otherID: $1.id)
         }
         next = coalescingAppsWithDuplicateIDs(next)
+        next = applyingUniversalOutputRoute(to: next,
+                                            requestedUID: request.universalOutputDeviceUID,
+                                            defaultUID: defaultUID,
+                                            defaultDevices: defaultDevices,
+                                            previouslyRoutedObjects: request.previouslyRoutedObjects)
 
         return RefreshSnapshot(defaultUID: defaultUID,
                                systemSoundUID: systemSoundUID,
@@ -1429,6 +1458,36 @@ final class AppVolumeMixer: ObservableObject {
                                apps: next,
                                processObjects: processObjects,
                                lowered: lowered)
+    }
+
+    /// Runs in the HAL snapshot after rows with the same identity have been
+    /// combined, so all of an app's audio objects share one routing decision.
+    private static func applyingUniversalOutputRoute(to apps: [MixerApp],
+                                                      requestedUID: String?,
+                                                      defaultUID: String?,
+                                                      defaultDevices: Set<AudioObjectID>,
+                                                      previouslyRoutedObjects: [String: [AudioObjectID]]) -> [MixerApp] {
+        apps.map { current in
+            var app = current
+            app.universalOutputRouteUID = nil
+            guard let requestedUID, requestedUID == defaultUID,
+                  !app.isBypassed, app.selectedOutputDeviceUID == nil else { return app }
+            let devices = app.audioObjects.reduce(into: Set<AudioObjectID>()) { devices, object in
+                devices.formUnion(objectList(object, kAudioProcessPropertyDevices,
+                                             scope: kAudioObjectPropertyScopeOutput))
+            }
+            if MixerRoutingSupport.requiresUniversalOutputRouting(
+                requestedUID: requestedUID,
+                defaultUID: defaultUID,
+                selectedUID: app.selectedOutputDeviceUID,
+                audioObjects: app.audioObjects,
+                previouslyRoutedObjects: previouslyRoutedObjects[app.id],
+                processDevices: devices,
+                defaultDevices: defaultDevices) {
+                app.universalOutputRouteUID = defaultUID
+            }
+            return app
+        }
     }
 
     private static func coalescingAppsWithDuplicateIDs(_ apps: [MixerApp]) -> [MixerApp] {
@@ -1450,6 +1509,8 @@ final class AppVolumeMixer: ObservableObject {
                                      name: existing.name,
                                      audioObjects: audioObjects,
                                      isPlaying: existing.isPlaying || app.isPlaying,
+                                     isBypassed: existing.isBypassed || app.isBypassed,
+                                     universalOutputRouteUID: existing.universalOutputRouteUID ?? app.universalOutputRouteUID,
                                      selectedOutputDeviceUID: existing.selectedOutputDeviceUID,
                                      effectiveOutputDeviceUID: existing.effectiveOutputDeviceUID,
                                      outputDeviceUnavailable: existing.outputDeviceUnavailable,
@@ -1642,7 +1703,7 @@ final class AppVolumeMixer: ObservableObject {
 
             engineChangeAt[id] = now
             guard appNeedsEngine(app) else {
-                // Back to 100% on the default output: passthrough is the point.
+                // No remaining volume or output adjustment needs a tap.
                 discardEngine(for: id)
                 continue
             }

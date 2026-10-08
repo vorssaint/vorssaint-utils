@@ -12,6 +12,17 @@ Dock previews are easier to scroll and select.
 ### Fixed
 - Dock previews no longer jump to center each window that passes under the pointer while scrolling. Thanks to Emirhan for the report.
 
+### Fixed
+- Paste as plain text keeps images, videos and files intact and pastes them normally, including when its shortcut is Command-V.
+- Brightness keys keep their press and release together when displays reconnect, the pointer changes displays or brightness feedback changes, so macOS does not lose a key release. Thanks to Gabriel for reporting both problems.
+
+### Summary
+Wine games keep the chosen audio output at 100% volume and can be reached with Window switcher without a stuck mouse button.
+
+### Fixed
+- Choosing an app's output works at 100% even when that device is also the system default. Changing the output for all apps also redirects processes that keep playing through their previous device. Thanks to Bureka.
+- Window switcher no longer sends a mouse press when activating Wine games, which could leave the left button held down. Thanks to Bureka.
+
 ## [3.4.1-beta.3] - 2026-10-08
 
 ### Summary
