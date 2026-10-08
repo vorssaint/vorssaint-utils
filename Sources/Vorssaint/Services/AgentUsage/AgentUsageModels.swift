@@ -37,12 +37,12 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
     /// card; its spend is read from the token counts it does keep.
     var reportsLimits: Bool { self != .copilot && self != .deepseek }
 
-    /// Whether this provider's store is rewritten as it runs rather than
-    /// appended to. OpenCode's database and the Harness's projection both hold
-    /// a running total that is read whole each time, so what one of their
-    /// records costs can fall as well as rise, and a reading that matches the
-    /// last one may still carry a different price.
-    var repricesOnReRead: Bool { self == .opencode || self == .deepseek }
+    /// Whether a record read again with the same tokens may still carry a
+    /// different price. OpenCode's database holds a cost of its own that can
+    /// fall as well as rise. The Harness's totals only grow and are priced
+    /// from the list, so pricing them again at each reading would only move
+    /// the whole session between the peak and off-peak rate with the clock.
+    var repricesOnReRead: Bool { self == .opencode }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes

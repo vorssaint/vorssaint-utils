@@ -255,7 +255,7 @@ final class AgentUsageService: ObservableObject {
             guard !cancellation.isCancelled else { return }
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
-            store.closeIdleTurns(now: now, after: AgentUsageStore.idleTurn(for:))
+            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             closeEndedTurns(roots, atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
@@ -518,11 +518,16 @@ final class AgentUsageService: ObservableObject {
             guard readerSession >= 0 else { return }
             let now = Date()
             let before = inputs
-            store.closeIdleTurns(now: now, after: AgentUsageStore.idleTurn(for:))
+            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
             var changed = pollOpenLogs(within: 86_400)
+            // A Harness quit mid-turn leaves the turn marked open, and nothing
+            // is written after it to say otherwise.
+            if store.live.contains(where: { $0.provider == .deepseek }), !AgentDeepSeekReader.isRunning {
+                if store.closeTurns(of: .deepseek) { changed = true }
+            }
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {

@@ -59,18 +59,19 @@ struct AgentLogState: Equatable {
     var runningCommands: Set<String> = []
     /// The turn of the DeepSeek Harness session read last. Its projection is
     /// the session's current state rather than a log, so the same state is
-    /// read again on every poll; a turn is only opened when this changes.
+    /// read again on every poll.
     var deepSeekTurn = 0
-    /// Whether that turn was mid-work, so the turn can be settled and ended
-    /// exactly once when the Harness stops and the projection says so.
+    /// Whether a turn of it is showing, so it is ended exactly once when the
+    /// Harness says the turn is over.
     var deepSeekWorking = false
-    /// Steps and output tokens seen last, for the Harness. Its projection is
-    /// rewritten for reasons that have nothing to do with work — a projection
-    /// belonged to a conversation untouched for twenty-two hours and was still
-    /// being written — so neither the file's time nor its mere arrival says
-    /// anything. Only these counters moving does.
+    /// Steps, output tokens and the turn's event sequence seen last, for the
+    /// Harness. Its projection is rewritten for reasons that have nothing to
+    /// do with work — a projection belonged to a conversation untouched for
+    /// twenty-two hours and was still being written — so neither the file's
+    /// time nor its mere arrival says anything. Only these moving does.
     var deepSeekSteps = 0
     var deepSeekOutput = 0
+    var deepSeekSequence = 0
     /// Whether the Harness was last seen waiting on an answer, so the notice
     /// is raised as the question appears and not once per reading.
     var deepSeekQuestionWaiting = false
@@ -761,11 +762,9 @@ enum AgentLogParser {
         if let model = json["model"] as? String, !model.isEmpty {
             state.model = native(model)
         }
-        // The two clocks the reader hands over. `started` is when the turn was
-        // asked for, which is what the person waits against; `activity` is when
-        // the session last did anything, which is what says whether it is still
-        // going. A turn that runs for an hour without another prompt keeps the
-        // first still and moves the second.
+        // When the turn was asked for, which is what the person waits against.
+        // Whether it is still going is the reading's own time, taken only when
+        // something it counts has moved.
         let started = seconds(json["started"]) ?? now
 
         let counts = json["tokens"] as? [String: Any] ?? [:]
@@ -774,28 +773,33 @@ enum AgentLogParser {
         let tokens = AgentTokens(input: int(counts["input"]), cacheWrite: int(counts["cacheWrite"]),
                                  cacheRead: int(counts["cacheRead"]), output: int(counts["output"]))
         let turn = max(0, int(json["turn"]))
-        let working = json["working"] as? Bool ?? false
+        let open = json["open"] as? Bool ?? false
 
-        // The work is moving when either counter has grown since the last look.
-        // A projection rewritten without them moving is bookkeeping, not work,
-        // and must not hold a finished conversation open. The first look only
-        // sets the baseline: it has nothing to compare against, so it says
-        // nothing about whether work is happening now.
+        // The work is moving when anything it advances has grown since the
+        // last look. A projection rewritten without them moving is
+        // bookkeeping, not work, and must not hold a finished conversation
+        // open or start one. The first look only sets the baseline: it has
+        // nothing to compare against, so it says nothing about whether work is
+        // happening now.
         let steps = int(json["steps"])
         let output = int(json["output"])
-        let moved = state.deepSeekSeenProgress
-            && (steps > state.deepSeekSteps || output > state.deepSeekOutput)
+        let sequence = int(json["seq"])
+        let firstLook = !state.deepSeekSeenProgress
+        let moved = !firstLook && (steps > state.deepSeekSteps || output > state.deepSeekOutput
+                                   || sequence > state.deepSeekSequence)
         state.deepSeekSeenProgress = true
         state.deepSeekSteps = max(state.deepSeekSteps, steps)
         state.deepSeekOutput = max(state.deepSeekOutput, output)
+        state.deepSeekSequence = max(state.deepSeekSequence, sequence)
 
-        var entries = deepSeekTurn(turn, working: working, moved: moved, started: started,
+        var entries = deepSeekTurn(turn, open: open, moved: moved, started: started,
                                    seen: now, state: &state)
         // A question the person has to answer is the one thing worth a banner
-        // while the turn is still running.
+        // while the turn is still running. One already waiting at the first
+        // look is old news, as likely left by a Harness that has since quit.
         if let waiting = json["waitingForAnswer"] as? Bool, waiting, !state.deepSeekQuestionWaiting {
             state.deepSeekQuestionWaiting = true
-            entries.append(AgentLogEntry.question(provider: .deepseek, project: state.project))
+            if !firstLook { entries.append(AgentLogEntry.question(provider: .deepseek, project: state.project)) }
         } else if let waiting = json["waitingForAnswer"] as? Bool, !waiting {
             state.deepSeekQuestionWaiting = false
         }
@@ -805,7 +809,10 @@ enum AgentLogParser {
         // Priced at the reading, since the projection keeps no per-request
         // time; the discounted window is hours wide, not minutes.
         let priced = AgentPricing.cost(billable, model: state.model, at: now)
-        entries.append(.usage(key: "deepseek:\(state.session):\(turn):total",
+        // The totals are the whole session's, every turn so far, so they are
+        // kept under one key for the session. Keyed by turn, each turn would
+        // count all the turns before it again.
+        entries.append(.usage(key: "deepseek:\(state.session):total",
                               record: AgentUsageRecord(provider: .deepseek, date: now,
                                                        model: state.model, project: state.project,
                                                        session: state.session, tokens: tokens,
@@ -814,47 +821,32 @@ enum AgentLogParser {
         return entries
     }
 
-    /// One turn of a Harness session, opened as it appears and ended as the
-    /// Harness stops. A settled turn says only that nothing is running this
-    /// instant, as a step boundary does, so it is not an end in itself.
-    private static func deepSeekTurn(_ turn: Int, working: Bool, moved: Bool, started: Date,
+    /// One turn of a Harness session, opened as work on it is seen and ended
+    /// as the Harness closes it.
+    ///
+    /// A turn is opened only on progress. The Harness's own record of an open
+    /// turn is not enough: one quit mid-turn leaves it set, and its projection
+    /// is rewritten when the Harness opens again, so a turn opened on that
+    /// alone is a conversation nobody is having. Ending needs no such care:
+    /// the Harness clears the record the moment a turn is over, finished or
+    /// stopped, which no wait on the file going quiet can match.
+    private static func deepSeekTurn(_ turn: Int, open: Bool, moved: Bool, started: Date,
                                      seen: Date, state: inout AgentLogState) -> [AgentLogEntry] {
-        guard turn > state.deepSeekTurn else {
-            // The same turn read again. Only fresh progress counts as it still
-            // going: the projection being rewritten proves nothing, and the
-            // file's own time is not evidence either.
-            if moved {
-                state.deepSeekWorking = true
-                return [.turnActive(seen)]
-            }
-            if state.deepSeekWorking, !working {
-                state.deepSeekWorking = false
-                // The counters have stopped and the session is no longer
-                // mid-step, so the turn is over rather than paused. The end is
-                // what reports it as finished; the settle keeps the two apart.
-                return [.turnSettled(seen), .turnEnded(seen, completed: true, duration: nil)]
-            }
-            return []
-        }
-        state.deepSeekTurn = turn
-        // A turn the person is not waiting on is not opened at all. A session
-        // that has finished sits in this state for as long as its projection
-        // stays in the window, and opening a turn for it is what left a
-        // finished conversation counting upward.
-        guard working || moved else {
+        let newTurn = turn > state.deepSeekTurn
+        state.deepSeekTurn = max(state.deepSeekTurn, turn)
+        guard open else {
+            guard state.deepSeekWorking else { return [] }
             state.deepSeekWorking = false
-            return []
+            return [.turnEnded(seen, completed: true, duration: nil)]
         }
-        // Opening a turn the previous one never ended: the person prompted
-        // again before the Harness stopped drawing breath, so it is one task.
-        var entries: [AgentLogEntry] = []
-        if state.deepSeekWorking { entries.append(.turnSettled(seen)) }
+        guard moved else { return [] }
+        if state.deepSeekWorking, !newTurn { return [.turnActive(seen)] }
+        // The person prompted again before a reading saw the last turn close,
+        // so the new turn replaces it as one task rather than a finish.
         state.deepSeekWorking = true
         // The prompt's own time, so the wait is measured from when the person
-        // asked rather than from when this Mac first read the projection.
-        entries.append(.turnBegan(started))
-        entries.append(.turnActive(seen))
-        return entries
+        // asked rather than from when this Mac first saw it move.
+        return [.turnBegan(started), .turnActive(seen)]
     }
 
     private static func copilotUsage(_ metrics: [String: Any]?, event: String?, date: Date,

@@ -307,8 +307,8 @@ enum AgentUsageArchiveTests {
              ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands",
-              "deepSeekTurn", "deepSeekWorking", "deepSeekSteps", "deepSeekOutput", "deepSeekQuestionWaiting",
-              "deepSeekSeenProgress"])
+              "deepSeekTurn", "deepSeekWorking", "deepSeekSteps", "deepSeekOutput", "deepSeekSequence",
+              "deepSeekQuestionWaiting", "deepSeekSeenProgress"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,

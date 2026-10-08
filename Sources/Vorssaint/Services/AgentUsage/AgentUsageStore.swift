@@ -45,27 +45,6 @@ final class AgentUsageStore {
         provider == .claude ? 3600 : 6 * 3600
     }
 
-    /// How long one agent's turn may go unwritten before it is counted over.
-    ///
-    /// It is per agent because the reading has to be timely only where the
-    /// log keeps no other sign of an end. A Claude log is appended per event
-    /// and its process can be checked, so the shared wait suits it. The
-    /// Harness rewrites its projection whole whenever anything happens, and
-    /// its counters move only when work does, so silence is a strong sign the
-    /// work has stopped.
-    ///
-    /// The wait cannot be short. Most of a turn is spent inside a single model
-    /// call, when neither counter moves: gaps of six to seventy seconds were
-    /// measured while a session was working, and a projection belonging to a
-    /// live turn was once seen untouched for over three minutes. Forty-five
-    /// seconds is the shortest that still covers the ordinary thinking pause,
-    /// so a finished conversation clears in about three quarters of a minute
-    /// instead of the ten the shared wait allows.
-    static func idleTurn(for provider: AgentProvider) -> TimeInterval {
-        provider == .deepseek ? 45 : NotchAgentSupport.idleTurn
-    }
-
-
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
@@ -317,8 +296,8 @@ final class AgentUsageStore {
     /// its process ended without a word, or it waits on something outside.
     /// It waits aside for a while, since work can resume after an approval
     /// or a long command.
-    func closeIdleTurns(now: Date, after idle: (AgentProvider) -> TimeInterval) {
-        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle(turn.provider) {
+    func closeIdleTurns(now: Date, after idle: TimeInterval) {
+        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
             turns[file] = nil
             waiting[file] = turn
         }
@@ -362,6 +341,17 @@ final class AgentUsageStore {
                 closed = forget(file: file) || closed
             }
         }
+        return closed
+    }
+
+    /// Ends one agent's turns without a notice, quiet ones too: the app that
+    /// ran them has quit, so nothing finished. True when one was showing.
+    @discardableResult
+    func closeTurns(of provider: AgentProvider) -> Bool {
+        let files = Set(turns.filter { $0.value.provider == provider }.keys)
+            .union(waiting.filter { $0.value.provider == provider }.keys)
+        var closed = false
+        for file in files { closed = forget(file: file) || closed }
         return closed
     }
 
@@ -801,16 +791,20 @@ enum AgentLogReader {
             return
         }
         // A projection is rewritten whole rather than appended to, so there is
-        // no offset to continue from: it is always read as if new. Its parser
-        // starts from empty state each time for the same reason, so what it
-        // describes is the session as it stands, not a second helping of it.
+        // no offset to continue from: it is always read as if new. The parser's
+        // state is kept, though. It is what remembers the counters seen last
+        // and whether a turn is showing, so starting it empty at each reading
+        // made every rewrite a first look: a stale projection opened a turn
+        // each time it was written, and a finished one was never ended.
         if cursor.provider == .deepseek {
             var info = stat()
             guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
             // The projection's own time is what the poller compares against.
             cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
                                     + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+            let state = cursor.state
             cursor.startOver(identity: UInt64(info.st_ino))
+            cursor.state = state
             defer { cursor.fingerprintRead() }
             AgentDeepSeekReader.read(cursor.path, shouldContinue: shouldContinue, line: line)
             return

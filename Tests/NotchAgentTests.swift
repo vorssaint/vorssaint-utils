@@ -386,7 +386,7 @@ enum NotchAgentTests {
                      "the reply that gets through counts toward the turn it opens")
         suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace + 60) && store.live.contains { $0.provider == .claude },
                      "a turn whose model replied since the drop, as a model on the Mac does, keeps working offline")
-        store.closeIdleTurns(now: now, after: { _ in 0 })
+        store.closeIdleTurns(now: now, after: 0)
         store.closeOfflineTurns(since: AgentTimestamp.parse("2026-09-21T23:44:10.000Z")!, lasting: grace)
         _ = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "tool_use", time: "2026-09-21T23:44:30.000Z"))
         suite.expect(store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:30.000Z"),
@@ -532,7 +532,7 @@ enum NotchAgentTests {
         suite.expect(found.isEmpty && late.live.isEmpty,
                      "a turn that ended long before its log was found, like an archived session, is not news")
         _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
-        store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: { _ in NotchAgentSupport.idleTurn })
+        store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: NotchAgentSupport.idleTurn)
         suite.expect(store.live.isEmpty, "a turn that has written nothing for a while stops showing as working")
     }
 
@@ -2099,7 +2099,7 @@ enum NotchAgentTests {
         quiet.reportsTransitions = true
         let waitingLog = "/logs/b.jsonl"
         quiet.apply([.turnBegan(start)], file: waitingLog, provider: .codex, tracksTurns: true, modified: start, now: start)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.live.isEmpty && quiet.waiting[waitingLog]?.started == start,
                      "a quiet turn stops showing as working and waits aside")
         let resumedAt = start.addingTimeInterval(1210)
@@ -2114,18 +2114,18 @@ enum NotchAgentTests {
         let whole = AgentUsageEvent.finished(provider: .codex, duration: 1300, cost: 0.5, tokens: tokens.total, project: "app")
         suite.expect(ended == [whole] && quiet.live.isEmpty, "a turn that waited finishes as the whole turn, with what it spent")
         quiet.apply([.turnBegan(endedAt)], file: waitingLog, provider: .codex, tracksTurns: true, modified: endedAt)
-        quiet.closeIdleTurns(now: endedAt.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
+        quiet.closeIdleTurns(now: endedAt.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
         let nextStart = endedAt.addingTimeInterval(1500)
         quiet.apply([.turnBegan(nextStart)], file: waitingLog, provider: .codex, tracksTurns: true, modified: nextStart)
         suite.expect(quiet.waiting.isEmpty && quiet.live.first?.started == nextStart, "a new turn replaces one that went quiet")
         quiet.closeIdleTurns(now: nextStart.addingTimeInterval(AgentUsageStore.resumeWindow(for: .codex)),
-                             after: { _ in NotchAgentSupport.idleTurn })
+                             after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.live.isEmpty && quiet.waiting.isEmpty, "a turn quiet for hours is over")
         let claudeLog = "/logs/c.jsonl"
         quiet.apply([.turnBegan(start)], file: claudeLog, provider: .claude, tracksTurns: true, modified: start, now: start)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
         let claudeWait = AgentUsageStore.resumeWindow(for: .claude)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: { _ in NotchAgentSupport.idleTurn })
+        quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
         suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
                      "a Claude turn that a killed session left open stops waiting sooner")
         sessionProcesses(suite, start: start)

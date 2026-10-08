@@ -299,69 +299,140 @@ enum AgentUsageReadTests {
     /// The Harness's projection is the session's current state, rewritten whole
     /// as it runs, so the same session is read again on every poll. Its totals
     /// are cumulative: reading the same state twice must count it once, and the
-    /// turn must open, stay open while work runs, and end exactly once.
+    /// turn must open on work, stay open while the Harness says it is, and end
+    /// exactly once when the Harness closes it.
     static func deepSeekParsing(_ suite: TestSuite) {
         // 2026-10-05 is a Monday, 02:00 UTC, the hour DeepSeek bills as off peak.
         let stamp = Date(timeIntervalSince1970: 1_791_165_600)
-        /// `steps` and `output` are the counters the Harness advances as it
+        /// `steps`, `output` and `seq` are what the Harness advances as it
         /// works. They are the only evidence of work there is: the projection
         /// is rewritten for reasons unrelated to it, and a projection belonging
         /// to a conversation untouched for twenty-two hours was still being
         /// written, so neither the file's arrival nor its own time says anything.
-        func projection(turn: Int, working: Bool, input: Int, cacheRead: Int, output: Int,
-                        steps: Int, started: Date? = nil) -> String {
+        func projection(session: String = "s", turn: Int, open: Bool, input: Int, cacheRead: Int, output: Int,
+                        steps: Int, seq: Int, started: Date? = nil) -> String {
             """
-            {"type":"state","session":"s","tokens":{"input":\(input),"cacheWrite":0,\
-            "cacheRead":\(cacheRead),"output":\(output)},"turn":\(turn),"working":\(working),\
-            "started":\((started ?? stamp).timeIntervalSince1970),"steps":\(steps),\
+            {"type":"state","session":"\(session)","tokens":{"input":\(input),"cacheWrite":0,\
+            "cacheRead":\(cacheRead),"output":\(output)},"turn":\(turn),"open":\(open),\
+            "started":\((started ?? stamp).timeIntervalSince1970),"steps":\(steps),"seq":\(seq),\
             "cwd":"/tmp/deepseek-project","model":"deepseek-flash"}
             """
         }
-        func entries(_ line: String, _ state: inout AgentLogState) -> [AgentLogEntry] {
-            AgentLogParser.parseDeepSeek(Data(line.utf8), state: &state, now: stamp)
+        /// A reading `seconds` after the stamp, applied as the service applies it.
+        func apply(_ store: AgentUsageStore, _ state: inout AgentLogState, _ line: String,
+                   file: String, at seconds: TimeInterval = 0) -> [AgentUsageEvent] {
+            let at = stamp.addingTimeInterval(seconds)
+            let entries = AgentLogParser.parseDeepSeek(Data(line.utf8), state: &state, now: at)
+            return store.apply(entries, file: file, provider: .deepseek, tracksTurns: true, modified: at, now: at)
         }
-        /// A reading arriving one second later, as the poller delivers it.
-        func later(_ state: inout AgentLogState, _ line: String, _ seconds: TimeInterval) -> [AgentLogEntry] {
-            AgentLogParser.parseDeepSeek(Data(line.utf8), state: &state, now: stamp.addingTimeInterval(seconds))
+        func finished(_ events: [AgentUsageEvent]) -> Bool {
+            events.contains { if case .finished(.deepseek, _, _, _, _) = $0 { return true } else { return false } }
         }
 
         let store = AgentUsageStore()
         store.reportsTransitions = true
         let path = "projection-s.json"
         var state = AgentLogState()
+        let prompted = stamp.addingTimeInterval(-20)
 
-        // A session mid-turn, with its counters where they stand.
-        let opening = entries(projection(turn: 1, working: true, input: 1_000, cacheRead: 0, output: 100, steps: 5), &state)
-        let firstEvents = store.apply(opening, file: path, provider: .deepseek, tracksTurns: true,
-                                      modified: stamp, now: stamp)
+        // The first look at a session mid-turn only sets the baseline. A turn
+        // left marked open by a Harness that quit looks exactly like this.
+        let first = apply(store, &state, projection(turn: 1, open: true, input: 1_000, cacheRead: 0, output: 100,
+                                                   steps: 5, seq: 40, started: prompted), file: path)
         suite.expect(store.records.count == 1 && store.records.first?.provider == .deepseek
                         && store.records.first?.project == "deepseek-project"
                         && store.records.first?.session == "s" && store.records.first?.model == "deepseek-flash",
                      "a Harness session is recorded with its project, session and model")
-        suite.expect(store.live.count == 1 && firstEvents.isEmpty,
-                     "the turn is shown working, and nothing has finished yet")
-        // The app starts with a fresh state, so the first look at a session that
-        // finished hours ago must not read as new work. Its counters are only a
-        // baseline; nothing has been seen to move yet.
-        let coldStart = AgentUsageStore()
-        coldStart.reportsTransitions = true
-        var coldState = AgentLogState()
-        _ = coldStart.apply(entries(projection(turn: 4, working: false, input: 9_000, cacheRead: 0,
-                                               output: 268_677, steps: 298), &coldState),
-                            file: "finished.json", provider: .deepseek, tracksTurns: true,
-                            modified: stamp, now: stamp)
-        suite.expect(coldStart.live.isEmpty,
-                     "a conversation finished hours ago is not started live by the first look")
+        suite.expect(store.live.isEmpty && first.isEmpty,
+                     "the first look opens no turn: a turn marked open is not work being seen")
 
-        // The same counters again, as the next poll delivers them: one record,
-        // one turn, and no claim that work happened.
-        _ = store.apply(later(&state, projection(turn: 1, working: true, input: 1_000, cacheRead: 0, output: 100,
-                                                 steps: 5), 30),
-                        file: path, provider: .deepseek, tracksTurns: true, modified: stamp, now: stamp)
-        suite.expect(store.records.count == 1 && store.live.count == 1,
-                     "reading the session's running totals again does not count them twice")
-        suite.expect(store.live.first?.lastActivity == stamp,
-                     "a projection that arrived without its counters moving is not counted as work")
+        // The same state rewritten, as the Harness does for reasons of its own.
+        _ = apply(store, &state, projection(turn: 1, open: true, input: 1_000, cacheRead: 0, output: 100,
+                                            steps: 5, seq: 40, started: prompted), file: path, at: 5)
+        suite.expect(store.records.count == 1 && store.live.isEmpty,
+                     "a rewrite without progress counts nothing twice and opens nothing")
+
+        // A step begins: the turn shows, timed from the prompt.
+        _ = apply(store, &state, projection(turn: 1, open: true, input: 1_000, cacheRead: 0, output: 100,
+                                            steps: 5, seq: 41, started: prompted), file: path, at: 10)
+        suite.expect(store.live.count == 1 && store.live.first?.started == prompted
+                        && store.live.first?.lastActivity == stamp.addingTimeInterval(10),
+                     "progress opens the turn, measured from the prompt rather than the reading")
+
+        // A model call can run for minutes without anything in the projection
+        // moving. The turn is still open, so it must stay on the island.
+        _ = apply(store, &state, projection(turn: 1, open: true, input: 1_000, cacheRead: 0, output: 100,
+                                            steps: 5, seq: 41, started: prompted), file: path, at: 60)
+        // The shared wait, which this file's own `NotchAgentSupport` shortens.
+        store.closeIdleTurns(now: stamp.addingTimeInterval(190), after: 10 * 60)
+        suite.expect(store.live.count == 1 && store.live.first?.lastActivity == stamp.addingTimeInterval(10),
+                     "three quiet minutes inside a turn neither refresh it nor end it")
+
+        // The work goes on: the reading grows and replaces the last one.
+        _ = apply(store, &state, projection(turn: 1, open: true, input: 2_000, cacheRead: 5_000, output: 400,
+                                            steps: 6, seq: 44, started: prompted), file: path, at: 200)
+        let grew = store.records.first
+        suite.expect(store.records.count == 1 && grew?.tokens.input == 2_000 && grew?.tokens.cacheRead == 5_000
+                        && grew?.tokens.output == 400,
+                     "a growing session replaces the reading rather than adding a second one")
+        suite.expect(store.live.first?.lastActivity == stamp.addingTimeInterval(200),
+                     "progress marks the turn alive at that reading")
+
+        // The Harness closes the turn. It ends then, not after a wait.
+        let closing = apply(store, &state, projection(turn: 1, open: false, input: 2_000, cacheRead: 5_000,
+                                                      output: 400, steps: 6, seq: 46, started: prompted),
+                            file: path, at: 205)
+        suite.expect(finished(closing) && store.live.isEmpty,
+                     "the turn is reported finished the moment the Harness closes it")
+        let again = apply(store, &state, projection(turn: 1, open: false, input: 2_000, cacheRead: 5_000,
+                                                    output: 400, steps: 6, seq: 46, started: prompted),
+                          file: path, at: 300)
+        suite.expect(again.isEmpty && store.records.count == 1 && store.live.isEmpty,
+                     "a closed turn read again neither ends twice nor reopens")
+
+        // The next prompt. Its turn counts what it adds, not the session so far.
+        let next = stamp.addingTimeInterval(400)
+        _ = apply(store, &state, projection(turn: 2, open: true, input: 2_500, cacheRead: 9_000, output: 900,
+                                            steps: 7, seq: 50, started: next), file: path, at: 410)
+        suite.expect(store.live.count == 1 && store.live.first?.started == next
+                        && store.live.first?.tokens.input == 500 && store.live.first?.tokens.output == 500,
+                     "the next prompt opens the next turn with only its own tokens")
+        suite.expect(store.records.count == 1 && store.records.first?.tokens.input == 2_500
+                        && (store.records.first?.cost ?? 0) > 0,
+                     "the session's cumulative totals are one priced reading, not one per turn")
+
+        // A turn a Harness quit in the middle of stays marked open, and the
+        // projection is rewritten when the Harness opens again. Reported: the
+        // island started at 0:00 with nothing running and stopped a minute on.
+        let stale = AgentUsageStore()
+        stale.reportsTransitions = true
+        var staleState = AgentLogState()
+        for second in stride(from: 0.0, through: 600.0, by: 15.0) {
+            _ = apply(stale, &staleState, projection(session: "q", turn: 3, open: true, input: 9, cacheRead: 0,
+                                                     output: 9, steps: 9, seq: 90, started: stamp.addingTimeInterval(-7_200)),
+                      file: "stale.json", at: second)
+        }
+        suite.expect(stale.live.isEmpty, "a projection left open by a Harness that quit never shows a turn")
+
+        // A finished conversation looked at for the first time shows nothing.
+        let cold = AgentUsageStore()
+        var coldState = AgentLogState()
+        _ = apply(cold, &coldState, projection(turn: 4, open: false, input: 9_000, cacheRead: 0, output: 268_677,
+                                               steps: 298, seq: 1_952), file: "finished.json")
+        suite.expect(cold.live.isEmpty, "a conversation finished hours ago is not started live by the first look")
+
+        // The Harness quits mid-turn: nothing in the projection says so, so
+        // the service ends its turns, without a banner, when the app is gone.
+        let quit = AgentUsageStore()
+        quit.reportsTransitions = true
+        var quitState = AgentLogState()
+        _ = apply(quit, &quitState, projection(turn: 1, open: true, input: 1, cacheRead: 0, output: 1,
+                                               steps: 1, seq: 1), file: "quit.json")
+        _ = apply(quit, &quitState, projection(turn: 1, open: true, input: 1, cacheRead: 0, output: 2,
+                                               steps: 2, seq: 2), file: "quit.json", at: 5)
+        suite.expect(quit.live.count == 1 && quit.closeTurns(of: .deepseek) && quit.live.isEmpty
+                        && !quit.closeTurns(of: .deepseek),
+                     "a quit Harness's turn is ended once, quietly")
 
         // The Harness stops to ask something. The projection says so only by
         // its question list becoming non-empty; it keeps no tool names, so
@@ -372,114 +443,24 @@ enum AgentUsageReadTests {
         func asking(_ active: String, turn: Int = 1) -> String {
             """
             {"type":"state","session":"q","tokens":{"input":1,"cacheWrite":0,"cacheRead":0,"output":1},\
-            "turn":\(turn),"working":true,"started":\(stamp.timeIntervalSince1970),"steps":1,\
+            "turn":\(turn),"open":true,"started":\(stamp.timeIntervalSince1970),"steps":1,"seq":1,\
             "waitingForAnswer":\(active),"cwd":"/tmp/asked","model":"deepseek-flash"}
             """
-        }
-        func ask(_ line: String, _ seconds: TimeInterval) -> [AgentUsageEvent] {
-            let at = stamp.addingTimeInterval(seconds)
-            let entries = AgentLogParser.parseDeepSeek(Data(line.utf8), state: &askState, now: at)
-            return askStore.apply(entries, file: "asked.json", provider: .deepseek, tracksTurns: true,
-                                  modified: at, now: at)
         }
         func asked(_ events: [AgentUsageEvent]) -> Bool {
             events.contains { if case .question = $0 { return true } else { return false } }
         }
-        suite.expect(!asked(ask(asking("false"), 0)), "a working Harness raises no question notice")
-        suite.expect(asked(ask(asking("true"), 30)), "a Harness waiting on an answer raises one")
-        suite.expect(!asked(ask(asking("true"), 60)),
-                     "the same question read again does not raise a second notice")
-        suite.expect(!asked(ask(asking("false"), 90)), "the answer clears the waiting state")
-        suite.expect(asked(ask(asking("true", turn: 2), 120)),
-                     "a later question is news again")
-
-        // The counters move: the work is going on, and the activity is now.
-        let moving = stamp.addingTimeInterval(60)
-        _ = store.apply(later(&state, projection(turn: 1, working: true, input: 2_000, cacheRead: 5_000, output: 400,
-                                                 steps: 6), 60),
-                        file: path, provider: .deepseek, tracksTurns: true, modified: moving, now: moving)
-        let grew = store.records.first
-        suite.expect(grew?.tokens.input == 2_000 && grew?.tokens.cacheRead == 5_000 && grew?.tokens.output == 400,
-                     "a growing session replaces the reading rather than adding a second one")
-        suite.expect(store.live.count == 1 && store.records.count == 1
-                        && store.live.first?.lastActivity == moving,
-                     "counters that moved mark the turn as alive at that reading")
-
-        // The Harness stops. The counters stop with it, and the step closes.
-        let closing = store.apply(later(&state, projection(turn: 1, working: false, input: 2_000, cacheRead: 5_000,
-                                                          output: 400, steps: 6), 90),
-                                  file: path, provider: .deepseek, tracksTurns: true,
-                                  modified: stamp.addingTimeInterval(90), now: stamp.addingTimeInterval(90))
-        let ended = closing.contains { (event: AgentUsageEvent) -> Bool in
-            if case .finished(let provider, _, _, _, _) = event { return provider == .deepseek }
-            return false
+        func ask(_ line: String, _ seconds: TimeInterval) -> Bool {
+            asked(apply(askStore, &askState, line, file: "asked.json", at: seconds))
         }
-        suite.expect(ended, "the turn is reported finished when the Harness stops")
-        suite.expect(store.live.isEmpty, "a stopped session leaves nothing working")
-        // Reading the stopped state again neither ends it twice nor reopens it.
-        let again = store.apply(later(&state, projection(turn: 1, working: false, input: 2_000, cacheRead: 5_000,
-                                                        output: 400, steps: 6), 120),
-                                file: path, provider: .deepseek, tracksTurns: true,
-                                modified: stamp.addingTimeInterval(120), now: stamp.addingTimeInterval(120))
-        suite.expect(again.isEmpty && store.records.count == 1 && store.live.isEmpty,
-                     "a settled session read again reports nothing with a banner from before")
-
-        // A second prompt opens the next turn, and the counters keep rising.
-        let second = store.apply(later(&state, projection(turn: 2, working: true, input: 3_000, cacheRead: 9_000,
-                                                         output: 900, steps: 9), 150),
-                                 file: path, provider: .deepseek, tracksTurns: true,
-                                 modified: stamp.addingTimeInterval(150), now: stamp.addingTimeInterval(150))
-        // Opening a turn is bookkeeping, not a banner, so `apply` reports
-        // nothing for it; what shows is that exactly one turn is working.
-        suite.expect(second.isEmpty && store.live.count == 1 && store.live.first?.tokens.input == 3_000,
-                     "the next prompt opens the next turn, silently, with its own reading")
-        suite.expect(store.records.count == 2, "each turn keeps its own countable reading")
-        suite.expect(store.records.allSatisfy { ($0.cost ?? 0) > 0 },
-                     "each turn is priced from the shipped list")
-
-        // The wait is measured from the prompt, not from when this Mac first
-        // read the projection: a session already running when the app starts
-        // must show the hour it has run, not zero.
-        let longRunning = AgentUsageStore()
-        longRunning.reportsTransitions = true
-        var runState = AgentLogState()
-        let began = stamp.addingTimeInterval(-3_600)
-        _ = longRunning.apply(entries(projection(turn: 1, working: true, input: 10, cacheRead: 0, output: 1,
-                                                 steps: 1, started: began), &runState),
-                              file: "running.json", provider: .deepseek, tracksTurns: true,
-                              modified: stamp, now: stamp)
-        suite.expect(longRunning.live.first?.started == began,
-                     "a session already running is measured from its prompt, not from the reading")
-
-        // A projection that keeps arriving without its counters moving never
-        // counts as work, so the turn goes idle and is ended. This is the
-        // reported symptom: a finished conversation still counting upward.
-        let stalled = AgentUsageStore()
-        stalled.reportsTransitions = true
-        var stallState = AgentLogState()
-        _ = stalled.apply(entries(projection(turn: 1, working: true, input: 10, cacheRead: 0, output: 1,
-                                             steps: 1, started: stamp), &stallState),
-                          file: "stalled.json", provider: .deepseek, tracksTurns: true,
-                          modified: stamp, now: stamp)
-        suite.expect(stalled.live.count == 1, "the session is working while its counters stand")
-        // Ten more minutes of the same projection arriving, counters unmoved.
-        for minute in stride(from: 30.0, through: 600.0, by: 30.0) {
-            let at = stamp.addingTimeInterval(minute)
-            _ = stalled.apply(later(&stallState, projection(turn: 1, working: true, input: 10, cacheRead: 0,
-                                                            output: 1, steps: 1), minute),
-                              file: "stalled.json", provider: .deepseek, tracksTurns: true,
-                              modified: at, now: at)
-            stalled.closeIdleTurns(now: at, after: AgentUsageStore.idleTurn(for:))
-        }
-        suite.expect(stalled.live.isEmpty,
-                     "a projection whose counters never move does not hold a turn open")
-
-        // The Harness is counted over sooner than an agent that logs per event,
-        // since once its projection stops being rewritten the work has stopped.
-        suite.expect(AgentUsageStore.idleTurn(for: .deepseek) < AgentUsageStore.idleTurn(for: .claude)
-                        && AgentUsageStore.idleTurn(for: .deepseek) < AgentUsageStore.idleTurn(for: .codex)
-                        && AgentUsageStore.idleTurn(for: .deepseek) <= 45,
-                     "a quiet Harness is counted over sooner than an agent that logs per event")
+        var staleAsk = AgentLogState()
+        suite.expect(!asked(apply(AgentUsageStore(), &staleAsk, asking("true"), file: "old.json")),
+                     "a question already waiting at the first look is old news")
+        suite.expect(!ask(asking("false"), 0), "a working Harness raises no question notice")
+        suite.expect(ask(asking("true"), 30), "a Harness waiting on an answer raises one")
+        suite.expect(!ask(asking("true"), 60), "the same question read again does not raise a second notice")
+        suite.expect(!ask(asking("false"), 90), "the answer clears the waiting state")
+        suite.expect(ask(asking("true", turn: 2), 120), "a later question is news again")
 
         deepSeekReader(suite, stamp: stamp)
     }
@@ -498,32 +479,41 @@ enum AgentUsageReadTests {
         /// identity carries no id, because the real one does not either — the
         /// file's own name is the session.
         func projection(version: Int, turn: Int = 1, openStep: Any = NSNull(),
-                        pending: [String: Any] = [:]) -> Data {
+                        pending: [String: Any] = [:], openTurn: Any? = nil, seq: Int = 1149,
+                        output: Int = 388_597) -> Data {
+            var rows: [String: Any] = [
+                "title": ["ver": 1, "seq": 1149, "val": "a long prompt the reader must step over"],
+                "tokenUsage": ["ver": 2, "seq": 1149, "val": [
+                    "totals": ["uncachedInputTokens": 103_149, "outputTokens": output,
+                               "cacheReadTokens": 49_798_528, "cacheWriteTokens": 7],
+                    "last": ["turn": 1, "step": 183, "buckets": [:]] as [String: Any],
+                ]],
+                "sessionStats": ["ver": 1, "seq": 1149, "val": [
+                    "turns": 1, "steps": 183, "llmMs": 1_877_149, "lastTurn": turn,
+                    "openStep": openStep, "pendingCalls": pending,
+                ]],
+                "modelSelection": ["ver": 1, "seq": 9, "val": [
+                    "lastUsed": ["provider": "deepseek-account", "model": "deepseek-flash"],
+                    "pending": NSNull(),
+                ]],
+                "sessionListMetadata": ["ver": 1, "seq": 1149, "val": [
+                    "blank": false, "lastPromptAt": Int(stamp.timeIntervalSince1970 * 1000),
+                ]],
+            ]
+            // The turn's own record, as a Harness that keeps one writes it.
+            if let openTurn {
+                rows["turnBoundary"] = ["ver": 2, "seq": seq, "val": [
+                    "openTurnStartSeq": openTurn, "lastStepStartSeq": seq - 1,
+                    "lastStepBoundary": ["kind": "start", "seq": seq - 1], "lastTurn": turn,
+                ] as [String: Any]]
+            }
             let body: [String: Any] = [
                 "version": version,
                 "record": [
                     "identity": ["formatVersion": 4, "createdAt": 1_791_165_500_000,
                                  "cwd": "/Users/someone/Documents/git projects/graft",
                                  "isSeeded": false, "inheritedEventCount": 0],
-                    "rows": [
-                        "title": ["ver": 1, "seq": 1149, "val": "a long prompt the reader must step over"],
-                        "tokenUsage": ["ver": 2, "seq": 1149, "val": [
-                            "totals": ["uncachedInputTokens": 103_149, "outputTokens": 388_597,
-                                       "cacheReadTokens": 49_798_528, "cacheWriteTokens": 7],
-                            "last": ["turn": 1, "step": 183, "buckets": [:]] as [String: Any],
-                        ]],
-                        "sessionStats": ["ver": 1, "seq": 1149, "val": [
-                            "turns": 1, "steps": 183, "llmMs": 1_877_149, "lastTurn": turn,
-                            "openStep": openStep, "pendingCalls": pending,
-                        ]],
-                        "modelSelection": ["ver": 1, "seq": 9, "val": [
-                            "lastUsed": ["provider": "deepseek-account", "model": "deepseek-flash"],
-                            "pending": NSNull(),
-                        ]],
-                        "sessionListMetadata": ["ver": 1, "seq": 1149, "val": [
-                            "blank": false, "lastPromptAt": Int(stamp.timeIntervalSince1970 * 1000),
-                        ]],
-                    ],
+                    "rows": rows,
                 ],
             ]
             return (try? JSONSerialization.data(withJSONObject: body)) ?? Data()
@@ -550,8 +540,8 @@ enum AgentUsageReadTests {
                         && state["session"] as? String == "working.json"
                         && state["cwd"] as? String == "/Users/someone/Documents/git projects/graft"
                         && state["model"] as? String == "deepseek-flash"
-                        && state["working"] as? Bool == true,
-                     "the projection's session, folder, model and turn are read, and it is seen working")
+                        && state["open"] as? Bool == true,
+                     "the projection's session, folder, model and turn are read, and its turn is seen open")
         let tokens = state["tokens"] as? [String: Int] ?? [:]
         suite.expect(tokens["input"] == 103_149 && tokens["cacheRead"] == 49_798_528
                         && tokens["output"] == 388_597 && tokens["cacheWrite"] == 7,
@@ -566,13 +556,52 @@ enum AgentUsageReadTests {
         suite.expect(state["turn"] as? Int == 1,
                      "the turn's number survives the number-versus-boolean bridging JSON round trips through (saw \(String(describing: state["turn"])))")
 
-        // Between steps, with a tool call outstanding, the loop is still working.
+        // Without the turn's own record, an outstanding tool call still says
+        // the loop is mid-turn.
         let between = read(projection(version: AgentDeepSeekReader.version,
                                       pending: ["call_00_x": 1_791_165_500_000]), name: "between.json")
-        suite.expect(between.first?["working"] as? Bool == true,
-                     "a session waiting on a tool call still reads as working")
+        suite.expect(between.first?["open"] as? Bool == true,
+                     "a session waiting on a tool call reads as mid-turn")
         let idle = read(projection(version: AgentDeepSeekReader.version), name: "idle.json")
-        suite.expect(idle.first?["working"] as? Bool == false, "an idle session reads as not working")
+        suite.expect(idle.first?["open"] as? Bool == false, "an idle session reads as not mid-turn")
+
+        // With it, the turn's record is what counts: open between steps, when
+        // no step is open and no call is out, and closed with a stale step.
+        let gap = read(projection(version: AgentDeepSeekReader.version, openTurn: 5_123, seq: 5_163),
+                       name: "gap.json")
+        suite.expect(gap.first?["open"] as? Bool == true && gap.first?["seq"] as? Int == 5_163,
+                     "a turn between steps reads as open, with its event sequence")
+        let over = read(projection(version: AgentDeepSeekReader.version,
+                                   openStep: ["step": 7, "turn": 1, "startTime": 1_791_165_742_195],
+                                   openTurn: NSNull()), name: "over.json")
+        suite.expect(over.first?["open"] as? Bool == false, "a turn the Harness closed reads as over")
+
+        // Through the cursor, as the service reads it: each rewrite starts
+        // the file over, and what the parser learned must survive that.
+        let live = folder.appending(path: "live.json")
+        let cursor = AgentLogCursor(path: live.path, provider: .deepseek)
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func rewrite(_ body: Data, at seconds: TimeInterval) -> [AgentUsageEvent] {
+            try? body.write(to: live)
+            let at = stamp.addingTimeInterval(seconds)
+            var events: [AgentUsageEvent] = []
+            AgentUsageProductionLogReader.readAppended(cursor, shouldContinue: { true }) { line in
+                let entries = AgentLogParser.parseDeepSeek(line, state: &cursor.state, now: at)
+                events += store.apply(entries, file: "\(live.path)#live.json", provider: .deepseek,
+                                      tracksTurns: true, modified: at, now: at)
+            }
+            return events
+        }
+        _ = rewrite(projection(version: AgentDeepSeekReader.version, openTurn: 10, seq: 20), at: 0)
+        _ = rewrite(projection(version: AgentDeepSeekReader.version, openTurn: 10, seq: 20), at: 5)
+        suite.expect(store.live.isEmpty, "a projection rewritten unchanged opens no turn through the cursor")
+        _ = rewrite(projection(version: AgentDeepSeekReader.version, openTurn: 10, seq: 22, output: 388_700), at: 10)
+        suite.expect(store.live.count == 1, "progress across rewrites opens the turn through the cursor")
+        let done = rewrite(projection(version: AgentDeepSeekReader.version, openTurn: NSNull(), seq: 24,
+                                      output: 388_800), at: 15)
+        suite.expect(store.live.isEmpty && done.contains { if case .finished = $0 { return true } else { return false } },
+                     "the Harness closing the turn ends it through the cursor")
 
         // A projection from a later Harness is left alone rather than guessed at.
         suite.expect(read(projection(version: AgentDeepSeekReader.version + 1), name: "newer.json").isEmpty,

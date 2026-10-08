@@ -332,6 +332,7 @@ enum AgentUsageArchive {
             bool(value.deepSeekWorking)
             int(value.deepSeekSteps)
             int(value.deepSeekOutput)
+            int(value.deepSeekSequence)
             bool(value.deepSeekQuestionWaiting)
             bool(value.deepSeekSeenProgress)
         }
@@ -490,6 +491,7 @@ enum AgentUsageArchive {
             value.deepSeekWorking = try bool()
             value.deepSeekSteps = try int()
             value.deepSeekOutput = try int()
+            value.deepSeekSequence = try int()
             value.deepSeekQuestionWaiting = try bool()
             value.deepSeekSeenProgress = try bool()
             return value
