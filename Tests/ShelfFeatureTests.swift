@@ -235,9 +235,13 @@ enum ShelfFeatureTests {
                                                                         container: root) == nil,
                        "a generated file named \(unsafe.debugDescription) is refused")
             }
+            let unwritableName = String(repeating: "x", count: 300) + ".png"
+            suite.expect(ShelfPersistenceSupport.writeGeneratedFile(data, named: unwritableName, in: store,
+                                                                    container: root) == nil,
+                   "a file-system write failure refuses the generated file")
             let storeEntries = (try? fm.contentsOfDirectory(atPath: store.path)) ?? []
             suite.expect(storeEntries.count == 1,
-                   "refused names leave no folder behind, found \(storeEntries.count) entries")
+                   "refused names and failed writes leave no folder behind, found \(storeEntries.count) entries")
         }
         let shotURL = URL(fileURLWithPath: "/tmp/shot.png")
         suite.expect(ShelfInteractionSupport.editableImage(in: [shotURL]) == shotURL

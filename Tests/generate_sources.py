@@ -1075,7 +1075,8 @@ def main():
     write("ScreenshotAutoShelf.swift", "import Foundation\n"
           + "extension ScreenshotAutoShelfTests {\n@MainActor final class Service: State {\n"
           + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func autoShelve(", "    private func unshelve("])
+                    for prefix in ["    private func autoShelve(", "    private func unshelve(",
+                                   "    private func cancelAutoShelf()"])
           + "}\n}\n")
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"

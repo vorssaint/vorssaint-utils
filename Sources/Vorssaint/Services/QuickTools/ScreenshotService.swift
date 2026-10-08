@@ -42,9 +42,9 @@ final class ScreenshotService: ObservableObject {
     private var directCaptureTask: Task<Void, Never>?
     private var autoCopyTask: Task<Void, Never>?
     private var autoCopyGeneration = 0
-    private var autoShelfTask: Task<Void, Never>?
-    /// The shelf item the latest capture went to on its own, so discarding
-    /// that capture from its preview takes it off the shelf as well.
+    private var autoShelfTasks: [UUID: Task<Void, Never>] = [:]
+    /// Only the latest capture still has a preview that can discard it.
+    /// Older captures stay on the shelf without a growing item registry.
     private var autoShelvedItem: (capture: UUID, item: UUID)?
     private var scrollingTask: Task<Void, Never>?
     private var scrollingCaptureID: UUID?
@@ -195,8 +195,7 @@ final class ScreenshotService: ObservableObject {
         autoCopyTask?.cancel()
         autoCopyTask = nil
         autoCopyGeneration += 1
-        autoShelfTask?.cancel()
-        autoShelfTask = nil
+        cancelAutoShelf()
         scrollingTask?.cancel()
         scrollingTask = nil
         scrollingCaptureID = nil
@@ -484,16 +483,20 @@ final class ScreenshotService: ObservableObject {
         withholdLatestCapture()
     }
 
-    /// Thrown away from its preview, the latest capture leaves the shelf too,
-    /// and a copy still being written for it never gets there.
-    private func unshelve(_ latestCapture: UUID?) {
-        guard let latestCapture, latestCapture == latestCaptureToken else { return }
-        autoShelfTask?.cancel()
-        autoShelfTask = nil
-        if let shelved = autoShelvedItem, shelved.capture == latestCapture {
+    /// A discarded preview cancels only its capture, including a copy still
+    /// being prepared. Other captures keep their place on the shelf.
+    private func unshelve(_ capture: UUID?) {
+        guard let capture else { return }
+        autoShelfTasks.removeValue(forKey: capture)?.cancel()
+        if let shelved = autoShelvedItem, shelved.capture == capture {
             ShelfService.shared.removeItem(shelved.item)
+            autoShelvedItem = nil
         }
-        autoShelvedItem = nil
+    }
+
+    private func cancelAutoShelf() {
+        for task in autoShelfTasks.values { task.cancel() }
+        autoShelfTasks.removeAll()
     }
 
     private func withholdLatestCapture() {
@@ -835,20 +838,19 @@ final class ScreenshotService: ObservableObject {
     /// The shelf gets a copy of its own, not the file a Save wrote, which can
     /// later be deleted or moved to the Trash outside Vorssaint. A saved
     /// capture lends its bytes and name, so nothing is encoded twice. Any
-    /// other is encoded off the main thread like the automatic copy, and a
-    /// newer capture stops that work. Quiet on success for the same reason
-    /// as the automatic copy. A shelf that cannot take the capture beeps.
+    /// other is encoded off the main thread. Each capture owns its task so
+    /// taking another capture cannot lose one still being prepared. Quiet on
+    /// success like the automatic copy; a shelf that refuses it beeps.
     private func autoShelve(_ capture: ScreenshotSelectionController.Capture, saved: URL?) {
-        autoShelfTask?.cancel()
-        autoShelfTask = nil
         autoShelvedItem = nil
         guard ScreenshotSupport.addsCapturesToShelf() else { return }
         let token = latestCaptureToken
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         let name = saved?.lastPathComponent
             ?? ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-        autoShelfTask = Task { @MainActor [weak self] in
+        autoShelfTasks[token] = Task { @MainActor [weak self] in
             let work = Task.detached(priority: .userInitiated) { () -> Data? in
+                guard !Task.isCancelled else { return nil }
                 if let saved { return try? Data(contentsOf: saved) }
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale),
                       !Task.isCancelled else { return nil }
@@ -859,14 +861,17 @@ final class ScreenshotService: ObservableObject {
             } onCancel: {
                 work.cancel()
             }
-            guard let self, !Task.isCancelled, self.latestCaptureToken == token,
-                  AppFeature.screenshot.isAvailable else { return }
-            self.autoShelfTask = nil
+            guard let self else { return }
+            self.autoShelfTasks[token] = nil
+            guard !Task.isCancelled, AppFeature.screenshot.isAvailable,
+                  ScreenshotSupport.addsCapturesToShelf() else { return }
             guard let png, let item = ShelfService.shared.shelveGeneratedFile(png, named: name) else {
                 NSSound.beep()
                 return
             }
-            self.autoShelvedItem = (token, item)
+            if self.latestCaptureToken == token {
+                self.autoShelvedItem = (token, item)
+            }
         }
     }
 
