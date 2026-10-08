@@ -17,6 +17,7 @@ Dynamic Island opens downloaded files directly, with fixes for Safari downloads,
 - The Command Bar requests keyboard focus again when it appears after dropping out of the island.
 - Paste as plain text preserves images, videos and files and pastes them normally, including when its shortcut is Command-V.
 - Brightness keys keep their press and release together when displays reconnect, the pointer changes displays or brightness feedback changes.
+- The menu bar panel closes faster and opens on the next click, instead of ignoring clicks for almost a second after closing.
 - Hovering over Dock previews no longer recenters each window while scrolling. The previous and next buttons still reveal the selected window.
 - Explicit app output choices remain enforced at 100%, including when the chosen device is the system default. Changing the output for all apps also routes processes that keep using their previous device.
 - Window switcher skips the synthetic mouse press when activating recognized Wine processes, avoiding an unmatched button press in games.

@@ -31,6 +31,7 @@ enum MenuPanelRecoveryTests {
         var screen: NSScreen? = NSScreen.screens.first
         var windowNumber = 71
         var alphaValue = 1.0
+        var ignoresMouseEvents = false
         var contentView: View? = View()
         init(_ frame: CGRect) { self.frame = frame }
         func convertToScreen(_ rect: CGRect) -> CGRect { rect.offsetBy(dx: frame.minX, dy: frame.minY) }
@@ -42,10 +43,22 @@ enum MenuPanelRecoveryTests {
             screen = NSScreen.screens.first { $0.frame.contains(CGPoint(x: rect.midX, y: rect.midY)) }
             NotificationCenter.default.post(name: Self.didMoveNotification, window: self)
         }
+        func animator() -> NSWindow { self }
         func makeKey() {}
         func close() {}
     }
     typealias NSPanel = NSWindow
+    /// Applies the change at once and holds the completion until the test ends the fade.
+    final class NSAnimationContext {
+        static var completions: [() -> Void] = []
+        var duration = 0.0
+        static func runAnimationGroup(_ changes: (NSAnimationContext) -> Void,
+                                      completionHandler: (() -> Void)? = nil) {
+            changes(NSAnimationContext())
+            if let completionHandler { completions.append(completionHandler) }
+        }
+        static func finish() { let pending = completions; completions = []; pending.forEach { $0() } }
+    }
     final class View {
         var window: NSWindow?
         func layoutSubtreeIfNeeded() {}
@@ -65,7 +78,9 @@ enum MenuPanelRecoveryTests {
         var measuredScreen: NSScreen?
         // The animated close keeps the panel on screen until it finishes.
         func performClose(_ sender: Any?) {}
-        func close() { isShown = false }
+        /// AppKit sends willClose and didClose inside a close without animation.
+        var closeNotifies: (() -> Void)?
+        func close() { isShown = false; closeNotifies?() }
         func show(relativeTo: CGRect, of button: NSStatusBarButton, preferredEdge: NSRectEdge) {
             attempts += 1
             measuredScreen = PanelInteractionState.shared.anchorScreen
@@ -150,6 +165,8 @@ enum MenuPanelRecoveryTests {
         let popover = Popover()
         let statusController = StatusController()
         var popoverIsClosing = false
+        var popoverCloseFadeSerial = 0
+        var popoverIsFadingOut = false
         var popoverCloseIsAppRequested = false
         var popoverIsSwitchingAnchor = false
         var settingsWindow: NSWindow?
@@ -157,7 +174,6 @@ enum MenuPanelRecoveryTests {
         var popoverLastFrame: CGRect?
         var popoverLastWindowNumber: Int?
         var popoverForeignReopenAt = Date.distantPast
-        var popoverClosedAt = Date.distantPast
         var lastStatusClick: (point: NSPoint, at: Date)?
         static let statusClickFreshness: TimeInterval = 0.5
         static let statusClickEventTypes: Set<NSEvent.EventType> = [
@@ -200,7 +216,7 @@ enum MenuPanelRecoveryTests {
 
     static func run(_ expect: (Bool, String) -> Void) {
         func setup(corrected: Bool = false, present: Bool = true) -> Host {
-            DispatchQueue.main = Queue(); NotificationCenter.default = Center()
+            DispatchQueue.main = Queue(); NotificationCenter.default = Center(); NSAnimationContext.completions = []
             NSScreen.screens = [NSScreen()]; NSApp = Application()
             MenuPanelFocus.shared = MenuPanelFocus(); SystemMonitor.shared = SystemMonitor()
             ProcessUsageService.shared = ProcessUsageService(); PanelInteractionState.shared = PanelInteractionState()
@@ -467,6 +483,42 @@ enum MenuPanelRecoveryTests {
             expect(host.handbackReasons == [.action], "an action joining a dismissal keeps activation where it goes")
         }
         do {
+            let host = setup()
+            host.popover.closeNotifies = { [unowned host] in
+                host.popoverWillClose(Notification(name: Notification.Name("willClose")))
+                host.popoverDidClose(Notification(name: Notification.Name("closed")))
+            }
+            let window = host.popover.contentViewController!.view.window!
+            host.closePopoverNow(animated: true, reason: .statusItem, completion: nil)
+            expect(host.popover.isShown && host.popoverIsClosing && window.alphaValue == 0 && window.ignoresMouseEvents,
+                   "an animated close fades the panel out and stops it taking clicks")
+            NSAnimationContext.finish()
+            expect(!host.popover.isShown && !host.popoverIsClosing && host.handbackReasons == [.statusItem],
+                   "the panel closes as soon as its fade ends")
+            expect(window.alphaValue == 1 && !window.ignoresMouseEvents,
+                   "the closed panel's window is ready to be shown again")
+            host.showPopover(animate: false, activate: false)
+            expect(host.popover.isShown && host.popover.attempts == 2,
+                   "a click right after the panel closed opens it again")
+        }
+        do {
+            let host = setup()
+            host.popover.closeNotifies = { [unowned host] in
+                host.popoverWillClose(Notification(name: Notification.Name("willClose")))
+                host.popoverDidClose(Notification(name: Notification.Name("closed")))
+            }
+            let window = host.popover.contentViewController!.view.window!
+            host.closePopoverNow(animated: true, reason: .statusItem, completion: nil)
+            host.showPopover(animate: false, activate: false)
+            expect(host.popover.isShown && host.popover.attempts == 2 && !host.popoverIsClosing,
+                   "a click while the panel fades out opens it again")
+            expect(host.handbackReasons == [.statusItem] && window.alphaValue == 1 && !window.ignoresMouseEvents,
+                   "the interrupted close still finishes before the panel opens")
+            NSAnimationContext.finish()
+            expect(host.popover.isShown && host.popover.attempts == 2 && host.handbackReasons == [.statusItem],
+                   "the interrupted fade never closes the reopened panel")
+        }
+        do {
             let host = setup(); NSApp.currentEvent = event(age: 1); close(host)
             expect(!host.popover.isShown && host.handbackReasons == [nil],
                    "a close Vorssaint did not ask for carries no reason to hand activation back")
@@ -475,7 +527,7 @@ enum MenuPanelRecoveryTests {
             let host = setup()
             expect(host.activationTrackingStarts == 0, "a panel shown without activating remembers no app")
             requestClose(host, .escape)
-            host.showPopover(allowRecentClose: true, animate: false)
+            host.showPopover(animate: false)
             expect(host.activationTrackingStarts == 1 && host.activationTracking,
                    "a click that activates the panel starts following the app in front")
             requestClose(host, .escape)
