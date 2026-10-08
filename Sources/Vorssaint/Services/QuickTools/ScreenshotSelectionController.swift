@@ -974,6 +974,7 @@ private final class ScreenshotOverlayView: NSView {
     private var hoverPoint: CGPoint = .zero
     private var pointerIsInside = false
     private var hoveredWindow: ScreenshotSupport.PickableWindow?
+    private let highlightWindows = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHighlightWindows)
     /// The value just copied with C, shown briefly in the loupe's info bar
     /// because the regular HUD sits under these shielding-level panels.
     private var copiedValue: String?
@@ -1335,7 +1336,7 @@ private final class ScreenshotOverlayView: NSView {
     private func updatePointerHover(_ point: CGPoint) {
         pointerIsInside = true
         hoverPoint = point
-        hoveredWindow = controller?.acceptsWindowClick == true
+        hoveredWindow = highlightWindows && controller?.acceptsWindowClick == true
                 && !pointerIsOverFullScreenControl(point)
             ? ScreenshotSupport.window(at: point, in: windows)
             : nil

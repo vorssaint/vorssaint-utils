@@ -58,6 +58,7 @@ enum ScreenshotSelectionRefreshContract {
         var hoverPoint = CGPoint.zero
         var pointerIsInside = false
         var hoveredWindow: ScreenshotSupport.PickableWindow?
+        var highlightWindows = true
         var needsLayout = false, needsDisplay = false
         var guideVisibilityRefreshes = 0
         var notchCaptureControlsHeight: CGFloat?
@@ -374,6 +375,19 @@ enum ScreenshotSelectionRefreshContract {
         hoverView.updatePointerHover(CGPoint(x: 20, y: 20))
         expect(hoverView.hoveredWindow?.windowID == 11,
                "window highlighting resumes immediately outside the full-screen action")
+        hoverView.highlightWindows = false
+        hoverView.updatePointerHover(CGPoint(x: 25, y: 25))
+        expect(hoverView.hoveredWindow == nil,
+               "disabling window highlights clears the previous hover target")
+        expect(hoverView.pointerIsInside && hoverView.hoverPoint == CGPoint(x: 25, y: 25),
+               "disabling window highlights keeps pointer tracking for the magnifier")
+        expect(hover.acceptsWindowClick
+                && ScreenshotSupport.window(at: CGPoint(x: 25, y: 25), in: hoverView.windows)?.windowID == 11,
+               "window capture remains available when its hover highlight is hidden")
+        hoverView.highlightWindows = true
+        hoverView.updatePointerHover(CGPoint(x: 25, y: 25))
+        expect(hoverView.hoveredWindow?.windowID == 11,
+               "enabling window highlights restores the hover target")
         hoverView.setNotchCaptureControlsHeight(180)
         hoverView.needsLayout = false
         hoverView.fullScreenControlHoverChanged(true)
