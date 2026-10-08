@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import UniformTypeIdentifiers
 
 /// Pastes the clipboard as plain text on a global shortcut: strips fonts,
 /// colors and links, pastes, and quietly puts the original rich content back
@@ -52,12 +53,11 @@ final class PastePlainService: ObservableObject {
         // Promised content renders when read, so a busy source app would hold
         // the main thread here; the lane answers back on main when it can.
         GeneralPasteboardAccess.shared.async({ Self.plainText(from: .general) }) { [weak self] plain in
-            guard let self, let plain, !plain.isEmpty else { return }
-            self.pastePlain(plain)
+            self?.pastePlain(plain?.isEmpty == false ? plain : nil)
         }
     }
 
-    private func pastePlain(_ plain: String) {
+    private func pastePlain(_ plain: String?) {
         // An app that ships its own matching-style paste does this better
         // than any synthesized ⌘V: the destination decides the typing
         // attributes (a stripped string pasted normally can leave the
@@ -66,22 +66,28 @@ final class PastePlainService: ObservableObject {
         // later pastes, and held modifier keys don't matter to a menu
         // press. The strip-and-restore dance below stays as the fallback
         // for every app without that command.
-        if pressNativeMatchStyleItem() { return }
+        if plain != nil, pressNativeMatchStyleItem() { return }
 
         var releaseHotkey = false
-        _ = TransientPaste.shared.paste(
-            plain,
-            willPostShortcut: { [weak self] in
-                guard let self else { return }
-                let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
-                                                    fallback: .pastePlainDefault)
-                releaseHotkey = shortcut.isStandardPasteCommand
-                if releaseHotkey { self.hotkey.unregister() }
-            },
-            didPostShortcut: { [weak self] in
-                if releaseHotkey { self?.syncWithPreferences() }
-            }
-        )
+        let willPostShortcut = { [weak self] in
+            guard let self else { return }
+            let shortcut = GlobalShortcut.saved(for: DefaultsKey.pastePlainShortcut,
+                                                fallback: .pastePlainDefault)
+            releaseHotkey = shortcut.isStandardPasteCommand
+            if releaseHotkey { self.hotkey.unregister() }
+        }
+        let didPostShortcut = { [weak self] in
+            if releaseHotkey { self?.syncWithPreferences() }
+        }
+        if let plain {
+            _ = TransientPaste.shared.paste(plain, willPostShortcut: willPostShortcut,
+                                           didPostShortcut: didPostShortcut)
+        } else {
+            // A global ⌘V registration already consumed the original press.
+            // Forward the paste without reading or replacing media payloads.
+            _ = TransientPaste.shared.pasteCurrentContents(willPostShortcut: willPostShortcut,
+                                                          didPostShortcut: didPostShortcut)
+        }
     }
 
     /// Presses the frontmost app's own matching-style paste when its menus
@@ -156,6 +162,20 @@ final class PastePlainService: ObservableObject {
     /// The clipboard's text without any formatting: the plain string when
     /// present, else the text of its RTF or HTML content.
     static func plainText(from pasteboard: NSPasteboard) -> String? {
+        // Image and file copies can also advertise their name or source URL
+        // as text. That is a fallback, not text the user asked us to strip.
+        let fileTypes: Set<String> = [
+            "NSFilenamesPboardType", "NSFileContentsPboardType",
+            "com.apple.NSFilePromiseItemMetaData", "Apple files promise pasteboard type",
+            "com.apple.pasteboard.promised-file-url",
+        ]
+        guard !(pasteboard.types ?? []).contains(where: { raw in
+            if fileTypes.contains(raw.rawValue) { return true }
+            guard let type = UTType(raw.rawValue) else { return false }
+            return type.conforms(to: .image) || type.conforms(to: .movie) || type.conforms(to: .video)
+                || type.conforms(to: .audio) || type.conforms(to: .fileURL)
+                || type.conforms(to: .pdf)
+        }) else { return nil }
         if let plain = pasteboard.string(forType: .string) {
             return plain
         }

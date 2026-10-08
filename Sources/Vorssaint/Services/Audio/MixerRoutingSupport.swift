@@ -465,28 +465,52 @@ enum MixerRoutingSupport {
                                volume: Double,
                                selectedOutputDeviceUID: String?,
                                targetOutputDeviceUID: String?,
-                               defaultOutputDeviceUID: String?) -> Bool {
+                               defaultOutputDeviceUID: String?,
+                               universalOutputRouteUID: String? = nil) -> Bool {
         guard hasAudioObjects else { return false }
         guard let targetOutputDeviceUID else { return false }
         if !isUnity(volume) { return true }
-        guard let selectedOutputDeviceUID else { return false }
-        guard let defaultOutputDeviceUID else { return true }
-        return selectedOutputDeviceUID != defaultOutputDeviceUID
-            && targetOutputDeviceUID != defaultOutputDeviceUID
+        if let selectedOutputDeviceUID {
+            // An explicit route still matters when it happens to be the
+            // system default: a Wine game may keep its old device open.
+            return selectedOutputDeviceUID == targetOutputDeviceUID
+        }
+        return universalOutputRouteUID == targetOutputDeviceUID
+            && targetOutputDeviceUID == defaultOutputDeviceUID
     }
 
     /// The last gate before a tap is built: a row is tapped only when the user
-    /// actually adjusted it, either to a volume other than 100% or to an output
-    /// other than the system default. An app that is merely listed is never
-    /// part of any tap, so the mixer can neither mute it nor re-render its
-    /// sound.
+    /// adjusted its volume, chose its output, or asked to move all audio to an
+    /// output that this process did not follow. Merely listing an app never
+    /// makes it part of a tap.
     static func rowMayBeTapped(savedVolume: Double?,
                                savedRouteUID: String?,
-                               defaultOutputDeviceUID: String?) -> Bool {
+                               defaultOutputDeviceUID: String?,
+                               universalOutputRouteUID: String? = nil) -> Bool {
         if let savedVolume, !isUnity(savedVolume) { return true }
-        guard let savedRouteUID else { return false }
-        guard let defaultOutputDeviceUID else { return true }
-        return savedRouteUID != defaultOutputDeviceUID
+        if savedRouteUID != nil { return true }
+        guard let universalOutputRouteUID else { return false }
+        return universalOutputRouteUID == defaultOutputDeviceUID
+    }
+
+    /// A universal output choice normally needs only the system default to
+    /// change. Processes that keep another device open need a tap as well.
+    /// Empty device lists mean silence or an unavailable read, not evidence
+    /// that a previously routed process now follows the default. Keep that
+    /// route until its same audio objects report where they play again.
+    static func requiresUniversalOutputRouting(requestedUID: String?,
+                                                defaultUID: String?,
+                                                selectedUID: String?,
+                                                audioObjects: [AudioObjectID],
+                                                previouslyRoutedObjects: [AudioObjectID]?,
+                                                processDevices: Set<AudioObjectID>,
+                                                defaultDevices: Set<AudioObjectID>) -> Bool {
+        guard let requestedUID, requestedUID == defaultUID,
+              selectedUID == nil, !audioObjects.isEmpty, !defaultDevices.isEmpty else { return false }
+        if processDevices.isEmpty {
+            return previouslyRoutedObjects == audioObjects
+        }
+        return !processDevices.isSubset(of: defaultDevices)
     }
 
     /// Identity of a row: the bundle id when the app has one, otherwise a

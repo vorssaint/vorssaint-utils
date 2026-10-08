@@ -2649,6 +2649,9 @@ enum CommandBarDropletContract {
         suite.expect(shows.contains("panel.alphaValue = 1") && shows.contains("layer.add(appear, forKey: \"appear\")")
                      && !shows.contains("animator()"),
                      "the bar shows at once and fades in through Core Animation, not through main thread alpha steps")
+        let revealed = shows.components(separatedBy: "panel.alphaValue = 1").dropFirst().first ?? ""
+        suite.expect(revealed.contains("panel.makeKey()") && revealed.contains("self.focusField(in: panel)"),
+                     "the bar takes the keyboard again once the drop shows it, as the window bar does")
 
         let hurry = body(droplet, "func hurry() {")
         suite.expect(hurry.contains("guard falling, let fall, let reveal else { return }")
