@@ -242,41 +242,74 @@ struct NotchCapsuleMusicStrip: View {
     var size: CGSize? = nil
     /// Another display's capsule, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
+    /// The island's own capsule answers the pointer. A copy on another
+    /// display or a strip on its way out only shows the song.
+    var interactive = false
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.geometry }
-    /// A new song stays off the strip until its notice has shown it.
-    private var shown: NotchCompactMusicSnapshot? { snapshot ?? service.heldMusic }
+    /// A new song stays off the strip until its notice has shown it, and a
+    /// held song through a reading from its player without a name.
+    private var shown: NotchCompactMusicSnapshot? {
+        snapshot ?? service.heldMusic ?? (interactive ? service.musicStripStandIn(for: music.playback) : nil)
+    }
     private var playback: NotchPlayback? { shown?.playback ?? music.playback }
     private var artwork: NSImage? { shown == nil ? music.artwork : shown?.artwork }
     private var tint: NotchArtworkTint? { shown == nil ? music.artworkTint : shown?.tint }
     private var title: String { playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
+    private var live: Bool { interactive && snapshot == nil }
+    private var showsControl: Bool { live && service.musicStripShowsControl }
+    /// A click's request shows at once, before the player says so.
+    private var playing: Bool { (live ? service.musicStripRequest : nil) ?? playback?.isPlaying == true }
 
     var body: some View {
         let side = CapsuleLayout.artworkSide(geometry)
-        let named = service.capsuleMusicTitleShown
+        // A song is named as it starts and while the pointer rests on its
+        // cover, and a strip on its way out leaves as it was. Otherwise the
+        // cover and bars say enough.
+        let named = service.capsuleMusicTitleShown || (live ? service.musicStripNamesSong : snapshot?.namesSong == true)
         NotchCapsuleRow(size: size ?? CapsuleLayout.musicSurface(title: named ? title : nil, geometry: geometry),
-                        geometry: geometry, leading: CapsuleLayout.artworkInset(geometry)) {
+                        geometry: geometry, leading: 0, trailing: 0) {
             HStack(spacing: 0) {
                 NotchMusicCover(artwork: artwork, side: side, radius: side / 2)
-                // A song is named only as it starts; then the cover and bars say enough.
+                    .padding(.leading, CapsuleLayout.artworkInset(geometry))
+                    .frame(maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onHover { if live { service.hoverMusicStrip(.cover, entered: $0) } }
                 Group {
                     if named { Text(title).capsuleTitle().truncationMode(.tail).transition(.opacity) }
                     else { Color.clear }
                 }
                 .padding(.horizontal, CapsuleLayout.endPadding)
                 .frame(maxWidth: .infinity)
-                NotchLiveEqualizerBars(isPlaying: playback?.isPlaying == true,
-                                       bars: NotchLayout.compactMusicBarCount,
-                                       barWidth: NotchLayout.compactMusicBarWidth,
-                                       height: CapsuleLayout.barsHeight(geometry),
-                                       tint: tint?.color ?? .white)
+                ZStack {
+                    NotchLiveEqualizerBars(isPlaying: playing && !showsControl,
+                                           bars: NotchLayout.compactMusicBarCount,
+                                           barWidth: NotchLayout.compactMusicBarWidth,
+                                           height: CapsuleLayout.barsHeight(geometry),
+                                           tint: tint?.color ?? .white)
+                        .opacity(showsControl ? 0 : 1)
+                    if showsControl {
+                        NotchMusicStripButton(playing: playing, tint: tint?.color ?? .white,
+                                              height: CapsuleLayout.barsHeight(geometry))
+                            .transition(.opacity)
+                    }
+                }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: showsControl)
+                .padding(.trailing, CapsuleLayout.endPadding)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onHover { if live { service.hoverMusicStrip(.bars, entered: $0) } }
             }
             .modifier(NotchMusicSwipeFeedback(enabled: snapshot == nil))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel([title, playback?.track.artist].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAction(named: Text(FeatureStrings.radialMenu(l10n.language).mediaPlayPause)) {
+            if !service.toggleMusicStripSong() { service.openActivity(.music) }
+        }
         .help(title)
     }
 }

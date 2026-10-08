@@ -822,6 +822,72 @@ enum NotchTests {
         }
     }
 
+    /// Resting on the cover names the song: the left side grows from the
+    /// island's curved end with the words, and the cover and the bars stay
+    /// where they rest beside the camera.
+    private static func namedMusicStripChecks(_ suite: TestSuite, compactMusic: NotchGeometry, screen: CGRect) {
+        typealias Layout = NotchMusicStripLayout
+        let wing = compactMusic.compactActivityWingWidth
+        let inset = Layout.coverInset(compactMusic), side = Layout.coverSide(compactMusic)
+        suite.expect(inset == compactMusic.compactMusicArtworkInset && side == compactMusic.compactMusicArtworkSide
+               && Layout.innerInset(compactMusic) == 0,
+               "a physical camera's cover keeps its full size and concentric inset")
+        let words = Layout.wordsWidth(title: "Midnight City", artist: "M83")
+        suite.expect(Layout.wordsWidth(title: "Midnight City", artist: "M83") == words
+               && words > Layout.wordsWidth(title: "Midnight City", artist: nil) - 0.001
+               && Layout.wordsWidth(title: "Hi", artist: "A much longer artist name") > Layout.wordsWidth(title: "Hi", artist: nil),
+               "the words take the wider of the title and the artist, measured once per song")
+        let named = Layout.namedWings(title: "Midnight City", artist: " M83 ", geometry: compactMusic, room: .infinity)
+        let expected = (Layout.endInset + words + Layout.spacing + wing - inset).rounded(.up)
+        suite.expect(named == NotchNoticeWings(leading: expected, trailing: wing),
+               "the named side holds the words and the cover as it rests, and the bars keep their side")
+        if let named {
+            // The view keeps the cover's gap to the camera, wing - inset - side, and gives the words the rest.
+            let room = named.leading - Layout.endInset - Layout.spacing - (wing - inset)
+            suite.expect(room >= words && room < words + 1,
+                   "with the cover as far from the camera as it rests, the words keep their whole width")
+        }
+        let long = Layout.namedWings(title: String(repeating: "A very long song title ", count: 12), artist: nil,
+                                     geometry: compactMusic, room: .infinity)
+        suite.expect(long == NotchNoticeWings(leading: Layout.maximumWing, trailing: wing),
+               "a long title stops at a notice's widest side and ends in an ellipsis")
+        suite.expect(Layout.namedWings(title: String(repeating: "A very long song title ", count: 12), artist: nil,
+                                       geometry: compactMusic, room: 120.6) == NotchNoticeWings(leading: 120, trailing: wing)
+               && Layout.namedWings(title: "Midnight City", artist: "M83", geometry: compactMusic, room: wing) == nil
+               && Layout.namedWings(title: "Midnight City", artist: "M83", geometry: compactMusic, room: -1) == nil,
+               "the named side stops at the menus beside the island, and with no room past the cover the song stays unnamed")
+        let narrowScreen = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 420, height: 300), safeAreaTop: 32,
+                                         cameraWidth: 180, menuBarHeight: 24, compactSideRoom: 100).compactMusicGeometry
+        let edge = Layout.namedWings(title: String(repeating: "Long ", count: 40), artist: nil, geometry: narrowScreen,
+                                     room: .infinity)
+        suite.expect(edge.map { narrowScreen.cameraWidth / 2 + $0.leading <= narrowScreen.screen.width / 2 - 12 } == true,
+               "the named side stops short of the display's edge")
+        suite.expect(Layout.namedWings(title: nil, artist: "M83", geometry: compactMusic, room: .infinity) == nil
+               && Layout.namedWings(title: "", artist: "M83", geometry: compactMusic, room: .infinity) == nil,
+               "a song without a title is not named")
+        suite.expect(Layout.namedWings(title: "Midnight City", artist: "   ", geometry: compactMusic, room: .infinity)
+                     == Layout.namedWings(title: "Midnight City", artist: nil, geometry: compactMusic, room: .infinity),
+               "a blank artist leaves only the title to measure")
+        var crowded = compactMusic
+        crowded.compactSideRoom = 0
+        suite.expect(Layout.namedWings(title: "Midnight City", artist: "M83", geometry: crowded.compactMusicGeometry,
+                                       room: .infinity) == nil,
+               "a strip whose wings gave way to the menus has no cover to name the song beside")
+        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, menuBarHeight: 24,
+                                      compactSideRoom: 100).compactMusicGeometry
+        suite.expect(Layout.fillsCameraGap(simulated)
+               && Layout.namedWings(title: "Midnight City", artist: "M83", geometry: simulated, room: .infinity) == nil,
+               "a simulated camera already names the song between its wings")
+        let short = NotchGeometry(screen: screen, safeAreaTop: 24, cameraWidth: 180, menuBarHeight: 24,
+                                  compactSideRoom: 100).compactMusicGeometry
+        let titleOnly = Layout.wordsWidth(title: "Midnight City", artist: nil)
+        suite.expect(!Layout.showsArtist(short) && Layout.showsArtist(compactMusic)
+               && Layout.namedWings(title: "Midnight City", artist: "A much longer artist name", geometry: short, room: .infinity)?.leading
+                  == (Layout.endInset + titleOnly + Layout.spacing + short.compactActivityWingWidth - Layout.coverInset(short))
+                     .rounded(.up),
+               "a strip too short for a second line names only the title and measures only it")
+    }
+
     private static func activitySelectionContracts(_ suite: TestSuite) {
         for mask in 0..<64 {
             let available = NotchSupport.compactActivities(
@@ -2117,6 +2183,7 @@ enum NotchTests {
         moreRoom.compactSideRoom = 200
         suite.expect(moreRoom.compactMusicGeometry == compactMusic,
                "menu measurements beyond the music width cannot resize the compact presentation")
+        namedMusicStripChecks(suite, compactMusic: compactMusic, screen: menuScreen)
         suite.expect(constrained.compactMusicGeometry.compactActivitySize.height == constrained.menuBarHeight,
                "crowded music retains the same thin silhouette")
         suite.expect(roomy.musicStrip.width <= 380 && roomy.restingWingWidth == 44,

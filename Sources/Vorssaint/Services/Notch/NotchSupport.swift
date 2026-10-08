@@ -532,13 +532,97 @@ struct NotchHoverState {
 }
 
 enum NotchHoverEmphasis {
-    static func size(from resting: CGSize, geometry: NotchGeometry) -> CGSize {
+    /// `reach` is how much further than half the width one side goes, as a
+    /// strip naming its song does on its cover's side.
+    static func size(from resting: CGSize, geometry: NotchGeometry, reach: CGFloat = 0) -> CGSize {
         // Keep the pulse inside the measured free menu-bar space on each side.
-        let occupiedWing = max(0, (resting.width - geometry.cameraWidth) / 2)
+        let occupiedWing = max(0, (resting.width - geometry.cameraWidth) / 2) + reach
         let freeSide = max(0, (geometry.compactSideRoom ?? 0) - occupiedWing)
         let growth = min(10, freeSide)
         // A capsule stretches along the bar and stays inside it.
         return CGSize(width: resting.width + growth * 2, height: resting.height + (geometry.floats ? 0 : 5))
+    }
+}
+
+/// What the pointer rests on in the closed music strip: the cover names the
+/// song, and the bars become its play or pause button.
+enum NotchMusicStripPart: Equatable {
+    case cover, bars
+}
+
+/// The closed music strip beside a camera. Named, its left side grows from
+/// the island's curved end with the title and the artist, and the cover keeps
+/// its place beside the camera, as do the bars on the other side.
+enum NotchMusicStripLayout {
+    static let titleFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let artistFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+    /// From the island's curved end to the words, as a banner keeps it.
+    static let endInset = NotchNotificationBannerLayout.inset
+    /// Between the words and the cover.
+    static let spacing: CGFloat = 8
+    /// The widest a named side grows, as a notice's. A longer title ends in an ellipsis.
+    static let maximumWing: CGFloat = 240
+    /// How long the pointer rests on the cover before the strip names the song,
+    /// so a pass on the way to the menus leaves it alone.
+    static let namingDelay: TimeInterval = 0.3
+
+    /// A simulated camera keeps a little air beside its drawn cutout.
+    static func innerInset(_ geometry: NotchGeometry) -> CGFloat { geometry.isNotched ? 0 : 8 }
+
+    /// A short wing gives clearance back before the cover turns into a chip.
+    static func coverInset(_ geometry: NotchGeometry) -> CGFloat {
+        max(0, min(geometry.compactMusicArtworkInset, geometry.compactActivityWingWidth
+                   - min(geometry.compactMusicArtworkSide, 20) - innerInset(geometry)))
+    }
+
+    static func coverSide(_ geometry: NotchGeometry) -> CGFloat {
+        max(0, min(geometry.compactMusicArtworkSide,
+                   geometry.compactActivityWingWidth - coverInset(geometry) - innerInset(geometry)))
+    }
+
+    /// A simulated camera has room for the track even when its wings disappear.
+    static func fillsCameraGap(_ geometry: NotchGeometry) -> Bool {
+        !geometry.isNotched && geometry.compactActivityCameraGap >= 56
+    }
+
+    static func showsArtist(_ geometry: NotchGeometry) -> Bool { geometry.compactActivityContentHeight >= 28 }
+
+    private static var measuredWords: (title: String, artist: String?, width: CGFloat)?
+
+    /// The wider of the title and the artist below it, measured once per song.
+    static func wordsWidth(title: String, artist: String?) -> CGFloat {
+        if let measured = measuredWords, measured.title == title, measured.artist == artist { return measured.width }
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            // The widest side is reached long before this much text.
+            (String(text.prefix(120)) as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        let width = max(width(title, titleFont), artist.map { width($0, artistFont) } ?? 0) + NotchCapsuleLayout.air
+        measuredWords = (title, artist, width)
+        return width
+    }
+
+    /// The left side while the strip names its song: the words from the curved
+    /// end, then the cover as far from the camera as it rests at the end of
+    /// its own wing. Never narrower than that wing.
+    static func namedWing(title: String, artist: String?, geometry: NotchGeometry) -> CGFloat {
+        let wing = geometry.compactActivityWingWidth
+        let shown = showsArtist(geometry) ? artist : nil
+        let named = endInset + wordsWidth(title: title, artist: shown) + spacing + wing - coverInset(geometry)
+        return max(wing, min(maximumWing, named.rounded(.up)))
+    }
+
+    /// The strip's sides while it names its song, short of the display's edge
+    /// and of the menus, which leave the island `room` beside the camera.
+    /// Nil when the strip has no wings, already shows the song between them,
+    /// or the song has no title to name.
+    static func namedWings(title: String?, artist: String?, geometry: NotchGeometry,
+                           room: CGFloat) -> NotchNoticeWings? {
+        let wing = geometry.compactActivityWingWidth
+        guard wing > 0, !fillsCameraGap(geometry), let title, !title.isEmpty else { return nil }
+        let artist = artist?.trimmingCharacters(in: .whitespaces)
+        let named = namedWing(title: title, artist: artist?.isEmpty == false ? artist : nil, geometry: geometry)
+        let leading = min(named, geometry.noticeWingWidth(preferred: named), max(0, room).rounded(.down))
+        return leading > wing ? NotchNoticeWings(leading: leading, trailing: wing) : nil
     }
 }
 

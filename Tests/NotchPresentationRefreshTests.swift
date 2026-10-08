@@ -63,10 +63,14 @@ enum NotchPresentationRefreshContract {
         let playback: NotchPlayback
         let artwork: NSImage?
         let tint: NotchArtworkTint?
+        var namedWing: CGFloat?
+        var namesSong = false
         var track: Int { playback.track }
         init(track: Int) { playback = NotchPlayback(track: track); artwork = nil; tint = nil }
-        init(playback: NotchPlayback, artwork: NSImage?, tint: NotchArtworkTint?, geometry: NotchGeometry) {
-            self.playback = playback; self.artwork = artwork; self.tint = tint
+        init(playback: NotchPlayback, artwork: NSImage?, tint: NotchArtworkTint?, geometry: NotchGeometry,
+             namedWing: CGFloat? = nil, namesSong: Bool = false) {
+            self.playback = playback; self.artwork = artwork; self.tint = tint; self.namedWing = namedWing
+            self.namesSong = namesSong
         }
     }
     struct NotchQuickAccessConfiguration {
@@ -119,6 +123,7 @@ enum NotchPresentationRefreshContract {
         var frame: CGRect = .zero
         var animatingFrame: CGRect?
         var activationRect = CGRect.zero
+        var willPress: (() -> Void)?
         var activate: (() -> Void)?
         func containsHover(_ point: CGPoint) -> Bool { !concealedForMissionControl && frame.contains(point) }
         func contains(_ point: CGPoint) -> Bool { !concealedForMissionControl && (animatingFrame ?? frame).contains(point) }
@@ -147,6 +152,7 @@ enum NotchPresentationRefreshContract {
         }
         func setActivationArea(_ rect: CGRect, title: String, willPress: @escaping () -> Void, activate: @escaping () -> Void) {
             activationRect = rect
+            self.willPress = willPress
             self.activate = activate
         }
     }
@@ -240,7 +246,29 @@ enum NotchPresentationRefreshContract {
                                          timerHasSession: session.hasSession,
                                          timerMode: session.hasSession ? session.mode : mode)
         }
-        var surfaceShift: CGFloat { 0 }
+        var surfaceShift: CGFloat = 0
+        var musicStripFitsInPlace = false
+        var musicStripShowsControl = false
+        var namedMusicWings: NotchNoticeWings?
+        var musicStripNamesSong = false
+        var musicStripStandIn: NotchCompactMusicSnapshot?
+        func musicStripSnapshot(for reading: NotchCompactMusicSnapshot) -> NotchCompactMusicSnapshot {
+            musicStripStandIn ?? reading
+        }
+        var musicStripPointer: NotchMusicStripPart?
+        var musicNamingWork: DispatchWorkItem?
+        var menuSpaceSyncs = 0
+        func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
+        /// The strip's pointer state, which the strip ends on its own, as
+        /// leaving the island does: a name, a held song, a part under the pointer.
+        var musicStripHover = false, musicStripHoverEnds = 0
+        func endMusicStripHover(leaving: Bool) -> Bool {
+            musicStripHoverEnds += 1
+            defer { musicStripHover = false }
+            return musicStripHover
+        }
+        var musicStripToggles = 0
+        @discardableResult func toggleMusicStripSong() -> Bool { musicStripToggles += 1; return true }
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
@@ -257,6 +285,127 @@ enum NotchPresentationRefreshContract {
         var edgeClicksEnabled = false
         func syncScreenEdgeClicks() { edgeClicksEnabled = true }
         func removeScreenEdgeClickMonitors() { edgeClicksEnabled = false }
+    }
+
+    /// The music strip naming its song eases to its width in place and keeps
+    /// the camera's button over the camera. A capsule's bars play or pause.
+    private static func musicStripChecks(_ suite: TestSuite) {
+        let strip = Service()
+        strip.expanded = false
+        strip.compactActivityIsVisible = true
+        strip.compactActivity = .music
+        strip.refreshPresentation(animated: false)
+        let centred = strip.windowHost!.activationRect
+        strip.musicStripFitsInPlace = true
+        strip.surfaceShift = -60
+        strip.refreshPresentation()
+        suite.expect(strip.windowHost?.steady == true && !strip.musicStripFitsInPlace,
+                     "naming the song eases the strip to its width once, without a swing")
+        suite.expect(strip.windowHost!.activationRect == centred.offsetBy(dx: 60, dy: 0)
+                     && strip.windowHost!.activationRect.width == strip.geometry.cameraWidth,
+                     "the camera's button stays over the camera while the strip reaches further left")
+        strip.refreshPresentation()
+        suite.expect(strip.windowHost?.steady == false, "later refreshes take the island's usual motion again")
+        strip.compactActivity = .timer
+        strip.musicStripFitsInPlace = true
+        strip.refreshPresentation()
+        suite.expect(strip.windowHost?.steady == false && !strip.musicStripFitsInPlace,
+                     "a request left over when the strip is gone never steadies another activity")
+
+        let capsule = Service()
+        capsule.expanded = false
+        capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                         compactSideRoom: 64, silhouette: .capsule)
+        capsule.compactActivityIsVisible = true
+        capsule.compactActivity = .music
+        capsule.musicStripShowsControl = true
+        capsule.refreshPresentation(animated: false)
+        capsule.windowHost?.activate?()
+        suite.expect(capsule.musicStripToggles == 1 && !capsule.expanded,
+                     "a click on a capsule's bars while they show the button plays or pauses in place")
+        capsule.musicStripShowsControl = false
+        capsule.windowHost?.activate?()
+        suite.expect(capsule.musicStripToggles == 1 && capsule.expanded,
+                     "anywhere else the capsule opens the island as before")
+        let hanging = Service()
+        hanging.expanded = false
+        hanging.compactActivityIsVisible = true
+        hanging.compactActivity = .music
+        hanging.musicStripShowsControl = true
+        hanging.refreshPresentation(animated: false)
+        hanging.windowHost?.activate?()
+        suite.expect(hanging.musicStripToggles == 0 && hanging.expanded,
+                     "the camera's own button beside a hanging strip always opens the island")
+
+        // A press that only plays or pauses leaves hover free to answer the
+        // pointer that stays, as a notification arriving under it.
+        let pressing = Service()
+        pressing.expanded = false
+        pressing.geometry = capsule.geometry
+        pressing.compactActivityIsVisible = true
+        pressing.compactActivity = .music
+        pressing.musicStripShowsControl = true
+        pressing.refreshPresentation(animated: false)
+        pressing.windowHost?.willPress?()
+        suite.expect(!pressing.hoverState.suppressed, "pressing a capsule's button leaves hover as it was")
+        pressing.musicStripShowsControl = false
+        pressing.windowHost?.willPress?()
+        suite.expect(pressing.hoverState.suppressed, "a press that opens the island still holds hover back")
+
+        // Whatever takes the strip's place ends the part under the pointer, and
+        // with the pointer off the island, the strip's name and held song.
+        for hide: (Service) -> Void in [{ $0.expanded = true; $0.compactActivityIsVisible = false },
+                                        { $0.notice = true; $0.compactActivityIsVisible = false },
+                                        { $0.compactActivity = .timer }] {
+            for stays in [false, true] {
+                let hidden = Service()
+                hidden.expanded = false
+                hidden.compactActivityIsVisible = true
+                hidden.compactActivity = .music
+                hidden.musicStripHover = true
+                hidden.musicStripPointer = .bars
+                hidden.refreshPresentation(animated: false)
+                suite.expect(hidden.musicStripHover && hidden.musicStripHoverEnds == 0 && hidden.musicStripPointer == .bars,
+                             "a strip on show keeps what it shows for the pointer through a refresh")
+                let frame = hidden.windowHost?.frame ?? .zero
+                NSEvent.mouseLocation = CGPoint(x: frame.midX, y: frame.midY)
+                hidden.inside = stays
+                hide(hidden)
+                hidden.refreshPresentation(animated: false)
+                suite.expect(hidden.musicStripPointer == nil, "the part under the pointer goes with the strip")
+                suite.expect(stays ? hidden.musicStripHover && hidden.musicStripHoverEnds == 0
+                                   : !hidden.musicStripHover && hidden.musicStripHoverEnds == 1 && hidden.menuSpaceSyncs == 1,
+                             stays ? "a notice or an opening under a still pointer keeps the strip's name and held song"
+                                   : "with the pointer gone, they end, and the menus' room follows the strip")
+                NSEvent.mouseLocation = .zero
+            }
+        }
+
+        // A strip leaves with the name it showed, which fades with it.
+        let leaving = Service()
+        leaving.expanded = false
+        leaving.compactActivityIsVisible = true
+        leaving.compactActivity = .music
+        leaving.namedMusicWings = NotchNoticeWings(leading: 140, trailing: 38)
+        leaving.musicStripNamesSong = true
+        leaving.rememberPresentedMusic(playback: NotchPlayback(track: 1), artwork: nil, tint: nil)
+        leaving.namedMusicWings = nil
+        leaving.musicStripNamesSong = false
+        leaving.compactActivity = nil
+        leaving.compactActivityIsVisible = false
+        suite.expect(leaving.compactMusicTransition(.none, animated: true) == .depart
+                     && leaving.departingMusic?.namedWing == 140 && leaving.departingMusic?.namesSong == true,
+                     "a strip naming its song departs named, as the island shrinks from its named shape")
+        leaving.compactActivity = .music
+        leaving.compactActivityIsVisible = true
+        leaving.rememberPresentedMusic(playback: NotchPlayback(track: 2), artwork: nil, tint: nil)
+        suite.expect(leaving.presentedMusic?.namedWing == nil && leaving.presentedMusic?.namesSong == false,
+                     "an unnamed strip departs unnamed")
+        leaving.musicStripStandIn = NotchCompactMusicSnapshot(track: 7)
+        leaving.musicStripNamesSong = true
+        leaving.rememberPresentedMusic(playback: NotchPlayback(track: 3), artwork: nil, tint: nil)
+        suite.expect(leaving.presentedMusic?.track == 7 && leaving.presentedMusic?.namesSong == true,
+                     "a held song standing in for a reading without a name leaves as the strip showed it, named")
     }
 
     static func run(_ suite: TestSuite) {
@@ -375,6 +524,7 @@ enum NotchPresentationRefreshContract {
         countdown.windowHost?.activate?()
         suite.expect(countdown.countdownOpenings == 1 && !countdown.expanded,
                      "the open island's close button still closes it while an event counts down")
+        musicStripChecks(suite)
         let fullscreenSimulated = Service()
         fullscreenSimulated.expanded = false
         fullscreenSimulated.geometry = NotchGeometry(screen: fullscreenSimulated.geometry.screen, safeAreaTop: 0, cameraWidth: 0,

@@ -1310,6 +1310,8 @@ struct NotchMascotTrackView: NSViewRepresentable {
 struct NotchMascotActivityVisit: ViewModifier {
     @ObservedObject var service: NotchService
     let track: NotchMascotTrack?
+    /// The island's own strip, the only one that names its song.
+    var ownStrip = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
@@ -1329,17 +1331,24 @@ struct NotchMascotActivityVisit: ViewModifier {
         let stepsAside = visit != nil && service.mascotStepsAside && !ownWing
         // A countdown is watched from the camera's left whatever the side.
         let rightWing = track?.mirrored == true && visit?.kind.watchesTimer == false
+        // Beside a strip naming its song, the black starts where the words
+        // end, which the cover's inset leaves less room before than spacing.
+        let clearance = ownStrip && !rightWing && service.namedMusicWings != nil
+            ? max(0, NotchMusicStripLayout.coverInset(service.compactActivityGeometry) - NotchMusicStripLayout.spacing) : 0
         content
             .opacity(stepsAside ? 0 : 1)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: stepsAside)
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .top) {
                 // Handed back with the strip, halfway home, so what it covered
-                // returns as it goes behind the camera.
+                // returns as it goes behind the camera. Laid out on the
+                // companion's own track, which stays on the camera however far
+                // a strip reaches to one side.
                 if ownWing, service.mascotStepsAside, let track, let hidden {
                     Color.black
-                        .frame(width: rightWing ? track.width - hidden.upperBound : hidden.lowerBound,
+                        .frame(width: rightWing ? track.width - hidden.upperBound : max(0, hidden.lowerBound - clearance),
                                height: track.height)
-                        .offset(x: rightWing ? hidden.upperBound : 0)
+                        .offset(x: rightWing ? hidden.upperBound : clearance)
+                        .frame(width: track.width, alignment: .leading)
                         .transition(.opacity)
                 }
             }
