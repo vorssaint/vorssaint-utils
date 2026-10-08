@@ -143,6 +143,57 @@ enum CommandBarRowShortcuts {
         shortcuts.first { $0.value == shortcut }?.key
     }
 
+    /// The panel-monitor drain for a recording whose event tap could not
+    /// exist (no Accessibility). A captured key's repeats and release stay
+    /// with the recording after it ends; a fresh press of the same key is
+    /// never swallowed for a release the monitor did not see. Debts survive
+    /// another capture until their own release, or until a fresh press steps
+    /// aside. The tap-based drain does the same inside `ShortcutRecordingTap`.
+    struct FallbackKeyRouter {
+        enum DownRoute: Equatable { case swallow, record }
+
+        /// Keys whose keyDown the recording handled: their repeats and release
+        /// belong to that hold, not to the bar.
+        private var swallowed = Set<Int64>()
+
+        mutating func routeDown(keyCode: Int64, captureIsActive: Bool,
+                                isRepeat: Bool) -> DownRoute {
+            if isRepeat {
+                if swallowed.contains(keyCode) { return .swallow }
+                if captureIsActive {
+                    // A hold that predates or survives this capture: the
+                    // recording owns it, the way the tap swallows every
+                    // repeat while a field records.
+                    swallowed.insert(keyCode)
+                    return .swallow
+                }
+                return .record
+            }
+            // A fresh press of a key we still owe or still hold is a press
+            // whose release the monitor never saw: the debt is dead, and
+            // this one routes as new.
+            swallowed.remove(keyCode)
+            if captureIsActive {
+                // The capture handles the press itself; the hold it leaves
+                // behind stays with the recording, the way `end` drains it.
+                swallowed.insert(keyCode)
+                return .record
+            }
+            return .record
+        }
+
+        /// Whether the release belongs to a key the capture handled.
+        mutating func swallowsUp(_ keyCode: Int64) -> Bool {
+            swallowed.remove(keyCode) != nil
+        }
+
+        var isEmpty: Bool { swallowed.isEmpty }
+
+        mutating func reset() {
+            swallowed.removeAll()
+        }
+    }
+
     /// Whether a combination is worth registering at all. A bare letter would
     /// take that letter away from every app on the Mac.
     static func isUsable(_ shortcut: GlobalShortcut) -> Bool {

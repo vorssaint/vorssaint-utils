@@ -100,9 +100,20 @@ final class CommandBarService: ObservableObject {
     /// above the list are about to act on.
     @Published private(set) var selectionPreview = ""
     @Published private(set) var selectedIndex = 0
+    /// How many columns the emoji grid is showing. The view measures the real
+    /// layout and reports it here; the arrow keys read it to walk a row instead
+    /// of a list. Zero outside the grid, where arrows mean what they always did.
+    @Published var emojiGridColumns = 0
     @Published private(set) var mode: Mode = .search
     @Published private(set) var presentationID = UUID()
     @Published private(set) var shortcutRegistrationFailed = false
+    /// Whether the emoji key's own registration was refused, because another
+    /// app got to the combination first. Shown in Settings so the key is not
+    /// a mystery.
+    @Published private(set) var emojiShortcutRegistrationFailed = false
+    /// Set when a sync switched the emoji key off because macOS answers its
+    /// combination and the take-over was never agreed. Settings says why.
+    @Published private(set) var emojiShortcutSwitchedOff = false
     /// Rows whose own combination the system refused, because another app got
     /// there first. Shown in Settings so the key is not a mystery.
     @Published private(set) var refusedRowShortcutKeys: Set<String> = []
@@ -142,9 +153,18 @@ final class CommandBarService: ObservableObject {
     var farewell = NotchMascotMood.wink
 
     private let hotkey = QuickToolHotkey(id: 20)
+    /// The emoji grid's own key. Unlike the bar's field key this one never
+    /// opens the field: it lands on the tiles, and takes the combination over
+    /// from the system emoji picker when the person accepts the offer.
+    /// Id 11 sits outside the 25+ range the capture tools count up from —
+    /// the shared handler routes by id, so a shared id would let the
+    /// capture tools' sync drop this hotkey out of its route.
+    private let emojiHotkey = QuickToolHotkey(id: 11)
     private var rowHotkeys: [QuickToolHotkey] = []
     private var panel: NSPanel?
     private var keyMonitor: Any?
+    /// The keyUp twin of `keyMonitor`, for the fallback drain's debts.
+    private var keyUpMonitor: Any?
     private var outsideClickMonitor: Any?
     private var localClickMonitor: Any?
     private var flagsMonitor: Any?
@@ -248,6 +268,7 @@ final class CommandBarService: ObservableObject {
     private init() {
         CommandBarLearning.discardLegacyQueryHabits()
         hotkey.onPress = { [weak self] in self?.toggle() }
+        emojiHotkey.onPress = { [weak self] in self?.toggleEmoji() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
     }
@@ -262,6 +283,7 @@ final class CommandBarService: ObservableObject {
                                             fallback: .commandBarDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
                                                   storageKey: DefaultsKey.commandBarShortcut)
+        syncEmojiShortcut()
         reloadPreferenceCaches()
         syncRowHotkeys()
         if available {
@@ -312,6 +334,7 @@ final class CommandBarService: ObservableObject {
     func suspend() {
         pendingAppShortcut.cancel()
         hotkey.unregister()
+        emojiHotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
         hide()
@@ -326,12 +349,63 @@ final class CommandBarService: ObservableObject {
         isVisible ? hide() : show()
     }
 
+    /// The emoji key's own entry: never the bare field, always the grid. The
+    /// same flip as `toggle`, with the category pre-armed before the results
+    /// read it.
+    func toggleEmoji() {
+        guard AppFeature.commandBar.isAvailable else { return }
+        if isVisible, activeCategory == .emoji {
+            hide()
+            return
+        }
+        show()
+        activeCategory = .emoji
+        selectedID = nil
+        lastRankedQuery = nil
+        refreshResults()
+    }
+
+    /// The emoji grid key's registration, mirroring the field key's: an
+    /// enabled shortcut claims itself, and a disable hands it back. A refusal
+    /// from macOS is not swallowed: Settings names it beside the toggle. A
+    /// macOS key whose take-over was never agreed is put back down here too —
+    /// a restored backup or an older build's leftovers must not register
+    /// beside the system picker; the toggle asks for the take-over again. The
+    /// question is the same one Settings asks: keys this app holds count as
+    /// macOS's, so the two paths can never disagree about arming.
+    func syncEmojiShortcut() {
+        let available = AppFeature.commandBar.isAvailable
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarEmojiShortcut,
+                                            fallback: .commandBarEmojiDefault)
+        var enabled = available
+            && UserDefaults.standard.bool(forKey: DefaultsKey.commandBarEmojiShortcutEnabled)
+        emojiShortcutSwitchedOff = false
+        if enabled, !SystemShortcutTakeoverSupport.emojiShortcutMayArm(
+            conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(
+                shortcut, for: .commandBarEmoji),
+            takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.commandBarEmojiShortcut)) {
+            enabled = false
+            emojiShortcutSwitchedOff = true
+            UserDefaults.standard.set(false, forKey: DefaultsKey.commandBarEmojiShortcutEnabled)
+        }
+        // Synced on both turns of the toggle: the unregister on the way off is
+        // what hands ⌃⌘Space back to the system picker.
+        let registered = emojiHotkey.sync(enabled: enabled, shortcut: shortcut,
+                                          storageKey: DefaultsKey.commandBarEmojiShortcut)
+        emojiShortcutRegistrationFailed = enabled && !registered
+    }
+
     func show() {
         show(promptingFor: nil)
     }
 
     private func show(promptingFor stableKey: String?) {
         guard AppFeature.commandBar.isAvailable else { return }
+        // A shortcut that opens the bar or the grid over an uninstall review
+        // would strand the selected app and its checklist in the shared
+        // uninstaller, the way hide() once skipped the same exit. Leaving the
+        // review first is the one cleanup every opening owes it.
+        exitUninstallReviewIfNeeded()
         let panel = ensurePanel()
         // The window that shows the bar takes the keyboard before anything is
         // prepared, so keys typed right after the shortcut wait in this app
@@ -545,6 +619,22 @@ final class CommandBarService: ObservableObject {
         hide()
     }
 
+    /// The exit an uninstall review owes the shared uninstaller, whatever
+    /// opens over it: the selected app and its scanned checklist go, while a
+    /// removal - Homebrew or plain - that is still actually running in the
+    /// background stays.
+    private func exitUninstallReviewIfNeeded() {
+        switch mode {
+        case .uninstallReview, .uninstallHomebrewConfirm:
+            let uninstaller = AppUninstaller.shared
+            if !uninstaller.isRemoving {
+                uninstaller.reset()
+            }
+        default:
+            break
+        }
+    }
+
     func hide() {
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
@@ -559,6 +649,12 @@ final class CommandBarService: ObservableObject {
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
+        // Without the tap the monitors own the fallback debts; with the panel
+        // gone they stop seeing events, so the debts would only swallow
+        // fresh presses of keys the keyboard no longer holds. (A physical
+        // hold survives the close in frontmost-app land — the one leak the
+        // fallback path cannot cover, and the reason the tap is preferred.)
+        if !recordingTapAvailable { fallbackRouter.reset() }
         // Clearing the field on the way out would otherwise rebuild the whole
         // browse list for a panel nobody can see.
         isTearingDown = true
@@ -580,17 +676,7 @@ final class CommandBarService: ObservableObject {
         // click) skipped the reset stepBack() does for the same mode -
         // AppUninstaller kept its selected target and scanned checklist,
         // which then showed up unprompted in Settings and the menu panel.
-        // Guarded the same way: don't tear down a removal - Homebrew or
-        // plain - that's still actually running in the background.
-        switch mode {
-        case .uninstallReview, .uninstallHomebrewConfirm:
-            let uninstaller = AppUninstaller.shared
-            if !uninstaller.isRemoving {
-                uninstaller.reset()
-            }
-        default:
-            break
-        }
+        exitUninstallReviewIfNeeded()
         mode = .search
         uninstallFinderRequestID = nil
         // A selection belongs to the moment the bar was opened. Keeping it
@@ -801,6 +887,8 @@ final class CommandBarService: ObservableObject {
         storeRowShortcut(nil, forKey: key)
     }
 
+    /// The one write path for a row binding: the ordinary save, the offer's
+    /// acceptance and the removal all land here.
     private func storeRowShortcut(_ shortcut: GlobalShortcut?, forKey key: String) {
         let next = CommandBarRowShortcuts.setting(shortcut, for: key, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
@@ -977,6 +1065,15 @@ final class CommandBarService: ObservableObject {
     func goHome() {
         if !query.isEmpty { query = "" }
         if activeCategory != nil { setCategory(nil) }
+    }
+
+    /// The emoji grid's own door, from the row the search offers: the query
+    /// that found the door is left at the threshold, so the grid opens as the
+    /// full browse instead of a search-results list.
+    func openEmojiGrid() {
+        if !isVisible { show() }
+        query = ""
+        setCategory(.emoji)
     }
 
     func setCategory(_ source: CommandBarSource?) {
@@ -1950,6 +2047,17 @@ final class CommandBarService: ObservableObject {
         select(next < 0 ? next + rows.count : next)
     }
 
+    /// Walking the emoji grid: Left and Right step over one tile, Up and Down
+    /// jump a whole row — unless the target row stops early, where the walk
+    /// keeps to its edge instead of sliding sideways. Unlike the list, the
+    /// walk clamps at the ends instead of wrapping, the way the keyboard
+    /// reaches through Finder's own icon view.
+    func moveSelectionInGrid(_ dx: Int, _ dy: Int, columns: Int) {
+        select(CommandBarEmojiTileSize.gridTarget(from: selectedIndex,
+                                                  dx: dx, dy: dy,
+                                                  columns: columns, count: rows.count))
+    }
+
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
@@ -1989,6 +2097,31 @@ final class CommandBarService: ObservableObject {
 
     var selectedEntry: CommandBarEntry? {
         rows.indices.contains(selectedIndex) ? rows[selectedIndex] : nil
+    }
+
+    /// Whether the emoji grid is what the list area shows: the emoji category,
+    /// browsed empty or filtered by what is typed. The view reports the column
+    /// count on top of this; the arrow keys only walk the grid once it has.
+    var isEmojiGridOpen: Bool {
+        activeCategory == .emoji
+    }
+
+    /// A typed query whose whole result set the emoji catalog produced: the
+    /// grid serves it the same way, so a search of emoji looks like the
+    /// browsing of them. The browser row itself is not catalog produce — its
+    /// title is a bare word, and a grid tile that took it for a glyph would
+    /// draw the word "Emoji" the size of an emoji.
+    var isEmojiResultSet: Bool {
+        activeCategory == nil
+            && !rows.isEmpty
+            && rows.allSatisfy { $0.id != CommandBarPreferences.emojiBrowserRowID
+                                 && (CommandBarSource.emoji.idPrefix.map($0.id.hasPrefix) ?? false) }
+    }
+
+    /// Whether the arrow keys walk the tiles: the grid is showing and the
+    /// view has reported its geometry.
+    var isEmojiGridNavigable: Bool {
+        (isEmojiGridOpen || isEmojiResultSet) && emojiGridColumns > 1
     }
 
     /// A row by its id, from the catalog first and from what is on screen
@@ -2419,9 +2552,16 @@ final class CommandBarService: ObservableObject {
         // never reaches the local monitor. It quits Vorssaint instead of
         // landing on the card (issue #1193). When Accessibility cannot
         // create the tap, the monitor below still records as before.
-        ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
+        // With the tap, the held-key drain lives there; without it, the
+        // panel's monitors own the drain through `fallbackRouter`.
+        recordingTapAvailable = ShortcutRecordingTap.begin { [weak self] keyCode, modifiers, _ in
             self?.handleCaptureKey(keyCode: keyCode, modifiers: modifiers)
         }
+        // With the tap the held-key drain lives there; without it the panel's
+        // monitors keep the captured key's repeats and release paired. A tap
+        // switch is the only reset: monitor-side debts are dead the moment the
+        // tap owns the drain.
+        if recordingTapAvailable { fallbackRouter.reset() }
         mode = .capturingShortcut(entryID: entry.id)
         aliasWarning = nil
         refreshPanelLayout()
@@ -2431,7 +2571,6 @@ final class CommandBarService: ObservableObject {
         ShortcutRecordingTap.end()
         ShortcutCapture.end()
     }
-
     /// One press while the capture card is up. Shared by the recording tap
     /// and the local monitor fallback.
     private func handleCaptureKey(keyCode: Int64, modifiers: GlobalShortcutModifiers) {
@@ -2474,6 +2613,11 @@ final class CommandBarService: ObservableObject {
     @Published private(set) var actionIndex = 0
     /// Set when the name being typed already belongs to another row.
     @Published private(set) var aliasWarning: String?
+    /// Whether the recording tap could exist. When it could not (no
+    /// Accessibility), the panel's monitors own the captured key's held-key
+    /// drain through `fallbackRouter`.
+    private var recordingTapAvailable = true
+    private var fallbackRouter = CommandBarRowShortcuts.FallbackKeyRouter()
 
     func moveActionSelection(_ delta: Int) {
         let count = actionRows.count
@@ -3333,6 +3477,24 @@ final class CommandBarService: ObservableObject {
             // speaks, so composition always wins.
             if self.fieldIsComposing(in: panel) { return event }
 
+            // Without the recording tap the monitors keep a captured key's
+            // repeats and release with the recording after it ends. A fresh
+            // press is never swallowed for a release the monitor did not see.
+            // The tap-based drain does the same inside the tap.
+            if !self.recordingTapAvailable {
+                var capturing = false
+                if case .capturingShortcut = self.mode { capturing = true }
+                switch self.fallbackRouter.routeDown(
+                    keyCode: Int64(event.keyCode),
+                    captureIsActive: capturing,
+                    isRepeat: event.isARepeat) {
+                case .swallow:
+                    return nil
+                case .record:
+                    break
+                }
+            }
+
             // Listening for a combination: every key belongs to the person,
             // except the two that mean "never mind" and "take it off". The
             // recording tap is the primary path; this is the fallback when
@@ -3421,19 +3583,44 @@ final class CommandBarService: ObservableObject {
                 self.runSelected()
                 return nil
             case kVK_UpArrow:
-                if case .actions = self.mode { self.moveActionSelection(-1) } else { self.moveSelection(-1) }
+                // Keep the existing selection behavior even while a shortcut
+                // modifier is still held.
+                if case .actions = self.mode { self.moveActionSelection(-1) }
+                else if self.isEmojiGridNavigable {
+                    self.moveSelectionInGrid(0, -1, columns: self.emojiGridColumns)
+                }
+                else { self.moveSelection(-1) }
                 return nil
             case kVK_DownArrow:
                 if case .actions = self.mode {
                     self.moveActionSelection(1)
+                } else if self.isEmojiGridNavigable {
+                    self.moveSelectionInGrid(0, 1, columns: self.emojiGridColumns)
                 } else if !self.peekHome() {
                     self.moveSelection(1)
                 }
                 return nil
             case kVK_LeftArrow:
-                // Handed back untouched when the field has text in it.
+                // Bare arrows walk tiles. Modified arrows keep their field
+                // meaning when text is present; with an empty field they also
+                // walk the grid, including while its shortcut modifiers remain held.
+                if CommandBarEmojiGridNavigation.consumesHorizontalArrow(
+                    gridIsNavigable: self.isEmojiGridNavigable,
+                    modifiersPresent: !navigationModifiers.isEmpty,
+                    queryIsEmpty: self.query.isEmpty) {
+                    self.moveSelectionInGrid(-1, 0, columns: self.emojiGridColumns)
+                    return nil
+                }
+                // Handed back untouched when there is no grid to walk.
                 return self.moveCategory(-1) ? nil : event
             case kVK_RightArrow:
+                if CommandBarEmojiGridNavigation.consumesHorizontalArrow(
+                    gridIsNavigable: self.isEmojiGridNavigable,
+                    modifiersPresent: !navigationModifiers.isEmpty,
+                    queryIsEmpty: self.query.isEmpty) {
+                    self.moveSelectionInGrid(1, 0, columns: self.emojiGridColumns)
+                    return nil
+                }
                 return self.moveCategory(1) ? nil : event
             case kVK_Tab:
                 self.completeSelection()
@@ -3481,6 +3668,17 @@ final class CommandBarService: ObservableObject {
                 return event
             }
         }
+        // The fallback drain's debts live in these monitors: a captured
+        // key's release ends its hold. With the tap the drain is the tap's
+        // own; the monitors then only watch, and this stays a no-op.
+        keyUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            if !self.recordingTapAvailable,
+               self.fallbackRouter.swallowsUp(Int64(event.keyCode)) {
+                return nil
+            }
+            return event
+        }
         flagsMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
             guard let self else { return event }
             let held = event.modifierFlags.contains(.command)
@@ -3522,6 +3720,10 @@ final class CommandBarService: ObservableObject {
         if let keyMonitor {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
+        }
+        if let keyUpMonitor {
+            NSEvent.removeMonitor(keyUpMonitor)
+            self.keyUpMonitor = nil
         }
         if let localClickMonitor {
             NSEvent.removeMonitor(localClickMonitor)
