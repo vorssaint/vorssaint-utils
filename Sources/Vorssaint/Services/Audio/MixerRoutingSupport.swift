@@ -287,6 +287,14 @@ enum MixerRoutingSupport {
         Set(engineOutputs.compactMap { id, output in targets[id] == output ? id : nil })
     }
 
+    /// Which processes a level watch has to start and stop listening to so
+    /// it hears exactly `wanted`: only the difference, never one it already
+    /// hears.
+    static func listenerChanges<Object: Hashable>(listened: Set<Object>, wanted: Set<Object>)
+        -> (add: Set<Object>, remove: Set<Object>) {
+        (wanted.subtracting(listened), listened.subtracting(wanted))
+    }
+
     /// Channels of the stream a stereo app plays into: the one holding the
     /// output's preferred stereo pair, whose left channel counts from 1. A
     /// pair outside every stream falls back to the first stream.
@@ -932,5 +940,44 @@ final class TapLevelRamp {
             seconds: Double(AudioConvertHostTimeToNanos(elapsed)) / 1_000_000_000)
         applied = value
         return value
+    }
+}
+
+/// Names Core Audio listener registrations by number.
+///
+/// A listener registered with a plain callback gets its client pointer back
+/// on a HAL thread, and a callback can still be on its way when its owner
+/// goes away. The pointer is a number looked up here, never an address, so a
+/// late callback finds nothing rather than freed memory, and the owner is
+/// held weakly, so a registration the HAL never gives back keeps nothing
+/// alive. A listener block is no way out: handing one back for removal is
+/// reported done while it keeps firing (measured 2026-10-07).
+enum AudioListenerClients {
+    private struct Entry {
+        weak var owner: AnyObject?
+    }
+
+    private static let lock = NSLock()
+    private static var entries: [UInt: Entry] = [:]
+    private static var counter: UInt = 0
+
+    /// A client pointer no other registration holds. Never dereferenced.
+    static func reserve(for owner: AnyObject) -> UnsafeMutableRawPointer {
+        lock.withLock {
+            counter &+= 1
+            if counter == 0 { counter = 1 }
+            entries[counter] = Entry(owner: owner)
+            // A counter that never reaches zero always makes a usable value.
+            return UnsafeMutableRawPointer(bitPattern: counter).unsafelyUnwrapped
+        }
+    }
+
+    static func owner(of client: UnsafeMutableRawPointer?) -> AnyObject? {
+        guard let client else { return nil }
+        return lock.withLock { entries[UInt(bitPattern: client)]?.owner }
+    }
+
+    static func forget(_ client: UnsafeMutableRawPointer) {
+        lock.withLock { entries[UInt(bitPattern: client)] = nil }
     }
 }

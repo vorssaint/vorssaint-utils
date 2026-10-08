@@ -373,6 +373,33 @@ enum MixerFeatureTests {
         suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [2],
                                                               preferredLeftChannel: 9) == 2,
                      "a stereo pair outside every stream falls back to the first stream")
+        // Listener registrations are named by number, so a callback that
+        // arrives late finds nothing once its owner forgot it or went away.
+        final class ListenerOwner {}
+        var listenerOwner: ListenerOwner? = ListenerOwner()
+        let firstClient = AudioListenerClients.reserve(for: listenerOwner!)
+        let secondClient = AudioListenerClients.reserve(for: listenerOwner!)
+        suite.expect(firstClient != secondClient
+                     && AudioListenerClients.owner(of: firstClient) === listenerOwner,
+                     "each listener registration gets its own number that leads back to its owner")
+        AudioListenerClients.forget(firstClient)
+        suite.expect(AudioListenerClients.owner(of: firstClient) == nil
+                     && AudioListenerClients.owner(of: secondClient) === listenerOwner,
+                     "a forgotten registration finds nothing while the others still do")
+        listenerOwner = nil
+        suite.expect(AudioListenerClients.owner(of: secondClient) == nil,
+                     "a listener registration never keeps its owner alive")
+        AudioListenerClients.forget(secondClient)
+        suite.expect(AudioListenerClients.owner(of: nil) == nil,
+                     "a callback without a client finds nothing")
+        let listenerChanges = MixerRoutingSupport.listenerChanges(listened: Set([1, 2, 3]),
+                                                                  wanted: Set([2, 3, 4]))
+        suite.expect(listenerChanges.add == [4] && listenerChanges.remove == [1],
+                     "following the process list touches only the processes that arrived or left")
+        let steadyListeners = MixerRoutingSupport.listenerChanges(listened: Set([5, 6]),
+                                                                  wanted: Set([6, 5]))
+        suite.expect(steadyListeners.add.isEmpty && steadyListeners.remove.isEmpty,
+                     "processes still present keep their listeners")
         suite.expect(MixerRoutingSupport.stereoStreamChannels(streamChannels: [],
                                                               preferredLeftChannel: 1) == nil,
                      "an output without streams reports nothing")
@@ -637,7 +664,7 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
-        let levelWatch = mixerCode.range(of: "private final class LevelCompensationWatch")
+        let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)
                     .map { String(mixerCode[start.upperBound..<$0.lowerBound]) }

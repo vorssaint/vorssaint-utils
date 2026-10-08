@@ -2281,7 +2281,7 @@ private protocol GainEngine: AnyObject {
     func stop()
 }
 
-/// Keeps an engine's tap level correct for the output its app plays to.
+/// Keeps a tap's level correct for the outputs its processes play to.
 ///
 /// The stereo mixdown tap loses level according to that output
 /// (`MixerRoutingSupport.tapLevelCompensation`), and the app can move to
@@ -2290,11 +2290,23 @@ private protocol GainEngine: AnyObject {
 /// correction is read again at once, off the audio thread. Without that, an
 /// app moving from a wide output to a stereo one would play several times
 /// too loud until something else refreshed it.
-@available(macOS 14.4, *)
-private final class LevelCompensationWatch {
-    private let objects: [AudioObjectID]
+///
+/// A tap that mixes every process but a few, like the screen recorder's,
+/// follows them as they come and go, since a video started mid recording can
+/// play through a process that was not there before. Only the processes that
+/// arrived or left change their listeners, and a change that leaves the
+/// watch's processes as they were costs no read.
+final class LevelCompensationWatch {
+    /// Touched only on `queue` once the watch follows the process list.
+    private var objects: [AudioObjectID]
+    /// Set when the watch follows every process but these.
+    private let excluded: Set<AudioObjectID>?
     private let store: (Float) -> Void
+    /// Guards the listener bookkeeping, which a followed process list
+    /// changes on `queue` while `stopListening` may run on a teardown queue.
+    private let listenLock = NSLock()
     private var listenedObjects: [AudioObjectID] = []
+    private var listensToProcessList = false
     private var client: UnsafeMutableRawPointer?
     /// One read waits at most, however often a slider drag or a burst of
     /// announcements asks for one. An urgent request among them is read even
@@ -2317,8 +2329,10 @@ private final class LevelCompensationWatch {
     private static let firstReadWait = DispatchTimeInterval.milliseconds(50)
     private let firstRead = DispatchSemaphore(value: 0)
 
-    private init(objects: [AudioObjectID], store: @escaping (Float) -> Void) {
+    private init(objects: [AudioObjectID], excluded: Set<AudioObjectID>? = nil,
+                 store: @escaping (Float) -> Void) {
         self.objects = objects
+        self.excluded = excluded
         self.store = store
     }
 
@@ -2344,6 +2358,25 @@ private final class LevelCompensationWatch {
             watch.client = client
         }
         watch.queue.async {
+            watch.read()
+            watch.firstRead.signal()
+        }
+        return watch
+    }
+
+    /// Follows every process but these, read the same way. The process list
+    /// is listened to first, so a process that arrives while the first read
+    /// runs is not missed.
+    static func started(everyProcessExcept excluded: [AudioObjectID],
+                        store: @escaping (Float) -> Void) -> LevelCompensationWatch {
+        let watch = LevelCompensationWatch(objects: [], excluded: Set(excluded), store: store)
+        let client = Unmanaged.passRetained(watch).toOpaque()
+        watch.client = client
+        var address = Self.processListAddress
+        watch.listensToProcessList = AudioObjectAddPropertyListener(
+            AudioObjectID(kAudioObjectSystemObject), &address, Self.listener, client) == noErr
+        watch.queue.async {
+            _ = watch.followProcessList()
             watch.read()
             watch.firstRead.signal()
         }
@@ -2384,6 +2417,8 @@ private final class LevelCompensationWatch {
     /// block alive long after it ran, and the listener retain already holds
     /// the watch until the removal.
     func stop() {
+        // No tap, and so no watch, exists before macOS 14.4.
+        guard #available(macOS 14.4, *) else { return }
         TapGainEngine.teardownQueue.addOperation { [weak self] in self?.stopListening() }
     }
 
@@ -2392,18 +2427,59 @@ private final class LevelCompensationWatch {
     /// already quit is the exception, because the HAL no longer knows its
     /// object and nothing can call back on it.
     private func stopListening() {
+        let (client, listened, processList) = listenLock.withLock {
+            defer {
+                self.client = nil
+                listenedObjects.removeAll()
+                listensToProcessList = false
+            }
+            return (self.client, listenedObjects, listensToProcessList)
+        }
         guard let client else { return }
-        self.client = nil
         var removedAll = true
-        for object in listenedObjects {
+        for object in listened {
             var address = Self.address
             let status = AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
             if status != noErr && status != kAudioHardwareBadObjectError {
                 removedAll = false
             }
         }
-        listenedObjects.removeAll()
+        if processList {
+            var address = Self.processListAddress
+            if AudioObjectRemovePropertyListener(AudioObjectID(kAudioObjectSystemObject), &address,
+                                                 Self.listener, client) != noErr {
+                removedAll = false
+            }
+        }
         if removedAll { Unmanaged<LevelCompensationWatch>.fromOpaque(client).release() }
+    }
+
+    /// Picks up the processes that arrived and lets go of those that left,
+    /// answering whether anything changed. Runs on `queue` only.
+    private func followProcessList() -> Bool {
+        guard let excluded else { return false }
+        let current = AppVolumeMixer.audioProcessObjects().filter { $0 != 0 && !excluded.contains($0) }
+        guard Set(current) != Set(objects) else { return false }
+        objects = current
+        listenLock.withLock {
+            // Stopped: nothing may be added that no one would remove.
+            guard let client else { return }
+            let changes = MixerRoutingSupport.listenerChanges(listened: Set(listenedObjects),
+                                                              wanted: Set(current))
+            for object in changes.remove {
+                var address = Self.address
+                // A process that already quit took its listener with it.
+                AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
+            }
+            listenedObjects.removeAll { changes.remove.contains($0) }
+            for object in changes.add {
+                var address = Self.address
+                if AudioObjectAddPropertyListener(object, &address, Self.listener, client) == noErr {
+                    listenedObjects.append(object)
+                }
+            }
+        }
+        return true
     }
 
     /// Runs on `queue` only.
@@ -2456,10 +2532,45 @@ private final class LevelCompensationWatch {
                                                             mScope: kAudioObjectPropertyScopeOutput,
                                                             mElement: kAudioObjectPropertyElementMain)
 
-    private static let listener: AudioObjectPropertyListenerProc = { _, _, _, client in
+    private static let processListAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyProcessObjectList,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    private static let listener: AudioObjectPropertyListenerProc = { object, _, _, client in
         guard let client else { return noErr }
-        Unmanaged<LevelCompensationWatch>.fromOpaque(client).takeUnretainedValue().refresh(immediately: true)
+        let watch = Unmanaged<LevelCompensationWatch>.fromOpaque(client).takeUnretainedValue()
+        if object == AudioObjectID(kAudioObjectSystemObject) {
+            watch.queue.async {
+                if watch.followProcessList() { watch.refresh(immediately: true) }
+            }
+        } else {
+            watch.refresh(immediately: true)
+        }
         return noErr
+    }
+}
+
+/// A float the audio thread reads while another thread replaces it, one
+/// whole value at a time and without a lock.
+final class AtomicFloatBox {
+    private var bits: Int32
+
+    init(_ value: Float) {
+        bits = Int32(bitPattern: value.bitPattern)
+    }
+
+    var value: Float {
+        get {
+            Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits)))
+        }
+        set {
+            let replacement = Int32(bitPattern: newValue.bitPattern)
+            while true {
+                let current = OSAtomicAdd32Barrier(0, &bits)
+                if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
+            }
+        }
     }
 }
 
@@ -2474,27 +2585,6 @@ private final class TapGainEngine: GainEngine {
     var gain: Float {
         get { gainBox.value }
         set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
-    }
-
-    private final class AtomicFloatBox {
-        private var bits: Int32
-
-        init(_ value: Float) {
-            bits = Int32(bitPattern: value.bitPattern)
-        }
-
-        var value: Float {
-            get {
-                Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits)))
-            }
-            set {
-                let replacement = Int32(bitPattern: newValue.bitPattern)
-                while true {
-                    let current = OSAtomicAdd32Barrier(0, &bits)
-                    if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
-                }
-            }
-        }
     }
 
     private final class AtomicCycleBox {
@@ -2779,21 +2869,6 @@ private final class AirPlayGainEngine: GainEngine {
     let outputDeviceUID: String
     let clockDeviceUID: String?
     private let appID: String
-
-    private final class AtomicFloatBox {
-        private var bits: Int32
-        init(_ value: Float) { bits = Int32(bitPattern: value.bitPattern) }
-        var value: Float {
-            get { Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits))) }
-            set {
-                let replacement = Int32(bitPattern: newValue.bitPattern)
-                while true {
-                    let current = OSAtomicAdd32Barrier(0, &bits)
-                    if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
-                }
-            }
-        }
-    }
 
     private final class AtomicCycleBox {
         private var bits: Int64 = 0
