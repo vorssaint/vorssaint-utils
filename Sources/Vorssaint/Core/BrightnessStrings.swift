@@ -48,6 +48,7 @@ struct BrightnessFeatureStrings {
 extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -105,6 +106,45 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "Show brightness in the Dynamic Island?",
         islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
         islandPromptKeepOff: "Keep Off"
+    )
+
+    static let sv = BrightnessFeatureStrings(
+        pageTitle: "Skärmar",
+        hubDescription: "Ljusstyrke- och strömreglage för alla skärmar",
+        enable: "Styr skärmar",
+        enableCaption: "Reglage för ljusstyrka och på/av för den inbyggda och externa skärmar här och i menyradspanelen.",
+        externalCaption: "Externa skärmar justeras med samma protokoll som deras egna knappar. När anslutningen inte klarar det, exempelvis med HDMI-adaptrar, tonar reglaget ned bilden i stället så att ljusstyrkan kan styras ändå.",
+        noDisplays: "Ingen skärm hittades.",
+        displayOff: "AV",
+        turnOffDisplay: "Stäng av skärmen",
+        turnOnDisplay: "Slå på skärmen",
+        lastDisplayCaption: "Minst en skärm måste vara på.",
+        switchUnavailable: "Det går inte att växla skärm på den här datorn.",
+        switchFailed: "Det gick inte att ändra skärmen.",
+        openLidToEnable: "Öppna locket för att slå på den inbyggda skärmen.",
+        keysToggle: "Ljusstyrketangenterna följer pekaren",
+        keysCaption: "Tangentbordets ljusstyrketangenter ändrar skärmen under pekaren.",
+        keyStep: "Steg för ljusstyrketangenter",
+        keyStepCaption: "Mindre steg för varje tryck på ljusstyrketangenterna och kortkommandon för skärmens ljusstyrka.",
+        keyStepStandard: "Standard",
+        keyStepHalf: "Halva steg",
+        keyStepQuarter: "Kvartssteg",
+        osdToggle: "Visa ljusstyrka vid justering",
+        osdCaption: "Visar ljusstyrkan i procent när du använder ljusstyrketangenter eller reglage.",
+        displayBrightnessShortcuts: "Använd kortkommandon för skärmens ljusstyrka",
+        displayBrightnessShortcutCaption: "Kortkommandon justerar huvudskärmen eller skärmen under pekaren när pekarföljning är på.",
+        displayBrightnessDecrease: "Minska skärmens ljusstyrka",
+        displayBrightnessIncrease: "Öka skärmens ljusstyrka",
+        keyboardLight: "Tangentbordsljus",
+        keyboardLightCaption: "Slår på eller av tangentbordets bakgrundsbelysning.",
+        keyboardBrightnessShortcuts: "Använd kortkommandon för tangentbordets ljusstyrka",
+        keyboardBrightnessDecrease: "Minska tangentbordets ljusstyrka",
+        keyboardBrightnessIncrease: "Öka tangentbordets ljusstyrka",
+        softwareDimming: "Tona ned bilden",
+        extendedDimming: "Extra neddimning",
+        islandPromptTitle: "Visa ljusstyrka i Dynamic Island?",
+        islandPromptMessage: "Dynamic Island visar ljusstyrkeändringar bara när ”Styr skärmar” är på i skärminställningarna.",
+        islandPromptKeepOff: "Fortsätt ha avstängt"
     )
 
     static let ptBR = BrightnessFeatureStrings(

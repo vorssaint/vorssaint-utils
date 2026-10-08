@@ -64,6 +64,7 @@ struct MediaImageConverterStrings {
 
     static func localized(_ language: AppLanguage) -> MediaImageConverterStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -141,6 +142,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "%d images saved",
         batchPartialFormat: "%d saved, %d failed",
         batchSummaryHeaderFormat: "%d saved, %d failed",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let sv = MediaImageConverterStrings(
+        filesSelectedFormat: "%d filer valda",
+        profile: "Profil",
+        noProfile: "Ingen profil",
+        profileName: "Profilnamn",
+        saveAsNew: "Spara som ny",
+        updateProfile: "Uppdatera",
+        deleteProfile: "Radera profil",
+        profileModified: "Ändrad",
+        profileDefaultNameFormat: "Profil %d",
+        presetWeb: "Webb",
+        presetSocial: "Sociala medier",
+        presetDocs: "Dokument",
+        resize: "Ändra storlek",
+        resizeNone: "Ingen ändring",
+        resizeMax: "Längsta sida",
+        resizeWidth: "Bredd",
+        resizeHeight: "Höjd",
+        resizeExact: "Anpassad",
+        exactStretch: "Sträck ut",
+        exactFit: "Anpassa",
+        exactFill: "Fyll",
+        height: "Höjd",
+        watermark: "Vattenstämpel",
+        watermarkOff: "AV",
+        watermarkText: "Text",
+        watermarkLogo: "Logotyp",
+        watermarkBoth: "Text + logotyp",
+        watermarkTextPlaceholder: "Vattenstämpeltext",
+        noLogo: "Ingen logotyp",
+        chooseLogo: "Välj logotyp",
+        position: "Placering",
+        topLeft: "Överst till vänster",
+        topRight: "Överst till höger",
+        center: "Mitten",
+        bottomLeft: "Nederst till vänster",
+        bottomRight: "Nederst till höger",
+        opacity: "Opacitet",
+        margin: "Marginal",
+        scale: "Skala",
+        rename: "Byt namn",
+        preview: "Förhandsvisning",
+        outputName: "Utdatafilnamn",
+        background: "Bakgrund",
+        backgroundTransparent: "Genomskinlig",
+        backgroundWhite: "Vit",
+        backgroundBlack: "Svart",
+        preserveDate: "Behåll ursprungligt ändringsdatum",
+        saveInSubfolder: "Spara i undermappen ”Converted”",
+        moreOptions: "Fler alternativ",
+        tooLarge: "Dessa dimensioner är för stora för att behandlas säkert. Välj en mindre storlek.",
+        copySummary: "Kopiera sammanfattning",
+        savedBytesFormat: "%@ sparat",
+        grewBytesFormat: "%@ större",
+        batchSavedFormat: "%d bilder sparade",
+        batchPartialFormat: "%d sparade, %d misslyckades",
+        batchSummaryHeaderFormat: "%d sparade, %d misslyckades",
         batchSummaryItemFormat: "%@ -> %@"
     )
 

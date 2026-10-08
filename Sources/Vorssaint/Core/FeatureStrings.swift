@@ -6,6 +6,7 @@ import Foundation
 enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -26,6 +27,7 @@ enum FeatureStrings {
 
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -46,6 +48,7 @@ enum FeatureStrings {
 
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -66,6 +69,7 @@ enum FeatureStrings {
 
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -86,6 +90,7 @@ enum FeatureStrings {
 
     static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -123,6 +128,8 @@ struct MixerFeatureStrings {
     let actions: String
 
     static let enUS = MixerFeatureStrings(hideInactiveApps: "Hide inactive apps", pin: "Pin to Top", unpin: "Unpin", moveUp: "Move Up", moveDown: "Move Down", pinFirst: "Pin to Front", moveLeft: "Move Left", moveRight: "Move Right", arrange: "Hold Command and drag to reorder", actions: "Actions")
+
+    static let sv = MixerFeatureStrings(hideInactiveApps: "Dölj inaktiva appar", pin: "Fäst överst", unpin: "Lossa", moveUp: "Flytta upp", moveDown: "Flytta ned", pinFirst: "Fäst längst fram", moveLeft: "Flytta åt vänster", moveRight: "Flytta åt höger", arrange: "Håll ned Kommando och dra för att ändra ordningen", actions: "Åtgärder")
     static let ptBR = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inativos", pin: "Fixar no topo", unpin: "Desafixar", moveUp: "Mover para cima", moveDown: "Mover para baixo", pinFirst: "Fixar no início", moveLeft: "Mover para a esquerda", moveRight: "Mover para a direita", arrange: "Segure Command e arraste para reorganizar", actions: "Ações")
     static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
@@ -362,6 +369,15 @@ struct SettingsCategoryStrings {
         appManagement: "App management"
     )
 
+    static let sv = SettingsCategoryStrings(
+        essentials: "Basutrustning",
+        windowsControls: "Fönster och reglage",
+        files: "Filer",
+        utilities: "Verktyg",
+        app: "App",
+        appManagement: "Apphantering"
+    )
+
     static let ptBR = SettingsCategoryStrings(
         essentials: "Essenciais",
         windowsControls: "Janelas e controles",
@@ -592,6 +608,68 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLengthSuffix: "characters",
         clearRecentConfirmFormat: "Clear unpinned (%d)?",
         clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone."
+    )
+
+    static let sv = ClipboardFeatureStrings(
+        title: "Urklipp",
+        enable: "Spara urklippshistorik",
+        caption: "Sparar kopierad text så att du kan använda den igen senare. Allt stannar lokalt och kan rensas när som helst.",
+        localNote: "Allt stannar på den här datorn. Mycket stora objekt ignoreras.",
+        skipSensitive: "Hoppa över text som verkar känslig",
+        skipSensitiveCaption: "Undviker att spara korta strängar utan blanksteg som liknar lösenord, token eller nycklar.",
+        limit: "Gräns",
+        limitUnlimited: "Obegränsad",
+        showInPanel: "Visa i panelen",
+        shortcut: "Kortkommando för historik",
+        shortcutCaption: "Öppnar ett snabbt fönster med sökning, fästa objekt och kortkommandona ⌘1 till ⌘9 för att klistra in i föregående app.",
+        shortcutHint: "Klicka på en rad för att klistra in den i föregående app. ⌘-klick markerar flera; ⌘C kopierar utan att klistra in.",
+        clickRowShortcut: "Klicka på rad",
+        commandClickShortcut: "⌘-klick",
+        pinned: "Fäst",
+        recent: "Senaste",
+        pin: "Fäst",
+        unpin: "Lossa",
+        clearRecent: "Rensa ofästa",
+        clearRecentKeywords: "Rensa senaste",
+        empty: "Ingen sparad text",
+        disabled: "Aktivera historiken för att börja spara kopierad text.",
+        search: "Sök i kopierad text",
+        copy: "Kopiera",
+        copied: "Kopierad",
+        delete: "Ta bort objekt",
+        selectMultiple: "Lägg till i hög",
+        unselectMultiple: "Ta bort från hög",
+        selectShortcutAction: "Välj",
+        pasteSelectedFormat: "Klistra in %d",
+        copySelectedFormat: "Kopiera %d",
+        clearSelection: "Rensa markering",
+        moveUp: "Flytta upp",
+        moveDown: "Flytta ned",
+        noResults: "Inga resultat",
+        active: "Sparar ny text",
+        includeImagesFiles: "Spara även kopierade bilder och filer",
+        includeImagesFilesCaption: "Bilder läggs till i historiken och filer sparas som länkar till sina platser. Fäst och klistra in dem som vilket textobjekt som helst.",
+        imageEntryLabel: "Bild",
+        fileCountFormat: "%d filer",
+        pasteImageAsFile: "Klistra in kopierade bilder som filer",
+        pasteImageAsFileCaption: "När Finder är aktiv sparar ⌘V en kopierad bild som PNG i den aktuella mappen.",
+        previewLabel: "Förhandsvisning",
+        edit: "Redigera",
+        cancel: "Avbryt",
+        save: "Spara",
+        autoClearEnable: "Rensa urklippet automatiskt efter",
+        autoClearSecondsSuffix: "sekunder",
+        autoClearOnSleep: "Rensa urklippet när datorn vilar",
+        autoClearOnDisplaySleep: "Rensa urklippet när bildskärmen vilar",
+        autoClearOnScreenLock: "Rensa urklippet vid skärmlåsning",
+        autoClearCaption: "Rensar bara systemets urklipp. Objekt som redan sparats finns kvar i historiken.",
+        deleteSelectedFormat: "Ta bort %d",
+        menuBarPreview: "Visa senaste kopian i menyraden",
+        menuBarPreviewCaption: "Visar en förkortad förhandsvisning av din senaste kopia bredvid symbolen. Klicka på den för att öppna historiken.",
+        menuBarPreviewLength: "Längd på förhandsvisning",
+        menuBarPreviewLengthSuffix: "tecken",
+        clearRecentConfirmFormat: "Rensa ofästa (%d)?",
+        clearRecentConfirmMessage: "Fästa objekt och allt som kopieras efter detta blir kvar. Detta går inte att ångra."
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -1522,6 +1600,96 @@ struct WindowLayoutFeatureStrings {
         gapMedium: "Medium",
         gapLarge: "Large",
         gapExtraLarge: "Extra large"
+    )
+
+    static let sv = WindowLayoutFeatureStrings(
+        title: "Fönsterlayout",
+        caption: "Ordna fönster i skärmsektioner eller flytta och ändra storlek med styrplatta eller mus.",
+        showInPanel: "Visa i panelen",
+        gestureSection: "Fönsterdragning",
+        gestureEnable: "Flytta och ändra storlek genom att dra",
+        gestureCaption: "Håll ned de visade specialtangenterna och dra var som helst i ett fönster på en styrplatta eller mus.",
+        gestureModifiers: "Tangenter för att flytta",
+        gestureMove: "Dra för att flytta",
+        gestureResize: "Håll ned Skift och dra för att ändra storlek",
+        gestureResizeHint: "Startpunkten väljer närmaste kant eller hörn. Med mus ändrar dragning med höger knapp också storlek.",
+        gestureRaiseWindow: "Flytta fram det dragna fönstret",
+        shortcuts: "Kortkommandon",
+        shortcutsCaption: "Använd globala kortkommandon för att ordna det aktiva fönstret utan att öppna panelen.",
+        permissionCaption: "Använder endast Tillgänglighet för att flytta och ändra storlek på fönster.",
+        noWindow: "Inget aktivt fönster hittades.",
+        missingPermission: "Tillåt Tillgänglighet för att flytta fönster.",
+        failed: "Det gick inte att flytta fönstret.",
+        done: "Fönstret har ordnats.",
+        restored: "Fönstret har återställts.",
+        noRestore: "Ingen tidigare layout att återställa.",
+        target: "Aktivt fönster",
+        halves: "Halvor",
+        thirds: "Tredjedelar",
+        quarterRows: "Fjärdedelsrader",
+        quarterColumns: "Fjärdedelskolumner",
+        sixths: "Sjättedelar",
+        corners: "Hörn",
+        other: "Åtgärder",
+        leftHalf: "Vänster",
+        rightHalf: "Höger",
+        topHalf: "Överst",
+        bottomHalf: "Nederst",
+        centerHalf: "Mitthalva",
+        leftThird: "Vänster 1/3",
+        centerThird: "Mitten 1/3",
+        rightThird: "Höger 1/3",
+        leftTwoThirds: "Vänster 2/3",
+        rightTwoThirds: "Höger 2/3",
+        centerTwoThirds: "Mitten 2/3",
+        topThird: "Överst 1/3",
+        middleThird: "Mitten 1/3",
+        bottomThird: "Nederst 1/3",
+        topTwoThirds: "Överst 2/3",
+        bottomTwoThirds: "Nederst 2/3",
+        topQuarter: "Överst 1/4",
+        upperMiddleQuarter: "Övre mitten 1/4",
+        lowerMiddleQuarter: "Nedre mitten 1/4",
+        bottomQuarter: "Nederst 1/4",
+        leftQuarter: "Vänster 1/4",
+        leftMiddleQuarter: "Vänster mitten 1/4",
+        rightMiddleQuarter: "Höger mitten 1/4",
+        rightQuarter: "Höger 1/4",
+        topLeftSixth: "Överst till vänster 1/6",
+        topCenterSixth: "Överst i mitten 1/6",
+        topRightSixth: "Överst till höger 1/6",
+        bottomLeftSixth: "Nederst till vänster 1/6",
+        bottomCenterSixth: "Nederst i mitten 1/6",
+        bottomRightSixth: "Nederst till höger 1/6",
+        topLeft: "Överst till vänster",
+        topRight: "Överst till höger",
+        bottomLeft: "Nederst till vänster",
+        bottomRight: "Nederst till höger",
+        maximize: "Maximera",
+        center: "Centrera",
+        nextDisplay: "Nästa bildskärm",
+        restore: "Återställ",
+        fullScreen: "Helskärm",
+        previousDisplay: "Föregående bildskärm",
+        edgeSnapEnable: "Fäst fönster vid skärmkanter",
+        edgeSnapCaption: "Slå på detta, välj de markerade områdena nedan och dra sedan en fönsterrubrik till ett av dem och släpp.",
+        edgeSnapSystemConflict: "macOS använder samma kanter. Stäng av fönsterplacering i Skrivbord och Dock så kan Vorssaint ta över.",
+        edgeSnapOpenSystemSettings: "Öppna Skrivbord och Dock",
+        edgeSnapWaitingForSystem: "Aktiverat i Vorssaint. Det börjar fungera så snart fönsterplacering i macOS är avstängd.",
+        marginMaximize: "Maximera med marginal",
+        marginPerEdge: "Marginal per kant",
+        gapsSection: "Mellanrum",
+        gapsCaption: "Mellanrum mellan fästa fönster och mellan fönster och skärmkanten.",
+        windowGap: "Mellanrum mellan fönster",
+        screenGap: "Mellanrum till skärmkant",
+        sideRepeatCycle: "Upprepa vänster eller höger för att växla storlek",
+        sideRepeatCycleCaption: "Halva, sedan två tredjedelar, sedan en tredjedel på samma bildskärm. När det är av och flera bildskärmar finns flyttar upprepningen fönstret till nästa bildskärm åt det hållet.",
+        gapNone: "Ingen",
+        gapTiny: "Mycket litet",
+        gapSmall: "Litet",
+        gapMedium: "Medel",
+        gapLarge: "Stort",
+        gapExtraLarge: "Mycket stort"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -2708,6 +2876,41 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Temperature above",
         batteryTemperatureTitle: "Hot battery",
         batteryTemperatureBodyFormat: "Battery reached %@."
+    )
+
+    static let sv = MonitorAlertFeatureStrings(
+        section: "Varningar",
+        caption: "Varningar visas när deras valda gränser nås. Varningar för CPU-användning och temperatur ignorerar toppar som är kortare än ungefär 12 sekunder. Inställningen för upprepning begränsar bara upprepningar av samma varning.",
+        notificationsDenied: "Notiser för Vorssaint är avstängda i Systeminställningar, så varningar kan inte visas.",
+        cpu: "Hög CPU-användning",
+        cpuTemperature: "Hög CPU-temperatur",
+        memory: "Kritiskt minnestryck",
+        disk: "Lite diskutrymme",
+        battery: "Lågt batteri",
+        cpuThreshold: "CPU över",
+        cpuTemperatureThreshold: "Temperatur över",
+        diskThreshold: "Ledigt utrymme under",
+        batteryThreshold: "Batteri under",
+        cooldown: "Upprepa samma varning efter",
+        cooldown2: "2 minutes",
+        cooldown5: "5 minutes",
+        cooldown15: "15 minutes",
+        cooldown30: "30 minutes",
+        cooldown60: "1 hour",
+        cpuTitle: "Hög CPU-användning",
+        cpuBodyFormat: "CPU-användningen låg över %d%% i några sekunder.",
+        cpuTemperatureTitle: "Varm CPU",
+        cpuTemperatureBodyFormat: "CPU-temperaturen nådde %@.",
+        memoryTitle: "Kritiskt minne",
+        memoryBody: "Minnestrycket nådde kritisk nivå.",
+        diskTitle: "Lite diskutrymme",
+        diskBodyFormat: "%@ har mindre än %d%% ledigt.",
+        batteryTitle: "Lågt batteri",
+        batteryBodyFormat: "Batteriet är på %d%%.",
+        batteryTemperature: "Hög batteritemperatur",
+        batteryTemperatureThreshold: "Temperatur över",
+        batteryTemperatureTitle: "Varmt batteri",
+        batteryTemperatureBodyFormat: "Batteriet nådde %@."
     )
 
     static let ptBR = MonitorAlertFeatureStrings(

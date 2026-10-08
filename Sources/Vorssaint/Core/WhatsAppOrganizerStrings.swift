@@ -37,6 +37,7 @@ struct WhatsAppOrganizerStrings {
 
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
@@ -88,6 +89,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "WhatsApp organization",
         notificationFormat: "%1$d files organized. %2$d duplicate downloads handled. %3$d failed.",
         privacyNote: "To identify exact duplicates, file bytes are read locally only while calculating a cryptographic digest. Contents and chats are never stored or uploaded."
+    )
+
+    static let sv = WhatsAppOrganizerStrings(
+        title: "Automatisk organisering",
+        experimental: "Experimentell",
+        description: "Flyttar färdigställda WhatsApp-hämtningar till en särskild mapp och upptäcker exakta upprepade hämtningar.",
+        enabled: "Organisera automatiskt",
+        enabledCaption: "WhatsApp kan hämta en flyttad fil igen. Vorssaint kan inte förhindra nätverkshämtningen, men kan upptäcka och kasta en identisk extrakopia.",
+        destination: "Målmapp",
+        chooseFolder: "Välj…",
+        useDefault: "Använd Hämtade filer/WhatsApp",
+        invalidDestination: "Välj en annan mapp än själva Hämtade filer.",
+        organization: "Mappstruktur",
+        flat: "Inga undermappar",
+        byType: "Efter filtyp",
+        byMonth: "Efter år och månad",
+        delay: "Vänta före flytt",
+        minutesFormat: "%d minuter",
+        duplicateAction: "När samma fil hämtas igen",
+        trashDuplicate: "Flytta den nya kopian till papperskorgen",
+        keepBoth: "Behåll båda kopiorna",
+        replaceExisting: "Ersätt den organiserade kopian",
+        duplicateCaption: "Dubbletter bekräftas med en privat SHA-256-kontrollsumma. Den organiserade kopian kontrolleras igen innan en annan kopia kastas.",
+        organizeNow: "Organisera lämpliga filer nu",
+        undo: "Ångra senaste organiseringen",
+        waiting: "Bevakar Hämtade filer",
+        working: "Organiserar WhatsApp-filer…",
+        resultFormat: "%1$d flyttade · %2$d dubbletter · %3$d misslyckades",
+        lastRunFormat: "Senaste organiseringen %@: %d flyttade · %d dubbletter · %d misslyckades",
+        neverRun: "Ingen organisering har körts ännu.",
+        notificationTitle: "WhatsApp-organisering",
+        notificationFormat: "%1$d filer organiserades. %2$d dubbletthämtningar hanterades. %3$d misslyckades.",
+        privacyNote: "För att identifiera exakta dubbletter läses filens byte endast lokalt när en kryptografisk kontrollsumma beräknas. Innehåll och chattar sparas eller laddas aldrig upp."
     )
 
     static let es = WhatsAppOrganizerStrings(

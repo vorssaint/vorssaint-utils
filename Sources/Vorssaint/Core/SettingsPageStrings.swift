@@ -21,6 +21,7 @@ struct SettingsPageStrings {
 extension FeatureStrings {
     static func settingsPages(_ language: AppLanguage) -> SettingsPageStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -65,6 +66,19 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "One preview per window, minimized ones included.",
         switcherLayoutIcons: "Large icons",
         switcherLayoutSimple: "Simple list"
+    )
+
+    static let sv = SettingsPageStrings(
+        energyDescription: "Håll datorn vaken, styr bildskärmarna och spara batteri.",
+        monitorDescription: "Vad menyraden och panelen visar om datorn och när du ska varnas.",
+        mouseDescription: "Ge rullhjulet, sidoknapparna och styrplattan nya uppgifter.",
+        switcherDescription: "Växla mellan appar och fönster på ditt sätt.",
+        dockTitle: "Dock",
+        dockDescription: "Se en apps fönster från dess Dock-symbol och välj vad ett klick på den gör.",
+        switcherLayoutWindows: "Fönsterförhandsvisningar",
+        switcherLayoutWindowsCaption: "En förhandsvisning per fönster, även minimerade.",
+        switcherLayoutIcons: "Stora symboler",
+        switcherLayoutSimple: "Enkel lista"
     )
 
     static let ptBR = SettingsPageStrings(

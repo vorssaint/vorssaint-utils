@@ -38,6 +38,7 @@ struct FeedbackStrings {
 extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -88,6 +89,38 @@ extension FeedbackStrings {
         commandFeature: "Suggest a feature",
         commandSubtitle: "Send feedback",
         diagnosticsChannelLabel: "Update channel"
+    )
+
+    static let sv = FeedbackStrings(
+        sectionTitle: "Återkoppling",
+        sectionCaption: "Skicka en felrapport eller funktionsidé direkt till den som underhåller Vorssaint.",
+        openButton: "Skicka återkoppling",
+        windowTitle: "Skicka återkoppling",
+        bugTitle: "Fel",
+        featureTitle: "Funktionsidé",
+        messageLabel: "Vad vill du dela med dig av?",
+        bugPlaceholder: "Berätta vad som hände och vad du förväntade dig.",
+        featurePlaceholder: "Beskriv idén och hur den skulle hjälpa.",
+        charactersFormat: "%d av 2 000 tecken",
+        includeDiagnostics: "Ta med tekniska uppgifter",
+        includeDiagnosticsCaption: "Lägger bara till de tekniska uppgifterna nedan. Loggar tas inte med.",
+        whatSentTitle: "Det som skickas",
+        whatSentBasic: "Den kategori du valt och texten ovan.",
+        whatSentDiagnostics: "De tekniska uppgifter som listas nedan.",
+        privacyNote: "Namn, konto, e-postadress, enhetsidentifierare, loggar, skärmbilder, filer och innehåll i urklipp tas inte med. Din offentliga IP-adress behandlas tillfälligt för att skydda mot missbruk och bifogas inte återkopplingen.",
+        retentionNote: "Efter leverans finns texten kvar i privata supportkanaler tills tjänstens ägare tar bort den. En kopia som inte kunde levereras tas bort permanent efter 7 dagar.",
+        sendButton: "Skicka återkoppling",
+        sending: "Skickar…",
+        sentTitle: "Återkoppling skickad",
+        sentCaption: "Tack. Inga kontaktuppgifter skickades, så du får inget direkt svar.",
+        unavailableError: "Det gick inte att ansluta. Kontrollera internetanslutningen och försök igen.",
+        rateLimitError: "För många inskick från det här nätverket. Försök igen senare.",
+        genericError: "Det gick inte att skicka återkopplingen just nu.",
+        done: "Klar",
+        commandBug: "Rapportera ett fel",
+        commandFeature: "Föreslå en funktion",
+        commandSubtitle: "Skicka återkoppling",
+        diagnosticsChannelLabel: "Uppdateringskanal"
     )
 
     static let ptBR = FeedbackStrings(

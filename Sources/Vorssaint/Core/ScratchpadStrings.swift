@@ -54,6 +54,7 @@ struct ScratchpadFeatureStrings {
 extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -119,6 +120,53 @@ extension ScratchpadFeatureStrings {
         markLink: "Link",
         formatMarks: "Formatting",
         textSize: "Text size"
+    )
+
+    static let sv = ScratchpadFeatureStrings(
+        pageTitle: "Kladdblock",
+        hubDescription: "Flytande block för tillfälliga anteckningar",
+        panelCaption: "Snabba anteckningar på separata flikar",
+        openButton: "Öppna kladdblocket",
+        placeholder: "Skriv vad som helst. Det sparas automatiskt.",
+        copyAll: "Kopiera allt",
+        copied: "Kopierat",
+        exportAction: "Spara som fil",
+        exportFailed: "Det gick inte att spara filen",
+        loadFailed: "Dina anteckningar kunde inte öppnas. De lämnades oförändrade.",
+        saveFailed: "Dina anteckningar kunde inte sparas. Kopiera dem någon annanstans innan du avslutar.",
+        clearAction: "Rensa",
+        retentionTitle: "Rensa automatiskt",
+        retentionNever: "Aldrig",
+        retentionDay: "Efter en dag utan användning",
+        retentionWeek: "Efter en vecka utan användning",
+        retentionMonth: "Efter en månad utan användning",
+        retentionCaption: "Blocket töms när texten inte har ändrats under den angivna tiden.",
+        closeOnClickOutside: "Stäng när jag klickar utanför",
+        keepOpen: "Håll öppet",
+        backgroundOpacity: "Blockets bakgrund",
+        backgroundTranslucent: "Genomskinlig",
+        backgroundOpaque: "Ogenomskinlig",
+        newPad: "Nytt kladdblock",
+        padActions: "Åtgärder för kladdblocket",
+        renamePad: "Byt namn på kladdblocket",
+        closePad: "Stäng kladdblocket",
+        saveName: "Spara",
+        cancel: "Avbryt",
+        deletePadMessageFormat: "Ta bort ”%@” och allt i det?",
+        padLimitFormat: "Du kan ha högst %d kladdblock",
+        previewFormatting: "Visa formatering",
+        editText: "Redigera text",
+        markBold: "Fet",
+        markItalic: "Kursiv",
+        markStrikethrough: "Genomstruken",
+        markHeading: "Rubrik",
+        markBullet: "Punktlista",
+        markNumbered: "Numrerad lista",
+        markQuote: "Citat",
+        markCode: "Kod",
+        markLink: "Länk",
+        formatMarks: "Formatering",
+        textSize: "Textstorlek"
     )
 
     static let ptBR = ScratchpadFeatureStrings(

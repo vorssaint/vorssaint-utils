@@ -34,6 +34,7 @@ struct MouseExceptionStrings {
 extension FeatureStrings {
     static func mouseExceptions(_ language: AppLanguage) -> MouseExceptionStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -67,6 +68,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Hovering does not change focus or raise a window in these apps.",
         captionSuperKey: "While any of these apps is open, even in the background, Super Key pauses and the chosen key works normally.",
         pausedSuperKey: "Paused while a selected app is open"
+    )
+
+    static let sv = MouseExceptionStrings(
+        listTitle: "Appar att lämna i fred",
+        addButton: "Lägg till en app…",
+        removeButton: "Ta bort",
+        captionSmoothScroll: "Rullhjulet behåller sina vanliga steg i de här apparna, för appar som tolkar det på sitt eget sätt, till exempel 3D- och designverktyg.",
+        captionLinearScroll: "Rullhjulet behåller den takt som macOS ger det i de här apparna, för spel och 3D-verktyg som själva räknar hacken.",
+        captionScrollDirection: "Rullhjulet behåller den riktning som macOS ger det i de här apparna.",
+        captionNavigation: "Sidoknapparna fortsätter göra det de redan gör i de här apparna.",
+        captionButtonShortcuts: "Dina extra musknappar är inaktiva i de här apparna och knapptryckningen når dem i stället.",
+        captionMiddleClick: "Ett klick med tre fingrar förblir ett vanligt klick i de här apparna.",
+        captionFocusFollowsMouse: "Att hålla muspekaren över fönstret ändrar inte fokus eller lyfter fram ett fönster i de här apparna.",
+        captionSuperKey: "När någon av de här apparna är öppen, även i bakgrunden, pausas Super Key och den valda tangenten fungerar normalt.",
+        pausedSuperKey: "Pausad medan en vald app är öppen"
     )
 
     static let ptBR = MouseExceptionStrings(

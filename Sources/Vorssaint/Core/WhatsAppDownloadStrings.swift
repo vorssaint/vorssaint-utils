@@ -47,6 +47,7 @@ struct WhatsAppDownloadStrings {
 
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
@@ -108,6 +109,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
         scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
         manageButton: "Manage…"
+    )
+
+    static let sv = WhatsAppDownloadStrings(
+        title: "WhatsApp-hämtningar",
+        hubDescription: "Håller ordning på WhatsApp-filer i Hämtade filer",
+        intro: "Hittar filer som macOS bekräftar kommer från WhatsApp. Filinnehåll och chattar läses aldrig.",
+        automatic: "Rensa automatiskt",
+        automaticCaption: "Kontrollerar en gång per dag och flyttar matchande filer som är äldre än din gräns till papperskorgen.",
+        folder: "Övervakad mapp",
+        accessReady: "Hämtade filer är tillgänglig",
+        accessDenied: "Vorssaint har inte åtkomst till Hämtade filer. Tillåt det under Filer och mappar.",
+        fileTypes: "Filtyper",
+        allTypes: "Alla",
+        image: "Bilder",
+        video: "Videor",
+        audio: "Ljud och röstmeddelanden",
+        document: "Dokument",
+        archive: "Arkiv",
+        other: "Övrigt",
+        retention: "Behåll i",
+        retentionCaption: "Nyligen ändrade filer väntar hela perioden igen.",
+        daysFormat: "%d dagar",
+        manualIntro: "Sök igenom när som helst. Det första urvalet följer dina filtyper och åldersgräns, och du kan granska varje bekräftad fil.",
+        noFiles: "Inga bekräftade WhatsApp-filer hittades i Hämtade filer.",
+        resultsFormat: "%1$d bekräftade filer · %2$@",
+        selectRules: "Välj enligt mina regler",
+        cleanSelectedFormat: "Flytta %1$d till papperskorgen · %2$@",
+        keep: "Behåll",
+        manageAgain: "Hantera igen",
+        activity: "Aktivitet",
+        neverRun: "Ingen rensning har körts än.",
+        lastRunFormat: "Senaste rensningen %@: %d filer · %@ · %d misslyckades",
+        nextRunFormat: "Nästa automatiska kontroll %@.",
+        firstTitle: "Hur ska befintliga filer hanteras?",
+        firstMessageFormat: "%d befintliga filer matchar redan dina regler. Välj om automatiken får hantera dem eller bara framtida hämtningar.",
+        futureOnly: "Endast framtida hämtningar",
+        includeExisting: "Ta med befintliga filer",
+        trashNote: "Filer flyttas till papperskorgen och kan återställas tills du tömmer den.",
+        localNote: "Endast lokala filmetadata granskas. Vorssaint läser aldrig chattar eller filinnehåll.",
+        notificationTitle: "WhatsApp-rensning",
+        notificationFormat: "%1$d filer (%2$@) flyttades till papperskorgen. %3$d misslyckades.",
+        scanFailed: "Hämtade filer kunde inte sökas igenom. Kontrollera Filer och mappar i Systeminställningar.",
+        manageButton: "Hantera…"
     )
 
     static let es = WhatsAppDownloadStrings(
@@ -502,6 +546,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: uk.lastRunFormat, nextRunFormat: uk.nextRunFormat,
             firstMessageFormat: uk.firstMessageFormat, localNote: uk.localNote,
             notificationFormat: uk.notificationFormat, scanFailed: uk.scanFailed, manageButton: uk.manageButton)
+        case .sv: return OperationalStrings(
+            automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
+            manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
+            selectRules: enUS.selectRules, cleanSelectedFormat: enUS.cleanSelectedFormat,
+            lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
+            firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
+            notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
         case .enUS: return OperationalStrings(
             automaticCaption: enUS.automaticCaption, retentionCaption: enUS.retentionCaption,
             manualIntro: enUS.manualIntro, resultsFormat: enUS.resultsFormat,
