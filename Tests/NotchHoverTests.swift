@@ -26,6 +26,7 @@ enum NotchHoverTests {
         struct Preferences {
             var enabled = true, expands = true, hides = false
             var delay = NotchSupport.defaultHoverDelay
+            var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
                 key == DefaultsKey.notchHideUntilHover ? hides : key == DefaultsKey.notchOpenOnHover ? enabled : expands
             }
@@ -675,6 +676,54 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.36)
         suite.expect(adjusted.openings == 1, "the updated activation time completes normally")
 
+        for physical in [false, true] {
+            for hides in [false, true] {
+                for delay in [0.10, 0.18, 0.65, 1.5, 2.0] {
+                    let custom = fixture(physical: physical)
+                    UserDefaults.standard.hides = hides
+                    UserDefaults.standard.closeDelay = delay
+                    custom.hover(true)
+                    DispatchQueue.main.advance(0.26)
+                    leave(custom)
+                    let closing = custom.hoverWork
+                    DispatchQueue.main.advance(delay - 0.01)
+                    suite.expect(custom.closures == 0, "a hover-opened island waits for the selected closing time")
+                    custom.hover(false)
+                    suite.expect(custom.hoverWork === closing, "duplicate exits preserve a custom closing deadline")
+                    DispatchQueue.main.advance(0.02)
+                    suite.expect(custom.closures == 1 && custom.hoverWork == nil,
+                                 "the selected closing time applies to visible and hidden islands on either display")
+                }
+            }
+        }
+
+        let changedClosing = fixture()
+        changedClosing.hover(true)
+        DispatchQueue.main.advance(0.26)
+        UserDefaults.standard.closeDelay = 1.5
+        leave(changedClosing)
+        DispatchQueue.main.advance(1.0)
+        suite.expect(changedClosing.closures == 0, "a changed closing time applies on the next exit without restarting")
+        NSEvent.mouseLocation = CGPoint(x: changedClosing.geometry.screen.midX, y: changedClosing.geometry.screen.maxY)
+        changedClosing.hover(true)
+        DispatchQueue.main.advance(1.0)
+        suite.expect(changedClosing.closures == 0 && changedClosing.openings == 1,
+                     "returning during a custom closing delay cancels the close without reopening")
+
+        for protect: (Service) -> Void in [
+            { $0.running = false }, { $0.pinned = true }, { $0.keepsWorkingSurface = true }
+        ] {
+            let protected = fixture()
+            UserDefaults.standard.closeDelay = 1.5
+            protected.hover(true)
+            DispatchQueue.main.advance(0.26)
+            leave(protected)
+            protect(protected)
+            DispatchQueue.main.advance(1.51)
+            suite.expect(protected.closures == 0 && protected.hoverWork == nil,
+                         "a custom closing deadline rechecks whether the island may collapse")
+        }
+
         let active = fixture()
         active.compactActivity = .music
         active.hover(true)
@@ -695,13 +744,14 @@ enum NotchHoverTests {
 
         let preview = fixture()
         UserDefaults.standard.expands = false
+        UserDefaults.standard.closeDelay = 2.0
         preview.hover(true)
         DispatchQueue.main.advance(0.26)
         suite.expect(preview.peeking && preview.openings == 0 && preview.feedbacks == 1 && preview.hoverWork == nil,
                "preview-only mode responds promptly without expanding the panel")
         leave(preview)
         DispatchQueue.main.advance(0.13)
-        suite.expect(preview.closures == 1, "a preview closes within 130 ms of leaving")
+        suite.expect(preview.closures == 1, "a preview keeps its own closing delay when an expansion delay was saved")
 
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },

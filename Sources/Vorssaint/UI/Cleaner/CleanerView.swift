@@ -780,19 +780,27 @@ struct CleanerView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                List {
-                    section(l10n.s.cleanerSafeSection, groups: DisplayGroup.allCases.filter(\.isSafe))
-                    section(l10n.s.cleanerOptionalSection, groups: DisplayGroup.allCases.filter { !$0.isSafe })
+                if compact {
+                    // The island, menu panel and launcher already scroll.
+                    // Keep the rows and Clean button in that same scroll area.
+                    VStack(alignment: .leading, spacing: 16) {
+                        resultsGroups
+                    }
+                    .padding(12)
+                } else {
+                    List { resultsGroups }
+                        .listStyle(.inset)
                 }
-                .listStyle(.inset)
-                // Inside the floating panel the list must not paint its own
-                // opaque backdrop over the panel's translucent material.
-                .scrollContentBackground(compact ? .hidden : .automatic)
-                .frame(minHeight: compact ? 280 : 0)
                 Divider()
                 resultsFooter
             }
         }
+    }
+
+    @ViewBuilder
+    private var resultsGroups: some View {
+        section(l10n.s.cleanerSafeSection, groups: DisplayGroup.allCases.filter(\.isSafe))
+        section(l10n.s.cleanerOptionalSection, groups: DisplayGroup.allCases.filter { !$0.isSafe })
     }
 
     private var resultsHeader: some View {
@@ -816,8 +824,19 @@ struct CleanerView: View {
     private func section(_ header: String, groups: [DisplayGroup]) -> some View {
         let visible = groups.filter { !items(for: $0).isEmpty }
         if !visible.isEmpty {
-            Section(header) {
-                ForEach(visible) { group in groupRow(group) }
+            if compact {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(header).font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(visible) { group in
+                        groupRow(group)
+                        Divider()
+                    }
+                }
+            } else {
+                Section(header) {
+                    ForEach(visible) { group in groupRow(group) }
+                }
             }
         }
     }
