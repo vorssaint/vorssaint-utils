@@ -38,6 +38,7 @@ All notable changes to this project are documented here. The format follows
 ### Fixed
 - In the Clipboard history window, a new copy no longer moves the highlight, so Return pastes the entry you picked.
 - The screenshot editor no longer misses lines of text in very large and scrolling captures.
+- Pen drawings in the screenshot editor no longer disappear when the stroke returns to its starting point.
 - Focus follows mouse no longer flickers toward the window behind an open sheet or dialog, like a file list in System Settings.
 - With Click the Dock icon to hide on, clicking a frontmost app that has no windows opens a new window instead of hiding it.
 - The power reading in the menu bar follows the chosen update interval while the panel is closed.
@@ -51,7 +52,7 @@ All notable changes to this project are documented here. The format follows
 - The mute key no longer lowers the volume when the output loses its mute control right after the press.
 
 ### Contributors
-Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
+Thanks to @AB-boi, @Acronyxxx, @adam8833, @Babelfisch, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 

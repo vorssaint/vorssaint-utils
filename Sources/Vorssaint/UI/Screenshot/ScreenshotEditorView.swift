@@ -15,7 +15,7 @@ struct ScreenshotEditorView: View {
     @State private var editingText = ""
     @FocusState private var textFieldFocused: Bool
     @State private var dragInFlight = false
-    @State private var dragStartView: CGPoint = .zero
+    @State private var drag = ScreenshotSupport.EditorDrag()
     @State private var dragCanvasArea: CGSize?
     @State private var appeared = false
     @State private var backdropPopoverShown = false
@@ -376,21 +376,24 @@ struct ScreenshotEditorView: View {
                 let point = imagePoint(from: value.location, zoom: zoom)
                 if !dragInFlight {
                     dragInFlight = true
-                    dragStartView = value.location
+                    drag.begin(at: value.startLocation)
                     dragCanvasArea = available
                     commitEditingTextIfNeeded()
-                    model.beginDrag(at: point)
+                    model.beginDrag(at: imagePoint(from: value.startLocation, zoom: zoom))
+                    if value.location != value.startLocation {
+                        model.continueDrag(to: point)
+                    }
                 } else {
                     model.continueDrag(to: point)
                 }
+                drag.update(to: value.location)
             }
             .onEnded { value in
                 dragInFlight = false
                 dragCanvasArea = nil
                 let point = imagePoint(from: value.location, zoom: zoom)
-                // A click is a click in screen points, whatever the zoom.
-                let isTap = hypot(value.location.x - dragStartView.x,
-                                  value.location.y - dragStartView.y) < 7
+                drag.update(to: value.location)
+                let isTap = drag.isTap(for: model.tool)
                 if isTap, model.tool == .text || model.tool == .sticker || model.tool == .counter,
                    !CGRect(origin: .zero, size: model.imageSize).contains(point) {
                     return
