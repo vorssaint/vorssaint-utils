@@ -193,6 +193,19 @@ enum RecorderFeatureTests {
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudioTapVerified)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
                "the tap grant this Mac gave stays out of the backup while the sound choice travels")
+        // A listener block handed back for removal is reported removed and
+        // keeps firing (measured 2026-10-07), so the tap listens with a plain
+        // callback and gives back each registration on every way out.
+        let systemAudioTapSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!systemAudioTapSource.isEmpty,
+               "the system audio tap source reads back for its shape check")
+        suite.expect(!systemAudioTapSource.contains("PropertyListenerBlock"),
+               "the system audio tap never listens with a block it cannot remove")
+        suite.expect(systemAudioTapSource.components(separatedBy: "Self.stopListening(deviceListener)").count - 1 == 2
+                && systemAudioTapSource.components(separatedBy: "Self.stopListening(rateListener)").count - 1 == 2,
+               "the tap gives back its output listener on stop and deinit, and its rate listener with each aggregate and on deinit")
         var pauseTimeline = RecorderPauseTimeline()
         suite.expect(pauseTimeline.pause(at: 3) && !pauseTimeline.pause(at: 4),
                "a recording enters one pause only once")

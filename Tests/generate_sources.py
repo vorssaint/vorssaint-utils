@@ -606,6 +606,9 @@ def main():
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     write("NotchPanel.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
+    write("QuickTogglesAlert.swift", "import AppKit\nextension QuickTogglesAlertTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "    func emptyTrash()")
+          + "}\n}\n")
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
@@ -727,6 +730,7 @@ def main():
               "    private func scheduleTrackNotice(", "    private func releaseTrackHold(",
               "    private func holdEndingTrack("])
           .replace("NotchSupport.routes(notice.event)", "routesNotices")
+          .replace("NotchSupport.closeDelay()", "NotchSupport.sanitizedCloseDelay(UserDefaults.standard.closeDelay)")
           + "}\n}\n")
     music_visibility = "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
         "    private var hiddenUntilHover:", "    var fullscreenCompact:", "    var idleContent:", "    var hasMusicActivity:", "    var compactActivity:",

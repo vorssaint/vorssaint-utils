@@ -26,7 +26,8 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .captures: return "camera.viewfinder"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
-        case .tools: return "square.grid.2x2"
+        // The quick panel's own mark; the grid belongs to the sections button.
+        case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
@@ -1356,6 +1357,19 @@ enum NotchSupport {
 
     static func sanitizedHoverDelay(_ value: TimeInterval) -> TimeInterval {
         value.isFinite ? min(hoverDelayRange.upperBound, max(hoverDelayRange.lowerBound, value)) : defaultHoverDelay
+    }
+
+    /// How long an island opened by hover waits after the pointer leaves.
+    static let defaultCloseDelay = NotchQuickAccessLayout.hoverExitDelay
+    static let closeDelayRange = 0.10...2.0
+
+    static func sanitizedCloseDelay(_ value: TimeInterval) -> TimeInterval {
+        value.isFinite ? min(closeDelayRange.upperBound, max(closeDelayRange.lowerBound, value)) : defaultCloseDelay
+    }
+
+    /// An unset value keeps the old pause rather than reading as zero.
+    static func closeDelay(in defaults: UserDefaults = .standard) -> TimeInterval {
+        sanitizedCloseDelay(defaults.object(forKey: DefaultsKey.notchCloseDelay) as? Double ?? defaultCloseDelay)
     }
 
     static func moduleShortcut(_ characters: String, modules: [NotchModule]) -> NotchModule? {

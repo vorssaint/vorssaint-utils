@@ -6,8 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Dynamic Island adds more audio and music controls while using less GPU and battery. Window layout gains configurable snap areas, and Clipboard history presents copied items as a shelf of cards.
+
 ### Dynamic Island
+- Tools uses the quick panel's wand icon, so it is easier to tell apart from the sections button.
+- When hover opens Dynamic Island, you can set how long it waits before closing, from 0.10 to 2 seconds. Settings → Dynamic Island → Behavior → Closing time.
 - Controls can show a keyboard light slider next to Volume and Brightness, and its icon turns the light off and on. Settings → Dynamic Island → Content → Controls.
+- The mixer puts a microphone fader beside the output, with mute and an editable percentage on supported devices.
 - The music page can switch shuffle beside the playback controls for players that offer it. The first press asks for Automation permission.
 - Up next says when the player does not share its upcoming songs, instead of showing an empty queue.
 - The volume indicator stays hidden while headphones like AirPods Pro adjust their own level. Volume keys still show it.
@@ -36,6 +42,7 @@ All notable changes to this project are documented here. The format follows
 - Pressing an app's Command Bar shortcut while its window is in front hides the app, and the next press brings it back.
 
 ### Fixed
+- The Empty the Trash confirmation opens above Dynamic Island and accepts mouse and keyboard input.
 - In the Clipboard history window, a new copy no longer moves the highlight, so Return pastes the entry you picked.
 - The screenshot editor no longer misses lines of text in very large and scrolling captures.
 - Pen drawings in the screenshot editor no longer disappear when the stroke returns to its starting point.
@@ -52,7 +59,7 @@ All notable changes to this project are documented here. The format follows
 - The mute key no longer lowers the volume when the output loses its mute control right after the press.
 
 ### Contributors
-Thanks to @AB-boi, @Acronyxxx, @adam8833, @Babelfisch, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
+Thanks to @AB-boi, @Acronyxxx, @adam8833, @Babelfisch, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @iamprasad88, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 
