@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Dynamic Island
+- The Command Bar that drops out of the island takes the keyboard again once it shows, so you can type without clicking the field first.
+
+### Contributors
+Feedback: Brain.
+
 ## [3.4.1-beta.3] - 2026-10-08
 
 ### Summary
