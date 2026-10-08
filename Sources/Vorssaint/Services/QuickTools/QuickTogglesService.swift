@@ -91,8 +91,10 @@ final class QuickTogglesService: ObservableObject {
         alert.informativeText = strings.emptyTrashConfirmMessage
         alert.addButton(withTitle: strings.emptyTrashConfirmButton)
         alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
-        NSApp.activate(ignoringOtherApps: true)
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let island = NotchService.shared.presentationWindow
+        let fromIsland = island?.isVisible == true
+            && (NSApp.currentEvent?.window === island || NSApp.keyWindow === island)
+        guard NotchIslandAlert.run(alert, above: fromIsland ? island : nil) == .alertFirstButtonReturn else { return }
         emptyTrashConfirmed()
     }
 

@@ -36,6 +36,7 @@ All notable changes to this project are documented here. The format follows
 - Pressing an app's Command Bar shortcut while its window is in front hides the app, and the next press brings it back.
 
 ### Fixed
+- The Empty the Trash confirmation opens above Dynamic Island and accepts mouse and keyboard input.
 - In the Clipboard history window, a new copy no longer moves the highlight, so Return pastes the entry you picked.
 - The screenshot editor no longer misses lines of text in very large and scrolling captures.
 - Focus follows mouse no longer flickers toward the window behind an open sheet or dialog, like a file list in System Settings.
@@ -51,7 +52,7 @@ All notable changes to this project are documented here. The format follows
 - The mute key no longer lowers the volume when the output loses its mute control right after the press.
 
 ### Contributors
-Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
+Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @iamprasad88, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 

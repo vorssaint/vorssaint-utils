@@ -98,6 +98,7 @@ struct MetricsTests {
             }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
+                QuickTogglesAlertTests.run(suite)
                 PortManagerRefreshTests.run(suite)
             }),
             ("settings", {
