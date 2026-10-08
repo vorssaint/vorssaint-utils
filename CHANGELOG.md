@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Dynamic Island shows the progress of Safari downloads and a notice when each one finishes, even quick ones.
+
+### Contributors
+Feedback: Brain.
+
 ## [3.4.1-beta.3] - 2026-10-08
 
 ### Summary

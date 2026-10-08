@@ -41,6 +41,8 @@ final class NotchDownloadService: ObservableObject {
     private var directorySource: DispatchSourceFileSystemObject?
     private var fileSources: [URL: DispatchSourceFileSystemObject] = [:]
     private var subscriber: Any?
+    private var announcements: NSObjectProtocol?
+    private var lastArrival = Date.distantPast
     private var progressObserver: NotchDownloadProgressObserver?
     private var progressItems: [NotchDownloadItem] = []
     private var folderItems: [NotchDownloadItem] = []
@@ -189,6 +191,8 @@ final class NotchDownloadService: ObservableObject {
         progressItems = []
         if let subscriber { Progress.removeSubscriber(subscriber) }
         subscriber = nil
+        if let announcements { DistributedNotificationCenter.default().removeObserver(announcements) }
+        announcements = nil
         if let folder, securityScope {
             // Let an already-running file read finish before releasing its scope.
             queue.async { folder.stopAccessingSecurityScopedResource() }
@@ -234,6 +238,19 @@ final class NotchDownloadService: ObservableObject {
             return {
                 DispatchQueue.main.async {
                     callbacks.unpublished(id)
+                }
+            }
+        }
+        announcements = DistributedNotificationCenter.default().addObserver(
+            forName: NotchDownloadSupport.finishedNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.generation == requested, let folder = self.folder,
+                  let path = note.object as? String else { return }
+            self.queue.async { [weak self] in
+                let item = NotchDownloadSupport.announcedItem(atPath: path, folder: folder)
+                DispatchQueue.main.async {
+                    guard let self, self.generation == requested, let item else { return }
+                    self.recordCompletion(item)
+                    self.refreshItems()
                 }
             }
         }
@@ -312,7 +329,9 @@ final class NotchDownloadService: ObservableObject {
                     self.fileSources[url] = self.watch(url, directory: false)
                 }
                 completed.forEach(self.recordCompletion)
-                if failed { self.onFailure?() }
+                // Safari opens a downloaded archive and announces what it held,
+                // so its .download folder goes without the file it named.
+                if failed && Date().timeIntervalSince(self.lastArrival) > 2 { self.onFailure?() }
                 self.progressObserver?.requestRefresh()
                 self.refreshItems()
                 if self.rescan { self.rescan = false; self.scheduleScan() }
@@ -322,6 +341,7 @@ final class NotchDownloadService: ObservableObject {
 
     private func recordCompletion(_ item: NotchDownloadItem) {
         guard !finished.contains(where: { $0.id == item.id }) else { return }
+        lastArrival = Date()
         finished.insert(item, at: 0)
         finished = Array(finished.prefix(5))
         onArrival?(item)

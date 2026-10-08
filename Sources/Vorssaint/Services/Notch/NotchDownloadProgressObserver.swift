@@ -25,13 +25,10 @@ final class NotchDownloadProgressObserver {
     }
 
     func add(_ value: Progress, id: UUID) {
-        let initial = NotchDownloadProgressSnapshot(value)
         queue.async { [self] in
             guard !cancellation.isCancelled, progress.count < NotchDownloadSupport.maximumObservedFiles,
-                  progress[id] == nil,
-                  let publication = NotchDownloadPublication(initial, folder: folder) else { return }
+                  progress[id] == nil else { return }
             progress[id] = value
-            publications[id] = publication
             let update: () -> Void = { [weak self] in self?.requestRefresh() }
             observations[id] = [
                 value.observe(\.fractionCompleted) { _, _ in update() },
@@ -79,8 +76,15 @@ final class NotchDownloadProgressObserver {
         var invalid: [UUID] = []
         for (id, value) in progress {
             guard !cancellation.isCancelled else { return }
+            let snapshot = NotchDownloadProgressSnapshot(value)
+            if publications[id] == nil {
+                // A publication from another app, like Safari, arrives a moment
+                // before its file URL and kind. Judge it once they are here.
+                guard snapshot.fileURL != nil else { continue }
+                publications[id] = NotchDownloadPublication(snapshot, folder: folder)
+            }
             guard var publication = publications[id],
-                  let item = publication.item(NotchDownloadProgressSnapshot(value), folder: folder) else {
+                  let item = publication.item(snapshot, folder: folder) else {
                 invalid.append(id)
                 continue
             }

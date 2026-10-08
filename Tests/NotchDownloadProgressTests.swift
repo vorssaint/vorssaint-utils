@@ -31,10 +31,79 @@ enum NotchDownloadProgressTests {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: folder) }
             try progressAndCompletion(folder: folder, suite: suite)
+            try safariPackage(folder: folder, suite: suite)
             cancellation(folder: folder, suite: suite)
             capacity(folder: folder, suite: suite)
             try folderContents(folder: folder, suite: suite)
+            try announcements(folder: folder, suite: suite)
         } catch { suite.expect(false, "download progress fixture failed: \(error)") }
+    }
+
+    /// Safari 27 publishes progress on its .download folder from another
+    /// process, so the file URL arrives after the publication itself. When
+    /// it ends, the file moves out under a unique name and the progress
+    /// points there before it is unpublished.
+    private static func safariPackage(folder: URL, suite: TestSuite) throws {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-safari")
+        let results = Results()
+        let observer = NotchDownloadProgressObserver(folder: folder, queue: queue, changed: results.receive)
+        defer { observer.stop(); queue.sync {} }
+        let package = folder.appendingPathComponent("report.pdf.download", isDirectory: true)
+        let payload = package.appendingPathComponent("report.pdf")
+        let delivered = folder.appendingPathComponent("report-1.pdf")
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        try Data([1, 2, 3, 4]).write(to: payload)
+        let progress = Progress(totalUnitCount: 10)
+        progress.kind = .file
+        progress.completedUnitCount = 2
+        observer.add(progress, id: UUID())
+        suite.expect(results.wait() && results.snapshot.updates.last?.0.isEmpty == true,
+               "a publication waits for its file URL instead of being judged without it")
+        progress.fileOperationKind = .downloading
+        progress.fileURL = package
+        progress.completedUnitCount = 4
+        suite.expect(results.wait(), "the file URL arriving after the publication refreshes it")
+        let item = results.snapshot.updates.last?.0.first
+        suite.expect(item?.url.path == package.path && item?.fraction == 0.4 && item?.active == true,
+               "a late file URL still shows the transfer's percentage")
+        suite.expect(item?.name == "report.pdf", "Safari's .download folder is named after the file it becomes")
+
+        try FileManager.default.moveItem(at: payload, to: delivered)
+        try FileManager.default.removeItem(at: package)
+        progress.fileURL = delivered
+        progress.completedUnitCount = 10
+        suite.expect(results.wait(), "the delivered file refreshes the publication")
+        let last = results.snapshot.updates.last?.0.first
+        suite.expect(last?.url.path == delivered.path && last?.name == "report-1.pdf" && last?.active == false,
+               "the transfer stops showing once Safari points at the file it delivered")
+    }
+
+    private static func announcements(folder: URL, suite: TestSuite) throws {
+        let root = folder.appendingPathComponent("announced")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let file = root.appendingPathComponent("report-1.pdf")
+        try Data([1, 2]).write(to: file)
+        let opened = root.appendingPathComponent("archive")
+        try FileManager.default.createDirectory(at: opened, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: root.appendingPathComponent("alias"), withDestinationURL: file)
+        try Data().write(to: root.appendingPathComponent("transfer.crdownload"))
+        let nested = opened.appendingPathComponent("inside.txt")
+        try Data().write(to: nested)
+
+        // The temporary folder is also reached through /private, which the
+        // announcing app may have resolved.
+        let viaPrivate = file.path.hasPrefix("/var/") ? "/private" + file.path : file.path
+        let announced = NotchDownloadSupport.announcedItem(atPath: viaPrivate, folder: root)
+        suite.expect(announced?.id == file.standardizedFileURL.path && announced?.name == "report-1.pdf"
+                     && announced?.completed == true && announced?.receivedBytes == 2,
+               "a finished download announced by its browser keeps the folder's own path")
+        suite.expect(NotchDownloadSupport.announcedItem(atPath: opened.path, folder: root)?.name == "archive",
+               "an archive Safari opened is announced as the folder it held")
+        let rejected = [root.appendingPathComponent("alias").path, root.appendingPathComponent("transfer.crdownload").path,
+                        root.appendingPathComponent("missing").path, nested.path, folder.appendingPathComponent("outside").path,
+                        "announced/report-1.pdf"]
+        suite.expect(rejected.allSatisfy { NotchDownloadSupport.announcedItem(atPath: $0, folder: root) == nil },
+               "aliases, partial transfers, missing, nested, outside and relative paths are not downloads")
     }
 
     private static func folderContents(folder: URL, suite: TestSuite) throws {
