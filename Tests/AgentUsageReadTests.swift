@@ -79,9 +79,11 @@ enum AgentUsageReadTests {
         func saveProgress() {}
         func startTimer() {}
         func loadPrices() {}
-        func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
+        @discardableResult
+        func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool { false }
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
+        func readCursorAccount(force: Bool) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}
@@ -93,6 +95,8 @@ enum AgentUsageReadTests {
         func report(_ event: AgentUsageEvent) { events.append(event) }
         func checkLimits() {}
         func schedulePublish() {}
+        func publishLive() {}
+        func pollOpenLogs(within window: TimeInterval) -> Bool { false }
     }
 
     static func run(_ suite: TestSuite) {

@@ -390,7 +390,8 @@ struct NotchLockScreenActivities: View {
             // a screen anyone can walk up to.
             HStack(spacing: 7) {
                 HStack(spacing: 1) {
-                    ForEach(working) { NotchAgentGlyph(provider: $0, size: 13) }
+                    ForEach(working) { NotchAgentGlyph(provider: $0, size: 13, working: !usage.meterSettled.contains($0),
+                                                         waiting: usage.meterWaiting.contains($0)) }
                 }
                 Text(working.map(\.displayName).joined(separator: " · ") + " " + reading)
             }

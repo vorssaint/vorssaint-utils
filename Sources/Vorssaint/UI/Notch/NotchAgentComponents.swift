@@ -147,14 +147,24 @@ struct NotchAgentGlyph: View {
     let provider: AgentProvider
     var size: CGFloat = 13
     var working = true
+    /// The agent stopped and the next move is the person's. The mark holds
+    /// still inside an amber ring instead of breathing.
+    var waiting = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        NotchAgentGlyphBridge(provider: provider, size: size, animates: working && !reduceMotion)
-            // Room for the widest mark, the Claude one, drawn past its size.
-            .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
+        ZStack {
+            NotchAgentGlyphBridge(provider: provider, size: size, animates: working && !waiting && !reduceMotion)
+            if waiting {
+                Circle()
+                    .stroke(Color.orange, lineWidth: max(1.5, size * 0.12))
+                    .frame(width: size * 1.2, height: size * 1.2)
+            }
+        }
+        // Room for the widest mark, the Claude one, drawn past its size.
+        .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 }
 

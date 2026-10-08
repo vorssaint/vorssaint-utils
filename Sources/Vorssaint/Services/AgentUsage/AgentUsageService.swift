@@ -25,6 +25,18 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
+    /// Meter accounts that stopped for an answer. Cursor reads it from the
+    /// transcript. Claude reads it from the session record, which is updated
+    /// while the question is on screen and before the transcript catches up.
+    @Published private(set) var meterWaiting: Set<AgentProvider> = []
+    /// Short reason each waiting account is showing, when one is known.
+    @Published private(set) var meterWaitingDetail: [AgentProvider: String] = [:]
+    /// Meter accounts whose latest line is a finished reply. The ring stays up and does not spin.
+    @Published private(set) var meterSettled: Set<AgentProvider> = []
+    /// Claude, Codex and Cursor with a live CLI session; rings and live UI stay hidden until then.
+    @Published private(set) var meterSignedIn: Set<AgentProvider> = []
+    /// Enabled meter assistants that still need `login` in the terminal.
+    @Published private(set) var meterSignInAccounts: [AgentAccount] = []
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -33,7 +45,8 @@ final class AgentUsageService: ObservableObject {
     /// File events report a written file only once it closes, and some
     /// agents keep their log open for the whole session: logs written in the
     /// last half hour, or holding a turn, are checked this often instead.
-    private static let poll: TimeInterval = 2
+    /// Short, so a Cursor turn shows on the island as it starts planning.
+    private static let poll: TimeInterval = 0.35
     private static let pollWindow: TimeInterval = 30 * 60
     /// Coalesce a live log's bursts into one history and display update.
     private static let publishDelay: TimeInterval = 1
@@ -41,7 +54,11 @@ final class AgentUsageService: ObservableObject {
     /// pause; a launch after a crash reads again only what came after.
     private static let saveInterval: TimeInterval = 5 * 60
 
-    private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .utility, autoreleaseFrequency: .workItem)
+    private let queue = DispatchQueue(label: "com.vorssaint.agent-usage", qos: .userInitiated, autoreleaseFrequency: .workItem)
+    /// Claude session ids currently stopped for input.
+    private var claudeAsked: Set<String> = []
+    /// `waitingFor` labels from Claude session records, by session id.
+    private var claudeAskedReasons: [String: String] = [:]
     private let home = FileManager.default.homeDirectoryForCurrentUser
 
     /// Lets a stop end a first read that is still going on the queue.
@@ -89,6 +106,10 @@ final class AgentUsageService: ObservableObject {
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
+    /// Plan name Cursor's usage summary reported, when it did.
+    private var cursorPlan: AgentPlan?
+    private var cursorUsageChecked = Date.distantPast
+    private var cursorUsageInFlight = false
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -100,8 +121,22 @@ final class AgentUsageService: ObservableObject {
     /// always replaces what is on disk, which may hold agents now off.
     private var savedMark: Int?
     private var lastSave = Date.distantPast
+    private var lastMeterSignInCheck = Date.distantPast
 
     private init() {}
+
+    /// Re-reads CLI auth for the assistant meter. Safe from any thread.
+    func refreshMeterSignIn() {
+        let enabled = Set(NotchAgentSupport.providers())
+        DispatchQueue.global(qos: .utility).async { [home] in
+            let result = AgentMeterAccounts.refresh(enabled: enabled, home: home)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.running else { return }
+                if self.meterSignedIn != result.signedIn { self.meterSignedIn = result.signedIn }
+                if self.meterSignInAccounts != result.needSignIn { self.meterSignInAccounts = result.needSignIn }
+            }
+        }
+    }
 
     func syncWithPreferences() {
         guard NotchAgentSupport.isEnabled() else { stop(); return }
@@ -116,6 +151,7 @@ final class AgentUsageService: ObservableObject {
             cancellation = Cancellation()
             providers = wanted
             start(session: session, providers: Set(wanted), cancellation: cancellation)
+            refreshMeterSignIn()
         } else if paused {
             resume()
         }
@@ -168,6 +204,11 @@ final class AgentUsageService: ObservableObject {
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
         claudeAppChecked = nil
+        meterWaiting = []
+        meterWaitingDetail = [:]
+        meterSettled = []
+        meterSignedIn = []
+        meterSignInAccounts = []
         queue.async { [self] in
             readerSession = -1
             readerCancellation = nil
@@ -190,6 +231,11 @@ final class AgentUsageService: ObservableObject {
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
+            claudeAsked = []
+            claudeAskedReasons = [:]
+            cursorPlan = nil
+            cursorUsageChecked = .distantPast
+            cursorUsageInFlight = false
             savedMark = nil
             lastSave = .distantPast
         }
@@ -207,12 +253,15 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    /// Opening the page shows the latest limits the Claude app saved.
+    /// Opening the page shows the latest limits the Claude app saved, and asks
+    /// Cursor for a fresh reading when the app session is present.
     func pageDidAppear() {
         guard running else { return }
+        refreshMeterSignIn()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudeApp(now: Date())
+            readCursorAccount(force: true)
             checkLimits()
             publish()
         }
@@ -229,6 +278,13 @@ final class AgentUsageService: ObservableObject {
 
     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation) {
         startTimer()
+        let recentCutoff = Date().addingTimeInterval(-30 * 60)
+        func logModified(_ path: String) -> Date {
+            var info = stat()
+            guard stat(path, &info) == 0 else { return .distantPast }
+            return Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                        + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+        }
         queue.async { [self] in
             readerSession = session
             readerCancellation = cancellation
@@ -237,7 +293,6 @@ final class AgentUsageService: ObservableObject {
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
-            // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home).filter { providers.contains($0.provider) }
             let files = AgentLogReader.discover(roots, since: horizon)
@@ -248,33 +303,113 @@ final class AgentUsageService: ObservableObject {
                 // What the resume took back leaves the disk at the next save.
                 if resumed.unchanged { savedMark = progressMark }
             }
+            // Recent Cursor transcripts first. The island can show a turn that
+            // is already running before the older logs, which are much larger,
+            // have been read. Discovery order is kept inside each group.
+            let cutoff = recentCutoff
+            var cursorNow: [(path: String, provider: AgentProvider)] = []
+            var otherRecent: [(path: String, provider: AgentProvider)] = []
+            var older: [(path: String, provider: AgentProvider)] = []
+            var newestCursor: (path: String, provider: AgentProvider)?
+            var newestCursorAt = Date.distantPast
             for file in files {
-                // A stop while reading leaves the rest for the next start.
-                guard !cancellation.isCancelled else { return }
-                read(file.path, provider: file.provider)
+                let modified = logModified(file.path)
+                if file.provider == .cursor, modified >= newestCursorAt {
+                    newestCursor = file
+                    newestCursorAt = modified
+                }
+                if modified >= cutoff {
+                    if file.provider == .cursor { cursorNow.append(file) } else { otherRecent.append(file) }
+                } else {
+                    older.append(file)
+                }
             }
-            guard !cancellation.isCancelled else { return }
-            let now = Date()
-            // A turn left open by a crash would otherwise stay working.
-            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
-            closeEndedTurns(roots, atLaunch: true)
-            // The account Claude Code uses picks the Claude app's readings.
-            readClaudePlan()
-            readClaudeApp(now: now)
-            store.reportsTransitions = true
-            previousLimits = store.limits
-            // A budget already passed before launch is history, not news.
-            let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
-            if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
-                budgetDay = today
+            // The chat in progress is the transcript written last, even when
+            // that was before the poll window. It has to be on the island
+            // before the older logs are read.
+            if let newestCursor, !cursorNow.contains(where: { $0.path == newestCursor.path }) {
+                cursorNow.append(newestCursor)
+                older.removeAll { $0.path == newestCursor.path }
             }
-            watch(roots)
-            startPolling()
-            watchNetwork()
-            publish()
-            saveProgress()
+            guard self.readFiles(cursorNow, cancellation: cancellation) else { return }
+            self.revealRunningTurns(roots)
+            self.readHistory(otherRecent + older, from: 0, recent: Set(otherRecent.map(\.path)),
+                             roots: roots, session: session, cancellation: cancellation)
         }
+    }
+
+    /// Reads each log. False when this launch was stopped mid-way.
+    private func readFiles(_ files: [(path: String, provider: AgentProvider)], cancellation: Cancellation) -> Bool {
+        for file in files {
+            guard !cancellation.isCancelled else { return false }
+            read(file.path, provider: file.provider)
+        }
+        return true
+    }
+
+    /// Puts a turn that is already running on the island and starts watching
+    /// for the next line. Older logs read after this are still history: they
+    /// must not replay as news.
+    private func revealRunningTurns(_ roots: [AgentLogRoot]) {
+        _ = pollOpenLogs(within: 30 * 60)
+        let now = Date()
+        store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn, keeping: cursorStillWorking())
+        closeEndedTurns(roots, atLaunch: true)
+        watch(roots)
+        startPolling()
+        watchNetwork()
+        publishLive()
+    }
+
+    /// The newest Cursor transcript that has not written `turn_ended`. That
+    /// turn stays up while the reply is still being written.
+    private func cursorStillWorking() -> Set<String> {
+        let open = cursors.values.filter { $0.provider == .cursor && $0.state.turnOpen }
+        guard let latest = open.max(by: { $0.modified < $1.modified }) else { return [] }
+        return [latest.path]
+    }
+
+    /// Older logs are read one at a time so a transcript that grows meanwhile
+    /// is noticed between them, instead of after the whole history.
+    private func readHistory(_ files: [(path: String, provider: AgentProvider)], from index: Int,
+                             recent: Set<String>, roots: [AgentLogRoot], session: Int,
+                             cancellation: Cancellation) {
+        guard readerSession == session, !cancellation.isCancelled else { return }
+        if index < files.count {
+            let file = files[index]
+            if read(file.path, provider: file.provider), recent.contains(file.path) {
+                schedulePublish()
+            }
+            queue.async { [self] in
+                self.readHistory(files, from: index + 1, recent: recent, roots: roots,
+                                 session: session, cancellation: cancellation)
+            }
+            return
+        }
+        finishInitialRead(roots, session: session, cancellation: cancellation)
+    }
+
+    /// History is in. Endings from here on are news, and the first full
+    /// snapshot replaces the one that only had the running turns.
+    private func finishInitialRead(_ roots: [AgentLogRoot], session: Int, cancellation: Cancellation) {
+        guard readerSession == session, !cancellation.isCancelled else { return }
+        let now = Date()
+        store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn, keeping: cursorStillWorking())
+        closeEndedTurns(roots, atLaunch: true)
+        // The account Claude Code uses picks the Claude app's readings.
+        readClaudePlan()
+        readClaudeApp(now: now)
+        readCursorAccount(force: true)
+        store.reportsTransitions = true
+        previousLimits = store.limits
+        // A budget already passed before launch is history, not news.
+        let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
+        if let budget = NotchAgentSupport.dailyBudget(),
+           store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+            budgetDay = today
+        }
+        publish()
+        saveProgress()
     }
 
     /// Saves progress, or removes it once the section is off, even what an
@@ -298,7 +433,7 @@ final class AgentUsageService: ObservableObject {
         // contents gave. Left out, the next launch reads it as rewritten.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode && $0.provider != .cursor }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -325,6 +460,7 @@ final class AgentUsageService: ObservableObject {
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             defer { self.syncPolling() }
+            let cursorBefore = self.openCursorTurns()
             let read = self.pollOpenLogs(within: Self.pollWindow)
             var stopped = self.store.closeSettledTurns(now: Date())
             // After the logs too, which can hold a reply or a command's
@@ -338,7 +474,7 @@ final class AgentUsageService: ObservableObject {
             // After the logs, so a turn its last lines ended ends as usual.
             guard self.closeEndedTurns(self.watchedRoots) || read || stopped else { return }
             self.checkLimits()
-            self.schedulePublish()
+            self.deliver(cursorBefore: cursorBefore)
         }
         poller = timer
         polling = false
@@ -419,13 +555,70 @@ final class AgentUsageService: ObservableObject {
         Set(cursors.filter { !$0.value.state.runningCommands.isEmpty }.keys)
     }
 
-    /// Ends the Claude turns whose process is gone. True when one was showing.
+    /// Ends the Claude turns whose process is gone, and notices a session that
+    /// stopped for input. True when a turn left the island or the waiting set changed.
     @discardableResult
     private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
-        guard store.showsClaudeTurn else { return false }
         let folders = roots.filter { $0.provider == .claude }
             .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
-        return store.closeEndedTurns(AgentSessionRegistry.read(folders), atLaunch: atLaunch)
+        let registry = AgentSessionRegistry.read(folders)
+        let closed = store.showsClaudeTurn && store.closeEndedTurns(registry, atLaunch: atLaunch)
+        let changed = registry.waiting != claudeAsked || registry.waitingReasons != claudeAskedReasons
+        claudeAsked = registry.waiting
+        claudeAskedReasons = registry.waitingReasons
+        return closed || changed
+    }
+
+    /// Claude logs that are still the open turn and whose session record says
+    /// the process stopped for input. They stay on the island past the quiet wait.
+    private func claudeHeld() -> Set<String> {
+        let asked = claudeAsked
+        return Set(cursors.values.compactMap { cursor in
+            guard cursor.provider == .claude else { return nil }
+            let name = ((cursor.path as NSString).lastPathComponent as NSString).deletingPathExtension
+            guard asked.contains(name) else { return nil }
+            if cursor.state.turnOpen { return cursor.path }
+            if store.turns[cursor.path] != nil || store.waiting[cursor.path] != nil { return cursor.path }
+            return nil
+        })
+    }
+
+    /// Providers whose mark should turn amber: an unanswered Cursor question,
+    /// or a Claude session record that says it is waiting.
+    private func askedProviders() -> Set<AgentProvider> {
+        var waiting = Set(cursors.values.filter { $0.cursorWaiting && $0.state.turnOpen }.map(\.provider))
+        if !claudeHeld().isEmpty || (!claudeAsked.isEmpty && cursors.values.contains {
+            $0.provider == .claude && claudeAsked.contains(claudeSessionName($0.path))
+        }) {
+            waiting.insert(.claude)
+        }
+        return waiting
+    }
+
+    /// Short waiting labels for the strip and ring hover, when known.
+    private func waitingDetails() -> [AgentProvider: String] {
+        var details: [AgentProvider: String] = [:]
+        if let cursor = cursors.values
+            .filter({ $0.provider == .cursor && $0.cursorWaiting && $0.state.turnOpen })
+            .max(by: { $0.modified < $1.modified }),
+           let reason = cursor.cursorWaitingReason?.trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+            details[.cursor] = reason
+        }
+        for cursor in cursors.values where cursor.provider == .claude {
+            let name = claudeSessionName(cursor.path)
+            if let reason = claudeAskedReasons[name], !reason.isEmpty {
+                details[.claude] = reason
+                break
+            }
+        }
+        if details[.claude] == nil, let reason = claudeAskedReasons.values.first(where: { !$0.isEmpty }) {
+            details[.claude] = reason
+        }
+        return details
+    }
+
+    private func claudeSessionName(_ path: String) -> String {
+        ((path as NSString).lastPathComponent as NSString).deletingPathExtension
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -444,13 +637,23 @@ final class AgentUsageService: ObservableObject {
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
+            if provider == .cursor, cursor.state.project.isEmpty {
+                cursor.state.project = AgentCursorPath.project(in: path)
+            }
             let entries: [AgentLogEntry]
             switch provider {
             case .claude: entries = AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
             case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
-            case .cursor: entries = []
+            case .cursor:
+                // The transcript's own mtime, so a chat left open earlier does
+                // not look like work that just started. A turn read before the
+                // rest of history keeps that time as well.
+                let clock = cursor.modified == .distantPast ? now : min(now, cursor.modified)
+                entries = AgentLogParser.parseCursor(line, state: &cursor.state, waiting: &cursor.cursorWaiting,
+                                                     settled: &cursor.cursorSettled,
+                                                     reason: &cursor.cursorWaitingReason, now: clock)
             }
             guard !entries.isEmpty else { return }
             changed = true
@@ -480,29 +683,61 @@ final class AgentUsageService: ObservableObject {
                 self?.filesChanged(paths, rescan: rescan)
             }
         }
-        if existing.isEmpty { watcher?.stop() } else { watcher?.start(existing.map(\.url.path)) }
+        // Claude's waiting state lives in `sessions/<pid>.json` beside the
+        // projects folder. Watch it so amber updates as soon as the record does.
+        let sessions = existing.filter { $0.provider == .claude }
+            .map { $0.url.deletingLastPathComponent().appending(path: "sessions").path }
+        let paths = existing.map(\.url.path) + sessions
+        if paths.isEmpty { watcher?.stop() } else { watcher?.start(paths) }
     }
 
     private func filesChanged(_ paths: [String], rescan: Bool) {
         guard readerSession >= 0, !watchedRoots.isEmpty else { return }
         defer { syncPolling() }
+        let cursorBefore = openCursorTurns()
         var changed = false
+        var sessionTouched = false
         if rescan {
             for file in AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon)) {
                 if read(file.path, provider: file.provider) { changed = true }
             }
+            sessionTouched = true
         } else {
-            for path in Set(paths) where AgentLogReader.isLog(path) {
+            for path in Set(paths) {
+                if path.contains("/sessions/"), path.hasSuffix(".json") {
+                    sessionTouched = true
+                    continue
+                }
+                guard AgentLogReader.isLog(path) else { continue }
                 let actualPath = path.hasSuffix("-wal") ? String(path.dropLast(4)) : path
                 guard let root = watchedRoots.first(where: { $0.accepts(actualPath) }) else { continue }
                 if read(actualPath, provider: root.provider) { changed = true }
             }
         }
+        let closed = sessionTouched && closeEndedTurns(watchedRoots)
         // Saved tool output and lines with nothing to keep do not change the
         // summary or require a display update.
-        guard changed else { return }
+        guard changed || closed else { return }
         checkLimits()
-        schedulePublish()
+        deliver(cursorBefore: cursorBefore)
+    }
+
+    /// Cursor turns the island is showing, by transcript.
+    private func openCursorTurns() -> Set<String> {
+        Set(store.turns.compactMap { $0.value.provider == .cursor ? $0.key : nil })
+    }
+
+    /// A Cursor turn starting or ending updates the island at once. Other
+    /// log growth still waits out the short burst. While history is loading,
+    /// only the running turn is shown.
+    private func deliver(cursorBefore: Set<String>) {
+        if !store.reportsTransitions {
+            publishLive()
+        } else if openCursorTurns() != cursorBefore {
+            publish()
+        } else {
+            schedulePublish()
+        }
     }
 
     /// Bursts of writes publish once.
@@ -523,7 +758,8 @@ final class AgentUsageService: ObservableObject {
             let now = Date()
             defer { syncPolling(now: now) }
             let before = inputs
-            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
+            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn,
+                                 keeping: cursorStillWorking().union(claudeHeld()))
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
@@ -542,6 +778,11 @@ final class AgentUsageService: ObservableObject {
                 readClaudePlan()
             }
             readClaudeApp(now: now)
+            readCursorAccount(force: false)
+            if now.timeIntervalSince(lastMeterSignInCheck) > 120 {
+                lastMeterSignInCheck = now
+                DispatchQueue.main.async { [weak self] in self?.refreshMeterSignIn() }
+            }
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -561,21 +802,47 @@ final class AgentUsageService: ObservableObject {
         let claudePlan: AgentPlan?
         let claudeOrganization: String?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let waiting: Set<String>
+        let settled: Set<String>
+        let waitingDetail: [String: String]
+        let cursorPlan: AgentPlan?
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
-               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
+               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples,
+               waiting: Set(cursors.compactMap { $0.value.cursorWaiting && $0.value.state.turnOpen ? $0.key : nil }),
+               settled: Set(cursors.compactMap { $0.value.cursorSettled && $0.value.state.turnOpen ? $0.key : nil }),
+               waitingDetail: Dictionary(uniqueKeysWithValues: waitingDetails().map { ($0.key.rawValue, $0.value) }),
+               cursorPlan: cursorPlan)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
+    /// Older Cursor chats stay out of the island. Only the transcript written
+    /// last can show as thinking or as waiting for a reply.
+    private func focusCursorPrompt() {
+        let files = cursors.values.filter { $0.provider == .cursor }
+        guard let latest = files.max(by: { $0.modified < $1.modified }) else { return }
+        for other in files where other.path != latest.path {
+            other.cursorWaiting = false
+            other.cursorWaitingReason = nil
+            other.cursorSettled = false
+            other.state.turnOpen = false
+            if store.turns[other.path] != nil || store.waiting[other.path] != nil {
+                store.forget(file: other.path)
+            }
+        }
+    }
+
     private func publish() {
         let session = readerSession
         guard session >= 0 else { return }
+        focusCursorPrompt()
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
+        if let cursorPlan { plans[.cursor] = cursorPlan }
         let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next
         checkBudget(next)
@@ -584,10 +851,41 @@ final class AgentUsageService: ObservableObject {
         })?.date : nil
         let listed = AgentPricing.list.updated
         let prices = listed == AgentPriceList.empty.updated ? nil : listed
+        let waiting = askedProviders()
+        let details = waitingDetails()
+        let settled = Set(cursors.values.filter { $0.cursorSettled && $0.state.turnOpen && !$0.cursorWaiting }.map(\.provider))
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, self.session == session else { return }
             if self.claudeAppChecked != checked { self.claudeAppChecked = checked }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
+            if self.meterWaiting != waiting { self.meterWaiting = waiting }
+            if self.meterWaitingDetail != details { self.meterWaitingDetail = details }
+            if self.meterSettled != settled { self.meterSettled = settled }
+            if self.snapshot != next { self.snapshot = next }
+        }
+    }
+
+    /// The island's running turns, before history has finished loading.
+    /// A later full publish replaces this. One that already landed is left
+    /// alone, so a slow main-queue hop cannot put the page back to loading.
+    private func publishLive() {
+        let session = readerSession
+        guard session >= 0 else { return }
+        focusCursorPrompt()
+        var plans: [AgentProvider: AgentPlan] = [:]
+        if let claudePlan { plans[.claude] = claudePlan }
+        if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
+        if let cursorPlan { plans[.cursor] = cursorPlan }
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        next.loaded = false
+        let waiting = askedProviders()
+        let details = waitingDetails()
+        let settled = Set(cursors.values.filter { $0.cursorSettled && $0.state.turnOpen && !$0.cursorWaiting }.map(\.provider))
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running, self.session == session, !self.snapshot.loaded else { return }
+            if self.meterWaiting != waiting { self.meterWaiting = waiting }
+            if self.meterWaitingDetail != details { self.meterWaitingDetail = details }
+            if self.meterSettled != settled { self.meterSettled = settled }
             if self.snapshot != next { self.snapshot = next }
         }
     }
@@ -621,6 +919,11 @@ final class AgentUsageService: ObservableObject {
                                                       threshold: threshold) {
                 warned[window.id] = (provider, window)
                 report(.limitWarning(provider: provider, window: window))
+            }
+            if threshold < 100 {
+                for window in AgentLimitSupport.crossings(previous: previousLimits[provider], current: limits, threshold: 100) {
+                    report(.limitWarning(provider: provider, window: window))
+                }
             }
         }
         // A banked reset renews a warned window before its time, which is
@@ -701,6 +1004,43 @@ final class AgentUsageService: ObservableObject {
             store.setLimits(limits)
         } else if store.limits[.claude]?.source == .claudeApp {
             store.clearLimits(.claude)
+        }
+    }
+
+    /// Asks Cursor's account for plan usage when the app is signed in. A failed
+    /// check leaves the last good reading alone. Runs on `queue`.
+    private func readCursorAccount(force: Bool) {
+        guard enabled.contains(.cursor) else {
+            if store.limits[.cursor]?.source == .account { store.clearLimits(.cursor) }
+            cursorPlan = nil
+            cursorUsageInFlight = false
+            return
+        }
+        let now = Date()
+        let live = store.turns.values.contains { $0.provider == .cursor }
+        let interval = live ? AgentCursorAccountUsage.liveInterval : AgentCursorAccountUsage.idleInterval
+        guard force || now.timeIntervalSince(cursorUsageChecked) >= interval else { return }
+        guard !cursorUsageInFlight else { return }
+        guard let session = AgentCursorAccountUsage.session(home: home) else {
+            cursorUsageChecked = now
+            return
+        }
+        cursorUsageInFlight = true
+        let reader = readerSession
+        AgentCursorAccountUsage.fetch(session: session) { [weak self] reading in
+            guard let self else { return }
+            self.queue.async {
+                self.cursorUsageInFlight = false
+                guard self.readerSession == reader else { return }
+                self.cursorUsageChecked = Date()
+                guard let reading else { return }
+                self.store.updateLimits(reading.limits)
+                if let name = reading.planName {
+                    self.cursorPlan = AgentPlan(name: name, monthlyPrice: nil)
+                }
+                self.checkLimits()
+                self.schedulePublish()
+            }
         }
     }
 

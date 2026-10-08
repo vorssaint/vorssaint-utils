@@ -12,6 +12,8 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    @AppStorage(DefaultsKey.notchAgentsEdgeMeter) private var edgeMeter = false
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -29,6 +31,8 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
+    @State private var signedIn: [String: Bool] = [:]
+    @State private var missingTool: [String: String] = [:]
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
@@ -49,6 +53,17 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.cursor, isOn: $cursor)
+
+            Divider()
+            Text(text.meterTitle).font(.subheadline.weight(.medium))
+            Toggle(text.meterEdgeToggle, isOn: $edgeMeter)
+            Text(text.meterEdgeHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(meterAccounts) { account in
+                meterRow(account)
+            }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -148,11 +163,13 @@ struct NotchAgentsSettingsControls: View {
             findRoots()
             // An agent turned off is not read at all, not even for its status.
             if claude { findClaudeApp() }
+            refreshSignIn()
         }
         .onChange(of: claude) { _, on in if on { findClaudeApp() } }
+        .onChange(of: edgeMeter) { _, _ in AgentMeterPin.shared.sync() }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
+        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot), String(cursor),
                        String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
@@ -209,6 +226,60 @@ struct NotchAgentsSettingsControls: View {
         }
     }
 
+    private var meterAccounts: [AgentAccount] {
+        AgentMeterAccounts.discovered()
+    }
+
+    private func meterRow(_ account: AgentAccount) -> some View {
+        HStack(spacing: 12) {
+            NotchAgentMark(provider: account.provider, size: 13)
+                .frame(width: 26, height: 26)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.displayName)
+                Text(meterCaption(account))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 12)
+            if missingTool[account.id] == nil {
+                Button(signedIn[account.id] == true ? text.logOut : text.signIn) {
+                    let home = FileManager.default.homeDirectoryForCurrentUser
+                    let command = signedIn[account.id] == true
+                        ? AgentMeterCommands.logOut(account, home: home, locate: { AgentMeterLocator.locate($0, home: home) })
+                        : AgentMeterCommands.signIn(account, home: home, locate: { AgentMeterLocator.locate($0, home: home) })
+                    AgentMeterLogin.run(command)
+                }
+            }
+        }
+    }
+
+    private func meterCaption(_ account: AgentAccount) -> String {
+        if let missing = missingTool[account.id] { return text.meterMissingTool(missing) }
+        if signedIn[account.id] == true { return text.meterSignedIn }
+        return text.meterNotSignedIn
+    }
+
+    private func refreshSignIn() {
+        let accounts = meterAccounts
+        DispatchQueue.global(qos: .utility).async {
+            var signed: [String: Bool] = [:]
+            var missing: [String: String] = [:]
+            for account in accounts {
+                switch AgentMeterStatus.isSignedIn(account) {
+                case nil:
+                    missing[account.id] = account.provider.displayName
+                case let value?:
+                    signed[account.id] = value
+                }
+            }
+            DispatchQueue.main.async {
+                signedIn = signed
+                missingTool = missing
+                AgentUsageService.shared.refreshMeterSignIn()
+            }
+        }
+    }
+
     /// Laid out like every other row, with the agent's own mark for an icon.
     private func providerRow(_ provider: AgentProvider, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 12) {
@@ -225,7 +296,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, cursor].filter { $0 }.count <= 1)
         }
     }
 

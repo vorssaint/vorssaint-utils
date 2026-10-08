@@ -293,8 +293,11 @@ final class AgentUsageStore {
     /// its process ended without a word, or it waits on something outside.
     /// It waits aside for a while, since work can resume after an approval
     /// or a long command.
-    func closeIdleTurns(now: Date, after idle: TimeInterval) {
-        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
+    /// `keeping` stays on the island past the idle wait. Cursor's newest
+    /// transcript is still the turn in progress until it writes `turn_ended`,
+    /// even when a long step adds nothing to the file.
+    func closeIdleTurns(now: Date, after idle: TimeInterval, keeping: Set<String> = []) {
+        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle && !keeping.contains(file) {
             turns[file] = nil
             waiting[file] = turn
         }
@@ -563,6 +566,10 @@ struct AgentLogRoot: Equatable {
 struct AgentSessionRegistry: Equatable {
     /// Session ids, which name their log files, with a running process.
     var running: Set<String> = []
+    /// Session ids whose process stopped because it needs input.
+    var waiting: Set<String> = []
+    /// Short labels from each waiting session record (`waitingFor`), by session id.
+    var waitingReasons: [String: String] = [:]
     /// Session ids whose recorded process no longer runs.
     var ended: Set<String> = []
     /// False when a record could not be read, as while it is being written,
@@ -587,7 +594,20 @@ struct AgentSessionRegistry: Equatable {
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
                 if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
-                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+                if isRunning(Int32(clamping: pid)) {
+                    registry.running.insert(session)
+                    // The question on screen is not written into the transcript
+                    // until it is answered. The session record says so directly.
+                    if json["status"] as? String == "waiting" {
+                        registry.waiting.insert(session)
+                        if let reason = (json["waitingFor"] as? String)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                            registry.waitingReasons[session] = String(reason.prefix(80))
+                        }
+                    }
+                } else {
+                    registry.ended.insert(session)
+                }
             }
         }
         // A session resumed by a new process after an old one was killed.
@@ -615,6 +635,12 @@ final class AgentLogCursor {
     var pending = Data()
     var discarding = false
     var state = AgentLogState()
+    /// Cursor question still unanswered. Not archived; Cursor transcripts are reread on launch.
+    var cursorWaiting = false
+    /// Short title of the unanswered question, when the tool named one.
+    var cursorWaitingReason: String?
+    /// The latest line is a finished reply, so the mark stays up without spinning or turning amber.
+    var cursorSettled = false
     var modified = Date.distantPast
     /// Set when the log turned out replaced, cut short or written again after
     /// part of it was read. What its old contents gave is still counted, so
@@ -661,6 +687,9 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        cursorWaiting = false
+        cursorWaitingReason = nil
+        cursorSettled = false
         fingerprinted = nil
     }
 
@@ -944,7 +973,7 @@ final class AgentLogWatcher {
         let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
                                              | kFSEventStreamCreateFlagWatchRoot)
         guard let created = FSEventStreamCreate(kCFAllocatorDefault, callback, &context, paths as CFArray,
-                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 1.0, flags) else {
+                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.25, flags) else {
             return false
         }
         FSEventStreamSetDispatchQueue(created, queue)

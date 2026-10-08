@@ -730,13 +730,13 @@ final class NotchService: ObservableObject {
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
         ]).width
         let reading = width.rounded(.up) + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
-        // The marks on the other side, drawn as the strip draws them: two
-        // working agents share a smaller size, each in a frame wider than it.
+        // The marks on the other side, drawn as the strip draws them, a step
+        // larger than the reading.
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
-        let mark = CGFloat(working > 1 ? 11 : 14)
-        let frame = mark * 1.45 + 1
-        let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
-            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        let mark = NotchAgentSupport.stripMarkSize(height: provisional.compactActivityContentHeight)
+        let ring = min(mark + 2, provisional.compactActivityContentHeight - 2)
+        let marks = CGFloat(max(1, working)) * ring + CGFloat(max(0, working - 1)) * 4
+            + provisional.compactActivityEdgeInset(boxHeight: ring, radius: ring / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -3838,6 +3838,20 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
+            var meterReady = false
+            var knownWaiting = Set<AgentProvider>()
+            AgentUsageService.shared.$meterWaiting
+                .receive(on: DispatchQueue.main)
+                .sink { waiting in
+                    defer { knownWaiting = waiting }
+                    guard meterReady else {
+                        meterReady = true
+                        return
+                    }
+                    if !waiting.isSubset(of: knownWaiting) { AgentMeterFeedback.playWaiting() }
+                }
+                .store(in: &subscriptions)
+            AgentMeterPin.shared.sync()
         }
         stopPower()
         if NotchSupport.routes(.volume) {
@@ -3880,6 +3894,7 @@ final class NotchService: ObservableObject {
         }
         switch event {
         case .finished(let provider, let duration, let cost, _, _):
+            AgentMeterFeedback.playFinished()
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
                              detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
                                 .filter { !$0.isEmpty }.joined(separator: " · "),

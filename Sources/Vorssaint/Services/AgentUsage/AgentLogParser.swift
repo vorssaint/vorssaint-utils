@@ -872,6 +872,80 @@ enum AgentLogParser {
         guard let text = value as? String else { return seconds(value) }
         return AgentTimestamp.parse(text)
     }
+
+    static func parseCursor(_ line: Data, state: inout AgentLogState, waiting: inout Bool, settled: inout Bool,
+                             reason: inout String?, now: Date) -> [AgentLogEntry] {
+        guard let json = object(line) else { return [] }
+        if json["type"] as? String == "turn_ended" {
+            guard state.turnOpen else { return [] }
+            // An unanswered question stays amber. A reply already delivered
+            // is not a running turn, so the clock stops.
+            if waiting {
+                settled = false
+                return [.turnActive(nil)]
+            }
+            state.turnOpen = false
+            waiting = false
+            settled = false
+            reason = nil
+            return [.turnEnded(now, completed: false, duration: nil)]
+        }
+        guard let role = json["role"] as? String else { return [] }
+        let tools = cursorTools(json)
+        var entries: [AgentLogEntry] = []
+        if !state.turnOpen {
+            state.turnOpen = true
+            entries.append(.turnBegan(now))
+            if !state.project.isEmpty {
+                entries.append(.turnContext(model: "", project: state.project))
+            }
+        } else {
+            entries.append(.turnActive(now))
+        }
+        settled = false
+        if tools.contains("AskQuestion"), tools.allSatisfy({ $0 == "AskQuestion" }) {
+            waiting = true
+            reason = cursorAskTitle(json) ?? reason ?? "Input needed"
+        } else if role == "user" || role == "assistant" {
+            waiting = false
+            reason = nil
+        }
+        return entries
+    }
+
+    /// A short title from AskQuestion's tool input. Options and long prompts stay out.
+    private static func cursorAskTitle(_ json: [String: Any]) -> String? {
+        guard let message = json["message"] as? [String: Any],
+              let content = message["content"] as? [[String: Any]] else { return nil }
+        for part in content {
+            guard part["type"] as? String == "tool_use", part["name"] as? String == "AskQuestion",
+                  let input = part["input"] as? [String: Any] else { continue }
+            if let title = input["title"] as? String {
+                let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return String(trimmed.prefix(80)) }
+            }
+            if let questions = input["questions"] as? [[String: Any]] {
+                for question in questions {
+                    for key in ["prompt", "question", "text"] {
+                        if let text = question[key] as? String {
+                            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty { return String(trimmed.prefix(80)) }
+                        }
+                    }
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func cursorTools(_ json: [String: Any]) -> [String] {
+        guard let message = json["message"] as? [String: Any],
+              let content = message["content"] as? [[String: Any]] else { return [] }
+        return content.compactMap { part in
+            guard part["type"] as? String == "tool_use" else { return nil }
+            return part["name"] as? String
+        }
+    }
 }
 
 /// ISO 8601 times as both agents write them, "2026-09-21T23:42:45.078Z",
@@ -934,5 +1008,13 @@ enum AgentTimestamp {
         let days = era * 146_097 + doe - 719_468
         let seconds = Double(days * 86_400 + hour * 3600 + minute * 60 + second - offset) + fraction
         return Date(timeIntervalSince1970: seconds)
+    }
+}
+
+enum AgentCursorPath {
+    static func project(in path: String) -> String {
+        let parts = path.split(separator: "/")
+        guard let transcripts = parts.lastIndex(of: "agent-transcripts"), transcripts > 0 else { return "" }
+        return String(parts[transcripts - 1])
     }
 }

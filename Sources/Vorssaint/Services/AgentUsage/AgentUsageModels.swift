@@ -30,8 +30,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot && self != .cursor }
+    /// Whether the provider reports a plan allowance — from its logs or the account.
+    var reportsLimits: Bool { self != .copilot }
 }
 
 struct AgentAccount: Hashable, Codable, Identifiable {
