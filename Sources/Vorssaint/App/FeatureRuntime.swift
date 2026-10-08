@@ -243,6 +243,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .dockPreview: { DockPreviewService.shared.syncWithPreferences() },
         .dockClick: { DockClickService.shared.syncWithPreferences() },
+        .instantSpaces: { InstantSpacesService.shared.syncWithPreferences() },
         .windowMaximizer: { WindowMaximizer.shared.syncWithPreferences() },
         .windowLayout: {
             WindowUseTracker.shared.syncWithFeatures()
@@ -423,6 +424,9 @@ extension AppFeature {
     /// or when the feature depends on no hardware at all.
     var hardwareUnsupportedReason: String? {
         switch self {
+        case .instantSpaces:
+            return InstantSpacesGesture.isSupported
+                ? nil : FeatureStrings.instantSpaces(L10n.shared.language).compatibility
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans

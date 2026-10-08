@@ -999,6 +999,7 @@ extension AppFeature {
         case .switcher: return s.switcherSection
         case .dockPreview: return s.dockPreviewName
         case .dockClick: return hub.titleDockClick
+        case .instantSpaces: return FeatureStrings.instantSpaces(L10n.shared.language).title
         case .windowMaximizer: return s.windowMaximizeName
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
         case .autoQuit: return s.autoQuitName
@@ -1083,6 +1084,7 @@ extension AppFeature {
         case .switcher: return hub.descSwitcher
         case .dockPreview: return hub.descDockPreview
         case .dockClick: return hub.descDockClick
+        case .instantSpaces: return FeatureStrings.instantSpaces(L10n.shared.language).description
         case .windowMaximizer: return hub.descWindowMaximizer
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit

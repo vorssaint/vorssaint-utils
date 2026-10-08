@@ -47,6 +47,11 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("InstantSpacesKeyboard.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension InstantSpacesTests {\nfinal class KeyboardHost: KeyboardFixture {\n"
+          + declaration("Sources/Vorssaint/Services/InstantSpaces/InstantSpacesService.swift",
+                        "    private func handle(proxy:").replace("private func", "func", 1)
+          + "}\n}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
           + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    func stop() async")
