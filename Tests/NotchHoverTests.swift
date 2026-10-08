@@ -841,6 +841,93 @@ enum NotchHoverTests {
         trackNoticeContracts(fixture: fixture, expect: expect)
         musicStripContracts(fixture: fixture, leave: leave, expect: expect)
         musicStripClickContracts(fixture: fixture, leave: leave, expect: expect)
+        musicStripCapsuleSizingContracts(fixture: fixture, leave: leave, expect: expect)
+    }
+
+    /// The production capsule sizing branch must measure the same song the
+    /// view shows through a nameless reading, without lending that hold to copies.
+    private static func musicStripCapsuleSizingContracts(fixture: (Bool) -> Service, leave: (Service) -> Void,
+                                                         expect: (Bool, String) -> Void) {
+        let music = NotchMusicService.shared
+        defer { music.playback = nil; music.reset() }
+        let service = fixture(false)
+        UserDefaults.standard.enabled = false
+        service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                          menuBarHeight: 24, compactSideRoom: 500, silhouette: .capsule)
+        service.compactActivity = .music
+        service.updateBounds()
+        let title = "A considerably longer song title whose name must keep its width"
+        let context = NotchPlaybackContext(pid: 42, revision: UUID())
+        func reading(_ title: String?, pid: Int32 = 42, context: NotchPlaybackContext?, playing: Bool = false) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: title == nil ? nil : "Artist", album: nil,
+                                                          artworkData: nil, appBundleIdentifier: "org.example.player", appPID: pid),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: playing ? 1 : 0, sampledAt: Date(),
+                          canSeek: false, commandContext: context, canSendCommandsDirectly: true)
+        }
+        func size(_ title: String?, geometry: NotchGeometry? = nil) -> CGSize {
+            NotchCapsuleLayout.musicSurface(title: title, geometry: geometry ?? service.geometry)
+        }
+        func holdSong() {
+            music.playback = reading(title, context: context, playing: true)
+            service.presentedMusic = NotchCompactMusicSnapshot(title: title)
+            service.hoverMusicStrip(.bars, entered: true)
+            service.activateMusicStrip()
+        }
+        music.playback = reading(title, context: context, playing: true)
+        service.hover(true)
+        service.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        let before = service.capsuleStripSize(for: .music, companion: nil)
+        expect(service.musicStripNamesSong && before == size(title),
+               "a named capsule measures its live song before a pause")
+        holdSong()
+        music.playback = reading(title, context: context)
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == context && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == before,
+               "the paused song's named reading needs no stand-in and keeps the capsule's width")
+
+        music.playback = reading(nil, context: nil)
+        service.endMusicStripSong(music.playback)
+        let shown = service.musicStripStandIn(for: music.playback)
+        expect(shown?.playback.track.title == title
+               && service.capsuleStripSize(for: .music, companion: nil) == size(shown?.playback.track.title)
+               && service.capsuleStripSize(for: .music, companion: nil) == before,
+               "a nameless reading keeps the held title's width, so the capsule's ends stay under the pointer")
+
+        let copy = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                 menuBarHeight: 20, compactSideRoom: 200, silhouette: .capsule)
+        let fallback = FeatureStrings.radialMenu(L10n.shared.language).mediaNowPlaying
+        expect(service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size(nil, geometry: copy),
+               "another display's capsule ignores the pointer's request to name the song")
+        service.capsuleMusicTitleShown = true
+        expect(service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size(fallback, geometry: copy),
+               "a copy naming a new reading uses its own geometry and live title, never the pointer's held song")
+        service.heldMusic = NotchCompactMusicSnapshot(title: "Previous song")
+        expect(service.capsuleStripSize(for: .music, companion: nil) == size("Previous song")
+               && service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size("Previous song", geometry: copy),
+               "a song held for its notice takes precedence on both the island and its copies")
+        service.heldMusic = nil
+        service.capsuleMusicTitleShown = false
+
+        music.playback = reading("Next", context: NotchPlaybackContext(pid: 42, revision: UUID()))
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == size("Next"),
+               "the next named song replaces the hold and supplies the capsule's width")
+        holdSong()
+        music.playback = reading(nil, pid: 43, context: nil)
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == size(fallback),
+               "another player's nameless reading never borrows the previous player's title or width")
+        holdSong()
+        music.playback = reading(nil, context: nil)
+        service.endMusicStripSong(music.playback)
+        leave(service)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && !service.musicStripNamesSong && service.capsuleStripSize(for: .music, companion: nil) == size(nil),
+               "leaving the island releases the held song and the width requested by hover")
     }
 
     /// A click on the bars while they show the button plays or pauses the

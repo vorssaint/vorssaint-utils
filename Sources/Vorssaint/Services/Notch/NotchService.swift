@@ -968,7 +968,8 @@ final class NotchService: ObservableObject {
     private func capsuleStripSize(for activity: NotchCompactActivity, companion: NotchCompactActivity?,
                                   geometry: NotchGeometry? = nil) -> CGSize {
         // Only the island's own capsule is under the pointer. Its copies name a song as it starts.
-        let named = capsuleMusicTitleShown || geometry == nil && musicStripNamesSong
+        let ownDisplay = geometry == nil
+        let named = capsuleMusicTitleShown || ownDisplay && musicStripNamesSong
         let geometry = geometry ?? self.geometry
         let layout = NotchCapsuleLayout.self
         let language = L10n.shared.language
@@ -976,7 +977,9 @@ final class NotchService: ObservableObject {
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
         switch activity {
         case .music:
-            let playback = heldMusic?.playback ?? NotchMusicService.shared.playback
+            let live = NotchMusicService.shared.playback
+            let shown = heldMusic ?? (ownDisplay ? musicStripStandIn(for: live) : nil)
+            let playback = shown?.playback ?? live
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
                                        geometry: geometry)
