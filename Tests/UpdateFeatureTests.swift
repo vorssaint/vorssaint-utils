@@ -1362,6 +1362,16 @@ enum UpdateFeatureTests {
                 && AppUpdatesSupport.isNewer("3.5", than: "3.5beta")
                 && AppUpdatesSupport.isNewer("1.9b", than: "1.9a"),
                "a lettered part compares by its number first, and the bare number outranks its own suffixed run")
+        suite.expect(AppUpdatesSupport.isNewer("3.5.0beta10", than: "3.5.0beta9")
+                && !AppUpdatesSupport.isNewer("3.5.0beta9", than: "3.5.0beta10")
+                && AppUpdatesSupport.isNewer("2.0-rc10", than: "2.0-rc9")
+                && AppUpdatesSupport.compare("1.0b10", "1.0b2") == .orderedDescending
+                && AppUpdatesSupport.compare("1.0b2", "1.0b10") == .orderedAscending,
+               "a number after the letters counts as a number, so beta10 follows beta9")
+        suite.expect(AppUpdatesSupport.isNewer("1.0beta2", than: "1.0beta")
+                && AppUpdatesSupport.isNewer("1.0rc1", than: "1.0beta12")
+                && AppUpdatesSupport.compare("1.0Beta02", "1.0beta2") == .orderedSame,
+               "the letters still decide first, and neither case nor leading zeros make two spellings differ")
         suite.expect(AppUpdatesSupport.versionCore("3.5.262,260717dcrpwg7m0") == "3.5.262"
                 && AppUpdatesSupport.versionCore("0.0.402") == "0.0.402",
                "the revision after a comma is not part of the version")
