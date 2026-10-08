@@ -111,6 +111,8 @@ final class CleaningModeManager: ObservableObject {
         // the repeated same-key presses the unlock gesture counts on.
         KeyboardDebounceService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
+        // Wiping the keys would otherwise clatter through the input sounds.
+        InputSoundsService.shared.suspend()
         // Wiping the trackpad is nothing but stray three-finger contacts;
         // middle-click emulation must not fire from them.
         MiddleClickService.shared.suspend()
@@ -199,6 +201,7 @@ final class CleaningModeManager: ObservableObject {
         // so a feature changed while Cleaning Mode was active stays changed.
         KeyboardDebounceService.shared.syncWithPreferences()
         MouseClickDebounceService.shared.syncWithPreferences()
+        InputSoundsService.shared.syncWithPreferences()
         MiddleClickService.shared.syncWithPreferences()
         MouseNavigationService.shared.syncWithPreferences()
         MouseButtonShortcutService.shared.syncWithPreferences()

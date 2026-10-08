@@ -14,6 +14,7 @@ import VMStatisticsCompat
 
 enum PointerInputFeatureTests {
     static func run(_ suite: TestSuite) {
+        InputFeedbackTests.run(suite)
         func expectFormat(_ format: String, _ expected: [String], _ label: String,
                           file: StaticString = #filePath, line: UInt = #line) {
             let actual = TestFormat.parse(format)?.conversions ?? ["invalid format"]

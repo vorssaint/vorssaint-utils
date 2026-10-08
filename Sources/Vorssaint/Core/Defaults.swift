@@ -74,6 +74,35 @@ enum DefaultsKey {
     static let mouseSpacesGestureFollowsDrag = "mouseSpacesGestureFollowsDrag" // the Space moves with the hand, the way natural scrolling does
     static let mouseClickDebounceEnabled = "mouseClickDebounceEnabled"
     static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
+    // Input sounds: synthesized click, key and scroll sounds.
+    static let inputSoundsEnabled = "inputSoundsEnabled"          // master switch for every input sound
+    static let inputSoundsClicks = "inputSoundsClicks"
+    static let inputSoundsClickPack = "inputSoundsClickPack"      // InputSoundPack id or "custom"
+    static let inputSoundsKeyboard = "inputSoundsKeyboard"
+    static let inputSoundsKeyboardPack = "inputSoundsKeyboardPack" // InputSoundPack id or "custom"
+    static let inputSoundsScroll = "inputSoundsScroll"
+    static let inputSoundsScrollStyle = "inputSoundsScrollStyle"  // InputScrollStyle raw value
+    static let inputSoundsDoubleClick = "inputSoundsDoubleClick"
+    static let inputSoundsLongPress = "inputSoundsLongPress"
+    static let inputSoundsDrag = "inputSoundsDrag"
+    static let inputSoundsStereo = "inputSoundsStereo"            // pan follows the pointer
+    static let inputSoundsModifierKeys = "inputSoundsModifierKeys"
+    static let inputSoundsTypingCombo = "inputSoundsTypingCombo"
+    static let inputSoundsVolume = "inputSoundsVolume"            // 0...1, clicks, scroll and extras
+    static let inputSoundsKeyboardVolume = "inputSoundsKeyboardVolume"
+    static let inputSoundsQuietDuringMicrophone = "inputSoundsQuietDuringMicrophone"
+    static let inputSoundsQuietApps = "inputSoundsQuietApps"      // newline-separated bundle ids
+    static let inputSoundsPreset = "inputSoundsPreset"            // InputFeedbackPreset raw value last applied
+    // Click highlight: ripple under clicks and a spotlight around the pointer.
+    static let clickHighlightRippleEnabled = "clickHighlightRippleEnabled"
+    static let clickHighlightRippleOnlyWhileRecording = "clickHighlightRippleOnlyWhileRecording"
+    static let clickHighlightStyle = "clickHighlightStyle"        // ClickRippleStyle raw value
+    static let clickHighlightSize = "clickHighlightSize"          // points across
+    static let clickHighlightColor = "clickHighlightColor"        // #RRGGBB
+    static let clickHighlightSpotlightEnabled = "clickHighlightSpotlightEnabled"
+    static let clickHighlightSpotlightOnlyWhileRecording = "clickHighlightSpotlightOnlyWhileRecording"
+    static let clickHighlightSpotlightDarkness = "clickHighlightSpotlightDarkness" // 0...1
+    static let clickHighlightSpotlightRadius = "clickHighlightSpotlightRadius"     // points
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -345,6 +374,8 @@ enum DefaultsKey {
     static let panelControlMouseAcceleration = "panelControlMouseAcceleration"
     static let panelControlLinearScroll = "panelControlLinearScroll"
     static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
+    static let panelControlInputSounds = "panelControlInputSounds"
+    static let panelControlClickHighlight = "panelControlClickHighlight"
     static let panelControlSpacesOrder = "panelControlSpacesOrder"
     // Quick-control categories start collapsed and remember being opened.
     static let panelControlWindowsExpanded = "panelControlWindowsExpanded"
@@ -1144,6 +1175,14 @@ enum Defaults {
     static let keyboardDebounceWindowStep = 1
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
+    static let defaultInputSoundsVolume = 0.5
+    static let defaultClickHighlightSize = 56.0
+    static let allowedClickHighlightSizeRange = 24.0...160.0
+    static let defaultClickHighlightColor = "#FF9F0A"
+    static let defaultClickHighlightSpotlightDarkness = 0.55
+    static let allowedClickHighlightSpotlightDarknessRange = 0.15...0.9
+    static let defaultClickHighlightSpotlightRadius = 150.0
+    static let allowedClickHighlightSpotlightRadiusRange = 60.0...420.0
     static let allowedMenuBarPresets = ["dense"]
     static let allowedMenuBarMetricSpacings = ["standard", "compact"]
     static let allowedMenuBarMetricAppearances = ["values", "bars"]
@@ -1215,6 +1254,33 @@ enum Defaults {
         DefaultsKey.mouseSpacesGestureFollowsDrag: false,
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
+        DefaultsKey.inputSoundsEnabled: false,
+        DefaultsKey.inputSoundsClicks: true,
+        DefaultsKey.inputSoundsClickPack: InputSoundLibrary.defaultPackID,
+        DefaultsKey.inputSoundsKeyboard: false,
+        DefaultsKey.inputSoundsKeyboardPack: "desk.thock",
+        DefaultsKey.inputSoundsScroll: false,
+        DefaultsKey.inputSoundsScrollStyle: InputScrollStyle.tick.rawValue,
+        DefaultsKey.inputSoundsDoubleClick: false,
+        DefaultsKey.inputSoundsLongPress: false,
+        DefaultsKey.inputSoundsDrag: false,
+        DefaultsKey.inputSoundsStereo: false,
+        DefaultsKey.inputSoundsModifierKeys: true,
+        DefaultsKey.inputSoundsTypingCombo: false,
+        DefaultsKey.inputSoundsVolume: defaultInputSoundsVolume,
+        DefaultsKey.inputSoundsKeyboardVolume: defaultInputSoundsVolume,
+        DefaultsKey.inputSoundsQuietDuringMicrophone: true,
+        DefaultsKey.inputSoundsQuietApps: "",
+        DefaultsKey.inputSoundsPreset: "",
+        DefaultsKey.clickHighlightRippleEnabled: false,
+        DefaultsKey.clickHighlightRippleOnlyWhileRecording: false,
+        DefaultsKey.clickHighlightStyle: ClickRippleStyle.ring.rawValue,
+        DefaultsKey.clickHighlightSize: defaultClickHighlightSize,
+        DefaultsKey.clickHighlightColor: defaultClickHighlightColor,
+        DefaultsKey.clickHighlightSpotlightEnabled: false,
+        DefaultsKey.clickHighlightSpotlightOnlyWhileRecording: true,
+        DefaultsKey.clickHighlightSpotlightDarkness: defaultClickHighlightSpotlightDarkness,
+        DefaultsKey.clickHighlightSpotlightRadius: defaultClickHighlightSpotlightRadius,
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
@@ -1563,6 +1629,8 @@ enum Defaults {
         DefaultsKey.panelControlMouseAcceleration: true,
         DefaultsKey.panelControlLinearScroll: true,
         DefaultsKey.panelControlMouseClickDebounce: true,
+        DefaultsKey.panelControlInputSounds: true,
+        DefaultsKey.panelControlClickHighlight: true,
         DefaultsKey.panelControlSpacesOrder: true,
         DefaultsKey.panelControlWindowsExpanded: false,
         DefaultsKey.panelControlInputExpanded: false,
@@ -2425,6 +2493,24 @@ enum Defaults {
         allowedMouseClickDebounceWindowRange.contains(milliseconds)
             ? milliseconds
             : defaultMouseClickDebounceWindowMs
+    }
+
+    static func sanitizedInputSoundsVolume(_ value: Double) -> Double {
+        value.isFinite && (0...1).contains(value) ? value : defaultInputSoundsVolume
+    }
+
+    static func sanitizedClickHighlightSize(_ value: Double) -> Double {
+        allowedClickHighlightSizeRange.contains(value) ? value : defaultClickHighlightSize
+    }
+
+    static func sanitizedClickHighlightSpotlightDarkness(_ value: Double) -> Double {
+        allowedClickHighlightSpotlightDarknessRange.contains(value)
+            ? value : defaultClickHighlightSpotlightDarkness
+    }
+
+    static func sanitizedClickHighlightSpotlightRadius(_ value: Double) -> Double {
+        allowedClickHighlightSpotlightRadiusRange.contains(value)
+            ? value : defaultClickHighlightSpotlightRadius
     }
 
     /// Clamps rather than falling back to the default: a typed 4 becoming 5 is

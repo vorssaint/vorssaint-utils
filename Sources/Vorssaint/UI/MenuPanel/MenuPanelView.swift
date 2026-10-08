@@ -1114,7 +1114,7 @@ struct UtilitiesSection: View {
 private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
     case mouseScroll, linearScroll, focusFollowsMouse, mouseAcceleration, mouseNavigation, switcher, cutPaste, autoQuit, shelf, windowMaximize, dockPreview, keyDebounce,
          dockClick, dockClickHide, dockClickCycle, middleClick, textSnippets, radialMenu, mouseButtonShortcuts, superKey,
-         mouseClickDebounce, notch, spacesOrder
+         mouseClickDebounce, notch, spacesOrder, inputSounds, clickHighlight
 
     var id: String { rawValue }
 
@@ -1143,6 +1143,8 @@ private enum ControlPanelItem: String, PanelOrderItem, Identifiable {
         case .mouseButtonShortcuts: return .mouseButtonShortcuts
         case .superKey: return .superKey
         case .mouseClickDebounce: return .mouseClickDebounce
+        case .inputSounds: return .inputSounds
+        case .clickHighlight: return .clickHighlight
         }
     }
 }
@@ -1160,7 +1162,7 @@ private enum ControlCategory: String, CaseIterable, Identifiable {
              .spacesOrder:
             return .windows
         case .mouseScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick, .keyDebounce,
-             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce:
+             .textSnippets, .radialMenu, .superKey, .mouseClickDebounce, .inputSounds, .clickHighlight:
             return .inputDevices
         case .cutPaste, .shelf:
             return .files
@@ -1237,6 +1239,11 @@ struct QuickControlsSection: View {
     @AppStorage(DefaultsKey.panelControlSuperKey) private var showSuperKey = true
     @AppStorage(DefaultsKey.panelControlMouseAcceleration) private var showMouseAcceleration = true
     @AppStorage(DefaultsKey.panelControlMouseClickDebounce) private var showMouseClickDebounce = true
+    @AppStorage(DefaultsKey.panelControlInputSounds) private var showInputSounds = true
+    @AppStorage(DefaultsKey.panelControlClickHighlight) private var showClickHighlight = true
+    @AppStorage(DefaultsKey.inputSoundsEnabled) private var inputSoundsEnabled = false
+    @AppStorage(DefaultsKey.clickHighlightRippleEnabled) private var clickRippleEnabled = false
+    @AppStorage(DefaultsKey.clickHighlightSpotlightEnabled) private var clickSpotlightEnabled = false
     @AppStorage(DefaultsKey.panelControlWindowsExpanded) private var windowsExpanded = false
     @AppStorage(DefaultsKey.panelControlInputExpanded) private var inputExpanded = false
     @AppStorage(DefaultsKey.panelControlFilesExpanded) private var filesExpanded = false
@@ -1360,6 +1367,8 @@ struct QuickControlsSection: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .superKey: return superKeyEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
+        case .inputSounds: return inputSoundsEnabled
+        case .clickHighlight: return clickRippleEnabled || clickSpotlightEnabled
         }
     }
 
@@ -1440,6 +1449,8 @@ struct QuickControlsSection: View {
         case .mouseButtonShortcuts: return showMouseButtonShortcuts
         case .superKey: return showSuperKey
         case .mouseClickDebounce: return showMouseClickDebounce
+        case .inputSounds: return showInputSounds
+        case .clickHighlight: return showClickHighlight
         }
     }
 
@@ -1865,6 +1876,35 @@ struct QuickControlsSection: View {
                     MouseClickDebounceService.shared.syncWithPreferences()
                     requestAccessibilityIfNeeded(enabled)
                 }
+        case .inputSounds:
+            let soundStrings = FeatureStrings.inputFeedback(l10n.language)
+            PanelToggleRow(title: soundStrings.soundsTitle,
+                           caption: caption(soundStrings.soundsCaption,
+                                            needsAccessibility: inputSoundsEnabled),
+                           systemImage: AppFeature.inputSounds.symbolName,
+                           isOn: $inputSoundsEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showInputSounds,
+                           needsAttention: inputSoundsEnabled && !permissions.accessibility,
+                           permissionButtonTitle: l10n.s.permissionRequest,
+                           permissionAction: accessibilityPermissionAction(inputSoundsEnabled))
+                .onChange(of: inputSoundsEnabled) { _, enabled in
+                    InputSoundsService.shared.syncWithPreferences()
+                    requestAccessibilityIfNeeded(enabled)
+                }
+        case .clickHighlight:
+            let highlightStrings = FeatureStrings.inputFeedback(l10n.language)
+            PanelToggleRow(title: highlightStrings.highlightTitle,
+                           caption: highlightStrings.rippleToggle,
+                           systemImage: AppFeature.clickHighlight.symbolName,
+                           isOn: $clickRippleEnabled,
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: $showClickHighlight)
+                .onChange(of: clickRippleEnabled) { _, _ in
+                    ClickHighlightService.shared.syncWithPreferences()
+                }
         }
     }
 
@@ -1902,6 +1942,8 @@ struct QuickControlsSection: View {
         showMouseAcceleration = true
         showLinearScroll = true
         showMouseClickDebounce = true
+        showInputSounds = true
+        showClickHighlight = true
         windowsExpanded = false
         inputExpanded = false
         filesExpanded = false

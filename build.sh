@@ -455,6 +455,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowMaximizerSupport.swift
         Sources/Vorssaint/Core/MouseButtonStrings.swift
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift
+        Sources/Vorssaint/Core/InputFeedbackStrings.swift
+        Sources/Vorssaint/Services/InputSounds/InputSoundSynth.swift
+        Sources/Vorssaint/Services/InputSounds/InputSoundLibrary.swift
+        Sources/Vorssaint/Services/InputSounds/InputSoundsSupport.swift
+        Sources/Vorssaint/Services/ClickHighlight/ClickHighlightSupport.swift
+        Sources/Vorssaint/Services/ListenOnlyEventTap.swift
         Sources/Vorssaint/Core/MouseExceptionStrings.swift
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift
         Sources/Vorssaint/Core/WindowLayoutIgnoredAppsStrings.swift

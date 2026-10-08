@@ -1031,6 +1031,7 @@ extension AppFeature {
         case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
+        case .inputSounds: return FeatureStrings.inputFeedback(L10n.shared.language).soundsTitle
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
@@ -1065,6 +1066,7 @@ extension AppFeature {
         case .uninstaller: return s.uninstallerName
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
+        case .clickHighlight: return FeatureStrings.inputFeedback(L10n.shared.language).highlightTitle
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -1115,6 +1117,7 @@ extension AppFeature {
         case .audioPriority: return hub.descAudioPriority
         case .micMute: return hub.descMicMute
         case .musicBlock: return hub.descMusicBlock
+        case .inputSounds: return FeatureStrings.inputFeedback(L10n.shared.language).soundsCaption
         case .keepAwake: return hub.descKeepAwake
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).hubDescription
         case .extraBrightness: return hub.descExtraBrightness
@@ -1155,6 +1158,7 @@ extension AppFeature {
         case .uninstaller: return hub.descUninstaller
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).hubDescription
+        case .clickHighlight: return FeatureStrings.inputFeedback(L10n.shared.language).highlightCaption
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU
