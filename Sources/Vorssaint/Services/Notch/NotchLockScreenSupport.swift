@@ -23,6 +23,20 @@ enum NotchLockScreenSupport {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
     }
 
+    /// The lock screen's scene stays over a screen saver once it has locked
+    /// the Mac, as it shows over the lock screen itself.
+    static func showsOverScreenSaver(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShowOverScreenSaver)
+    }
+
+    /// Whether `session` puts the scene on screen: the lock screen, or a
+    /// screen saver that locked the Mac when asked. An unlocked screen saver
+    /// shows nothing over it.
+    static func showsScene(_ session: NotchSessionState, in defaults: UserDefaults = .standard) -> Bool {
+        guard isEnabled(in: defaults) else { return false }
+        return session.showsLockScreen || (session.showsLockedScreenSaver && showsOverScreenSaver(in: defaults))
+    }
+
     static func playsSounds(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockSounds)
     }

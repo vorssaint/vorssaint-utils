@@ -76,6 +76,7 @@ enum NotchHoverTests {
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
+        var captureContent: Bool?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
@@ -393,6 +394,47 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.19)
         suite.expect(departed.closures == 1,
                      "the hover-open island closes after its normal pointer exit delay")
+
+        // Kept in sight over Mission Control, the island settles to its status
+        // first; what cannot settle without losing work stays concealed.
+        let kept = fixture()
+        kept.hover(true)
+        DispatchQueue.main.advance(0.26)
+        let closures = kept.closures
+        suite.expect(kept.settleForMissionControl() && !kept.expanded && kept.closures == closures + 1
+                     && kept.hoverWork == nil && !kept.inside,
+                     "an open island with nothing pending closes to its status over Mission Control")
+        let resting = fixture()
+        resting.hoverEmphasized = true
+        let refreshes = resting.refreshes
+        suite.expect(resting.settleForMissionControl() && !resting.hoverEmphasized
+                     && resting.refreshes == refreshes + 1 && resting.closures == 0,
+                     "a hovered strip settles to its resting size without closing anything")
+        let picker = fixture()
+        picker.compactActivities = [.timer, .music]
+        picker.hover(true)
+        suite.expect(picker.showsCompactActivityPicker, "a hovered strip with two activities shows their picker")
+        suite.expect(picker.settleForMissionControl() && !picker.inside && !picker.showsCompactActivityPicker
+                     && picker.hoverWork == nil,
+                     "a hovered activity picker settles to the strip over Mission Control")
+        let pending: [(String, (Service) -> Void)] = [
+            ("pending work on the open island, such as a folder or lyrics chooser", { $0.keepsWorkingSurface = true }),
+            ("open capture controls", { $0.captureControls = false }),
+            ("a capture preview", { $0.captureContent = true }),
+            ("an open notification", { $0.noticeExpanded = true }),
+            ("a drag", { $0.heldDrag = true }),
+            ("the activity picker's menu", { $0.activityPickerMenuOpen = true }),
+        ]
+        for (reason, make) in pending {
+            let working = fixture()
+            working.hover(true)
+            DispatchQueue.main.advance(0.26)
+            make(working)
+            let before = (working.closures, working.refreshes, working.expanded)
+            suite.expect(!working.settleForMissionControl()
+                         && (working.closures, working.refreshes, working.expanded) == before,
+                         "\(reason) keeps the usual concealment and is left as it is for after Mission Control")
+        }
 
         // AppKit's last exit can come while the pointer is still in the margin
         // around the floating controls. Leaving from there over transparent

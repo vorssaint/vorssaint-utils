@@ -911,6 +911,8 @@ enum DefaultsKey {
     static let notchMascotHidesWhenIdle = "notchMascotHidesWhenIdle" // hops into the island after a quiet while
     static let notchCommandBar = "notchCommandBar" // the Command Bar comes out of the island
     static let notchCommandBarStyle = "notchCommandBarStyle" // NotchCommandBarStyle.rawValue
+    static let notchShowInMissionControl = "notchShowInMissionControl" // the island stays up in Mission Control
+    static let notchShowOverScreenSaver = "notchShowOverScreenSaver" // the lock screen's scene over a screen saver that locked the Mac
     // Legacy inverse preference; the explicit visibility switch supersedes it.
     static let notchHideInCaptures = "notchHideInCaptures"
     static let panelControlNotch = "panelControlNotch"
@@ -1483,6 +1485,8 @@ enum Defaults {
         DefaultsKey.notchMascotHidesWhenIdle: false,
         DefaultsKey.notchCommandBar: true,
         DefaultsKey.notchCommandBarStyle: NotchCommandBarStyle.droplet.rawValue,
+        DefaultsKey.notchShowInMissionControl: false,
+        DefaultsKey.notchShowOverScreenSaver: false,
         DefaultsKey.notchHideInCaptures: false,
         DefaultsKey.panelControlNotch: true,
         DefaultsKey.radialMenuEnabled: false,

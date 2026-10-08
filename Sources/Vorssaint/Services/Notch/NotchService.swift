@@ -2005,6 +2005,26 @@ final class NotchService: ObservableObject {
         panel?.acceptsMouseMovedEvents = false
     }
 
+    /// Kept in sight over Mission Control, the island shows only the status
+    /// it rests with, as on the lock screen, and nothing there can open it.
+    /// Whatever is visible settles to that status first. Work still pending
+    /// on the island, such as a folder or lyrics chooser, a capture preview,
+    /// capture controls, an open notification, a drag or a menu, cannot be
+    /// closed without losing it: those return false and keep the usual
+    /// concealment, so they resume as Mission Control ends.
+    private func settleForMissionControl() -> Bool {
+        guard !keepsWorkingSurface, captureControls == nil, captureContent == nil, !noticeExpanded,
+              !dragPlaceholder, !heldDrag, !activityPickerMenuOpen else { return false }
+        hoverWork?.cancel(); hoverWork = nil
+        // The pointer belongs to Mission Control now; a hovered picker or
+        // strip settles, and the restore reads the pointer again.
+        inside = false
+        hoverState.update(pointerInside: false)
+        hoverEmphasized = false
+        if expanded || peeking { collapse() } else { refreshPresentation() }
+        return true
+    }
+
     private func missionControlDidRestore() {
         if captureControls != nil { updateCaptureControlsClickThrough() }
         else { hover(windowHost?.containsHover(NSEvent.mouseLocation) == true) }
@@ -3007,6 +3027,7 @@ final class NotchService: ObservableObject {
                                         background: { AnyView(NotchWindowBackground(presentation: $0)) },
                                         quickAccess: { AnyView(NotchQuickAccessView(service: self, motion: $0, backdrop: $1)) })
             windowHost?.missionControlDidRestore = { [weak self] in self?.missionControlDidRestore() }
+            windowHost?.missionControlKeepsInSight = { [weak self] in self?.settleForMissionControl() ?? false }
             windowHost?.setHoverHandler { [weak self] in self?.hover($0) }
             panel?.title = FeatureStrings.notch(L10n.shared.language).title
         }

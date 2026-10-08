@@ -43,7 +43,7 @@ final class NotchLockScreenService {
         let locking = session.locked && !wasLocked
         wasLocked = session.locked
         if !session.locked { model.playedWhileLocked = false }
-        if session.showsLockScreen, NotchLockScreenSupport.isEnabled() {
+        if NotchLockScreenSupport.showsScene(session) {
             // Locked at the Mac, the padlock is seen closing; back from a
             // dark display it is simply closed.
             show(closingPadlock: locking)

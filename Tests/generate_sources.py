@@ -718,7 +718,7 @@ def main():
               "    private var hiddenUntilHover:", "    private var hiddenAtRestInFullscreen:", "    func hover(",
               "    private func syncHoverExitMonitoring(", "    private func removeHoverExitMonitors(",
               "    var showsCompactActivityPicker:",
-              "    private func missionControlDidRestore()",
+              "    private func missionControlDidRestore()", "    private func settleForMissionControl()",
               "    private var holdsNotification:", "    private func holdNotification(",
               "    private func syncNoticeWithPreferences(",
               "    private func releaseNotification(", "    private func scheduleNoticeDismissal(",
@@ -847,6 +847,12 @@ def main():
           + "}\n}\nextension NotchPresentationRefreshContract.Host {\n"
           + declaration(canvas, "    func setMouseEventsIgnored(")
           + declaration(canvas, "    private func restoreFromMissionControl(").replace("private func", "func", 1)
+          + declaration(canvas, "    private func sampleMissionControl(").replace("private func", "func", 1)
+              .replace("        let probe = frameProbe ?? NotchFrameProbe(collectionBehavior: panel.collectionBehavior)\n"
+                       "        frameProbe = probe\n"
+                       "        if probe.serverAnimatesFrames(level: panel.level, screen: currentGeometry.screen) {",
+                       "        if overviewAnimates {")
+              .replace("NotchSupport.showsInMissionControl()", "keepsInMissionControl")
           + "}\n")
     metric_view = "Sources/Vorssaint/UI/MenuPanel/MetricDetailView.swift"
     renderer = "Sources/Vorssaint/App/MenuBarRenderer.swift"

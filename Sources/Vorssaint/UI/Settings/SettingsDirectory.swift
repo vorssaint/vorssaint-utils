@@ -369,7 +369,9 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchAgents(language).title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
                                                  FeatureStrings.notchAgents(language).resetsCard,
                                                  FeatureStrings.notchLockScreen(language).title,
-                                                 FeatureStrings.notchLockScreen(language).sounds]
+                                                 FeatureStrings.notchLockScreen(language).sounds,
+                                                 FeatureStrings.notchLockScreen(language).missionControl,
+                                                 FeatureStrings.notchLockScreen(language).screenSaver]
                                           // The fit card only appears with a camera housing to fit.
                                           + (NotchSupport.hasNotchedDisplay ? [FeatureStrings.notch(language).cameraFit] : [])
                                           + (NotchSupport.hasDisplayWithoutNotch

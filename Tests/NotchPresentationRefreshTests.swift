@@ -98,6 +98,11 @@ enum NotchPresentationRefreshContract {
         var concealedForMissionControl = false
         var isConcealedForMissionControl: Bool { concealedForMissionControl }
         var missionControlDidRestore: (() -> Void)?
+        var missionControlKeepsInSight: (() -> Bool)?
+        /// What the window server's frame probe reads, and the switch that
+        /// keeps the island in sight over Mission Control.
+        var overviewAnimates = false, keepsInMissionControl = false
+        var missionControlFrameProbeCount = 0
         var missionControlAlpha: CGFloat = 1
         var missionControlMouseEvents = false
         var desktopReadings = 0
@@ -259,6 +264,45 @@ enum NotchPresentationRefreshContract {
         func removeScreenEdgeClickMonitors() { edgeClicksEnabled = false }
     }
 
+    /// Mission Control conceals the island unless it is kept in sight; kept,
+    /// it stays visible and out of reach once it has settled to its status,
+    /// and is concealed as usual when what it shows cannot settle.
+    static func keptInMissionControl(_ suite: TestSuite) {
+        func entering(keeps: Bool, settles: Bool) -> (Host, Int) {
+            let host = Host()
+            var asked = 0
+            host.keepsInMissionControl = keeps
+            host.missionControlKeepsInSight = { asked += 1; return settles }
+            host.overviewAnimates = true
+            host.sampleMissionControl()
+            return (host, asked)
+        }
+        let (usual, usualAsks) = entering(keeps: false, settles: true)
+        suite.expect(usual.concealedForMissionControl && usual.panel.alphaValue == 0 && usual.panel.ignoresMouseEvents
+                     && usualAsks == 0,
+                     "without the switch Mission Control fades the island out and never asks it to settle")
+        let (kept, keptAsks) = entering(keeps: true, settles: true)
+        suite.expect(kept.concealedForMissionControl && kept.panel.alphaValue == 1 && kept.panel.ignoresMouseEvents
+                     && keptAsks == 1,
+                     "kept in sight, a settled island stays visible over Mission Control and out of reach")
+        let (pending, _) = entering(keeps: true, settles: false)
+        suite.expect(pending.concealedForMissionControl && pending.panel.alphaValue == 0 && pending.panel.ignoresMouseEvents,
+                     "kept in sight, an island with work it cannot settle is concealed as usual")
+        let hidden = Host()
+        hidden.panel.isVisible = false
+        hidden.keepsInMissionControl = true
+        var hiddenAsks = 0
+        hidden.missionControlKeepsInSight = { hiddenAsks += 1; return true }
+        hidden.overviewAnimates = true
+        hidden.sampleMissionControl()
+        suite.expect(hidden.panel.alphaValue == 0 && hiddenAsks == 0,
+                     "a hidden island has nothing to keep in sight and stays hidden through Mission Control")
+        kept.overviewAnimates = false
+        for _ in 0..<3 { kept.sampleMissionControl() }
+        suite.expect(!kept.concealedForMissionControl && kept.panel.alphaValue == 1 && !kept.panel.ignoresMouseEvents,
+                     "leaving Mission Control gives a kept island its input back")
+    }
+
     static func run(_ suite: TestSuite) {
         compactMusicDepartureChecks(suite)
         mascotYieldChecks(suite)
@@ -412,6 +456,7 @@ enum NotchPresentationRefreshContract {
         missionControl.windowHost?.concealedForMissionControl = false
         suite.expect(missionControl.acceptsSystemFeedback && missionControl.showsSystemFeedback,
                      "leaving Mission Control restores island feedback routing")
+        keptInMissionControl(suite)
 
         let material = Service()
         material.expanded = false

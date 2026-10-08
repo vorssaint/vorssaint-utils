@@ -65,6 +65,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchControlOrder) private var controlOrder = ""
     @AppStorage(DefaultsKey.notchShowInCaptures) private var showInCaptures = true
     @AppStorage(DefaultsKey.notchLockScreen) private var lockScreen = false
+    @AppStorage(DefaultsKey.notchShowInMissionControl) private var showInMissionControl = false
+    @AppStorage(DefaultsKey.notchShowOverScreenSaver) private var showOverScreenSaver = false
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
@@ -560,7 +562,14 @@ struct NotchSettings: View {
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
                 switchRow("lock.display", locked.show, caption: locked.showHint, isOn: $lockScreen)
+                // The screen saver shows the lock screen's own scene, so it needs that switch.
+                switchRow("sparkles.tv", locked.screenSaver, caption: locked.screenSaverHint, isOn: $showOverScreenSaver)
+                    .disabled(!lockScreen)
                 switchRow("speaker.wave.2", locked.sounds, caption: locked.soundsHint, isOn: $lockSounds)
+            }
+            SettingsCard(title: locked.missionControlTitle) {
+                switchRow("rectangle.3.group", locked.missionControl, caption: locked.missionControlHint,
+                          isOn: $showInMissionControl)
             }
         }
     }

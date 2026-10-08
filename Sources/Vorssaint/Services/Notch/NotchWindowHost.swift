@@ -44,6 +44,9 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var overviewWasVisible = false
     private var restoringFromMissionControl = false
     var missionControlDidRestore: (() -> Void)?
+    /// Mission Control began over an island kept in sight there: true once
+    /// it has settled to its status, false to conceal it as usual.
+    var missionControlKeepsInSight: (() -> Bool)?
     private let overlaySpace = NotchOverlaySpace()
     private var concealedForFrameChange = false
     private var restoresKeyAfterFrameChange = false
@@ -571,7 +574,12 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             if !restoringFromMissionControl { missionControlAlpha = panel.alphaValue }
             missionControlMouseEvents = mouseEventsBeforeHide ?? panel.ignoresMouseEvents
             panel.ignoresMouseEvents = true
-            if panel.isVisible { fadeMissionControl(to: 0) }
+            // Kept in sight by choice, the island stays as a status display,
+            // as on the lock screen: still out of reach, and settled to its
+            // strip. Pending work it cannot settle is concealed as usual.
+            if NotchSupport.showsInMissionControl(), panel.isVisible, missionControlKeepsInSight?() == true {
+                syncMissionControlMonitoring()
+            } else if panel.isVisible { fadeMissionControl(to: 0) }
             else {
                 panel.alphaValue = 0
                 syncMissionControlMonitoring()

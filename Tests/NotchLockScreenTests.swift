@@ -76,6 +76,53 @@ enum NotchLockScreenTests {
         suite.expect(NotchLockScreenSupport.showsMusic(in: defaults), "an island resting empty still shows music when locked")
         defaults.set(NotchModule.music.rawValue, forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchLockScreenSupport.showsMusic(in: defaults), "hiding the Music section hides the player")
+        otherScreenContracts(suite, defaults: defaults)
+    }
+
+    /// Mission Control hides the island and the screen saver covers the lock
+    /// screen unless asked otherwise. Only a screen saver that locked the Mac
+    /// shows the lock screen's scene; nothing covers one that did not.
+    static func otherScreenContracts(_ suite: TestSuite, defaults: UserDefaults) {
+        let keys = [DefaultsKey.notchShowInMissionControl, DefaultsKey.notchShowOverScreenSaver]
+        suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] as? Bool == false },
+                     "staying up in Mission Control and on the screen saver are both opt-in")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys),
+                     "settings backups carry the Mission Control and screen saver preferences")
+        suite.expect(!NotchSupport.showsInMissionControl(in: defaults), "by default the island fades in Mission Control")
+        defaults.set(true, forKey: DefaultsKey.notchShowInMissionControl)
+        suite.expect(NotchSupport.showsInMissionControl(in: defaults), "Mission Control follows its own switch")
+        defaults.set(false, forKey: DefaultsKey.notchShowInMissionControl)
+
+        var lockedSaver = NotchSessionState()
+        lockedSaver.locked = true
+        lockedSaver.screenSaverRunning = true
+        var unlockedSaver = NotchSessionState()
+        unlockedSaver.screenSaverRunning = true
+        var lockScreen = NotchSessionState()
+        lockScreen.locked = true
+        defaults.set(true, forKey: DefaultsKey.notchLockScreen)
+        suite.expect(!NotchLockScreenSupport.showsScene(lockedSaver, in: defaults)
+                     && NotchLockScreenSupport.showsScene(lockScreen, in: defaults),
+                     "by default the screen saver covers the lock screen's scene")
+        defaults.set(true, forKey: DefaultsKey.notchShowOverScreenSaver)
+        suite.expect(NotchLockScreenSupport.showsScene(lockedSaver, in: defaults),
+                     "a screen saver that locked the Mac shows the lock screen's scene when asked")
+        suite.expect(!NotchLockScreenSupport.showsScene(unlockedSaver, in: defaults) && !unlockedSaver.showsLockedScreenSaver,
+                     "a screen saver that left the Mac unlocked shows nothing over it")
+        var dark = lockedSaver
+        dark.displaysSleeping = true
+        suite.expect(!NotchLockScreenSupport.showsScene(dark, in: defaults), "a dark display shows nothing")
+        defaults.set(false, forKey: DefaultsKey.notchLockScreen)
+        suite.expect(!NotchLockScreenSupport.showsOverScreenSaver(in: defaults)
+                     && !NotchLockScreenSupport.showsScene(lockedSaver, in: defaults),
+                     "the screen saver shows nothing without the lock screen switch")
+        defaults.set(false, forKey: DefaultsKey.notchShowOverScreenSaver)
+        for language in AppLanguage.allCases {
+            let text = FeatureStrings.notchLockScreen(language)
+            suite.expect([text.missionControlTitle, text.missionControl, text.missionControlHint, text.screenSaver, text.screenSaverHint]
+                            .allSatisfy { !$0.trimmingCharacters(in: .whitespaces).isEmpty },
+                         "\(language) names the Mission Control and screen saver switches")
+        }
     }
 
     static func layoutContracts(_ suite: TestSuite) {

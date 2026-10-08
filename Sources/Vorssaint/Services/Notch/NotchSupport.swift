@@ -1506,6 +1506,12 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchShowInCaptures) as? Bool ?? true
     }
 
+    /// The island stays up in Mission Control and App Exposé instead of
+    /// fading out to clear the desktops' names.
+    static func showsInMissionControl(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchShowInMissionControl)
+    }
+
     /// The closed island may cover the menus instead of giving way to them.
     static func coversMenus(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
@@ -2285,13 +2291,16 @@ struct NotchSessionState {
     var sleeping = false
     var displaysSleeping = false
     var onConsole = true
-    /// Only the lock screen gives way to a screen saver, which it would
-    /// otherwise float over; the island keeps its own rules.
+    /// The lock screen gives way to a screen saver, which it would otherwise
+    /// float over, unless asked to stay over it; the island keeps its own rules.
     var screenSaverRunning = false
     var canRunTimer: Bool { !locked && !sleeping && onConsole }
     var canPresent: Bool { canRunTimer && !displaysSleeping }
     /// The lock screen itself is on screen, awake and in front of this user.
     var showsLockScreen: Bool { locked && !sleeping && onConsole && !displaysSleeping && !screenSaverRunning }
+    /// A screen saver that locked the Mac is up, awake and in front of this
+    /// user. One that leaves the Mac unlocked is not a lock screen at all.
+    var showsLockedScreenSaver: Bool { locked && !sleeping && onConsole && !displaysSleeping && screenSaverRunning }
     /// Someone is at the Mac to hear it lock or unlock, rather than closing
     /// the lid or leaving it to a screen saver or to fall asleep.
     var hearsLockChange: Bool { !sleeping && onConsole && !displaysSleeping && !screenSaverRunning }
