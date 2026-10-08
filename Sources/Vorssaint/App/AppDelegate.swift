@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// panel shown after it.
     private var popoverCloseFadeSerial = 0
     private var popoverIsFadingOut = false
+    private var popoverIsReopening = false
     private var popoverCloseIsAppRequested = false
     /// The last visible geometry and event destination survive AppKit's teardown.
     private var popoverLastFrame: CGRect?
@@ -979,9 +980,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
-        // A panel still fading out closes now, so the click that asked for it
-        // opens it again.
+        // An interrupted fade continues the same presentation. Keep the
+        // requested metric and activation source through its intermediate close.
+        let reopening = popoverIsFadingOut && popover.isShown
+        let interruptedCloseReason = popoverCloseReason
+        popoverIsReopening = reopening
         finishPopoverFadeOut()
+        popoverIsReopening = false
+        defer {
+            if reopening, !popover.isShown {
+                statusController.setMicBadgeHeld(false)
+                releasePanelResources()
+                returnActivation(to: endPanelActivationTracking(), after: interruptedCloseReason)
+            }
+        }
         guard !popover.isShown, !popoverIsClosing else { return }
         guard let button = button ?? statusController.button else { return }
 
@@ -1009,7 +1021,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             statusController.setMicBadgeHeld(false)
         }
         if activate {
-            beginPanelActivationTracking()
+            if !reopening || panelActivationObservers.isEmpty {
+                beginPanelActivationTracking()
+            }
             NSApp.activate(ignoringOtherApps: true)
         }
         // Only arm the monitors and the anchor if the popover actually presented
@@ -1018,7 +1032,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard popover.isShown else {
             statusController.setMicBadgeHeld(false)
             endPopoverDriftCorrection()
-            endPanelActivationTracking()
+            if !reopening { endPanelActivationTracking() }
             return
         }
         if let window = popover.contentViewController?.view.window {
@@ -1278,7 +1292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if !popoverIsSwitchingAnchor && !popover.isShown {
             statusController.setMicBadgeHeld(false)
         }
-        if !popoverIsSwitchingAnchor {
+        if !popoverIsSwitchingAnchor && !popoverIsReopening {
             releasePanelResources()
         }
         removePopoverDismissMonitor()
@@ -1292,7 +1306,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         runPopoverCloseCompletions()
         if let recoveryAnchor {
             reopenPanelAfterForeignClose(anchor: recoveryAnchor)
-        } else if !popoverIsSwitchingAnchor {
+        } else if !popoverIsSwitchingAnchor && !popoverIsReopening {
             returnActivation(to: endPanelActivationTracking(), after: closeReason)
         }
     }
