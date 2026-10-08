@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Wine games keep the chosen audio output at 100% volume and can be reached with Window switcher without a stuck mouse button.
+
+### Fixed
+- Choosing an app's output works at 100% even when that device is also the system default. Changing the output for all apps also redirects processes that keep playing through their previous device. Thanks to Bureka.
+- Window switcher no longer sends a mouse press when activating Wine games, which could leave the left button held down. Thanks to Bureka.
+
 ## [3.4.1-beta.3] - 2026-10-08
 
 ### Summary
