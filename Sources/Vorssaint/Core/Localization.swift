@@ -446,6 +446,8 @@ struct Strings {
     let cutPasteEnableCaption: String
     let cutPasteShowHUD: String
     let cutPasteShowHUDCaption: String
+    let cutPastePlaySound: String
+    let cutPastePlaySoundCaption: String
     let cutPasteHowTitle: String
     let cutPasteStep1: String
     let cutPasteStep2: String
@@ -1576,6 +1578,8 @@ extension Strings {
         cutPasteEnableCaption: "Use ⌘X para recortar e ⌘V para mover arquivos e pastas no Finder.",
         cutPasteShowHUD: "Mostrar painel flutuante",
         cutPasteShowHUDCaption: "Exibe um indicador com os arquivos recortados enquanto o Finder estiver ativo.",
+        cutPastePlaySound: "Reproduzir feedback sonoro",
+        cutPastePlaySoundCaption: "Reproduz o som de cópia de arquivos do Finder quando ⌘V move os arquivos recortados. Fica em silêncio quando os efeitos sonoros da interface estão desativados nos ajustes de Som.",
         cutPasteHowTitle: "Como usar",
         cutPasteStep1: "Selecione itens no Finder e pressione ⌘X para recortá-los.",
         cutPasteStep2: "Abra a pasta de destino e pressione ⌘V para movê-los para lá.",
@@ -2671,6 +2675,8 @@ extension Strings {
         cutPasteEnableCaption: "Use ⌘X to cut and ⌘V to move files and folders in Finder.",
         cutPasteShowHUD: "Show floating panel",
         cutPasteShowHUDCaption: "Display a floating indicator with the cut files while Finder is active.",
+        cutPastePlaySound: "Play sound feedback",
+        cutPastePlaySoundCaption: "Play the Finder file copy sound when ⌘V moves the cut files. It stays silent when user interface sound effects are off in Sound settings.",
         cutPasteHowTitle: "How to use",
         cutPasteStep1: "Select items in Finder and press ⌘X to cut them.",
         cutPasteStep2: "Open the destination folder and press ⌘V to move them there.",

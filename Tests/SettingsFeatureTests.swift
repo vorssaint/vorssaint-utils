@@ -279,6 +279,9 @@ enum SettingsFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderCutPasteShowHUD] as? Bool == true
                 && backupKeys.contains(DefaultsKey.finderCutPasteShowHUD),
                "the Finder cut and paste floating panel default is on and travels with settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.finderCutPastePlaySound] as? Bool == false
+                && backupKeys.contains(DefaultsKey.finderCutPastePlaySound),
+               "Finder cut and paste sound feedback is opt-in and travels with settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.diskImageInstallerTrashesDownload] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.diskImageInstallerRevealsApp] as? Bool == false
                 && backupKeys.contains(DefaultsKey.diskImageInstallerTrashesDownload)

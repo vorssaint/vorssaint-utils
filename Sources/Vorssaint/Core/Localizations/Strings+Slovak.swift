@@ -279,6 +279,8 @@ extension Strings {
         cutPasteEnableCaption: "Pomocou ⌘X vystrihnete a pomocou ⌘V presuniete súbory a priečinky vo Finderi.",
         cutPasteShowHUD: "Zobraziť plávajúci panel",
         cutPasteShowHUDCaption: "Zobrazí plávajúci indikátor s vystrihnutými súbormi, kým je Finder aktívny.",
+        cutPastePlaySound: "Prehrať zvukovú odozvu",
+        cutPastePlaySoundCaption: "Prehrá zvuk kopírovania súborov vo Finderi, keď ⌘V presunie vystrihnuté súbory. Neprehrá sa, ak sú zvukové efekty rozhrania vypnuté v nastaveniach Zvuk.",
         cutPasteHowTitle: "Ako sa to používa",
         cutPasteStep1: "Vyberte položky vo Finderi a stlačením ⌘X ich vystrihnite.",
         cutPasteStep2: "Otvorte cieľový priečinok a stlačením ⌘V ich tam presuňte.",

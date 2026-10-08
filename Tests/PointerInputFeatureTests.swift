@@ -1619,6 +1619,8 @@ enum PointerInputFeatureTests {
                                                  tapFingers: 4),
                "a pinch or spread never fires the tap even with a still centroid")
 
+        FinderCutPasteMoveTests.run(suite)
+
         // MARK: Cut and paste move progress (issue #168)
 
         suite.expect(!CutPasteProgressSupport.isCrossVolume(source: NSNumber(value: 1),
@@ -3721,6 +3723,147 @@ enum PointerInputFeatureTests {
         }
 
         GlobalShortcut.refreshLayoutLabels()
+    }
+}
+
+enum FinderCutPasteMoveTests {
+    enum DispatchQueue {
+        static let main = Queue()
+        static let background = Queue()
+        static func global(qos: DispatchQoS.QoSClass) -> Queue { background }
+
+        final class Queue {
+            var jobs: [() -> Void] = []
+            func async(execute action: @escaping () -> Void) { jobs.append(action) }
+            func drain() {
+                while !jobs.isEmpty { jobs.removeFirst()() }
+            }
+        }
+    }
+
+    enum FinderBridge {
+        static var destination = ""
+        static var retries = 0
+        static func insertionLocationPath() -> String? { destination }
+        static func move(_ urls: [URL], into dir: URL) -> (ok: Bool, canceled: Bool) {
+            retries += 1
+            return (false, false)
+        }
+    }
+
+    class Fixture {
+        struct MarkedItem { let url: URL }
+        static let feedbackSound: UInt32? = 1
+        var marked: [MarkedItem] = []
+        var markedChangeCount = 1
+        var operationGeneration = 0
+        var moveInProgress = false
+        var moveProgress: Int? = 1
+        var playSound = true
+        var playedSounds: [UInt32] = []
+        var refreshes = 0
+        var dismissals = 0
+
+        static func progressPlan(urls: [URL], dir: URL)
+            -> (showsProgress: Bool, totalBytes: Int64, sizes: [Int64?]) {
+            (false, 0, urls.map { _ in nil })
+        }
+
+        func publishProgress(generation: Int, completed: Int, total: Int,
+                             name: String, fraction: Double?) {}
+        func makeBytePoller(destination: URL, generation: Int, completed: Int, total: Int,
+                            name: String, finishedBytes: Int64, totalBytes: Int64) -> DispatchSourceTimer {
+            fatalError("same-volume fixtures never poll destination bytes")
+        }
+        func refreshPanel() { refreshes += 1 }
+        func scheduleResultDismiss() { dismissals += 1 }
+        func AudioServicesPlaySystemSound(_ sound: UInt32) { playedSounds.append(sound) }
+    }
+
+    static func run(_ suite: TestSuite) {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let destination = root.appendingPathComponent("destination", isDirectory: true)
+        let source = root.appendingPathComponent("source", isDirectory: true)
+        defer { try? fm.removeItem(at: root) }
+        do {
+            try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+            try fm.createDirectory(at: source, withIntermediateDirectories: true)
+            let first = destination.appendingPathComponent("first.txt")
+            let second = destination.appendingPathComponent("second.txt")
+            try Data([1]).write(to: first)
+            try Data([2]).write(to: second)
+
+            func paste(_ urls: [URL], sound: Bool = true) -> Host {
+                FinderBridge.destination = destination.path
+                FinderBridge.retries = 0
+                let host = Host()
+                host.marked = urls.map { Fixture.MarkedItem(url: $0) }
+                host.playSound = sound
+                host.pasteAsync()
+                suite.expect(host.moveInProgress && host.operationGeneration == 1,
+                             "pasting holds the move state while the background job is pending")
+                DispatchQueue.background.drain()
+                DispatchQueue.main.drain()
+                suite.expect(host.marked.isEmpty && host.markedChangeCount == 0
+                                && !host.moveInProgress && host.moveProgress == nil
+                                && host.operationGeneration == 2 && host.refreshes == 1,
+                             "a completed paste clears cut marks and the moving state")
+                suite.expect(FinderBridge.retries == 0,
+                             "ordinary moves, no-ops and missing files never request Finder privileges")
+                return host
+            }
+
+            let unchanged = paste([first, second])
+            suite.expect(unchanged.playedSounds.isEmpty && unchanged.lastResult == nil
+                            && unchanged.dismissals == 0,
+                         "pasting only files already in the destination has no move result or completion sound")
+            let firstContents = try Data(contentsOf: first)
+            let secondContents = try Data(contentsOf: second)
+            let sameFolderEntries = try fm.contentsOfDirectory(atPath: destination.path)
+            suite.expect(firstContents == Data([1]) && secondContents == Data([2])
+                            && sameFolderEntries.count == 2,
+                         "a same-folder paste preserves the files without creating renamed copies")
+
+            let incoming = source.appendingPathComponent("incoming.txt")
+            try Data([3]).write(to: incoming)
+            let moved = paste([incoming])
+            suite.expect(moved.lastResult == Host.MoveResult(moved: 1, failed: 0)
+                            && moved.playedSounds == [1] && moved.dismissals == 1,
+                         "an actual move plays one completion sound and reports one moved file")
+            let incomingContents = try Data(contentsOf: destination.appendingPathComponent("incoming.txt"))
+            suite.expect(!fm.fileExists(atPath: incoming.path) && incomingContents == Data([3]),
+                         "an actual move removes the source and preserves its contents at the destination")
+
+            let mixedSource = source.appendingPathComponent("mixed.txt")
+            try Data([4]).write(to: mixedSource)
+            let mixed = paste([first, mixedSource])
+            suite.expect(mixed.lastResult == Host.MoveResult(moved: 1, failed: 0)
+                            && mixed.playedSounds == [1] && mixed.dismissals == 1,
+                         "a mixed batch counts only the actual move and plays one completion sound")
+            let mixedContents = try Data(contentsOf: destination.appendingPathComponent("mixed.txt"))
+            let unchangedContents = try Data(contentsOf: first)
+            suite.expect(!fm.fileExists(atPath: mixedSource.path) && mixedContents == Data([4])
+                            && unchangedContents == Data([1]),
+                         "a mixed batch moves the incoming file and preserves the same-folder file")
+
+            let failed = paste([source.appendingPathComponent("missing.txt")])
+            suite.expect(failed.lastResult == Host.MoveResult(moved: 0, failed: 1)
+                            && failed.playedSounds.isEmpty && failed.dismissals == 1,
+                         "a failed paste reports the failure without a completion sound")
+
+            let mutedSource = source.appendingPathComponent("muted.txt")
+            try Data([5]).write(to: mutedSource)
+            let muted = paste([mutedSource], sound: false)
+            let mutedContents = try Data(contentsOf: destination.appendingPathComponent("muted.txt"))
+            suite.expect(muted.lastResult == Host.MoveResult(moved: 1, failed: 0)
+                            && muted.playedSounds.isEmpty && muted.dismissals == 1
+                            && !fm.fileExists(atPath: mutedSource.path)
+                            && mutedContents == Data([5]),
+                         "disabling sound feedback keeps actual moves silent without changing their result")
+        } catch {
+            suite.expect(false, "Finder move and sound fixtures: \(error)")
+        }
     }
 }
 

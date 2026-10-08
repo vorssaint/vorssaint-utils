@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import AudioToolbox
 import Combine
 import CoreGraphics
 import SwiftUI
@@ -74,6 +75,7 @@ final class FinderCutPaste: ObservableObject {
     private var moveInProgress = false
     private var cutPasteEnabled = false
     private var showHUD = true
+    private var playSound = false
     private var pasteImageAsFileEnabled = false
     private var imagePasteInProgress = false
     private var appObserver: NSObjectProtocol?
@@ -81,6 +83,15 @@ final class FinderCutPaste: ObservableObject {
     private static let finderBundleID = "com.apple.finder"
     private static let syntheticPasteMarker: Int64 = 0x564F5249
     private static let maxRawImageBytes = 64 * 1024 * 1024
+    // Finder plays this file when a copy finishes. As a system sound it uses the
+    // Sound Effects output and alert volume, and stays silent when user
+    // interface sound effects are off, like Finder's own.
+    private static let feedbackSound: SystemSoundID? = {
+        var id: SystemSoundID = 0
+        let url = URL(fileURLWithPath: "/System/Library/Components/CoreAudio.component/Contents/"
+                      + "SharedSupport/SystemSounds/system/Volume Mount.aif") as CFURL
+        return AudioServicesCreateSystemSoundID(url, &id) == noErr ? id : nil
+    }()
 
     // ANSI virtual key codes.
     private enum Key {
@@ -105,6 +116,7 @@ final class FinderCutPaste: ObservableObject {
         cutPasteEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled)
         showHUD = UserDefaults.standard.object(forKey: DefaultsKey.finderCutPasteShowHUD) as? Bool ?? true
+        playSound = UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPastePlaySound)
         pasteImageAsFileEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.finderPasteImageAsFile)
         if SessionActivitySupport.tapShouldRun(featureWanted: cutPasteEnabled || pasteImageAsFileEnabled,
@@ -526,6 +538,7 @@ final class FinderCutPaste: ObservableObject {
                 finishedBytes += plan.sizes[index] ?? 0
                 switch outcome {
                 case .moved: moved += 1
+                case .unchanged: break
                 case .failed: failed += 1
                 case .needsPrivileges:
                     refused.append(src)
@@ -637,10 +650,14 @@ final class FinderCutPaste: ObservableObject {
         lastResult = MoveResult(moved: moved, failed: failed)
         refreshPanel()
         scheduleResultDismiss()
+        if playSound, moved > 0, let sound = Self.feedbackSound {
+            AudioServicesPlaySystemSound(sound)
+        }
     }
 
     private enum MoveOutcome {
         case moved
+        case unchanged
         case failed
         case needsPrivileges
     }
@@ -650,9 +667,8 @@ final class FinderCutPaste: ObservableObject {
     /// folder), so the caller can watch the destination grow.
     private static func move(_ src: URL, into dir: URL, fm: FileManager,
                              willCopy: (URL) -> Void = { _ in }) -> MoveOutcome {
-        // A no-op move (already in the destination) counts as success.
         if src.deletingLastPathComponent().standardizedFileURL.path == dir.standardizedFileURL.path {
-            return .moved
+            return .unchanged
         }
         guard fm.fileExists(atPath: src.path) else { return .failed }
         let dest = uniqueDestination(for: src.lastPathComponent, in: dir, fm: fm)

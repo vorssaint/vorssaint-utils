@@ -280,6 +280,8 @@ extension Strings {
         cutPasteEnableCaption: "在 Finder 中用 ⌘X 剪下、用 ⌘V 移動檔案和資料夾。",
         cutPasteShowHUD: "顯示浮動面板",
         cutPasteShowHUDCaption: "Finder 處於啟動狀態時，顯示包含已剪下檔案的浮動提示。",
+        cutPastePlaySound: "播放聲音回饋",
+        cutPastePlaySoundCaption: "按下 ⌘V 移動已剪下的檔案時，播放 Finder 拷貝檔案的音效。若在「聲音」設定中關閉了使用者介面音效，則不會播放。",
         cutPasteHowTitle: "使用方法",
         cutPasteStep1: "在 Finder 中選擇項目，按 ⌘X 將其剪下。",
         cutPasteStep2: "開啟目標資料夾，按 ⌘V 將其移動到該位置。",

@@ -279,6 +279,8 @@ extension Strings {
         cutPasteEnableCaption: "Usa ⌘X para cortar y ⌘V para mover archivos y carpetas en el Finder.",
         cutPasteShowHUD: "Mostrar panel flotante",
         cutPasteShowHUDCaption: "Muestra un indicador flotante con los archivos cortados mientras el Finder está activo.",
+        cutPastePlaySound: "Reproducir sonido de confirmación",
+        cutPastePlaySoundCaption: "Reproduce el sonido de copia de archivos del Finder cuando ⌘V mueve los archivos cortados. No suena si los efectos de sonido de la interfaz están desactivados en los ajustes de Sonido.",
         cutPasteHowTitle: "Cómo se usa",
         cutPasteStep1: "Selecciona ítems en el Finder y pulsa ⌘X para cortarlos.",
         cutPasteStep2: "Abre la carpeta de destino y pulsa ⌘V para moverlos allí.",

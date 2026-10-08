@@ -381,6 +381,18 @@ def main():
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
+    finder_cut_paste = "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift"
+    write("FinderCutPasteMove.swift", "import Foundation\n"
+          + "extension FinderCutPasteMoveTests {\nfinal class Host: Fixture {\n"
+          + declaration(finder_cut_paste, "    struct MoveResult:")
+          + "    var lastResult: MoveResult?\n"
+          + "".join(declaration(finder_cut_paste, prefix).replace("private ", "", 1)
+                    for prefix in ["    private func pasteAsync()",
+                                   "    private func finishPaste(",
+                                   "    private enum MoveOutcome {",
+                                   "    private static func move(",
+                                   "    private static func uniqueDestination("])
+          + "}\n}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"
     write("DockPreviewPosition.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension DockPreviewPositionTests.Service {\n"
