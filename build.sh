@@ -543,6 +543,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Core/DownloadRouter.swift
+        Sources/Vorssaint/Core/DownloadUndoPolicy.swift
+        Sources/Vorssaint/Core/ScreenshotArchiveSupport.swift
         Sources/Vorssaint/Core/SecureInputSupport.swift
         Tests/*.swift
         build/generated-tests/*.swift
