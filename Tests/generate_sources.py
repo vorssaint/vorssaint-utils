@@ -483,6 +483,22 @@ def main():
     write("MixerInputVolume.swift", "import Foundation\nimport Combine\nimport CoreAudio\nimport AudioToolbox\n"
           + "extension MixerInputVolumeContract {\n" + input_bodies + "}\n")
     mixer = "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift"
+    write("MixerUniversalRouting.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension MixerUniversalRoutingContract {\n"
+          + declaration(mixer, "struct MixerApp:") + "}\n"
+          + "extension MixerUniversalRoutingContract.Mixer {\n"
+          + "".join(declaration(mixer, prefix).replace("private ", "", 1) for prefix in [
+              "    private var universalOutputDeviceUID:",
+              "    private static func applyingUniversalOutputRoute(",
+              "    private static func coalescingAppsWithDuplicateIDs(",
+              "    private static func runningAddress(",
+              "    private static func storedVolume(", "    private static func storedRoute(",
+              "    private func storedVolume(", "    private func storedRoute(",
+              "    private func appNeedsEngine(", "    private func rowMayBeTapped(",
+              "    private func applyOutputRoute(", "    func setOutputDeviceUID(",
+              "    func switchToNextSoundOutput(", "    func setUniversalOutputDeviceUID(",
+              "    private func setDefaultOutputDeviceUID("])
+          + "}\n")
     level_watch = declaration(mixer, "final class LevelCompensationWatch {").replace("private ", "")
     for operation in ("AddPropertyListener", "RemovePropertyListener"):
         level_watch = level_watch.replace("AudioObject" + operation + "(", "HAL." + operation + "(")
