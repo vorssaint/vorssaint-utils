@@ -1,5 +1,5 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaint používa Automatizáciu na presúvanie súborov, presun položiek do Koša, otváranie vyžiadaných príkazov a na ovládanie prehrávania vo vašich mediálnych aplikáciách.";
+"NSAppleEventsUsageDescription" = "Vorssaint používa Automatizáciu na presúvanie súborov, presun položiek do Koša, otváranie vyžiadaných príkazov a na ovládanie prehrávania vo vašich mediálnych aplikáciách. Otvára tiež odkazy vo vami vybranom Arc Space.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint používa zvuk každej aplikácie na nastavenie jej hlasitosti v mixéri, na rozpohybovanie hudobných stĺpcov Dynamic Island a na pridanie zvuku Macu do nahrávok obrazovky, ktoré spustíte. Nič neopustí váš Mac.";

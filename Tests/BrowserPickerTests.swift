@@ -13,6 +13,7 @@ enum BrowserPickerTests {
         drafts(suite)
         chromiumProfiles(suite)
         firefoxProfiles(suite)
+        arcSpaces(suite)
         backup(suite)
     }
 
@@ -252,11 +253,47 @@ enum BrowserPickerTests {
             "profiles from Firefox's profile manager are read from its group database in its own order")
     }
 
+    private static func arcSpaces(_ suite: TestSuite) {
+        let spaces = BrowserPickerArc.parseSpaces("A1\tWork\nB2\tPersonal\n\nA1\tWork again\nC3\t\n")
+        suite.expect(spaces == [.init(id: "A1", title: "Work"), .init(id: "B2", title: "Personal"), .init(id: "C3", title: "")],
+            "Arc's Space list keeps its order and skips blank or repeated entries")
+        let arcURL = URL(fileURLWithPath: "/Applications/Arc.app")
+        let rows = BrowserPickerBrowsers.choices(bundleID: BrowserPickerArc.bundleID, name: "Arc", appURL: arcURL,
+                                                 profiles: [], arcSpaces: spaces)
+        suite.expect(rows.map(\.target) == spaces.map { .arcSpace(id: $0.id, title: $0.title) }
+                && rows.map(\.title) == ["Work", "Personal", "Arc"],
+            "Arc is offered by its Spaces, an untitled one under Arc's own name")
+        suite.expect(BrowserPickerBrowsers.choices(bundleID: BrowserPickerArc.bundleID, name: "Arc", appURL: arcURL,
+                                                   profiles: [], arcSpaces: [spaces[0]]).map(\.target)
+                == [.application(bundleID: BrowserPickerArc.bundleID)],
+            "a single Space leaves nothing to choose, so Arc stays one row")
+        let source = BrowserPickerArc.openSource(url: url(#"https://a.test/x?q="a\b""#), spaceID: #"id"x"#)
+        suite.expect(source.contains(#"space id "id\"x""#) && source.contains(#"{URL:"https://a.test/x?q=%22a%5Cb%22"}"#),
+            "the link and Space reach Arc as quoted values, never as script")
+        suite.expect(BrowserPickerArc.failure(-1743) == .notAllowed && BrowserPickerArc.failure(-1744) == .notAllowed
+                && BrowserPickerArc.failure(-1728) == .spaceMissing && BrowserPickerArc.failure(nil) == .failed,
+            "a refused permission and a deleted Space are told apart from other failures")
+        suite.expect(BrowserPickerArc.access(status: noErr) == .allowed && BrowserPickerArc.access(status: -1743) == .denied
+                && BrowserPickerArc.access(status: -1744) == .notAsked && BrowserPickerArc.access(status: -600) == .unknown,
+            "a permission never asked for is not mistaken for a refusal, and a closed Arc tells nothing")
+        let space = BrowserPickerTarget.arcSpace(id: "A1", title: "Work")
+        suite.expect(BrowserPickerRules.isAvailable(space, appInstalled: true, knownProfiles: [:], knownSpaces: ["A1"])
+                && !BrowserPickerRules.isAvailable(space, appInstalled: true, knownProfiles: [:], knownSpaces: ["B2"])
+                && BrowserPickerRules.isAvailable(space, appInstalled: true, knownProfiles: [:], knownSpaces: nil),
+            "a deleted Space is gone once Arc's Spaces have been read")
+        let rule = BrowserPickerRule(site: "work.test", target: .arcSpace(id: "A1", title: "Work"))
+        suite.expect(BrowserPickerRules.decode(BrowserPickerRules.encode([rule])) == [rule]
+                && BrowserPickerTarget.arcSpace(id: "A1", title: "Work").bundleID == BrowserPickerArc.bundleID,
+            "a rule can name an Arc Space and keeps it when saved")
+    }
+
     private static func backup(_ suite: TestSuite) {
         let exported = SettingsBackupSupport.exportKeys()
         suite.expect(exported.contains(DefaultsKey.browserPickerRules),
             "rules travel with a settings backup")
-        suite.expect(!exported.contains(DefaultsKey.browserPickerPreviousBrowser),
-            "the previous browser stays on this Mac")
+        suite.expect(!exported.contains(DefaultsKey.browserPickerPreviousBrowser)
+                && !exported.contains(DefaultsKey.browserPickerArcSpaceList)
+                && !exported.contains(DefaultsKey.browserPickerArcSpaces),
+            "the previous browser, Arc's Spaces and the Arc option, which needs this Mac's permission, stay here")
     }
 }

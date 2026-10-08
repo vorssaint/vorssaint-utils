@@ -295,6 +295,8 @@ enum DefaultsKey {
     static let browserPickerRules = "browserPickerRules" // Data: BrowserPickerRules JSON
     static let browserPickerPreviousBrowser = "browserPickerPreviousBrowser" // bundle id links go back to; this Mac only
     static let browserPickerReadsProfiles = "browserPickerReadsProfiles" // Bool: settings opened, so profile lists may be read; this Mac only
+    static let browserPickerArcSpaces = "browserPickerArcSpaces" // Bool: offer Arc Spaces in the picker
+    static let browserPickerArcSpaceList = "browserPickerArcSpaceList" // Data: Arc Spaces as last read; this Mac only
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let windowMaximizeExcludedApps = "windowMaximizeExcludedApps" // [bundle id] whose green button stays native
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
@@ -1383,6 +1385,7 @@ enum Defaults {
         DefaultsKey.urlCleanerCustomParameters: "",
         DefaultsKey.urlCleanerSiteParameters: "",
         DefaultsKey.urlCleanerDisabledParameters: "",
+        DefaultsKey.browserPickerArcSpaces: false,
         DefaultsKey.textSnippetsEnabled: false,
         DefaultsKey.snippetLibraryEnabled: false,
         DefaultsKey.snippetLibraryShortcut: GlobalShortcut.snippetLibraryDefault.storageValue,

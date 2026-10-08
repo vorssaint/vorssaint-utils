@@ -71,7 +71,7 @@ enum BrowserPickerBrowsers {
     /// looked at the feature's settings, so that question never interrupts a
     /// clicked link. Never call this on the main thread with it on: macOS
     /// holds the read until the question is answered.
-    static func discover(readingProfiles: Bool) -> Discovery {
+    static func discover(readingProfiles: Bool, arcSpaces: [BrowserPickerArc.Space] = []) -> Discovery {
         let probe = URL(string: "https://example.com")!
         let htmlViewers = Set(NSWorkspace.shared.urlsForApplications(toOpen: .html).map(\.standardizedFileURL))
         var seen = Set<String>()
@@ -94,17 +94,30 @@ enum BrowserPickerBrowsers {
                     discovery.withheldProfiles.append(name)
                 }
             }
-            guard profiles.count > 1 else {
-                discovery.choices.append(BrowserPickerChoice(target: .application(bundleID: bundleID), title: name,
-                                                             subtitle: nil, appURL: url))
-                continue
-            }
-            discovery.choices += profiles.map {
-                BrowserPickerChoice(target: .profile(bundleID: bundleID, id: $0.id, name: $0.name),
-                                    title: $0.name, subtitle: name, appURL: url)
-            }
+            discovery.choices += choices(bundleID: bundleID, name: name, appURL: url, profiles: profiles,
+                                         arcSpaces: bundleID == BrowserPickerArc.bundleID ? arcSpaces : [])
         }
         return discovery
+    }
+
+    /// One browser's rows: the browser itself, or its profiles or Arc Spaces
+    /// when there is more than one to choose from.
+    static func choices(bundleID: String, name: String, appURL: URL,
+                        profiles: [(id: String, name: String)],
+                        arcSpaces: [BrowserPickerArc.Space]) -> [BrowserPickerChoice] {
+        if arcSpaces.count > 1 {
+            return arcSpaces.map {
+                BrowserPickerChoice(target: .arcSpace(id: $0.id, title: $0.title),
+                                    title: $0.title.isEmpty ? name : $0.title, subtitle: name, appURL: appURL)
+            }
+        }
+        guard profiles.count > 1 else {
+            return [BrowserPickerChoice(target: .application(bundleID: bundleID), title: name, subtitle: nil, appURL: appURL)]
+        }
+        return profiles.map {
+            BrowserPickerChoice(target: .profile(bundleID: bundleID, id: $0.id, name: $0.name),
+                                title: $0.name, subtitle: name, appURL: appURL)
+        }
     }
 
     /// Apps other than browsers claim web links too: a terminal as a
@@ -285,16 +298,20 @@ enum BrowserPickerBrowsers {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: target.bundleID)
     }
 
-    /// Opens the link and reports whether macOS accepted it, on the main queue.
-    static func open(_ url: URL, in target: BrowserPickerTarget, completion: @escaping (Bool) -> Void) {
+    enum Opening: Equatable {
+        case opened, failed, spaceMissing, arcNotAllowed
+    }
+
+    /// Opens the link and reports how it went, on the main queue.
+    static func open(_ url: URL, in target: BrowserPickerTarget, completion: @escaping (Opening) -> Void) {
         guard let appURL = applicationURL(for: target), !isVorssaint(target.bundleID) else {
-            completion(false)
+            completion(.failed)
             return
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
         let done: (NSRunningApplication?, Error?) -> Void = { _, error in
-            DispatchQueue.main.async { completion(error == nil) }
+            DispatchQueue.main.async { completion(error == nil ? .opened : .failed) }
         }
         switch target {
         case .application:
@@ -304,13 +321,26 @@ enum BrowserPickerBrowsers {
             guard let browser = profileBrowsers[bundleID],
                   let arguments = profileArguments(kind: browser.kind, id: id, in: dataFolder(browser.folder), url: url)
             else {
-                completion(false)
+                completion(.failed)
                 return
             }
             configuration.createsNewApplicationInstance = true
             configuration.arguments = arguments
             NSWorkspace.shared.openApplication(at: appURL, configuration: configuration,
                                                completionHandler: done)
+        case .arcSpace(let id, _):
+            // Apple Events wait for Arc's reply, so they stay off the main thread.
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = BrowserPickerArc.open(url, inSpace: id)
+                DispatchQueue.main.async {
+                    switch result {
+                    case .success: completion(.opened)
+                    case .failure(.spaceMissing): completion(.spaceMissing)
+                    case .failure(.notAllowed): completion(.arcNotAllowed)
+                    case .failure(.failed): completion(.failed)
+                    }
+                }
+            }
         }
     }
 }

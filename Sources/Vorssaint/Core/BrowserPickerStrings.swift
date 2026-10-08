@@ -46,6 +46,15 @@ struct BrowserPickerStrings {
     let targetMissingFormat: String
     let openFailedFormat: String
     let profilesWithheldFormat: String
+    let arcTitle: String
+    let arcSpacesToggle: String
+    let arcCaption: String
+    let arcNotAllowed: String
+    let arcOpenAutomationSettings: String
+    let arcAllowAccess: String
+    let arcOpenToList: String
+    let arcSpacesCountFormat: String
+    let arcRefresh: String
 }
 
 extension FeatureStrings {
@@ -113,7 +122,16 @@ extension BrowserPickerStrings {
         rememberHint: "Hold ⌥ to always open this site here",
         targetMissingFormat: "%@ is not available. Choose where to open this link.",
         openFailedFormat: "%@ could not open this link.",
-        profilesWithheldFormat: "macOS did not let Vorssaint read the profiles of %@, so each appears as one browser. Allow access when macOS asks, or turn on Full Disk Access."
+        profilesWithheldFormat: "macOS did not let Vorssaint read the profiles of %@, so each appears as one browser. Allow access when macOS asks, or turn on Full Disk Access.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Show Arc Spaces in the picker",
+        arcCaption: "Arc keeps a profile in each Space, so choosing a Space opens the link with that Space’s profile. macOS asks once whether Vorssaint may control Arc.",
+        arcNotAllowed: "Vorssaint is not allowed to control Arc, so its Spaces cannot be listed or opened.",
+        arcOpenAutomationSettings: "Open Automation settings…",
+        arcAllowAccess: "Allow access to Arc…",
+        arcOpenToList: "Open Arc to list its Spaces.",
+        arcSpacesCountFormat: "Spaces: %d",
+        arcRefresh: "Refresh"
     )
 
     static let ptBR = BrowserPickerStrings(
@@ -158,7 +176,16 @@ extension BrowserPickerStrings {
         rememberHint: "Segure ⌥ para sempre abrir este site aqui",
         targetMissingFormat: "%@ não está disponível. Escolha onde abrir este link.",
         openFailedFormat: "%@ não conseguiu abrir este link.",
-        profilesWithheldFormat: "O macOS não deixou o Vorssaint ler os perfis de %@, então cada um aparece como um só navegador. Permita o acesso quando o macOS perguntar ou ative o Acesso Total ao Disco."
+        profilesWithheldFormat: "O macOS não deixou o Vorssaint ler os perfis de %@, então cada um aparece como um só navegador. Permita o acesso quando o macOS perguntar ou ative o Acesso Total ao Disco.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Mostrar os Spaces do Arc no seletor",
+        arcCaption: "O Arc guarda um perfil em cada Space, então escolher um Space abre o link com o perfil dele. O macOS pergunta uma vez se o Vorssaint pode controlar o Arc.",
+        arcNotAllowed: "O Vorssaint não tem permissão para controlar o Arc, então os Spaces dele não podem ser listados nem abertos.",
+        arcOpenAutomationSettings: "Abrir ajustes de Automação…",
+        arcAllowAccess: "Permitir acesso ao Arc…",
+        arcOpenToList: "Abra o Arc para listar os Spaces dele.",
+        arcSpacesCountFormat: "Spaces: %d",
+        arcRefresh: "Atualizar"
     )
 
     static let tr = BrowserPickerStrings(
@@ -203,7 +230,16 @@ extension BrowserPickerStrings {
         rememberHint: "Bu siteyi her zaman burada açmak için ⌥ tuşunu basılı tutun",
         targetMissingFormat: "%@ kullanılamıyor. Bu bağlantının nerede açılacağını seçin.",
         openFailedFormat: "%@ bu bağlantıyı açamadı.",
-        profilesWithheldFormat: "macOS, Vorssaint’in %@ profillerini okumasına izin vermedi; bu yüzden her biri tek tarayıcı olarak görünür. macOS sorduğunda izin verin veya Tam Disk Erişimi’ni açın."
+        profilesWithheldFormat: "macOS, Vorssaint’in %@ profillerini okumasına izin vermedi; bu yüzden her biri tek tarayıcı olarak görünür. macOS sorduğunda izin verin veya Tam Disk Erişimi’ni açın.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Arc Space’lerini seçicide göster",
+        arcCaption: "Arc her Space’te bir profil tutar; bu yüzden bir Space seçmek bağlantıyı o Space’in profiliyle açar. macOS, Vorssaint’in Arc’ı denetleyip denetleyemeyeceğini bir kez sorar.",
+        arcNotAllowed: "Vorssaint’in Arc’ı denetleme izni yok; bu yüzden Space’ler listelenemez veya açılamaz.",
+        arcOpenAutomationSettings: "Otomasyon ayarlarını aç…",
+        arcAllowAccess: "Arc’a erişim izni ver…",
+        arcOpenToList: "Space’lerini listelemek için Arc’ı açın.",
+        arcSpacesCountFormat: "Space sayısı: %d",
+        arcRefresh: "Yenile"
     )
 
     static let ru = BrowserPickerStrings(
@@ -248,7 +284,16 @@ extension BrowserPickerStrings {
         rememberHint: "С ⌥ этот сайт всегда будет открываться здесь",
         targetMissingFormat: "%@ недоступен. Выберите, где открыть ссылку.",
         openFailedFormat: "%@ не смог открыть ссылку.",
-        profilesWithheldFormat: "macOS не дала Vorssaint прочитать профили %@, поэтому каждый показан одним браузером. Разрешите доступ, когда macOS спросит, или включите «Полный доступ к диску»."
+        profilesWithheldFormat: "macOS не дала Vorssaint прочитать профили %@, поэтому каждый показан одним браузером. Разрешите доступ, когда macOS спросит, или включите «Полный доступ к диску».",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Показывать пространства Arc в выборе",
+        arcCaption: "Arc хранит профиль в каждом пространстве, поэтому выбор пространства открывает ссылку с его профилем. macOS один раз спросит, может ли Vorssaint управлять Arc.",
+        arcNotAllowed: "Vorssaint не может управлять Arc, поэтому его пространства нельзя показать или открыть.",
+        arcOpenAutomationSettings: "Открыть настройки Автоматизации…",
+        arcAllowAccess: "Разрешить доступ к Arc…",
+        arcOpenToList: "Откройте Arc, чтобы увидеть его пространства.",
+        arcSpacesCountFormat: "Пространств: %d",
+        arcRefresh: "Обновить"
     )
 
     static let es = BrowserPickerStrings(
@@ -293,7 +338,16 @@ extension BrowserPickerStrings {
         rememberHint: "Mantén pulsada ⌥ para abrir siempre este sitio aquí",
         targetMissingFormat: "%@ no está disponible. Elige dónde abrir este enlace.",
         openFailedFormat: "%@ no pudo abrir este enlace.",
-        profilesWithheldFormat: "macOS no permitió a Vorssaint leer los perfiles de %@, así que cada uno aparece como un solo navegador. Permite el acceso cuando macOS lo pregunte o activa Acceso total al disco."
+        profilesWithheldFormat: "macOS no permitió a Vorssaint leer los perfiles de %@, así que cada uno aparece como un solo navegador. Permite el acceso cuando macOS lo pregunte o activa Acceso total al disco.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Mostrar los Spaces de Arc en el selector",
+        arcCaption: "Arc guarda un perfil en cada Space, así que elegir un Space abre el enlace con su perfil. macOS pregunta una vez si Vorssaint puede controlar Arc.",
+        arcNotAllowed: "Vorssaint no tiene permiso para controlar Arc, así que sus Spaces no se pueden mostrar ni abrir.",
+        arcOpenAutomationSettings: "Abrir los ajustes de Automatización…",
+        arcAllowAccess: "Permitir el acceso a Arc…",
+        arcOpenToList: "Abre Arc para ver sus Spaces.",
+        arcSpacesCountFormat: "Spaces: %d",
+        arcRefresh: "Actualizar"
     )
 
     static let sk = BrowserPickerStrings(
@@ -338,7 +392,16 @@ extension BrowserPickerStrings {
         rememberHint: "Podržte ⌥, aby sa tento web vždy otváral tu",
         targetMissingFormat: "%@ nie je dostupné. Vyberte, kde otvoriť tento odkaz.",
         openFailedFormat: "%@ nedokázal otvoriť tento odkaz.",
-        profilesWithheldFormat: "macOS nedovolil aplikácii Vorssaint prečítať profily z %@, preto sa každý zobrazuje ako jeden prehliadač. Povoľte prístup, keď sa macOS opýta, alebo zapnite Úplný prístup k disku."
+        profilesWithheldFormat: "macOS nedovolil aplikácii Vorssaint prečítať profily z %@, preto sa každý zobrazuje ako jeden prehliadač. Povoľte prístup, keď sa macOS opýta, alebo zapnite Úplný prístup k disku.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Zobraziť Spaces z Arc vo výbere",
+        arcCaption: "Arc má v každom Space vlastný profil, takže výber Space otvorí odkaz s jeho profilom. macOS sa raz opýta, či môže Vorssaint ovládať Arc.",
+        arcNotAllowed: "Vorssaint nemá povolenie ovládať Arc, preto jeho Spaces nemožno zobraziť ani otvoriť.",
+        arcOpenAutomationSettings: "Otvoriť nastavenia Automatizácie…",
+        arcAllowAccess: "Povoliť prístup k Arc…",
+        arcOpenToList: "Otvorte Arc, aby sa zobrazili jeho Spaces.",
+        arcSpacesCountFormat: "Spaces: %d",
+        arcRefresh: "Obnoviť"
     )
 
     static let de = BrowserPickerStrings(
@@ -383,7 +446,16 @@ extension BrowserPickerStrings {
         rememberHint: "Halte ⌥ gedrückt, um diese Website immer hier zu öffnen",
         targetMissingFormat: "%@ ist nicht verfügbar. Wähle, wo dieser Link geöffnet wird.",
         openFailedFormat: "%@ konnte diesen Link nicht öffnen.",
-        profilesWithheldFormat: "macOS hat Vorssaint die Profile von %@ nicht lesen lassen, daher erscheint jeder als ein Browser. Erlaube den Zugriff, wenn macOS fragt, oder aktiviere „Festplattenvollzugriff“."
+        profilesWithheldFormat: "macOS hat Vorssaint die Profile von %@ nicht lesen lassen, daher erscheint jeder als ein Browser. Erlaube den Zugriff, wenn macOS fragt, oder aktiviere „Festplattenvollzugriff“.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Arc-Spaces in der Auswahl zeigen",
+        arcCaption: "Arc hat in jedem Space ein eigenes Profil, daher öffnet die Wahl eines Space den Link mit dessen Profil. macOS fragt einmal, ob Vorssaint Arc steuern darf.",
+        arcNotAllowed: "Vorssaint darf Arc nicht steuern, daher können die Spaces weder angezeigt noch geöffnet werden.",
+        arcOpenAutomationSettings: "Automation-Einstellungen öffnen…",
+        arcAllowAccess: "Zugriff auf Arc erlauben…",
+        arcOpenToList: "Öffne Arc, um seine Spaces anzuzeigen.",
+        arcSpacesCountFormat: "Spaces: %d",
+        arcRefresh: "Aktualisieren"
     )
 
     static let fr = BrowserPickerStrings(
@@ -428,7 +500,16 @@ extension BrowserPickerStrings {
         rememberHint: "Maintenez ⌥ pour toujours ouvrir ce site ici",
         targetMissingFormat: "%@ n’est pas disponible. Choisissez où ouvrir ce lien.",
         openFailedFormat: "%@ n’a pas pu ouvrir ce lien.",
-        profilesWithheldFormat: "macOS n’a pas laissé Vorssaint lire les profils de %@\u{00A0}: chacun apparaît donc comme un seul navigateur. Autorisez l’accès quand macOS le demande ou activez l’accès complet au disque."
+        profilesWithheldFormat: "macOS n’a pas laissé Vorssaint lire les profils de %@\u{00A0}: chacun apparaît donc comme un seul navigateur. Autorisez l’accès quand macOS le demande ou activez l’accès complet au disque.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Afficher les Spaces d’Arc dans le sélecteur",
+        arcCaption: "Arc garde un profil dans chaque Space\u{00A0}: choisir un Space ouvre donc le lien avec son profil. macOS demande une fois si Vorssaint peut contrôler Arc.",
+        arcNotAllowed: "Vorssaint n’est pas autorisé à contrôler Arc\u{00A0}: ses Spaces ne peuvent être ni affichés ni ouverts.",
+        arcOpenAutomationSettings: "Ouvrir les réglages d’automatisation…",
+        arcAllowAccess: "Autoriser l’accès à Arc…",
+        arcOpenToList: "Ouvrez Arc pour afficher ses Spaces.",
+        arcSpacesCountFormat: "Spaces\u{00A0}: %d",
+        arcRefresh: "Actualiser"
     )
 
     static let it = BrowserPickerStrings(
@@ -473,7 +554,16 @@ extension BrowserPickerStrings {
         rememberHint: "Tieni premuto ⌥ per aprire sempre questo sito qui",
         targetMissingFormat: "%@ non è disponibile. Scegli dove aprire questo link.",
         openFailedFormat: "%@ non è riuscito ad aprire questo link.",
-        profilesWithheldFormat: "macOS non ha permesso a Vorssaint di leggere i profili di %@, quindi ognuno appare come un solo browser. Consenti l’accesso quando macOS lo chiede o attiva Accesso completo al disco."
+        profilesWithheldFormat: "macOS non ha permesso a Vorssaint di leggere i profili di %@, quindi ognuno appare come un solo browser. Consenti l’accesso quando macOS lo chiede o attiva Accesso completo al disco.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Mostra gli Space di Arc nel selettore",
+        arcCaption: "Arc tiene un profilo in ogni Space, quindi scegliere uno Space apre il link con il suo profilo. macOS chiede una volta se Vorssaint può controllare Arc.",
+        arcNotAllowed: "Vorssaint non può controllare Arc, quindi i suoi Space non si possono mostrare né aprire.",
+        arcOpenAutomationSettings: "Apri le impostazioni di Automazione…",
+        arcAllowAccess: "Consenti l’accesso ad Arc…",
+        arcOpenToList: "Apri Arc per vedere i suoi Space.",
+        arcSpacesCountFormat: "Space: %d",
+        arcRefresh: "Aggiorna"
     )
 
     static let ja = BrowserPickerStrings(
@@ -518,7 +608,16 @@ extension BrowserPickerStrings {
         rememberHint: "⌥を押したまま選ぶと、このサイトを常にここで開きます",
         targetMissingFormat: "%@は使用できません。このリンクを開く場所を選んでください。",
         openFailedFormat: "%@でこのリンクを開けませんでした。",
-        profilesWithheldFormat: "macOSの制限で%@のプロファイルを読み取れないため、それぞれ1つのブラウザとして表示されます。macOSに尋ねられたら許可するか、フルディスクアクセスをオンにしてください。"
+        profilesWithheldFormat: "macOSの制限で%@のプロファイルを読み取れないため、それぞれ1つのブラウザとして表示されます。macOSに尋ねられたら許可するか、フルディスクアクセスをオンにしてください。",
+        arcTitle: "Arc",
+        arcSpacesToggle: "ArcのSpaceをピッカーに表示",
+        arcCaption: "ArcはSpaceごとにプロファイルを持つため、Spaceを選ぶとそのプロファイルでリンクが開きます。VorssaintがArcを制御してよいか、macOSが一度だけ確認します。",
+        arcNotAllowed: "VorssaintにはArcを制御する権限がないため、Spaceを表示したり開いたりできません。",
+        arcOpenAutomationSettings: "オートメーション設定を開く…",
+        arcAllowAccess: "Arcへのアクセスを許可…",
+        arcOpenToList: "Spaceを表示するにはArcを開いてください。",
+        arcSpacesCountFormat: "Space：%d",
+        arcRefresh: "更新"
     )
 
     static let ko = BrowserPickerStrings(
@@ -563,7 +662,16 @@ extension BrowserPickerStrings {
         rememberHint: "⌥ 키를 누른 채 선택하면 이 사이트를 항상 여기에서 엽니다",
         targetMissingFormat: "%@을(를) 사용할 수 없습니다. 이 링크를 열 위치를 선택하세요.",
         openFailedFormat: "%@에서 이 링크를 열 수 없습니다.",
-        profilesWithheldFormat: "macOS가 Vorssaint의 %@ 프로필 읽기를 허용하지 않아 각각 하나의 브라우저로 표시됩니다. macOS가 물어볼 때 허용하거나 전체 디스크 접근 권한을 켜세요."
+        profilesWithheldFormat: "macOS가 Vorssaint의 %@ 프로필 읽기를 허용하지 않아 각각 하나의 브라우저로 표시됩니다. macOS가 물어볼 때 허용하거나 전체 디스크 접근 권한을 켜세요.",
+        arcTitle: "Arc",
+        arcSpacesToggle: "선택기에 Arc Space 표시",
+        arcCaption: "Arc는 Space마다 프로필을 두므로 Space를 선택하면 해당 프로필로 링크가 열립니다. macOS가 Vorssaint의 Arc 제어 허용 여부를 한 번 묻습니다.",
+        arcNotAllowed: "Vorssaint에 Arc 제어 권한이 없어 Space를 표시하거나 열 수 없습니다.",
+        arcOpenAutomationSettings: "자동화 설정 열기…",
+        arcAllowAccess: "Arc 접근 허용…",
+        arcOpenToList: "Space를 보려면 Arc를 여세요.",
+        arcSpacesCountFormat: "Space %d개",
+        arcRefresh: "새로 고침"
     )
 
     static let zhHans = BrowserPickerStrings(
@@ -608,7 +716,16 @@ extension BrowserPickerStrings {
         rememberHint: "按住 ⌥ 键选择，以后总在此处打开此网站",
         targetMissingFormat: "%@ 不可用。请选择打开此链接的位置。",
         openFailedFormat: "%@ 无法打开此链接。",
-        profilesWithheldFormat: "macOS 未允许 Vorssaint 读取 %@ 的个人资料，因此每个浏览器只显示为一项。请在 macOS 询问时允许，或打开“完全磁盘访问权限”。"
+        profilesWithheldFormat: "macOS 未允许 Vorssaint 读取 %@ 的个人资料，因此每个浏览器只显示为一项。请在 macOS 询问时允许，或打开“完全磁盘访问权限”。",
+        arcTitle: "Arc",
+        arcSpacesToggle: "在选择器中显示 Arc 空间",
+        arcCaption: "Arc 为每个空间保留一个个人资料，因此选择空间会用该空间的个人资料打开链接。macOS 会询问一次是否允许 Vorssaint 控制 Arc。",
+        arcNotAllowed: "Vorssaint 没有控制 Arc 的权限，因此无法列出或打开其空间。",
+        arcOpenAutomationSettings: "打开“自动化”设置…",
+        arcAllowAccess: "允许访问 Arc…",
+        arcOpenToList: "打开 Arc 以列出其空间。",
+        arcSpacesCountFormat: "%d 个空间",
+        arcRefresh: "刷新"
     )
 
     static let zhTW = BrowserPickerStrings(
@@ -653,7 +770,16 @@ extension BrowserPickerStrings {
         rememberHint: "按住 ⌥ 鍵選擇，之後一律在這裡打開此網站",
         targetMissingFormat: "%@ 無法使用。請選擇要在哪裡打開此連結。",
         openFailedFormat: "%@ 無法打開此連結。",
-        profilesWithheldFormat: "macOS 未允許 Vorssaint 讀取 %@ 的個人資料，因此每個瀏覽器只顯示為一項。請在 macOS 詢問時允許，或開啟「完整磁碟取用權限」。"
+        profilesWithheldFormat: "macOS 未允許 Vorssaint 讀取 %@ 的個人資料，因此每個瀏覽器只顯示為一項。請在 macOS 詢問時允許，或開啟「完整磁碟取用權限」。",
+        arcTitle: "Arc",
+        arcSpacesToggle: "在選擇器中顯示 Arc 空間",
+        arcCaption: "Arc 為每個空間保留一個個人資料，因此選擇空間會用該空間的個人資料打開連結。macOS 會詢問一次是否允許 Vorssaint 控制 Arc。",
+        arcNotAllowed: "Vorssaint 沒有控制 Arc 的權限，因此無法列出或打開其空間。",
+        arcOpenAutomationSettings: "打開「自動化」設定…",
+        arcAllowAccess: "允許取用 Arc…",
+        arcOpenToList: "打開 Arc 以列出其空間。",
+        arcSpacesCountFormat: "%d 個空間",
+        arcRefresh: "重新整理"
     )
 
     static let zhHK = BrowserPickerStrings(
@@ -698,7 +824,16 @@ extension BrowserPickerStrings {
         rememberHint: "按住 ⌥ 鍵選擇，之後一律在這裡打開此網站",
         targetMissingFormat: "%@ 無法使用。請選擇要在哪裡打開此連結。",
         openFailedFormat: "%@ 無法打開此連結。",
-        profilesWithheldFormat: "macOS 未允許 Vorssaint 讀取 %@ 的個人資料，因此每個瀏覽器只顯示為一項。請在 macOS 詢問時允許，或開啟「完整磁碟取用權限」。"
+        profilesWithheldFormat: "macOS 未允許 Vorssaint 讀取 %@ 的個人資料，因此每個瀏覽器只顯示為一項。請在 macOS 詢問時允許，或開啟「完整磁碟取用權限」。",
+        arcTitle: "Arc",
+        arcSpacesToggle: "在選擇器中顯示 Arc 空間",
+        arcCaption: "Arc 為每個空間保留一個個人資料，因此選擇空間會用該空間的個人資料打開連結。macOS 會詢問一次是否允許 Vorssaint 控制 Arc。",
+        arcNotAllowed: "Vorssaint 沒有控制 Arc 的權限，因此無法列出或打開其空間。",
+        arcOpenAutomationSettings: "打開「自動化」設定…",
+        arcAllowAccess: "允許取用 Arc…",
+        arcOpenToList: "打開 Arc 以列出其空間。",
+        arcSpacesCountFormat: "%d 個空間",
+        arcRefresh: "重新整理"
     )
 
     static let uk = BrowserPickerStrings(
@@ -743,6 +878,15 @@ extension BrowserPickerStrings {
         rememberHint: "З ⌥ цей сайт завжди відкриватиметься тут",
         targetMissingFormat: "%@ недоступний. Виберіть, де відкрити посилання.",
         openFailedFormat: "%@ не зміг відкрити посилання.",
-        profilesWithheldFormat: "macOS не дозволила Vorssaint прочитати профілі %@, тому кожен показано одним браузером. Дозвольте доступ, коли macOS запитає, або ввімкніть «Повний доступ до диска»."
+        profilesWithheldFormat: "macOS не дозволила Vorssaint прочитати профілі %@, тому кожен показано одним браузером. Дозвольте доступ, коли macOS запитає, або ввімкніть «Повний доступ до диска».",
+        arcTitle: "Arc",
+        arcSpacesToggle: "Показувати простори Arc у виборі",
+        arcCaption: "Arc зберігає профіль у кожному просторі, тому вибір простору відкриває посилання з його профілем. macOS один раз запитає, чи може Vorssaint керувати Arc.",
+        arcNotAllowed: "Vorssaint не має дозволу керувати Arc, тому його простори не можна показати чи відкрити.",
+        arcOpenAutomationSettings: "Відкрити параметри Автоматизації…",
+        arcAllowAccess: "Дозволити доступ до Arc…",
+        arcOpenToList: "Відкрийте Arc, щоб побачити його простори.",
+        arcSpacesCountFormat: "Просторів: %d",
+        arcRefresh: "Оновити"
     )
 }

@@ -414,7 +414,8 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .browserPicker,
                                       title: FeatureStrings.browserPicker(language).featureName,
                                       icon: "globe",
-                                      keywords: FeatureStrings.browserPicker(language).searchKeywords),
+                                      keywords: FeatureStrings.browserPicker(language).searchKeywords
+                                          + [FeatureStrings.browserPicker(language).arcSpacesToggle]),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,

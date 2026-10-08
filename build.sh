@@ -319,6 +319,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BrowserPickerRules.swift
         Sources/Vorssaint/Core/BrowserPickerStrings.swift
         Sources/Vorssaint/Services/BrowserPicker/BrowserPickerBrowsers.swift
+        Sources/Vorssaint/Services/BrowserPicker/BrowserPickerArc.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
         Sources/Vorssaint/Core/ShortcutSettingsStrings.swift

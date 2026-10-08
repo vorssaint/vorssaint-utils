@@ -1,5 +1,5 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaintは、ファイルの移動、項目をゴミ箱に入れる操作、要求されたコマンドの実行、お使いのメディアアプリの再生操作にオートメーションを使用します。";
+"NSAppleEventsUsageDescription" = "Vorssaintは、ファイルの移動、項目をゴミ箱に入れる操作、要求されたコマンドの実行、お使いのメディアアプリの再生操作にオートメーションを使用します。また、選択したArcのSpaceでリンクを開きます。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaintは、ミキサーで各アプリの音量を調整するため、Dynamic Islandの音楽バーを動かすため、また開始した画面収録にMacの音声を含めるために、各アプリの音声を使用します。Macの外に送信されることはありません。";

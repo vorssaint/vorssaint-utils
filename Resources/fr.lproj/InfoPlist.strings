@@ -1,5 +1,5 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "Vorssaint utilise Automatisation pour déplacer des fichiers, placer des éléments dans la Corbeille, ouvrir les commandes demandées et contrôler la lecture dans vos apps multimédias.";
+"NSAppleEventsUsageDescription" = "Vorssaint utilise Automatisation pour déplacer des fichiers, placer des éléments dans la Corbeille, ouvrir les commandes demandées et contrôler la lecture dans vos apps multimédias. Il ouvre aussi les liens dans le Space Arc que vous choisissez.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
 "NSAudioCaptureUsageDescription" = "Vorssaint utilise le son de chaque app pour régler son volume dans le mixeur, pour animer les barres de musique de Dynamic Island et pour inclure le son du Mac dans les enregistrements d'écran que vous lancez. Rien ne quitte votre Mac.";

@@ -53,6 +53,10 @@ struct BrowserPickerSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            if BrowserPickerArc.isInstalled {
+                arcSection
+            }
         }
         .formStyle(.grouped)
         .onDrop(of: [UTType.text], delegate: BrowserPickerDragCleanup(dragging: $dragging))
@@ -71,6 +75,43 @@ struct BrowserPickerSettings: View {
         // Someone may change the default browser in System Settings meanwhile.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             service.refreshDefaultState()
+            service.refreshChoices()
+        }
+    }
+
+    /// Arc keeps a profile in each Space, so Spaces are how the picker
+    /// reaches Arc's profiles.
+    private var arcSection: some View {
+        Section {
+            Toggle(strings.arcSpacesToggle, isOn: Binding(
+                get: { service.arcSpacesEnabled },
+                set: { service.setArcSpaces(enabled: $0) }))
+            if service.arcSpacesEnabled {
+                switch service.arcAccess {
+                case .denied:
+                    Label(strings.arcNotAllowed, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(strings.arcOpenAutomationSettings) { Permissions.shared.openAutomationSettings() }
+                case .notAsked:
+                    Button(strings.arcAllowAccess) { service.requestArcAccess() }
+                case .allowed, .unknown:
+                    HStack {
+                        Text(service.arcSpaces.isEmpty ? strings.arcOpenToList
+                                                       : String(format: strings.arcSpacesCountFormat, service.arcSpaces.count))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button(strings.arcRefresh) { service.requestArcAccess() }
+                    }
+                }
+            }
+        } header: {
+            Text(strings.arcTitle)
+        } footer: {
+            Text(strings.arcCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

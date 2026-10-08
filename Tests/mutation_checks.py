@@ -331,6 +331,10 @@ MUTATIONS = [
      "!required || wasUsed(directory),",
      "!required || true,",
      "managed profiles come first under their own names, the never-used install profile is left out"),
+    ("an Arc Space id reaches the script unquoted", "browser-picker", "Sources/Vorssaint/Services/BrowserPicker/BrowserPickerArc.swift",
+     "tell space id \\(AppleScriptRunner.literal(spaceID)) to focus",
+     "tell space id \"\\(spaceID)\" to focus",
+     "the link and Space reach Arc as quoted values, never as script"),
 ]
 
 

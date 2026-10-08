@@ -3,16 +3,21 @@
 
 import Foundation
 
-/// Where a link opens: a browser, or one of its profiles. A profile is kept
-/// by its folder (a Chromium profile directory, or a Firefox profile path),
-/// which survives a rename; the name only labels a profile that is gone.
+/// Where a link opens: a browser, one of its profiles, or one Space of Arc,
+/// which keeps a profile per Space. A profile is kept by its folder (a
+/// Chromium profile directory, or a Firefox profile path) and a Space by its
+/// id, which survive a rename; the name only labels one that is gone.
 enum BrowserPickerTarget: Codable, Hashable {
     case application(bundleID: String)
     case profile(bundleID: String, id: String, name: String)
+    case arcSpace(id: String, title: String)
+
+    static let arcBundleID = "company.thebrowser.Browser"
 
     var bundleID: String {
         switch self {
         case .application(let bundleID), .profile(let bundleID, _, _): return bundleID
+        case .arcSpace: return Self.arcBundleID
         }
     }
 }
@@ -155,11 +160,15 @@ enum BrowserPickerRules {
     /// Whether a target can still be opened. `knownProfiles` holds, for each
     /// browser whose list was read, its profile ids; opening a profile that
     /// is gone would make the browser create a new, empty one.
+    /// `knownSpaces` holds Arc's Space ids once they have been read.
     static func isAvailable(_ target: BrowserPickerTarget, appInstalled: Bool,
-                            knownProfiles: [String: Set<String>]) -> Bool {
+                            knownProfiles: [String: Set<String>], knownSpaces: Set<String>? = nil) -> Bool {
         guard appInstalled else { return false }
-        guard case .profile(let bundleID, let id, _) = target else { return true }
-        return knownProfiles[bundleID].map { $0.contains(id) } ?? true
+        switch target {
+        case .application: return true
+        case .profile(let bundleID, let id, _): return knownProfiles[bundleID].map { $0.contains(id) } ?? true
+        case .arcSpace(let id, _): return knownSpaces.map { $0.contains(id) } ?? true
+        }
     }
 
     /// The site a new rule from a link starts with: the link's host without a

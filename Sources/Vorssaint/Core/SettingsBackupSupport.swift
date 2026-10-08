@@ -105,6 +105,9 @@ enum SettingsBackupSupport {
         // Mac's installed apps, not a preference.
         DefaultsKey.browserPickerPreviousBrowser,
         DefaultsKey.browserPickerReadsProfiles,
+        DefaultsKey.browserPickerArcSpaceList,
+        // Permission to control Arc is granted per Mac, so the choice is too.
+        DefaultsKey.browserPickerArcSpaces,
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         DefaultsKey.dockPreviewRestoreAutohide,

@@ -26,6 +26,10 @@ final class BrowserPickerService: ObservableObject {
     /// Set by the panel when there was no room below the pointer. The list
     /// then runs upward, so the first choice still sits next to the pointer.
     @Published var opensAbovePointer = false
+    /// Arc's Spaces as last read, kept so the picker can offer them while Arc
+    /// is closed, and whether reading them was refused.
+    @Published private(set) var arcSpaces: [BrowserPickerArc.Space]
+    @Published private(set) var arcAccess = BrowserPickerArc.Access.unknown
 
     private let defaults: UserDefaults
     private var queue: [(url: URL, notice: String?)] = []
@@ -48,6 +52,8 @@ final class BrowserPickerService: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         rules = BrowserPickerRules.decode(defaults.data(forKey: DefaultsKey.browserPickerRules))
+        arcSpaces = (defaults.data(forKey: DefaultsKey.browserPickerArcSpaceList))
+            .flatMap { try? JSONDecoder().decode([BrowserPickerArc.Space].self, from: $0) } ?? []
         isDefaultBrowser = BrowserPickerDefaultBrowser.isThisApp
     }
 
@@ -59,7 +65,12 @@ final class BrowserPickerService: ObservableObject {
     func syncWithPreferences() {
         reloadRules()
         refreshDefaultState()
-        guard !AppFeature.browserPicker.isAvailable else { return }
+        // Nothing here asks macOS anything: profiles are read only once the
+        // settings were opened, and Arc only while it runs and allows it.
+        guard !AppFeature.browserPicker.isAvailable else {
+            refreshChoices()
+            return
+        }
         dropPendingLinks()
         if isDefaultBrowser { setDefaultBrowser(false) }
     }
@@ -102,11 +113,17 @@ final class BrowserPickerService: ObservableObject {
         }
         discoveryInFlight = true
         let readingProfiles = defaults.bool(forKey: DefaultsKey.browserPickerReadsProfiles)
+        let showingArcSpaces = arcSpacesEnabled
+        let knownSpaces = arcSpaces
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let found = BrowserPickerBrowsers.discover(readingProfiles: readingProfiles)
+            let arc = showingArcSpaces ? Self.readArc() : (access: .unknown, spaces: nil)
+            let spaces = (try? arc.spaces?.get()).flatMap { $0.isEmpty ? nil : $0 } ?? knownSpaces
+            let found = BrowserPickerBrowsers.discover(readingProfiles: readingProfiles,
+                                                      arcSpaces: showingArcSpaces ? spaces : [])
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.discoveryInFlight = false
+                self.noteArc(access: arc.access, spaces: arc.spaces)
                 if found.withheldProfiles != self.withheldProfiles { self.withheldProfiles = found.withheldProfiles }
                 self.knownProfiles = found.knownProfiles
                 if found.choices != self.choices {
@@ -119,6 +136,52 @@ final class BrowserPickerService: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: Arc Spaces
+
+    var arcSpacesEnabled: Bool { defaults.bool(forKey: DefaultsKey.browserPickerArcSpaces) }
+
+    func setArcSpaces(enabled: Bool) {
+        defaults.set(enabled, forKey: DefaultsKey.browserPickerArcSpaces)
+        objectWillChange.send()
+        if enabled { requestArcAccess() } else { refreshChoices() }
+    }
+
+    /// Turning Spaces on, or refreshing them, is the moment macOS may ask
+    /// whether this app can control Arc. It asks only about a running Arc,
+    /// so a closed one is opened in the background first.
+    func requestArcAccess() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            _ = BrowserPickerArc.launchIfNeeded()
+            let access = BrowserPickerArc.access(prompt: true)
+            let spaces = access == .allowed ? BrowserPickerArc.spaces() : nil
+            DispatchQueue.main.async {
+                self?.noteArc(access: access, spaces: spaces)
+                self?.refreshChoices()
+            }
+        }
+    }
+
+    /// The passive reading behind every refresh: never asks, never opens Arc.
+    private static func readArc() -> (access: BrowserPickerArc.Access,
+                                      spaces: Result<[BrowserPickerArc.Space], BrowserPickerArc.Failure>?) {
+        guard BrowserPickerArc.isInstalled, BrowserPickerArc.isRunning else { return (.unknown, nil) }
+        let access = BrowserPickerArc.access(prompt: false)
+        return (access, access == .allowed ? BrowserPickerArc.spaces() : nil)
+    }
+
+    private func noteArc(access: BrowserPickerArc.Access,
+                         spaces: Result<[BrowserPickerArc.Space], BrowserPickerArc.Failure>?) {
+        if access != .unknown, access != arcAccess { arcAccess = access }
+        // A window-less Arc reports no Spaces; keep what was read before.
+        guard case .success(let list)? = spaces, !list.isEmpty, list != arcSpaces else { return }
+        saveArcSpaces(list)
+    }
+
+    private func saveArcSpaces(_ list: [BrowserPickerArc.Space]) {
+        arcSpaces = list
+        defaults.set(try? JSONEncoder().encode(list), forKey: DefaultsKey.browserPickerArcSpaceList)
     }
 
     // MARK: Incoming links
@@ -152,12 +215,15 @@ final class BrowserPickerService: ObservableObject {
     /// A link a rule covers opens at once, even while the picker asks about
     /// an earlier one; only links that need a choice wait their turn.
     private func route(_ url: URL) {
-        if choices.isEmpty { choices = BrowserPickerBrowsers.discover(readingProfiles: false).choices }
+        if choices.isEmpty {
+            choices = BrowserPickerBrowsers.discover(readingProfiles: false,
+                                                     arcSpaces: arcSpacesEnabled ? arcSpaces : []).choices
+        }
         switch BrowserPickerRoute.of(url, rules: rules, isInstalled: isInstalled) {
         case .open(let target):
-            hand(url, to: target) { [weak self] opened in
-                guard let self, !opened else { return }
-                self.ask(url, notice: String(format: self.strings.openFailedFormat, self.label(for: target)))
+            hand(url, to: target) { [weak self] result in
+                guard let self, result != .opened else { return }
+                self.ask(url, notice: self.notice(for: result, target: target))
             }
         case .ask(let missing):
             ask(url, notice: missing.map { String(format: strings.targetMissingFormat, label(for: $0)) })
@@ -250,14 +316,14 @@ final class BrowserPickerService: ObservableObject {
     private func open(_ url: URL, in target: BrowserPickerTarget) {
         isOpening = true
         panel.hide()
-        hand(url, to: target) { [weak self] opened in
+        hand(url, to: target) { [weak self] result in
             guard let self else { return }
             self.isOpening = false
             guard self.pendingURL == url else { return }
-            if opened {
+            if result == .opened {
                 self.finishPending()
             } else {
-                self.pickerNotice = String(format: self.strings.openFailedFormat, self.label(for: target))
+                self.pickerNotice = self.notice(for: result, target: target)
                 self.panel.show()
             }
         }
@@ -265,11 +331,27 @@ final class BrowserPickerService: ObservableObject {
 
     /// A browser that takes a while to start comes to the front only when it
     /// is done, so the time is noted at both ends.
-    private func hand(_ url: URL, to target: BrowserPickerTarget, completion: @escaping (Bool) -> Void) {
+    private func hand(_ url: URL, to target: BrowserPickerTarget,
+                      completion: @escaping (BrowserPickerBrowsers.Opening) -> Void) {
         recentlyOpened[target.bundleID] = Date()
-        BrowserPickerBrowsers.open(url, in: target) { [weak self] opened in
+        BrowserPickerBrowsers.open(url, in: target) { [weak self] result in
             self?.recentlyOpened[target.bundleID] = Date()
-            completion(opened)
+            completion(result)
+        }
+    }
+
+    /// Why a link did not open. A Space found gone leaves the cached list, and
+    /// a withdrawn permission shows up in the settings.
+    private func notice(for result: BrowserPickerBrowsers.Opening, target: BrowserPickerTarget) -> String {
+        switch result {
+        case .spaceMissing:
+            if case .arcSpace(let id, _) = target { saveArcSpaces(arcSpaces.filter { $0.id != id }) }
+            return String(format: strings.targetMissingFormat, label(for: target))
+        case .arcNotAllowed:
+            arcAccess = .denied
+            return strings.arcNotAllowed
+        case .opened, .failed:
+            return String(format: strings.openFailedFormat, label(for: target))
         }
     }
 
@@ -326,8 +408,14 @@ final class BrowserPickerService: ObservableObject {
     // MARK: Targets
 
     func isInstalled(_ target: BrowserPickerTarget) -> Bool {
-        BrowserPickerRules.isAvailable(target, appInstalled: BrowserPickerBrowsers.applicationURL(for: target) != nil,
-                                       knownProfiles: knownProfiles)
+        // A Space is offered only while the option is on and Arc may be
+        // scripted, so a rule never brings up Arc's permission question.
+        if case .arcSpace = target, !arcSpacesEnabled || arcAccess == .denied || arcAccess == .notAsked {
+            return false
+        }
+        return BrowserPickerRules.isAvailable(target, appInstalled: BrowserPickerBrowsers.applicationURL(for: target) != nil,
+                                              knownProfiles: knownProfiles,
+                                              knownSpaces: arcSpaces.isEmpty ? nil : Set(arcSpaces.map(\.id)))
     }
 
     /// "Arc", or "Work · Google Chrome" for a profile.
@@ -339,8 +427,10 @@ final class BrowserPickerService: ObservableObject {
             return rules.first { $0.target == target && $0.targetName != nil }?.targetName ?? target.bundleID
         }
         let appName = BrowserPickerBrowsers.displayName(of: appURL)
-        if case .profile(_, _, let name) = target { return "\(name) · \(appName)" }
-        return appName
+        switch target {
+        case .profile(_, _, let name), .arcSpace(_, let name): return "\(name) · \(appName)"
+        case .application: return appName
+        }
     }
 
     /// Every choice the editor can offer, including a rule's current target
@@ -350,9 +440,13 @@ final class BrowserPickerService: ObservableObject {
         // A browser with profiles is listed by its profiles in the picker,
         // but a rule may still open it without choosing one.
         for choice in choices {
-            guard case .profile(let bundleID, _, _) = choice.target,
-                  !targets.contains(.application(bundleID: bundleID)) else { continue }
-            targets.append(.application(bundleID: bundleID))
+            switch choice.target {
+            case .profile, .arcSpace:
+                let app = BrowserPickerTarget.application(bundleID: choice.target.bundleID)
+                if !targets.contains(app) { targets.append(app) }
+            case .application:
+                break
+            }
         }
         if let target, !targets.contains(target) { targets.append(target) }
         return targets
