@@ -12,6 +12,8 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        // The Harness's own blue, kept clear of the lighter one Codex wears.
+        case .deepseek: return Color(red: 0.29, green: 0.48, blue: 0.96)
         }
     }
 }
@@ -375,6 +377,7 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        case .deepseek: return ["com.deepseek.dsh"]
         }
     }
 
@@ -390,6 +393,8 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
+        // The Harness ships only an app icon; it stands in as the mark.
+        case .deepseek: return []
         }
     }
 }

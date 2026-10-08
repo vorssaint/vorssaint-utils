@@ -45,6 +45,27 @@ final class AgentUsageStore {
         provider == .claude ? 3600 : 6 * 3600
     }
 
+    /// How long one agent's turn may go unwritten before it is counted over.
+    ///
+    /// It is per agent because the reading has to be timely only where the
+    /// log keeps no other sign of an end. A Claude log is appended per event
+    /// and its process can be checked, so the shared wait suits it. The
+    /// Harness rewrites its projection whole whenever anything happens, and
+    /// its counters move only when work does, so silence is a strong sign the
+    /// work has stopped.
+    ///
+    /// The wait cannot be short. Most of a turn is spent inside a single model
+    /// call, when neither counter moves: gaps of six to seventy seconds were
+    /// measured while a session was working, and a projection belonging to a
+    /// live turn was once seen untouched for over three minutes. Forty-five
+    /// seconds is the shortest that still covers the ordinary thinking pause,
+    /// so a finished conversation clears in about three quarters of a minute
+    /// instead of the ten the shared wait allows.
+    static func idleTurn(for provider: AgentProvider) -> TimeInterval {
+        provider == .deepseek ? 45 : NotchAgentSupport.idleTurn
+    }
+
+
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
@@ -132,6 +153,8 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .question(let provider, let project):
+                events.append(.question(provider: provider, project: project))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file
                 forget(file: baseFile)
@@ -169,7 +192,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
-                if record.provider == .opencode {
+                if record.provider.repricesOnReRead {
                     let newCost: Double?
                     let isReported: Bool
                     if record.reportedCost {
@@ -205,10 +228,10 @@ final class AgentUsageStore {
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
             combined.isAggregate = combined.isAggregate || billable.isAggregate
-            let priced = AgentPricing.cost(combined, model: old.model)
+            let priced = AgentPricing.cost(combined, model: old.model, at: old.date)
             let newCost: Double?
             let isReported: Bool
-            if record.provider == .opencode {
+            if record.provider.repricesOnReRead {
                 if record.reportedCost {
                     newCost = record.cost
                     isReported = true
@@ -264,7 +287,8 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
-            let priced = AgentPricing.cost(billables[position], model: records[position].model)
+            let priced = AgentPricing.cost(billables[position], model: records[position].model,
+                                           at: records[position].date)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
             let recordedZero = records[position].provider == .opencode && records[position].cost == 0
@@ -293,8 +317,8 @@ final class AgentUsageStore {
     /// its process ended without a word, or it waits on something outside.
     /// It waits aside for a while, since work can resume after an approval
     /// or a long command.
-    func closeIdleTurns(now: Date, after idle: TimeInterval) {
-        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
+    func closeIdleTurns(now: Date, after idle: (AgentProvider) -> TimeInterval) {
+        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle(turn.provider) {
             turns[file] = nil
             waiting[file] = turn
         }
@@ -475,7 +499,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.deepseek, AgentDeepSeekReader.sessions)].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -498,6 +523,12 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        // The Harness keeps one projection per session, directly in the
+        // folder, named for the session and written whole as it runs.
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return path.hasSuffix(".json") && !name.hasPrefix(".")
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -672,6 +703,8 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        // The Harness's per-session projections, which its root accepts too.
+        if path.hasSuffix(".json"), !name.hasPrefix(".") { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -737,6 +770,14 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // The Harness keeps its projections flat, and the folder holds
+            // nothing else, so it is read without a recursive walk.
+            if root.provider == .deepseek {
+                let files = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+                for file in files { include(file, from: root) }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -757,6 +798,21 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        // A projection is rewritten whole rather than appended to, so there is
+        // no offset to continue from: it is always read as if new. Its parser
+        // starts from empty state each time for the same reason, so what it
+        // describes is the session as it stands, not a second helping of it.
+        if cursor.provider == .deepseek {
+            var info = stat()
+            guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
+            // The projection's own time is what the poller compares against.
+            cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                                    + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+            cursor.startOver(identity: UInt64(info.st_ino))
+            defer { cursor.fingerprintRead() }
+            AgentDeepSeekReader.read(cursor.path, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()

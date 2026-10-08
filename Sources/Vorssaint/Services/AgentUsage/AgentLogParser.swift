@@ -26,6 +26,8 @@ enum AgentLogEntry: Equatable {
     case turnSettled(Date)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
     case reset(Date)
+    /// The agent has stopped to ask something and waits on the person.
+    case question(provider: AgentProvider, project: String)
 }
 
 /// Per-file context carried from line to line.
@@ -55,6 +57,29 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+    /// The turn of the DeepSeek Harness session read last. Its projection is
+    /// the session's current state rather than a log, so the same state is
+    /// read again on every poll; a turn is only opened when this changes.
+    var deepSeekTurn = 0
+    /// Whether that turn was mid-work, so the turn can be settled and ended
+    /// exactly once when the Harness stops and the projection says so.
+    var deepSeekWorking = false
+    /// Steps and output tokens seen last, for the Harness. Its projection is
+    /// rewritten for reasons that have nothing to do with work — a projection
+    /// belonged to a conversation untouched for twenty-two hours and was still
+    /// being written — so neither the file's time nor its mere arrival says
+    /// anything. Only these counters moving does.
+    var deepSeekSteps = 0
+    var deepSeekOutput = 0
+    /// Whether the Harness was last seen waiting on an answer, so the notice
+    /// is raised as the question appears and not once per reading.
+    var deepSeekQuestionWaiting = false
+    /// Whether those counters have been seen once. Until they have, "they grew"
+    /// means nothing: a fresh state starts at zero, so the first look at any
+    /// session that has ever run would read as new work. That is what made
+    /// every conversation in the window look freshly active when the app
+    /// started, and left a finished one counting for hours.
+    var deepSeekSeenProgress = false
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
@@ -195,7 +220,7 @@ enum AgentLogParser {
             let request = json["requestId"] as? String ?? ""
             let key = id.isEmpty && request.isEmpty
                 ? "claude:\(state.session):\(date.timeIntervalSince1970)" : "claude:\(id):\(request)"
-            let priced = AgentPricing.cost(billable, model: model)
+            let priced = AgentPricing.cost(billable, model: model, at: date)
             entries.append(.usage(key: key, record: AgentUsageRecord(
                 provider: .claude, date: date, model: model, project: state.project, session: state.session,
                 tokens: billable.tokens, cost: priced.cost, savings: priced.savings), billable: billable))
@@ -346,7 +371,7 @@ enum AgentLogParser {
     private static func codexUsage(_ tokens: AgentTokens, key: String, date: Date, state: AgentLogState) -> AgentLogEntry {
         var billable = AgentBillable(tokens: tokens)
         billable.fast = state.fast
-        let priced = AgentPricing.cost(billable, model: state.model)
+        let priced = AgentPricing.cost(billable, model: state.model, at: date)
         return .usage(key: key, record: AgentUsageRecord(
             provider: .codex, date: date, model: state.model, project: state.project, session: state.session,
             tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)
@@ -465,7 +490,7 @@ enum AgentLogParser {
             let tokens = AgentTokens(input: input, cacheWrite: cacheWrite, cacheRead: cacheRead,
                                      output: output + reasoning, reasoning: reasoning)
             let billable = AgentBillable(tokens: tokens)
-            let priced = AgentPricing.cost(billable, model: sessionState.model)
+            let priced = AgentPricing.cost(billable, model: sessionState.model, at: date)
             let recordedCost = (json["cost"] as? NSNumber)?.doubleValue
             let reportedCostVal = recordedCost ?? 0
             // A model the list does not know costs what OpenCode recorded.
@@ -715,6 +740,123 @@ enum AgentLogParser {
             tokens: AgentTokens(), cost: 0, savings: 0), billable: AgentBillable(isAggregate: true))]
     }
 
+    // MARK: DeepSeek Harness
+
+    /// The Harness's session projection, reduced by `AgentDeepSeekReader` to
+    /// the one object it describes a session with.
+    ///
+    /// The projection holds the session's running totals, so the same totals
+    /// are read again on every poll. They are counted under one key per turn,
+    /// which the store merges rather than adds, so a session read a hundred
+    /// times costs what it cost once. A turn's price can fall as well as rise
+    /// while it runs, so the store reprices this provider's records the way it
+    /// reprices OpenCode's.
+    static func parseDeepSeek(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard contains(line, #""type":"state""#), let json = object(line),
+              let session = json["session"] as? String, !session.isEmpty else { return [] }
+        state.session = native(session)
+        if let cwd = json["cwd"] as? String, !cwd.isEmpty {
+            state.project = projectName(cwd)
+        }
+        if let model = json["model"] as? String, !model.isEmpty {
+            state.model = native(model)
+        }
+        // The two clocks the reader hands over. `started` is when the turn was
+        // asked for, which is what the person waits against; `activity` is when
+        // the session last did anything, which is what says whether it is still
+        // going. A turn that runs for an hour without another prompt keeps the
+        // first still and moves the second.
+        let started = seconds(json["started"]) ?? now
+
+        let counts = json["tokens"] as? [String: Any] ?? [:]
+        // The Harness reports reasoning inside its output count, as OpenCode
+        // does, and its input count already excludes everything cached.
+        let tokens = AgentTokens(input: int(counts["input"]), cacheWrite: int(counts["cacheWrite"]),
+                                 cacheRead: int(counts["cacheRead"]), output: int(counts["output"]))
+        let turn = max(0, int(json["turn"]))
+        let working = json["working"] as? Bool ?? false
+
+        // The work is moving when either counter has grown since the last look.
+        // A projection rewritten without them moving is bookkeeping, not work,
+        // and must not hold a finished conversation open. The first look only
+        // sets the baseline: it has nothing to compare against, so it says
+        // nothing about whether work is happening now.
+        let steps = int(json["steps"])
+        let output = int(json["output"])
+        let moved = state.deepSeekSeenProgress
+            && (steps > state.deepSeekSteps || output > state.deepSeekOutput)
+        state.deepSeekSeenProgress = true
+        state.deepSeekSteps = max(state.deepSeekSteps, steps)
+        state.deepSeekOutput = max(state.deepSeekOutput, output)
+
+        var entries = deepSeekTurn(turn, working: working, moved: moved, started: started,
+                                   seen: now, state: &state)
+        // A question the person has to answer is the one thing worth a banner
+        // while the turn is still running.
+        if let waiting = json["waitingForAnswer"] as? Bool, waiting, !state.deepSeekQuestionWaiting {
+            state.deepSeekQuestionWaiting = true
+            entries.append(AgentLogEntry.question(provider: .deepseek, project: state.project))
+        } else if let waiting = json["waitingForAnswer"] as? Bool, !waiting {
+            state.deepSeekQuestionWaiting = false
+        }
+        entries.append(.turnContext(model: state.model, project: state.project))
+
+        let billable = AgentBillable(tokens: tokens)
+        // Priced at the reading, since the projection keeps no per-request
+        // time; the discounted window is hours wide, not minutes.
+        let priced = AgentPricing.cost(billable, model: state.model, at: now)
+        entries.append(.usage(key: "deepseek:\(state.session):\(turn):total",
+                              record: AgentUsageRecord(provider: .deepseek, date: now,
+                                                       model: state.model, project: state.project,
+                                                       session: state.session, tokens: tokens,
+                                                       cost: priced.cost, savings: priced.savings),
+                              billable: billable))
+        return entries
+    }
+
+    /// One turn of a Harness session, opened as it appears and ended as the
+    /// Harness stops. A settled turn says only that nothing is running this
+    /// instant, as a step boundary does, so it is not an end in itself.
+    private static func deepSeekTurn(_ turn: Int, working: Bool, moved: Bool, started: Date,
+                                     seen: Date, state: inout AgentLogState) -> [AgentLogEntry] {
+        guard turn > state.deepSeekTurn else {
+            // The same turn read again. Only fresh progress counts as it still
+            // going: the projection being rewritten proves nothing, and the
+            // file's own time is not evidence either.
+            if moved {
+                state.deepSeekWorking = true
+                return [.turnActive(seen)]
+            }
+            if state.deepSeekWorking, !working {
+                state.deepSeekWorking = false
+                // The counters have stopped and the session is no longer
+                // mid-step, so the turn is over rather than paused. The end is
+                // what reports it as finished; the settle keeps the two apart.
+                return [.turnSettled(seen), .turnEnded(seen, completed: true, duration: nil)]
+            }
+            return []
+        }
+        state.deepSeekTurn = turn
+        // A turn the person is not waiting on is not opened at all. A session
+        // that has finished sits in this state for as long as its projection
+        // stays in the window, and opening a turn for it is what left a
+        // finished conversation counting upward.
+        guard working || moved else {
+            state.deepSeekWorking = false
+            return []
+        }
+        // Opening a turn the previous one never ended: the person prompted
+        // again before the Harness stopped drawing breath, so it is one task.
+        var entries: [AgentLogEntry] = []
+        if state.deepSeekWorking { entries.append(.turnSettled(seen)) }
+        state.deepSeekWorking = true
+        // The prompt's own time, so the wait is measured from when the person
+        // asked rather than from when this Mac first read the projection.
+        entries.append(.turnBegan(started))
+        entries.append(.turnActive(seen))
+        return entries
+    }
+
     private static func copilotUsage(_ metrics: [String: Any]?, event: String?, date: Date,
                                      state: inout AgentLogState) -> [AgentLogEntry] {
         guard let metrics else { return [] }
@@ -750,7 +892,7 @@ enum AgentLogParser {
             guard tokens.total > 0 || count > 0 else { continue }
             let billable = AgentBillable(tokens: tokens, isAggregate: true)
             let name = native(model)
-            let priced = AgentPricing.cost(billable, model: name)
+            let priced = AgentPricing.cost(billable, model: name, at: date)
             let checkpoint = event.flatMap { $0.isEmpty ? nil : native($0) }
                 ?? String(date.timeIntervalSince1970)
             entries.append(.usage(key: "copilot:\(state.session):\(checkpoint):\(name)", record: AgentUsageRecord(

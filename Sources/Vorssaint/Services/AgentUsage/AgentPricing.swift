@@ -18,6 +18,48 @@ struct AgentPrice: Equatable {
     /// A premium on the whole request once the prompt passes a threshold,
     /// for the models that charge one.
     var longContext: AgentLongContext?
+    /// A discount for the hours a provider sells below its list rate. Every
+    /// rate above is the list rate; the window scales them all together.
+    var offPeak: AgentOffPeak?
+}
+
+/// A published schedule that sells some of its hours below the list rate.
+/// DeepSeek halves every rate outside its peak window, so the list carries
+/// peak rates and the exception that replaces them.
+struct AgentOffPeak: Equatable {
+    /// The zone the schedule states its hours in.
+    let zone: String
+    /// Whole hours that keep the listed rate, as first...last pairs counted
+    /// from midnight in `zone`. DeepSeek states a peak window, so these are the
+    /// peak hours; every hour not named here is discounted.
+    let peak: [ClosedRange<Int>]
+    /// The days the peak hours hold on, named as three-letter English
+    /// abbreviations, which is what the published schedules state and what
+    /// `Calendar` would not: its day numbers differ by convention, and a list
+    /// read one day off would discount the wrong days. An empty list means
+    /// every day.
+    let days: [String]
+    /// What each rate is multiplied by outside the peak window.
+    let factor: Double
+
+    /// The discount for one request. Naming the peak hours rather than the
+    /// discounted ones fails high: an hour the list leaves out is priced at
+    /// the rate the list states rather than at a discount it never promised.
+    func factor(at date: Date) -> Double {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: zone) ?? TimeZone(identifier: "UTC")!
+        if !days.isEmpty {
+            let symbols = calendar.shortWeekdaySymbols
+            let index = calendar.component(.weekday, from: date) - 1
+            // A day the schedule does not name has no peak hours at all, so
+            // DeepSeek's weekend is discounted from midnight to midnight.
+            guard symbols.indices.contains(index), days.contains(symbols[index].lowercased()) else {
+                return factor
+            }
+        }
+        let hour = calendar.component(.hour, from: date)
+        return peak.contains(where: { $0.contains(hour) }) ? 1 : factor
+    }
 }
 
 /// Past `above` prompt tokens, input and cache rates are multiplied by
@@ -69,12 +111,17 @@ struct AgentPriceList: Equatable {
     let updated: Date
     let claude: [Model]
     let codex: [Model]
+    /// DeepSeek's table is optional: a list published before the Harness was
+    /// read still decodes, with every cost it already knew intact, rather than
+    /// being refused whole and leaving the island with no prices at all.
+    let deepseek: [Model]
     let claudePlans: [Plan]
     let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
 
-    static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
+    static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], deepseek: [],
+                                      claudePlans: [], codexPlans: [],
                                       webSearch: 0, usOnlyMultiplier: 1)
 
     static func decode(_ data: Data) -> AgentPriceList? {
@@ -88,9 +135,17 @@ struct AgentPriceList: Equatable {
               let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
+        // A present but unreadable table is refused like the rest of the list,
+        // so a typo in it is noticed rather than silently dropping the prices.
+        var deepseekModels: [Model] = []
+        if let deepseek = json["deepseek"] {
+            guard let object = deepseek as? [String: Any],
+                  let parsed = models(object["models"], prefix: "deepseek-") else { return nil }
+            deepseekModels = parsed
+        }
         return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
-                              claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
-                              usOnlyMultiplier: usOnly)
+                              deepseek: deepseekModels, claudePlans: claudePlans, codexPlans: codexPlans,
+                              webSearch: webSearch, usOnlyMultiplier: usOnly)
     }
 
     /// The newer of the list inside the app and the last one downloaded. On
@@ -107,7 +162,7 @@ struct AgentPriceList: Equatable {
         var seen = Set<String>()
         for entry in entries {
             guard let id = entry["id"] as? String, identifier(id, length: 64), seen.insert(id).inserted,
-                  prefix.map(id.hasPrefix) ?? !id.hasPrefix("claude-"),
+                  prefix.map(id.hasPrefix) ?? !(id.hasPrefix("claude-") || id.hasPrefix("deepseek-")),
                   let input = number(entry["input"], in: 0...1_000),
                   let output = number(entry["output"], in: 0...1_000),
                   let cacheRead = number(entry["cacheRead"], in: 0...1_000) else { return nil }
@@ -125,12 +180,58 @@ struct AgentPriceList: Equatable {
                       let longOutput = number(object["outputMultiplier"], in: 1...10) else { return nil }
                 long = AgentLongContext(above: Int(above), input: longInput, output: longOutput)
             }
+            var discount: AgentOffPeak?
+            if let value = entry["offPeak"] {
+                guard let object = value as? [String: Any], let parsed = try? offPeakWindow(object) else { return nil }
+                discount = parsed
+            }
             result.append(Model(id: id, price: AgentPrice(input: input, output: output, cacheRead: cacheRead,
                                                           cacheWrite: cacheWrite, cacheWriteLong: cacheWriteLong,
-                                                          fastMultiplier: fast, longContext: long)))
+                                                          fastMultiplier: fast, longContext: long,
+                                                          offPeak: discount)))
         }
         return result
     }
+
+    /// A discounted schedule: the zone its hours are counted in, the peak
+    /// hours themselves as `first-last` pairs, the days they hold on, and the
+    /// factor the rest of the week takes. Days and hours left out apply on
+    /// every one, and every hour outside the peak window is discounted.
+    private static func offPeakWindow(_ object: [String: Any]) throws -> AgentOffPeak {
+        guard let zone = object["timezone"] as? String,
+              TimeZone(identifier: zone) != nil,
+              let factor = number(object["factor"], in: 0.01...1) else { throw MalformedPrice() }
+        var peak: [ClosedRange<Int>] = []
+        for entry in try strings(object["peak"]) ?? [] {
+            let bounds = entry.split(separator: "-", maxSplits: 1).compactMap { Int($0) }
+            guard bounds.count == 2 else { throw MalformedPrice() }
+            let (first, last) = (bounds[0], bounds[1])
+            // The schedule states 01:00 and 04:00; the hours they cover are 1
+            // through 3. A window stated end to end, 22-06, is refused rather
+            // than read backwards.
+            guard first >= 0, first <= last, last <= 24 else { throw MalformedPrice() }
+            peak.append(first...(last - 1))
+        }
+        var days: [String] = []
+        for entry in try strings(object["days"]) ?? [] {
+            let day = entry.lowercased()
+            guard day.count == 3, day.allSatisfy(\.isLetter) else { throw MalformedPrice() }
+            days.append(day)
+        }
+        return AgentOffPeak(zone: zone, peak: peak, days: days, factor: factor)
+    }
+
+    /// A list of strings, or nothing at all. A field holding anything else is
+    /// an error rather than an absence: a schedule whose hours were written as
+    /// numbers would otherwise read as one that names no peak hours, and so
+    /// discount the entire week.
+    private static func strings(_ value: Any?) throws -> [String]? {
+        guard let value, !(value is NSNull) else { return nil }
+        guard let entries = value as? [String] else { throw MalformedPrice() }
+        return entries
+    }
+
+    private struct MalformedPrice: Error {}
 
     private static func plans(_ value: Any?) -> [Plan]? {
         guard let entries = value as? [[String: Any]], entries.count <= 50 else { return nil }
@@ -211,11 +312,20 @@ enum AgentPricing {
     static let siblings = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime",
                            "transcribe", "tts", "cyber", "image"]
 
+    /// Prefixes that name the provider a model runs on, before the family.
+    /// Each table is keyed off its own so a family from one maker can never
+    /// be priced from another maker's list.
+    private static func table(for id: String, in list: AgentPriceList) -> [AgentPriceList.Model] {
+        if id.hasPrefix("claude-") { return list.claude }
+        if id.hasPrefix("deepseek-") { return list.deepseek }
+        return list.codex
+    }
+
     /// The longest matching family wins, so a point release the list names
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
-        let table = id.hasPrefix("claude-") ? list.claude : list.codex
+        let table = table(for: id, in: list)
         guard let match = table.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
         // A smaller, larger or specialized sibling the list does not name is
@@ -238,7 +348,11 @@ enum AgentPricing {
         return number.isEmpty || number.count >= 4
     }
 
-    static func cost(_ billable: AgentBillable, model: String) -> (cost: Double?, savings: Double) {
+    /// What one response bills, at the rates that were in force when it was
+    /// made: `at` decides a discounted window, so a provider that halves its
+    /// price overnight is not charged its peak rate all day.
+    static func cost(_ billable: AgentBillable, model: String,
+                     at date: Date = Date()) -> (cost: Double?, savings: Double) {
         // Activity-only records establish a date, not unpriced token usage.
         if billable.isAggregate && billable.tokens.total == 0 { return (0, 0) }
         let list = self.list
@@ -247,6 +361,7 @@ enum AgentPricing {
         let long = min(max(0, billable.longCacheWrite), tokens.cacheWrite)
         var multiplier = billable.fast ? price.fastMultiplier : 1
         if billable.domestic { multiplier *= list.usOnlyMultiplier }
+        if let offPeak = price.offPeak { multiplier *= offPeak.factor(at: date) }
         var inputRate = multiplier
         var outputRate = multiplier
         if !billable.isAggregate, let long = price.longContext, tokens.prompt > long.above {
@@ -282,6 +397,14 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        // DeepSeek's own names already read well once capitalized, and its
+        // version words ("v4-pro") mean something, so they are not dropped.
+        if id.hasPrefix("deepseek-") {
+            let rest = id.dropFirst("deepseek-".count)
+            return ("DeepSeek " + rest).split(separator: "-")
+                .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+                .joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)

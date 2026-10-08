@@ -3896,6 +3896,12 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        case .question(let provider, _):
+            // The work is blocked until it is answered, so the notice asks for
+            // one rather than reporting something that already happened.
+            show(NotchNotice(event: .agents, title: text.waitingForAnswer,
+                             detail: provider.displayName,
+                             symbol: "questionmark.bubble.fill", agent: provider))
         }
     }
 

@@ -255,7 +255,7 @@ final class AgentUsageService: ObservableObject {
             guard !cancellation.isCancelled else { return }
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
-            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
+            store.closeIdleTurns(now: now, after: AgentUsageStore.idleTurn(for:))
             closeEndedTurns(roots, atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
@@ -351,13 +351,21 @@ final class AgentUsageService: ObservableObject {
         // A turn gone quiet, as while it waits for an approval, is noticed
         // as soon as its work resumes.
         var working = Set(store.turns.keys).union(store.waiting.keys)
-        // An OpenCode turn is kept by database and session.
+        // A turn kept by file and session names its file before the mark.
         for key in working {
             if let mark = key.firstIndex(of: "#") { working.insert(String(key[..<mark])) }
         }
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
+            if cursor.provider == .deepseek {
+                // A projection is rewritten whole, so its own modification time
+                // is what says whether there is anything new in it.
+                var info = stat()
+                guard stat(path, &info) != 0 || modified(info) > cursor.modified else { continue }
+                if read(path, provider: cursor.provider) { changed = true }
+                continue
+            }
             if cursor.provider == .opencode {
                 // A database changes in place: its write-ahead log grows instead.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
@@ -371,6 +379,12 @@ final class AgentUsageService: ObservableObject {
             if read(path, provider: cursor.provider) { changed = true }
         }
         return changed
+    }
+
+    /// When a file was last written, from a `stat` already taken.
+    private func modified(_ info: stat) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
     }
 
     /// Claude Code retries for minutes without a word while the Mac is
@@ -430,11 +444,15 @@ final class AgentUsageService: ObservableObject {
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
             case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+            case .deepseek: entries = AgentLogParser.parseDeepSeek(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
-            let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
+            // A log that carries several sessions names the one it is reading,
+            // so each session's turn is followed on its own.
+            let multiplexed = provider == .opencode || provider == .deepseek
+            let turnFile = multiplexed && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)" : cursor.parent
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
@@ -500,7 +518,7 @@ final class AgentUsageService: ObservableObject {
             guard readerSession >= 0 else { return }
             let now = Date()
             let before = inputs
-            store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
+            store.closeIdleTurns(now: now, after: AgentUsageStore.idleTurn(for:))
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
@@ -584,6 +602,10 @@ final class AgentUsageService: ObservableObject {
                 guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
                 guard NotchAgentSupport.dailyBudget() != nil else { return }
+            case .question(let provider, _):
+                // A question blocks the work, so it is worth saying whatever
+                // the finish alert is set to.
+                guard self.providers.contains(provider) else { return }
             }
             self.events.send(event)
         }

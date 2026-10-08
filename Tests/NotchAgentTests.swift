@@ -13,6 +13,7 @@ enum NotchAgentTests {
         AgentPricing.install(shipped ?? .empty)
         defer { AgentPricing.install(previous) }
         priceList(suite, shipped: shipped ?? .empty)
+        deepSeekRates(suite)
         pricing(suite)
         claudeParsing(suite)
         claudeTurns(suite)
@@ -161,6 +162,71 @@ enum NotchAgentTests {
                      "plans are recognized, and an unknown one keeps its name without a price")
     }
 
+    /// A price list with one discounted schedule, in the shape a publisher
+    /// would write it. The DeepSeek table is the only one that carries one.
+    private static func offPeakJSON(peak: String = "01-04", days: String = #"["mon"]"#) -> Data {
+        priceJSON(extra: #","deepseek":{"models":[{"id":"deepseek-flash","input":0.3,"output":1.2,"cacheRead":0.006,"offPeak":{"timezone":"UTC","peak":["\#(peak)"],"days":\#(days),"factor":0.5}}]}"#)
+    }
+
+    /// The Harness is the one agent that sells below its list rate by the
+    /// clock, so the schedule it publishes is checked against the dates it
+    /// names rather than only against the arithmetic.
+    private static func deepSeekRates(_ suite: TestSuite) {
+        guard let flash = AgentPricing.price(for: "deepseek-flash") else {
+            suite.expect(false, "the shipped list prices deepseek-flash"); return
+        }
+        guard let window = flash.offPeak else {
+            suite.expect(false, "deepseek-flash carries its off-peak window"); return
+        }
+        // Built in UTC so the hour under test is the hour the schedule states,
+        // whatever the Mac's own zone is: 2026-10-05 is a Monday.
+        func utc(_ day: Int, _ hour: Int) -> Date {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "UTC")!
+            return calendar.date(from: DateComponents(year: 2026, month: 10, day: day, hour: hour)) ?? .distantPast
+        }
+        let billable = AgentBillable(tokens: AgentTokens(input: 1_000_000, cacheRead: 0, output: 0))
+        let discounted = AgentPricing.cost(billable, model: "deepseek-flash", at: utc(5, 0))
+        let full = AgentPricing.cost(billable, model: "deepseek-flash", at: utc(5, 2))
+
+        // 02:00 on a Monday is inside the stated peak window; 00:00 and all of
+        // Saturday are outside it.
+        let peakHour = utc(5, 2)
+        let earlyMonday = utc(5, 0)
+        let saturdayPeakHour = utc(3, 2)
+        let saturdayEvening = utc(3, 20)
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(identifier: "UTC")!
+        let stated = utcCalendar.dateComponents([.weekday, .hour], from: peakHour)
+        suite.expect(stated.weekday == 2 && stated.hour == 2,
+                     "the test's own date lands on Monday at 02:00 UTC as the schedule states it")
+        suite.expect(window.factor(at: peakHour) == 1, "the stated peak hours are billed in full")
+        suite.expect(window.factor(at: earlyMonday) == 0.5, "the hours outside the peak window are discounted")
+        suite.expect(window.factor(at: saturdayPeakHour) == 0.5 && window.factor(at: saturdayEvening) == 0.5,
+                     "a day the schedule leaves out is off peak from midnight to midnight")
+        suite.expect((discounted.cost ?? 0) > 0 && (full.cost ?? 0) > 0
+                        && abs((full.cost ?? 0) - (discounted.cost ?? 0) * 2) < 1e-9,
+                     "a million input tokens cost half the listed rate off peak, twice it during it")
+        suite.expect(AgentPricing.price(for: "deepseek-v4-pro")?.offPeak != nil,
+                     "every model the Harness serves carries the schedule")
+        // A list must state its hours and days the way the schedule does;
+        // anything else is refused rather than read a day or an hour out.
+        suite.expect(AgentPriceList.decode(offPeakJSON())?.deepseek.first?.price.offPeak?.factor == 0.5,
+                     "a well formed schedule decodes")
+        suite.expect([#"22-06"#, #"6-1"#, #"01"#, #"00-25"#].allSatisfy {
+                        AgentPriceList.decode(offPeakJSON(peak: $0)) == nil
+                     },
+                     "an end-to-end hour pair, or one out of range, is refused rather than read backwards")
+        suite.expect(AgentPriceList.decode(offPeakJSON(days: "[2,3,4,5,6]")) == nil,
+                     "day numbers are refused in favour of the names the schedule states")
+        suite.expect(AgentPriceList.decode(offPeakJSON(days: "[\"funday\"]")) == nil,
+                     "an unknown day name is refused")
+        suite.expect(AgentPriceList.decode(priceJSON(extra: #","deepseek":{"models":[{"id":"claude-opus-5","input":1,"output":2,"cacheRead":0.1}]}"#)) == nil,
+                     "another maker's model cannot be listed under DeepSeek")
+        suite.expect(AgentPriceList.decode(priceJSON())?.deepseek.isEmpty == true,
+                     "a list published before the Harness was read still decodes, with no DeepSeek prices")
+    }
+
     private static func priceJSON(schema: String = "1", updated: String = "2026-09-22",
                                   claude: String = #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"cacheWrite":6.25,"cacheWriteLong":10}"#,
                                   codex: String = #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1}"#,
@@ -218,7 +284,8 @@ enum NotchAgentTests {
                                             input: price.input * 2, output: price.output * 2, cacheRead: price.cacheRead * 2,
                                             cacheWrite: price.cacheWrite * 2, cacheWriteLong: price.cacheWriteLong * 2))
                                      },
-                                     codex: shipped.codex, claudePlans: shipped.claudePlans, codexPlans: shipped.codexPlans,
+                                     codex: shipped.codex, deepseek: shipped.deepseek,
+                                     claudePlans: shipped.claudePlans, codexPlans: shipped.codexPlans,
                                      webSearch: shipped.webSearch, usOnlyMultiplier: shipped.usOnlyMultiplier)
         AgentPricing.install(doubled)
         store.reprice()
@@ -319,7 +386,7 @@ enum NotchAgentTests {
                      "the reply that gets through counts toward the turn it opens")
         suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace + 60) && store.live.contains { $0.provider == .claude },
                      "a turn whose model replied since the drop, as a model on the Mac does, keeps working offline")
-        store.closeIdleTurns(now: now, after: 0)
+        store.closeIdleTurns(now: now, after: { _ in 0 })
         store.closeOfflineTurns(since: AgentTimestamp.parse("2026-09-21T23:44:10.000Z")!, lasting: grace)
         _ = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "tool_use", time: "2026-09-21T23:44:30.000Z"))
         suite.expect(store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:30.000Z"),
@@ -465,7 +532,7 @@ enum NotchAgentTests {
         suite.expect(found.isEmpty && late.live.isEmpty,
                      "a turn that ended long before its log was found, like an archived session, is not news")
         _ = feed(claudeUser(time: "2026-09-21T23:50:00.000Z"))
-        store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: NotchAgentSupport.idleTurn)
+        store.closeIdleTurns(now: AgentTimestamp.parse("2026-09-22T00:05:00.000Z")!, after: { _ in NotchAgentSupport.idleTurn })
         suite.expect(store.live.isEmpty, "a turn that has written nothing for a while stops showing as working")
     }
 
@@ -1140,6 +1207,7 @@ enum NotchAgentTests {
                                                    price: AgentPrice(input: 4, output: 20, cacheRead: 0.4, cacheWrite: 4, cacheWriteLong: 4)))
 
         let updatedList = AgentPriceList(updated: Date(), claude: newClaudeModels, codex: newCodexModels,
+                                         deepseek: prevList.deepseek,
                                          claudePlans: prevList.claudePlans, codexPlans: prevList.codexPlans,
                                          webSearch: prevList.webSearch, usOnlyMultiplier: prevList.usOnlyMultiplier)
         AgentPricing.install(updatedList)
@@ -2031,7 +2099,7 @@ enum NotchAgentTests {
         quiet.reportsTransitions = true
         let waitingLog = "/logs/b.jsonl"
         quiet.apply([.turnBegan(start)], file: waitingLog, provider: .codex, tracksTurns: true, modified: start, now: start)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
         suite.expect(quiet.live.isEmpty && quiet.waiting[waitingLog]?.started == start,
                      "a quiet turn stops showing as working and waits aside")
         let resumedAt = start.addingTimeInterval(1210)
@@ -2046,18 +2114,18 @@ enum NotchAgentTests {
         let whole = AgentUsageEvent.finished(provider: .codex, duration: 1300, cost: 0.5, tokens: tokens.total, project: "app")
         suite.expect(ended == [whole] && quiet.live.isEmpty, "a turn that waited finishes as the whole turn, with what it spent")
         quiet.apply([.turnBegan(endedAt)], file: waitingLog, provider: .codex, tracksTurns: true, modified: endedAt)
-        quiet.closeIdleTurns(now: endedAt.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        quiet.closeIdleTurns(now: endedAt.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
         let nextStart = endedAt.addingTimeInterval(1500)
         quiet.apply([.turnBegan(nextStart)], file: waitingLog, provider: .codex, tracksTurns: true, modified: nextStart)
         suite.expect(quiet.waiting.isEmpty && quiet.live.first?.started == nextStart, "a new turn replaces one that went quiet")
         quiet.closeIdleTurns(now: nextStart.addingTimeInterval(AgentUsageStore.resumeWindow(for: .codex)),
-                             after: NotchAgentSupport.idleTurn)
+                             after: { _ in NotchAgentSupport.idleTurn })
         suite.expect(quiet.live.isEmpty && quiet.waiting.isEmpty, "a turn quiet for hours is over")
         let claudeLog = "/logs/c.jsonl"
         quiet.apply([.turnBegan(start)], file: claudeLog, provider: .claude, tracksTurns: true, modified: start, now: start)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: NotchAgentSupport.idleTurn)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(1200), after: { _ in NotchAgentSupport.idleTurn })
         let claudeWait = AgentUsageStore.resumeWindow(for: .claude)
-        quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: NotchAgentSupport.idleTurn)
+        quiet.closeIdleTurns(now: start.addingTimeInterval(claudeWait + 1), after: { _ in NotchAgentSupport.idleTurn })
         suite.expect(quiet.waiting.isEmpty && claudeWait < AgentUsageStore.resumeWindow(for: .codex),
                      "a Claude turn that a killed session left open stops waiting sooner")
         sessionProcesses(suite, start: start)
@@ -2540,11 +2608,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .deepseek], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .deepseek], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .deepseek], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsDeepSeek)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "the Harness keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -2557,7 +2627,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsDeepSeek,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,

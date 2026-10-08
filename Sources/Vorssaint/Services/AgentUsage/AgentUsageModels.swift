@@ -6,7 +6,9 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    // Cases are appended, never reordered: `allCases` sets the order the
+    // island and Settings show them in.
+    case claude, codex, opencode, copilot, deepseek
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .deepseek: return "DeepSeek Harness"
         }
     }
 
@@ -25,11 +28,21 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .deepseek: return "water.waves"
         }
     }
 
     /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot }
+    /// DeepSeek Harness keeps no allowance on this Mac, so it has no limits
+    /// card; its spend is read from the token counts it does keep.
+    var reportsLimits: Bool { self != .copilot && self != .deepseek }
+
+    /// Whether this provider's store is rewritten as it runs rather than
+    /// appended to. OpenCode's database and the Harness's projection both hold
+    /// a running total that is read whole each time, so what one of their
+    /// records costs can fall as well as rise, and a reading that matches the
+    /// last one may still carry a different price.
+    var repricesOnReRead: Bool { self == .opencode || self == .deepseek }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -156,4 +169,6 @@ enum AgentUsageEvent: Equatable {
     case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
     case budgetReached(spent: Double, budget: Double)
+    /// The agent has stopped to ask something and is waiting on the person.
+    case question(provider: AgentProvider, project: String)
 }
