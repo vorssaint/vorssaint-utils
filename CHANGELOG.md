@@ -29,6 +29,7 @@ All notable changes to this project are documented here. The format follows
 - Connected Devices opens from the System section of the menu and from the island's System page, without its menu bar widget.
 - Tapping CPU in the System section of the menu shows the load of each core, grouped by core type. Settings → System monitor → CPU → Per core.
 - In the Clipboard history window, the preview lays out copied JSON one value per line, and a picture's preview can copy the text in it.
+- The screenshot editor can add its result to the Shelf, an image on the Shelf opens in the editor from its right-click menu, and every capture can go to the Shelf on its own. Settings → Screen capture → Add to the shelf automatically.
 
 ### Changed
 - Clear unpinned asks first everywhere and says how many items it removes. Anything copied while it asks is kept.
@@ -51,7 +52,7 @@ All notable changes to this project are documented here. The format follows
 - The mute key no longer lowers the volume when the output loses its mute control right after the press.
 
 ### Contributors
-Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
+Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @iamprasad88, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 

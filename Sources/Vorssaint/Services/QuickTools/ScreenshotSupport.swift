@@ -350,6 +350,14 @@ enum ScreenshotSupport {
         return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
     }
 
+    /// Captures go to the shelf on their own only while the shelf is
+    /// installed and on, so a switched-off shelf never fills up unseen.
+    static func addsCapturesToShelf(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.screenshotAddToShelf)
+            && AppFeature.shelf.isAvailable(in: defaults)
+            && defaults.bool(forKey: DefaultsKey.shelfEnabled)
+    }
+
     /// Remaining stroke for the one-second countdown ring. Time drives the
     /// value directly so a delayed frame catches up instead of restarting the
     /// animation or leaving the ring frozen.

@@ -1565,6 +1565,22 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// The edited image goes to the shelf as a file named like a saved
+    /// capture, and the editor closes as it does after Save.
+    func addToShelf() {
+        guard let export = model.exportImage(),
+              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+        else { return }
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        guard ShelfService.shared.shelveGeneratedFile(data, named: name) != nil else {
+            NSSound.beep()
+            return
+        }
+        model.markExported()
+        QuickToolHUD.show(icon: "tray.full", message: L10n.shared.s.shelfName)
+        window?.close()
+    }
+
     /// Pinning snapshots the current export and leaves the editor open.
     func pin() {
         guard let export = model.exportImage(withBackdrop: false) else { return }

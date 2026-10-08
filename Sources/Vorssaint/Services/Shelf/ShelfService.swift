@@ -1629,6 +1629,28 @@ final class ShelfService: ObservableObject {
         return accept(pasteboard: pasteboard)
     }
 
+    /// A picture another feature made, like a capture or an edited
+    /// screenshot, kept in the shelf's own store under its name. It leaves
+    /// with its item the way a pasted image does, so nothing is left behind
+    /// in the person's folders. Nothing waits on its thumbnail, so that is
+    /// decoded off the main thread. Answers the item's id, so the feature
+    /// can take it back, as a discarded capture does.
+    func shelveGeneratedFile(_ data: Data, named name: String) -> UUID? {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled),
+              ShelfPersistenceSupport.canAdd(existingLeaves: itemCount, newLeaves: 1) else { return nil }
+        let store = Self.storeDirectory ?? tempDir
+        guard let url = ShelfPersistenceSupport.writeGeneratedFile(data, named: name, in: store) else {
+            return nil
+        }
+        let item = fileItem(for: url, deferImageThumbnail: true)
+        guard append(item) else {
+            ShelfFilePromiseTransfer.discard([url], in: store)
+            return nil
+        }
+        return item.id
+    }
+
     /// The pasteboard representation used when dragging an item out of the shelf.
     func pasteboardWriter(for item: Item) -> NSPasteboardWriting {
         switch item.payload {

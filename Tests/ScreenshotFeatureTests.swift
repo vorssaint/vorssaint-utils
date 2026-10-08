@@ -1262,6 +1262,13 @@ enum ScreenshotFeatureTests {
                 && serviceBody("    func restorePreview(").contains("latestCapture: nil)")
                 && screenshotServiceCode.contains("self.discardLatestCapture(latestCapture)\n                    return [.discard]"),
                "discarding the preview of the latest capture withholds it, while a preview reopened from history does not")
+        let previewDiscard = screenshotServiceCode.components(separatedBy: "case .discard:")
+            .dropFirst().first?.components(separatedBy: "return [.discard]").first ?? ""
+        let routeBody = serviceBody("    private func route(_ capture:")
+        suite.expect(previewDiscard.contains("unshelve(latestCapture)")
+                && routeBody.components(separatedBy: "autoShelve(").count == 2
+                && routeBody.contains("autoShelve(capture, saved: result.saved?.url)"),
+               "a capture that does not open in the editor is offered to the shelf once, and discarding it from its preview takes it back")
         // In the island the menu arrow is hidden, so a click there must open
         // the durations rather than publish at once.
         let shareMenuCode = ((try? String(
@@ -3283,6 +3290,23 @@ enum ScreenshotFeatureTests {
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewDuration),
                "screenshot confirmation preferences are included in settings backups")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotAddToShelf] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotAddToShelf),
+               "adding captures to the shelf ships off and travels in settings backups")
+        let captureShelfSuite = "com.vorssaint.tests.capture-shelf.\(UUID().uuidString)"
+        let captureShelfDefaults = UserDefaults(suiteName: captureShelfSuite)!
+        defer { captureShelfDefaults.removePersistentDomain(forName: captureShelfSuite) }
+        func capturesGoToShelf(option: Bool, installed: Bool, on: Bool) -> Bool {
+            captureShelfDefaults.set(option, forKey: DefaultsKey.screenshotAddToShelf)
+            captureShelfDefaults.set(installed, forKey: AppFeature.shelf.availabilityKey)
+            captureShelfDefaults.set(on, forKey: DefaultsKey.shelfEnabled)
+            return ScreenshotSupport.addsCapturesToShelf(in: captureShelfDefaults)
+        }
+        suite.expect(capturesGoToShelf(option: true, installed: true, on: true)
+                && !capturesGoToShelf(option: false, installed: true, on: true)
+                && !capturesGoToShelf(option: true, installed: true, on: false)
+                && !capturesGoToShelf(option: true, installed: false, on: true),
+               "captures go to the shelf only with the option on and the shelf installed and switched on")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
                "temporary screenshot links preserve their existing availability by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String

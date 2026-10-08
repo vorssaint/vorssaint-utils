@@ -30,6 +30,8 @@ struct ScreenshotEditorView: View {
     @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
+    @AppStorage(AppFeature.shelf.availabilityKey) private var shelfAvailable = false
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -813,6 +815,12 @@ struct ScreenshotEditorView: View {
                 Button(strings.saveAsButton) {
                     commitEditingTextIfNeeded()
                     controller.saveAs()
+                }
+                if shelfEnabled, shelfAvailable {
+                    Button(strings.addToShelfButton) {
+                        commitEditingTextIfNeeded()
+                        controller.addToShelf()
+                    }
                 }
             } label: {
                 Text(strings.saveButton)

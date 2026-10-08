@@ -1072,6 +1072,11 @@ def main():
                                    "    private func beginLatestCapture(", "    private func discardLatestCapture(",
                                    "    private func withholdLatestCapture()", "    private func syncLatestCapture("])
           + "}\n}\n")
+    write("ScreenshotAutoShelf.swift", "import Foundation\n"
+          + "extension ScreenshotAutoShelfTests {\n@MainActor final class Service: State {\n"
+          + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func autoShelve(", "    private func unshelve("])
+          + "}\n}\n")
     write("ScreenshotPreviewHover.swift", "import Foundation\n"
           + "extension ScreenshotPreviewHoverTests {\nfinal class Controller: State {\n"
           + "".join(declaration(preview, prefix).replace("private func", "func", 1)
