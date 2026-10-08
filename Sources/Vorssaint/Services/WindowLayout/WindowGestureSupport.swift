@@ -356,14 +356,16 @@ struct WindowEdgeSnapScreen: Equatable {
     let visibleFrame: CGRect
 }
 
-/// The eight visible drop areas around the screen. Raw values are persisted,
-/// so they stay stable even if the visual arrangement changes later.
+/// The eight drop zones around the screen: four corners and four edges, each
+/// edge holding one or more areas. Raw values are persisted, so they stay
+/// stable even if the visual arrangement changes later.
 enum WindowEdgeSnapZone: String, CaseIterable {
     case topLeft, top, topRight
     case left, right
     case bottomLeft, bottom, bottomRight
 
-    var action: WindowLayoutAction {
+    /// What the area does until someone picks another placement for it.
+    var defaultAction: WindowLayoutAction {
         switch self {
         case .topLeft: return .topLeft
         case .top: return .maximize
@@ -374,6 +376,16 @@ enum WindowEdgeSnapZone: String, CaseIterable {
         case .bottom: return .bottomHalf
         case .bottomRight: return .bottomRight
         }
+    }
+
+    /// The top and bottom edges split into areas side by side, the left and
+    /// right edges into areas stacked from top to bottom. A corner is always
+    /// one area.
+    var isHorizontalEdge: Bool { self == .top || self == .bottom }
+    var isVerticalEdge: Bool { self == .left || self == .right }
+
+    var maximumParts: Int {
+        isHorizontalEdge || isVerticalEdge ? WindowEdgeSnapLayout.maximumParts : 1
     }
 
     static let allEnabled = Set(allCases)
@@ -394,12 +406,154 @@ enum WindowEdgeSnapZone: String, CaseIterable {
     }
 }
 
+/// The placements a drop area can use, in the families Settings lists them
+/// in. Each one fills a fixed part of the screen, so a drag can preview it.
+/// Center, full screen, restore and the display moves depend on the window or
+/// leave the screen, so they are left out.
+enum WindowEdgeSnapPlacementGroup: CaseIterable {
+    case halves, thirds, quarterRows, quarterColumns, sixths, corners, other
+
+    var actions: [WindowLayoutAction] {
+        switch self {
+        case .halves:
+            return [.leftHalf, .rightHalf, .topHalf, .bottomHalf, .centerHalf]
+        case .thirds:
+            return [.leftThird, .centerThird, .rightThird, .leftTwoThirds, .rightTwoThirds, .centerTwoThirds,
+                    .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds]
+        case .quarterRows:
+            return [.topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter]
+        case .quarterColumns:
+            return [.leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter]
+        case .sixths:
+            return [.topLeftSixth, .topCenterSixth, .topRightSixth,
+                    .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth]
+        case .corners:
+            return [.topLeft, .topRight, .bottomLeft, .bottomRight]
+        case .other:
+            return [.maximize, .marginMaximize]
+        }
+    }
+
+    func title(_ text: WindowLayoutFeatureStrings) -> String {
+        switch self {
+        case .halves: return text.halves
+        case .thirds: return text.thirds
+        case .quarterRows: return text.quarterRows
+        case .quarterColumns: return text.quarterColumns
+        case .sixths: return text.sixths
+        case .corners: return text.corners
+        case .other: return text.other
+        }
+    }
+
+    static let placements = Set(allCases.flatMap(\.actions))
+}
+
+/// What each drop area does. A corner holds one placement, and a straight
+/// edge holds one for each area it is split into, from left to right or from
+/// top to bottom. Only areas changed from their default are stored, as
+/// `zone=action` entries with `+` between the areas of a split edge.
+struct WindowEdgeSnapLayout: Equatable {
+    static let maximumParts = 4
+    static let standard = WindowEdgeSnapLayout()
+
+    private var changed: [WindowEdgeSnapZone: [WindowLayoutAction]] = [:]
+
+    init() {}
+
+    /// An entry with an unknown zone or placement, a placement an area cannot
+    /// use or too many areas is dropped, so that zone keeps its default and a
+    /// value written by a newer version never breaks the others.
+    init(storageValue: String?) {
+        for entry in (storageValue ?? "").split(separator: ",") {
+            let pair = entry.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+            guard pair.count == 2,
+                  let zone = WindowEdgeSnapZone(rawValue: pair[0].trimmingCharacters(in: .whitespaces))
+            else { continue }
+            let names = pair[1].split(separator: "+", omittingEmptySubsequences: false)
+            let actions = names.compactMap {
+                WindowLayoutAction(rawValue: $0.trimmingCharacters(in: .whitespaces))
+            }
+            guard actions.count == names.count, Self.accepts(actions, for: zone) else { continue }
+            set(actions, for: zone)
+        }
+    }
+
+    var storageValue: String {
+        WindowEdgeSnapZone.allCases.compactMap { zone in
+            changed[zone].map { zone.rawValue + "=" + $0.map(\.rawValue).joined(separator: "+") }
+        }.joined(separator: ",")
+    }
+
+    func actions(for zone: WindowEdgeSnapZone) -> [WindowLayoutAction] {
+        changed[zone] ?? [zone.defaultAction]
+    }
+
+    /// The placement at a point along the edge between its corners, given as
+    /// a fraction from its left or top end.
+    func action(for zone: WindowEdgeSnapZone, along fraction: CGFloat) -> WindowLayoutAction {
+        let actions = actions(for: zone)
+        let position = fraction.isFinite ? min(max(fraction, 0), 1) : 0
+        let index = Int((position * CGFloat(actions.count)).rounded(.down))
+        return actions[min(index, actions.count - 1)]
+    }
+
+    mutating func setAction(_ action: WindowLayoutAction, for zone: WindowEdgeSnapZone, part: Int) {
+        var actions = actions(for: zone)
+        guard actions.indices.contains(part) else { return }
+        actions[part] = action
+        guard Self.accepts(actions, for: zone) else { return }
+        set(actions, for: zone)
+    }
+
+    /// A split edge starts with the screen's equal columns along the top or
+    /// bottom, or its equal rows along a side, so each area places the window
+    /// in the column or row it sits on. Going back to one area brings the
+    /// default back, and picking the count an edge already has keeps its
+    /// placements.
+    mutating func setPartCount(_ count: Int, for zone: WindowEdgeSnapZone) {
+        guard count != actions(for: zone).count else { return }
+        let parts: [WindowLayoutAction]
+        switch (count, zone.isHorizontalEdge) {
+        case (1, _): parts = [zone.defaultAction]
+        case (2, true): parts = [.leftHalf, .rightHalf]
+        case (3, true): parts = [.leftThird, .centerThird, .rightThird]
+        case (4, true): parts = [.leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter]
+        case (2, false): parts = [.topHalf, .bottomHalf]
+        case (3, false): parts = [.topThird, .middleThird, .bottomThird]
+        case (4, false): parts = [.topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter]
+        default: return
+        }
+        guard parts.count <= zone.maximumParts else { return }
+        set(parts, for: zone)
+    }
+
+    /// Where a placement puts a window on a 16:10 screen, as fractions of it
+    /// measured from the top left, for the map in Settings to draw.
+    static func previewRect(for action: WindowLayoutAction) -> CGRect {
+        let screen = CGRect(x: 0, y: 0, width: 1600, height: 1000)
+        let rect = WindowLayoutGeometry.rect(for: action, current: screen, visibleFrame: screen)
+        return CGRect(x: rect.minX / screen.width,
+                      y: (screen.maxY - rect.maxY) / screen.height,
+                      width: rect.width / screen.width,
+                      height: rect.height / screen.height)
+    }
+
+    private mutating func set(_ actions: [WindowLayoutAction], for zone: WindowEdgeSnapZone) {
+        changed[zone] = actions == [zone.defaultAction] ? nil : actions
+    }
+
+    private static func accepts(_ actions: [WindowLayoutAction], for zone: WindowEdgeSnapZone) -> Bool {
+        !actions.isEmpty && actions.count <= zone.maximumParts
+            && actions.allSatisfy(WindowEdgeSnapPlacementGroup.placements.contains)
+    }
+}
+
 struct WindowEdgeSnapTarget: Equatable {
     let zone: WindowEdgeSnapZone
+    let action: WindowLayoutAction
     let frame: CGRect
     let visibleFrame: CGRect
-
-    var action: WindowLayoutAction { zone.action }
 }
 
 /// The pointer's recent path during a drag, kept just long enough to tell
@@ -602,12 +756,16 @@ enum WindowEdgeSnapSupport {
     /// pointer, so it counts at any speed, and a window flung at it and let
     /// go at once still tiles. Speed along an edge never counts, so sliding
     /// from a half to a corner keeps the preview.
+    ///
+    /// An edge split into areas divides its length between the corners
+    /// equally, the way the map in Settings draws it.
     static func target(at point: CGPoint,
                        screens: [WindowEdgeSnapScreen],
                        velocity: CGVector = .zero,
                        distance: CGFloat = activationDistance,
                        enabledZones: Set<WindowEdgeSnapZone> =
-                           WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
+                           WindowEdgeSnapZone.allEnabled,
+                       layout: WindowEdgeSnapLayout = .standard) -> WindowEdgeSnapTarget? {
         let settledAcross = abs(velocity.dx) <= crossingSpeed
         let settledUpDown = abs(velocity.dy) <= crossingSpeed
         let frames = screens.map(\.frame)
@@ -684,13 +842,25 @@ enum WindowEdgeSnapSupport {
             }
             guard enabledZones.contains(zone) else { return nil }
 
-            let action = zone.action
+            let along: CGFloat
+            if zone.isHorizontalEdge {
+                along = (point.x - frame.minX - horizontalCorner)
+                    / max(frame.width - 2 * horizontalCorner, 1)
+            } else if zone.isVerticalEdge {
+                along = (frame.maxY - verticalCorner - point.y)
+                    / max(frame.height - 2 * verticalCorner, 1)
+            } else {
+                along = 0
+            }
+            let action = layout.action(for: zone, along: along)
             let targetFrame = WindowLayoutGeometry.rect(for: action,
                                                         current: screen.visibleFrame,
                                                         visibleFrame: screen.visibleFrame,
                                                         windowGap: WindowLayoutGaps.windowGap,
-                                                        screenGap: WindowLayoutGaps.screenGap)
+                                                        screenGap: WindowLayoutGaps.screenGap,
+                                                        marginPercent: WindowLayoutMargin.percent)
             return WindowEdgeSnapTarget(zone: zone,
+                                        action: action,
                                         frame: targetFrame.integral,
                                         visibleFrame: screen.visibleFrame)
         }

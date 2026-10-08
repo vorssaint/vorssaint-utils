@@ -439,6 +439,7 @@ enum DefaultsKey {
     // System monitor — per-item visibility inside each panel section.
     static let monitorSysTemps = "monitorSysTemps"
     static let monitorSysCPU = "monitorSysCPU"
+    static let monitorSysCPUCores = "monitorSysCPUCores"
     static let monitorSysGPU = "monitorSysGPU"
     static let monitorSysBattery = "monitorSysBattery"
     static let monitorSysMemory = "monitorSysMemory"
@@ -727,6 +728,7 @@ enum DefaultsKey {
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
+    static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
     static let windowGestureEnabled = "windowGestureEnabled"
     static let windowGestureModifiers = "windowGestureModifiers"
     static let windowGestureRaiseWindow = "windowGestureRaiseWindow"
@@ -874,6 +876,7 @@ enum DefaultsKey {
     static let notchHideUntilHover = "notchHideUntilHover"
     static let notchCoversMenus = "notchCoversMenus"
     static let notchHoverDelay = "notchHoverDelay"
+    static let notchCloseDelay = "notchCloseDelay"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
     static let notchOpensActivity = "notchOpensActivity"
@@ -905,6 +908,7 @@ enum DefaultsKey {
     static let notchMascotPalette = "notchMascotPalette" // NotchMascotPalette.rawValue
     static let notchMascotSide = "notchMascotSide" // NotchMascotSide.rawValue, beside the camera
     static let notchMascotVisitFrequency = "notchMascotVisitFrequency" // NotchMascotVisitFrequency.rawValue
+    static let notchMascotHidesWhenIdle = "notchMascotHidesWhenIdle" // hops into the island after a quiet while
     static let notchCommandBar = "notchCommandBar" // the Command Bar comes out of the island
     static let notchCommandBarStyle = "notchCommandBarStyle" // NotchCommandBarStyle.rawValue
     // Legacy inverse preference; the explicit visibility switch supersedes it.
@@ -1449,6 +1453,7 @@ enum Defaults {
         DefaultsKey.notchHideUntilHover: false,
         DefaultsKey.notchCoversMenus: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
+        DefaultsKey.notchCloseDelay: NotchSupport.defaultCloseDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,
@@ -1475,6 +1480,7 @@ enum Defaults {
         DefaultsKey.notchMascotPalette: NotchMascotPalette.pearl.rawValue,
         DefaultsKey.notchMascotSide: NotchMascotSide.left.rawValue,
         DefaultsKey.notchMascotVisitFrequency: NotchMascotVisitFrequency.normal.rawValue,
+        DefaultsKey.notchMascotHidesWhenIdle: false,
         DefaultsKey.notchCommandBar: true,
         DefaultsKey.notchCommandBarStyle: NotchCommandBarStyle.droplet.rawValue,
         DefaultsKey.notchHideInCaptures: false,
@@ -1619,6 +1625,7 @@ enum Defaults {
         // Every per-item block shows by default; users hide what they don't want.
         DefaultsKey.monitorSysTemps: true,
         DefaultsKey.monitorSysCPU: true,
+        DefaultsKey.monitorSysCPUCores: true,
         DefaultsKey.monitorSysGPU: true,
         DefaultsKey.monitorSysBattery: true,
         DefaultsKey.monitorSysMemory: true,
@@ -1851,6 +1858,7 @@ enum Defaults {
         DefaultsKey.pointerDisplayShortcut: GlobalShortcut.pointerNextDisplayDefault.storageValue,
         DefaultsKey.windowEdgeSnapEnabled: false,
         DefaultsKey.windowEdgeSnapDisabledZones: "",
+        DefaultsKey.windowEdgeSnapZoneActions: "",
         DefaultsKey.windowGestureEnabled: false,
         DefaultsKey.windowGestureModifiers: WindowGestureSupport.defaultModifierStorageValue,
         DefaultsKey.windowGestureRaiseWindow: false,

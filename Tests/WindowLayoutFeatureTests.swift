@@ -416,16 +416,19 @@ enum WindowLayoutFeatureTests {
         func snapTarget(_ point: CGPoint,
                         screens: [WindowEdgeSnapScreen] = [snapScreen],
                         enabledZones: Set<WindowEdgeSnapZone> =
-                            WindowEdgeSnapZone.allEnabled) -> WindowEdgeSnapTarget? {
+                            WindowEdgeSnapZone.allEnabled,
+                        layout: WindowEdgeSnapLayout = .standard) -> WindowEdgeSnapTarget? {
             WindowEdgeSnapSupport.target(at: point,
                                          screens: screens,
-                                         enabledZones: enabledZones)
+                                         enabledZones: enabledZones,
+                                         layout: layout)
         }
         let topSnapFrame = WindowLayoutGeometry.rect(for: .maximize,
                                                      current: snapVisibleFrame,
                                                      visibleFrame: snapVisibleFrame)
         suite.expect(snapTarget(CGPoint(x: 720, y: snapVisibleFrame.maxY))
                == WindowEdgeSnapTarget(zone: .top,
+                                       action: .maximize,
                                        frame: topSnapFrame,
                                        visibleFrame: snapVisibleFrame),
                "touching the lower edge of the menu bar previews maximize")
@@ -464,6 +467,114 @@ enum WindowLayoutFeatureTests {
                ) == nil,
                "turning off every visual zone leaves no snap target")
 
+        // MARK: Placements chosen for the drop areas
+
+        suite.expect(WindowEdgeSnapLayout(storageValue: "") == .standard
+               && WindowEdgeSnapLayout(storageValue: nil) == .standard
+               && WindowEdgeSnapZone.allCases.allSatisfy {
+                   WindowEdgeSnapLayout.standard.actions(for: $0) == [$0.defaultAction]
+               },
+               "with nothing chosen every drop area keeps the placement it always had")
+        var chosen = WindowEdgeSnapLayout.standard
+        chosen.setAction(.topHalf, for: .top, part: 0)
+        chosen.setAction(.rightThird, for: .right, part: 0)
+        suite.expect(chosen.storageValue == "top=topHalf,right=rightThird"
+               && WindowEdgeSnapLayout(storageValue: chosen.storageValue) == chosen,
+               "a chosen placement is saved under its area's name and read back the same")
+        let snapTop = snapVisibleFrame.maxY
+        suite.expect(snapTarget(CGPoint(x: 720, y: snapTop), layout: chosen)
+               == WindowEdgeSnapTarget(zone: .top,
+                                       action: .topHalf,
+                                       frame: WindowLayoutGeometry.rect(for: .topHalf,
+                                                                        current: snapVisibleFrame,
+                                                                        visibleFrame: snapVisibleFrame),
+                                       visibleFrame: snapVisibleFrame)
+               && snapTarget(CGPoint(x: 1440, y: 450), layout: chosen)?.action == .rightThird
+               && snapTarget(CGPoint(x: 0, y: 450), layout: chosen)?.action == .leftHalf,
+               "an area previews the placement chosen for it while the others keep theirs")
+        suite.expect(snapTarget(CGPoint(x: 720, y: snapTop), enabledZones: withoutTop, layout: chosen) == nil,
+               "an area that is off stays off whatever placement it holds")
+        chosen.setAction(.maximize, for: .top, part: 0)
+        suite.expect(chosen.storageValue == "right=rightThird",
+               "choosing an area's default again leaves nothing saved for it")
+
+        let saved = WindowEdgeSnapLayout(storageValue: [
+            "top=fullScreen", " left = leftThird ", "topLeft=topLeft+topRight", "bottom=leftThird+",
+            "right=nextDisplay", "unknown=leftHalf", "bottomRight=center", "topRight=futurePlacement",
+            "bottomLeft=bottomLeftSixth",
+        ].joined(separator: ","))
+        suite.expect(saved.actions(for: .top) == [.maximize]
+               && saved.actions(for: .left) == [.leftThird]
+               && saved.actions(for: .topLeft) == [.topLeft]
+               && saved.actions(for: .bottom) == [.bottomHalf]
+               && saved.actions(for: .right) == [.rightHalf]
+               && saved.actions(for: .bottomRight) == [.bottomRight]
+               && saved.actions(for: .topRight) == [.topRight]
+               && saved.actions(for: .bottomLeft) == [.bottomLeftSixth],
+               "a saved area with an unknown placement, one a drop cannot preview or more than one area in a corner keeps its default, and the valid ones still apply")
+        let fiveAreas = "top=" + [WindowLayoutAction.leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter,
+                                  .rightQuarter, .maximize].map(\.rawValue).joined(separator: "+")
+        suite.expect(WindowEdgeSnapLayout(storageValue: fiveAreas) == .standard,
+               "an edge saved with more than four areas keeps its default")
+
+        var split = WindowEdgeSnapLayout.standard
+        split.setPartCount(3, for: .top)
+        split.setPartCount(2, for: .left)
+        suite.expect(split.actions(for: .top) == [.leftThird, .centerThird, .rightThird]
+               && split.actions(for: .left) == [.topHalf, .bottomHalf]
+               && split.storageValue == "top=leftThird+centerThird+rightThird,left=topHalf+bottomHalf",
+               "a split edge starts with the screen's columns along the top and its rows along a side")
+        // The 1440 pt test screen keeps 180 pt corners, so the 1080 pt between
+        // them makes three 360 pt areas.
+        suite.expect(snapTarget(CGPoint(x: 181, y: snapTop), layout: split)?.action == .leftThird
+               && snapTarget(CGPoint(x: 539, y: snapTop), layout: split)?.action == .leftThird
+               && snapTarget(CGPoint(x: 541, y: snapTop), layout: split)?.action == .centerThird
+               && snapTarget(CGPoint(x: 899, y: snapTop), layout: split)?.action == .centerThird
+               && snapTarget(CGPoint(x: 901, y: snapTop), layout: split)?.action == .rightThird
+               && snapTarget(CGPoint(x: 1259, y: snapTop), layout: split)?.action == .rightThird,
+               "a split top edge shares its length between the corners equally, from left to right")
+        suite.expect(snapTarget(CGPoint(x: 100, y: snapTop), layout: split)?.action == .topLeft
+               && snapTarget(CGPoint(x: 1340, y: snapTop), layout: split)?.action == .topRight,
+               "the corners beside a split edge keep their own placements")
+        suite.expect(snapTarget(CGPoint(x: 0, y: 700), layout: split)?.action == .topHalf
+               && snapTarget(CGPoint(x: 0, y: 200), layout: split)?.frame
+                   == WindowLayoutGeometry.rect(for: .bottomHalf,
+                                                current: snapVisibleFrame,
+                                                visibleFrame: snapVisibleFrame),
+               "a split side stacks its areas from top to bottom and previews each one's placement")
+        split.setAction(.maximize, for: .top, part: 1)
+        split.setAction(.leftHalf, for: .top, part: 3)
+        suite.expect(split.actions(for: .top) == [.leftThird, .maximize, .rightThird]
+               && snapTarget(CGPoint(x: 720, y: snapTop), layout: split)?.action == .maximize,
+               "each area of a split edge takes its own placement, and an area that does not exist is ignored")
+        split.setPartCount(1, for: .top)
+        split.setPartCount(5, for: .left)
+        split.setPartCount(2, for: .topLeft)
+        suite.expect(split.actions(for: .top) == [.maximize]
+               && split.actions(for: .left) == [.topHalf, .bottomHalf]
+               && split.actions(for: .topLeft) == [.topLeft]
+               && split.storageValue == "left=topHalf+bottomHalf",
+               "one area brings an edge back to its default, and a corner or more than four areas never splits")
+        var kept = WindowEdgeSnapLayout(storageValue: "top=topHalf,left=leftThird+leftTwoThirds")
+        kept.setPartCount(1, for: .top)
+        kept.setPartCount(2, for: .left)
+        suite.expect(kept.storageValue == "top=topHalf,left=leftThird+leftTwoThirds",
+               "picking the number of areas an edge already has keeps the placements chosen for them")
+
+        let offered = WindowEdgeSnapPlacementGroup.allCases.flatMap(\.actions)
+        let pictures = offered.map(WindowEdgeSnapLayout.previewRect(for:))
+        let screenBounds = CGRect(x: 0, y: 0, width: 1, height: 1).insetBy(dx: -0.001, dy: -0.001)
+        suite.expect(Set(offered).count == offered.count
+               && pictures.indices.allSatisfy { first in
+                   pictures.indices.allSatisfy { first == $0 || pictures[first] != pictures[$0] }
+               }
+               && pictures.allSatisfy { screenBounds.contains($0) },
+               "every placement an area offers draws its own picture on the map, inside the screen")
+        suite.expect(WindowEdgeSnapLayout.previewRect(for: .topHalf) == CGRect(x: 0, y: 0, width: 1, height: 0.5)
+               && WindowEdgeSnapLayout.previewRect(for: .bottomRight)
+                   == CGRect(x: 0.5, y: 0.5, width: 0.5, height: 0.5),
+               "the map draws a placement from the top left, the way the screen shows it")
+
         let quartzScreenFrame = CGRect(x: 0, y: 0, width: 1440, height: 900)
         let quartzTopCenter = CGPoint(x: 720, y: 0)
         suite.expect(WindowEdgeSnapSupport.locationAvoidingSystemTopDrag(
@@ -498,6 +609,7 @@ enum WindowLayoutFeatureTests {
         suite.expect(snapTarget(CGPoint(x: 1440, y: 450),
                           screens: [snapScreen, rightSnapScreen])
                == WindowEdgeSnapTarget(zone: .left,
+                                       action: .leftHalf,
                                        frame: CGRect(x: 1440, y: 40, width: 960, height: 1040),
                                        visibleFrame: rightSnapScreen.visibleFrame),
                "the first column of a display is its left half, even against a neighbor")
@@ -505,6 +617,7 @@ enum WindowLayoutFeatureTests {
                                             screens: [snapScreen, rightSnapScreen],
                                             distance: 30)
                == WindowEdgeSnapTarget(zone: .right,
+                                       action: .rightHalf,
                                        frame: CGRect(x: 720, y: 40, width: 720, height: 835),
                                        visibleFrame: snapVisibleFrame),
                "a pointer slowed at a shared seam previews the half of the display it is still on")

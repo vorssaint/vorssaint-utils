@@ -48,6 +48,9 @@ struct NotchMascotStrings {
     /// Whether it comes out to react to what happens.
     let reactions: String
     let reactionsHint: String
+    /// Whether it hides in the island once nothing happens for a while.
+    let hidesWhenIdle: String
+    let hidesWhenIdleHint: String
     /// The Settings button that has it say hello in the island now.
     let sayHi: String
     let sayHiHint: String
@@ -120,7 +123,7 @@ struct NotchMascotStrings {
 
     /// What a search finds its page by, besides its name.
     var searchKeywords: [String] {
-        [hint, visits, reactions, style, robot, shape, color, side, frequency, commandBar, keywords]
+        [hint, visits, reactions, hidesWhenIdle, style, robot, shape, color, side, frequency, commandBar, keywords]
     }
 
     func frequency(_ frequency: NotchMascotVisitFrequency) -> String {
@@ -154,6 +157,8 @@ extension FeatureStrings {
             appearance: "Appearance", behavior: "Behavior",
             reactions: "React to what happens",
             reactionsHint: "It comes out to react to music, timers, downloads, screenshots, the microphone, Keep awake and more.",
+            hidesWhenIdle: "Hide when idle",
+            hidesWhenIdleHint: "After half a minute with nothing going on, it hops into the island and the island goes back to its usual size. Visits and reactions still bring it out.",
             sayHi: "Say Hi", sayHiHint: "Plays a visit in the Dynamic Island now.",
             momentsTitle: "See how it reacts",
             visitMoment: "A visit", timerStarted: "Timer started", downloadFailed: "Download failed", unlocked: "Mac unlocked",
@@ -179,6 +184,8 @@ extension FeatureStrings {
             appearance: "Aparência", behavior: "Comportamento",
             reactions: "Reagir ao que acontece",
             reactionsHint: "Ele aparece para reagir a músicas, temporizadores, downloads, capturas de tela, ao microfone, ao Manter acordado e mais.",
+            hidesWhenIdle: "Esconder quando ocioso",
+            hidesWhenIdleHint: "Depois de meio minuto sem nada acontecendo, ele pula para dentro da ilha e a ilha volta ao tamanho normal. Ele ainda sai para visitas e reações.",
             sayHi: "Dar oi", sayHiHint: "Mostra uma visita no Dynamic Island agora.",
             momentsTitle: "Veja como ele reage",
             visitMoment: "Uma visita", timerStarted: "Temporizador iniciado", downloadFailed: "Falha no download", unlocked: "Mac desbloqueado",
@@ -204,6 +211,8 @@ extension FeatureStrings {
             appearance: "Apariencia", behavior: "Comportamiento",
             reactions: "Reaccionar a lo que pasa",
             reactionsHint: "Sale para reaccionar a la música, temporizadores, descargas, capturas de pantalla, el micrófono, Mantener activo y más.",
+            hidesWhenIdle: "Ocultar si está inactivo",
+            hidesWhenIdleHint: "Tras medio minuto sin que pase nada, salta dentro de la isla y la isla vuelve a su tamaño normal. Sigue saliendo para las visitas y las reacciones.",
             sayHi: "Saludar", sayHiHint: "Muestra una visita en el Dynamic Island ahora.",
             momentsTitle: "Mira cómo reacciona",
             visitMoment: "Una visita", timerStarted: "Temporizador iniciado", downloadFailed: "Error en la descarga", unlocked: "Mac desbloqueado",
@@ -229,6 +238,8 @@ extension FeatureStrings {
             appearance: "Vzhľad", behavior: "Správanie",
             reactions: "Reagovať na to, čo sa deje",
             reactionsHint: "Ukáže sa, aby zareagoval na hudbu, časovače, sťahovanie, snímky obrazovky, mikrofón, Bdelý režim a ďalšie.",
+            hidesWhenIdle: "Skryť pri nečinnosti",
+            hidesWhenIdleHint: "Keď sa pol minúty nič nedeje, skočí do ostrova a ostrov sa vráti na bežnú veľkosť. Na návštevy a reakcie stále vyjde von.",
             sayHi: "Pozdraviť", sayHiHint: "Hneď zahrá návštevu v Dynamic Island.",
             momentsTitle: "Pozrite, ako reaguje",
             visitMoment: "Návšteva", timerStarted: "Časovač spustený", downloadFailed: "Sťahovanie zlyhalo", unlocked: "Mac odomknutý",
@@ -254,6 +265,8 @@ extension FeatureStrings {
             appearance: "Aussehen", behavior: "Verhalten",
             reactions: "Auf das Geschehen reagieren",
             reactionsHint: "Er kommt hervor, um auf Musik, Timer, Downloads, Bildschirmfotos, das Mikrofon, Wachhalten und mehr zu reagieren.",
+            hidesWhenIdle: "Bei Inaktivität verstecken",
+            hidesWhenIdleHint: "Passiert eine halbe Minute lang nichts, hüpft er in die Insel, und die Insel hat wieder ihre normale Größe. Für Besuche und Reaktionen kommt er weiterhin hervor.",
             sayHi: "Hallo sagen", sayHiHint: "Spielt jetzt einen Besuch im Dynamic Island ab.",
             momentsTitle: "So reagiert er",
             visitMoment: "Ein Besuch", timerStarted: "Timer gestartet", downloadFailed: "Download fehlgeschlagen", unlocked: "Mac entsperrt",
@@ -279,6 +292,8 @@ extension FeatureStrings {
             appearance: "Apparence", behavior: "Comportement",
             reactions: "Réagir à ce qui se passe",
             reactionsHint: "Il sort pour réagir à la musique, aux minuteurs, aux téléchargements, aux captures d’écran, au micro, à Garder éveillé et plus encore.",
+            hidesWhenIdle: "Se cacher en cas d’inactivité",
+            hidesWhenIdleHint: "Après une demi-minute sans activité, il saute dans l’île, qui reprend sa taille habituelle. Il en ressort toujours pour ses visites et ses réactions.",
             sayHi: "Dire bonjour", sayHiHint: "Joue une visite dans le Dynamic Island maintenant.",
             momentsTitle: "Voyez comment il réagit",
             visitMoment: "Une visite", timerStarted: "Minuteur lancé", downloadFailed: "Échec du téléchargement", unlocked: "Mac déverrouillé",
@@ -304,6 +319,8 @@ extension FeatureStrings {
             appearance: "Aspetto", behavior: "Comportamento",
             reactions: "Reagire a ciò che succede",
             reactionsHint: "Esce per reagire a musica, timer, download, istantanee dello schermo, al microfono, a Mantieni attivo e altro.",
+            hidesWhenIdle: "Nascondersi quando inattivo",
+            hidesWhenIdleHint: "Dopo mezzo minuto senza che succeda nulla, salta dentro l’isola, che torna alla sua dimensione normale. Esce ancora per le visite e le reazioni.",
             sayHi: "Saluta", sayHiHint: "Mostra subito una visita nel Dynamic Island.",
             momentsTitle: "Guarda come reagisce",
             visitMoment: "Una visita", timerStarted: "Timer avviato", downloadFailed: "Download non riuscito", unlocked: "Mac sbloccato",
@@ -329,6 +346,8 @@ extension FeatureStrings {
             appearance: "Внешний вид", behavior: "Поведение",
             reactions: "Реагировать на происходящее",
             reactionsHint: "Он выходит, чтобы отреагировать на музыку, таймеры, загрузки, снимки экрана, микрофон, режим «Не давать Mac уснуть» и не только.",
+            hidesWhenIdle: "Прятаться при бездействии",
+            hidesWhenIdleHint: "Если полминуты ничего не происходит, он прыгает внутрь острова, и остров возвращается к обычному размеру. Для визитов и реакций он по-прежнему выходит.",
             sayHi: "Поздороваться", sayHiHint: "Сразу показывает визит в Dynamic Island.",
             momentsTitle: "Посмотрите, как он реагирует",
             visitMoment: "Визит", timerStarted: "Таймер запущен", downloadFailed: "Загрузка не удалась", unlocked: "Mac разблокирован",
@@ -354,6 +373,8 @@ extension FeatureStrings {
             appearance: "Görünüm", behavior: "Davranış",
             reactions: "Olanlara tepki ver",
             reactionsHint: "Müziğe, zamanlayıcılara, indirmelere, ekran görüntülerine, mikrofona, Uyanık tut’a ve daha fazlasına tepki vermek için çıkar.",
+            hidesWhenIdle: "Boştayken saklan",
+            hidesWhenIdleHint: "Yarım dakika boyunca hiçbir şey olmazsa adanın içine atlar ve ada normal boyutuna döner. Ziyaretler ve tepkiler için yine dışarı çıkar.",
             sayHi: "Merhaba de", sayHiHint: "Dynamic Island’da hemen bir ziyaret oynatır.",
             momentsTitle: "Nasıl tepki verdiğini görün",
             visitMoment: "Bir ziyaret", timerStarted: "Zamanlayıcı başladı", downloadFailed: "İndirme başarısız", unlocked: "Mac’in kilidi açıldı",
@@ -379,6 +400,8 @@ extension FeatureStrings {
             appearance: "外観", behavior: "動作",
             reactions: "出来事に反応する",
             reactionsHint: "音楽、タイマー、ダウンロード、スクリーンショット、マイク、スリープ防止などに反応して出てきます。",
+            hidesWhenIdle: "何もないときは隠れる",
+            hidesWhenIdleHint: "30秒間何も起きないと、アイランドの中へ飛び込み、アイランドは元の大きさに戻ります。訪問や反応のときは引き続き出てきます。",
             sayHi: "あいさつ", sayHiHint: "Dynamic Island で今すぐ訪問を再生します。",
             momentsTitle: "反応を見てみる",
             visitMoment: "訪問", timerStarted: "タイマー開始", downloadFailed: "ダウンロード失敗", unlocked: "Mac のロック解除",
@@ -404,6 +427,8 @@ extension FeatureStrings {
             appearance: "외관", behavior: "동작",
             reactions: "일어나는 일에 반응",
             reactionsHint: "음악, 타이머, 다운로드, 스크린샷, 마이크, 절전 방지 등에 반응하러 나옵니다.",
+            hidesWhenIdle: "유휴 시 숨기기",
+            hidesWhenIdleHint: "30초 동안 아무 일도 없으면 아일랜드 안으로 뛰어들고, 아일랜드는 원래 크기로 돌아갑니다. 방문하거나 반응할 때는 계속 나옵니다.",
             sayHi: "인사하기", sayHiHint: "Dynamic Island에서 지금 방문을 재생합니다.",
             momentsTitle: "반응 살펴보기",
             visitMoment: "방문", timerStarted: "타이머 시작", downloadFailed: "다운로드 실패", unlocked: "Mac 잠금 해제",
@@ -429,6 +454,8 @@ extension FeatureStrings {
             appearance: "外观", behavior: "行为",
             reactions: "对发生的事做出反应",
             reactionsHint: "它会出来对音乐、计时器、下载、截屏、麦克风、保持唤醒等做出反应。",
+            hidesWhenIdle: "空闲时隐藏",
+            hidesWhenIdleHint: "半分钟内没有任何动静时，它会跳进岛里，岛也恢复原来的大小。来访和做出反应时，它仍会出来。",
             sayHi: "打个招呼", sayHiHint: "立即在Dynamic Island中播放一次来访。",
             momentsTitle: "看看它的反应",
             visitMoment: "来访", timerStarted: "计时器已开始", downloadFailed: "下载失败", unlocked: "Mac 已解锁",
@@ -454,6 +481,8 @@ extension FeatureStrings {
             appearance: "外觀", behavior: "行為",
             reactions: "對發生的事做出反應",
             reactionsHint: "它會出來對音樂、計時器、下載、截圖、麥克風、保持喚醒等做出反應。",
+            hidesWhenIdle: "閒置時隱藏",
+            hidesWhenIdleHint: "半分鐘內沒有任何動靜時，它會跳進動態島裡，動態島也恢復原本的大小。來訪和做出反應時，它仍會出來。",
             sayHi: "打個招呼", sayHiHint: "立即在Dynamic Island中播放一次來訪。",
             momentsTitle: "看看它的反應",
             visitMoment: "來訪", timerStarted: "計時器已開始", downloadFailed: "下載失敗", unlocked: "Mac 已解鎖",
@@ -479,6 +508,8 @@ extension FeatureStrings {
             appearance: "外觀", behavior: "行為",
             reactions: "對發生的事作出反應",
             reactionsHint: "它會出來對音樂、計時器、下載、截圖、麥克風、保持喚醒等作出反應。",
+            hidesWhenIdle: "閒置時隱藏",
+            hidesWhenIdleHint: "半分鐘內沒有任何動靜時，它會跳進動態島裡，動態島也回復原本的大小。來訪和作出反應時，它仍會出來。",
             sayHi: "打個招呼", sayHiHint: "立即在Dynamic Island中播放一次來訪。",
             momentsTitle: "看看它的反應",
             visitMoment: "來訪", timerStarted: "計時器已開始", downloadFailed: "下載失敗", unlocked: "Mac 已解鎖",
@@ -504,6 +535,8 @@ extension FeatureStrings {
             appearance: "Вигляд", behavior: "Поведінка",
             reactions: "Реагувати на те, що відбувається",
             reactionsHint: "Він виходить, щоб відреагувати на музику, таймери, завантаження, знімки екрана, мікрофон, режим «Не давати Mac заснути» та інше.",
+            hidesWhenIdle: "Ховатися під час бездіяльності",
+            hidesWhenIdleHint: "Якщо пів хвилини нічого не відбувається, він стрибає всередину острівця, і острівець повертається до звичайного розміру. Для візитів і реакцій він і далі виходить.",
             sayHi: "Привітатися", sayHiHint: "Одразу показує візит у Dynamic Island.",
             momentsTitle: "Подивіться, як він реагує",
             visitMoment: "Візит", timerStarted: "Таймер запущено", downloadFailed: "Не вдалося завантажити", unlocked: "Mac розблоковано",

@@ -4,7 +4,7 @@
 import AppKit
 import SwiftUI
 
-/// The mixer as a desk: the output fader on the left, one fader per app
+/// The mixer as a desk: the output and microphone faders on the left, one fader per app
 /// running sideways, pinned ones first. Every row action of the panel's list
 /// is here: the app's menu pins, moves and routes it, Command-drag reorders,
 /// a click on a level types a new one. The toolbar opens
@@ -13,6 +13,7 @@ import SwiftUI
 struct NotchMixerView: View {
     let size: CGSize
     @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var input = AudioInputDeviceManager.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.mixerAppArrangement) private var arrangementValue = ""
     @AppStorage(DefaultsKey.mixerHideInactiveApps) private var hideInactiveApps = false
@@ -25,6 +26,9 @@ struct NotchMixerView: View {
     private static let masterWidth: CGFloat = 72
     private static let columnWidth: CGFloat = 96
     private var faderHeight: CGFloat { max(104, size.height - 40) }
+    /// A microphone that reports no level has nothing to fade, as in the options.
+    private var showsMicrophone: Bool { input.inputVolume != nil }
+    private var leadingWidth: CGFloat { showsMicrophone ? Self.masterWidth * 2 + 10 : Self.masterWidth }
 
     private var arrangement: MixerAppArrangement { MixerAppArrangement(rawValue: arrangementValue) }
 
@@ -54,6 +58,10 @@ struct NotchMixerView: View {
                 HStack(alignment: .top, spacing: 10) {
                     NotchMasterFader(height: faderHeight, editingVolumeID: $editingVolumeID)
                         .frame(width: Self.masterWidth)
+                    if showsMicrophone {
+                        NotchMicrophoneFader(height: faderHeight, editingVolumeID: $editingVolumeID)
+                            .frame(width: Self.masterWidth)
+                    }
                     Rectangle().fill(.white.opacity(0.12)).frame(width: 1)
                         .accessibilityHidden(true)
                     desk.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -92,7 +100,7 @@ struct NotchMixerView: View {
             let apps = apps
             let ids = apps.compactMap(\.persistenceID)
             NotchRail(items: apps, rows: 1, itemWidth: Self.columnWidth,
-                      width: size.width - Self.masterWidth - 21) { app in
+                      width: size.width - leadingWidth - 21) { app in
                 NotchAppFader(app: app, height: faderHeight, editingVolumeID: $editingVolumeID,
                               isPinned: arrangement.isPinned(app.persistenceID),
                               togglePin: { updateArrangement { $0.togglePin(app.persistenceID ?? "") } },
@@ -232,6 +240,56 @@ private struct NotchMasterFader: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: height, alignment: .top)
+    }
+}
+
+/// The microphone beside the output: the same column, its mute and level.
+private struct NotchMicrophoneFader: View {
+    let height: CGFloat
+    @Binding var editingVolumeID: String?
+    @ObservedObject private var input = AudioInputDeviceManager.shared
+    @ObservedObject private var micMute = MicMuteService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        VStack(spacing: 6) {
+            // The mute is its own feature; without it the column keeps the
+            // plain icon the options row shows.
+            if AppFeature.micMute.isAvailable {
+                Button(action: micMute.toggle) {
+                    icon(muted: micMute.isMuted).foregroundStyle(micMute.isMuted ? Color.red : Color.white)
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+                .accessibilityLabel(micMute.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName)
+            } else {
+                icon(muted: (input.inputVolume ?? 0) <= 0.001).foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
+            if let volume = input.inputVolume {
+                NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
+                                 label: l10n.s.mixerInputTitle, vertical: true, trackThickness: 28)
+                    .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
+                    .disabled(micMute.isMuted)
+                NotchEditablePercent(percent: Int((volume * 100).rounded()), maximum: 100,
+                                     editorID: "notch-microphone-fader", editingID: $editingVolumeID,
+                                     label: l10n.s.mixerInputTitle, height: 28) {
+                    input.setInputVolume($0)
+                }
+                .disabled(micMute.isMuted)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: height, alignment: .top)
+    }
+
+    private func icon(muted: Bool) -> some View {
+        Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
+            .font(.system(size: 15, weight: .medium))
+            .contentTransition(.symbolEffect(.replace))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+            .frame(width: 32, height: 32)
+            .contentShape(Circle())
     }
 }
 

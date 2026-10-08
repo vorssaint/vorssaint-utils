@@ -192,7 +192,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             // Both keys start from the device's own reading, so the island
             // shows the result once it has been applied. A native fallback
             // publishes its state through the listeners.
-            if key == .mute, mixer.systemOutputMuted != nil {
+            if key == .mute {
                 mixer.requestOutputMuteToggle { applied in
                     if applied, mixer.systemOutputMuted == true, self?.feedback?.step == step {
                         self?.feedback = nil

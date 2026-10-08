@@ -7,7 +7,9 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Dynamic Island
+- When hover opens Dynamic Island, you can set how long it waits before closing, from 0.10 to 2 seconds. Settings → Dynamic Island → Behavior → Closing time.
 - Controls can show a keyboard light slider next to Volume and Brightness, and its icon turns the light off and on. Settings → Dynamic Island → Content → Controls.
+- The music page can switch shuffle beside the playback controls for players that offer it. The first press asks for Automation permission.
 - Up next says when the player does not share its upcoming songs, instead of showing an empty queue.
 - The volume indicator stays hidden while headphones like AirPods Pro adjust their own level. Volume keys still show it.
 - With Hide timer countdown on, the closed island shows the timer when time is up and keeps it until you dismiss it.
@@ -18,13 +20,17 @@ All notable changes to this project are documented here. The format follows
 - The calendar month can number its weeks. Settings → Dynamic Island → Content → Calendar → Week numbers.
 - AI Agents stops counting a Claude Code turn once the Mac has been offline for about 20 seconds, unless a shell command is still running.
 - Opening lyrics or Up next no longer changes the size of the player above them.
+- The companion can hide in the island when nothing is going on and come out only to visit and react. Settings → Dynamic Island → Companion → Hide when idle.
 - Resting the pointer on the song's cover in the closed island shows its name, and the music bars become a play and pause button.
 
 ### Added
 - The screenshot editor's Pixelate tool is now Blur, and it can pixelate, blur or erase a whole area or only the text inside it.
 - Window layout snaps to the edge two displays share once you slow down there, and a quick drag still carries the window to the other display.
+- Each edge and corner that snaps a dragged window can use any placement, like a third or two thirds, and an edge can be split into up to four areas. Settings → Window layout → Window dragging.
 - Network speeds can show in bits per second. Settings → System monitor → Network speed unit.
 - Connected Devices opens from the System section of the menu and from the island's System page, without its menu bar widget.
+- Tapping CPU in the System section of the menu shows the load of each core, grouped by core type. Settings → System monitor → CPU → Per core.
+- In the Clipboard history window, the preview lays out copied JSON one value per line, and a picture's preview can copy the text in it.
 
 ### Changed
 - Clear unpinned asks first everywhere and says how many items it removes. Anything copied while it asks is kept.
@@ -44,9 +50,10 @@ All notable changes to this project are documented here. The format follows
 - The screenshot editor keeps all its controls inside the window for small captures.
 - Vorssaint no longer stops responding at launch while macOS is slow to report Launch at Login.
 - Removing an app with the Uninstaller frees its Command Bar shortcut for another app.
+- The mute key no longer lowers the volume when the output loses its mute control right after the press.
 
 ### Contributors
-Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
+Thanks to @AB-boi, @Acronyxxx, @adam8833, @dc0dr, @djc041006-bot, @emilianorobles, @georgebnov, @gorillasuti, @gxlactuss, @JeanBaeez, @luantedesco, @massisenergy, @mgailius, @mugurc, @mynameisluke, @Narangor, @nik2k-7, @niukanen1, @nkudrin713, @odeioabacate, @oskarsss, @PathGao, @Polovinkin, @priyanshuvishnoi, @samanyudas, @samueltpoj, @sarat03, @suhrudsh, @ThelloD, @velit, @wuast94, @ywu73 and @zecarreira. Feedback: Brain and Martimm500.
 
 ## [3.4.1-beta.2] - 2026-10-06
 

@@ -56,16 +56,8 @@ enum NotchMusicAutomation {
         guard pid > 0 else { return nil }
         let address = NSAppleEventDescriptor(processIdentifier: pid)
         if case .seek(let seconds) = command {
-            guard seconds.isFinite, (0...604_800).contains(seconds), let position = capabilities.position else { return nil }
-            let specifier = NSAppleEventDescriptor.record()
-            specifier.setDescriptor(NSAppleEventDescriptor(typeCode: typeProperty), forKeyword: AEKeyword(keyAEDesiredClass))
-            specifier.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(formPropertyID)), forKeyword: AEKeyword(keyAEKeyForm))
-            specifier.setDescriptor(NSAppleEventDescriptor(typeCode: position.code), forKeyword: AEKeyword(keyAEKeyData))
-            specifier.setDescriptor(NSAppleEventDescriptor.null(), forKeyword: AEKeyword(keyAEContainer))
-            guard let property = specifier.coerce(toDescriptorType: typeObjectSpecifier) else { return nil }
-            let event = NSAppleEventDescriptor(eventClass: kAECoreSuite, eventID: kAESetData, targetDescriptor: address,
-                                               returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
-            event.setParam(property, forKeyword: keyDirectObject)
+            guard seconds.isFinite, (0...604_800).contains(seconds), let position = capabilities.position,
+                  let event = propertyEvent(kAESetData, code: position.code, address: address) else { return nil }
             event.setParam(position.integer ? NSAppleEventDescriptor(int32: Int32(seconds.rounded()))
                            : NSAppleEventDescriptor(double: seconds), forKeyword: keyAEData)
             return event
@@ -73,6 +65,72 @@ enum NotchMusicAutomation {
         guard let code = capabilities.event(for: command, isPlaying: playback.isPlaying) else { return nil }
         return NSAppleEventDescriptor(eventClass: code.eventClass, eventID: code.eventID, targetDescriptor: address,
                                       returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+    }
+
+    /// Reads the player's shuffle switch with nil, or sets it. Like seeking,
+    /// only the property the player's dictionary declares is addressed.
+    static func shuffleEvent(_ enabled: Bool?, capabilities: NotchMusicAutomationCapabilities,
+                             pid: Int32) -> NSAppleEventDescriptor? {
+        guard pid > 0, let shuffle = capabilities.shuffle,
+              let event = propertyEvent(enabled == nil ? kAEGetData : kAESetData, code: shuffle,
+                                        address: NSAppleEventDescriptor(processIdentifier: pid)) else { return nil }
+        if let enabled { event.setParam(NSAppleEventDescriptor(boolean: enabled), forKeyword: keyAEData) }
+        return event
+    }
+
+    static func shuffleAllowedEvent(capabilities: NotchMusicAutomationCapabilities, pid: Int32) -> NSAppleEventDescriptor? {
+        guard pid > 0, let allowed = capabilities.shuffleAllowed else { return nil }
+        return propertyEvent(kAEGetData, code: allowed, address: NSAppleEventDescriptor(processIdentifier: pid))
+    }
+
+    /// Only a Boolean answer is a state; anything else leaves it unknown.
+    static func shuffleState(in reply: NSAppleEventDescriptor) -> Bool? {
+        guard let value = reply.paramDescriptor(forKeyword: keyDirectObject),
+              [typeTrue, typeFalse, typeBoolean].contains(value.descriptorType) else { return nil }
+        return value.booleanValue
+    }
+
+    /// Nil when the player cannot be asked or does not answer with a state.
+    static func shuffle(of availability: Availability) -> Bool? {
+        read(shuffleEvent(nil, capabilities: availability.capabilities, pid: availability.target.pid), from: availability)
+    }
+
+    /// False only when the player says the songs playing cannot be shuffled,
+    /// as some do for a radio. A player that does not say, or cannot be
+    /// asked before consent, keeps the button that asks for it.
+    static func shuffleAllowed(by availability: Availability) -> Bool {
+        guard availability.capabilities.shuffleAllowed != nil else { return true }
+        return read(shuffleAllowedEvent(capabilities: availability.capabilities, pid: availability.target.pid),
+                    from: availability) != false
+    }
+
+    private static func read(_ event: NSAppleEventDescriptor?, from availability: Availability) -> Bool? {
+        guard availability.target.isCurrent, access(to: availability.target) == .granted, let event,
+              let reply = try? event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 1),
+              (reply.paramDescriptor(forKeyword: keyErrorNumber)?.int32Value ?? 0) == 0 else { return nil }
+        return shuffleState(in: reply)
+    }
+
+    static func setShuffle(_ enabled: Bool, availability: Availability) -> Bool {
+        guard availability.target.isCurrent, access(to: availability.target) == .granted,
+              let event = shuffleEvent(enabled, capabilities: availability.capabilities, pid: availability.target.pid),
+              let reply = try? event.sendEvent(options: [.waitForReply, .neverInteract, .dontRecord], timeout: 1) else { return false }
+        return (reply.paramDescriptor(forKeyword: keyErrorNumber)?.int32Value ?? 0) == 0
+    }
+
+    /// Gets or sets one property of the application itself.
+    private static func propertyEvent(_ eventID: AEEventID, code: UInt32,
+                                      address: NSAppleEventDescriptor) -> NSAppleEventDescriptor? {
+        let specifier = NSAppleEventDescriptor.record()
+        specifier.setDescriptor(NSAppleEventDescriptor(typeCode: typeProperty), forKeyword: AEKeyword(keyAEDesiredClass))
+        specifier.setDescriptor(NSAppleEventDescriptor(enumCode: OSType(formPropertyID)), forKeyword: AEKeyword(keyAEKeyForm))
+        specifier.setDescriptor(NSAppleEventDescriptor(typeCode: code), forKeyword: AEKeyword(keyAEKeyData))
+        specifier.setDescriptor(NSAppleEventDescriptor.null(), forKeyword: AEKeyword(keyAEContainer))
+        guard let property = specifier.coerce(toDescriptorType: typeObjectSpecifier) else { return nil }
+        let event = NSAppleEventDescriptor(eventClass: kAECoreSuite, eventID: eventID, targetDescriptor: address,
+                                           returnID: AEReturnID(kAutoGenerateReturnID), transactionID: AETransactionID(kAnyTransactionID))
+        event.setParam(property, forKeyword: keyDirectObject)
+        return event
     }
 
     static func send(_ command: NotchPlaybackCommand, playback: NotchPlayback, availability: Availability,

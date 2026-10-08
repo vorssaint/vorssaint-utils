@@ -1442,6 +1442,19 @@ enum NotchSupport {
         value.isFinite ? min(hoverDelayRange.upperBound, max(hoverDelayRange.lowerBound, value)) : defaultHoverDelay
     }
 
+    /// How long an island opened by hover waits after the pointer leaves.
+    static let defaultCloseDelay = NotchQuickAccessLayout.hoverExitDelay
+    static let closeDelayRange = 0.10...2.0
+
+    static func sanitizedCloseDelay(_ value: TimeInterval) -> TimeInterval {
+        value.isFinite ? min(closeDelayRange.upperBound, max(closeDelayRange.lowerBound, value)) : defaultCloseDelay
+    }
+
+    /// An unset value keeps the old pause rather than reading as zero.
+    static func closeDelay(in defaults: UserDefaults = .standard) -> TimeInterval {
+        sanitizedCloseDelay(defaults.object(forKey: DefaultsKey.notchCloseDelay) as? Double ?? defaultCloseDelay)
+    }
+
     static func moduleShortcut(_ characters: String, modules: [NotchModule]) -> NotchModule? {
         modules.first { $0.shortcutKey == characters.lowercased() }
     }

@@ -836,6 +836,63 @@ enum MetricsFeatureTests {
         suite.expect(!quietGate.shouldAlert(reading: 99, threshold: 90, readAt: nil),
                "a temperature with no reading time does not alert")
 
+        // MARK: CPU cores
+
+        let idleTicks = CPUCoreTicks(user: 0, system: 0, idle: 0, nice: 0)
+        suite.expect(CPUCoreTicks(user: 20, system: 20, idle: 50, nice: 10).usage(since: idleTicks) == 0.5,
+               "per-core usage counts user, system and nice as busy")
+        suite.expect(idleTicks.usage(since: idleTicks) == nil,
+               "unchanged counters do not invent a zero reading")
+        let earlierTicks = CPUCoreTicks(user: 100, system: 100, idle: 100, nice: 100)
+        suite.expect(CPUCoreTicks(user: 110, system: 110, idle: 120, nice: 100).usage(since: earlierTicks) == 0.5,
+               "per-core readings use the interval delta, not lifetime totals")
+        suite.expect(idleTicks.usage(since: earlierTicks) == nil,
+               "reset counters need a fresh baseline")
+        let beforeWrap = CPUCoreTicks(user: UInt32.max - 4, system: 0, idle: 0, nice: 0)
+        suite.expect(CPUCoreTicks(user: 5, system: 0, idle: 10, nice: 0).usage(since: beforeWrap) == 0.5,
+               "a 32-bit tick rollover keeps the interval delta")
+
+        let twoLevels = [(name: "Performance", count: 4), (name: "Efficiency", count: 6)]
+        let registryCores = (0..<10).map { (id: $0, type: $0 < 6 ? "E" : "P") }
+        suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: registryCores.reversed(), slots: Array(0..<10))
+                == [CPUCoreGroup(name: "Performance", indices: Array(6..<10)),
+                    CPUCoreGroup(name: "Efficiency", indices: Array(0..<6))],
+               "core classes follow the registry's logical IDs, not perflevel order")
+        suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: registryCores,
+                                            slots: [6, 0, 7, 1, 8, 2, 9, 3, 4, 5]).first?.indices == [0, 2, 4, 6],
+               "group indices address the sampler's processor order")
+        for broken in [Array(registryCores.dropLast()), registryCores + [registryCores[0]],
+                       registryCores.map { (id: $0.id, type: "?") }] {
+            suite.expect(CPUCoreTopology.groups(levels: twoLevels, cores: broken, slots: Array(0..<10)).map(\.name) == ["CPU"],
+                   "missing, duplicated or unknown registry cores fall back to one CPU group")
+        }
+        for width in [160.0, 280, 500] {
+            for counts in [[4, 6], [2, 4, 6], [32, 16], [1]] {
+                var start = 0
+                let groups = counts.enumerated().map { index, count in
+                    defer { start += count }
+                    return CPUCoreGroup(name: ["Super", "Performance", "Efficiency"][index % 3],
+                                        indices: Array(start..<(start + count)))
+                }
+                let rows = CPUCoreLayout.rows(groups: groups, width: width)
+                suite.expect(rows.flatMap { $0 }.flatMap(\.group.indices) == Array(0..<start),
+                       "the core layout keeps every core exactly once (\(counts) at \(width))")
+                suite.expect(rows.allSatisfy { row in
+                    row.reduce(0, { $0 + $1.width }) + Double(max(0, row.count - 1)) * 12 <= width + 0.01
+                }, "core rows stay inside their width (\(counts) at \(width))")
+                suite.expect(rows.joined().allSatisfy { segment in
+                    let count = Double(segment.group.indices.count)
+                    return count * segment.barWidth + (count - 1) * 4 <= segment.width + 0.01
+                }, "core bars stay inside their group (\(counts) at \(width))")
+            }
+        }
+        let wrapped = CPUCoreLayout.rows(groups: [CPUCoreGroup(name: "Performance", indices: Array(0..<10)),
+                                                  CPUCoreGroup(name: "Efficiency", indices: Array(10..<14))], width: 272)
+        let performanceBar = wrapped.joined().first { $0.group.name == "Performance" }?.barWidth ?? 0
+        let efficiencyBar = wrapped.joined().first { $0.group.name == "Efficiency" }?.barWidth ?? .infinity
+        suite.expect(wrapped.count == 2 && performanceBar > efficiencyBar,
+               "efficiency cores wrapped onto a row of their own never get wider bars than performance cores")
+
         // MARK: Uptime formatting
 
         expectEqual(MetricFormat.uptime(0), "0min", "uptime zero")

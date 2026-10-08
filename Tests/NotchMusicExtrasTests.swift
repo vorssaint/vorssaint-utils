@@ -326,7 +326,7 @@ enum NotchMusicExtrasTests {
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 38 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 39 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

@@ -202,6 +202,87 @@ enum ClipboardFeatureTests {
                                                     matching: "missing") == [],
                "clipboard search returns no results for unmatched terms")
 
+        // MARK: Clipboard JSON preview
+
+        let copiedJSON = #"{"b":1.50,"a":[1e3,{},[ ]],"s":"x, {y}: \"z\"","n":null}"#
+        let laidOut = #"""
+        {
+          "b": 1.50,
+          "a": [
+            1e3,
+            {},
+            []
+          ],
+          "s": "x, {y}: \"z\"",
+          "n": null
+        }
+        """#
+        expectEqual(ClipboardJSONFormat.pretty(copiedJSON) ?? "nil", laidOut,
+                    "copied JSON is laid out with its key order, numbers and strings untouched")
+        expectEqual(ClipboardJSONFormat.pretty(laidOut) ?? "nil", laidOut,
+                    "laying out JSON twice changes nothing")
+        suite.expect(ClipboardJSONFormat.pretty(#"{"a": }"#) == nil
+                     && ClipboardJSONFormat.pretty("[1] is the first note") == nil
+                     && ClipboardJSONFormat.pretty("42") == nil,
+                     "text that is not a JSON object or array keeps its own layout")
+
+        let escapedJSON = #"{"path":"C:\\","name":"café 日本","quote":["\\\"",1]}"#
+        let escapedLaidOut = #"""
+        {
+          "path": "C:\\",
+          "name": "café 日本",
+          "quote": [
+            "\\\"",
+            1
+          ]
+        }
+        """#
+        expectEqual(ClipboardJSONFormat.pretty(escapedJSON) ?? "nil", escapedLaidOut,
+                    "a backslash escaped right before a closing quote ends its string, non-ASCII text intact")
+
+        // Where JSONSerialization takes a trailing comma, the layout keeps it
+        // with no empty line before the bracket, whatever the input's breaks.
+        let trailingComma = "{\r\n\t\"a\": 1,\r\n\t\"b\": [\r\n\t\t2,\t\r\n\t],\r\n}"
+        let takesTrailingComma = (try? JSONSerialization.jsonObject(with: Data(trailingComma.utf8))) != nil
+        expectEqual(ClipboardJSONFormat.pretty(trailingComma) ?? "nil",
+                    takesTrailingComma ? "{\n  \"a\": 1,\n  \"b\": [\n    2,\n  ],\n}" : "nil",
+                    "CRLF and tab layout with a trailing comma keeps the comma and leaves no empty line")
+
+        // The limit counts bytes: two-byte letters just past it are too large
+        // even though they are far fewer characters.
+        let letters = (ClipboardJSONFormat.maxBytes - 4) / 2
+        let atByteLimit = "[\"" + String(repeating: "\u{E9}", count: letters) + "\"]"
+        let pastByteLimit = "[\"" + String(repeating: "\u{E9}", count: letters + 1) + "\"]"
+        suite.expect(atByteLimit.utf8.count == ClipboardJSONFormat.maxBytes
+                     && pastByteLimit.count < ClipboardJSONFormat.maxBytes,
+                     "the byte limit fixtures sit at the limit in bytes and far under it in characters")
+        suite.expect(ClipboardJSONFormat.pretty(atByteLimit) != nil,
+                     "JSON right at the byte limit is still laid out")
+        suite.expect(ClipboardJSONFormat.pretty(pastByteLimit) == nil,
+                     "JSON past the byte limit keeps its own layout, however few characters it has")
+
+        // Deep nesting indents every line again, so a small input can lay out
+        // to many times its size.
+        func nestedJSON(_ count: Int) -> String {
+            String(repeating: "[", count: 64) + String(repeating: "1,", count: count) + "1"
+                + String(repeating: "]", count: 64)
+        }
+        suite.expect(ClipboardJSONFormat.pretty(nestedJSON(4_000)) != nil,
+                     "deeply nested JSON whose layout stays under the output bound is laid out")
+        suite.expect(ClipboardJSONFormat.pretty(nestedJSON(12_000)) == nil,
+                     "deeply nested JSON whose layout passes the output bound keeps its own layout")
+
+        // MARK: Clipboard image text recognition
+
+        suite.expect(ClipboardImageRecognition.decodeMaxPixelSize(width: 6_016, height: 3_384) == 6_016,
+                     "a 6K screenshot is read at full size, as Screen OCR reads its capture")
+        let scrollingSide = ClipboardImageRecognition.decodeMaxPixelSize(width: 3_024, height: 20_000)
+        let scrollingPixels = Double(scrollingSide) * Double(scrollingSide) * 3_024 / 20_000
+        suite.expect(scrollingPixels <= Double(ClipboardImageRecognition.maxPixels),
+                     "a picture past the area bound is scaled down to it")
+        suite.expect(scrollingPixels > 0.99 * Double(ClipboardImageRecognition.maxPixels),
+                     "a picture past the area bound keeps nearly all of that area")
+
         // MARK: Clipboard history search tokens and highlight ranges
 
         suite.expect(ClipboardHistorySearch.searchTokens(for: "  deploy   final  ") == ["deploy", "final"],

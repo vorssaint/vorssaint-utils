@@ -49,5 +49,30 @@ enum SystemMonitorPlanTests {
         defaults.set(false, forKey: AppFeature.connectedDevices.availabilityKey)
         suite.expect(!monitor.currentPlan(defaults: defaults).needConnectedDevices,
                      "an uninstalled connected devices feature is not read, even for the preview")
+
+        monitor.fullMonitorVisible = false
+        monitor.menuPanelNeeds = SystemMonitorPanelNeeds(system: true)
+        defaults.set(true, forKey: AppFeature.monitorCPU.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.menuBarCPU)
+        defaults.set(true, forKey: DefaultsKey.monitorSysCPU)
+        defaults.set(true, forKey: DefaultsKey.monitorSysCPUCores)
+        suite.expect(monitor.currentPlan(defaults: defaults).needCPUCores,
+                     "the panel's CPU row reads every core for its per-core bars")
+        defaults.set(false, forKey: DefaultsKey.monitorSysCPU)
+        let menuBarCPU = monitor.currentPlan(defaults: defaults)
+        suite.expect(menuBarCPU.needCPU && !menuBarCPU.needCPUCores,
+                     "a CPU shown only in the menu bar does not read every core while the panel hides its CPU row")
+        defaults.set(true, forKey: DefaultsKey.monitorSysCPU)
+        defaults.set(false, forKey: DefaultsKey.monitorSysCPUCores)
+        suite.expect(!monitor.currentPlan(defaults: defaults).needCPUCores,
+                     "the Per core switch stops reading every core")
+        defaults.set(true, forKey: DefaultsKey.monitorSysCPUCores)
+        monitor.menuPanelNeeds = .none
+        suite.expect(!monitor.currentPlan(defaults: defaults).needCPUCores,
+                     "a closed panel does not read every core")
+        monitor.menuPanelNeeds = SystemMonitorPanelNeeds(system: true)
+        defaults.set(false, forKey: AppFeature.monitorCPU.availabilityKey)
+        suite.expect(!monitor.currentPlan(defaults: defaults).needCPUCores,
+                     "an uninstalled CPU monitor does not read every core")
     }
 }

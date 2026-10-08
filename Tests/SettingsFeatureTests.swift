@@ -168,6 +168,7 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowGestureEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapDisabledZones)
+                && backupKeys.contains(DefaultsKey.windowEdgeSnapZoneActions)
                 && backupKeys.contains(DefaultsKey.windowGestureModifiers)
                 && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)

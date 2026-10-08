@@ -303,6 +303,13 @@ def main():
           + declaration(monitor, "    private struct SamplingPlan").replace("private struct", "struct", 1)
           + declaration(monitor, "    private func currentPlan(").replace("private func", "func", 1)
           + "}\n}\n")
+    write("SystemSectionBreakdown.swift", "import Foundation\n"
+          + "extension SystemSectionBreakdownTests {\nfinal class Section: Fixture {\n"
+          + declaration("Sources/Vorssaint/UI/MenuPanel/SystemSection.swift",
+                        "    private func refreshBreakdown(").replace("private func", "func", 1)
+          + declaration("Sources/Vorssaint/UI/MenuPanel/SystemSection.swift",
+                        "    private func toggleCPUApps(").replace("private func", "func", 1)
+          + "}\n}\n")
     uninstall = "Sources/Vorssaint/Services/Uninstall/AppUninstaller.swift"
     bar = "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift"
     for host, path in [("Settings", "Sources/Vorssaint/UI/Settings/URLCleanerSettings.swift"),
@@ -484,6 +491,11 @@ def main():
               "    private func applyQueuedOutputSteps(",
               "    private func isCurrentOutputAdjustment(", "    private var hasCurrentOutputAdjustment:",
               "    private func applyOutputControls(", "    private func drainOutputAdjustment("])
+          + "}\n}\n")
+    write("NotchVolumeRouting.swift", "import Foundation\nimport CoreGraphics\n"
+          + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
+                        "    private func routeNotchVolume(").replace("private func", "func", 1)
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
@@ -720,6 +732,7 @@ def main():
               "    private func endMusicStripSong(", "    private func musicStripHolds(",
               "    func musicStripStandIn("])
           .replace("NotchSupport.routes(notice.event)", "routesNotices")
+          .replace("NotchSupport.closeDelay()", "NotchSupport.sanitizedCloseDelay(UserDefaults.standard.closeDelay)")
           + declaration(notch, "    func toggleMusicStripSong(")
               .replace("    func toggleMusicStripSong", "    @discardableResult\n    func toggleMusicStripSong", 1)
           + "}\n}\n")
@@ -789,6 +802,16 @@ def main():
     write("NotchSectionScrollRoute.swift", "import AppKit\nextension NotchSectionPagingTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func handleScroll(", "    private func handleSectionScroll("])
+          + "}\n}\n")
+    write("NotchMascotHiding.swift", "import CoreGraphics\nimport Foundation\n"
+          + "extension NotchMascotHidingContract {\nfinal class Service: State {\n"
+          + "".join(declaration(notch, prefix).replace("    fileprivate ", "    ", 1).replace("    private ", "    ", 1)
+                    for prefix in ["    fileprivate func syncMascotHiding(", "    fileprivate func noteMascotStirred()",
+                                   "    private func scheduleMascotTuck(", "    private func tuckMascotIfQuiet(",
+                                   "    private func stageMascotTuck()", "    private func untuckMascot()"])
+              .replace("    func noteMascotStirred()", "    override func noteMascotStirred()")
+              .replace("NotchMascotSupport.hidesWhenIdle()", "hidesWhenIdle")
+              .replace("CACurrentMediaTime()", "mediaTime()")
           + "}\n}\n")
     write("NotchKeyMonitor.swift", "import Foundation\nextension NotchKeyMonitorTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func installEventMonitors()").replace("private func", "func", 1)
@@ -1258,6 +1281,17 @@ def main():
           + declaration(music, "    func refreshAutomation()")
           + declaration(music, "    private func updateAutomation(").replace("private func", "func", 1)
           + "}\n}\n")
+    shuffle = "Sources/Vorssaint/Services/Notch/NotchShuffleService.swift"
+    write("NotchShuffleFlow.swift", "import Foundation\n\nextension NotchMusicAutomationFlowContract {\n"
+          + "final class ShuffleService {\nvar availability: NotchMusicAutomation.Availability?\nvar enabled: Bool?\n"
+          + "var allowed = true\nvar pending = false\nvar requestingAccess = false\nlet queue = ShuffleQueue()\n"
+          + "var generation = UUID()\nvar switchID = UUID()\nvar open = false\n"
+          + declaration(shuffle, "    var isOffered:")
+          + declaration(shuffle, "    func refresh(for playback:")
+          + declaration(shuffle, "    func toggle()")
+          + declaration(shuffle, "    func stop()")
+          + declaration(shuffle, "    private func requestAccess(").replace("private func", "func", 1)
+          + "}\n}\n")
 
     brightness_row = "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift"
     write("SoftwareDimmingRow.swift", "import CoreGraphics\nimport Foundation\n\n"
@@ -1452,6 +1486,7 @@ def main():
               "    private func makeEdgeSnapDrag(",
               "    private func updateEdgeSnapDrag(",
               "    private func edgeSnapTarget(",
+              "    private var edgeSnapLayout:",
               "    private func scheduleEdgeSnapStillCheck()",
               "    private func armEdgeSnapStillCheck(",
               "    private func resetEdgeSnapTrail()",
