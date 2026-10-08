@@ -42,7 +42,6 @@ final class NotchDownloadService: ObservableObject {
     private var fileSources: [URL: DispatchSourceFileSystemObject] = [:]
     private var subscriber: Any?
     private var announcements: NSObjectProtocol?
-    private var lastArrival = Date.distantPast
     private var progressObserver: NotchDownloadProgressObserver?
     private var progressItems: [NotchDownloadItem] = []
     private var folderItems: [NotchDownloadItem] = []
@@ -291,6 +290,7 @@ final class NotchDownloadService: ObservableObject {
         scanning = true
         let id = generation
         let previous = partials
+        let observer = progressObserver
         queue.async { [weak self] in
             let current = NotchDownloadSupport.scanFolder(folder)
             let completed = previous.values.compactMap { old -> NotchDownloadItem? in
@@ -307,13 +307,14 @@ final class NotchDownloadService: ObservableObject {
             // A partial gone with no file in its place and no other partial
             // taking it over did not finish.
             let failed = current.map { current in
-                previous.values.contains { old in
+                previous.values.filter { old in
                     current.partials[old.url] == nil
                         && !current.partials.values.contains { $0.expectedURL == old.expectedURL }
                         && !FileManager.default.fileExists(atPath: old.url.path)
                         && !FileManager.default.fileExists(atPath: old.expectedURL.path)
+                        && observer?.didFinish(old) != true
                 }
-            } ?? false
+            } ?? []
             DispatchQueue.main.async {
                 guard let self, self.generation == id else { return }
                 self.scanning = false
@@ -329,9 +330,17 @@ final class NotchDownloadService: ObservableObject {
                     self.fileSources[url] = self.watch(url, directory: false)
                 }
                 completed.forEach(self.recordCompletion)
-                // Safari opens a downloaded archive and announces what it held,
-                // so its .download folder goes without the file it named.
-                if failed && Date().timeIntervalSince(self.lastArrival) > 2 { self.onFailure?() }
+                if !failed.isEmpty {
+                    // The publisher may finish just after its partial vanishes.
+                    // Wait for its evidence, never for an unrelated arrival.
+                    self.queue.asyncAfter(deadline: .now() + 2) { [weak self] in
+                        let unfinished = failed.contains { observer?.didFinish($0) != true }
+                        DispatchQueue.main.async {
+                            guard let self, self.generation == id, unfinished else { return }
+                            self.onFailure?()
+                        }
+                    }
+                }
                 self.progressObserver?.requestRefresh()
                 self.refreshItems()
                 if self.rescan { self.rescan = false; self.scheduleScan() }
@@ -341,7 +350,6 @@ final class NotchDownloadService: ObservableObject {
 
     private func recordCompletion(_ item: NotchDownloadItem) {
         guard !finished.contains(where: { $0.id == item.id }) else { return }
-        lastArrival = Date()
         finished.insert(item, at: 0)
         finished = Array(finished.prefix(5))
         onArrival?(item)

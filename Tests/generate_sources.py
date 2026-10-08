@@ -1560,6 +1560,11 @@ def main():
           + "}\n}\n")
 
     downloads = "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift"
+    write("NotchDownloadScan.swift", "import Foundation\n\nextension NotchDownloadScanTests {\n"
+          + "final class Service: Fixture {\n"
+          + declaration(downloads, "    private func scan()").replace("private func", "func", 1)
+          + declaration(downloads, "    private func recordCompletion(").replace("private func", "func", 1)
+          + "}\n}\n")
     write("NotchDownloadFolderChoice.swift", "import Foundation\n\nextension NotchDownloadFolderChoiceContract {\n"
           + "final class Service {\nvar chooser: NSOpenPanel?\nvar chooserID = UUID()\nvar chooserInNotch = false\n"
           + "var folderUnavailable = false\nvar syncs = 0\nvar stops = 0\n"

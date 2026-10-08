@@ -24,6 +24,14 @@ struct NotchPartialDownload: Equatable {
     let resourceID: String?
     let modified: Date
     var contentURL: URL? = nil
+    var source: NotchDownloadSource? = nil
+}
+
+/// The original partial itself, including Safari's wrapper directory. The
+/// payload can move or be extracted without changing which transfer ended.
+struct NotchDownloadSource: Hashable {
+    let url: URL
+    let identity: String
 }
 
 /// Capture native progress values once before validating paths on the file queue.
@@ -144,7 +152,7 @@ enum NotchDownloadSupport {
                 bytes: payloadValues.isRegularFile == true ? Int64(payloadValues.fileSize ?? 0) : 0,
                 resourceID: NotchDownloadSupport.fileIdentity(at: contentURL ?? url),
                 modified: payloadValues.contentModificationDate ?? .distantPast,
-                contentURL: contentURL)
+                contentURL: contentURL, source: partialSource(at: url))
         }
         // The main queue merges, sorts and compares this list on every
         // progress tick, so a crowded folder hands it only its newest entries.
@@ -266,6 +274,16 @@ enum NotchDownloadSupport {
 
     static func fileIdentity(at url: URL) -> String? {
         fileSnapshot(at: url)?.identity
+    }
+
+    static func partialSource(at url: URL) -> NotchDownloadSource? {
+        guard expectedURL(for: url) != nil else { return nil }
+        var info = stat()
+        guard url.withUnsafeFileSystemRepresentation({ path in
+            path.map { lstat($0, &info) == 0 } ?? false
+        }), [S_IFREG, S_IFDIR].contains(info.st_mode & S_IFMT) else { return nil }
+        return NotchDownloadSource(url: url.standardizedFileURL,
+                                   identity: "\(info.st_dev):\(info.st_ino)")
     }
 
     static func fileSnapshot(at url: URL) -> FileSnapshot? {

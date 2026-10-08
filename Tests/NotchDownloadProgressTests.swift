@@ -31,12 +31,130 @@ enum NotchDownloadProgressTests {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: folder) }
             try progressAndCompletion(folder: folder, suite: suite)
+            try fastCompletion(folder: folder, suite: suite)
             try safariPackage(folder: folder, suite: suite)
+            try sourceCompletion(folder: folder, suite: suite)
+            try queuedSourceReplacement(folder: folder, suite: suite)
             cancellation(folder: folder, suite: suite)
             capacity(folder: folder, suite: suite)
             try folderContents(folder: folder, suite: suite)
             try announcements(folder: folder, suite: suite)
+            try NotchDownloadScanTests.run(suite, folder: folder)
         } catch { suite.expect(false, "download progress fixture failed: \(error)") }
+    }
+
+    private static func fastCompletion(folder: URL, suite: TestSuite) throws {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-fast")
+        let results = Results()
+        let observer = NotchDownloadProgressObserver(folder: folder, queue: queue, changed: results.receive)
+        defer { observer.stop(); queue.sync {} }
+        let partial = folder.appendingPathComponent("fast.part")
+        let final = folder.appendingPathComponent("fast")
+        try Data([1, 2, 3]).write(to: partial)
+        let progress = Progress(totalUnitCount: 10)
+        progress.kind = .file
+        progress.fileOperationKind = .downloading
+        progress.fileURL = partial
+        progress.completedUnitCount = 1
+        let id = UUID()
+        observer.add(progress, id: id)
+        queue.sync {}
+        try FileManager.default.moveItem(at: partial, to: final)
+        progress.fileURL = final
+        progress.completedUnitCount = 10
+        observer.remove(id)
+        queue.sync {}
+        let completed = results.snapshot.updates.flatMap(\.1)
+        suite.expect(completed.count == 1 && completed.first?.url == final,
+                     "a valid publication completing before its first refresh preserves the arrival")
+    }
+
+    private static func sourceCompletion(folder: URL, suite: TestSuite) throws {
+        let root = folder.appendingPathComponent("source-completion")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-source")
+        let observer = NotchDownloadProgressObserver(folder: root, queue: queue) { _, _ in }
+        defer { observer.stop(); queue.sync {} }
+        let package = root.appendingPathComponent("archive.zip.download", isDirectory: true)
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        guard let partial = NotchDownloadSupport.scanFolder(root)?.partials[package.standardizedFileURL] else {
+            suite.expect(false, "the original Safari package is observed"); return
+        }
+        suite.expect(partial.source != nil && partial.resourceID == nil,
+                     "the wrapper identifies a transfer before its payload exists")
+        let progress = Progress(totalUnitCount: 10)
+        progress.kind = .file
+        progress.fileOperationKind = .downloading
+        progress.fileURL = package
+        let id = UUID()
+        observer.add(progress, id: id)
+        queue.sync {}
+        let extracted = root.appendingPathComponent("a different folder", isDirectory: true)
+        try FileManager.default.createDirectory(at: extracted, withIntermediateDirectories: false)
+        // Keep the old inode allocated while its path is reused below.
+        try FileManager.default.moveItem(at: package, to: root.appendingPathComponent("old-wrapper"))
+        suite.expect(!queue.sync { observer.didFinish(partial) },
+                     "a missing package is not successful while its publisher is still running")
+        progress.fileURL = extracted
+        progress.completedUnitCount = 10
+        suite.expect(queue.sync { observer.didFinish(partial) },
+                     "the native completion is visible before a queued refresh and ignores the extracted name")
+        observer.remove(id)
+        queue.sync {}
+        suite.expect(queue.sync { observer.didFinish(partial) },
+                     "unpublication retains the original transfer's completion for a pending scan")
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        guard let replacement = NotchDownloadSupport.scanFolder(root)?.partials[package.standardizedFileURL] else {
+            suite.expect(false, "a replacement package is observed"); return
+        }
+        suite.expect(replacement.source != partial.source && !queue.sync { observer.didFinish(replacement) },
+                     "reusing a download path cannot borrow the previous transfer's success")
+        let cancelled = Progress(totalUnitCount: 10)
+        cancelled.fileOperationKind = .downloading
+        cancelled.fileURL = package
+        let cancelledID = UUID()
+        observer.add(cancelled, id: cancelledID)
+        queue.sync {}
+        cancelled.completedUnitCount = 10
+        cancelled.cancel()
+        observer.remove(cancelledID)
+        queue.sync {}
+        suite.expect(!queue.sync { observer.didFinish(replacement) },
+                     "cancellation wins over a completed count and another transfer's success")
+        suite.expect(!queue.sync { observer.didFinish(partial, at: Date().addingTimeInterval(6)) },
+                     "completion evidence expires instead of accumulating indefinitely")
+        observer.stop()
+        suite.expect(!queue.sync { observer.didFinish(partial) },
+                     "a stopped observer cannot validate a delayed failure callback")
+    }
+
+    private static func queuedSourceReplacement(folder: URL, suite: TestSuite) throws {
+        let root = folder.appendingPathComponent("queued-source")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: false)
+        let package = root.appendingPathComponent("archive.zip.download", isDirectory: true)
+        try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        let queue = DispatchQueue(label: "com.vorssaint.tests.download-queued-source")
+        let observer = NotchDownloadProgressObserver(folder: root, queue: queue) { _, _ in }
+        defer { observer.stop(); queue.sync {} }
+        let progress = Progress(totalUnitCount: 10)
+        progress.fileOperationKind = .downloading
+        progress.fileURL = package
+        let id = UUID()
+        queue.suspend()
+        observer.add(progress, id: id)
+        let extracted = root.appendingPathComponent("old-wrapper", isDirectory: true)
+        do {
+            try FileManager.default.moveItem(at: package, to: extracted)
+            try FileManager.default.createDirectory(at: package, withIntermediateDirectories: false)
+        } catch { queue.resume(); throw error }
+        let replacement = NotchDownloadSupport.scanFolder(root)?.partials[package.standardizedFileURL]
+        progress.fileURL = extracted
+        progress.completedUnitCount = 10
+        observer.remove(id)
+        queue.resume()
+        queue.sync {}
+        suite.expect(replacement.map { partial in !queue.sync { observer.didFinish(partial) } } == true,
+                     "a publication ending behind a busy queue cannot adopt a replacement package's identity")
     }
 
     /// Safari 27 publishes progress on its .download folder from another
@@ -59,8 +177,10 @@ enum NotchDownloadProgressTests {
         observer.add(progress, id: UUID())
         suite.expect(results.wait() && results.snapshot.updates.last?.0.isEmpty == true,
                "a publication waits for its file URL instead of being judged without it")
-        progress.fileOperationKind = .downloading
         progress.fileURL = package
+        suite.expect(results.wait() && results.snapshot.updates.last?.0.isEmpty == true,
+               "a file URL arriving before the operation kind keeps waiting for that metadata")
+        progress.fileOperationKind = .downloading
         progress.completedUnitCount = 4
         suite.expect(results.wait(), "the file URL arriving after the publication refreshes it")
         let item = results.snapshot.updates.last?.0.first
