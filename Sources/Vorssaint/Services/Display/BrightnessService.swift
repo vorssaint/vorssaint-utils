@@ -238,6 +238,11 @@ final class BrightnessService: ObservableObject {
     /// last row so the panel still offers the button that brings it back.
     private var managedDisabledDisplays: [CGDirectDisplayID: BrightnessDisplay] = [:]
     private var running = false
+    /// The shared instance is created at launch, before any display work
+    /// (see `restoreDisplaysLeftOff`), so this is when the app started.
+    private let launchUptime = ProcessInfo.processInfo.systemUptime
+    /// Main thread only, like the rebuild results it reads.
+    private var launchBuiltInDisplayOff = BrightnessSupport.LaunchBuiltInDisplayOff()
     /// Permission reset removes only the two Accessibility event taps. The
     /// display routes, disabled-display journal and gamma state stay live so
     /// revoking permission cannot undo a user's current brightness setup.
@@ -2060,7 +2065,26 @@ final class BrightnessService: ObservableObject {
             }
             self.refreshKeyboardLight()
             self.syncKeyTap()
+            self.switchBuiltInDisplayOffAtLaunchIfWanted(drawableDisplayIDs: drawableIDs)
         }
+    }
+
+    /// Honours "Turn off built-in display at launch" from the first rebuilds
+    /// after the app starts. The switch goes through `toggleDisplay`, so it
+    /// takes the same last-display guard, journal and restoration on quit or
+    /// unplug as a click on the power button. Main thread only.
+    private func switchBuiltInDisplayOffAtLaunchIfWanted(drawableDisplayIDs: Set<CGDirectDisplayID>) {
+        guard launchBuiltInDisplayOff.armed else { return }
+        guard let id = launchBuiltInDisplayOff.target(
+            enabled: displaySwitchingAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.builtInDisplayOffAtLaunch),
+            elapsed: ProcessInfo.processInfo.systemUptime - launchUptime,
+            drawableDisplayIDs: drawableDisplayIDs,
+            builtInDisplayIDs: Set(displays.filter(\.isBuiltIn).map(\.id))),
+              let display = displays.first(where: { $0.id == id && $0.isActive })
+        else { return }
+        Self.log.log("switching built-in display \(id) off at launch beside an external display")
+        toggleDisplay(display)
     }
 
     // MARK: - Writes (work queue)

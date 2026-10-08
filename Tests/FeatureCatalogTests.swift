@@ -2409,6 +2409,42 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: [], managedDisabledIDs: [], builtInDisabledIDs: [1]).isEmpty,
                "a display disabled elsewhere is never changed during headless recovery")
+        // Built-in display 1, external displays 3 and 4.
+        var launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: true, elapsed: 1, drawableDisplayIDs: [1, 3],
+                                      builtInDisplayIDs: [1]) == 1,
+               "starting beside an external display switches the built-in panel off")
+        suite.expect(launchOff.target(enabled: true, elapsed: 2, drawableDisplayIDs: [1, 3],
+                                      builtInDisplayIDs: [1]) == nil,
+               "the launch request is spent once, so a panel turned back on stays on")
+        launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: true, elapsed: 1, drawableDisplayIDs: [1],
+                                      builtInDisplayIDs: [1]) == nil && launchOff.armed,
+               "the built-in panel alone is never switched off, and the request waits for a monitor")
+        suite.expect(launchOff.target(enabled: true, elapsed: 8, drawableDisplayIDs: [1, 4],
+                                      builtInDisplayIDs: [1]) == 1,
+               "a monitor that arrives shortly after launch still switches the built-in panel off")
+        launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: true,
+                                      elapsed: BrightnessSupport.LaunchBuiltInDisplayOff.window + 1,
+                                      drawableDisplayIDs: [1, 3], builtInDisplayIDs: [1]) == nil
+                        && !launchOff.armed,
+               "a monitor plugged in later in the session leaves the built-in panel alone")
+        launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: false, elapsed: 1, drawableDisplayIDs: [1, 3],
+                                      builtInDisplayIDs: [1]) == nil && !launchOff.armed,
+               "with the option off, launch never changes a display")
+        launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: true, elapsed: 1, drawableDisplayIDs: [3, 4],
+                                      builtInDisplayIDs: [1]) == nil && !launchOff.armed,
+               "a closed lid or a panel already off is left as it is")
+        launchOff = BrightnessSupport.LaunchBuiltInDisplayOff()
+        suite.expect(launchOff.target(enabled: true, elapsed: 1, drawableDisplayIDs: [3, 4],
+                                      builtInDisplayIDs: []) == nil,
+               "a Mac without a built-in panel never switches an external display off")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.builtInDisplayOffAtLaunch] as? Bool == false
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.builtInDisplayOffAtLaunch),
+               "switching the built-in panel off at launch is opt-in and travels with settings backup")
         // CoreGraphics runs a reconfiguration's callbacks inline on the driving
         // thread, and in this process those callbacks are AppKit's, so the
         // transaction belongs to the main thread. Getting it wrong hangs the

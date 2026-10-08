@@ -271,6 +271,37 @@ enum BrightnessSupport {
         return builtIn.sorted() + managedDisabledIDs.subtracting(builtIn).sorted()
     }
 
+    /// Switches the built-in panel off once per launch when the app starts
+    /// beside an external display. A monitor behind a dock can arrive a few
+    /// seconds after login, so the request waits for one through a short
+    /// window instead of deciding from the very first display list. It is
+    /// spent the first time an external display is seen: after that the
+    /// panel's state is the person's, and plugging a monitor in later in the
+    /// session never takes the built-in display away.
+    struct LaunchBuiltInDisplayOff {
+        static let window: TimeInterval = 60
+        private(set) var armed = true
+
+        /// The built-in display to switch off now, if any. `elapsed` is the
+        /// time since launch; `drawableDisplayIDs` and `builtInDisplayIDs`
+        /// come from the same rebuild.
+        mutating func target(enabled: Bool, elapsed: TimeInterval,
+                             drawableDisplayIDs: Set<UInt32>,
+                             builtInDisplayIDs: Set<UInt32>) -> UInt32? {
+            guard armed else { return nil }
+            guard enabled, elapsed >= 0, elapsed <= Self.window else {
+                armed = false
+                return nil
+            }
+            guard !drawableDisplayIDs.subtracting(builtInDisplayIDs).isEmpty else { return nil }
+            armed = false
+            // Lid closed or already off: nothing is showing on the panel.
+            return drawableDisplayIDs.intersection(builtInDisplayIDs).sorted().first {
+                canDisableDisplay(drawableDisplayIDs: drawableDisplayIDs, target: $0)
+            }
+        }
+    }
+
     // MARK: - Software dimming (gamma curve)
 
     /// Displays with no DDC channel are dimmed in the video pipeline instead:

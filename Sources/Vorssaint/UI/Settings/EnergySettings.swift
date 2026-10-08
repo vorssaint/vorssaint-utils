@@ -20,6 +20,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
+    @AppStorage(DefaultsKey.builtInDisplayOffAtLaunch) private var builtInDisplayOffAtLaunch = false
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
@@ -324,6 +325,14 @@ struct EnergySettings: View {
                 }
                 DisclosureGroup(isExpanded: $brightnessOptionsExpanded) {
                     VStack(alignment: .leading, spacing: 13) {
+                        if brightness.displaySwitchingAvailable,
+                           brightness.displays.contains(where: \.isBuiltIn) {
+                            SettingsRow(symbol: "laptopcomputer.slash", title: strings.builtInOffAtLaunch,
+                                        caption: strings.builtInOffAtLaunchCaption) {
+                                Toggle(strings.builtInOffAtLaunch, isOn: $builtInDisplayOffAtLaunch)
+                                    .labelsHidden()
+                            }
+                        }
                         SettingsRow(symbol: "cursorarrow.rays", title: strings.keysToggle,
                                     caption: strings.keysCaption) {
                             Toggle(strings.keysToggle, isOn: $brightnessKeysEnabled)

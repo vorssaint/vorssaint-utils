@@ -201,6 +201,7 @@ enum DefaultsKey {
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
     static let brightnessKeyStep = "brightnessKeyStep" // BrightnessSupport.KeyStep raw value
+    static let builtInDisplayOffAtLaunch = "builtInDisplayOffAtLaunch" // switch the built-in panel off when the app starts beside an external display
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
     static let displayBrightnessIncreaseShortcut = "displayBrightnessIncreaseShortcut"
@@ -1276,6 +1277,7 @@ enum Defaults {
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,
+        DefaultsKey.builtInDisplayOffAtLaunch: false,
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
         DefaultsKey.displayBrightnessIncreaseShortcut: "shift+command:24",
