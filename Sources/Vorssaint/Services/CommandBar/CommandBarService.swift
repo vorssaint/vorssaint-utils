@@ -471,6 +471,10 @@ final class CommandBarService: ObservableObject {
                 // through Core Animation, which a busy main thread cannot hold
                 // back the way it holds a window's own alpha steps.
                 panel.alphaValue = 1
+                // Seen now, it takes the keyboard again as the window bar does
+                // once it shows, in case anything took it while the drop fell.
+                panel.makeKey()
+                self.focusField(in: panel)
                 guard fade > 0, let layer = panel.contentView?.layer else { return }
                 let appear = CABasicAnimation(keyPath: "opacity")
                 appear.fromValue = 0
