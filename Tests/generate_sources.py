@@ -64,6 +64,12 @@ def main():
                     for prefix in ["    private func refreshLaunchAtLogin()",
                                    "    private func setLaunchAtLogin("])
           + "}\n")
+    cleaner_view = "Sources/Vorssaint/UI/Cleaner/CleanerView.swift"
+    write("CleanerLayout.swift", "import SwiftUI\nextension CleanerLayoutTests.Results {\n"
+          + "".join(declaration(cleaner_view, prefix).replace("    private ", "    @ViewBuilder\n    ", 1)
+                    for prefix in ["    private var resultsState:", "    private var resultsGroups:",
+                                   "    private func section("])
+          + "}\n")
     write("NotchActivityPicker.swift", "import SwiftUI\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchShape: Shape {")
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "struct NotchActivityPicker: View {"))
@@ -606,6 +612,9 @@ def main():
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchActivationButton:"))
     write("NotchPanel.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchWindowHost.swift", "final class NotchPanel:"))
+    write("QuickTogglesAlert.swift", "import AppKit\nextension QuickTogglesAlertTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "    func emptyTrash()")
+          + "}\n}\n")
     write("OverlayPanelDeclaration.swift", "import AppKit\n"
           + declaration("Sources/Vorssaint/UI/OverlayPanel.swift", "class OverlayPanel:"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
@@ -928,10 +937,20 @@ def main():
     settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
     text_inset = next(line for line in (ROOT / settings_card).read_text().splitlines()
                       if line.startswith("let settingsRowTextInset:"))
+    # The Features page's wording and route live outside the tests, so the
+    # row's copy speaks the feature's name and goes nowhere.
+    feature_row = declaration(settings_card, "struct SettingsFeatureSwitchRow")
+    for call, stand_in in [("feature.enableReason(l10n)", "feature.rawValue"), ("feature.showInFeatures()", "_ = feature")]:
+        if call not in feature_row:
+            raise ValueError(f"Expected {call!r} in SettingsFeatureSwitchRow")
+        feature_row = feature_row.replace(call, stand_in)
     write("NotchSettingsChoice.swift", "import SwiftUI\n" + text_inset + "\n\nextension NotchSettingsChoiceTests {\n"
           + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
+          + "final class FeatureRuntime: ObservableObject {\nstatic let shared = FeatureRuntime()\nvar installed = true\n"
+          + "func isAvailable(_ feature: AppFeature) -> Bool { installed }\n}\n"
           + declaration(settings_card, "struct SettingsCard<")
           + declaration(settings_card, "struct SettingsRow<")
+          + feature_row
           + declaration(settings_card, "struct SettingsChoiceRow<")
           + declaration(settings_card, "struct SettingsMenuRow<")
           + "struct Destination: View {\nlet language: AppLanguage\nlet title: String\n"
