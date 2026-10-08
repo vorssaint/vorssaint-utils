@@ -193,6 +193,18 @@ enum RecorderFeatureTests {
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudioTapVerified)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSystemAudio),
                "the tap grant this Mac gave stays out of the backup while the sound choice travels")
+        // A listener block handed back for removal can keep firing. Plain
+        // callbacks use numeric clients that are forgotten on every way out.
+        let systemAudioTapSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!systemAudioTapSource.isEmpty,
+               "the system audio tap source reads back for its shape check")
+        suite.expect(!systemAudioTapSource.contains("PropertyListenerBlock"),
+               "the system audio tap never listens with a block it cannot remove")
+        suite.expect(systemAudioTapSource.components(separatedBy: "Self.removeListener(deviceListenerClient, from:").count - 1 == 2
+                && systemAudioTapSource.components(separatedBy: "Self.removeListener(rateListenerClient, from:").count - 1 == 2,
+               "the tap gives back its output listener on stop and deinit, and its rate listener with each aggregate and on deinit")
         // The tap's mixdown keeps a quarter of what plays on an eight channel
         // output, and the recorder turns its copy of the samples back up.
         var restored: [Float] = [0.1, -0.2, 0.05, 0.6]

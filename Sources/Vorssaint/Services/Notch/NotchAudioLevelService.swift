@@ -649,15 +649,18 @@ private final class NotchAudioRing {
     private var head = 0
     private var filled = 0
     private var peak: Float = 0
+    private var heard = false
     private let capacity: Int
 
     /// Whether any sample so far, turned up by `gain`, carried sound rather
     /// than digital silence. The gain is what the tap's mixdown took, so a
-    /// quiet player on a wide output is not written off as silent.
+    /// quiet player on a wide output is not written off as silent. Once
+    /// heard, a lower correction must not undo that proof of sound.
     func hasHeard(gain: Float) -> Bool {
         lock.lock()
         defer { lock.unlock() }
-        return peak * gain > 0.001
+        if peak * gain > 0.001 { heard = true }
+        return heard
     }
 
     init(capacity: Int) {

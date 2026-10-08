@@ -2466,12 +2466,15 @@ final class LevelCompensationWatch {
             guard let client else { return }
             let changes = MixerRoutingSupport.listenerChanges(listened: Set(listenedObjects),
                                                               wanted: Set(current))
-            for object in changes.remove {
+            listenedObjects.removeAll { object in
+                guard changes.remove.contains(object) else { return false }
                 var address = Self.address
-                // A process that already quit took its listener with it.
-                AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
+                let status = AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
+                // A process that quit took its listener with it. Any other
+                // failure stays tracked, so stop cannot release a client
+                // the HAL may still call.
+                return status == noErr || status == kAudioHardwareBadObjectError
             }
-            listenedObjects.removeAll { changes.remove.contains($0) }
             for object in changes.add {
                 var address = Self.address
                 if AudioObjectAddPropertyListener(object, &address, Self.listener, client) == noErr {

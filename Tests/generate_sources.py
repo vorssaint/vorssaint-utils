@@ -451,6 +451,16 @@ def main():
     write("MixerInputVolume.swift", "import Foundation\nimport Combine\nimport CoreAudio\nimport AudioToolbox\n"
           + "extension MixerInputVolumeContract {\n" + input_bodies + "}\n")
     mixer = "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift"
+    level_watch = declaration(mixer, "final class LevelCompensationWatch {").replace("private ", "")
+    for operation in ("AddPropertyListener", "RemovePropertyListener"):
+        level_watch = level_watch.replace("AudioObject" + operation + "(", "HAL." + operation + "(")
+    write("MixerLevelCompensation.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension MixerLevelCompensationContract {\n" + level_watch + "}\n")
+    write("NotchAudioRing.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension NotchAudioRingContract {\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",
+                        "private final class NotchAudioRing {").replace("private final class", "final class", 1)
+          + "}\n")
     write("SoundOutputSwitch.swift", "import Foundation\n"
           + "extension SoundOutputSwitchContract {\nfinal class Mixer {\n"
           + "var outputDevices: [Device] = []\nvar currentOutputDeviceUID: String?\nvar switchedTo: [String] = []\n"

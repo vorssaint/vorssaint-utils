@@ -103,6 +103,10 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// that hosts a tap is always gone before the tap itself.
     private static let teardownQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.teardown",
                                                      qos: .utility)
+    /// The global listener must not wait behind a device destruction that
+    /// can remain stuck for the rest of the session.
+    private static let listenerQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.listeners",
+                                                     qos: .utility)
 
     /// The tap, or nothing when the audio system refuses one.
     static func make() async -> RecorderSystemAudioTap? {
@@ -137,7 +141,8 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     }
 
     deinit {
-        let tapID = self.tapID
+        // A stopped tap's ID may already belong to another tap.
+        let tapID = stopped ? 0 : self.tapID
         let aggregateID = self.aggregateID
         let ioProc = self.ioProc
         levelWatch?.stop()
@@ -335,18 +340,22 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         guard let tap = AudioListenerClients.owner(of: client) as? RecorderSystemAudioTap else {
             return noErr
         }
-        tap.queue.async { tap.rebuildPipelineIfChanged() }
+        tap.queue.async { [weak tap] in tap?.rebuildPipelineIfChanged() }
         return noErr
     }
 
     /// Forgets the client at once, so a callback on its way finds nothing,
-    /// and gives the registration back on the teardown queue, where a wedged
-    /// HAL holds nothing up, ahead of the device it listens to.
+    /// and gives the global registration back independently of device
+    /// destruction. A rate listener still goes on the teardown queue ahead
+    /// of the aggregate it listens to.
     private static func removeListener(_ client: UnsafeMutableRawPointer?, from object: AudioObjectID,
                                        _ selector: AudioObjectPropertySelector) {
         guard let client else { return }
         AudioListenerClients.forget(client)
-        teardownQueue.async {
+        let removalQueue = object == AudioObjectID(kAudioObjectSystemObject)
+            ? listenerQueue
+            : teardownQueue
+        removalQueue.async {
             var address = Self.address(selector)
             AudioObjectRemovePropertyListener(object, &address, Self.pipelineDeviceChanged, client)
         }
