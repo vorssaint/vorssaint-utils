@@ -357,7 +357,9 @@ enum NotchWatchSupport {
         return (window.id, inside.offsetBy(dx: -window.bounds.minX, dy: -window.bounds.minY))
     }
 
-    private static let percentPattern = #"[-+]?\d{1,3}(?:[.,]\d+)?\s?%"#
+    // The whole number before the sign, as numberPattern reads one: three
+    // digits at most cut 1250% down to 250%, and a typeset minus was dropped.
+    private static let percentPattern = #"[-+−]?\d(?:[\d.,]*\d)?\s?%"#
     private static let clockPattern = #"\b\d{1,2}:\d{2}(?::\d{2})?\b"#
     private static let amountPattern = #"[-+]?\d[\d.,]*(?:\s?[A-Za-z]{1,3}\b)?"#
     private static let numberPattern = #"[-+−]?\d[\d.,]*\d|[-+−]?\d"#

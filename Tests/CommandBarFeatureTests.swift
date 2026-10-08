@@ -126,6 +126,10 @@ enum CommandBarFeatureTests {
         suite.expect(math("2026-07-27") == nil && math("27/07/2026") == nil && math("10:30") == nil,
                "a date or a time is never answered as a sum")
         suite.expect(math("100-50") == "50", "two numbers around a minus are still a subtraction")
+        suite.expect(math("100 - 20 - 30") == "50" && math("2 - 1 - 1") == "0" && math("8 / 2 / 2") == "2",
+               "three numbers spaced apart are a sum, since no date is written that way")
+        suite.expect(math("10-5-3") == nil && math("8/2/2") == nil && math("10 : 30") == nil,
+               "the unspaced shapes that can be a date, and a spaced time, are still left alone")
         suite.expect(math("SDL_VIDEODRIVER=") == nil && math("x=5") == nil,
                "an assignment shape is not an expression")
         suite.expect(math("7+3=") == "10", "a trailing equals sign is just habit")
@@ -1226,7 +1230,8 @@ enum CommandBarFeatureTests {
                 && !pageVisible(.commandBar, available: []),
                "the command bar page follows its hub switch")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarUsage)
-                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarQueryHabits),
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarQueryHabits)
+                && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarQueryHabitKey),
                "what the person runs most never travels in a backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcutEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarShortcut)
@@ -2169,17 +2174,6 @@ enum CommandBarFeatureTests {
         suite.expect(habitStoreCache.store == queryHabits,
                "reloading preferences replaces the decoded store with persisted learning")
 
-        let sessionQuery = CommandBarQueryHabits.prepare("session choice")
-        let sessionChoices = CommandBarQueryHabits.recording(
-            [:], preparedQuery: sessionQuery, resultID: "app.session", now: barNow)
-        suite.expect(!sessionQuery.isEmpty && CommandBarQueryHabits.boost(
-            for: "app.session", preparedQuery: CommandBarQueryHabits.prepare("session choice"),
-            store: sessionChoices, now: barNow) > 0,
-            "query learning works immediately within the process without loading a stored key")
-        suite.expect(CommandBarQueryHabits.boost(
-            for: "app.session", preparedQuery: CommandBarQueryHabits.prepare("session choice", key: habitKey),
-            store: sessionChoices, now: barNow) == 0,
-            "a different session key cannot reuse past query learning")
         let completedEmoji = CommandBarCompletion.completedQuery(
             current: ":fire", title: "🔥  fire", matchTitle: "fire")
         suite.expect(completedEmoji == ":fire"
@@ -2210,17 +2204,49 @@ enum CommandBarFeatureTests {
 
         let learningDefaultsName = "com.vorssaint.tests.command-bar-learning"
         let learningDefaults = UserDefaults(suiteName: learningDefaultsName)!
+        learningDefaults.removePersistentDomain(forName: learningDefaultsName)
+        let firstInstallationKey = CommandBarLearning.installationKey(in: learningDefaults)
+        let savedChoice = CommandBarQueryHabits.recording(
+            [:], preparedQuery: CommandBarQueryHabits.prepare("wa", key: firstInstallationKey),
+            resultID: "app.whatsapp", now: barNow)
+        learningDefaults.set(CommandBarQueryHabits.encode(savedChoice),
+                             forKey: DefaultsKey.commandBarQueryHabits)
+        let reloadedKey = CommandBarLearning.installationKey(in: learningDefaults)
+        let reloadedChoice = CommandBarQueryHabits.decode(
+            learningDefaults.string(forKey: DefaultsKey.commandBarQueryHabits))
+        suite.expect(reloadedKey == firstInstallationKey
+                && CommandBarQueryHabits.boost(
+                    for: "app.whatsapp",
+                    preparedQuery: CommandBarQueryHabits.prepare("wa", key: reloadedKey),
+                    store: reloadedChoice, now: barNow) > 0,
+               "a chosen app keeps its search priority after loading preferences again")
+        let savedEmoji = CommandBarQueryHabits.recording(
+            reloadedChoice,
+            preparedQuery: CommandBarQueryHabits.prepare("thumb", key: reloadedKey),
+            resultID: "emoji.👍", now: barNow)
+        learningDefaults.set(CommandBarQueryHabits.encode(savedEmoji),
+                             forKey: DefaultsKey.commandBarQueryHabits)
+        suite.expect(CommandBarQueryHabits.boost(
+                    for: "emoji.👍",
+                    preparedQuery: CommandBarQueryHabits.prepare(
+                        "thumb", key: CommandBarLearning.installationKey(in: learningDefaults)),
+                    store: CommandBarQueryHabits.decode(
+                        learningDefaults.string(forKey: DefaultsKey.commandBarQueryHabits)),
+                    now: barNow) > 0,
+               "a chosen emoji keeps its search priority after loading preferences again")
         learningDefaults.set("usage", forKey: DefaultsKey.commandBarUsage)
-        learningDefaults.set("habits", forKey: DefaultsKey.commandBarQueryHabits)
-        CommandBarLearning.discardLegacyQueryHabits(in: learningDefaults)
-        suite.expect(learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil
-                && learningDefaults.string(forKey: DefaultsKey.commandBarUsage) == "usage",
-               "migration drops legacy query history while preserving general usage ranking")
-        learningDefaults.set("habits", forKey: DefaultsKey.commandBarQueryHabits)
         CommandBarLearning.forgetAll(in: learningDefaults)
         suite.expect(learningDefaults.object(forKey: DefaultsKey.commandBarUsage) == nil
-                && learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil,
+                && learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil
+                && learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabitKey) != nil,
                "forgetting all learned use clears usage and query choices together")
+        learningDefaults.set("invalid", forKey: DefaultsKey.commandBarQueryHabitKey)
+        learningDefaults.set(CommandBarQueryHabits.encode(savedChoice),
+                             forKey: DefaultsKey.commandBarQueryHabits)
+        let replacementKey = CommandBarLearning.installationKey(in: learningDefaults)
+        suite.expect(replacementKey.count == 32 && replacementKey != firstInstallationKey
+                && learningDefaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil,
+               "an invalid local key discards digests that can no longer be matched")
         learningDefaults.removePersistentDomain(forName: learningDefaultsName)
 
         let barSuggestions = CommandBarUsage.suggestionIDs(

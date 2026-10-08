@@ -141,6 +141,7 @@ enum SettingsBackupSupport {
         // What one person runs most is habit, not configuration.
         DefaultsKey.commandBarUsage,
         DefaultsKey.commandBarQueryHabits,
+        DefaultsKey.commandBarQueryHabitKey,
         // A chosen folder is authority on one Mac, not portable configuration.
         // Restoring it elsewhere could search a different volume or trigger a
         // protected-folder prompt without a fresh choice.
@@ -161,6 +162,8 @@ enum SettingsBackupSupport {
         DefaultsKey.orphanedCaptureShortcutMigrated,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
+        DefaultsKey.clipboardHistoryWindowWidth,
+        DefaultsKey.clipboardHistoryWindowHeight,
         // The last magnifier level is session history; its remembered/default
         // policy remains portable, but another Mac need not inherit the value.
         DefaultsKey.screenshotLoupeLastZoom,
