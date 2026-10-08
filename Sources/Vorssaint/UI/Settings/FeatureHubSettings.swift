@@ -982,6 +982,16 @@ private struct PermissionPortalRow: View {
 // MARK: - Titles, descriptions and permission names
 
 extension AppFeature {
+    /// What an option that needs this feature says while it is uninstalled.
+    func enableReason(_ l10n: L10n) -> String {
+        FeatureStrings.notchEditor(l10n.language).enableFeature(hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
+    }
+
+    /// Features, at this feature, for an option that needs it.
+    func showInFeatures() {
+        SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: self)
+    }
+
     /// Titles reuse the strings users already see across the app; only names
     /// with no clean existing form live in the hub strings.
     func hubTitle(_ s: Strings, hub: FeatureHubStrings) -> String {

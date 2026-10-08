@@ -92,7 +92,7 @@ struct NotchMascotSettings: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(text.livesInIsland)
                 if !installed {
-                    Text(editor.enableFeature(notch.title)).font(.caption).foregroundStyle(.secondary)
+                    Text(AppFeature.notch.enableReason(l10n)).font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 12)
@@ -102,9 +102,7 @@ struct NotchMascotSettings: View {
                     NotchService.shared.syncWithPreferences()
                 }
             } else {
-                Button(editor.openFeatures) {
-                    SettingsRouter.shared.request(FeatureSettingsDestination(.features), targetFeature: .notch)
-                }
+                Button(editor.openFeatures) { AppFeature.notch.showInFeatures() }
             }
         }
         .padding(12)
@@ -232,11 +230,8 @@ struct NotchMascotSettings: View {
         let available = features.isAvailable(.commandBar)
         let bar = FeatureStrings.commandBar(l10n.language)
         return SettingsCard(title: bar.pageTitle) {
-            switchRow("command", text.commandBar,
-                      caption: available ? text.commandBarHint
-                        : editor.enableFeature(AppFeature.commandBar.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language))),
-                      isOn: Binding(get: { available && commandBar }, set: { commandBar = $0 }))
-                .disabled(!available)
+            SettingsFeatureSwitchRow(symbol: "command", title: text.commandBar, caption: text.commandBarHint,
+                                     isOn: $commandBar, feature: .commandBar)
             if available, commandBar {
                 SettingsRow(symbol: "drop", title: text.opensAs) { EmptyView() }
                     .transition(.opacity)

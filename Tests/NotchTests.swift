@@ -671,22 +671,37 @@ enum NotchTests {
         }
     }
 
-    /// The menu bar under a camera can be a point taller than the cutout.
-    /// Every closed strip follows the cutout, or a dark line shows under it.
+    /// Cover the menu bar even when it ends below the camera's safe area.
     private static func physicalStripContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
-        for barHeight: CGFloat in [24, 32, 33, 37, 40, 64] {
-            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
-                                         menuBarHeight: barHeight, compactSideRoom: 100)
-            let strips = [geometry.restingSize(showsContent: true), geometry.collapsed, geometry.notice,
-                          geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
-                          geometry.compactTimerGeometry(showsDownloads: true).compactActivitySize]
-            for size in strips {
-                suite.expect(size.height == geometry.cameraHeight && size.height == geometry.stripHeight,
-                       "a strip beside a physical camera is exactly as tall as the cutout")
+        for safeTop: CGFloat in [24, 32, 37.5, 40] {
+            for barHeight: CGFloat in [24, 32, 33, 37, 38, 40, 64] {
+                let geometry = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
+                                             menuBarHeight: barHeight, compactSideRoom: 100)
+                let strips = [geometry.restingSize(showsContent: false), geometry.restingSize(showsContent: true),
+                              geometry.collapsed, geometry.bareCutout, geometry.notice,
+                              geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
+                              geometry.compactTimerGeometry(showsDownloads: true).compactActivitySize]
+                for size in strips {
+                    suite.expect(size.height == max(safeTop, barHeight) && size.height == geometry.stripHeight
+                           && geometry.frame(for: size).minY <= screen.maxY - barHeight,
+                           "every physical strip covers the bar's bottom edge without leaving a wallpaper seam")
+                }
+                suite.expect(geometry.menuBarHeight == max(safeTop, barHeight),
+                       "the bar's own height remains available for measuring menu space")
+                let original = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
+                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: false)
+                suite.expect(original.collapsed.height == safeTop && original.bareCutout.height == safeTop
+                       && original.menuBarHeight == max(safeTop, barHeight),
+                       "turning gap hiding off restores the physical cutout height without losing the measured menu bar")
             }
-            suite.expect(geometry.menuBarHeight == max(32, barHeight),
-                   "the bar's own height remains available for measuring menu space")
+        }
+        for silhouette in NotchSilhouette.allCases {
+            let enabled = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
+                                        silhouette: silhouette, hideMenuBarGap: true)
+            let disabled = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0,
+                                         silhouette: silhouette, hideMenuBarGap: false)
+            suite.expect(enabled == disabled, "gap hiding leaves simulated notches and floating capsules unchanged")
         }
         let closed = NotchLayout.surfaceRadius(height: 32)
         suite.expect(closed >= 8 && closed <= 12 && NotchLayout.shoulder(height: 32) >= 5 && NotchLayout.shoulder(height: 32) <= 8,
@@ -711,14 +726,14 @@ enum NotchTests {
         let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                    menuBarHeight: 33, compactSideRoom: 100,
                                    cameraFit: NotchCameraFit(width: 2, height: 0.5))
-        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 32,
-               "without a fit the island matches the housing macOS reports")
-        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 32.5,
-               "a fit widens and lengthens the camera housing the island covers")
+        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 33,
+               "without a fit the island covers the housing and reaches the measured menu bar's bottom")
+        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 33.5,
+               "a fit widens and lengthens the island after matching the menu bar")
         let strips = [fitted.restingSize(showsContent: false), fitted.restingSize(showsContent: true), fitted.collapsed,
                       fitted.notice, fitted.noticeSize(wingWidth: 190), fitted.compactMusicGeometry.compactActivitySize,
                       fitted.compactTimerGeometry(showsDownloads: true).compactActivitySize]
-        suite.expect(strips.allSatisfy { $0.height == 32.5 && $0.height == fitted.stripHeight },
+        suite.expect(strips.allSatisfy { $0.height == 33.5 && $0.height == fitted.stripHeight },
                "every strip beside the camera, the volume and brightness notice included, follows the fitted height")
         suite.expect(fitted.restingSize(showsContent: false).width == 181
                && fitted.noticeCameraGap == 181 && fitted.musicCameraGap == 181,
@@ -781,10 +796,10 @@ enum NotchTests {
         let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                      menuBarHeight: 33, compactSideRoom: 100, outline: true)
         suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
-               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
+               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 33 + room),
                "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
         suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
-                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
+                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 33 + room },
                "every strip beside the camera keeps its line clear of the housing")
         suite.expect(!outlined.hasSameMenuBar(as: bare), "turning the outline on measures the menus again for the wider island")
         suite.expect(outlined.bareCutout == bare.restingSize(showsContent: false)
@@ -1166,6 +1181,8 @@ enum NotchTests {
                "a new island starts spacious and opens by click")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
+        suite.expect(defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
+                     "the island hides the gap below a physical notch by default")
         suite.expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
                "hover activation defaults to a deliberate quarter-second pause")
         for value in [0.10, 0.25, 0.65, 1.0] {
@@ -1226,6 +1243,49 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.notchTimer.availabilityKey)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
                "reinstalled utilities return to their original positions")
+        defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions == [.explore, .module(.timer), .settings, .module(.mixer)],
+               "a section switched off takes its button out of the island")
+        var held = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
+        let incoming = NotchQuickButton(action: .control(.panel), side: .right)
+        held.buttons.append(incoming)
+        held.move(incoming.id, to: .left)
+        suite.expect(!held.hasRoom(on: .left) && held.buttons.first(where: { $0.id == incoming.id })?.side == .right
+               && held.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.music), .settings],
+               "a hidden button keeps its place, so a side it fills takes no other")
+        var reordered = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
+        let ids = reordered.buttons.map(\.id)
+        let swapped = reordered.reorder(ids[2], by: -1)
+        let pastTheTop = reordered.reorder(ids[0], by: -1)
+        suite.expect(swapped && !pastTheTop && reordered.actions == [.explore, .settings, .module(.music)],
+               "moving a button swaps it with its neighbour, hidden or not, and a move past either end changes nothing")
+        let savedIdle = defaults.object(forKey: DefaultsKey.notchIdleContent)
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(!NotchSupport.canRest(with: .music, in: defaults) && NotchSupport.idleContent(in: defaults) == .none
+               && defaults.string(forKey: DefaultsKey.notchIdleContent) == NotchIdleContent.music.rawValue,
+               "a resting choice whose section is off waits, still chosen, while the island rests empty")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
+               "a section switched back on returns its button to its place")
+        suite.expect(NotchSupport.canRest(with: .music, in: defaults) && NotchSupport.idleContent(in: defaults) == .music,
+               "the island rests with a waiting choice again once its section is back")
+        let saved = [DefaultsKey.notchEnabled, AppFeature.notchAgents.availabilityKey, DefaultsKey.notchAgentsEnabled,
+                     AppFeature.monitorPower.availabilityKey].map { ($0, defaults.object(forKey: $0)) }
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: AppFeature.notchAgents.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(NotchSupport.canRest(with: .agents, in: defaults) && NotchSupport.idleContent(in: defaults) == .agents,
+               "the island's own switch leaves an AI resting choice as it is")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        suite.expect(!NotchSupport.canRest(with: .agents, in: defaults) && NotchSupport.idleContent(in: defaults) == .none,
+               "an AI resting choice waits while its section is off, and the island rests empty meanwhile")
+        defaults.set(false, forKey: AppFeature.monitorPower.availabilityKey)
+        defaults.set(NotchIdleContent.battery.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(!NotchSupport.canRest(with: .battery, in: defaults) && NotchSupport.idleContent(in: defaults) == .none,
+               "a battery resting choice waits while power monitoring is uninstalled")
+        for (key, value) in saved { defaults.set(value, forKey: key) }
+        defaults.set(savedIdle, forKey: DefaultsKey.notchIdleContent)
         defaults.set("right", forKey: DefaultsKey.notchQuickAccessSide)
         suite.expect(NotchQuickAccessConfiguration.stored(in: defaults) == .init(side: .right, actions: [.explore, .settings]),
                "a saved legacy side retains the former Settings companion")
@@ -1517,7 +1577,7 @@ enum NotchTests {
         suite.expect(NotchEvent.allCases.allSatisfy { !NotchSupport.routes($0, in: defaults) },
                "hub removal gates every notch event")
 
-        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
+        let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchHideMenuBarGap, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
@@ -1537,6 +1597,7 @@ enum NotchTests {
                                                 DefaultsKey.notchCustomWidth: 390.0,
                                                 DefaultsKey.notchCustomHeight: 580.0,
                                                 DefaultsKey.notchOutlineEnabled: true,
+                                                DefaultsKey.notchHideMenuBarGap: false,
                                                 DefaultsKey.notchHapticFeedback: true,
                                                 DefaultsKey.notchIncludeOtherPlayers: true,
                                                 DefaultsKey.notchHiddenModules: "clipboard",
@@ -1553,9 +1614,10 @@ enum NotchTests {
                && restored?[DefaultsKey.notchCustomWidth] as? Double == 390
                && restored?[DefaultsKey.notchCustomHeight] as? Double == 580
                && restored?[DefaultsKey.notchOutlineEnabled] as? Bool == true
+               && restored?[DefaultsKey.notchHideMenuBarGap] as? Bool == false
                && restored?[DefaultsKey.notchHapticFeedback] as? Bool == true
                && restored?[DefaultsKey.notchIncludeOtherPlayers] as? Bool == true,
-               "backup restores custom dimensions, outline, haptics and playback scope together")
+               "backup restores custom dimensions, outline, gap hiding, haptics and playback scope together")
         suite.expect(restored?[DefaultsKey.notchQuickAccessSide] as? String == "right"
                && restored?[DefaultsKey.notchQuickAccessSecond] as? String == "timer"
                && restored?[DefaultsKey.notchQuickAccessThird] as? String == "settings",
@@ -1650,8 +1712,10 @@ enum NotchTests {
         suite.expect(layout.buttons.first(where: { $0.id == placements[0].id })?.side == .bottom
                && layout.buttons.filter { $0.side == .bottom }.map(\.id) == [placements[0].id, placements[2].id],
                "moving a button preserves its identity and inserts it in the chosen order")
-        let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) }).sanitized()
-        suite.expect(crowded.buttons.count == 3, "restored layouts cannot overfill an edge")
+        let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
+        defaults.set(crowded.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(crowded.sanitized().buttons.count == 3 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 3,
+               "restored layouts cannot overfill an edge")
         var invalidButton = NotchQuickButton(action: .settings, side: .left, label: "  Name\nwith line  ")
         invalidButton.actionID = "unrecognized-action"
         suite.expect(NotchQuickAccessConfiguration(buttons: [invalidButton]).sanitized().buttons.isEmpty,
