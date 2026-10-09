@@ -115,5 +115,13 @@ enum NotchSpotifyTests {
             suite.expect(strings.count == 22 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                          "Spotify strings are complete in \(language.rawValue)")
         }
+        typealias Like = NotchAppleMusicLikeSupport
+        suite.expect(Like.state(in: "true\n") == true && Like.state(in: " false ") == false
+                     && Like.state(in: "unavailable") == nil && Like.state(in: "") == nil && Like.state(in: "missing value") == nil,
+                     "only a plain true or false is an Apple Music favorite state")
+        suite.expect(Like.readScript.contains("is running") && Like.writeScript(true).contains("is running")
+                     && Like.writeScript(false).contains("favorited of current track to false")
+                     && Like.writeScript(true).contains(Like.bundleIdentifier),
+                     "the favorite scripts never open a closed Music and address it by bundle")
     }
 }
