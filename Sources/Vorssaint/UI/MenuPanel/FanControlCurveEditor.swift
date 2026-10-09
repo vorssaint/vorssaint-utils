@@ -28,6 +28,7 @@ struct FanControlCurveEditor: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
+                .pointingHandCursor()
                 .disabled(disabled)
             }
         }
@@ -46,6 +47,7 @@ struct FanControlCurveEditor: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .controlSize(.small)
+                .pointingHandCursor()
                 .disabled(disabled)
 
                 Spacer(minLength: 4)
@@ -66,6 +68,7 @@ struct FanControlCurveEditor: View {
                     .foregroundStyle(.secondary)
                     .help(strings.removeSensor)
                     .accessibilityLabel(strings.removeSensor)
+                    .pointingHandCursor()
                     .disabled(disabled)
                 }
             }
@@ -98,6 +101,7 @@ struct FanControlCurveEditor: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.mini)
+                .pointingHandCursor()
                 .disabled(disabled)
             }
         }
@@ -116,6 +120,7 @@ struct FanControlCurveEditor: View {
                 .labelsHidden()
                 .controlSize(.mini)
                 .accessibilityValue(formattedTemperature(Double(point.temperature)))
+                .pointingHandCursor()
                 .disabled(disabled)
 
             Spacer(minLength: 4)
@@ -131,6 +136,7 @@ struct FanControlCurveEditor: View {
                 .labelsHidden()
                 .controlSize(.mini)
                 .accessibilityValue("\(point.coolingLevel)%")
+                .pointingHandCursor()
                 .disabled(disabled)
 
             Button {
@@ -146,6 +152,7 @@ struct FanControlCurveEditor: View {
             .frame(width: 16)
             .help(strings.removePoint)
             .accessibilityLabel(strings.removePoint)
+            .pointingHandCursor()
             .disabled(disabled
                       || curves[curveIndex].points.count <= FanControlPolicy.minimumCurvePointCount)
         }
