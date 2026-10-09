@@ -1402,7 +1402,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
 
     var preferenceKey: String {
         switch self {
@@ -1415,6 +1415,7 @@ enum NotchEvent: String, CaseIterable {
         case .agents: return DefaultsKey.notchAgentsEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
+        case .inputSource: return DefaultsKey.notchInputSource
         case .volume: return DefaultsKey.notchVolume
         case .brightness: return DefaultsKey.notchBrightness
         case .battery: return DefaultsKey.notchBattery
@@ -1425,7 +1426,7 @@ enum NotchEvent: String, CaseIterable {
 
     var priority: Int {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone: return 3
+        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
         case .capture, .timer, .watch: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
@@ -1434,7 +1435,7 @@ enum NotchEvent: String, CaseIterable {
 
     var duration: TimeInterval {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone: return 1.6
+        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 1.6
         case .systemNotification, .track: return 3
         case .timer, .download, .watch: return 6
         case .agents: return 5
@@ -1767,6 +1768,8 @@ enum NotchSupport {
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)
         case .track: return modules(in: defaults).contains(.music)
+        // A layout notice needs no feature of its own, only its own toggle.
+        case .inputSource: return true
         }
     }
 
