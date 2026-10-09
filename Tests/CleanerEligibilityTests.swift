@@ -236,6 +236,19 @@ enum CleanerEligibilityTests {
                              "preferences for an installed owner \(id) remain protected")
             }
 
+            let packageCaches = [".npm/_npx", ".bun/install/cache"].map { root.appendingPathComponent($0) }
+            for folder in packageCaches {
+                try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+                try Data(repeating: 1, count: 4096).write(to: folder.appendingPathComponent("package.tgz"))
+            }
+            let developer = scanDeveloperJunk()
+            for folder in packageCaches {
+                let item = developer.first { $0.url.path == folder.path }
+                suite.expect(item?.category == .developer && item?.recommended == CleanerPolicy.precheckDeveloper
+                             && item.map { canRemove($0) } == true,
+                             "the \(folder.path.dropFirst(root.path.count)) package cache is offered and removable as developer junk, found \(developer.map(\.url.path))")
+            }
+
             let container = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
             try manager.createDirectory(at: container, withIntermediateDirectories: false)
             try PropertyListSerialization.data(fromPropertyList: [
