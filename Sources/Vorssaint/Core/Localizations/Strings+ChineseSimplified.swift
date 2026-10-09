@@ -720,6 +720,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "将指标分成独立项目",
         monitorSeparateMenuBarMetricsCaption: "将已启用的区块拆成单独的菜单栏项目，合并开启时使用率和温度仍保持在一起。",
         monitorNetworkUploadFirst: "上传显示在下载上方",
+        monitorFanStacked: "风扇上下排列",
         monitorShowCPU: "CPU",
         monitorShowMemory: "内存",
         monitorShowNetwork: "网络",

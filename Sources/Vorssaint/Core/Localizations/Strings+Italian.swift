@@ -720,6 +720,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Separa le metriche in elementi propri",
         monitorSeparateMenuBarMetricsCaption: "Separa i blocchi attivi nella barra dei menu e tiene insieme utilizzo e temperatura quando combina è attivo.",
         monitorNetworkUploadFirst: "Upload sopra download",
+        monitorFanStacked: "Impila le ventole",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memoria",
         monitorShowNetwork: "Rete",

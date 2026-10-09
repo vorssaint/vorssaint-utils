@@ -720,6 +720,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Metrikleri kendi öğelerine ayır",
         monitorSeparateMenuBarMetricsCaption: "Etkin blokları menü çubuğunda ayırır ve birleştirme açıkken kullanım ile sıcaklığı birlikte tutar.",
         monitorNetworkUploadFirst: "Yükleme indirme üstünde",
+        monitorFanStacked: "Fanları üst üste göster",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Bellek",
         monitorShowNetwork: "Ağ",

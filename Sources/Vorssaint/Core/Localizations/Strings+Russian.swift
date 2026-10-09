@@ -721,6 +721,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Выводить метрики отдельными элементами",
         monitorSeparateMenuBarMetricsCaption: "Разделяет активные блоки в строке меню и сохраняет нагрузку и температуру вместе, если включено объединение.",
         monitorNetworkUploadFirst: "Показывать отдачу над загрузкой",
+        monitorFanStacked: "Вентиляторы друг над другом",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Память",
         monitorShowNetwork: "Сеть",

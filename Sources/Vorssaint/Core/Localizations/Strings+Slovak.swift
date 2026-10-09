@@ -720,6 +720,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "Rozdeliť metriky do samostatných položiek",
         monitorSeparateMenuBarMetricsCaption: "Rozdelí aktívne bloky v lište s ponukami a pri zapnutom spájaní ponechá využitie a teplotu spolu.",
         monitorNetworkUploadFirst: "Odosielanie nad sťahovaním",
+        monitorFanStacked: "Ventilátory nad sebou",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Pamäť",
         monitorShowNetwork: "Sieť",

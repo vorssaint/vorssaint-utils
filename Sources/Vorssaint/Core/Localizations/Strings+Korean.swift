@@ -721,6 +721,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "지표를 개별 메뉴 막대 항목으로 분리",
         monitorSeparateMenuBarMetricsCaption: "활성화된 블록을 메뉴 막대에서 분리하고, 결합이 켜져 있으면 사용량과 온도를 함께 표시합니다.",
         monitorNetworkUploadFirst: "업로드를 다운로드 위에 표시",
+        monitorFanStacked: "팬을 위아래로 표시",
         monitorShowCPU: "CPU",
         monitorShowMemory: "메모리",
         monitorShowNetwork: "네트워크",
