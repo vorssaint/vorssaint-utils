@@ -13,6 +13,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var cameraPreview = CameraPreviewService.shared
     @ObservedObject private var scratchpad = ScratchpadService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var pointerHide = PointerHideService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
@@ -84,6 +85,20 @@ struct QuickToolsSettings: View {
                             .accessibilityLabel(
                                 FeatureStrings.brightness(l10n.language).keyboardLight)
                             Text("\(Int(((brightness.keyboardLightLevel ?? 0) * 100).rounded()))%")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                                .frame(width: 34, alignment: .trailing)
+                        }
+                    }
+                    if pointerHide.isEnabled {
+                        HStack(spacing: 8) {
+                            Slider(value: Binding(
+                                get: { pointerHide.threshold },
+                                set: { pointerHide.setThreshold($0) }
+                            ), in: PointerHideSupport.thresholdRange)
+                            .accessibilityLabel(
+                                FeatureStrings.quickToggles(l10n.language).hidePointerIdleThresholdCaption)
+                            Text("\(Int(pointerHide.threshold.rounded()))s")
                                 .font(.caption.monospacedDigit())
                                 .foregroundStyle(.secondary)
                                 .frame(width: 34, alignment: .trailing)
