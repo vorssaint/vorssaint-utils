@@ -28,6 +28,7 @@ extension AgentProvider {
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
         case .pi: PiReader()
+        case .omp: PiReader(provider: .omp)
         }
     }
 }

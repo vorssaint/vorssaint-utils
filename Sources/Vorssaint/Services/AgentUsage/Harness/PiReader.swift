@@ -4,9 +4,9 @@
 import Foundation
 
 struct PiReader: AgentHarnessReader {
-    var provider: AgentProvider { .pi }
+    var provider: AgentProvider = .pi
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        AgentLogParser.parsePi(line, state: &state, now: now)
+        AgentLogParser.parsePi(line, state: &state, now: now, provider: provider)
     }
 }
