@@ -328,6 +328,13 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            int(value.deepSeekTurn)
+            bool(value.deepSeekWorking)
+            int(value.deepSeekSteps)
+            int(value.deepSeekOutput)
+            int(value.deepSeekSequence)
+            bool(value.deepSeekQuestionWaiting)
+            bool(value.deepSeekSeenProgress)
         }
     }
 
@@ -480,6 +487,13 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            value.deepSeekTurn = try int()
+            value.deepSeekWorking = try bool()
+            value.deepSeekSteps = try int()
+            value.deepSeekOutput = try int()
+            value.deepSeekSequence = try int()
+            value.deepSeekQuestionWaiting = try bool()
+            value.deepSeekSeenProgress = try bool()
             return value
         }
     }

@@ -19,7 +19,8 @@
     "https://developers.openai.com/api/docs/models/gpt-4-turbo-preview",
     "https://developers.openai.com/api/docs/deprecations",
     "https://developers.openai.com/codex/models",
-    "https://learn.chatgpt.com/docs/pricing"
+    "https://learn.chatgpt.com/docs/pricing",
+    "https://api-docs.deepseek.com/quick_start/pricing"
   ],
   "notes": [
     "gpt-5.6, gpt-5.6-sol and gpt-daybreak-blue-latest carry a promotional price announced through at least 2026-11-21. Check them again after that date.",
@@ -29,7 +30,10 @@
     "gpt-5.6-cyber and gpt-daybreak-red-latest keep their existing long-context premium pending clarification. The model page describes it, but the pricing table leaves long-context rates unpublished.",
     "Pro has no monthly comparison because plan_type pro does not distinguish the published 100, 200 and 500 USD subscriptions.",
     "Astra Ultrafast costs 6x Standard and requires app support for a separate speed tier. Schema 1 only represents Standard and Fast.",
-    "gpt-5.3-codex-spark has no published API price and remains unpriced. gpt-oss models have no OpenAI token price and are excluded."
+    "gpt-5.3-codex-spark has no published API price and remains unpriced. gpt-oss models have no OpenAI token price and are excluded.",
+    "deepseek-flash and deepseek-v4-pro carry their published peak rates. Off-peak hours are half price: 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday only, so the weekend is discounted all day. The list holds the peak rate plus the window that replaces it.",
+    "DeepSeek's retired names deepseek-v4-flash and deepseek-v4-flash-vision-exp are served by DeepSeek-V4.1-Flash and bill at the flash price, so the deepseek-flash family prices them.",
+    "DeepSeek prices its whole balance from a topped-up account rather than a subscription, so it has no plan to compare a monthly price against."
   ],
   "claude": {
     "webSearch": 0.01,
@@ -165,6 +169,14 @@
     "plans": [
       { "match": "plus", "name": "Plus", "monthly": 20 },
       { "match": "pro", "name": "Pro" }
+    ]
+  },
+  "deepseek": {
+    "models": [
+      { "id": "deepseek-flash", "input": 0.30, "output": 1.20, "cacheRead": 0.006, "cacheWrite": 0.30,
+        "offPeak": { "timezone": "UTC", "peak": ["01-04", "06-10"], "days": ["mon", "tue", "wed", "thu", "fri"], "factor": 0.5 } },
+      { "id": "deepseek-v4-pro", "input": 1.32, "output": 3.96, "cacheRead": 0.044, "cacheWrite": 1.32,
+        "offPeak": { "timezone": "UTC", "peak": ["01-04", "06-10"], "days": ["mon", "tue", "wed", "thu", "fri"], "factor": 0.5 } }
     ]
   }
 }

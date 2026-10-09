@@ -132,6 +132,8 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .question(let provider, let project):
+                events.append(.question(provider: provider, project: project))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file
                 forget(file: baseFile)
@@ -169,7 +171,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
-                if record.provider == .opencode {
+                if record.provider.repricesOnReRead {
                     let newCost: Double?
                     let isReported: Bool
                     if record.reportedCost {
@@ -205,10 +207,10 @@ final class AgentUsageStore {
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
             combined.isAggregate = combined.isAggregate || billable.isAggregate
-            let priced = AgentPricing.cost(combined, model: old.model)
+            let priced = AgentPricing.cost(combined, model: old.model, at: old.date)
             let newCost: Double?
             let isReported: Bool
-            if record.provider == .opencode {
+            if record.provider.repricesOnReRead {
                 if record.reportedCost {
                     newCost = record.cost
                     isReported = true
@@ -264,7 +266,8 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
-            let priced = AgentPricing.cost(billables[position], model: records[position].model)
+            let priced = AgentPricing.cost(billables[position], model: records[position].model,
+                                           at: records[position].date)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
             let recordedZero = records[position].provider == .opencode && records[position].cost == 0
@@ -338,6 +341,17 @@ final class AgentUsageStore {
                 closed = forget(file: file) || closed
             }
         }
+        return closed
+    }
+
+    /// Ends one agent's turns without a notice, quiet ones too: the app that
+    /// ran them has quit, so nothing finished. True when one was showing.
+    @discardableResult
+    func closeTurns(of provider: AgentProvider) -> Bool {
+        let files = Set(turns.filter { $0.value.provider == provider }.keys)
+            .union(waiting.filter { $0.value.provider == provider }.keys)
+        var closed = false
+        for file in files { closed = forget(file: file) || closed }
         return closed
     }
 
@@ -475,7 +489,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.deepseek, AgentDeepSeekReader.sessions)].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -498,6 +513,12 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        // The Harness keeps one projection per session, directly in the
+        // folder, named for the session and written whole as it runs.
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return path.hasSuffix(".json") && !name.hasPrefix(".")
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -672,6 +693,8 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        // The Harness's per-session projections, which its root accepts too.
+        if path.hasSuffix(".json"), !name.hasPrefix(".") { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -737,6 +760,14 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // The Harness keeps its projections flat, and the folder holds
+            // nothing else, so it is read without a recursive walk.
+            if root.provider == .deepseek {
+                let files = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+                for file in files { include(file, from: root) }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -757,6 +788,25 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        // A projection is rewritten whole rather than appended to, so there is
+        // no offset to continue from: it is always read as if new. The parser's
+        // state is kept, though. It is what remembers the counters seen last
+        // and whether a turn is showing, so starting it empty at each reading
+        // made every rewrite a first look: a stale projection opened a turn
+        // each time it was written, and a finished one was never ended.
+        if cursor.provider == .deepseek {
+            var info = stat()
+            guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
+            // The projection's own time is what the poller compares against.
+            cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
+                                    + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
+            let state = cursor.state
+            cursor.startOver(identity: UInt64(info.st_ino))
+            cursor.state = state
+            defer { cursor.fingerprintRead() }
+            AgentDeepSeekReader.read(cursor.path, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()
