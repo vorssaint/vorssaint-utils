@@ -169,6 +169,7 @@ enum DefaultsKey {
     static let diskImageInstallerTrashesDownload = "diskImageInstallerTrashesDownload"
     static let diskImageInstallerRevealsApp = "diskImageInstallerRevealsApp"
     static let finderPasteImageAsFile = "finderPasteImageAsFile"
+    static let finderForwardDeleteTrash = "finderForwardDeleteTrash"
     static let diskImageInstallerUseUserApplications = "diskImageInstallerUseUserApplications"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
@@ -1744,6 +1745,7 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
+        DefaultsKey.finderForwardDeleteTrash: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.switcherPreviewExcludedApps: [String](),
         DefaultsKey.diskEjectExcludedVolumes: [String](),

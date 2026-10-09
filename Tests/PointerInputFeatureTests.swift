@@ -1720,6 +1720,67 @@ enum PointerInputFeatureTests {
         ) == "Pasted_Image_19700101_000000.png",
                "pasted images receive the stable timestamped PNG name")
 
+        // MARK: Move to Trash with the forward delete key (issue #1599)
+
+        suite.expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: []),
+               "a bare forward delete is claimed once the preference is on")
+        suite.expect(!FinderTrashKeySupport.claimsKey(
+            enabled: false,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: []),
+               "the key is left alone while the preference is off")
+        // A portable Mac has no dedicated ⌦ and sends the keystroke as Fn-⌫
+        // with the Fn bit still set, so counting Fn among the foreign
+        // modifiers would switch the feature off on every laptop.
+        suite.expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: .maskSecondaryFn),
+               "the Fn-produced forward delete of a laptop keyboard still counts")
+        suite.expect(FinderTrashKeySupport.claimsKey(
+            enabled: true,
+            keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+            flags: .maskNonCoalesced),
+               "incidental event bits do not make the key look modified")
+        for (flag, name) in [(CGEventFlags.maskCommand, "command"),
+                             (.maskControl, "control"),
+                             (.maskAlternate, "option"),
+                             (.maskShift, "shift")] {
+            suite.expect(!FinderTrashKeySupport.claimsKey(
+                enabled: true,
+                keyCode: FinderTrashKeySupport.forwardDeleteKeyCode,
+                flags: flag),
+                   "forward delete held with \(name) stays with the app that owns it")
+        }
+        // Plain backspace is deliberately never claimed: Finder leaves it
+        // unbound, and issue #1161 asks for it to navigate to the parent
+        // folder instead.
+        suite.expect(!FinderTrashKeySupport.claimsKey(
+            enabled: true, keyCode: Int64(kVK_Delete), flags: []),
+               "plain backspace is never claimed")
+
+        // The substitution swaps the key code, so an unpaired press leaves ⌫
+        // held down as far as the window server is concerned and every later
+        // ⌘⌫ reads as a repeat — the user's own included.
+        var pairing = ForwardDeleteKeyPairing()
+        suite.expect(!pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "a release with no press behind it is left alone")
+        pairing.claimPress()
+        suite.expect(!pairing.claimsRelease(keyCode: Int64(kVK_Delete)),
+               "a claimed press does not swallow the release of a different key")
+        suite.expect(pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "the release matching a claimed press is substituted too")
+        suite.expect(!pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "one press releases once")
+        // Held keys repeat the press before a single release arrives.
+        pairing.claimPress()
+        pairing.claimPress()
+        suite.expect(pairing.claimsRelease(keyCode: FinderTrashKeySupport.forwardDeleteKeyCode),
+               "a repeated press still releases on the one release that follows")
+
         // MARK: Mouse button shortcuts (issue #282)
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.mouseButtonShortcutsEnabled] as? Bool == false,

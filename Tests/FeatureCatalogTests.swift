@@ -1448,6 +1448,12 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderPasteImageAsFile])
                 == [.finderCutPaste, .uninstaller, .quickToggles],
                "pasting copied images as files engages the shared Finder feature")
+        suite.expect(activeSet(.automationFinder, on: [DefaultsKey.finderForwardDeleteTrash])
+                == [.uninstaller, .quickToggles],
+               "trashing with the forward delete key never asks Finder for anything")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.finderForwardDeleteTrash])
+                .contains(.finderCutPaste),
+               "trashing with the forward delete key still needs accessibility")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
         suite.expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")

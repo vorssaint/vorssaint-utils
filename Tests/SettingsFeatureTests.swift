@@ -279,6 +279,9 @@ enum SettingsFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false
                 && backupKeys.contains(DefaultsKey.finderPasteImageAsFile),
                "pasting copied images as files is opt-in and travels with settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.finderForwardDeleteTrash] as? Bool == false
+                && backupKeys.contains(DefaultsKey.finderForwardDeleteTrash),
+               "trashing with the forward delete key is opt-in and travels with settings backup")
         suite.expect(Defaults.registeredDefaults[
             DefaultsKey.diskImageInstallerUseUserApplications] as? Bool == false
                 && backupKeys.contains(DefaultsKey.diskImageInstallerUseUserApplications),

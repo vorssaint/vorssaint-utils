@@ -279,6 +279,8 @@ extension Strings {
         cutPasteEnableCaption: "Pomocou ⌘X vystrihnete a pomocou ⌘V presuniete súbory a priečinky vo Finderi.",
         cutPasteShowHUD: "Zobraziť plávajúci panel",
         cutPasteShowHUDCaption: "Zobrazí plávajúci indikátor s vystrihnutými súbormi, kým je Finder aktívny.",
+        forwardDeleteTrash: "Presúvať do Koša klávesom ⌦",
+        forwardDeleteTrashCaption: "Vo Finderi kláves ⌦ presunie vybrané položky do Koša a ⌘⌫ funguje ďalej. Klávesnice bez samostatného klávesu ⌦ ho vytvoria pomocou Fn-⌫.",
         cutPasteHowTitle: "Ako sa to používa",
         cutPasteStep1: "Vyberte položky vo Finderi a stlačením ⌘X ich vystrihnite.",
         cutPasteStep2: "Otvorte cieľový priečinok a stlačením ⌘V ich tam presuňte.",

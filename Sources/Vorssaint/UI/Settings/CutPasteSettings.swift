@@ -12,6 +12,7 @@ struct CutPasteSettings: View {
     @AppStorage(DefaultsKey.finderRenameEnabled) private var renameEnabled = false
     @AppStorage(DefaultsKey.finderRenameShortcut) private var renameShortcutRaw =
         GlobalShortcut.finderRenameDefault.storageValue
+    @AppStorage(DefaultsKey.finderForwardDeleteTrash) private var forwardDeleteTrash = false
     @State private var renameError: String?
     @State private var recordingRename = false
     @State private var pendingRenameTakeOver: GlobalShortcut?
@@ -25,7 +26,7 @@ struct CutPasteSettings: View {
     }
 
     private var needsAccessibility: Bool {
-        (AppFeature.finderCutPaste.isAvailable && enabled)
+        (AppFeature.finderCutPaste.isAvailable && (enabled || forwardDeleteTrash))
             || (AppFeature.finderRename.isAvailable && renameEnabled)
     }
 
@@ -61,6 +62,16 @@ struct CutPasteSettings: View {
                     howRow(keys: ["⌘", "X"], text: l10n.s.cutPasteStep1)
                     howRow(keys: ["⌘", "V"], text: l10n.s.cutPasteStep2)
                     Text(l10n.s.cutPasteTextNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section {
+                    Toggle(l10n.s.forwardDeleteTrash, isOn: $forwardDeleteTrash)
+                        .onChange(of: forwardDeleteTrash) { _, _ in
+                            FinderCutPaste.shared.syncWithPreferences()
+                        }
+                    Text(l10n.s.forwardDeleteTrashCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
