@@ -11,6 +11,7 @@ struct NotchView: View {
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @AppStorage(DefaultsKey.notchSystemReadout) private var systemReadout = true
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -195,7 +196,8 @@ struct NotchView: View {
                                             NotchActivityCombination(primary: activity, companion: $0)
                                         },
                                         columns: layout.columns, language: l10n.language,
-                                        select: service.selectCompactActivity, combine: service.selectCompactCombination)
+                                        select: service.selectCompactActivity, combine: service.selectCompactCombination,
+                                        openHome: service.pickerOffersHome ? { service.select(.home) } : nil)
                         .padding(.horizontal, NotchActivityPickerLayout.horizontalInset)
                         .padding(.vertical, NotchActivityPickerLayout.verticalInset)
                 }
@@ -292,6 +294,11 @@ struct NotchView: View {
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
     }
 
+    /// Home's header carries the system readout; other pages keep their quiet `…`.
+    private var showsReadout: Bool {
+        systemReadout && service.selected == .home && !showsDetail && !service.showingSections && !service.showingAppPanel
+    }
+
     private var showsDetail: Bool { service.showingAppPanel || service.selectedMetric != nil }
 
     private var expanded: some View {
@@ -330,12 +337,13 @@ struct NotchView: View {
         var size = service.contentSize
         guard !showsDetail else { return size }
         switch service.selected {
-        case .controls:
+        case .home, .controls:
             let items = NotchSupport.controls()
-            let shortcuts = items.filter { $0 != .music && !$0.isLevel }
+            let shortcuts = service.selected == .home ? service.homeRail.count
+                : items.filter { $0 != .music && !$0.isLevel }.count
             size.height = max(size.height, NotchLayout.controls(
                 hasCards: items.contains(.music) || items.contains(where: \.isLevel),
-                shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
+                shortcutCount: shortcuts, width: size.width, height: size.height).height)
         case .timer:
             let session = NotchTimerService.shared.session
             size.height = max(size.height, NotchLayout.timer(
@@ -412,10 +420,20 @@ struct NotchView: View {
                     if !quickActions.contains(.explore) {
                         NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
                     }
-                    Text(service.selected.title(l10n.language))
+                    // A page's title leads back to Home, the hub every page is listed on.
+                    let title = Text(service.selected.title(l10n.language))
                         .font(Font(NotchLayout.headerTitleFont as CTFont))
                         .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if service.selected != .home, service.modules.contains(.home) {
+                        Button { service.select(.home) } label: { title }
+                            .buttonStyle(.plain)
+                            .help(NotchModule.home.title(l10n.language) + "  ⌥⌘" + NotchModule.home.shortcutKey.uppercased())
+                            .accessibilityHint(NotchModule.home.title(l10n.language))
+                            .accessibilityIdentifier("notch.title.home")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else {
+                        title.frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil)
@@ -437,7 +455,14 @@ struct NotchView: View {
                     actions.fixedSize()
                     overflowMenu(items: overflowItems(tools: false, clear: false))
                 } else if service.expandedGeometry.headerCameraGap > 0 {
-                    cameraHeaderActions
+                    // Beside the camera the actions stay in view; the readings
+                    // take what room is left on their side, fewer when it is narrow.
+                    if showsReadout {
+                        NotchSystemReadoutView(showsEllipsisWhenEmpty: false)
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                            .allowsHitTesting(false)
+                    }
+                    cameraHeaderActions.layoutPriority(1)
                 } else {
                     headerActions(quickActions: quickActions)
                 }
@@ -576,24 +601,32 @@ struct NotchView: View {
         .overlay(alignment: .trailing) {
             if !revealed {
                 HStack(spacing: 5) {
-                    if case .available(let version) = updates.state {
-                        Circle()
-                            .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
-                            .frame(width: 6, height: 6)
+                    Group {
+                        if case .available(let version) = updates.state {
+                            Circle()
+                                .fill(UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? Color.orange : Color.blue)
+                                .frame(width: 6, height: 6)
+                        }
+                        // A kept-open island says so at rest, not only under the pointer.
+                        if service.pinned {
+                            Image(systemName: "pin.fill")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.6))
+                        }
                     }
-                    // A kept-open island says so at rest, not only under the pointer.
-                    if service.pinned {
-                        Image(systemName: "pin.fill")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.6))
+                    .accessibilityHidden(true)
+                    // The room the actions keep shows system readings instead of `…`.
+                    if showsReadout {
+                        NotchSystemReadoutView()
+                    } else {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.35))
+                            .frame(width: 28, height: 28)
+                            .accessibilityHidden(true)
                     }
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
-                        .frame(width: 28, height: 28)
                 }
                 .allowsHitTesting(false)
-                .accessibilityHidden(true)
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: revealed)
@@ -640,6 +673,7 @@ struct NotchView: View {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty)
         } else {
             switch service.selected {
+            case .home: NotchControlsView(service: service, size: pageSize, smartStacks: true)
             case .timer: NotchTimerView(size: pageSize)
             case .camera: NotchCameraView(size: pageSize)
             case .notifications: NotchNotificationsView(size: pageSize)
@@ -948,6 +982,7 @@ struct NotchShape: Shape {
 extension NotchModule: PanelOrderItem {
     func title(_ language: AppLanguage) -> String {
         switch self {
+        case .home: return FeatureStrings.notch(language).home
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .camera: return FeatureStrings.notchActivities(language).camera
         case .notifications: return FeatureStrings.notchNotifications(language).title
@@ -999,6 +1034,8 @@ struct NotchActivityPicker: View {
     let language: AppLanguage
     let select: (NotchCompactActivity) -> Void
     let combine: (NotchActivityCombination) -> Void
+    /// Opens the island on Home; the choices only change the closed strip.
+    var openHome: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: NotchActivityPickerLayout.spacing) {
@@ -1028,6 +1065,26 @@ struct NotchActivityPicker: View {
     private var individualChoices: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchActivityPickerLayout.spacing),
                                  count: columns), spacing: NotchActivityPickerLayout.spacing) {
+            // Home leads the choices: every activity is one click away from it.
+            if let openHome {
+                let title = NotchModule.home.title(language)
+                Button(action: openHome) {
+                    HStack(spacing: 6) {
+                        Image(systemName: NotchModule.home.symbol)
+                        Text(title).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: NotchActivityPickerLayout.rowHeight)
+                    .foregroundStyle(.white)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.12)))
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier("notch.activity.home")
+            }
             ForEach(activities) { activity in
                 let chosen = activity == selected && combination == nil
                 Button { select(activity) } label: {

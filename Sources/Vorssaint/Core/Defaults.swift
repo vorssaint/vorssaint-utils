@@ -812,6 +812,11 @@ enum DefaultsKey {
     static let notchCameraFitHeight = "notchCameraFitHeight"
     static let notchHapticFeedback = "notchHapticFeedback"
     static let notchTranslucentBackground = "notchTranslucentBackground"
+    static let notchSystemReadout = "notchSystemReadout"
+    // What was last opened from Tools or Explore, and when, for Home's row.
+    // Usage, not a preference: unregistered, so it stays out of backups.
+    static let notchRecentLaunch = "notchRecentLaunch"
+    static let notchRecentLaunchDate = "notchRecentLaunchDate"
     static let notchShelf = "notchShelf"
     static let notchDragReveal = "notchDragReveal"
     static let notchCaptureControls = "notchCaptureControls"
@@ -1404,6 +1409,7 @@ enum Defaults {
         DefaultsKey.notchCameraFitHeight: 0.0,
         DefaultsKey.notchHapticFeedback: true,
         DefaultsKey.notchTranslucentBackground: false,
+        DefaultsKey.notchSystemReadout: true,
         DefaultsKey.notchShelf: true,
         DefaultsKey.notchDragReveal: true,
         DefaultsKey.notchCaptureControls: true,
@@ -1477,10 +1483,11 @@ enum Defaults {
         DefaultsKey.notchLowBatteryMenuBar: true,
         DefaultsKey.notchHoverDelay: NotchSupport.defaultHoverDelay,
         DefaultsKey.notchCloseDelay: NotchSupport.defaultCloseDelay,
-        DefaultsKey.notchReturnHome: false,
-        DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
-        DefaultsKey.notchOpensActivity: true,
-        DefaultsKey.notchHiddenModules: "",
+        DefaultsKey.notchReturnHome: true,
+        DefaultsKey.notchHomeModule: NotchModule.home.rawValue,
+        DefaultsKey.notchOpensActivity: false,
+        // Home replaces Controls, which stays one switch away.
+        DefaultsKey.notchHiddenModules: NotchModule.controls.rawValue,
         DefaultsKey.notchModuleOrder: "",
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,

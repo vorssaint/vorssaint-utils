@@ -68,6 +68,11 @@ enum QuickLauncherContract {
         func showHistoryWindow() { events.append(name + ".showHistoryWindow") }
         func activate() { events.append(name + ".activate") }
     }
+    /// Records what Home is told was opened, apart from the actions' events.
+    enum NotchHomeSupport {
+        static var remembered: [QuickLauncherItem] = []
+        static func rememberTool(_ item: QuickLauncherItem) { remembered.append(item) }
+    }
     enum KeepAwakeManager { static let shared = Spy(name: "keepAwake") }
     enum MicMuteService { static let shared = Spy(name: "micMute") }
     enum ScreenTextService { static let shared = Spy(name: "screenOCR") }
@@ -111,12 +116,25 @@ enum QuickLauncherContract {
         ]
         suite.expect(Set(cases.map { $0.0 }) == Set(QuickLauncherItem.allCases),
                      "every launcher tile has an activation contract")
+        NotchHomeSupport.remembered.removeAll()
+        defaults.set(false, forKey: AppFeature.colorPicker.availabilityKey)
+        Launcher().run(.colorPicker)
+        let editing = Launcher()
+        editing.isEditing = true
+        defaults.set(true, forKey: AppFeature.colorPicker.availabilityKey)
+        editing.run(.colorPicker)
+        suite.expect(NotchHomeSupport.remembered.isEmpty,
+                     "a tool that does not run, being unavailable or under edit, is not remembered")
+        events.removeAll()
+        DispatchQueue.main.jobs.removeAll()
         for (item, feature, action, delay) in cases {
             events.removeAll()
             DispatchQueue.main.jobs.removeAll()
             let launcher = Launcher()
+            NotchHomeSupport.remembered.removeAll()
             launcher.run(item)
             suite.expect(item.feature == feature, "\(item) follows its own feature switch")
+            suite.expect(NotchHomeSupport.remembered == [item], "\(item) becomes Home's last tool opened, once")
             if let delay, let action {
                 suite.expect(events == ["hide"] && launcher.activeUtility == nil,
                              "\(item) dismisses the launcher before any external action")

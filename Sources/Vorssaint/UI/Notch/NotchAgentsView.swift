@@ -454,7 +454,7 @@ private struct NotchAgentSpendCard: View {
 
 // MARK: Now
 
-private struct NotchAgentLiveCard: View {
+struct NotchAgentLiveCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
     let text: NotchAgentStrings

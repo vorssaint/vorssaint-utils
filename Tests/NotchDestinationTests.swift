@@ -183,7 +183,7 @@ enum NotchDestinationContract {
         service.open(.system, metric: .cpu)
         for (_, feature) in families { defaults.set(false, forKey: feature.availabilityKey) }
         service.syncWithPreferences()
-        suite.expect(!service.modules.contains(.system) && service.selected == .controls
+        suite.expect(!service.modules.contains(.system) && service.selected == .home
                && service.selectedMetric == nil && service.requestedDetail == nil,
                "removing the last system family selects an available module without keeping its old detail")
         defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
@@ -350,12 +350,12 @@ enum NotchDestinationContract {
     }
 
     private static func reopeningContracts(defaults: UserDefaults, suite: TestSuite) {
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchReturnHome] as? Bool == false,
-               "returning home is opt-in and preserves the existing opening behavior")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.controls.rawValue,
-               "the previously available home option keeps Controls as its initial destination")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOpensActivity] as? Bool == true,
-               "opening the visible activity stays the default")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchReturnHome] as? Bool == true,
+               "the island returns home by default; reopening the last page is a choice")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.home.rawValue,
+               "Home is the initial home destination")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOpensActivity] as? Bool == false,
+               "a visible activity leaves the opening to Home by default; its card is one click away")
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             let payload = SettingsBackupSupport.payload(appVersion: "test") {
@@ -384,17 +384,17 @@ enum NotchDestinationContract {
             suite.expect(service.selected == .files, "an already open island does not jump away from the current page")
             service.expanded = false
             service.open()
-            suite.expect(service.selected == (returnHome ? .controls : .files),
+            suite.expect(service.selected == (returnHome ? .home : .files),
                    "reopening either restores the last page or returns home according to the preference")
             service.expanded = false
             service.open(.music)
             suite.expect(service.selected == .music, "an explicit destination always wins over the opening preference")
-            defaults.set("controls", forKey: DefaultsKey.notchHiddenModules)
+            defaults.set("home", forKey: DefaultsKey.notchHiddenModules)
             defaults.set("files,music", forKey: DefaultsKey.notchModuleOrder)
             service.expanded = false
             service.open()
             suite.expect(service.selected == (returnHome ? .files : .music),
-                   "a hidden home page falls back to the first visible page without unhiding controls")
+                   "a hidden home page falls back to the first visible page without unhiding it")
             defaults.set("", forKey: DefaultsKey.notchHiddenModules)
             defaults.set("", forKey: DefaultsKey.notchModuleOrder)
         }
@@ -434,11 +434,12 @@ enum NotchDestinationContract {
             suite.expect(service.selected == .music && !service.showingAppPanel && !service.showingSections,
                    "explicit page navigation wins over a saved app panel or Explore destination")
 
+            defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
             service.expanded = false
             service.compactActivity = .timer
             service.open()
             suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
-                   "a visible activity wins over a saved app panel or Explore destination")
+                   "with activities turned on, a visible activity wins over a saved app panel or Explore destination")
 
             defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
             service.expanded = false

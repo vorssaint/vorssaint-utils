@@ -7,11 +7,12 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case home, controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
     var id: String { rawValue }
 
     var symbol: String {
         switch self {
+        case .home: return "house"
         case .controls: return "slider.horizontal.3"
         // A speaker reads as sound at a glance; faders beside the settings
         // gear looked like a second settings button.
@@ -37,6 +38,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
     /// Stable across ordering and languages; every destination has a direct key.
     var shortcutKey: String {
         switch self {
+        case .home: return "h"
         case .controls: return "c"
         case .mixer: return "v"
         case .music: return "m"
@@ -58,7 +60,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
         switch self {
-        case .controls, .music: return true
+        case .home, .controls, .music: return true
         case .timer: return AppFeature.notchTimer.isAvailable(in: defaults)
         case .camera: return AppFeature.cameraPreview.isAvailable(in: defaults)
         case .downloads: return AppFeature.notchDownloads.isAvailable(in: defaults)
@@ -2386,7 +2388,7 @@ struct NotchGeometry: Equatable {
             contentHeight = max(0, capturePreviewHeight ?? 0) + 4
         } else {
             switch module {
-            case .controls:
+            case .home, .controls:
                 let sliders = min(2, max(0, sliderCount))
                 let home = NotchLayout.controls(hasCards: controlsHaveMusic || sliders > 0, shortcutCount: max(0, shortcutCount),
                                                 width: contentWidth, height: budget)

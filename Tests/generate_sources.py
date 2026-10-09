@@ -1219,7 +1219,10 @@ def main():
           + "}\nstruct Tile {\nvar keepAwake = State()\nvar micMute = State()\nvar recorder = State()\n"
           + declaration(view, "    private func icon(for item: QuickLauncherItem)")
           + declaration(view, "    private func isActive(_ item: QuickLauncherItem)")
-          + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n")
+          + "func display(_ item: QuickLauncherItem) -> (String, Bool) { (icon(for: item), isActive(item)) }\n}\n}\n"
+          + "extension QuickLauncherContract.QuickLauncherItem {\n"
+          + declaration("Sources/Vorssaint/UI/QuickLauncher/QuickLauncherItemLabel.swift", "    func symbol(keepAwake:")
+          + "}\n")
     # The panel's tabs and the rows they hold, as shipped. PanelOrderItem is
     # declared once, in QuickLauncherBodies.swift above.
     menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"

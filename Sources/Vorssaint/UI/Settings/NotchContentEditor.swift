@@ -165,6 +165,7 @@ struct NotchPagePreview: View {
 
     var body: some View {
         switch module {
+        case .home: NotchControlsView(service: notch, size: size, smartStacks: true)
         case .timer: NotchTimerView(size: size)
         case .camera: camera
         case .notifications: NotchNotificationsView(size: size)
@@ -367,6 +368,7 @@ extension NotchModule {
     /// can be scanned by eye.
     var settingsTint: Color {
         switch self {
+        case .home: return .indigo
         case .controls: return .blue
         case .mixer: return .purple
         case .music: return .pink

@@ -18,11 +18,16 @@ enum NotchMusicVisibilityTests {
         func stop() { running = false }
     }
     enum PowerSampler { static var hasInternalBattery = true }
-    struct MonitorNeeds {
+    struct MonitorNeeds: Equatable {
         var disk = false
         var fanSpeed = false
+        var readout = false
         var connectedDevices = false
         static let none = Self()
+        func merging(_ other: Self) -> Self {
+            Self(disk: disk || other.disk, fanSpeed: fanSpeed || other.fanSpeed, readout: readout || other.readout,
+                 connectedDevices: connectedDevices || other.connectedDevices)
+        }
     }
     struct Metric { let monitorNeeds = MonitorNeeds.none }
     final class SystemMonitor {
@@ -30,6 +35,12 @@ enum NotchMusicVisibilityTests {
         var detailNeeds = MonitorNeeds.none
         func setNotchDetailNeeds(_ needs: MonitorNeeds) { detailNeeds = needs }
         func setNotchVisible(_ visible: Bool) {}
+    }
+    /// Stands in for the catalog lookup; the readings' own rules are tested apart.
+    enum NotchSystemReadout {
+        static var available: Set<String> = ["cpu"]
+        static func availableKinds() -> Set<String> { available }
+        static func monitorNeeds(available: Set<String>) -> MonitorNeeds { MonitorNeeds(readout: !available.isEmpty) }
     }
     final class CameraPreviewService {
         static let shared = CameraPreviewService()
@@ -500,5 +511,32 @@ enum NotchMusicVisibilityTests {
         bar.modules = [.camera]
         bar.syncVisibleConsumers()
         suite.expect(!reader.running, "the bar covering a page keeps that page's readers stopped")
+
+        // Home's header readout samples only while that page is open.
+        let monitor = SystemMonitor.shared
+        let header = Service()
+        header.modules = [.home, .controls]
+        header.selected = .home
+        defaults.set(true, forKey: DefaultsKey.notchSystemReadout)
+        header.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.readout, "the closed island never samples for the header's readout")
+        header.expanded = true
+        header.selected = .controls
+        header.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.readout, "another page's header shows no readout, so nothing samples for it")
+        header.selected = .home
+        header.syncVisibleConsumers()
+        suite.expect(monitor.detailNeeds.readout, "opening Home samples the readings its header shows")
+        defaults.set(false, forKey: DefaultsKey.notchSystemReadout)
+        header.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.readout, "turning the readout off stops its sampling while open")
+        defaults.set(true, forKey: DefaultsKey.notchSystemReadout)
+        NotchSystemReadout.available = []
+        header.syncVisibleConsumers()
+        suite.expect(!monitor.detailNeeds.readout, "with every Monitor feature off the readout samples nothing")
+        NotchSystemReadout.available = ["cpu"]
+        header.syncVisibleConsumers()
+        header.collapse()
+        suite.expect(!monitor.detailNeeds.readout, "closing the island releases the readout's sampling")
     }
 }

@@ -1016,10 +1016,11 @@ enum NotchTests {
         for language in AppLanguage.allCases {
             let activities: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music, .keepAwake]
             let font = NSFont.systemFont(ofSize: 12, weight: .medium)
-            let width = activities.map {
-                ($0.title(language) as NSString).size(withAttributes: [.font: font]).width
+            // Home leads the row, so its label must fit as every activity's does.
+            let width = (activities.map { $0.title(language) } + [NotchModule.home.title(language)]).map {
+                ($0 as NSString).size(withAttributes: [.font: font]).width
             }.max()!
-            for count in 2...6 {
+            for count in 2...7 {
                 let layout = NotchActivityPickerLayout(count: count, labelWidth: width,
                     stripSize: CGSize(width: 300, height: 32), screenWidth: 1024)
                 let cell = (layout.size.width - NotchActivityPickerLayout.horizontalInset * 2
@@ -1092,6 +1093,8 @@ enum NotchTests {
         NotchNotificationReaderTests.run(suite)
         NotchGestureTests.run(suite)
         NotchSectionPagingTests.run(suite)
+        NotchSystemReadoutTests.run(suite)
+        NotchHomeTests.run(suite)
         NotchKeyboardLightTests.run(suite)
         NotchActivityTests.run(suite)
         NotchWatchTests.run(suite)
@@ -1128,9 +1131,9 @@ enum NotchTests {
                      "a first island setup starts spacious, opens by click and uses a separate app panel")
         suite.expect(firstDefaults[DefaultsKey.notchGesturesEnabled] as? Bool == true
                      && firstDefaults[DefaultsKey.notchHapticFeedback] as? Bool == true
-                     && firstDefaults[DefaultsKey.notchReturnHome] as? Bool == false
+                     && firstDefaults[DefaultsKey.notchReturnHome] as? Bool == true
                      && firstDefaults[DefaultsKey.notchCoversMenus] as? Bool == true,
-                     "gestures, haptics, last page and coverage over menus start selected")
+                     "gestures, haptics, returning home and coverage over menus start selected")
         let enabledByDefault = [DefaultsKey.notchNotificationsEnabled, DefaultsKey.notchCameraEnabled,
                                 DefaultsKey.notchDownloadsEnabled,
                                 DefaultsKey.notchLyricsEnabled, DefaultsKey.notchQueueEnabled,
@@ -1620,7 +1623,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .home, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")

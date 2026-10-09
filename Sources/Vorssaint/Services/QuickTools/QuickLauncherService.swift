@@ -270,6 +270,8 @@ final class QuickLauncherService: ObservableObject {
 
     func run(_ item: QuickLauncherItem) {
         guard !isEditing, item.feature.isAvailable else { return }
+        // Home keeps the last tool opened one click away.
+        NotchHomeSupport.rememberTool(item)
         switch item {
         case .keepAwake:
             KeepAwakeManager.shared.toggle()
