@@ -833,29 +833,34 @@ enum AgentLogParser {
         return .other
     }
 
-    // MARK: Pi
+    // MARK: Pi and Oh My Pi
 
-    static func parsePi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+    static func parsePi(_ line: Data, state: inout AgentLogState, now: Date,
+                        provider: AgentProvider = .pi) -> [AgentLogEntry] {
         guard let type = firstType(line)?.name else { return [] }
         switch type {
         case "message":
             // A tool result can be large, and it only says that work goes on.
             if contains(line, #""role":"toolResult""#) { return state.turnOpen ? [.turnActive(nil)] : [] }
             guard let json = object(line), let message = json["message"] as? [String: Any] else { return [] }
-            return piMessage(json, message, state: &state, now: now)
-        case "usage":
-            guard contains(line, #""kind":"cache_warm""#), let json = object(line),
-                  let usage = json["usage"] as? [String: Any] else { return [] }
+            return piMessage(json, message, state: &state, now: now, provider: provider)
+        case "usage", "model_usage":
+            guard (provider == .pi && type == "usage" && contains(line, #""kind":"cache_warm""#))
+                    || (provider == .omp && type == "model_usage"),
+                  let json = object(line), let usage = json["usage"] as? [String: Any] else { return [] }
             let model = native(json["model"] as? String ?? state.model)
-            return piUsage(usage, model: model, json: json, state: state, now: now).map { [$0] } ?? []
+            return piUsage(usage, model: model, json: json, state: state, now: now, provider: provider).map { [$0] } ?? []
         case "session":
             guard let json = object(line) else { return [] }
             state.session = native(json["id"] as? String ?? state.session)
             if let cwd = json["cwd"] as? String, !cwd.isEmpty { state.project = projectName(cwd) }
             return []
         case "model_change":
-            guard let json = object(line), let model = json["modelId"] as? String, !model.isEmpty else { return [] }
-            state.model = native(model)
+            guard let json = object(line) else { return [] }
+            if provider == .omp, let role = json["role"] as? String, role != "default" { return [] }
+            guard let model = json[provider == .omp ? "model" : "modelId"] as? String, !model.isEmpty else { return [] }
+            // Oh My Pi prefixes model changes with the provider, not assistant usage.
+            state.model = native(provider == .omp ? model.split(separator: "/", maxSplits: 1).last.map(String.init) ?? model : model)
             return []
         default:
             return []
@@ -863,7 +868,7 @@ enum AgentLogParser {
     }
 
     private static func piMessage(_ json: [String: Any], _ message: [String: Any],
-                                  state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+                                  state: inout AgentLogState, now: Date, provider: AgentProvider) -> [AgentLogEntry] {
         let date = timestamp(json["timestamp"]) ?? now
         switch message["role"] as? String {
         case "user":
@@ -875,12 +880,12 @@ enum AgentLogParser {
             let reported = native(message["model"] as? String ?? "")
             if !reported.isEmpty { state.model = reported }
             if let usage = message["usage"] as? [String: Any],
-               let entry = piUsage(usage, model: state.model, json: json, state: state, now: now) {
+               let entry = piUsage(usage, model: state.model, json: json, state: state, now: now, provider: provider) {
                 entries.append(entry)
             }
             let stop = message["stopReason"] as? String
-            if stop == "stop" || stop == "error" || stop == "aborted" {
-                if state.turnOpen { entries.append(.turnEnded(date, completed: stop == "stop", duration: nil)) }
+            if stop == "stop" || stop == "length" || stop == "error" || stop == "aborted" {
+                if state.turnOpen { entries.append(.turnEnded(date, completed: stop == "stop" || stop == "length", duration: nil)) }
                 state.turnOpen = false
             } else {
                 entries.append(state.turnOpen ? .turnActive(date) : .turnBegan(date))
@@ -892,24 +897,29 @@ enum AgentLogParser {
         }
     }
 
-    /// Pi writes `input` without cache traffic and `output` with reasoning, the
-    /// shape `AgentTokens` keeps, so the counts pass through unchanged.
+    /// Both agents exclude cache traffic from input and include reasoning in output.
     private static func piUsage(_ usage: [String: Any], model: String, json: [String: Any],
-                                state: AgentLogState, now: Date) -> AgentLogEntry? {
+                                state: AgentLogState, now: Date, provider: AgentProvider) -> AgentLogEntry? {
+        let orchestration = provider == .omp ? usage["orchestration"] as? [String: Any] : nil
         let tokens = AgentTokens(
-            input: int(usage["input"]), cacheWrite: int(usage["cacheWrite"]), cacheRead: int(usage["cacheRead"]),
-            output: int(usage["output"]), reasoning: int(usage["reasoning"]))
+            input: int(usage["input"]) + int(orchestration?["input"]), cacheWrite: int(usage["cacheWrite"]),
+            cacheRead: int(usage["cacheRead"]) + int(orchestration?["cacheRead"]),
+            output: int(usage["output"]) + int(orchestration?["output"]),
+            reasoning: int(usage[provider == .omp ? "reasoningTokens" : "reasoning"]))
         guard tokens.total > 0 else { return nil }
         let date = timestamp(json["timestamp"]) ?? now
         var billable = AgentBillable(tokens: tokens)
-        billable.longCacheWrite = int(usage["cacheWrite1h"])
+        billable.longCacheWrite = provider == .omp
+            ? int((usage["cttl"] as? [String: Any])?["ephemeral1h"]) : int(usage["cacheWrite1h"])
+        if provider == .omp { billable.webSearches = int((usage["server"] as? [String: Any])?["webSearch"]) }
         let priced = AgentPricing.cost(billable, model: model)
-        let recorded = ((usage["cost"] as? [String: Any])?["total"] as? NSNumber)?.doubleValue
+        let rawCost = ((usage["cost"] as? [String: Any])?["total"] as? NSNumber)?.doubleValue
+        let recorded = rawCost.flatMap { $0.isFinite && $0 >= 0 ? $0 : nil }
         let cost = priced.cost ?? recorded
         let reportedCost = priced.cost == nil && (recorded ?? 0) > 0
         let id = json["id"] as? String ?? "\(date.timeIntervalSince1970)"
-        return .usage(key: "pi:\(state.session):\(id)", record: AgentUsageRecord(
-            provider: .pi, date: date, model: model, project: state.project, session: state.session,
+        return .usage(key: "\(provider.rawValue):\(state.session):\(id)", record: AgentUsageRecord(
+            provider: provider, date: date, model: model, project: state.project, session: state.session,
             tokens: tokens, cost: cost, savings: priced.savings, reportedCost: reportedCost), billable: billable)
     }
 
