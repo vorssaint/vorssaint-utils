@@ -993,15 +993,94 @@ enum CommandBarFeatureTests {
                "the word that also means inches is read correctly on both sides")
         suite.expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
                "hours become minutes")
+        suite.expect(unitValue("1d to hr").map { abs($0 - 24) < 0.001 } == true,
+               "days become hours")
+        suite.expect(unitValue("2 weeks to days").map { abs($0 - 14) < 0.001 } == true,
+               "weeks become days")
+        suite.expect(unitValue("1 year to min").map { abs($0 - 525_600) < 0.001 } == true,
+               "years become minutes (365 days)")
+        suite.expect(unitValue("1 yr to d").map { abs($0 - 365) < 0.001 } == true,
+               "abbreviated year becomes days")
+        suite.expect(unitValue("3 wk to d").map { abs($0 - 21) < 0.001 } == true,
+               "abbreviated week becomes days")
+        suite.expect(unitValue("24 h to d").map { abs($0 - 1) < 0.001 } == true,
+               "hours become days")
+        suite.expect(unitValue("14 d to wk").map { abs($0 - 2) < 0.001 } == true,
+               "days become weeks")
+        suite.expect(unitValue("365 d to yr").map { abs($0 - 1) < 0.001 } == true,
+               "days become years")
+        suite.expect(CommandBarUnits.convert("2 semanas para dias",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 14) < 0.001 } == true,
+               "Portuguese week becomes days")
+        suite.expect(CommandBarUnits.convert("1 ano para dias",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 365) < 0.001 } == true,
+               "Portuguese year becomes days")
+        suite.expect(CommandBarUnits.convert("365 dias para anos",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 1) < 0.001 } == true,
+               "Portuguese days become years")
+        suite.expect(CommandBarUnits.convert("3 dias para horas",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 72) < 0.001 } == true,
+               "Portuguese days become hours")
+        suite.expect(units("1d to hr") == "24 hr" && units("24 hr to d") == "1 d"
+                && units("14 d to wk") == "2 wk" && units("1 yr to d") == "365 d"
+                && units("365 d to yr") == "1 yr",
+               "custom duration units format successfully")
+        suite.expect(unitValue("2 wks to days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("14 d to wks").map { abs($0 - 2) < 0.001 } == true
+                && unitValue("2 yrs to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("730 d to yrs").map { abs($0 - 2) < 0.001 } == true,
+               "plural abbreviated units wks and yrs convert")
+        suite.expect(unitValue("2 weeks in days").map { abs($0 - 14) < 0.001 } == true
+                && unitValue("1d → hr").map { abs($0 - 24) < 0.001 } == true,
+               "conversion keywords in and arrow work with duration units")
+        suite.expect(unitValue("0.5 day to h").map { abs($0 - 12) < 0.001 } == true,
+               "fractional day converts")
+        suite.expect(unitValue("-1 d to h").map { abs($0 - -24) < 0.001 } == true,
+               "negative duration converts")
+        suite.expect(unitValue("1 dia to h").map { abs($0 - 24) < 0.001 } == true
+                && unitValue("1 week to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("1 semana to d").map { abs($0 - 7) < 0.001 } == true
+                && unitValue("2 years to d").map { abs($0 - 730) < 0.001 } == true
+                && unitValue("2 anos to d").map { abs($0 - 730) < 0.001 } == true,
+               "singular and plural duration forms convert across languages")
         suite.expect(unitValue("1 kg to lb").map { abs($0 - 2.20462) < 0.001 } == true,
                "mass converts")
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("1 day to kg") == nil && units("1 year to m") == nil,
+               "duration never converts to mass or length")
         suite.expect(units("100 km") == nil, "without the word there is no conversion")
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
         suite.expect(units("safari to dock") == nil, "plain words are not units")
+        suite.expect(units("day to night") == nil && units("year to date") == nil
+                && units("day to day") == nil && units("week to week") == nil,
+               "idiomatic phrases containing duration words are not conversions")
+        suite.expect(unitValue("1 wk to hr").map { abs($0 - 168) < 0.001 } == true
+                && unitValue("168 hr to wk").map { abs($0 - 1) < 0.001 } == true
+                && unitValue("1 d to min").map { abs($0 - 1440) < 0.001 } == true
+                && unitValue("1 d to s").map { abs($0 - 86400) < 0.001 } == true
+                && unitValue("1 yr to s").map { abs($0 - 31_536_000) < 0.001 } == true,
+               "full duration span conversions between seconds, minutes, hours, days, weeks, years")
+        suite.expect(CommandBarUnits.convert("1,5 dia para horas",
+                                             decimalSeparator: ",",
+                                             groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+                .map { abs($0.value - 36) < 0.001 } == true,
+               "Portuguese fractional duration converts")
         suite.expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
         suite.expect(units("minutes to read the article") == nil,
                "a sentence that happens to contain a unit word stays a search")
