@@ -330,6 +330,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift
         Sources/Vorssaint/Core/NotchSpotifySupport.swift
         Sources/Vorssaint/Core/NotchSpotifyStrings.swift
+        Sources/Vorssaint/Core/NotchAppleMusicLikeSupport.swift
         Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift
         Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift

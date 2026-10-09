@@ -12,6 +12,7 @@ struct NotchMusicView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
     @ObservedObject private var spotify = NotchSpotifyService.shared
+    @ObservedObject private var appleMusic = NotchAppleMusicLikeService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
@@ -32,6 +33,7 @@ struct NotchMusicView: View {
     /// leads to setup. Another player, such as the web player, shows it once
     /// Spotify names the same song.
     private var showsHeart: Bool {
+        if appleMusic.offers(service.playback) { return true }
         guard AppFeature.notchSpotify.isAvailable, let playback = service.playback else { return false }
         if playback.track.appBundleIdentifier == NotchSpotifySupport.bundleIdentifier { return true }
         return spotify.connection == .connected && spotify.saved != nil
@@ -107,17 +109,18 @@ struct NotchMusicView: View {
             syncExtras()
             service.refreshAutomation()
             shuffle.refresh(for: service.playback)
+            appleMusic.refresh(for: service.playback)
             spotify.reload()
         }
         .onChange(of: extra) { syncExtras() }
         .onChange(of: service.playback.map(NotchMusicIdentity.init)) {
             syncExtras()
-            if !preview { shuffle.refresh(for: service.playback) }
+            if !preview { shuffle.refresh(for: service.playback); appleMusic.refresh(for: service.playback) }
         }
         // Shuffle and the playback buttons share one consent, so a grant
         // through the playback buttons also shows on shuffle.
         .onChange(of: service.automationAvailability?.access) { old, new in
-            if !preview, old != nil, new != nil { shuffle.refresh(for: service.playback) }
+            if !preview, old != nil, new != nil { shuffle.refresh(for: service.playback); appleMusic.refresh(for: service.playback) }
         }
         .onChange(of: features.revision) { syncExtras() }
         .onChange(of: lyricsEnabled) { syncExtras() }
@@ -129,6 +132,7 @@ struct NotchMusicView: View {
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
             shuffle.stop()
+            appleMusic.stop()
             spotify.setQueueVisible(false)
         }
     }
@@ -253,6 +257,24 @@ struct NotchMusicView: View {
     }
 
     private func heartButton(compact: Bool) -> some View {
+        if appleMusic.offers(service.playback) { return AnyView(appleMusicHeart(compact: compact)) }
+        return AnyView(spotifyHeart(compact: compact))
+    }
+
+    /// Music's own favorite. Until it has been allowed to be controlled, the
+    /// first press asks for that, as the playback buttons do.
+    private func appleMusicHeart(compact: Bool) -> some View {
+        let strings = FeatureStrings.notchSpotify(l10n.language)
+        let liked = appleMusic.liked == true
+        let title = appleMusic.failed ? strings.likeFailed : liked ? strings.unlike : strings.like
+        return NotchMusicSideButton(symbol: appleMusic.failed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
+                                    title: title, active: liked, tint: accent, compact: compact) {
+            appleMusic.toggle(for: service.playback)
+        }
+        .disabled(appleMusic.busy || appleMusic.requestingAccess)
+    }
+
+    private func spotifyHeart(compact: Bool) -> some View {
         let strings = FeatureStrings.notchSpotify(l10n.language)
         let connected = spotify.connection == .connected
         let liked = connected && heartAnswered && spotify.saved == true
