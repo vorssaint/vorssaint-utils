@@ -1865,8 +1865,9 @@ enum NotchTests {
             let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: layout)
             for module in NotchModule.allCases {
                 let content = geometry.contentSize(for: geometry.expandedSize(module: module)).height
-                suite.expect(content <= geometry.contentBudget && content > 0,
-                       "every page stays inside its preset's strip: \(layout) \(module)")
+                let budget = geometry.contentBudget
+                suite.expect(content <= budget && content > 0,
+                       "pages fit their preset with an empty Home grid: \(layout) \(module)")
             }
             suite.expect(geometry.contentSize(for: geometry.expandedSize(module: .tools, panel: true)).height == geometry.pageBudget
                    && geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true)).height == geometry.pageBudget
@@ -1942,11 +1943,13 @@ enum NotchTests {
                     suite.expect(custom.contentBudget == available, "a custom island's budget is what its height leaves below the chrome")
                     for module in NotchModule.allCases {
                         let size = custom.expandedSize(module: module)
-                        suite.expect(size.width == min(width, frame.width - 24 - NotchQuickAccessLayout.gutter * 2) && size.height <= height
+                        let heightLimit = height
+                        let contentLimit = available
+                        suite.expect(size.width == min(width, frame.width - 24 - NotchQuickAccessLayout.gutter * 2) && size.height <= heightLimit
                                && frame.contains(custom.frame(for: size)),
-                               "custom dimensions fit every module and respect the display and height limit")
-                        suite.expect(custom.contentSize(for: size).height <= available && custom.contentSize(for: size).height > 0,
-                               "every page keeps inside the custom budget")
+                               "custom dimensions respect the display and chosen height for empty Home")
+                        suite.expect(custom.contentSize(for: size).height <= contentLimit && custom.contentSize(for: size).height > 0,
+                               "pages keep their budget when Home has no cards")
                     }
                     for count in [0, 1, 9, allModules.count] {
                         let picker = custom.sectionPickerSize(count: count)

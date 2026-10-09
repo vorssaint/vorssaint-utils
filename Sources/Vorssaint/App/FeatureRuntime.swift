@@ -370,6 +370,10 @@ final class FeatureRuntime: ObservableObject {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
             else { AgentUsageService.shared.stop() }
         },
+        .notchHomeAssistant: {
+            HomeAssistantService.current?.syncWithPreferences()
+            if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
+        },
         .notchWatch: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
             else { NotchWatchService.shared.stop() }

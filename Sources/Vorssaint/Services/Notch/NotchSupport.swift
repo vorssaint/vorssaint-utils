@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, homeAssistant
     var id: String { rawValue }
 
     var symbol: String {
@@ -30,6 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
+        case .homeAssistant: return "house"
         case .watch: return "eye"
         }
     }
@@ -52,6 +53,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .downloads: return "d"
         case .scratchpad: return "p"
         case .agents: return "g"
+        case .homeAssistant: return "h"
         case .watch: return "o"
         }
     }
@@ -75,6 +77,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
+        case .homeAssistant: return AppFeature.notchHomeAssistant.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
@@ -190,6 +193,37 @@ struct NotchCapsuleFit: Equatable {
 
 /// Shared measurements keep the window's content budget and its SwiftUI
 /// layout in agreement, including small screens and custom sizes.
+struct NotchHomeAssistantLayout {
+    static let spacing = NotchLayout.sectionSpacing
+    static let toolbarHeight: CGFloat = 36
+    static let pageNavigationHeight: CGFloat = 36
+    let entityCount: Int
+    let columns: Int
+    let rows: Int
+    let visibleRows: Int
+    let cardHeight: CGFloat
+    let navigationHeight: CGFloat
+    let contentHeight: CGFloat
+
+    init(count: Int, columns: Int, pageCount: Int = 1) {
+        let count = max(0, count)
+        let columns = [2, 4, 6, 8].contains(columns) ? columns : 2
+        entityCount = count
+        self.columns = columns
+        rows = count / columns + (count % columns == 0 ? 0 : 1)
+        visibleRows = min(rows, 3)
+        let gaps = CGFloat(max(0, visibleRows - 1)) * Self.spacing
+        cardHeight = NotchLayout.sectionTileHeight
+        navigationHeight = pageCount > 1 ? Self.pageNavigationHeight : 0
+        contentHeight = Self.toolbarHeight + navigationHeight
+            + (visibleRows == 0 ? NotchLayout.emptyHeight : CGFloat(visibleRows) * cardHeight + gaps)
+    }
+    func slots(in row: Int, fillLastRow: Bool) -> Int {
+        guard row >= 0 && row < rows else { return 0 }
+        return fillLastRow ? min(columns, entityCount - row * columns) : columns
+    }
+}
+
 enum NotchLayout {
     static let shoulder: CGFloat = 14
     static let horizontalInset: CGFloat = 28
@@ -219,6 +253,7 @@ enum NotchLayout {
     /// Surfaces that are vertical by nature (the embedded app panel, a metric
     /// detail, a hosted utility) still get a readable page inside a preset.
     static let pageContentHeight: CGFloat = 320
+    static let homeAssistantCardHeight = sectionTileHeight
     static let rowSpacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
     static let minimumCardHeight: CGFloat = 68
@@ -1602,6 +1637,7 @@ enum NotchSupport {
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
+                && ($0 != .homeAssistant || defaults.bool(forKey: DefaultsKey.notchHomeAssistantEnabled))
         }
     }
 
@@ -2369,7 +2405,8 @@ struct NotchGeometry: Equatable {
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
-                      agentsHeight: CGFloat? = nil) -> CGSize {
+                      agentsHeight: CGFloat? = nil, homeAssistantCount: Int = 0, homeAssistantColumns: Int = 2,
+                      homeAssistantPageCount: Int = 1) -> CGSize {
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
@@ -2409,13 +2446,18 @@ struct NotchGeometry: Equatable {
             case .agents:
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
+            case .homeAssistant:
+                let home = NotchHomeAssistantLayout(count: homeAssistantCount, columns: homeAssistantColumns, pageCount: homeAssistantPageCount)
+                contentHeight = home.rows == 0 ? min(budget, home.contentHeight) : home.contentHeight
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
-        if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
+        if layout == .custom && (module != .homeAssistant || homeAssistantCount <= 0 || detail || panel) {
+            preferredHeight = min(preferredHeight, customHeight)
+        }
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }

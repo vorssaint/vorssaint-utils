@@ -662,6 +662,7 @@ struct NotchView: View {
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
+            case .homeAssistant: NotchHomeAssistantView(size: pageSize)
             }
         }
     }
@@ -964,6 +965,7 @@ extension NotchModule: PanelOrderItem {
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .homeAssistant: return HomeAssistantStrings.localized(language)[.home]
         }
     }
 }

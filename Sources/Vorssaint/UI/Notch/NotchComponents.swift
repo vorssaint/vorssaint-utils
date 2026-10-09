@@ -12,6 +12,7 @@ struct NotchButtonStyle: ButtonStyle {
     var lifts = true
     /// A light wash under the pointer.
     var highlights = true
+    var disabledOpacity: Double = 0.4
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -24,7 +25,7 @@ struct NotchButtonStyle: ButtonStyle {
                     .fill(.white.opacity(active && highlights ? 0.09 : 0))
                     .allowsHitTesting(false)
             }
-            .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
+            .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : disabledOpacity)
             .scaleEffect(reduceMotion || !lifts ? 1
                          : configuration.isPressed ? 0.965 : (active ? 1.022 : 1))
             .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.7),
