@@ -1365,15 +1365,25 @@ def main():
           + "}\n")
 
     lyrics = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
+    write("NotchAppleMusicTokenCache.swift", "import Foundation\nimport os\n"
+          + "extension NotchAppleMusicLyricsTests {\n@MainActor final class TokenCache: TokenCacheFixture {\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchAppleMusicLyricsProvider.swift",
+                        "    @MainActor private func loadSubscriberToken(").replace("@MainActor private func", "@MainActor func", 1)
+          + "}\n}\n")
     write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
           + "final class Service {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
           + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var usesAppleMusic = false\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
-          + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
+          + "func load(_ track: NotchMusicIdentity) { if usesAppleMusic { loadAppleMusic(track); return }; loads.append(track); state = .loading; session = Session() }\n"
+          + declaration(lyrics, "    private func loadAppleMusic(")
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func hide()")
+          + declaration(lyrics, "    func retry()")
+          + declaration(lyrics, "    func connectAppleMusic()")
+          + declaration(lyrics, "    func disconnectAppleMusic()")
           + declaration(lyrics, "    func stop()")
           + declaration(lyrics, "    private func cancel()")
           + declaration(lyrics, "    func importLyrics()")

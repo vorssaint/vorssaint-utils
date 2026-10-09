@@ -27,6 +27,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchWatchEnabled) private var watchEnabled = true
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchLyricsOnline) private var lyricsOnline = false
+    @AppStorage(DefaultsKey.notchLyricsProvider) private var lyricsProvider = NotchLyricsProvider.lrclib.rawValue
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchLiveEqualizer) private var liveEqualizer = false
     @AppStorage(DefaultsKey.notchEnabled) private var enabled = false
@@ -427,8 +428,25 @@ struct NotchSettings: View {
             }
             SettingsFeatureSwitchRow(symbol: "text.quote", title: music.enableLyrics, isOn: $lyricsEnabled, feature: .notchLyrics)
             if lyricsEnabled, AppFeature.notchLyrics.isAvailable {
-                switchRow("globe", music.online, caption: music.onlineHint, isOn: $lyricsOnline)
+                let apple = FeatureStrings.notchAppleMusicLyrics(l10n.language)
+                switchRow("globe", music.online,
+                          caption: lyricsProvider == NotchLyricsProvider.appleMusic.rawValue ? apple.hint : music.onlineHint,
+                          isOn: $lyricsOnline)
                     .padding(.leading, settingsRowTextInset)
+                    .onChange(of: lyricsOnline) { NotchLyricsService.shared.providerPreferenceChanged() }
+                Picker(apple.provider, selection: $lyricsProvider) {
+                    Text("LRCLIB").tag(NotchLyricsProvider.lrclib.rawValue)
+                    Text(apple.appleMusic).tag(NotchLyricsProvider.appleMusic.rawValue)
+                }
+                .pickerStyle(.menu)
+                .padding(.leading, settingsRowTextInset)
+                .onChange(of: lyricsProvider) { NotchLyricsService.shared.providerPreferenceChanged() }
+                if lyricsProvider == NotchLyricsProvider.appleMusic.rawValue {
+                    VStack(alignment: .leading, spacing: 8) {
+                        if lyricsOnline { AppleMusicLyricsAccessSettings(strings: apple, music: music) }
+                        Text(apple.experimentalHint).font(.caption).foregroundStyle(.secondary)
+                    }.padding(.leading, settingsRowTextInset)
+                }
             }
             SettingsFeatureSwitchRow(symbol: "list.bullet", title: music.enableQueue, caption: music.queueDescription,
                                      isOn: $queueEnabled, feature: .notchQueue)

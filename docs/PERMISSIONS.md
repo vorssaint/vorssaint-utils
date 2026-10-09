@@ -12,6 +12,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
+| Media & Apple Music | Yes | Experimental Apple Music lyrics in Dynamic Island |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
@@ -88,6 +89,16 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 ## Calendars
 
 The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Vorssaint uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+
+## Media & Apple Music
+
+**Why it comes up.** MusicKit requests macOS authorization to use the Apple Music account configured on this Mac.
+
+**What uses it.** The experimental Apple Music lyrics provider in Dynamic Island. Select Apple Music under Lyrics provider, enable online lookup and press **Enable Apple Music access…** to request permission. The provider also requires an active Apple Music subscription and a song playing in Music.app. Granting permission alone does not establish that lyric retrieval succeeded.
+
+**If you say no.** The Apple provider cannot retrieve lyrics. LRCLIB and local LRC/TTML import remain available without this permission.
+
+**Optional.** Yes. **Disable Apple Music access** stops the provider and clears its tokens in memory; it does not sign out Music.app or revoke the system grant. Permission can be changed in macOS privacy settings. Account changes are made in Music.app. See [native lyrics](APPLE-MUSIC-LYRICS.md) for the integration and its limitations.
 
 ## Files and Folders
 

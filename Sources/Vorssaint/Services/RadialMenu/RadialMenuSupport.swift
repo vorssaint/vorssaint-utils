@@ -571,6 +571,11 @@ enum RadialNowPlayingSupport {
         }
         if let identifier = fields["itemIdentifier"] as? String, !identifier.isEmpty,
            identifier.utf8.count <= 512, !identifier.contains("\0") { info["itemIdentifier"] = identifier }
+        if let identifier = fields["catalogIdentifier"] as? String,
+           !identifier.isEmpty, identifier.utf8.count <= 20,
+           identifier.utf8.allSatisfy({ (48...57).contains($0) }), identifier.contains(where: { $0 != "0" }) {
+            info["catalogIdentifier"] = identifier
+        }
         if let artwork = fields["artworkBase64"] as? String,
            let bytes = Data(base64Encoded: artwork), !bytes.isEmpty {
             info[artworkDataKey] = bytes

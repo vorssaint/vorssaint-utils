@@ -770,6 +770,25 @@ enum UtilitiesFeatureTests {
                 && adapterReply?.displayID == "com.apple.Music"
                 && adapterReply?.isPlaying == true,
                "the Now Playing adapter line is read back into the MediaRemote keys the snapshot builder takes")
+        var catalogFields = try! JSONSerialization.jsonObject(with: adapterLine) as! [String: Any]
+        catalogFields["catalogIdentifier"] = "1851140685"
+        catalogFields["kMRMediaRemoteNowPlayingInfoDuration"] = 30
+        catalogFields["kMRMediaRemoteNowPlayingInfoElapsedTime"] = 1
+        let catalogLine = try! JSONSerialization.data(withJSONObject: catalogFields)
+        let catalogPlayback = NotchPlayback.decode(catalogLine)
+        suite.expect(catalogPlayback?.catalogIdentifier == "1851140685"
+            && catalogPlayback.map(NotchMusicIdentity.init)?.catalogIdentifier == "1851140685"
+            && catalogPlayback?.track.title == "Midnight City",
+                     "the shared adapter preserves a valid catalog ID through playback and lyric identity without changing existing metadata")
+        suite.expect(NotchPlayback.decode(adapterLine)?.catalogIdentifier == nil,
+                     "legacy adapter replies without a catalog ID retain their original playback behavior")
+        for invalid: Any in ["", "0", "0000", "-1", "12.5", "abc", "123\0", String(repeating: "1", count: 21), 1851140685] {
+            catalogFields["catalogIdentifier"] = invalid
+            let line = try! JSONSerialization.data(withJSONObject: catalogFields)
+            let playback = NotchPlayback.decode(line)
+            suite.expect(playback?.catalogIdentifier == nil && playback?.track.title == "Midnight City",
+                         "invalid catalog identifiers are ignored without discarding the player's ordinary metadata")
+        }
         let adapterPaused = RadialNowPlayingSupport.adapterReply(
             from: Data(#"{"kMRMediaRemoteNowPlayingInfoTitle":"Midnight City","isPlaying":false}"#.utf8))
         suite.expect(adapterPaused?.pid == 0 && adapterPaused?.displayID == nil && adapterPaused?.isPlaying == false

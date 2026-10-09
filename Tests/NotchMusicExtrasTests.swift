@@ -177,6 +177,8 @@ enum NotchMusicExtrasTests {
     static func run(_ suite: TestSuite) {
         preferredPlayer(suite)
         preferredPlayerLoading(suite)
+        NotchAppleMusicLyricsTests.run(suite)
+        NotchKaraokeRenderingTests.run(suite)
         lyricScheduleContracts(suite)
         NotchMusicHardeningTests.run(suite)
         let track = RadialNowPlayingSnapshot(title: "A & B + C", artist: "Artist / Example", album: "Studio Recording",
@@ -449,7 +451,7 @@ enum NotchMusicExtrasTests {
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 42 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 43 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }
