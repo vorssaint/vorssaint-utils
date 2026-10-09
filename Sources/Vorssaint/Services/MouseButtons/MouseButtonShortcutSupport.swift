@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
+import CoreGraphics
 import Foundation
 
 /// The pure half of the mouse button shortcuts feature: which buttons can
@@ -21,6 +23,13 @@ enum MouseButtonShortcutSupport {
     /// of a side wheel without adding another preference or storage format.
     static let sideWheelLeftInput: Int64 = -2
     static let sideWheelRightInput: Int64 = -1
+    /// The thumb button of Logitech's MX Master line, which the mouse reports
+    /// over Bluetooth not as a button at all but as the keyboard chord
+    /// Control-Option-Tab from its own keyboard interface. Taking the chord is
+    /// the only way to give that button a job without Logitech's software.
+    static let gestureButtonInput: Int64 = -3
+    static let gestureButtonKeyCode = Int64(kVK_Tab)
+    static let gestureButtonModifiers: GlobalShortcutModifiers = [.control, .option]
 
     /// A wheel driver can emit several horizontal packets for one physical
     /// move. Keep the first packet for each direction in that burst and let a
@@ -62,7 +71,16 @@ enum MouseButtonShortcutSupport {
     static func canMap(_ input: Int64) -> Bool {
         input == sideWheelLeftInput
             || input == sideWheelRightInput
+            || input == gestureButtonInput
             || buttonRange.contains(input)
+    }
+
+    /// The gesture button, when a key press is its chord and nothing more: an
+    /// extra modifier means the user typed something of their own.
+    static func gestureButtonInput(keyCode: Int64, flags: CGEventFlags) -> Int64? {
+        guard keyCode == gestureButtonKeyCode,
+              GlobalShortcutModifiers(cgFlags: flags) == gestureButtonModifiers else { return nil }
+        return gestureButtonInput
     }
 
     /// Whether an extra mouse button is physically down right now. This is
@@ -189,6 +207,7 @@ enum MouseButtonShortcutSupport {
         switch button {
         case sideWheelLeftInput: return strings.sideWheelLeftName
         case sideWheelRightInput: return strings.sideWheelRightName
+        case gestureButtonInput: return strings.gestureButtonName
         case backButtonNumber: return strings.backButtonName
         case forwardButtonNumber: return strings.forwardButtonName
         default: return String(format: strings.otherButtonFormat, Int(button) + 1)

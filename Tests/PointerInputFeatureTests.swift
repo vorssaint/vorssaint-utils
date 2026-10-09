@@ -1739,8 +1739,20 @@ enum PointerInputFeatureTests {
                 && MouseButtonShortcutSupport.canMap(MouseButtonShortcutSupport.sideWheelRightInput)
                 && !MouseButtonShortcutSupport.canMap(0) && !MouseButtonShortcutSupport.canMap(1)
                 && !MouseButtonShortcutSupport.canMap(2) && !MouseButtonShortcutSupport.canMap(32)
-                && !MouseButtonShortcutSupport.canMap(-3),
-               "only extra buttons and both side-wheel directions can carry a shortcut")
+                && MouseButtonShortcutSupport.canMap(MouseButtonShortcutSupport.gestureButtonInput)
+                && !MouseButtonShortcutSupport.canMap(-4),
+               "extra buttons, both side-wheel directions and the gesture button can carry a shortcut")
+        let gestureChord: CGEventFlags = [.maskControl, .maskAlternate]
+        suite.expect(MouseButtonShortcutSupport.gestureButtonInput(keyCode: Int64(kVK_Tab), flags: gestureChord)
+                == MouseButtonShortcutSupport.gestureButtonInput
+                && MouseButtonShortcutSupport.gestureButtonInput(
+                    keyCode: Int64(kVK_Tab), flags: gestureChord.union(.maskSecondaryFn))
+                == MouseButtonShortcutSupport.gestureButtonInput
+                && MouseButtonShortcutSupport.gestureButtonInput(
+                    keyCode: Int64(kVK_Tab), flags: gestureChord.union(.maskShift)) == nil
+                && MouseButtonShortcutSupport.gestureButtonInput(keyCode: Int64(kVK_Tab), flags: .maskControl) == nil
+                && MouseButtonShortcutSupport.gestureButtonInput(keyCode: Int64(kVK_Space), flags: gestureChord) == nil,
+               "the gesture button is exactly Control-Option-Tab, whatever device flags ride along")
         suite.expect(MouseButtonShortcutSupport.backButtonNumber == MouseNavigationSupport.backButtonNumber
                 && MouseButtonShortcutSupport.forwardButtonNumber == MouseNavigationSupport.forwardButtonNumber,
                "button shortcuts and mouse navigation agree on which button is which")
