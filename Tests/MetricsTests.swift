@@ -39,6 +39,10 @@ struct MetricsTests {
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
+            ("app-toggle", {
+                AppToggleTests.run(suite)
+                AppShortcutToggleTests.run(suite)
+            }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)

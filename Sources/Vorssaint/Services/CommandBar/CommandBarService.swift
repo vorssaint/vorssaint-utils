@@ -143,6 +143,12 @@ final class CommandBarService: ObservableObject {
 
     private let hotkey = QuickToolHotkey(id: 20)
     private var rowHotkeys: [QuickToolHotkey] = []
+    /// How many times each row's own combination has been pressed, and the
+    /// app that was in front before it last brought its app forward. An app
+    /// row's key is a toggle rather than a launcher, and these are the two
+    /// facts that decide what a press means; see `toggleAppFromShortcut`.
+    private var appShortcutPresses: [String: Int] = [:]
+    private var appShortcutReturnPID: [String: pid_t] = [:]
     private var panel: NSPanel?
     private var keyMonitor: Any?
     private var outsideClickMonitor: Any?
@@ -315,6 +321,8 @@ final class CommandBarService: ObservableObject {
         hotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
+        appShortcutPresses = [:]
+        appShortcutReturnPID = [:]
         hide()
         cancelPendingRestart()
     }
@@ -834,6 +842,11 @@ final class CommandBarService: ObservableObject {
     private func syncRowHotkeys() {
         let wanted = AppFeature.commandBar.isAvailable ? rowShortcuts : [:]
         for hotkey in rowHotkeys { hotkey.unregister() }
+        // A rebinding is not a press. Without this the first press on a
+        // freshly bound key would read as the second and hide an app the
+        // person had not brought forward yet.
+        appShortcutPresses = [:]
+        appShortcutReturnPID = [:]
         rowHotkeys = []
         var index: UInt32 = 0
         var refused: Set<String> = []
@@ -907,6 +920,15 @@ final class CommandBarService: ObservableObject {
             return
         }
         if isVisible { hide() }
+        // An app row's own combination toggles rather than launches. Only
+        // from here: the same row picked from the bar still launches, which
+        // is what a list of apps is for.
+        if let app = installedApp(for: entry) {
+            finish(entry, value: nil) { [weak self] _ in
+                self?.toggleAppFromShortcut(app, stableKey: key, entry: entry)
+            }
+            return
+        }
         finish(entry, value: nil)
     }
 
@@ -2209,6 +2231,86 @@ final class CommandBarService: ObservableObject {
         return running.first { $0.bundleIdentifier == bundleID }
     }
 
+    // MARK: - App row shortcuts
+
+    /// What one press of an app row's own combination does.
+    ///
+    /// Picked from the bar the row launches the app, which is what a list of
+    /// apps is for. From its own key the first press also launches it, and a
+    /// press on the app that is already in front puts it away and hands the
+    /// screen back to whoever had it — the same thing the Dock click does,
+    /// reachable without the pointer.
+    ///
+    /// An app that is not running is launched and nothing else: there is
+    /// nothing in front to hide, and the first press is a launch by
+    /// definition. An app that is running but hidden is activated, because
+    /// `AppToggleSupport` reads `isHidden` before the press count, so no
+    /// number of presses can leave a running app with no way back.
+    private func toggleAppFromShortcut(_ app: InstalledApps.InstalledApp,
+                                       stableKey key: String,
+                                       entry: CommandBarEntry) {
+        let press = (appShortcutPresses[key] ?? 0) + 1
+        appShortcutPresses[key] = press
+
+        guard let running = runningApplication(for: app) else {
+            // Not running. The row's own closure is the launch, unchanged.
+            entry.run(nil)
+            return
+        }
+        let pid = running.processIdentifier
+        let isFrontmost = NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+        switch AppToggleSupport.action(forPress: press,
+                                       isFrontmost: isFrontmost,
+                                       isHidden: running.isHidden) {
+        case .activate:
+            // Remember who was in front before this app took the screen, so
+            // the press that hides it can hand the screen back there rather
+            // than leaving macOS to guess. Not recorded when this app was
+            // already in front: there is nobody to go back to.
+            if !isFrontmost {
+                appShortcutReturnPID[key] = NSWorkspace.shared.frontmostApplication?.processIdentifier
+            }
+            activateRunningApp(running)
+        case .hide:
+            guard running.hide() else {
+                // The app stayed where it was, so the press is not lost —
+                // saying so beats a key that looks like it worked.
+                NSSound.beep()
+                return
+            }
+            // Whoever was in front before this app took the screen is where
+            // the handback goes. Checked for being gone already, so a person
+            // who quit that app in between is not handed a dead process.
+            guard let returnPID = appShortcutReturnPID.removeValue(forKey: key),
+                  returnPID != pid,
+                  let previous = NSRunningApplication(processIdentifier: returnPID),
+                  !previous.isTerminated, !previous.isHidden
+            else { return }
+            // A beat later, so the app just hidden has left the front and the
+            // handback is not fighting its own hide. The app is looked up
+            // again from its pid rather than captured: a stored
+            // `NSRunningApplication` outlives its process, and the pid is the
+            // durable identity.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
+                guard let self,
+                      let current = NSRunningApplication(processIdentifier: returnPID),
+                      !current.isTerminated, !current.isHidden
+                else { return }
+                self.activateRunningApp(current)
+            }
+        }
+    }
+
+    /// The activation sequence the Dock click and the Switcher both use: a
+    /// bare `activate()` cannot raise another app since macOS 14, and this
+    /// process swallowed the key, so nobody else is going to do it.
+    private func activateRunningApp(_ app: NSRunningApplication) {
+        ActivationHandoff.yield(to: app)
+        if !app.activate(from: NSRunningApplication.current, options: []) {
+            app.activate(options: [])
+        }
+    }
+
     private func quit(_ app: NSRunningApplication) {
         hide()
         let pid = app.processIdentifier
@@ -2782,13 +2884,19 @@ final class CommandBarService: ObservableObject {
         }
     }
 
-    private func finish(_ entry: CommandBarEntry, value: Int?) {
+    /// `run` overrides what the row itself does, for the one case where the
+    /// same row means different things depending on how it was reached: an
+    /// app row picked from the bar launches, while the same row's own
+    /// combination toggles. Everything around it — the usage count, the
+    /// farewell, the mascot — is shared.
+    private func finish(_ entry: CommandBarEntry, value: Int?, run: ((Int?) -> Void)? = nil) {
+        let work = run ?? entry.run
         recordUsage(of: entry)
         // Handed over before hiding, which wipes the field and the selection.
         queryWhenRun = query
         selectionWhenRun = selectedText
         guard !entry.keepsBarOpen else {
-            entry.run(value)
+            work(value)
             return
         }
         farewell = .happy
@@ -2797,7 +2905,7 @@ final class CommandBarService: ObservableObject {
         // gives it a reaction of its own, which takes this one's place: it
         // waits a moment for one, as Keep Awake's arrives just after.
         NotchService.shared.reactMascot(.celebrate, after: 0.3)
-        entry.run(value)
+        work(value)
     }
 
     // MARK: - Clipboard paste

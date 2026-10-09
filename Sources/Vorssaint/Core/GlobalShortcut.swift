@@ -180,6 +180,10 @@ struct GlobalShortcut: Equatable, Hashable {
     // free control-option-command layer.
     static let pointerNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Z),
                                                           modifiers: [.control, .option, .command])
+    // F for Finder, beside the pointer's Z on the same free
+    // control-option-command layer.
+    static let toggleFinderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_F),
+                                                    modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"
     // combination; the others use the free ⌃⌥⌘ letters.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
@@ -720,6 +724,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
     case pointerNextDisplay
+    case toggleFinder
 
     var id: String { storageKey }
 
@@ -754,6 +759,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
+        case .toggleFinder: return DefaultsKey.toggleFinderShortcut
         }
     }
 
@@ -788,6 +794,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
+        case .toggleFinder: return .toggleFinderDefault
         }
     }
 
@@ -851,6 +858,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
+        case .toggleFinder: return FinderToggleStrings.localized(L10n.shared.language).title
         }
     }
 
@@ -908,6 +916,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
+        case .toggleFinder: return [DefaultsKey.toggleFinderEnabled]
         }
     }
 
@@ -939,6 +948,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
+        case .toggleFinder: return .windowLayout
         }
     }
 

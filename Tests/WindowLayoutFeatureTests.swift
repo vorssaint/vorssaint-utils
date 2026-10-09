@@ -1034,6 +1034,11 @@ enum WindowLayoutFeatureTests {
                 && GlobalShortcutRole.pointerNextDisplay.requiredEnableKeys == [DefaultsKey.pointerDisplayEnabled]
                 && GlobalShortcutRole.pointerNextDisplay.feature == .windowLayout,
                "the pointer display shortcut is wired to its own keys and Window Layout")
+        suite.expect(GlobalShortcutRole.toggleFinder.storageKey == DefaultsKey.toggleFinderShortcut
+                && GlobalShortcutRole.toggleFinder.defaultShortcut == .toggleFinderDefault
+                && GlobalShortcutRole.toggleFinder.requiredEnableKeys == [DefaultsKey.toggleFinderEnabled]
+                && GlobalShortcutRole.toggleFinder.feature == .windowLayout,
+               "the Finder toggle shortcut is wired to its own keys and Window Layout")
         suite.expect(WindowLayoutGeometry.adjacentDisplayIndex(currentIndex: 0,
                                                          frames: [visibleFrame],
                                                          movingForward: false) == nil
