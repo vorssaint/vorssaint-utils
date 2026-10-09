@@ -32,6 +32,39 @@ enum DockClickSupport {
         bundleIdentifier == "com.vorssaint.utils"
             || bundleIdentifier == "com.vorssaint.utils.dev"
     }
+    /// Which pids a hide-everything sweep should hide, front to back.
+    ///
+    /// Only apps the window server still shows a normal window for are kept:
+    /// an app with nothing visible has nothing to hide, and touching it would
+    /// turn the "no windows open" press from a clean no-op into pointless
+    /// hide calls that still dirty the per-app click record the next Dock
+    /// click reads. The active app goes first: hiding the frontmost app first
+    /// clears the desktop in one sweep instead of revealing the app behind it
+    /// and hiding that one too. Every other survivor keeps its workspace
+    /// order behind it. Empty in is empty out, with no indexing, so the
+    /// nothing-open press cannot trap.
+    static func pidsToHide(from candidates: [(pid: pid_t, isActive: Bool, hasVisibleWindow: Bool)]) -> [pid_t] {
+        let visible = candidates.filter { $0.hasVisibleWindow }
+        guard let front = visible.first(where: { $0.isActive }) else { return visible.map { $0.pid } }
+        return [front.pid] + visible.filter { $0.pid != front.pid }.map { $0.pid }
+    }
+    /// Which pids a minimize-everything sweep should minimize, in workspace
+    /// order.
+    ///
+    /// Only apps that still show a normal window are kept: an app with nothing
+    /// visible has nothing to minimize, and touching it would turn the "no
+    /// windows open" press from a clean no-op into pointless menu presses
+    /// that still stamp the per-app click record the next Dock click reads.
+    /// Excluding the frontmost app is what lets a user collapse everything
+    /// else and keep working in what they are typing in. Empty in is empty
+    /// out, with no indexing, so the nothing-open press cannot trap.
+    static func minimizeTargets(excludingFrontmost: Bool,
+                                from apps: [(pid: pid_t, isFrontmost: Bool, hasVisibleWindow: Bool)]) -> [pid_t] {
+        apps.filter { app in
+            guard app.hasVisibleWindow else { return false }
+            return !excludingFrontmost || !app.isFrontmost
+        }.map(\.pid)
+    }
 
     /// The Option-Command-M chord is not unique to Minimize All. Only the
     /// standard menu action identifier proves that pressing it is safe.

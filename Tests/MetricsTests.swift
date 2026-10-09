@@ -38,7 +38,9 @@ struct MetricsTests {
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
-            ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
+            ("window-layout", { WindowLayoutFeatureTests.run(suite)
+                HideAllWindowsTests.run(suite)
+                WindowBulkActionsTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)
