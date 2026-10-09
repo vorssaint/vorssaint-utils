@@ -1809,6 +1809,23 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarLinks.url(for: CommandBarLink(name: "a", kind: .link, destination: "x.com"),
                                    expanded: "x.com")?.scheme == "https",
                "a destination pasted without a scheme is still a site")
+        func linkURL(_ destination: String) -> String? {
+            CommandBarLinks.url(for: CommandBarLink(name: "a", kind: .link, destination: destination),
+                                expanded: destination)?.absoluteString
+        }
+        suite.expect(linkURL("localhost:3000") == "http://localhost:3000"
+                && linkURL("localhost:3000/admin") == "http://localhost:3000/admin",
+               "a local server saved as host and port opens over http")
+        suite.expect(linkURL("example.com:8443/app") == "https://example.com:8443/app"
+                && linkURL("192.168.1.5:8080") == "https://192.168.1.5:8080",
+               "a named site with a port is still a site")
+        suite.expect(linkURL("mailto:a@x.com") == "mailto:a@x.com"
+                && linkURL("tel:5551234") == "tel:5551234"
+                && linkURL("obsidian://open?vault=notes") == "obsidian://open?vault=notes"
+                && linkURL("file:///tmp/a.txt") == "file:///tmp/a.txt"
+                && linkURL("http://localhost:3000") == "http://localhost:3000"
+                && linkURL("https://x.com/a") == "https://x.com/a",
+               "a destination with its own scheme opens as written")
         suite.expect(CommandBarLinks.decode(CommandBarLinks.encode([
             CommandBarLink(name: "", kind: .link, destination: "x"),
             CommandBarLink(name: "ok", kind: .link, destination: "x"),

@@ -263,12 +263,25 @@ enum CommandBarLinks {
         case .place:
             return URL(fileURLWithPath: (trimmed as NSString).expandingTildeInPath)
         case .link:
-            if let url = URL(string: trimmed), url.scheme != nil { return url }
-            return URL(string: "https://" + trimmed)
+            if let url = URL(string: trimmed), let scheme = url.scheme,
+               !isHostAndPort(trimmed, parsedScheme: scheme) {
+                return url
+            }
+            guard let site = URL(string: "https://" + trimmed) else { return nil }
+            // A local development server rarely serves https.
+            return site.host?.lowercased() == "localhost" ? URL(string: "http://" + trimmed) : site
         case .script:
             // A script runs; it does not open anything.
             return nil
         }
+    }
+
+    /// "localhost:3000" and "example.com:8080" parse with the host as their
+    /// scheme. Digits after the colon mean a port when the part before it
+    /// looks like a host, while "tel:5551234" keeps its scheme.
+    private static func isHostAndPort(_ value: String, parsedScheme scheme: String) -> Bool {
+        guard value.dropFirst(scheme.count + 1).first?.isNumber == true else { return false }
+        return scheme.contains(".") || scheme.lowercased() == "localhost"
     }
 
     /// A web address typed on its own, or nil when the text should remain a
