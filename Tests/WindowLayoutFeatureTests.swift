@@ -259,6 +259,22 @@ enum WindowLayoutFeatureTests {
                 && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutCenterTwoThirds] as? String
                     == WindowLayoutAction.clearedShortcutStorageValue,
                "center two thirds starts with no combination of its own")
+        suite.expect(WindowLayoutAction.allCases.contains(.increaseSize)
+                && WindowLayoutAction.increaseSize.shortcutID == 71
+                && WindowLayoutAction(shortcutID: 71) == .increaseSize,
+               "increase size exists and answers to its own shortcut id")
+        suite.expect(WindowLayoutAction.increaseSize.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutIncreaseSize] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "increase size starts with no combination of its own")
+        suite.expect(WindowLayoutAction.allCases.contains(.decreaseSize)
+                && WindowLayoutAction.decreaseSize.shortcutID == 72
+                && WindowLayoutAction(shortcutID: 72) == .decreaseSize,
+               "decrease size exists and answers to its own shortcut id")
+        suite.expect(WindowLayoutAction.decreaseSize.defaultShortcut == nil
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutDecreaseSize] as? String
+                    == WindowLayoutAction.clearedShortcutStorageValue,
+               "decrease size starts with no combination of its own")
         let verticalLayouts: [(WindowLayoutAction, UInt32, String)] = [
             (.topQuarter, 66, DefaultsKey.windowLayoutShortcutTopQuarter),
             (.upperMiddleQuarter, 58, DefaultsKey.windowLayoutShortcutUpperMiddleQuarter),
@@ -317,6 +333,11 @@ enum WindowLayoutFeatureTests {
                     && !layoutStrings.bottomTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
+        let enLayoutStrings = FeatureStrings.windowLayout(.enUS)
+        suite.expect(enLayoutStrings.increaseSize == "Increase size"
+                && enLayoutStrings.decreaseSize == "Decrease size"
+                && enLayoutStrings.resizeStep == "Resize step",
+               "window layout defines English increase, decrease, and step labels")
         suite.expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
                                             action: .fullScreen, anchorTolerance: 10) == false,
                "full screen never joins the frame-based gesture acceptance")
@@ -1261,6 +1282,62 @@ enum WindowLayoutFeatureTests {
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame)
                == CGRect(x: 320, y: 220, width: 800, height: 500),
                "window layout center preserves current size and centers inside the visible frame")
+        suite.expect(WindowLayoutGeometry.rect(for: .increaseSize, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 160, y: 175, width: 880, height: 550),
+               "window layout increase size expands by 10% around window center")
+        suite.expect(WindowLayoutGeometry.rect(for: .decreaseSize, current: currentWindow, visibleFrame: visibleFrame)
+               == CGRect(x: 240, y: 225, width: 720, height: 450),
+               "window layout decrease size shrinks by 10% around window center")
+        suite.expect(WindowLayoutGeometry.rect(for: .increaseSize, current: currentWindow, visibleFrame: visibleFrame,
+                                              stepPercent: 20)
+               == CGRect(x: 120, y: 150, width: 960, height: 600),
+               "window layout increase size supports custom percentage")
+        suite.expect(WindowLayoutGeometry.rect(for: .decreaseSize, current: currentWindow, visibleFrame: visibleFrame,
+                                              stepPercent: 20)
+               == CGRect(x: 280, y: 250, width: 640, height: 400),
+               "window layout decrease size supports custom percentage")
+        for (input, expected) in [(-5.0, 10.0), (0.0, 10.0), (75.0, 50.0), (.nan, 10.0)] {
+            suite.expect(WindowLayoutResizeStep.sanitizedPercent(input) == expected,
+                   "invalid resize percent \(input) sanitizes to \(expected)")
+        }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutResizeStep] as? Double == 10.0,
+               "default window layout resize step registers as 10%")
+        let f0 = WindowLayoutFrame(origin: CGPoint(x: 0, y: 40), size: CGSize(width: 720, height: 860))
+        let f1 = WindowLayoutFrame(origin: CGPoint(x: 0, y: 40), size: CGSize(width: 792, height: 860))
+        let f2 = WindowLayoutFrame(origin: CGPoint(x: 0, y: 40), size: CGSize(width: 871, height: 860))
+        var resizeSeq = WindowLayoutResizeSequence(initialFrame: f0)
+        suite.expect(resizeSeq.isCurrent(frame: f0, tolerance: 2)
+                && resizeSeq.stepInSequence(for: .increaseSize, visibleFrame: visibleFrame) == nil,
+               "initial sequence needs calculated increase")
+        resizeSeq.appendIncreased(f1)
+        suite.expect(resizeSeq.currentFrame == f1 && resizeSeq.isCurrent(frame: f1, tolerance: 2),
+               "appending increase advances sequence")
+        resizeSeq.appendIncreased(f2)
+        suite.expect(resizeSeq.currentFrame == f2
+                && resizeSeq.stepInSequence(for: .decreaseSize, visibleFrame: visibleFrame) == f1
+                && resizeSeq.currentFrame == f1,
+               "decrease acts as undo for previous increase")
+        suite.expect(resizeSeq.stepInSequence(for: .decreaseSize, visibleFrame: visibleFrame) == f0
+                && resizeSeq.currentFrame == f0,
+               "second decrease returns to original frame with exact height preserved")
+        suite.expect(resizeSeq.stepInSequence(for: .increaseSize, visibleFrame: visibleFrame) == f1
+                && resizeSeq.currentFrame == f1,
+               "increase acts as redo back to first step")
+        suite.expect(resizeSeq.stepInSequence(for: .increaseSize, visibleFrame: visibleFrame) == f2
+                && resizeSeq.currentFrame == f2,
+               "increase acts as redo back to second step")
+        let smallDisplay = CGRect(x: 0, y: 0, width: 600, height: 400)
+        suite.expect(resizeSeq.stepInSequence(for: .decreaseSize, visibleFrame: smallDisplay) == nil,
+               "resize sequence rejects restoring a frame that exceeds the target display bounds")
+        let fMinus1 = WindowLayoutFrame(origin: CGPoint(x: 40, y: 80), size: CGSize(width: 640, height: 760))
+        var reverseSeq = WindowLayoutResizeSequence(initialFrame: f0)
+        suite.expect(reverseSeq.stepInSequence(for: .decreaseSize, visibleFrame: visibleFrame) == nil,
+               "initial sequence needs calculated decrease")
+        reverseSeq.prependDecreased(fMinus1)
+        suite.expect(reverseSeq.currentFrame == fMinus1
+                && reverseSeq.stepInSequence(for: .increaseSize, visibleFrame: visibleFrame) == f0
+                && reverseSeq.currentFrame == f0,
+               "undo style works symmetrically when decreasing first then increasing")
         suite.expect(WindowLayoutGeometry.rect(for: .restore, current: currentWindow, visibleFrame: visibleFrame)
                == currentWindow,
                "window layout restore keeps the saved frame")

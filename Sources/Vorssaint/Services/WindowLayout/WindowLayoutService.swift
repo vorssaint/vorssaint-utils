@@ -37,6 +37,7 @@ final class WindowLayoutService: ObservableObject {
 
     private var frameHistory = WindowLayoutHistory()
     private var lastActions: [WindowLayoutWindowKey: WindowLayoutAction] = [:]
+    private var resizeSequences: [WindowLayoutWindowKey: WindowLayoutResizeSequence] = [:]
     // Where each window's last placement left it, as requested and as read
     // back, minimum sizes included: the side size cycle only advances from there.
     private var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
@@ -346,6 +347,49 @@ final class WindowLayoutService: ObservableObject {
                                 historyFrame: WindowLayoutFrame? = nil,
                                 cyclesRepeatedAction: Bool = true,
                                 sideRepeatCyclesThirds: Bool = false) -> WindowLayoutResult {
+        if action == .increaseSize || action == .decreaseSize {
+            var sequence = resizeSequences[target.key]
+            if sequence == nil || !sequence!.isCurrent(frame: target.frame, tolerance: frameTolerance) {
+                sequence = WindowLayoutResizeSequence(initialFrame: target.frame)
+            }
+            let placement: WindowLayoutPlacement
+            if let stepFrame = sequence!.stepInSequence(for: action, visibleFrame: visibleFrame) {
+                let rect = appKitFrame(fromAX: stepFrame)
+                placement = WindowLayoutPlacement(frame: stepFrame, rect: rect)
+            } else {
+                placement = self.placement(for: action,
+                                           current: target.frame,
+                                           visibleFrame: visibleFrame)
+                if placement.frame != target.frame {
+                    if action == .increaseSize {
+                        sequence!.appendIncreased(placement.frame)
+                    } else {
+                        sequence!.prependDecreased(placement.frame)
+                    }
+                }
+            }
+            if placement.frame == target.frame {
+                lastActions[target.key] = action
+                settledFrames.removeValue(forKey: target.key)
+                resizeSequences[target.key] = sequence
+                return finish(.success(restored: false))
+            }
+            frameHistory.record(historyFrame ?? target.frame, for: target.key)
+            if setFrame(placement.frame,
+                        targetRect: placement.rect,
+                        screenVisibleFrame: visibleFrame,
+                        action: action,
+                        on: target.window,
+                        windowKey: target.key) {
+                lastActions[target.key] = action
+                resizeSequences[target.key] = sequence
+                return finish(.success(restored: false))
+            }
+            frameHistory.discardLatest(for: target.key)
+            return finish(.failure(.failed))
+        } else {
+            resizeSequences.removeValue(forKey: target.key)
+        }
         let currentRect = appKitFrame(fromAX: target.frame)
         let previousAction = cyclesRepeatedAction ? lastActions[target.key] : nil
         let cyclePress = WindowLayoutGeometry.sideCyclePress(for: action,
@@ -498,6 +542,7 @@ final class WindowLayoutService: ObservableObject {
         frameHistory.removeStaleWindows(keeping: activeWindows)
         lastActions = lastActions.filter { activeWindows.contains($0.key) }
         settledFrames = settledFrames.filter { activeWindows.contains($0.key) }
+        resizeSequences = resizeSequences.filter { activeWindows.contains($0.key) }
     }
 
     private func activeWindowKeys() -> Set<WindowLayoutWindowKey>? {
@@ -532,7 +577,8 @@ final class WindowLayoutService: ObservableObject {
                                              visibleFrame: visibleFrame,
                                              windowGap: WindowLayoutGaps.windowGap,
                                              screenGap: WindowLayoutGaps.screenGap,
-                                             marginPercent: WindowLayoutMargin.percent)
+                                             marginPercent: WindowLayoutMargin.percent,
+                                             stepPercent: WindowLayoutResizeStep.stepPercent)
         let integral = rect.integral
         return WindowLayoutPlacement(frame: axFrame(fromAppKit: integral), rect: integral)
     }
