@@ -667,11 +667,13 @@ final class AppUpdatesService: ObservableObject {
     }
 
     /// The destination installs its own update, so open it and tell the truth
-    /// again the moment the person is back.
+    /// again the moment the person is back. Opening runs off the main thread,
+    /// since launching a large app can take a while.
     private func handOff(_ url: URL) {
         updateHandoffPending = true
-        if !NSWorkspace.shared.open(url) {
-            updateHandoffPending = false
+        NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+            guard error != nil else { return }
+            DispatchQueue.main.async { self?.updateHandoffPending = false }
         }
     }
 
