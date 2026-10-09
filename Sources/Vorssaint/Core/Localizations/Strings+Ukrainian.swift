@@ -1063,6 +1063,15 @@ extension Strings {
         shelfShortcutFinderSelection: "Додавати вибране у Finder клавіатурним скороченням",
         shelfShortcutFinderSelectionCaption: "Коли Finder на передньому плані, скорочення відкриває полицю вже з вибраними файлами. Якщо нічого не вибрано, вона відкривається як зазвичай.",
         spacesOrderName: "Фіксований порядок Spaces",
-        spacesOrderCaption: "Не дає macOS змінювати порядок Spaces за останнім використанням, тож вони лишаються в заданому вами порядку. Попереднє налаштування повернеться, коли цю опцію вимкнено. Dock може один раз перезапуститися, щоб застосувати зміну."
+        spacesOrderCaption: "Не дає macOS змінювати порядок Spaces за останнім використанням, тож вони лишаються в заданому вами порядку. Попереднє налаштування повернеться, коли цю опцію вимкнено. Dock може один раз перезапуститися, щоб застосувати зміну.",
+        nativeHiDPI: "Нативне HiDPI",
+        virtualHiDPI: "Віртуальне HiDPI",
+        standardResolution: "Стандартна роздільність (1x)",
+        recoveryKeep: "Зберегти зміни",
+        recoveryRevert: "Відновити",
+        recoveryCountdownTitle: "Підтвердження налаштувань дисплея",
+        recoveryCountdownRemaining: { "Автоматичне повернення через \($0) с" },
+        recoveryFailedMessage: "Не вдалося відновити попередній режим HiDPI",
+        toggleHiDPICaption: "Перемкнути масштабування Retina HiDPI"
     )
 }

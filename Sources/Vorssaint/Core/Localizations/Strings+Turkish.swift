@@ -1093,6 +1093,15 @@ extension Strings {
         shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
         shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır.",
         spacesOrderName: "Space sırasını sabit tut",
-        spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir."
+        spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir.",
+        nativeHiDPI: "Yerel HiDPI",
+        virtualHiDPI: "Sanal HiDPI",
+        standardResolution: "Standart Çözünürlük (1x)",
+        recoveryKeep: "Ayarları Koru",
+        recoveryRevert: "Geri Dön",
+        recoveryCountdownTitle: "Bu ekran ayarları korunsun mu?",
+        recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
+        recoveryFailedMessage: "Önceki HiDPI modu geri yüklenemedi",
+        toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat"
     )
 }

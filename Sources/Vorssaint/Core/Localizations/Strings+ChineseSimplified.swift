@@ -1093,6 +1093,15 @@ extension Strings {
         shelfShortcutFinderSelection: "使用快捷键添加访达中的所选项",
         shelfShortcutFinderSelectionCaption: "访达位于前台时，快捷键会打开暂存架并放入所选文件。未选择任何内容时照常打开。",
         spacesOrderName: "固定空间顺序",
-        spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。"
+        spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。",
+        nativeHiDPI: "原生 HiDPI",
+        virtualHiDPI: "虚拟 HiDPI",
+        standardResolution: "标准分辨率 (1x)",
+        recoveryKeep: "保留设置",
+        recoveryRevert: "还原",
+        recoveryCountdownTitle: "保留这个显示设置？",
+        recoveryCountdownRemaining: { "\($0) 秒后自动恢复" },
+        recoveryFailedMessage: "无法恢复先前的 HiDPI 模式",
+        toggleHiDPICaption: "切换 Retina HiDPI 缩放"
     )
 }

@@ -769,5 +769,286 @@ enum DisplayRestorationTests {
         suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
                      "the built-in display comes back even when it reads as another monitor while off")
+
+        // PR #1773 display/HiDPI hardening contracts.
+        let recovery = DisplayRecoveryManager.shared
+        recovery.confirm()
+        let firstRecovery = recovery.beginAction(targetDisplayID: 0xA001, confirmationSeconds: 60)
+        let preservedSnapshot = recovery.currentSnapshot?.targetDisplayID
+        let secondRecovery = recovery.beginAction(targetDisplayID: 0xA002, confirmationSeconds: 60)
+        suite.expect(firstRecovery && !secondRecovery
+                     && preservedSnapshot == 0xA001
+                     && recovery.currentSnapshot?.targetDisplayID == 0xA001,
+                     "a second display mutation cannot replace an unconfirmed recovery snapshot")
+        recovery.confirm()
+
+        do {
+            let originalRecreate = recovery.recreateVirtualMirror
+            let originalTeardown = recovery.teardownVirtualMirror
+            var teardownCallCount = 0
+            recovery.recreateVirtualMirror = { _, _, _ in
+                throw VirtualDisplayError.virtualDisplayCreationFailed
+            }
+            recovery.teardownVirtualMirror = { _ in
+                teardownCallCount += 1
+            }
+            defer {
+                recovery.recreateVirtualMirror = originalRecreate
+                recovery.teardownVirtualMirror = originalTeardown
+            }
+
+            let failureStarted = recovery.beginAction(
+                targetDisplayID: 0xD001,
+                previousVirtualMirrorLogicalSize: CGSize(width: 2560, height: 1440),
+                virtualDisplayCreated: false,
+                confirmationSeconds: 60
+            )
+            suite.expect(failureStarted && recovery.awaitingConfirmation && !recovery.hasRollbackFailure,
+                         "recovery begins with clean state")
+            recovery.rollback()
+            suite.expect(recovery.hasRollbackFailure,
+                         "rollback sets hasRollbackFailure when mirror restoration fails")
+            suite.expect(recovery.awaitingConfirmation,
+                         "recovery retains awaitingConfirmation after rollback failure")
+            suite.expect(recovery.currentSnapshot?.targetDisplayID == 0xD001,
+                         "recovery preserves currentSnapshot after rollback failure")
+            suite.expect(recovery.remainingSeconds == 0,
+                         "recovery zeroes remainingSeconds after rollback failure")
+            suite.expect(teardownCallCount > 0 && !VirtualDisplayService.shared.isVirtualMirrorActive(for: 0xD001),
+                         "rollback teardown leaves no active virtual mirror on target display")
+            let blockedAction = recovery.beginAction(targetDisplayID: 0xD002, confirmationSeconds: 60)
+            suite.expect(!blockedAction,
+                         "mutations are blocked while in rollback failure state")
+            recovery.rollback()
+            suite.expect(recovery.hasRollbackFailure && recovery.awaitingConfirmation,
+                         "rollback retry maintains failure state when restore fails again")
+            recovery.confirm()
+            suite.expect(!recovery.hasRollbackFailure && !recovery.awaitingConfirmation && recovery.currentSnapshot == nil,
+                         "confirm clears rollback failure and transaction state")
+
+            var tornDownTargetID: CGDirectDisplayID?
+            recovery.teardownVirtualMirror = { targetID in
+                tornDownTargetID = targetID
+            }
+            let createdStarted = recovery.beginAction(
+                targetDisplayID: 0xD003,
+                virtualDisplayCreated: true,
+                confirmationSeconds: 60
+            )
+            suite.expect(createdStarted && recovery.awaitingConfirmation,
+                         "recovery begins with virtual display created")
+            recovery.rollback()
+            suite.expect(tornDownTargetID == 0xD003 && !recovery.hasRollbackFailure && !recovery.awaitingConfirmation,
+                         "rollback routes virtual mirror teardown through test seam")
+        }
+
+        suite.expect(Strings.fr.recoveryCountdownTitle.contains("\u{00A0}?")
+                     && Strings.fr.recoveryCountdownRemaining(10).contains("\u{00A0}s"),
+                     "French display recovery strings maintain non-breaking spaces before punctuation and unit")
+        suite.expect(Strings.tr.recoveryCountdownTitle.contains("korunsun mu?")
+                     && !Strings.tr.recoveryCountdownTitle.contains("'"),
+                     "Turkish display recovery strings use standard confirmation phrasing and no straight apostrophes")
+
+        let allModes = (CGDisplayCopyAllDisplayModes(
+            CGMainDisplayID(),
+            [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
+        ) as? [CGDisplayMode]) ?? []
+        suite.expect(VirtualDisplayService.matchingDisplayMode(in: [], logicalWidth: 1920, logicalHeight: 1080) == nil,
+                     "matchingDisplayMode handles empty modes array safely")
+        let oneXModes = allModes.filter { $0.pixelWidth == $0.width && $0.pixelHeight == $0.height }
+        if let sample1x = oneXModes.first {
+            let matched = VirtualDisplayService.matchingDisplayMode(
+                in: [sample1x],
+                logicalWidth: sample1x.width,
+                logicalHeight: sample1x.height
+            )
+            suite.expect(matched == nil,
+                         "matchingDisplayMode rejects 1x mode even when logical size matches")
+        }
+        let twoXModes = allModes.filter { $0.pixelWidth == $0.width * 2 && $0.pixelHeight == $0.height * 2 }
+        if let sample2x = twoXModes.first {
+            let matched2x = VirtualDisplayService.matchingDisplayMode(
+                in: allModes,
+                logicalWidth: sample2x.width,
+                logicalHeight: sample2x.height
+            )
+            suite.expect(matched2x != nil && matched2x?.pixelWidth == sample2x.width * 2,
+                         "matchingDisplayMode accepts mode with exact 2x HiDPI backing")
+        }
+
+        let orphanedTargets = VirtualDisplayService.orphanedTargetIDs(
+            associatedTargetIDs: [11, 22, 33],
+            onlineDisplayIDs: [11, 33, 44]
+        )
+        suite.expect(orphanedTargets == [22],
+                     "virtual HiDPI cleanup removes only targets that actually left the online topology")
+
+        let disassociatedTargets = VirtualDisplayService.disassociatedTargetIDs(
+            associatedDummies: [11: 111, 22: 222, 33: 333],
+            onlineDisplayIDs: [11, 22],
+            mirrorsDisplay: { displayID in
+                if displayID == 11 { return 111 }
+                if displayID == 22 { return 0 }
+                return 0
+            }
+        )
+        suite.expect(disassociatedTargets == [22, 33],
+                     "virtual HiDPI cleanup identifies both offline targets and unmirrored targets")
+
+        let qhdProfile = VirtualDisplayProfile.profile(matchingWidth: 2560, height: 1440)
+        if let backing = qhdProfile.modes.first(where: { $0.width == 5120 && $0.height == 2880 }) {
+            let logical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: backing)
+            suite.expect(logical.width == 2560 && logical.height == 1440,
+                         "virtual HiDPI exposes logical dimensions at half the backing size")
+        } else {
+            suite.expect(false, "QHD virtual profile contains a 5120×2880 backing mode")
+        }
+
+        let ultrawideProfile = VirtualDisplayProfile.profile(matchingWidth: 3440, height: 1440)
+        let ultrawideBacking = ultrawideProfile.modes[0]
+        let ultrawideLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: ultrawideBacking)
+        suite.expect(ultrawideBacking.width == 6880 && ultrawideBacking.height == 2880
+                     && ultrawideLogical.width == 3440 && ultrawideLogical.height == 1440,
+                     "nonstandard virtual HiDPI keeps a 2× backing surface and requested logical size")
+
+        let fhdProfile = VirtualDisplayProfile.profile(matchingWidth: 1920, height: 1080)
+        let fhdBacking = fhdProfile.modes[0]
+        let fhdLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: fhdBacking)
+        suite.expect(fhdBacking.width == 3840 && fhdBacking.height == 2160
+                     && fhdLogical.width == 1920 && fhdLogical.height == 1080,
+                     "standard 16:9 profile prioritizes requested 1920×1080 HiDPI mode at index 0")
+
+        let macProfile = VirtualDisplayProfile.profile(matchingWidth: 1920, height: 1200)
+        let macBacking = macProfile.modes[0]
+        let macLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: macBacking)
+        suite.expect(macBacking.width == 3840 && macBacking.height == 2400
+                     && macLogical.width == 1920 && macLogical.height == 1200,
+                     "16:10 profile prioritizes requested 1920×1200 HiDPI mode at index 0")
+
+        let uhdProfile = VirtualDisplayProfile.profile(matchingWidth: 3840, height: 2160)
+        let uhdBacking = uhdProfile.modes[0]
+        let uhdLogical = VirtualDisplayProfile.logicalHiDPIMode(fromBacking: uhdBacking)
+        suite.expect(uhdBacking.width == 7680 && uhdBacking.height == 4320
+                     && uhdLogical.width == 3840 && uhdLogical.height == 2160,
+                     "4K 16:9 profile prioritizes requested 3840×2160 HiDPI backing at index 0")
+
+        let dynamicMode = DisplayResolutionMode(
+            width: 3024, height: 1964,
+            pixelWidth: 3024, pixelHeight: 1964,
+            refreshRate: 0
+        )
+        suite.expect(dynamicMode.refreshLabel == "—",
+                     "unknown or variable refresh never renders as 0 Hz")
+
+        let skyLightSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/SkyLightBridge.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(skyLightSource.contains("CGSGetCurrentDisplayModeFn")
+                     && skyLightSource.contains("-> Void"),
+                     "SkyLight bridge uses the current-mode API and void CGS ABI")
+
+        let resolutionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayResolutionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(!resolutionSource.contains("ioDisplayModeID")
+                     && resolutionSource.contains("previousVirtualMirrorLogicalSize"),
+                     "CGS indexes stay separate from IODisplayModeID and virtual state is snapshotted")
+        suite.expect(resolutionSource.contains("guard DisplayRecoveryManager.shared.beginAction(")
+                     && resolutionSource.contains("Failed to disable virtual mirror prior to mode switch")
+                     && resolutionSource.contains("DisplayRecoveryManager.shared.rollback()"),
+                     "display mutations serialize on the recovery snapshot and failures after virtual teardown roll back")
+        suite.expect(resolutionSource.contains("let availableModes = queryModes(for: targetID)")
+                     && resolutionSource.contains("newModesPerDisplay[targetID] = availableModes")
+                     && resolutionSource.contains("newHiDPIStatusPerDisplay[targetID] = .virtualMirror"),
+                     "mirror rows use physical-target mode indices and virtual-source current state")
+        suite.expect(resolutionSource.contains("isResolutionManagementActive")
+                     && resolutionSource.contains("reconcileVirtualMirrors")
+                     && resolutionSource.contains("if self.modesPerDisplay != newModesPerDisplay")
+                     && resolutionSource.contains("if self.currentModePerDisplay != newCurrentModePerDisplay")
+                     && resolutionSource.contains("if self.hiDPIStatusPerDisplay != newHiDPIStatusPerDisplay"),
+                     "resolution service publishes only on changes and suppresses background polling when disabled")
+
+        let brightnessSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSource.contains("isVirtualMirrorTarget(for: id)")
+                     && brightnessSource.contains("activeTopology.contains(id) || virtualMirrorTarget"),
+                     "the physical virtual-HiDPI target remains a controllable brightness/resolution row")
+        suite.expect(brightnessSource.contains("cleanupForBrightnessFeatureRemoval()")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: CGMainDisplayID())")
+                     && brightnessSource.contains("resolvePhysicalTarget(for: id)"),
+                     "brightness service rolls back virtual mirrors on disable and routes virtual IDs to physical displays")
+        suite.expect(!brightnessSource.contains("names[targetID] = screen.localizedName"),
+                     "physical display names are not overridden with the virtual mirror name")
+
+        let virtualSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/VirtualDisplayService.swift",
+            encoding: .utf8)) ?? ""
+        if let disableRange = virtualSource.range(of: "public func disableVirtualMirror(for targetDisplayID:"),
+           let completeRange = virtualSource.range(
+               of: "let completeErr = CGCompleteDisplayConfiguration",
+               range: disableRange.lowerBound..<virtualSource.endIndex),
+           let removeRange = virtualSource.range(
+               of: "associatedDummies.removeValue(forKey: targetDisplayID)",
+               range: disableRange.lowerBound..<virtualSource.endIndex) {
+            suite.expect(completeRange.lowerBound < removeRange.lowerBound,
+                         "virtual mirror ownership is retained until CoreGraphics commits teardown")
+        } else {
+            suite.expect(false, "virtual mirror teardown source contract is present")
+        }
+        suite.expect(virtualSource.contains("CGConfigureDisplayWithDisplayMode(cfg, virtualID")
+                     && virtualSource.contains("CGDisplayCopyDisplayMode(virtualID)")
+                     && virtualSource.contains("activeMode.width == width")
+                     && virtualSource.contains("activeMode.height == height")
+                     && virtualSource.contains("activeMode.pixelWidth == expectedPixelWidth")
+                     && virtualSource.contains("activeMode.pixelHeight == expectedPixelHeight"),
+                     "virtual display creation explicitly configures and verifies the active logical dimensions")
+
+        let recoverySource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/DisplayRecoveryManager.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(recoverySource.contains("activeMode?.width == targetW && activeMode?.height == targetH")
+                     && recoverySource.contains("activeMode?.pixelWidth == expectedPixelW && activeMode?.pixelHeight == expectedPixelH")
+                     && recoverySource.contains("self.hasRollbackFailure = true")
+                     && recoverySource.contains("teardownVirtualMirror(snapshot.targetDisplayID)")
+                     && recoverySource.contains("recreateVirtualMirror("),
+                     "recovery explicitly verifies active dimensions before reporting virtual mirror restored")
+
+        let hudSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/RecoveryHUDView.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(hudSource.contains("!recoveryManager.hasRollbackFailure")
+                     && hudSource.contains("exclamationmark.triangle.fill")
+                     && hudSource.contains("recoveryFailedMessage")
+                     && hudSource.contains("closePanelsOnly()")
+                     && hudSource.contains("self.startMonitoring()")
+                     && hudSource.contains("panel.orderFrontRegardless()"),
+                     "recovery HUD reflects rollback failure state, retains keep action, and keeps screen observer active")
+
+        let commandBarSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(commandBarSource.contains("resolvePhysicalTarget(for: $0)"),
+                     "command bar translates virtual display IDs to physical targets")
+
+        let osdSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(osdSource.contains("virtualDisplayID(for: displayID) ?? displayID"),
+                     "brightness OSD maps physical targets to active virtual screens")
+
+        let brightnessSectionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/BrightnessSection.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(brightnessSectionSource.contains(".disabled(recoveryManager.awaitingConfirmation)"),
+                     "resolution and HiDPI controls are disabled while rollback confirmation is pending")
+        suite.expect(!brightnessSectionSource.contains("Slider(value: levelBinding")
+                     && !brightnessSectionSource.contains("multiplierText"),
+                     "menu panel extra brightness control remains a standard toggle without unrequested sliders")
+
+        suite.expect(!FileManager.default.fileExists(
+            atPath: "Sources/Vorssaint/Services/Display/XDRBoostService.swift"),
+            "display integration does not ship an out-of-contract gamma overdrive path")
+
     }
 }

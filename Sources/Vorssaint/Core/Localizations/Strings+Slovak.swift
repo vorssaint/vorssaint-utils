@@ -1093,6 +1093,15 @@ extension Strings {
         shelfShortcutFinderSelection: "Pridať výber z Findera skratkou",
         shelfShortcutFinderSelectionCaption: "Keď je Finder v popredí, skratka otvorí policu už s vybranými súbormi. Ak nie je nič vybraté, otvorí sa ako zvyčajne.",
         spacesOrderName: "Udržať plochy v pevnom poradí",
-        spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila."
+        spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila.",
+        nativeHiDPI: "Natívne HiDPI",
+        virtualHiDPI: "Virtuálne HiDPI",
+        standardResolution: "Štandardné rozlíšenie (1x)",
+        recoveryKeep: "Ponechať zmeny",
+        recoveryRevert: "Vrátiť späť",
+        recoveryCountdownTitle: "Potvrdiť nastavenia displeja",
+        recoveryCountdownRemaining: { "Automatické vrátenie o \($0) s" },
+        recoveryFailedMessage: "Predchádzajúci režim HiDPI sa nepodarilo obnoviť",
+        toggleHiDPICaption: "Prepnúť Retina HiDPI škálovanie"
     )
 }
