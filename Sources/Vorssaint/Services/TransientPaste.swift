@@ -89,6 +89,7 @@ final class TransientPaste {
                 self.pendingRestore = (snapshot, changeCount)
                 Self.postPasteWhenModifiersReleased(
                     attempt: 0,
+                    expectedChangeCount: changeCount,
                     willPost: willPostShortcut,
                     didPost: didPostShortcut,
                     didFail: didFail
@@ -140,6 +141,7 @@ final class TransientPaste {
     }
 
     private static func postPasteWhenModifiersReleased(attempt: Int,
+                                                       expectedChangeCount: Int,
                                                        willPost: (() -> Void)?,
                                                        didPost: (() -> Void)?,
                                                        didFail: (() -> Void)?,
@@ -148,19 +150,32 @@ final class TransientPaste {
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
-                postPasteShortcut(willPost: willPost) { succeeded in
-                    if succeeded {
-                        didPost?()
-                    } else {
+                // A copy made while waiting belongs to the user, not this
+                // operation. Do not paste it or delete a snippet's trigger.
+                // Read on the shared lane: pboard can block even for its count.
+                GeneralPasteboardAccess.shared.async({
+                    NSPasteboard.general.changeCount == expectedChangeCount
+                }) { isCurrent in
+                    guard isCurrent else {
                         didFail?()
+                        completion()
+                        return
                     }
-                    completion()
+                    postPasteShortcut(willPost: willPost) { succeeded in
+                        if succeeded {
+                            didPost?()
+                        } else {
+                            didFail?()
+                        }
+                        completion()
+                    }
                 }
             }
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
             postPasteWhenModifiersReleased(attempt: attempt + 1,
+                                           expectedChangeCount: expectedChangeCount,
                                            willPost: willPost,
                                            didPost: didPost,
                                            didFail: didFail,

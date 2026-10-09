@@ -68,6 +68,11 @@ def main():
                         "    private static func accessibilityWindows(for pid: pid_t,",
                         "    private static func appendUnique(", "    private static func contains("])
           + "}\n")
+    write("TransientPasteRuntime.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\n"
+          + "extension TransientPasteTests {\n"
+          + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "final class TransientPaste {")
+              .replace("NSPasteboard.general", "TransientPasteTests.pasteboard")
+          + "}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
           + "extension LaunchAtLoginSettingsTests.View {\n"
