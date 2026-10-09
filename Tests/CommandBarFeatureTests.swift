@@ -690,6 +690,12 @@ enum CommandBarFeatureTests {
         suite.expect(InputSourceSelection.asciiLayoutID(currentID: asciiCapableMethod.id,
                                                   snapshots: [asciiCapableMethod, latinSource]) == latinSourceID,
                "an ASCII-capable input method still moves to a plain layout")
+        suite.expect(InputSourceSelection.shortCode(languages: ["ru"]) == "RU",
+               "the island's layout notice reads the source's language as a short code")
+        suite.expect(InputSourceSelection.shortCode(languages: ["zh-Hans", "zh"]) == "ZH",
+               "a script-qualified language still reads as its two letters")
+        suite.expect(InputSourceSelection.shortCode(languages: []).isEmpty,
+               "a source with no language leaves the notice its mark alone")
 
         let commandBarServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
@@ -2347,6 +2353,11 @@ enum CommandBarInputSourceContract {
             return true
         }
     }
+    enum Island {
+        static var shared: Island.Type { Self.self }
+        static var quietSwitches = 0
+        static func noteOwnInputSourceSwitch() { quietSwitches += 1 }
+    }
     enum Queue {
         static var main: Queue.Type { Self.self }
         static var jobs: [() -> Void] = []
@@ -2358,6 +2369,7 @@ enum CommandBarInputSourceContract {
         typealias UserDefaults = Preferences
         typealias InputSourceSelection = Sources
         typealias DispatchQueue = Queue
+        typealias NotchService = Island
         var suspendedInputSourceID: String?
         var presentationID = UUID()
     }
@@ -2369,6 +2381,7 @@ enum CommandBarInputSourceContract {
             Sources.selected = []
             Sources.acceptsSelection = true
             Preferences.enabled = true
+            Island.quietSwitches = 0
             return Service()
         }
         let normal = reset()
@@ -2378,6 +2391,8 @@ enum CommandBarInputSourceContract {
         Queue.drain()
         suite.expect(Sources.selected == ["ascii", "original"] && normal.suspendedInputSourceID == nil,
                      "ordinary close restores the original layout exactly once")
+        suite.expect(Island.quietSwitches == 2,
+                     "the borrowed layout and its return both leave the island's layout notice quiet")
         let reopened = reset()
         reopened.adoptASCIIInputSource()
         reopened.restoreSuspendedInputSource()
