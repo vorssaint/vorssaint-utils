@@ -73,8 +73,17 @@ enum NetworkProcessSupport {
     }
 
     static func csvColumns(in line: String) -> [String] {
-        line.split(separator: ",", omittingEmptySubsequences: false)
-            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+        var columns = line.split(separator: ",", omittingEmptySubsequences: false).map(String.init)
+        // nettop does not escape commas in process names. With the two byte
+        // fields requested by -J, only the middle field can contain commas.
+        if columns.count > 4, columns.last?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == true {
+            columns.removeLast()
+        }
+        if columns.count > 4 {
+            columns = [columns[0], columns[1..<(columns.count - 2)].joined(separator: ","),
+                       columns[columns.count - 2], columns[columns.count - 1]]
+        }
+        return columns.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 
     static func sample(fromCSVColumns columns: [String]) -> NetworkProcessSample? {
