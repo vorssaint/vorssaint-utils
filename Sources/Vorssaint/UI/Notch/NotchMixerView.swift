@@ -225,7 +225,9 @@ private struct NotchMasterFader: View {
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
             if let level {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
-                                 label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 28)
+                                 label: l10n.s.mixerSystemOutputTitle, vertical: true,
+                                 trackThickness: 28,
+                                 isSmoothSlider: false)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                 NotchEditablePercent(percent: Int((level * 100).rounded()), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,
@@ -444,7 +446,8 @@ private struct NotchMixerOptions: View {
                         .accessibilityHidden(true)
                 }
                 NotchLevelSlider(value: Binding(get: { volume }, set: { input.setInputVolume($0) }),
-                                 label: l10n.s.mixerInputTitle)
+                                 label: l10n.s.mixerInputTitle,
+                                 isSmoothSlider: false)
                     .frame(height: 22)
                     .disabled(micMute.isMuted)
                 NotchEditablePercent(percent: Int((volume * 100).rounded()), maximum: 100,
@@ -535,7 +538,8 @@ private struct NotchAppFader: View {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
                                  label: app.name, range: 0...AppVolumeMixer.maxVolume,
                                  tint: boosting ? .orange : .white, vertical: true, trackThickness: 28, marker: 1,
-                                 valueLabel: "\(percent)%")
+                                 valueLabel: "\(percent)%",
+                                 isSmoothSlider: true)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                 NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,

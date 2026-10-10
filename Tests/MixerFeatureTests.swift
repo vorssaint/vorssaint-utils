@@ -49,6 +49,39 @@ enum MixerFeatureTests {
         suite.expect(MixerRoutingSupport.volumeFraction(fromPercentageText: "nan",
                                                   maximumPercent: 100) == nil,
                "mixer percentage input rejects non-finite numbers")
+        
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(0) == 0,
+                     "0 maps to 0 when converting from gain to slider position")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(1) == 1,
+                     "1 maps to 1 when converting from gain to slider position")
+        suite.expect(MixerRoutingSupport.gainToSliderPosition(2) == 2,
+                     "2 maps to 2 when converting from gain to slider position")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(0) == 0,
+                     "0 maps to 0 when converting from slider position to gain")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(1) == 1,
+                     "1 maps to 1 when converting from slider position to gain")
+        suite.expect(MixerRoutingSupport.sliderPositionToGain(2) == 2,
+                     "2 maps to 2 when converting from slider position to gain")
+        
+        suite.expectClose(MixerRoutingSupport.sliderPositionToGain(MixerRoutingSupport.gainToSliderPosition(0.8)),
+                          0.8,
+                          "sliderPositionToGain() inverts gainToSliderPosition(). test case = 0.8")
+        suite.expectClose(MixerRoutingSupport.sliderPositionToGain(MixerRoutingSupport.gainToSliderPosition(0.23)),
+                          0.23,
+                          "sliderPositionToGain() inverts gainToSliderPosition(). test case = 0.23")
+        suite.expectClose(MixerRoutingSupport.sliderPositionToGain(MixerRoutingSupport.gainToSliderPosition(0.4)),
+                          0.4,
+                          "sliderPositionToGain() inverts gainToSliderPosition(). test case = 0.4")
+        suite.expectClose(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.8)),
+                     0.8,
+                     "gainToSliderPosition() inverts sliderPositionToGain(). test case = 0.8")
+        suite.expectClose(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.23)),
+                     0.23,
+                     "gainToSliderPosition() inverts sliderPositionToGain(). test case = 0.23")
+        suite.expectClose(MixerRoutingSupport.gainToSliderPosition(MixerRoutingSupport.sliderPositionToGain(0.4)),
+                     0.4,
+                     "gainToSliderPosition() inverts sliderPositionToGain(). test case = 0.4")
+        
         let percentWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 80, height: 24),
                                      styleMask: .borderless,
                                      backing: .buffered,

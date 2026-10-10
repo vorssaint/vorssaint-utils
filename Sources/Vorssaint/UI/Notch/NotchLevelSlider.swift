@@ -22,6 +22,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     var marker: Double?
     var valueLabel: String?
     var onEditingChanged: ((Bool) -> Void)?
+    var isSmoothSlider: Bool = false
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -59,7 +60,8 @@ struct NotchLevelSlider: NSViewRepresentable {
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
-        if slider.doubleValue != bounded { slider.doubleValue = bounded }
+        let sliderValue = isSmoothSlider ? MixerRoutingSupport.gainToSliderPosition(bounded) : bounded
+        if slider.doubleValue != sliderValue { slider.doubleValue = sliderValue }
         slider.isEnabled = context.environment.isEnabled
         let span = upper - lower
         slider.setAccessibilityValueDescription(
@@ -75,7 +77,8 @@ struct NotchLevelSlider: NSViewRepresentable {
             editing.trackingChanged(value, onEditingChanged: parent.onEditingChanged)
         }
         @objc func changed(_ sender: NSSlider) {
-            editing.valueChanged({ parent.value = sender.doubleValue }, onEditingChanged: parent.onEditingChanged)
+            let gain = parent.isSmoothSlider ? MixerRoutingSupport.sliderPositionToGain(sender.doubleValue) : sender.doubleValue
+            editing.valueChanged({ parent.value = gain }, onEditingChanged: parent.onEditingChanged)
         }
     }
 }

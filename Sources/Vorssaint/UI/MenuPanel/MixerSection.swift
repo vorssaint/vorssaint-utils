@@ -172,7 +172,8 @@ struct MixerSection: View {
                                       accentRevision: accentRevision,
                                       glassEnabled: glassEnabled,
                                       maximum: 1,
-                                      accessibilityLabel: l10n.s.mixerSystemOutputTitle)
+                                      accessibilityLabel: l10n.s.mixerSystemOutputTitle,
+                                      isSmoothSlider: false)
 
                     EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
                                           maximumPercent: 100,
@@ -338,7 +339,8 @@ struct MixerSection: View {
                                       accentRevision: accentRevision,
                                       glassEnabled: glassEnabled,
                                       maximum: 1,
-                                      accessibilityLabel: l10n.s.mixerInputTitle)
+                                      accessibilityLabel: l10n.s.mixerInputTitle,
+                                      isSmoothSlider: false)
 
                     EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
                                           maximumPercent: 100,
@@ -969,7 +971,8 @@ private struct MixerRow: View {
                                           accentRevision: accentRevision,
                                           glassEnabled: glassEnabled,
                                           maximum: AppVolumeMixer.maxVolume,
-                                          accessibilityLabel: app.name)
+                                          accessibilityLabel: app.name,
+                                          isSmoothSlider: true)
 
                         EditableVolumePercent(currentPercent: Int((app.volume * 100).rounded()),
                                               maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
@@ -1350,6 +1353,7 @@ private struct MixerVolumeSlider: View {
     let glassEnabled: Bool
     let maximum: Double
     let accessibilityLabel: String
+    let isSmoothSlider: Bool
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
     private var percentage: Int { Int((value * 100).rounded()) }
@@ -1362,7 +1366,8 @@ private struct MixerVolumeSlider: View {
                                        tint: activeTint,
                                        isBoosting: isBoosting,
                                        maximum: maximum,
-                                       accessibilityLabel: accessibilityLabel)
+                                       accessibilityLabel: accessibilityLabel,
+                                       isSmoothSlider: isSmoothSlider)
             } else {
                 nativeSlider
                     .accessibilityLabel(accessibilityLabel)
@@ -1377,7 +1382,13 @@ private struct MixerVolumeSlider: View {
     }
 
     private var nativeSlider: some View {
-        Slider(value: $value, in: 0...maximum)
+        var smoothBinding: Binding<Double> {
+            Binding(
+                get: { MixerRoutingSupport.gainToSliderPosition(value) },
+                set: { value = MixerRoutingSupport.sliderPositionToGain($0) }
+            )
+        }
+        return Slider(value: isSmoothSlider ? smoothBinding : $value, in: 0...maximum)
             .controlSize(.small)
             // Pass an explicit accent (not nil) for the normal state: on the
             // macOS slider, tint(nil) does not reliably clear a previously
@@ -1395,15 +1406,23 @@ private struct LiquidGlassMixerSlider: View {
     let isBoosting: Bool
     let maximum: Double
     let accessibilityLabel: String
+    let isSmoothSlider: Bool
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
 
     private let knobWidth: CGFloat = 24
     private let knobHeight: CGFloat = 15
     private let trackHeight: CGFloat = 5
+    
+    private var getValue: Double {
+        isSmoothSlider ? MixerRoutingSupport.gainToSliderPosition(value) : value
+    }
+    private func setValue(_ value: Double) {
+        self.value = isSmoothSlider ? MixerRoutingSupport.sliderPositionToGain(value) : value
+    }
 
     private var progress: CGFloat {
-        let clamped = min(max(value, 0), maximum)
+        let clamped = min(max(getValue, 0), maximum)
         return CGFloat(clamped / maximum)
     }
 
@@ -1441,9 +1460,9 @@ private struct LiquidGlassMixerSlider: View {
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:
-                value = min(maximum, value + 0.05)
+                setValue(min(maximum, getValue + 0.05))
             case .decrement:
-                value = max(0, value - 0.05)
+                setValue(max(0, getValue - 0.05))
             @unknown default:
                 break
             }
@@ -1488,7 +1507,7 @@ private struct LiquidGlassMixerSlider: View {
     private func updateValue(at x: CGFloat, width: CGFloat) {
         let travel = max(width - knobWidth, 1)
         let normalized = min(max((x - knobWidth / 2) / travel, 0), 1)
-        value = Double(normalized) * maximum
+        setValue(Double(normalized) * maximum)
     }
 }
 #endif
