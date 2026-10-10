@@ -26,6 +26,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var switcherShowShortcutHints = true
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
+    @AppStorage(DefaultsKey.switcherMaxColumns) private var switcherMaxColumns = 0
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
     private var switcherWindowlessAppsSelection: Binding<String> {
@@ -183,6 +184,21 @@ struct SwitcherSettings: View {
                         .frame(width: 56, alignment: .trailing)
                 }
             }
+            SettingsRow(symbol: "square.grid.3x2", title: l10n.s.switcherMaxColumns,
+                        caption: l10n.s.switcherMaxColumnsCaption) {
+                HStack(spacing: 8) {
+                    Slider(value: switcherMaxColumnsBinding,
+                           in: Double(SwitcherSupport.maxColumnsRange.lowerBound - 1)
+                               ... Double(SwitcherSupport.maxColumnsRange.upperBound),
+                           step: 1)
+                        .frame(width: 140)
+                        .accessibilityValue(switcherMaxColumnsLabel)
+                    Text(switcherMaxColumnsLabel)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 56, alignment: .trailing)
+                }
+            }
             SettingsRow(symbol: "cursorarrow.rays", title: l10n.s.switcherInstantSelection,
                         caption: l10n.s.switcherInstantSelectionCaption) {
                 Toggle(l10n.s.switcherInstantSelection, isOn: $switcherInstantSelection).labelsHidden()
@@ -296,6 +312,26 @@ struct SwitcherSettings: View {
 
     private var sanitizedSwitcherAppearanceDelay: Int {
         SwitcherSupport.sanitizedAppearanceDelay(milliseconds: switcherAppearanceDelay)
+    }
+
+    private var sanitizedSwitcherMaxColumns: Int? {
+        SwitcherSupport.sanitizedMaxColumns(switcherMaxColumns)
+    }
+
+    private var switcherMaxColumnsLabel: String {
+        sanitizedSwitcherMaxColumns.map(String.init) ?? l10n.s.switcherMaxColumnsAuto
+    }
+
+    /// The slider's leftmost step, one below the range, stands for Auto.
+    private var switcherMaxColumnsBinding: Binding<Double> {
+        let auto = SwitcherSupport.maxColumnsRange.lowerBound - 1
+        return Binding(
+            get: { Double(sanitizedSwitcherMaxColumns ?? auto) },
+            set: {
+                let value = Int($0.rounded())
+                switcherMaxColumns = value <= auto ? 0 : SwitcherSupport.sanitizedMaxColumns(value) ?? 0
+            }
+        )
     }
 
     private var switcherAppearanceDelayBinding: Binding<Double> {
