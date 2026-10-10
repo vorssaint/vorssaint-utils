@@ -1364,6 +1364,9 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled,
                                               DefaultsKey.brightnessOSDEnabled]).contains(.brightness),
                "brightness uses accessibility for the adjustment overlay")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled,
+                                              DefaultsKey.brightnessBuiltInExtendedDimming]).contains(.brightness),
+               "brightness uses accessibility for the built-in panel's extra dimming keys")
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
@@ -2310,6 +2313,32 @@ enum FeatureCatalogTests {
                 && BrightnessSupport.extendedDimmingLevel(hardware: 0.5, remembered: 0.1,
                                                              pictureDimmed: true) == 0.625,
                "a rebuild keeps only an app-applied picture dim and honors a changed hardware level")
+        let floor = BrightnessSupport.builtInPictureFloor
+        let builtInLevels = stride(from: 0.0, through: 1.0, by: 0.01).map {
+            BrightnessSupport.extendedDimmingComponents(for: $0, pictureFloor: floor)
+        }
+        suite.expect(builtInLevels.first?.picture == floor && builtInLevels.first?.hardware == 0
+                && BrightnessSupport.extendedDimmingComponents(for: minimum, pictureFloor: floor).picture == 1
+                && BrightnessSupport.extendedDimmingComponents(for: 0.625, pictureFloor: floor).hardware == 0.5,
+               "the built-in panel's extra dimming stops at a visible picture and leaves the backlight range alone")
+        suite.expect(zip(builtInLevels, builtInLevels.dropFirst()).allSatisfy {
+            $1.picture >= $0.picture && $1.hardware >= $0.hardware
+                && ($1.picture > $0.picture || $1.hardware > $0.hardware)
+        }, "every step up the built-in slider brightens the picture or the backlight, with no jump at the seam")
+        let backlightFloor = BrightnessSupport.builtInBacklightFloor
+        suite.expect(BrightnessSupport.builtInBacklight(forHardware: 0) == backlightFloor
+                && BrightnessSupport.builtInBacklight(forHardware: 1) == 1
+                && BrightnessSupport.builtInHardware(forBacklight: backlightFloor) == 0
+                && BrightnessSupport.builtInHardware(forBacklight: 0) == 0
+                && abs(BrightnessSupport.builtInHardware(
+                    forBacklight: BrightnessSupport.builtInBacklight(forHardware: 0.5)) - 0.5) < 1e-9,
+               "the built-in backlight never reaches zero, which turns the panel off, and reads back to the same slider")
+        let keyStep = BrightnessSupport.brightnessKeyStep
+        suite.expect(BrightnessSupport.extendedDimmingOwnsStep(current: minimum, delta: -keyStep)
+                && BrightnessSupport.extendedDimmingOwnsStep(current: minimum - keyStep, delta: keyStep)
+                && !BrightnessSupport.extendedDimmingOwnsStep(current: minimum, delta: keyStep)
+                && !BrightnessSupport.extendedDimmingOwnsStep(current: 0.5, delta: -keyStep),
+               "only presses that start or land below the backlight minimum leave the system's own key handling")
         suite.expect(BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: -1)
                 == 0.5 - BrightnessSupport.keyboardLightStep
                 && BrightnessSupport.steppedKeyboardLightLevel(current: 0.5, direction: 1)

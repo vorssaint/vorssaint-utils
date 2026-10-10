@@ -153,6 +153,9 @@ final class BrightnessService: ObservableObject {
     /// Codes whose press this app consumed, so the matching release is
     /// consumed as well and the system never sees half a key.
     private var swallowedKeyCodes = Set<Int>()
+    /// The same for media key directions taken for extra dimming. Main
+    /// thread only, like the media key tap.
+    private var extendedDimmingPresses = Set<Bool>()
     /// Serializes every I2C transaction and rebuild; DDC displays drop
     /// commands that interleave.
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.brightness", qos: .userInitiated)
@@ -1157,8 +1160,12 @@ final class BrightnessService: ObservableObject {
         }
         let keyStep = self.keyStep
         let wantsFinerSteps = keyStep != .standard
+        // The system's own keys stop at the built-in backlight's minimum, so
+        // its extra dimming needs the presses below it.
+        let wantsExtendedDimming = defaults.bool(forKey: DefaultsKey.brightnessBuiltInExtendedDimming)
         let wanted = SessionActivitySupport.tapShouldRun(
-            featureWanted: (running && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps))
+            featureWanted: (running && (wantsKeyRouting || wantsBrightnessOSD || wantsFinerSteps
+                                        || wantsExtendedDimming))
                 || wantsKeyboardLight,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
@@ -1169,7 +1176,8 @@ final class BrightnessService: ObservableObject {
         // or the island stands in for the system's own, or a finer step.
         if wanted, running, BrightnessSupport.answersPlainBrightnessKeys(followsPointer: wantsKeyRouting,
                                                                           overlayReplacesNative: wantsBrightnessOSD,
-                                                                          finerSteps: wantsFinerSteps) {
+                                                                          finerSteps: wantsFinerSteps)
+            || wantsExtendedDimming {
             let hotKeys = UserDefaults(suiteName: "com.apple.symbolichotkeys")?
                 .dictionary(forKey: "AppleSymbolicHotKeys")
             let adjusts = BrightnessSupport.functionKeysAdjustBrightness(symbolicHotKeys: hotKeys)
@@ -1444,7 +1452,9 @@ final class BrightnessService: ObservableObject {
                 followsPointer: followsPointer,
                 displayIsBuiltIn: CGDisplayIsBuiltin(displayID) != 0,
                 overlayReplacesNative: overlayReplacesNative
-            ), BrightnessBridge.setBrightness != nil else {
+            ) || (route.extendedDimming
+                  && extendedDimmingOwnsStep(displayID, delta: keyStep.limited(press.delta))),
+                  BrightnessBridge.setBrightness != nil else {
                 return leaveToSystem()
             }
         }
@@ -1638,6 +1648,7 @@ final class BrightnessService: ObservableObject {
         let defaults = UserDefaults.standard
         let followsPointer = defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
         let showsOverlay = defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+        let extendsDimming = defaults.bool(forKey: DefaultsKey.brightnessBuiltInExtendedDimming)
         let keyStep = self.keyStep
         let delta = keyStep.limited(ownedDelta)
         // A press left to the system still takes a finer step, as the
@@ -1667,9 +1678,10 @@ final class BrightnessService: ObservableObject {
                 return leaveToSystem()
             }
             displayID = id
-        } else if wantsBrightnessOSD, let systemTarget = systemKeyTarget {
+        } else if wantsBrightnessOSD || extendsDimming, let systemTarget = systemKeyTarget {
             // With pointer routing off, keep the native target. In clamshell
-            // mode this can be a system-managed external display.
+            // mode this can be a system-managed external display. Extra
+            // dimming decides below, press by press, whether it is needed.
             displayID = systemTarget.id
         } else {
             return leaveToSystem()
@@ -1690,13 +1702,29 @@ final class BrightnessService: ObservableObject {
             // the wrong side of the built-in check.
             let isBuiltIn = displays.first(where: { $0.id == displayID })?.isBuiltIn
                 ?? (CGDisplayIsBuiltin(displayID) != 0)
+            // A release follows its press, which the step may have moved
+            // across the seam.
+            var ownsDimming = false
+            if route.extendedDimming {
+                if press.isKeyDown {
+                    ownsDimming = extendedDimmingOwnsStep(displayID, delta: delta)
+                    if ownsDimming {
+                        extendedDimmingPresses.insert(press.delta > 0)
+                    } else {
+                        extendedDimmingPresses.remove(press.delta > 0)
+                    }
+                } else {
+                    ownsDimming = extendedDimmingPresses.remove(press.delta > 0) != nil
+                }
+            }
             guard BrightnessSupport.stepsSystemRoutedDisplay(
                 followsPointer: followsPointer,
                 displayIsBuiltIn: isBuiltIn,
                 overlayReplacesNative: wantsBrightnessOSD && brightnessOSDSupported
-            ), BrightnessBridge.setBrightness != nil else {
+            ) || ownsDimming, BrightnessBridge.setBrightness != nil else {
                 // The built-in panel keeps the system's native brightness
-                // handling and animation unless the overlay replaces it.
+                // handling and animation unless the overlay replaces it or
+                // extra dimming needs the press.
                 return leaveToSystem()
             }
             swallowedMediaKeys.insert(increases)
@@ -1724,6 +1752,8 @@ final class BrightnessService: ObservableObject {
         stateLock.lock()
         let queued = pendingLevels[id]?.value
         let requested = systemWritesInFlight.contains(id) ? rememberedLevel(for: id) : nil
+        let extended = routes[id]?.extendedDimming == true
+        let remembered = extended ? rememberedLevel(for: id) : nil
         stateLock.unlock()
         if let queued { return queued }
         if let requested { return requested }
@@ -1732,9 +1762,31 @@ final class BrightnessService: ObservableObject {
         var live: Float = -1
         if CGDisplayIsAsleep(id) == 0, let read = BrightnessBridge.getBrightness,
            read(id, &live) == 0, live >= 0, live <= 1 {
-            return Double(live)
+            // With extra dimming the system reports only the backlight. A
+            // remembered level below it is a picture this app dimmed, unless
+            // the backlight has since left its minimum.
+            guard extended else { return Double(live) }
+            return BrightnessSupport.extendedDimmingLevel(
+                hardware: BrightnessSupport.builtInHardware(forBacklight: Double(live)),
+                remembered: remembered,
+                                                          pictureDimmed: true)
         }
         return fallback
+    }
+
+    /// Whether a press on a system display with extra dimming is this app's
+    /// to step (see `BrightnessSupport.extendedDimmingOwnsStep`). A picture
+    /// left dimmed while something else raised the backlight, such as
+    /// Control Center, also takes the press, so the step puts the picture
+    /// back instead of the system raising the backlight behind it. Safe from
+    /// either key tap thread: it reads locked state and the system pipeline.
+    private func extendedDimmingOwnsStep(_ id: CGDirectDisplayID, delta: Double) -> Bool {
+        stateLock.lock()
+        let remembered = rememberedLevel(for: id)
+        stateLock.unlock()
+        guard let current = currentSystemBrightness(for: id, fallback: remembered) else { return false }
+        return BrightnessSupport.extendedDimmingOwnsStep(current: min(current, remembered ?? 1),
+                                                         delta: delta)
     }
 
     // MARK: - Screen changes
@@ -1887,6 +1939,7 @@ final class BrightnessService: ObservableObject {
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         var virtualIDs = Set<CGDirectDisplayID>()
+        var extendedDimmingIDs = Set<CGDirectDisplayID>()
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
@@ -1933,11 +1986,36 @@ final class BrightnessService: ObservableObject {
                 stateLock.lock()
                 let remembered = rememberedLevel(for: id)
                 stateLock.unlock()
-                let trusted = asleep ? (remembered ?? Double(level)) : Double(level)
+                // The built-in panel's extra dimming works like a readable
+                // monitor's (see the DDC pass), with the backlight on the
+                // system pipeline instead of DDC.
+                let wantsExtendedDimming = isBuiltIn && UserDefaults.standard.bool(
+                    forKey: DefaultsKey.brightnessBuiltInExtendedDimming)
+                if wantsExtendedDimming {
+                    extendedDimmingIDs.insert(id)
+                    captureGammaBaselineIfNeeded(id)
+                }
+                let extendsDimming = wantsExtendedDimming
+                    && gammaBaselines[id]?.fingerprint == Self.displayFingerprint(id)
+                let reading = extendsDimming
+                    ? BrightnessSupport.extendedDimmingLevel(
+                        hardware: BrightnessSupport.builtInHardware(forBacklight: Double(level)),
+                        remembered: remembered, pictureDimmed: dimmedDisplays.contains(id))
+                    : Double(level)
+                let trusted = asleep ? (remembered ?? reading) : reading
+                if extendsDimming {
+                    let picture = BrightnessSupport.extendedDimmingComponents(
+                        for: trusted, pictureFloor: BrightnessSupport.builtInPictureFloor).picture
+                    if picture < 0.999 || dimmedDisplays.contains(id) {
+                        _ = applySoftwareDim(id, value: picture)
+                    }
+                }
                 built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: isBuiltIn,
                                                method: .system, isActive: true,
-                                               brightness: trusted, readable: !asleep))
-                newRoutes[id] = Route(method: .system, service: nil, maximum: 100)
+                                               brightness: trusted, readable: !asleep,
+                                               canChooseDimming: isBuiltIn))
+                newRoutes[id] = Route(method: .system, service: nil, maximum: 100,
+                                      extendedDimming: extendsDimming)
                 if !asleep {
                     stateLock.lock()
                     levelKnownAt[id] = Date()
@@ -2006,7 +2084,6 @@ final class BrightnessService: ObservableObject {
         // dimming, so every real display keeps a working slider.
         var softwareIndices = Set(ddcCandidates.map(\.index))
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
-        var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
         if !ddcCandidates.isEmpty, BrightnessBridge.ddcAvailable {
             let services = Self.externalServices()
@@ -2266,7 +2343,9 @@ final class BrightnessService: ObservableObject {
             var writeSucceeded = false
             switch route.method {
             case .system:
-                writeSucceeded = Self.writeSystemBrightness(value, to: id, smooth: pending.smooth)
+                writeSucceeded = route.extendedDimming
+                    ? writeExtendedSystemBrightness(value, to: id, smooth: pending.smooth)
+                    : Self.writeSystemBrightness(value, to: id, smooth: pending.smooth)
             case .ddc:
                 guard let service = route.service else { continue }
                 if route.extendedDimming {
@@ -2331,6 +2410,25 @@ final class BrightnessService: ObservableObject {
             return true
         }
         return BrightnessBridge.setBrightness?(id, Float(value)) == 0
+    }
+
+    /// The built-in panel's counterpart of `writeExtendedBrightness`, with the
+    /// backlight on the system pipeline and the picture kept above
+    /// `builtInPictureFloor`. The same order keeps a failed restore from
+    /// leaving a dimmed picture behind a rising backlight.
+    private func writeExtendedSystemBrightness(_ value: Double, to id: CGDirectDisplayID,
+                                               smooth: Bool) -> Bool {
+        let components = BrightnessSupport.extendedDimmingComponents(
+            for: value, pictureFloor: BrightnessSupport.builtInPictureFloor)
+        if components.picture >= 0.999, dimmedDisplays.contains(id),
+           !applySoftwareDim(id, value: 1) { return false }
+        // The bottom stop keeps the system's own: zero turns the backlight
+        // off, as its keys do, and any brightness-up press lights it again.
+        let backlight = value <= 0 ? 0 : BrightnessSupport.builtInBacklight(forHardware: components.hardware)
+        let hardwareSucceeded = Self.writeSystemBrightness(backlight, to: id, smooth: smooth)
+        let pictureSucceeded = components.picture >= 0.999
+            || applySoftwareDim(id, value: components.picture)
+        return hardwareSucceeded && pictureSucceeded
     }
 
     /// The monitor stays at its hardware minimum while the lower part of the
@@ -2474,25 +2572,33 @@ final class BrightnessService: ObservableObject {
     }
 
     /// Keeps the ordinary DDC route above the monitor's minimum and adds a
-    /// software range below it only for this monitor on this connection.
+    /// software range below it only for this monitor on this connection. The
+    /// built-in panel has no connection path and never moves to another, so
+    /// its choice is one preference of its own.
     func setExtendedDimmingPreferred(_ preferred: Bool, for id: CGDirectDisplayID) {
         stateLock.lock()
         let pathKey = routes[id]?.ddcPathKey
-        if pathKey != nil {
+        let builtIn = routes[id]?.method == .system && CGDisplayIsBuiltin(id) != 0
+        if pathKey != nil || builtIn {
             pendingLevels.removeValue(forKey: id)
         }
-        if pathKey != nil && !preferred {
+        if (pathKey != nil || builtIn) && !preferred {
             lastApplied[id] = nil
             levelKnownAt[id] = nil
         }
         stateLock.unlock()
-        guard let pathKey else { return }
         let defaults = UserDefaults.standard
-        let stored = defaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths) ?? []
-        let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            stored, path: pathKey, isWriteOnly: preferred)
-        if updated != stored {
-            defaults.set(updated, forKey: DefaultsKey.brightnessExtendedDimmingPaths)
+        if let pathKey {
+            let stored = defaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths) ?? []
+            let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
+                stored, path: pathKey, isWriteOnly: preferred)
+            if updated != stored {
+                defaults.set(updated, forKey: DefaultsKey.brightnessExtendedDimmingPaths)
+            }
+        } else if builtIn {
+            defaults.set(preferred, forKey: DefaultsKey.brightnessBuiltInExtendedDimming)
+        } else {
+            return
         }
         Self.log.log("display \(id) extended dimming preferred \(preferred)")
         guard !preferred else {

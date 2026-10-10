@@ -11,6 +11,7 @@ import Foundation
 /// (issue #1589).
 enum SoftwareDimmingRouteContract {
     struct Route {
+        var method: Method = .ddc
         var ddcPathKey: String?
         var maximum: UInt16 = 100
         var extendedDimming = true
@@ -37,7 +38,7 @@ enum SoftwareDimmingRouteContract {
 
     /// The display as a row sees it. A monitor behind a converter is active,
     /// external, routed over DDC and answers no reads.
-    enum Method { case ddc, software }
+    enum Method { case system, ddc, software }
     struct Display {
         var id: CGDirectDisplayID = 7
         var isActive = true
@@ -141,6 +142,35 @@ enum SoftwareDimmingRouteTests {
                 && dimmedExtended.refreshes == 1,
                "turning extended dimming off restores a curve the app actually dimmed")
 
+        // The built-in panel has no connection path, so its choice is a
+        // preference of its own; turning it off restores its curve the same way.
+        Context.reset()
+        let builtIn = Context.Service()
+        builtIn.builtInIDs = [display]
+        builtIn.routes[display] = Context.Route(method: .system, extendedDimming: false)
+        builtIn.pendingLevels[display] = 0.5
+        builtIn.setExtendedDimmingPreferred(true, for: display)
+        expect(Context.UserDefaults.standard.values[DefaultsKey.brightnessBuiltInExtendedDimming] as? Bool == true
+                && Context.UserDefaults.standard.stringArray(
+                    forKey: DefaultsKey.brightnessExtendedDimmingPaths) == nil
+                && builtIn.refreshes == 1 && builtIn.pendingLevels[display] == nil,
+               "the built-in panel's extra dimming is saved without a connection path")
+        builtIn.dimmedDisplays.insert(display)
+        builtIn.lastApplied[display] = 0.1
+        builtIn.setExtendedDimmingPreferred(false, for: display)
+        builtIn.workQueue.drain()
+        Context.DispatchQueue.main.drain()
+        expect(Context.UserDefaults.standard.values[DefaultsKey.brightnessBuiltInExtendedDimming] as? Bool == false
+                && builtIn.lastApplied[display] == nil
+                && builtIn.softwareDims.map(\.value) == [1] && builtIn.refreshes == 2,
+               "turning the built-in panel's extra dimming off restores its own curve")
+        Context.reset()
+        let external = Context.Service()
+        external.routes[display] = Context.Route(method: .system, extendedDimming: false)
+        external.setExtendedDimmingPreferred(true, for: display)
+        expect(Context.UserDefaults.standard.values.isEmpty && external.refreshes == 0,
+               "a system-routed external display has no extra dimming choice to save")
+
         let restoration = Context.Service()
         restoration.gammaBaselines = [
             display: Context.Service.GammaTable(fingerprint: "display-7"),
@@ -181,6 +211,32 @@ enum SoftwareDimmingRouteTests {
                 && combined.events == ["picture:1.0"],
                "a failed picture restore never raises the hardware brightness")
 
+        // The built-in panel: the same split, with the backlight on the
+        // system pipeline and a floor under the picture.
+        Context.reset()
+        let panel = Context.Service()
+        Context.Service.active = panel
+        let floor = BrightnessSupport.builtInPictureFloor
+        let lowest = BrightnessSupport.extendedDimmingComponents(for: 0.01, pictureFloor: floor).picture
+        expect(panel.writeExtendedSystemBrightness(0.01, to: display, smooth: false)
+                && panel.events == ["system:\(BrightnessSupport.builtInBacklightFloor)", "picture:\(lowest)"],
+               "the built-in backlight stays lit at its minimum while the picture dims toward its floor")
+        panel.events = []
+        expect(panel.writeExtendedSystemBrightness(0, to: display, smooth: false)
+                && panel.events == ["system:0.0", "picture:\(floor)"],
+               "the bottom stop turns the built-in backlight off, as the system's own keys do")
+        panel.events = []
+        expect(panel.writeExtendedSystemBrightness(0.625, to: display, smooth: true)
+                && panel.events == ["picture:1.0", "system:\(BrightnessSupport.builtInBacklight(forHardware: 0.5))"],
+               "the panel's own curve returns before its backlight rises")
+        panel.dimmedDisplays.insert(display)
+        panel.softwareSucceeds = false
+        panel.events = []
+        expect(!panel.writeExtendedSystemBrightness(1, to: display, smooth: false)
+                && panel.events == ["picture:1.0"],
+               "a failed picture restore never raises the built-in backlight")
+        Context.Service.active = nil
+
         // Which rows offer the choice at all. The rule is the same on both
         // surfaces, since they share the control.
         let row = Context.Row()
@@ -199,10 +255,21 @@ enum SoftwareDimmingRouteTests {
         row.display.canChooseDimming = false
         expect(!row.offered, "a display with no stable connection path cannot save a dimming choice")
         row.display.canChooseDimming = true
-        row.display.readable = false
         row.display.isBuiltIn = true
-        expect(!row.offered, "the built-in display never routes over DDC, so it is never asked about")
+        row.display.method = .system
+        expect(row.offered, "the built-in panel offers extra dimming in Settings")
+        row.compact = true
+        expect(!row.offered, "the compact panel leaves the built-in panel's extra dimming to Settings")
+        row.chosen = true
+        expect(row.offered, "the built-in panel's extra dimming stays in the compact panel once it is on")
+        row.chosen = false
+        row.compact = false
+        row.display.canChooseDimming = false
+        expect(!row.offered, "a system-routed display without a choice to save is never asked about")
+        row.display.canChooseDimming = true
+        row.display.readable = false
         row.display.isBuiltIn = false
+        row.display.method = .ddc
         row.display.isActive = false
         expect(!row.offered, "a display that is switched off has nothing to dim")
         row.display.isActive = true

@@ -623,12 +623,45 @@ enum BrightnessSupport {
     /// monitor has reached its own minimum. The rest keeps using its backlight.
     static let extendedDimmingRange = 0.25
 
-    static func extendedDimmingComponents(for brightness: Double) -> (hardware: Double, picture: Double) {
+    /// The darkest picture the built-in panel's extra dimming reaches. A
+    /// software-dimmed monitor may go to black because the slider and the
+    /// keys bring it back (see `softwareDimFactor`), but the built-in panel is
+    /// often the only screen, and the system's own brightness keys only move
+    /// its backlight, so a black picture there would have no way back.
+    static let builtInPictureFloor = 0.2
+
+    /// The built-in backlight turns off at zero instead of reaching its
+    /// dimmest light, so its extra dimming keeps the backlight at the lowest
+    /// level the system's quarter-step keys reach before off. These map the
+    /// hardware share of `extendedDimmingComponents` onto that range and back.
+    static let builtInBacklightFloor = 1.0 / 64
+
+    static func builtInBacklight(forHardware hardware: Double) -> Double {
+        builtInBacklightFloor + min(max(hardware, 0), 1) * (1 - builtInBacklightFloor)
+    }
+
+    static func builtInHardware(forBacklight backlight: Double) -> Double {
+        min(max((backlight - builtInBacklightFloor) / (1 - builtInBacklightFloor), 0), 1)
+    }
+
+    /// `pictureFloor` compresses the picture's range rather than clipping it,
+    /// so every slider position still moves the picture.
+    static func extendedDimmingComponents(for brightness: Double,
+                                          pictureFloor: Double = 0) -> (hardware: Double, picture: Double) {
         let level = min(max(brightness, 0), 1)
         if level < extendedDimmingRange {
-            return (0, level / extendedDimmingRange)
+            return (0, pictureFloor + (1 - pictureFloor) * level / extendedDimmingRange)
         }
         return ((level - extendedDimmingRange) / (1 - extendedDimmingRange), 1)
+    }
+
+    /// Whether a brightness key press on the built-in panel with extra
+    /// dimming is stepped by this app. The system's keys only move the
+    /// backlight, so a press that starts in the dimmed range or would end in
+    /// it is taken; every other press keeps the system's own handling.
+    static func extendedDimmingOwnsStep(current: Double, delta: Double) -> Bool {
+        let seam = extendedDimmingRange - 0.0001
+        return current < seam || current + delta < seam
     }
 
     static func extendedDimmingLevel(hardware: Double, remembered: Double?, pictureDimmed: Bool) -> Double {

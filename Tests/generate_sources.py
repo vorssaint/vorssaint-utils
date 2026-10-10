@@ -1511,10 +1511,16 @@ def main():
           + "let value = UInt16(packet[3]) << 8 | UInt16(packet[4])\n"
           + "events.append(\"ddc:\\(value)\"); return ddcSucceeds\n}\n"
           + "func refresh(force: Bool = false) { refreshes += 1 }\n"
+          + "var builtInIDs = Set<CGDirectDisplayID>()\n"
+          + "func CGDisplayIsBuiltin(_ id: CGDirectDisplayID) -> UInt32 { builtInIDs.contains(id) ? 1 : 0 }\n"
+          + "static weak var active: Service?\n"
+          + "static func writeSystemBrightness(_ value: Double, to id: CGDirectDisplayID, smooth: Bool) -> Bool {\n"
+          + "active?.events.append(\"system:\\(value)\"); return true\n}\n"
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func restoreAllGamma(").replace("private func", "func", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private func", "func", 1)
+          + declaration(brightness, "    private func writeExtendedSystemBrightness(").replace("private func", "func", 1)
           + "}\n}\n")
 
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"

@@ -137,12 +137,14 @@ extension AppFeature {
             return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
         case .brightness:
-            // Following the pointer, the overlay and a finer step answer the
-            // brightness keys from a tap. Like Accessibility, the island's own
-            // notices are counted under the island.
+            // Following the pointer, the overlay, a finer step and the built-in
+            // panel's extra dimming answer the brightness keys from a tap. Like
+            // Accessibility, the island's own notices are counted under the
+            // island.
             let defaults = UserDefaults.standard
             return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+                || defaults.bool(forKey: DefaultsKey.brightnessBuiltInExtendedDimming)
                 || BrightnessSupport.KeyStep.sanitized(
                     defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
                 ? .keyboard : .idle
