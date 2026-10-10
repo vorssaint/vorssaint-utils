@@ -9,6 +9,7 @@ import CoreGraphics
 import Darwin
 import Foundation
 import ImageIO
+import UserNotifications
 import VMStatisticsCompat
 
 enum MetricsFeatureTests {
@@ -835,6 +836,202 @@ enum MetricsFeatureTests {
                "a missing temperature does not alert")
         suite.expect(!quietGate.shouldAlert(reading: 99, threshold: 90, readAt: nil),
                "a temperature with no reading time does not alert")
+
+        // MARK: High-charge reminder
+
+        var chargeGate = HighChargeReminderGate()
+        suite.expect(chargeGate.evaluate(enabled: false, charge: 80, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && chargeGate.armed,
+               "a disabled high-charge reminder stays armed without alerting")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: nil, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && chargeGate.armed,
+               "an unknown charge neither alerts nor changes the session gate")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 79, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil,
+               "a known charge below the threshold does not alert")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 80, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == 80
+                && !chargeGate.armed,
+               "the threshold crossing on external power alerts once")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 90, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && !chargeGate.armed,
+               "a higher reading in the same power session does not repeat")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: nil, hasBattery: true,
+                                         externalConnected: false, threshold: 80) == nil
+                && !chargeGate.armed,
+               "a missing reading does not impersonate an unplug")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 76, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && !chargeGate.armed,
+               "a four-point drop does not re-arm")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 75, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && chargeGate.armed,
+               "a five-point drop re-arms without alerting on that sample")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 80, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == 80,
+               "a later rise after the five-point drop alerts again")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 80, hasBattery: false,
+                                         externalConnected: false, threshold: 80) == nil
+                && !chargeGate.armed,
+               "a missing battery preserves an already-fired session")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 80, hasBattery: true,
+                                         externalConnected: false, threshold: 80) == nil
+                && chargeGate.armed,
+               "a known unplug re-arms the reminder")
+        suite.expect(chargeGate.evaluate(enabled: true, charge: 80, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == 80,
+               "reconnecting above the threshold starts one new reminder session")
+        suite.expect(chargeGate.evaluate(enabled: false, charge: 80, hasBattery: true,
+                                         externalConnected: true, threshold: 80) == nil
+                && chargeGate.armed
+                && chargeGate.evaluate(enabled: true, charge: 80, hasBattery: true,
+                                       externalConnected: true, threshold: 80) == 80,
+               "disabling and re-enabling starts armed and can remind once")
+        suite.expect(MonitorSamplingPolicy.powerNeededForAlerts(
+            hasInternalBattery: true, lowBatteryEnabled: false, highChargeEnabled: true)
+                && !MonitorSamplingPolicy.powerNeededForAlerts(
+                    hasInternalBattery: false, lowBatteryEnabled: false, highChargeEnabled: true),
+               "high-charge alone requests power sampling only on a Mac with an internal battery")
+
+        func evaluate(_ controller: HighChargeReminderDeliveryController,
+                      enabled: Bool = true,
+                      charge: Int? = 80,
+                      hasBattery: Bool = true,
+                      external: Bool = true,
+                      posts: inout [Int],
+                      completions: inout [(NotificationPostResult) -> Void]) {
+            controller.evaluate(enabled: enabled, charge: charge, hasBattery: hasBattery,
+                                externalConnected: external, threshold: 80) { value, completion in
+                posts.append(value)
+                completions.append(completion)
+            }
+        }
+
+        suite.expect(NotificationPostResult.authorizationResult(for: .authorized) == .accepted
+                && NotificationPostResult.authorizationResult(for: .provisional) == .accepted
+                && NotificationPostResult.authorizationResult(for: .notDetermined) == .authorizationPending
+                && NotificationPostResult.authorizationResult(for: .denied) == .authorizationUnavailable,
+               "real notification authorization statuses map to accepted, pending and unavailable outcomes")
+
+        let retryController = HighChargeReminderDeliveryController()
+        retryController.observePermission(granted: false)
+        var retryPosts: [Int] = []
+        var retryCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(retryController, posts: &retryPosts, completions: &retryCompletions)
+        retryCompletions[0](.authorizationPending)
+        evaluate(retryController, posts: &retryPosts, completions: &retryCompletions)
+        retryCompletions[1](.deliveryFailed)
+        evaluate(retryController, posts: &retryPosts, completions: &retryCompletions)
+        retryCompletions[2](.accepted)
+        evaluate(retryController, posts: &retryPosts, completions: &retryCompletions)
+        suite.expect(retryPosts == [80, 80, 80],
+               "pending authorization and delivery failure retry, while an accepted post closes the session")
+
+        let deniedController = HighChargeReminderDeliveryController()
+        deniedController.observePermission(granted: false)
+        var deniedPosts: [Int] = []
+        var deniedCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(deniedController, posts: &deniedPosts, completions: &deniedCompletions)
+        deniedCompletions[0](.authorizationUnavailable)
+        for _ in 0..<4 {
+            evaluate(deniedController, posts: &deniedPosts, completions: &deniedCompletions)
+        }
+        suite.expect(deniedPosts == [80] && !deniedController.armed,
+               "denied authorization blocks repeated snapshots in the current charging session")
+        deniedController.observePermission(granted: true)
+        evaluate(deniedController, posts: &deniedPosts, completions: &deniedCompletions)
+        deniedCompletions[1](.accepted)
+        deniedController.observePermission(granted: true)
+        evaluate(deniedController, posts: &deniedPosts, completions: &deniedCompletions)
+        deniedController.observePermission(granted: false)
+        deniedController.observePermission(granted: true)
+        evaluate(deniedController, posts: &deniedPosts, completions: &deniedCompletions)
+        suite.expect(deniedPosts == [80, 80] && !deniedController.armed,
+               "one observed grant reopens a blocked session, but repeated or post-accept grants do not duplicate it")
+
+        let grantRaceController = HighChargeReminderDeliveryController()
+        grantRaceController.observePermission(granted: false)
+        var grantRacePosts: [Int] = []
+        var grantRaceCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(grantRaceController, posts: &grantRacePosts, completions: &grantRaceCompletions)
+        grantRaceController.observePermission(granted: true)
+        grantRaceCompletions[0](.authorizationUnavailable)
+        evaluate(grantRaceController, posts: &grantRacePosts, completions: &grantRaceCompletions)
+        grantRaceCompletions[1](.accepted)
+        suite.expect(grantRacePosts == [80, 80] && !grantRaceController.armed,
+               "a grant observed before a late denied completion permits exactly one current-session retry")
+
+        let cachedGrantController = HighChargeReminderDeliveryController()
+        cachedGrantController.observePermission(granted: true)
+        var cachedGrantPosts: [Int] = []
+        var cachedGrantCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(cachedGrantController, posts: &cachedGrantPosts, completions: &cachedGrantCompletions)
+        cachedGrantCompletions[0](.authorizationUnavailable)
+        cachedGrantController.observePermission(granted: true)
+        evaluate(cachedGrantController, posts: &cachedGrantPosts, completions: &cachedGrantCompletions)
+        suite.expect(cachedGrantPosts == [80] && !cachedGrantController.armed,
+               "an initially cached grant and repeated identical refresh cannot spin a denied attempt")
+
+        let staleController = HighChargeReminderDeliveryController()
+        staleController.observePermission(granted: false)
+        var stalePosts: [Int] = []
+        var staleCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(staleController, posts: &stalePosts, completions: &staleCompletions)
+        let oldUnavailable = staleCompletions[0]
+        evaluate(staleController, charge: 80, external: false,
+                 posts: &stalePosts, completions: &staleCompletions)
+        evaluate(staleController, posts: &stalePosts, completions: &staleCompletions)
+        let newSuccess = staleCompletions[1]
+        newSuccess(.accepted)
+        oldUnavailable(.authorizationUnavailable)
+        evaluate(staleController, posts: &stalePosts, completions: &staleCompletions)
+        suite.expect(stalePosts == [80, 80] && !staleController.armed,
+               "an old denied completion after unplug cannot block a newer accepted power session")
+
+        let resetController = HighChargeReminderDeliveryController()
+        resetController.observePermission(granted: false)
+        var resetPosts: [Int] = []
+        var resetCompletions: [(NotificationPostResult) -> Void] = []
+        evaluate(resetController, posts: &resetPosts, completions: &resetCompletions)
+        let beforeDisable = resetCompletions[0]
+        evaluate(resetController, enabled: false,
+                 posts: &resetPosts, completions: &resetCompletions)
+        beforeDisable(.deliveryFailed)
+        evaluate(resetController, posts: &resetPosts, completions: &resetCompletions)
+        suite.expect(resetPosts == [80, 80],
+               "disable invalidates an old completion and re-enable starts one fresh attempt")
+        let beforeReset = resetCompletions[1]
+        resetController.reset()
+        beforeReset(.authorizationUnavailable)
+        evaluate(resetController, posts: &resetPosts, completions: &resetCompletions)
+        resetCompletions[2](.accepted)
+        evaluate(resetController, charge: nil, external: false,
+                 posts: &resetPosts, completions: &resetCompletions)
+        evaluate(resetController, posts: &resetPosts, completions: &resetCompletions)
+        suite.expect(resetPosts == [80, 80, 80],
+               "reset makes a late denial inert and an unknown reading preserves the next accepted session")
+
+        let contentStrings = FeatureStrings.monitorAlerts(.enUS)
+        let realContent = HighChargeReminderContent.real(strings: contentStrings, charge: 80)
+        let testContent = HighChargeReminderContent.test(strings: contentStrings)
+        suite.expect(testContent.title == contentStrings.sendTest
+                && testContent.title != realContent.title
+                && testContent.body != realContent.body
+                && !testContent.body.contains("80"),
+               "the localized test notification is explicit and does not claim a measured charge")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.monitorAlerts(language)
+            suite.expect(!strings.sendTest.isEmpty
+                    && !strings.highCharge.isEmpty
+                    && !strings.highChargeThreshold.isEmpty
+                    && !strings.highChargeTitle.isEmpty
+                    && strings.highChargeBodyFormat.contains("%d"),
+                   "high-charge controls and notifications are complete for \(language.rawValue)")
+        }
 
         // MARK: CPU cores
 

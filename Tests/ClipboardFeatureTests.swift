@@ -973,6 +973,13 @@ enum ClipboardFeatureTests {
                          "\(language.rawValue) CPU temperature alert format")
             expectFormat(alertStrings.diskBodyFormat, ["@", "d"], "\(language.rawValue) disk alert format")
             expectFormat(alertStrings.batteryBodyFormat, ["d"], "\(language.rawValue) battery alert format")
+            expectFormat(alertStrings.highChargeBodyFormat, ["d"],
+                         "\(language.rawValue) high-charge alert format")
+            suite.expect(!alertStrings.highCharge.isEmpty
+                    && !alertStrings.highChargeThreshold.isEmpty
+                    && !alertStrings.highChargeTitle.isEmpty
+                    && !alertStrings.sendTest.isEmpty,
+                   "\(language.rawValue) high-charge controls and test action are localized")
             expectFormat(alertStrings.batteryTemperatureBodyFormat, ["@"],
                          "\(language.rawValue) battery temperature alert format")
         }

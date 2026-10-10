@@ -535,7 +535,11 @@ final class SystemMonitor: ObservableObject {
             && defaults.bool(forKey: DefaultsKey.monitorAlertBatteryTemperature)
         let alertMemory = defaults.bool(forKey: DefaultsKey.monitorAlertMemory)
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
-        let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
+        let alertBattery = MonitorSamplingPolicy.powerNeededForAlerts(
+            hasInternalBattery: hasInternalBattery,
+            lowBatteryEnabled: defaults.bool(forKey: DefaultsKey.monitorAlertBattery),
+            highChargeEnabled: defaults.bool(forKey: DefaultsKey.monitorAlertHighCharge)
+        )
 
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
         // Per-core bars live under the panel's CPU row only: a CPU shown in the

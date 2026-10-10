@@ -2185,6 +2185,15 @@ enum SwitcherModelFeatureTests {
                "the two minute alert cooldown is a valid stored choice")
         suite.expect(Defaults.sanitizedMonitorAlertCooldown(7) == 15,
                "unknown alert cooldowns fall back to fifteen minutes")
+        suite.expect(Defaults.sanitizedHighChargePercent(59) == 80
+                && Defaults.sanitizedHighChargePercent(60) == 60
+                && Defaults.sanitizedHighChargePercent(83) == 85
+                && Defaults.sanitizedHighChargePercent(100) == 100
+                && Defaults.sanitizedHighChargePercent(101) == 80,
+               "high-charge thresholds fall back outside 60...100 and align valid imports to five points")
+        suite.expect(registeredDefaults[DefaultsKey.monitorAlertHighCharge] as? Bool == false
+                && registeredDefaults[DefaultsKey.monitorAlertHighChargePercent] as? Int == 80,
+               "the high-charge reminder is opt-in and defaults to eighty percent")
         suite.expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperature] as? Bool == false,
                "battery temperature alerts are opt-in")
         suite.expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 40,

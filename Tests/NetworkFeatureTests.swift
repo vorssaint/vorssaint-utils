@@ -271,6 +271,15 @@ enum NetworkFeatureTests {
         // reports a timeout here for a command that exits instantly, and parks
         // one more worker doing it. Waiting on the child itself is immune, so
         // the pool the runner starved can no longer starve the runner.
+        func starvationStillPending(_ reached: Bool, probe: DispatchSemaphore?) -> Bool {
+            reached && probe?.wait(timeout: .now()) == .timedOut
+        }
+        let unstarvedProbe = DispatchSemaphore(value: 0)
+        unstarvedProbe.signal()
+        let unstarvedAttemptStayedUnblocked = !starvationStillPending(false, probe: unstarvedProbe)
+        let unstarvedProbeStayedSignalled = unstarvedProbe.wait(timeout: .now()) == .success
+        suite.expect(unstarvedAttemptStayedUnblocked && unstarvedProbeStayedSignalled,
+               "a capped attempt that never starved does not consume or wait on its probe")
         let poolGate = DispatchSemaphore(value: 0)
         // How many threads the pool lets block in synchronous work before it
         // stops serving anything follows the machine rather than a documented
@@ -295,22 +304,38 @@ enum NetworkFeatureTests {
             starvedProbe = probe
             poolIsStarved = probe.wait(timeout: .now() + 0.5) == .timedOut
         }
-        let starvedStarted = Date()
+        let starvedStarted = ProcessInfo.processInfo.systemUptime
         let starvedPoolProcess = BoundedProcessRunner.run(
             "/bin/echo", ["ready"], timeout: 1, maxOutputBytes: 1_024)
-        let starvedPoolElapsed = Date().timeIntervalSince(starvedStarted)
+        let starvedPoolElapsed = ProcessInfo.processInfo.systemUptime - starvedStarted
+        // The original probe must still be queued when the subprocess finishes.
+        // If it ran meanwhile, the pool was no longer starved and this check did
+        // not exercise the condition it claims to cover. A successful zero-time
+        // wait consumes the signal, so only wait for it again when it was pending.
+        let starvationContinued = starvationStillPending(poolIsStarved, probe: starvedProbe)
         // One signal per block submitted, running or still queued, so the rest
         // of this file never runs against workers parked on the gate.
         for _ in 0..<blockedWorkers { poolGate.signal() }
-        _ = starvedProbe?.wait(timeout: .now() + 5)
+        if starvationContinued { _ = starvedProbe?.wait(timeout: .now() + 5) }
         suite.expect(blockedWorkerGroup.wait(timeout: .now() + 5) == .success,
                      "every dispatch-pool blocker exits before the network suite continues")
         suite.expect(poolIsStarved,
                "the dispatch pool starvation this check needs was actually reached")
-        suite.expect(!starvedPoolProcess.timedOut && starvedPoolProcess.status == 0
-                && String(decoding: starvedPoolProcess.output, as: UTF8.self) == "ready\n"
-                && starvedPoolElapsed < 0.5,
-               "a subprocess is watched off the dispatch pool, so a starved pool cannot strand it")
+        let starvedPoolOutput = String(decoding: starvedPoolProcess.output, as: UTF8.self)
+        let starvedDiagnostics = "blocked=\(blockedWorkers), poolIsStarved=\(poolIsStarved), "
+            + "starvationContinued=\(starvationContinued), timedOut=\(starvedPoolProcess.timedOut), "
+            + "status=\(starvedPoolProcess.status), output=\(String(reflecting: starvedPoolOutput)), "
+            + "elapsed=\(starvedPoolElapsed)"
+        suite.expect(starvationContinued,
+               "the pool stays starved through subprocess completion: \(starvedDiagnostics)")
+        // The one-second runner deadline plus the still-pending probe proves the
+        // watcher completed off-pool without imposing a host spawn-latency SLA.
+        suite.expect(!starvedPoolProcess.timedOut,
+               "a starved pool cannot time out the subprocess watcher: \(starvedDiagnostics)")
+        suite.expect(starvedPoolProcess.status == 0,
+               "the off-pool watcher preserves subprocess status: \(starvedDiagnostics)")
+        suite.expect(starvedPoolOutput == "ready\n",
+               "the off-pool watcher preserves subprocess output: \(starvedDiagnostics)")
 
         var networkDelta = NetworkProcessDeltaTracker(maxGap: 10)
         let baselineNetwork = [
