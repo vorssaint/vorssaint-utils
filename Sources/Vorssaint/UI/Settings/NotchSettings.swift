@@ -378,7 +378,7 @@ struct NotchSettings: View {
 
     /// The mixer, the system page and the tools arrange themselves in the island.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .tools, .utilities].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -496,7 +496,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .tools, .utilities:
             EmptyView()
         }
     }
@@ -797,7 +797,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .controls, .music, .captures, .system, .utilities: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf

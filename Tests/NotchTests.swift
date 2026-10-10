@@ -32,6 +32,32 @@ enum NotchTests {
                      && NotchSupport.systemCardCount(hasBattery: false, in: defaults) == 0,
                      "uninstalling connected devices removes its System page and card")
 
+        suite.expect(!NotchModule.utilities.isAvailable(in: defaults),
+                     "Utilities stays unavailable when none of its tools is installed")
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: AppFeature.notch.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.panelShowUtilities)
+        defaults.set(true, forKey: DefaultsKey.notchHidesMenuBarIcon)
+        for feature in [AppFeature.cleaner, .uninstaller, .homebrew, .portManager] {
+            defaults.set(true, forKey: feature.availabilityKey)
+            suite.expect(NotchModule.utilities.isAvailable(in: defaults)
+                         && NotchSupport.modules(in: defaults).contains(.utilities)
+                         && !NotchSupport.modules(in: defaults).contains(.tools),
+                         "\(feature.rawValue) remains reachable from Utilities without the menu icon or quick launcher")
+            defaults.set(false, forKey: feature.availabilityKey)
+        }
+        suite.expect(!NotchSupport.modules(in: defaults).contains(.utilities),
+                     "removing the last utility removes its island destination")
+        defaults.set(true, forKey: AppFeature.cleaner.availabilityKey)
+        defaults.set("utilities", forKey: DefaultsKey.notchHiddenModules)
+        suite.expect(!NotchSupport.modules(in: defaults).contains(.utilities),
+                     "Utilities respects the island's own hidden sections")
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("music,controls", forKey: DefaultsKey.notchModuleOrder)
+        suite.expect(NotchSupport.modules(in: defaults) == [.music, .controls, .utilities],
+                     "a saved order from before Utilities keeps its entries and gains the new destination")
+        defaults.set(false, forKey: AppFeature.cleaner.availabilityKey)
+
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 504) == [0..<3, 3..<5, 5..<7],
                      "seven System metrics fill balanced rows instead of leaving a nearly empty column")
         suite.expect(NotchLayout.systemRowRanges(count: 7, width: 304) == [0..<2, 2..<4, 4..<6, 6..<7],
@@ -1620,7 +1646,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .utilities, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
@@ -1865,13 +1891,15 @@ enum NotchTests {
             let geometry = NotchGeometry(screen: frames[0], safeAreaTop: 32, cameraWidth: 210, layout: layout)
             for module in NotchModule.allCases {
                 let content = geometry.contentSize(for: geometry.expandedSize(module: module)).height
-                suite.expect(content <= geometry.contentBudget && content > 0,
-                       "every page stays inside its preset's strip: \(layout) \(module)")
+                let budget = module == .utilities ? geometry.pageBudget : geometry.contentBudget
+                suite.expect(content <= budget && content > 0,
+                       "every page stays inside its content budget: \(layout) \(module)")
             }
             suite.expect(geometry.contentSize(for: geometry.expandedSize(module: .tools, panel: true)).height == geometry.pageBudget
+                   && geometry.contentSize(for: geometry.expandedSize(module: .utilities)).height == geometry.pageBudget
                    && geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true)).height == geometry.pageBudget
                    && geometry.pageBudget >= geometry.contentBudget,
-                   "the app panel and a metric detail get a readable page even inside a short preset: \(layout)")
+                   "the app panel, Utilities and a metric detail get a readable page even inside a short preset: \(layout)")
             let detail = { (height: CGFloat, panel: Bool) in
                 geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true, panel: panel,
                                                                 detailHeight: height)).height

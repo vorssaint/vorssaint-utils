@@ -178,6 +178,7 @@ struct NotchPagePreview: View {
         case .files: NotchFilesView(service: notch)
         case .system: NotchSystemView(size: size) { _ in }
         case .tools: QuickLauncherView(notchSize: size)
+        case .utilities: NotchUtilitiesView(service: notch, size: size, tracksNavigation: false)
         case .scratchpad: NotchScratchpadStill()
         case .agents:
             // Off, nothing reads the logs, so the page would wait forever.
@@ -285,9 +286,9 @@ struct NotchSectionListRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .help(editor.summary(module))
+                .help(editor.summary(module, language: l10n.language))
                 .accessibilityLabel(title)
-                .accessibilityValue(editor.summary(module))
+                .accessibilityValue(editor.summary(module, language: l10n.language))
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveUp) { move(by: -1) }
                 .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveDown) { move(by: 1) }
@@ -324,7 +325,7 @@ struct NotchSectionHeader: View {
             NotchSectionTile(module: module, shown: shown, side: 38)
             VStack(alignment: .leading, spacing: 3) {
                 Text(module.title(l10n.language)).font(.title3.weight(.semibold))
-                Text(editor.summary(module))
+                Text(editor.summary(module, language: l10n.language))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -375,6 +376,7 @@ extension NotchModule {
         case .files: return .cyan
         case .system: return .green
         case .tools: return .gray
+        case .utilities: return .orange
         case .calendar: return .red
         case .notifications: return .orange
         case .timer: return .mint

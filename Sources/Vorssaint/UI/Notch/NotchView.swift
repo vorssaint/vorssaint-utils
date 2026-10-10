@@ -659,6 +659,7 @@ struct NotchView: View {
             case .system:
                 NotchSystemView(size: pageSize) { service.showMetric($0) }
             case .tools: QuickLauncherView(notchSize: pageSize)
+            case .utilities: NotchUtilitiesView(service: service, size: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
             case .watch: NotchWatchView(size: pageSize)
@@ -961,6 +962,7 @@ extension NotchModule: PanelOrderItem {
         case .files: return FeatureStrings.notch(language).files
         case .system: return FeatureStrings.notch(language).system
         case .tools: return FeatureStrings.notch(language).tools
+        case .utilities: return Strings.localized(language).utilitiesSection
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title

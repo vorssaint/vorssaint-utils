@@ -214,6 +214,13 @@ extension AppFeature {
 
     var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
 
+    /// The same utility catalog keeps the menu panel and island page available.
+    static let utilityPanelFeatures: [AppFeature] = [
+        .quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools, .clipboardHistory,
+        .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR, .colorPicker,
+        .screenshot, .screenRecorder, .cameraPreview, .scratchpad, .commandBar, .portManager
+    ]
+
     var isBeta: Bool { self == .fanControl || self == .killProcess }
 
     /// Availability read straight from defaults. Existing features stay
