@@ -1897,21 +1897,26 @@ enum RepositoryFeatureTests {
                "script uninstall reads Space rearranging back for itself and never changes it")
         let brightnessSource = repository.source(
             at: "Sources/Vorssaint/Services/Display/BrightnessService.swift")
-        let brightnessTapMethod = brightnessSource
+        let brightnessSuspendMethod = brightnessSource
             .components(separatedBy: "    func suspendInputTaps()").dropFirst().first?
-            .components(separatedBy: "    private func installFunctionKeyTap").first ?? ""
-        let brightnessTapCode = brightnessTapMethod.components(separatedBy: "\n")
+            .components(separatedBy: "    func resumeInputTaps").first ?? ""
+        let brightnessSuspendCode = brightnessSuspendMethod.components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        let brightnessResumeMethod = brightnessSource
+            .components(separatedBy: "    func resumeInputTaps()").dropFirst().first?
+            .components(separatedBy: "    private func").first ?? ""
+        let brightnessResumeCode = brightnessResumeMethod.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
         suite.expect(selfUninstallSource.contains("TextSnippetService.shared.suspend()")
                 && selfUninstallSource.contains("QuitProtectionService.shared.suspend()")
                 && selfUninstallSource.contains("BrightnessService.shared.suspendInputTaps()")
                 && selfUninstallSource.contains("BrightnessService.shared.resumeInputTaps()")
-                && brightnessTapCode.contains("inputTapsSuspended = true")
-                && brightnessTapCode.contains("removeKeyTap()")
-                && brightnessTapCode.contains("removeFunctionKeyTap()")
-                && !brightnessTapCode.contains("restoreManagedDisplays")
-                && !brightnessTapCode.contains("restoreAllGamma"),
+                && brightnessSuspendCode.contains("FunctionKeyTap.shared.suspend()")
+                && brightnessResumeCode.contains("FunctionKeyTap.shared.resume()")
+                && !brightnessSuspendCode.contains("restoreManagedDisplays")
+                && !brightnessSuspendCode.contains("restoreAllGamma"),
                "the permission teardown stops every persistent keyboard tap")
         let quitProtectionSource = repository.source(
             at: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift")

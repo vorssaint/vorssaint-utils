@@ -5,7 +5,9 @@ import CoreGraphics
 import Foundation
 
 /// The mouse and keyboard features that can be told to leave an app alone
-/// (issues #358, #741).
+/// (issues #358, #741), plus the Fn-Lock's activation list (issue #1227),
+/// which works the other way: an entry there is the feature's subject,
+/// not an exception to it.
 /// Each one keeps its OWN list, right under its switch in Settings: excepting
 /// an app from the wheel's glide must not also silence the side buttons there.
 enum MouseExceptionScope: String, CaseIterable {
@@ -17,6 +19,22 @@ enum MouseExceptionScope: String, CaseIterable {
     case buttonShortcuts
     case middleClick
     case superKey
+    case fnLock
+
+    /// Whether this feature's list is answered for the app in front (issue
+    /// #1227) rather than for the app under the pointer. Keys go to the app
+    /// holding keyboard focus, not to the one under the hand, and a feature
+    /// that switches on per app has to follow the same app the keys are
+    /// delivered to. The Super Key is the one exception: its #741 reporter
+    /// named software KVMs (Deskflow, Synergy), which grab the keyboard while
+    /// running in the background, so its list keeps the running-app
+    /// semantics #1399 shipped.
+    var keysOffFrontmostApp: Bool {
+        switch self {
+        case .fnLock: return true
+        default: return false
+        }
+    }
 
     var defaultsKey: String {
         switch self {
@@ -28,6 +46,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .buttonShortcuts: return DefaultsKey.mouseButtonExceptions
         case .middleClick: return DefaultsKey.middleClickExceptions
         case .superKey: return DefaultsKey.superKeyExceptions
+        case .fnLock: return DefaultsKey.fnLockApps
         }
     }
 
@@ -43,6 +62,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .buttonShortcuts: return .mouseButtonShortcuts
         case .middleClick: return .middleClick
         case .superKey: return .superKey
+        case .fnLock: return .fnLock
         }
     }
 }
