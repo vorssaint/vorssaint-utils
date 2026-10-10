@@ -101,6 +101,9 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
+        // Account folders are authority on this Mac, never portable preferences.
+        DefaultsKey.notchAgentsClaudeProfiles,
+        DefaultsKey.notchAgentsCodexProfiles,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.

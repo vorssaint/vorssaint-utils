@@ -9,6 +9,7 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
+    @AppStorage(DefaultsKey.notchAgentsClaudeProfiles) private var claudeProfiles = ""
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
@@ -49,6 +50,8 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            if claude { ClaudeAccountsSettings() }
+            if codex { CodexAccountsSettings() }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -67,7 +70,7 @@ struct NotchAgentsSettingsControls: View {
                 }
             }
             Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
-            // The one card that makes Codex ask the account, said where it is chosen.
+            // Banked resets also ask Codex for the account, said where chosen.
             if codex, cardBinding(.resets).wrappedValue {
                 Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -133,7 +136,7 @@ struct NotchAgentsSettingsControls: View {
                 Toggle(text.priceUpdates, isOn: $priceUpdates).labelsHidden().toggleStyle(.switch)
             }
 
-            if claude {
+            if claude, ClaudeAccountProfile.decode(claudeProfiles).isEmpty {
                 Divider()
                 Text(text.claudeLimitsTitle).font(.subheadline.weight(.medium))
                 TimelineView(.periodic(from: .now, by: 30)) { context in
