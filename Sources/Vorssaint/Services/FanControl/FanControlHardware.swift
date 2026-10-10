@@ -316,14 +316,16 @@ final class FanControlHardware {
         if let temperatureKeys { return temperatureKeys }
         let keys = client.keys { name in
             TemperatureSensorSelector.isCPUTemperatureKey(name, platform: temperaturePlatform)
-                || name.hasPrefix("Tg")
+                || TemperatureSensorSelector.isGPUTemperatureKey(name, platform: temperaturePlatform)
         }
         let result = TemperatureKeys(
             cpu: keys.filter {
                 TemperatureSensorSelector.isCPUTemperatureKey($0.name,
                                                               platform: temperaturePlatform)
             },
-            gpu: keys.filter { $0.name.hasPrefix("Tg") }
+            gpu: keys.filter {
+                TemperatureSensorSelector.isGPUTemperatureKey($0.name, platform: temperaturePlatform)
+            }
         )
         temperatureKeys = result
         return result
