@@ -666,6 +666,22 @@ def main():
           + "}\n}\n")
     playback_adapter = "Sources/NowPlayingAdapter/NowPlayingSelection.swift"
     adapter_entry = "Sources/NowPlayingAdapter/NowPlayingAdapter.swift"
+    timer_service = "Sources/Vorssaint/Services/Notch/NotchTimerService.swift"
+    write("NotchPomodoroService.swift", "import AppKit\nimport Foundation\n"
+          + "extension NotchPomodoroTests {\nfinal class Service: Fixture {\n"
+          + "".join(declaration(timer_service, prefix).replace("    private func", "    func", 1)
+                    for prefix in ["    func syncWithPreferences()", "    func start(mode:",
+                                   "    func pauseOrResume()", "    func startNext()", "    func cancel()",
+                                   "    func suspend()", "    private func finishIfDue(",
+                                   "    private func updateMedia(", "    private func scheduleCompletion()",
+                                   "    private func scheduleCountdown()"])
+          + next(line for line in (ROOT / timer_service).read_text().splitlines(True)
+                 if line.startswith("    func stop()"))
+          + "}\n}\n")
+    write("PomodoroSystemPlayback.swift", "import Foundation\n"
+          + "extension PomodoroSystemPlaybackContract {\n"
+          + declaration(adapter_entry, "private func sendSystemPlayback(").replace("private func", "static func", 1)
+          + "}\n")
     # Only the clock changes, so tests drive the wait for a chosen source's track.
     write("NotchPlaybackRouting.swift", "import Foundation\nimport ObjectiveC\nextension NotchPlaybackRoutingContract {\n"
           + declaration(playback_adapter, "    private struct Identity:").replace("private struct", "struct", 1)

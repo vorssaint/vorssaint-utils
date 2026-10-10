@@ -13,6 +13,7 @@ struct NotchTimerView: View {
     @AppStorage(DefaultsKey.notchPomodoroLongBreakMinutes) private var longBreakMinutes = 15
     @AppStorage(DefaultsKey.notchPomodoroLongBreakInterval) private var longBreakInterval = 4
     @AppStorage(DefaultsKey.notchPomodoroTotalSessions) private var totalSessions = 4
+    @AppStorage(DefaultsKey.notchPomodoroAutoAdvance) private var autoAdvance = false
     @AppStorage(DefaultsKey.notchTimerMinutes) private var savedMinutes = 15
     @Namespace private var modeSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -88,7 +89,7 @@ struct NotchTimerView: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
-        .help(mode == .pomodoro ? text.pomodoroHint : text.start)
+        .help(mode == .pomodoro ? (autoAdvance ? text.pomodoroAutoAdvanceHint : text.pomodoroHint) : text.start)
     }
 
     private var setupClock: String {
@@ -144,9 +145,17 @@ struct NotchTimerView: View {
         VStack(spacing: 4) {
             activeControls
             if service.session.mode == .pomodoro {
-                Text(String(format: text.sessionProgress, service.session.sessionNumber, service.session.configuration.totalSessions))
-                    .font(.system(size: 12, weight: .medium)).monospacedDigit()
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(String(format: text.sessionProgress, service.session.sessionNumber, service.session.configuration.totalSessions))
+                        .font(.system(size: 12, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    if service.mediaCommandFailed {
+                        Image(systemName: "exclamationmark.triangle")
+                            .foregroundStyle(.orange)
+                            .help(text.pomodoroMediaUnavailable)
+                            .accessibilityLabel(text.pomodoroMediaUnavailable)
+                    }
+                }
             }
         }
     }

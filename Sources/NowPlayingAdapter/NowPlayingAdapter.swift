@@ -45,6 +45,37 @@ func function<T>(_ handle: UnsafeMutableRawPointer?, _ name: String, as type: T.
 
 private let emissionLock = NSLock()
 
+/// Pomodoro follows the system player, independently of the island's selected
+/// music source. Only explicit play/pause are exposed; no synthetic media keys
+/// or toggle fallback can accidentally reverse the requested state.
+@_cdecl("vorssaint_now_playing_play")
+public func vorssaintNowPlayingPlay() { emit(["sent": sendSystemPlayback(0)]) }
+
+@_cdecl("vorssaint_now_playing_pause")
+public func vorssaintNowPlayingPause() { emit(["sent": sendSystemPlayback(1)]) }
+
+private func sendSystemPlayback(_ command: Int32) -> Bool {
+    guard command == 0 || command == 1 else { return false }
+    typealias Send = @convention(c) (Int32, CFDictionary?) -> Bool
+    let handle = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY)
+    defer { if let handle { dlclose(handle) } }
+    guard let read = function(handle, "MRMediaRemoteGetNowPlayingApplicationPID", as: PIDFunction.self),
+          let send = function(handle, "MRMediaRemoteSendCommand", as: Send.self) else { return false }
+    let group = DispatchGroup()
+    let lock = NSLock()
+    var playerPID: Int32 = 0
+    group.enter()
+    read(DispatchQueue.global(qos: .userInitiated)) { pid in
+        lock.withLock { playerPID = pid }
+        group.leave()
+    }
+    guard group.wait(timeout: .now() + 0.5) == .success else { return false }
+    let pid = lock.withLock { playerPID }
+    // With no running media session, do not ask macOS to launch a player.
+    guard pid > 0, let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return false }
+    return send(command, nil)
+}
+
 /// JSONSerialization raises an Objective-C exception on NaN or infinity,
 /// which `try?` cannot catch. A player can report either for a live stream,
 /// so such a number is left out; any other invalid value reads as an error.

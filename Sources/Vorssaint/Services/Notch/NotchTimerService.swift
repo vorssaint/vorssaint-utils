@@ -9,12 +9,14 @@ import Combine
 final class NotchTimerService: ObservableObject {
     static let shared = NotchTimerService()
     @Published private(set) var session = NotchTimerSession()
+    @Published private(set) var mediaCommandFailed = false
     private let origin = ContinuousClock.now
     private var completionTask: Task<Void, Never>?
     /// Wakes for the last seconds of a countdown, which the companion watches.
     private var countdownTask: Task<Void, Never>?
     private var suspended = true
     private let alert = NotchTimerAlert()
+    private let media = NotchPomodoroMediaControl()
     private init() {}
 
     var now: TimeInterval {
@@ -24,8 +26,13 @@ final class NotchTimerService: ObservableObject {
 
     func syncWithPreferences() {
         guard NotchTimerSupport.isEnabled() else { stop(); return }
+        if !UserDefaults.standard.bool(forKey: DefaultsKey.notchPomodoroControlMedia) {
+            media.cancel()
+            mediaCommandFailed = false
+        }
+        let resuming = suspended
         suspended = false
-        finishIfDue()
+        finishIfDue(automatically: !resuming)
         if session.completed { alert.start(enabled: NotchTimerSupport.isSoundEnabled()) }
         scheduleCompletion()
     }
@@ -34,7 +41,9 @@ final class NotchTimerService: ObservableObject {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
         guard !session.hasSession else { return }
         alert.stop()
+        mediaCommandFailed = false
         session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
+        updateMedia()
         scheduleCompletion()
         NotchService.shared.reactMascot(.ready)
     }
@@ -42,8 +51,8 @@ final class NotchTimerService: ObservableObject {
     func pauseOrResume() {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
         finishIfDue()
-        if session.isRunning { session.pause(at: now) }
-        else if session.isPaused { session.resume(at: now) }
+        if session.isRunning { session.pause(at: now); updateMedia() }
+        else if session.isPaused { session.resume(at: now); updateMedia() }
         scheduleCompletion()
     }
 
@@ -52,20 +61,24 @@ final class NotchTimerService: ObservableObject {
         guard session.canStartNext else { return }
         alert.stop()
         session.startNext(at: now)
+        updateMedia()
         scheduleCompletion()
         NotchService.shared.reactMascot(.ready)
     }
 
     func cancel() {
+        if session.mode == .pomodoro, session.hasSession { updateMedia(stopping: true) }
         alert.stop()
         completionTask?.cancel(); completionTask = nil
         countdownTask?.cancel(); countdownTask = nil
         NotchService.shared.endMascotCountdown(retreating: false)
         session.cancel()
+        mediaCommandFailed = false
     }
 
     func suspend() {
         suspended = true
+        media.cancel()
         alert.suspend()
         completionTask?.cancel(); completionTask = nil
         countdownTask?.cancel(); countdownTask = nil
@@ -74,7 +87,7 @@ final class NotchTimerService: ObservableObject {
 
     func stop() { suspend(); cancel() }
 
-    private func finishIfDue() {
+    private func finishIfDue(automatically: Bool = false) {
         guard session.finishIfDue(at: now) else { return }
         alert.stop()
         // The notice takes the strip it watched from.
@@ -86,7 +99,35 @@ final class NotchTimerService: ObservableObject {
             detail: text.phase(session.phase), symbol: "timer", mascot: reaction))
         // It takes the news in the notice, or where it is when the notice cannot show.
         NotchService.shared.reactMascot(reaction)
-        alert.start(enabled: NotchTimerSupport.isSoundEnabled())
+        // A live deadline (including a preference refresh that wins the race
+        // with its callback) may advance. Wake-up only finishes the old phase.
+        if automatically, session.canStartNext,
+           UserDefaults.standard.bool(forKey: DefaultsKey.notchPomodoroAutoAdvance) {
+            session.startNext(at: now)
+            alert.chime(enabled: NotchTimerSupport.isSoundEnabled())
+            scheduleCompletion()
+        } else {
+            alert.start(enabled: NotchTimerSupport.isSoundEnabled())
+        }
+        updateMedia()
+    }
+
+    private func updateMedia(stopping: Bool = false) {
+        guard !suspended, NotchTimerSupport.isEnabled(), session.mode == .pomodoro,
+              UserDefaults.standard.bool(forKey: DefaultsKey.notchPomodoroControlMedia) else {
+            media.cancel()
+            mediaCommandFailed = false
+            return
+        }
+        let command: NotchPomodoroMediaControl.Command = !stopping && session.isRunning && session.phase == .focus
+            ? .play : .pause
+        mediaCommandFailed = false
+        media.send(command) { [weak self] accepted in
+            guard let self, !self.suspended, self.session.mode == .pomodoro, self.session.hasSession,
+                  NotchTimerSupport.isEnabled(),
+                  UserDefaults.standard.bool(forKey: DefaultsKey.notchPomodoroControlMedia) else { return }
+            self.mediaCommandFailed = !accepted
+        }
     }
 
     private func scheduleCompletion() {
@@ -99,7 +140,7 @@ final class NotchTimerService: ObservableObject {
             catch { return }
             guard let self, !Task.isCancelled, !self.suspended, NotchTimerSupport.isEnabled() else { return }
             self.completionTask = nil
-            self.finishIfDue()
+            self.finishIfDue(automatically: true)
         }
     }
 

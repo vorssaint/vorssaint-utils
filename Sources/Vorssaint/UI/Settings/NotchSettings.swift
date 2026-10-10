@@ -16,6 +16,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchDismissNativeNotifications) private var dismissNativeNotifications = false
     @AppStorage(DefaultsKey.notchTimerEnabled) private var timerEnabled = true
     @AppStorage(DefaultsKey.notchTimerSoundEnabled) private var timerSoundEnabled = true
+    @AppStorage(DefaultsKey.notchPomodoroAutoAdvance) private var pomodoroAutoAdvance = false
+    @AppStorage(DefaultsKey.notchPomodoroControlMedia) private var pomodoroControlMedia = false
     @AppStorage(DefaultsKey.notchHideTimerCountdown) private var hideTimerCountdown = false
     @AppStorage(DefaultsKey.notchCameraEnabled) private var cameraEnabled = true
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
@@ -464,6 +466,12 @@ struct NotchSettings: View {
                       isOn: $hideTimerCountdown)
                 .disabled(!AppFeature.notchTimer.isAvailable)
             switchRow("speaker.wave.2", activities.soundEnabled, isOn: $timerSoundEnabled)
+                .disabled(!AppFeature.notchTimer.isAvailable)
+            switchRow("arrow.triangle.2.circlepath", activities.pomodoroAutoAdvance,
+                      caption: activities.pomodoroAutoAdvanceHint, isOn: $pomodoroAutoAdvance)
+                .disabled(!AppFeature.notchTimer.isAvailable)
+            switchRow("playpause", activities.pomodoroControlMedia,
+                      caption: activities.pomodoroControlMediaHint, isOn: $pomodoroControlMedia)
                 .disabled(!AppFeature.notchTimer.isAvailable)
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
