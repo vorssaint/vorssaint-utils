@@ -1086,6 +1086,16 @@ enum CommandBarFeatureTests {
                 == ["5", "10,87"],
                "feet and inches follow the person's number format")
 
+        // The number shown must read back as the answer; a tiny one is not 0.
+        let unitShown: (String) -> Double? = { input in
+            units(input)?.split(separator: " ").first.flatMap { Double($0) }
+        }
+        for (input, expected) in [("1 mm to km", 1e-6), ("1 mg to t", 1e-9), ("3 ms to h", 3 / 3_600_000.0)] {
+            suite.expect(unitShown(input).map { abs($0 - expected) <= expected * 0.01 } == true,
+                         "\(input) shows \(expected), not \(units(input) ?? "nil")")
+        }
+        suite.expect(unitNumbers(units("0 mm to km")) == ["0"], "zero still reads as plain 0")
+
         // MARK: Command bar emoji
 
         suite.expect(CommandBarEmoji.emoji.count > 1_000, "the searchable Unicode emoji set is there")
