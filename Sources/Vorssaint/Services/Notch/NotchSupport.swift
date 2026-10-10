@@ -1468,6 +1468,16 @@ enum NotchSupport {
         CGRect(origin: .zero, size: area.size).contains(CGPoint(x: point.x - area.minX, y: area.maxY - point.y))
     }
 
+    /// A pointer on the screen's first row, kept half a point inside the
+    /// island; nil anywhere else. Used only for a physical notch.
+    /// The first row's Cocoa height is the screen's top edge itself, which
+    /// neither the window nor its shape contains.
+    static func screenEdgeScrollPoint(_ point: CGPoint, screen: CGRect) -> CGPoint? {
+        guard point.x >= screen.minX, point.x < screen.maxX,
+              point.y > screen.maxY - 1, point.y <= screen.maxY else { return nil }
+        return CGPoint(x: point.x, y: min(point.y, screen.maxY - 0.5))
+    }
+
     static func sanitizedHoverDelay(_ value: TimeInterval) -> TimeInterval {
         value.isFinite ? min(hoverDelayRange.upperBound, max(hoverDelayRange.lowerBound, value)) : defaultHoverDelay
     }
