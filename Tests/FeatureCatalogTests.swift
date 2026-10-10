@@ -2393,23 +2393,23 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.ddcPathKey(displayFingerprint: "1507:9218:245",
                                             ioDisplayLocation: "") == nil,
                "a display without a stable connection path is never cached")
-        let rememberedPaths = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["old", "same", "other", "same"], path: "same", isWriteOnly: true, limit: 3)
+        let rememberedPaths = BrightnessSupport.updatedRememberedPaths(
+            ["old", "same", "other", "same"], path: "same", remembered: true, limit: 3)
         suite.expect(rememberedPaths == ["old", "other", "same"],
                "remembering a write-only path deduplicates it and makes it newest")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            rememberedPaths, path: "other", isWriteOnly: false, limit: 3) == ["old", "same"],
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            rememberedPaths, path: "other", remembered: false, limit: 3) == ["old", "same"],
                "a changed DDC result invalidates the remembered path")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["one", "two", "three"], path: "four", isWriteOnly: true, limit: 3)
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            ["one", "two", "three"], path: "four", remembered: true, limit: 3)
             == ["two", "three", "four"],
                "the write-only path cache remains bounded")
-        suite.expect(!BrightnessSupport.shouldProbeDDC(
-            pathKey: ddcPath, writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: "another", writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: nil, writeOnlyPaths: [ddcPath!]),
+        suite.expect(!BrightnessSupport.shouldProbe(
+            pathKey: ddcPath, rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: "another", rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: nil, rememberedPaths: [ddcPath!]),
                "only the same physical display path skips future DDC probes")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.brightnessDDCWriteOnlyPaths),

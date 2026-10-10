@@ -18,6 +18,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
+    @AppStorage(DefaultsKey.displayVolumeEnabled) private var displayVolume = false
+    @AppStorage(DefaultsKey.displayVolumeKeysEnabled) private var displayVolumeKeys = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
@@ -353,7 +355,26 @@ struct EnergySettings: View {
                                     }
                             }
                         }
-                        if brightnessKeysEnabled || brightnessOSDEnabled
+                        SettingsRow(symbol: "speaker.wave.2", title: strings.volumeToggle,
+                                    caption: strings.volumeCaption) {
+                            Toggle(strings.volumeToggle, isOn: $displayVolume)
+                                .labelsHidden()
+                                .onChange(of: displayVolume) { _, _ in
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
+                        if displayVolume {
+                            SettingsRow(symbol: "keyboard", title: strings.volumeKeysToggle,
+                                        caption: strings.volumeKeysCaption) {
+                                Toggle(strings.volumeKeysToggle, isOn: $displayVolumeKeys)
+                                    .labelsHidden()
+                                    .onChange(of: displayVolumeKeys) { _, isOn in
+                                        if isOn { Permissions.shared.requestAccessibility() }
+                                        BrightnessService.shared.syncWithPreferences()
+                                    }
+                            }
+                        }
+                        if brightnessKeysEnabled || brightnessOSDEnabled || displayVolumeKeys
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)

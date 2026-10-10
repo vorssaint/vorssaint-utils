@@ -16,6 +16,9 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var gate = PreciseVolumeRollerGate()
     private var keyOwnership = PreciseVolumeKeyOwnership()
     private var notchKeyGate = NotchVolumeKeyGate()
+    /// Monitor volume presses this tap claimed and has not yet seen released,
+    /// so their key-ups are consumed too. Main thread only: the tap runs there.
+    private var monitorVolumeKeysHeld = Set<BrightnessSupport.VolumeKeyAction>()
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
@@ -30,9 +33,10 @@ final class PreciseVolumeRollerService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let wanted = AppFeature.mixer.isAvailable
+        let wanted = (AppFeature.mixer.isAvailable
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
+                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)))
+            || BrightnessService.shared.wantsMonitorVolumeKeys
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -63,6 +67,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         notchKeyGate = NotchVolumeKeyGate()
         feedback = nil
         keyOwnership = PreciseVolumeKeyOwnership()
+        monitorVolumeKeysHeld = []
     }
 
     private func start() {
@@ -120,6 +125,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         if PreciseVolumeKeyEvents.isPosted(event) {
             return Unmanaged.passUnretained(event)
         }
+        if routeMonitorVolume(nsEvent, flags: event.flags) { return nil }
         if routeNotchVolume(nsEvent, event: event) { return nil }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
@@ -141,6 +147,59 @@ final class PreciseVolumeRollerService: ObservableObject {
         return nil
     }
 
+    /// Routes a volume press to the monitor the sound plays through, when macOS
+    /// cannot set that output's volume. Every other press keeps its path. The
+    /// press is claimed here and applied on main, so the tap waits on nothing.
+    private func routeMonitorVolume(_ nsEvent: NSEvent, flags: CGEventFlags) -> Bool {
+        guard let press = BrightnessSupport.volumeKeyEvent(
+            subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) else { return false }
+        if !press.isKeyDown {
+            return monitorVolumeKeysHeld.remove(press.action) != nil
+        }
+        guard let fine = BrightnessSupport.volumeKeyFineness(
+            option: flags.contains(.maskAlternate),
+            shift: flags.contains(.maskShift),
+            commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])) else { return false }
+        if press.isRepeat, case .toggleMute = press.action {
+            return monitorVolumeKeysHeld.contains(press.action)
+        }
+        guard BrightnessService.shared.claimsMonitorVolumeKey(press.action) else { return false }
+        monitorVolumeKeysHeld.insert(press.action)
+        let action = press.action
+        DispatchQueue.main.async {
+            Self.applyMonitorVolumeKey(action, fine: fine)
+        }
+        return true
+    }
+
+    /// Applies a press that routeMonitorVolume claimed. Main thread only, where
+    /// the mixer's monitor output and its request path live.
+    private static func applyMonitorVolumeKey(_ action: BrightnessSupport.VolumeKeyAction, fine: Bool) {
+        let mixer = AppVolumeMixer.shared
+        guard mixer.outputIsMonitorSpeakers else { return }
+        switch action {
+        case let .step(direction):
+            mixer.requestOutputStep(level: {
+                BrightnessSupport.steppedLevel($0, delta: BrightnessSupport.volumeKeyDelta(direction: direction, fine: fine))
+            }, raises: direction > 0, completion: { applied in
+                if applied { Self.showMonitorFeedback() }
+            })
+        case .toggleMute:
+            mixer.requestOutputMuteToggle(completion: { applied in
+                if applied { Self.showMonitorFeedback() }
+            })
+        }
+    }
+
+    /// Shows the monitor's level after a key moved it. The island takes the
+    /// notice when it can; the brightness overlay is the fallback.
+    private static func showMonitorFeedback() {
+        if NotchService.shared.showCurrentVolume() { return }
+        guard let output = AppVolumeMixer.shared.monitorOutput else { return }
+        BrightnessOSD.show(displayID: output.displayID, level: output.volume,
+                           kind: output.muted == true ? .mutedVolume : .volume)
+    }
+
     private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {
         let code = Int32((nsEvent.data1 >> 16) & 0xffff)
         let state = (nsEvent.data1 >> 8) & 0xff
@@ -150,7 +209,8 @@ final class PreciseVolumeRollerService: ObservableObject {
             keyCode: code, state: state, isRepeat: nsEvent.data1 & 1 != 0,
             enabled: NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback,
             acceptsNewPress: NotchService.shared.showsSystemFeedback,
-            hasVolume: mixer.systemOutputVolume != nil, hasMute: mixer.systemOutputMuted != nil,
+            hasVolume: mixer.systemOutputVolume != nil && !mixer.outputIsMonitorSpeakers,
+            hasMute: mixer.systemOutputMuted != nil && !mixer.outputIsMonitorSpeakers,
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift),
             commandOrControl: event.flags.contains(.maskCommand) || event.flags.contains(.maskControl))
         if action == .passThrough { return false }

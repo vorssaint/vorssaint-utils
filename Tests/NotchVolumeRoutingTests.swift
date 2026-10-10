@@ -24,7 +24,7 @@ enum NotchVolumeRoutingTests {
         static let shared = NotchService()
         let acceptsSystemFeedback = true
         let showsSystemFeedback = true
-        func showCurrentVolume() {}
+        @discardableResult func showCurrentVolume() -> Bool { true }
     }
     struct NSEvent { let data1: Int }
     final class CGEvent {
@@ -107,5 +107,18 @@ enum NotchVolumeRoutingTests {
         suite.expect(!press(.mute, service: service, event: unsupportedMute)
                      && DispatchQueue.main.jobs.isEmpty && Hardware.writes.isEmpty && unsupportedMute.posts == 0,
                      "initially unsupported mute passes through without scheduling or reposting")
+
+        service = reset()
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(displayID: 7, volume: 0.4, muted: nil)
+        let monitorUp = CGEvent()
+        suite.expect(!press(.volumeUp, service: service, event: monitorUp)
+                     && monitorUp.posts == 0 && DispatchQueue.main.jobs.isEmpty && Hardware.writes.isEmpty,
+                     "monitor speakers with keys off pass volume keys through to macOS")
+        service = reset()
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(displayID: 7, volume: 0.4, muted: false)
+        let monitorMute = CGEvent()
+        suite.expect(!press(.mute, service: service, event: monitorMute)
+                     && monitorMute.posts == 0 && DispatchQueue.main.jobs.isEmpty,
+                     "monitor speakers with keys off pass mute through to macOS")
     }
 }

@@ -324,5 +324,41 @@ enum MixerOutputAdjustmentContract {
         }
         suite.expect(completions == [false, false, false] && mixer.halQueue.jobs.isEmpty,
                      "nonfinite output requests never reach the driver")
+
+        // Monitor speakers take the request on the brightness queue; the HAL is never written.
+        let speakers = Mixer.BrightnessService.shared
+        func monitorMixer(muted: Bool?) -> Mixer {
+            let mixer = make()
+            speakers.writes = []
+            mixer.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(displayID: 7, volume: 0.4, muted: muted)
+            return mixer
+        }
+        mixer = monitorMixer(muted: false)
+        var sliderDone: Bool?
+        mixer.requestOutputAdjustment(volume: 0.7) { sliderDone = $0 }
+        finish(mixer)
+        suite.expect(speakers.writes == ["volume 7 0.7"] && Hardware.writes.isEmpty && sliderDone == true,
+                     "a monitor's volume slider writes its own DDC level, never the output's HAL volume")
+        mixer = monitorMixer(muted: true)
+        mixer.requestOutputStep(level: { _ in 0.5 }, raises: true)
+        suite.expect(speakers.writes == ["muted 7 false", "volume 7 0.5"],
+                     "a raise lifts a monitor's mute before it sets the level")
+        mixer = monitorMixer(muted: true)
+        mixer.requestOutputStep(level: { _ in 0.3 })
+        suite.expect(speakers.writes == ["volume 7 0.3"], "a lower step leaves a monitor muted")
+        mixer = monitorMixer(muted: nil)
+        var noMuteDone: Bool?
+        mixer.requestOutputMuteToggle { noMuteDone = $0 }
+        suite.expect(noMuteDone == false && speakers.writes.isEmpty,
+                     "a monitor without an MCCS mute control refuses the mute toggle")
+        mixer = monitorMixer(muted: false)
+        mixer.requestOutputMuteToggle()
+        suite.expect(speakers.writes == ["muted 7 true"], "a monitor's mute toggle writes MCCS mute on")
+        mixer = monitorMixer(muted: nil)
+        suite.expect(mixer.systemOutputVolume == 0.4 && mixer.systemOutputMuted == nil,
+                     "the presented level comes from the monitor while it carries the sound")
+        mixer.monitorOutput = nil
+        suite.expect(mixer.systemOutputVolume == 0.2 && mixer.systemOutputMuted == false,
+                     "the presented level returns to CoreAudio when the monitor stops carrying the sound")
     }
 }
