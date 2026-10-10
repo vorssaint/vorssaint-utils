@@ -22,6 +22,7 @@ enum AgentClaudeServerTests {
         var claudeAccountAttempted = Date.distantPast
         var claudeAccountFailure: AgentClaudeServer.Failure?
         var claudeAccountUnreachable = 0
+        var antigravityAccountUnreachable = 0
         var home = FileManager.default.temporaryDirectory
         var enabled: Set<AgentProvider> = [.claude]
         var claudeOrganization: String? = "account"
