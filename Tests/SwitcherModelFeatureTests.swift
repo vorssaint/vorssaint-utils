@@ -4228,6 +4228,9 @@ enum SwitcherModelFeatureTests {
         suite.expect(WindowServerSupport.frame(ofWindowID: 99, in: scannedNeighbours) == nil
                 && WindowServerSupport.frame(ofWindowID: 11, in: []) == nil,
                "a window the window server no longer lists reports no rectangle")
+        suite.expect(WindowServerSupport.ownerProcessID(ofWindowID: 12, in: scannedNeighbours) == 1002
+                && WindowServerSupport.ownerProcessID(ofWindowID: 99, in: scannedNeighbours) == nil,
+               "a window's owner is found by its own identifier, and a window no longer listed has none")
         suite.expect(WindowServerSupport.windowCandidate(in: scannedNeighbours, at: scannedEdgePoint,
                                                    ownProcessID: 501,
                                                    pidIsEligible: { _ in true })?.pid == 1001,

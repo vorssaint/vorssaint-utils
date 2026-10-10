@@ -75,6 +75,22 @@ enum WindowServerSupport {
         return nil
     }
 
+    /// The process that owns one window, straight from the window server.
+    static func ownerProcessID(ofWindowID windowID: CGWindowID) -> pid_t? {
+        guard let infos = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
+                as? [[String: Any]] else { return nil }
+        return ownerProcessID(ofWindowID: windowID, in: infos)
+    }
+
+    /// The scan itself, matching the identifier like the rectangle scan.
+    static func ownerProcessID(ofWindowID windowID: CGWindowID, in windows: [[String: Any]]) -> pid_t? {
+        for window in windows
+        where (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID {
+            return (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        }
+        return nil
+    }
+
     /// The app that owns the normal window in front of all the others, the
     /// one the person is looking at. Being the active app does not settle
     /// it: a click on the desktop makes the file manager active while its
