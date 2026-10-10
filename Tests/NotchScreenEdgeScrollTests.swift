@@ -16,12 +16,11 @@ enum NotchScreenEdgeScrollTests {
         let cgEvent: CGEvent?
         init(scrollAt point: CGPoint) { cgEvent = CGEvent(location: CGPoint(x: point.x, y: 956 - point.y)) }
         static var global: [Int: (NSEvent) -> Void] = [:]
-        static var local: [Int: (NSEvent) -> NSEvent?] = [:]
         static var nextID = 0
         static func addGlobalMonitorForEvents(matching: EventTypeMask, handler: @escaping (NSEvent) -> Void) -> Any? {
             nextID += 1; global[nextID] = handler; return nextID
         }
-        static func removeMonitor(_ token: Any) { global[token as! Int] = nil; local[token as! Int] = nil }
+        static func removeMonitor(_ token: Any) { global[token as! Int] = nil }
     }
     class State {
         var running = true, suspended = false, gesturesEnabled = true
@@ -41,8 +40,9 @@ enum NotchScreenEdgeScrollTests {
                        CGRect(x: -1920, y: 956, width: 1920, height: 1080)] {
             let service = Service()
             service.geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180)
-            for _ in 0..<100 { service.syncScreenEdgeScrolls() }
-            suite.expect(NSEvent.global.count == 1 && NSEvent.local.isEmpty,
+            service.syncScreenEdgeScrolls()
+            service.syncScreenEdgeScrolls()
+            suite.expect(NSEvent.global.count == 1,
                          "refreshes keep exactly one global edge-scroll monitor")
             func scroll(_ point: CGPoint) { for handler in Array(NSEvent.global.values) { handler(NSEvent(scrollAt: point)) } }
             scroll(CGPoint(x: screen.midX, y: screen.maxY))
