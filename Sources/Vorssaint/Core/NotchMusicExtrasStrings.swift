@@ -5,6 +5,7 @@ import Foundation
 
 struct NotchMusicExtrasStrings {
     let lyrics: String
+    let writtenBy: String
     let lyricsDescription: String
     let enableLyrics: String
     let online: String
@@ -55,12 +56,13 @@ extension FeatureStrings {
         switch language {
         case .enUS: return NotchMusicExtrasStrings(
             lyrics: "Lyrics",
+            writtenBy: "Written By",
             lyricsDescription: "Follow the lyrics of the current song in the Dynamic Island.",
             enableLyrics: "Show lyrics",
             online: "Find lyrics online",
             onlineHint: "While lyrics are open, send the song title, artist, album and duration to lrclib.net. Imported lyrics stay on this Mac.",
             importLyrics: "Import lyrics…",
-            importHint: "Choose timed lyrics for the current recording. They are kept only while this song is open.",
+            importHint: "Choose an LRC or TTML file for the current recording. It stays on this Mac and is kept only while this song is open.",
             loading: "Loading lyrics…",
             unavailable: "No matching lyrics for this recording.",
             failed: "Could not load the lyrics.",
@@ -98,12 +100,13 @@ extension FeatureStrings {
             openNamedPlayer: "Open %@")
         case .ptBR: return NotchMusicExtrasStrings(
             lyrics: "Letra",
+            writtenBy: "Composição",
             lyricsDescription: "Acompanhe a letra da música atual no Dynamic Island.",
             enableLyrics: "Mostrar letra",
             online: "Buscar letras on-line",
             onlineHint: "Enquanto a letra estiver aberta, envie título, artista, álbum e duração da música para lrclib.net. Letras importadas ficam neste Mac.",
             importLyrics: "Importar letra…",
-            importHint: "Escolha a letra sincronizada desta gravação. Ela fica guardada apenas enquanto esta música estiver aberta.",
+            importHint: "Escolha um arquivo LRC ou TTML para esta gravação. Ele fica neste Mac apenas enquanto esta música estiver aberta.",
             loading: "Carregando letra…",
             unavailable: "Nenhuma letra correspondente a esta gravação.",
             failed: "Não foi possível carregar a letra.",
@@ -141,12 +144,13 @@ extension FeatureStrings {
             openNamedPlayer: "Abrir %@")
         case .es: return NotchMusicExtrasStrings(
             lyrics: "Letra",
+            writtenBy: "Escrito por",
             lyricsDescription: "Sigue la letra de la canción actual en el Dynamic Island.",
             enableLyrics: "Mostrar letra",
             online: "Buscar letras en línea",
             onlineHint: "Mientras la letra esté abierta, envía el título, artista, álbum y duración a lrclib.net. Las letras importadas se quedan en este Mac.",
             importLyrics: "Importar letra…",
-            importHint: "Elige la letra sincronizada de esta grabación. Solo se conserva mientras esta canción esté abierta.",
+            importHint: "Elige un archivo LRC o TTML para esta grabación. Se conserva en este Mac solo mientras esta canción esté abierta.",
             loading: "Cargando letra…",
             unavailable: "No hay letra que coincida con esta grabación.",
             failed: "No se pudo cargar la letra.",
@@ -184,12 +188,13 @@ extension FeatureStrings {
             openNamedPlayer: "Abrir %@")
         case .sk: return NotchMusicExtrasStrings(
             lyrics: "Text piesne",
+            writtenBy: "Autori",
             lyricsDescription: "Sledujte text aktuálnej skladby v Dynamic Island.",
             enableLyrics: "Zobraziť text piesne",
             online: "Hľadať text online",
             onlineHint: "Kým je text otvorený, názov skladby, interpret, album a dĺžka sa odošlú na lrclib.net. Importované texty zostávajú v tomto Macu.",
             importLyrics: "Importovať text…",
-            importHint: "Vyberte synchronizovaný text tohto záznamu. Zostane uložený, len kým je táto skladba otvorená.",
+            importHint: "Vyberte súbor LRC alebo TTML pre tento záznam. Zostane na tomto Macu, len kým je skladba otvorená.",
             loading: "Načítava sa text…",
             unavailable: "Pre tento záznam nie je k dispozícii žiadny text.",
             failed: "Text sa nepodarilo načítať.",
@@ -227,12 +232,13 @@ extension FeatureStrings {
             openNamedPlayer: "Otvoriť %@")
         case .de: return NotchMusicExtrasStrings(
             lyrics: "Liedtext",
+            writtenBy: "Geschrieben von",
             lyricsDescription: "Verfolge den Text des aktuellen Songs im Dynamic Island.",
             enableLyrics: "Liedtext anzeigen",
             online: "Liedtexte online suchen",
             onlineHint: "Bei geöffnetem Liedtext werden Titel, Interpret, Album und Dauer an lrclib.net gesendet. Importierte Texte bleiben auf diesem Mac.",
             importLyrics: "Liedtext importieren…",
-            importHint: "Wähle einen synchronisierten Text für diese Aufnahme. Er bleibt nur gespeichert, solange dieser Song geöffnet ist.",
+            importHint: "Wähle eine LRC- oder TTML-Datei für diese Aufnahme. Sie bleibt auf diesem Mac, solange dieser Song geöffnet ist.",
             loading: "Liedtext wird geladen…",
             unavailable: "Kein passender Text für diese Aufnahme.",
             failed: "Der Liedtext konnte nicht geladen werden.",
@@ -270,12 +276,13 @@ extension FeatureStrings {
             openNamedPlayer: "%@ öffnen")
         case .fr: return NotchMusicExtrasStrings(
             lyrics: "Paroles",
+            writtenBy: "Écrit par",
             lyricsDescription: "Suivez les paroles du morceau en cours dans le Dynamic Island.",
             enableLyrics: "Afficher les paroles",
             online: "Chercher les paroles en ligne",
             onlineHint: "Lorsque les paroles sont ouvertes, le titre, l’artiste, l’album et la durée sont envoyés à lrclib.net. Les paroles importées restent sur ce Mac.",
             importLyrics: "Importer des paroles…",
-            importHint: "Choisissez les paroles synchronisées de cet enregistrement. Elles restent disponibles uniquement tant que ce morceau est ouvert.",
+            importHint: "Choisissez un fichier LRC ou TTML pour cet enregistrement. Il reste sur ce Mac uniquement tant que le morceau est ouvert.",
             loading: "Chargement des paroles…",
             unavailable: "Aucune parole correspondante pour cet enregistrement.",
             failed: "Impossible de charger les paroles.",
@@ -313,12 +320,13 @@ extension FeatureStrings {
             openNamedPlayer: "Ouvrir %@")
         case .it: return NotchMusicExtrasStrings(
             lyrics: "Testo",
+            writtenBy: "Scritto da",
             lyricsDescription: "Segui il testo del brano attuale nel Dynamic Island.",
             enableLyrics: "Mostra testo",
             online: "Cerca testi online",
             onlineHint: "Quando il testo è aperto, titolo, artista, album e durata vengono inviati a lrclib.net. I testi importati restano su questo Mac.",
             importLyrics: "Importa testo…",
-            importHint: "Scegli il testo sincronizzato di questa registrazione. Viene conservato solo mentre questo brano è aperto.",
+            importHint: "Scegli un file LRC o TTML per questa registrazione. Rimane su questo Mac solo mentre il brano è aperto.",
             loading: "Caricamento del testo…",
             unavailable: "Nessun testo corrispondente a questa registrazione.",
             failed: "Impossibile caricare il testo.",
@@ -356,12 +364,13 @@ extension FeatureStrings {
             openNamedPlayer: "Apri %@")
         case .ru: return NotchMusicExtrasStrings(
             lyrics: "Текст песни",
+            writtenBy: "Авторы",
             lyricsDescription: "Следите за текстом текущей песни в вырезе.",
             enableLyrics: "Показывать текст",
             online: "Искать тексты в интернете",
             onlineHint: "Пока текст открыт, название песни, исполнитель, альбом и длительность отправляются на lrclib.net. Импортированные тексты остаются на этом Mac.",
             importLyrics: "Импортировать текст…",
-            importHint: "Выберите синхронизированный текст этой записи. Он хранится только пока эта песня открыта.",
+            importHint: "Выберите файл LRC или TTML для этой записи. Он остаётся на этом Mac только пока открыта песня.",
             loading: "Загрузка текста…",
             unavailable: "Для этой записи не найден подходящий текст.",
             failed: "Не удалось загрузить текст.",
@@ -399,12 +408,13 @@ extension FeatureStrings {
             openNamedPlayer: "Открыть %@")
         case .tr: return NotchMusicExtrasStrings(
             lyrics: "Şarkı sözleri",
+            writtenBy: "Yazanlar",
             lyricsDescription: "Çalan şarkının sözlerini çentikte takip edin.",
             enableLyrics: "Şarkı sözlerini göster",
             online: "Sözleri çevrimiçi bul",
             onlineHint: "Sözler açıkken şarkı adı, sanatçı, albüm ve süre lrclib.net adresine gönderilir. İçe aktarılan sözler bu Mac’te kalır.",
             importLyrics: "Şarkı sözü içe aktar…",
-            importHint: "Bu kaydın zamanlanmış sözlerini seçin. Yalnızca bu şarkı açıkken saklanırlar.",
+            importHint: "Bu kayıt için bir LRC veya TTML dosyası seçin. Yalnızca bu şarkı açıkken bu Mac’te tutulur.",
             loading: "Şarkı sözleri yükleniyor…",
             unavailable: "Bu kayda uygun şarkı sözü yok.",
             failed: "Şarkı sözleri yüklenemedi.",
@@ -442,12 +452,13 @@ extension FeatureStrings {
             openNamedPlayer: "%@ uygulamasını aç")
         case .ja: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
+            writtenBy: "作詞・作曲",
             lyricsDescription: "再生中の曲の歌詞をDynamic Islandに表示します。",
             enableLyrics: "歌詞を表示",
             online: "オンラインで歌詞を検索",
             onlineHint: "歌詞を開いている間、曲名、アーティスト、アルバム、再生時間を lrclib.net に送信します。読み込んだ歌詞はこのMacに保持されます。",
             importLyrics: "歌詞を読み込む…",
-            importHint: "この音源に合った同期歌詞を選択してください。この曲を開いている間だけ保持されます。",
+            importHint: "この音源に合うLRCまたはTTMLファイルを選択してください。このMac上で、この曲を開いている間だけ保持されます。",
             loading: "歌詞を読み込み中…",
             unavailable: "この音源に一致する歌詞がありません。",
             failed: "歌詞を読み込めませんでした。",
@@ -485,12 +496,13 @@ extension FeatureStrings {
             openNamedPlayer: "%@を開く")
         case .ko: return NotchMusicExtrasStrings(
             lyrics: "가사",
+            writtenBy: "작사·작곡",
             lyricsDescription: "현재 곡의 가사를 Dynamic Island에서 확인합니다.",
             enableLyrics: "가사 표시",
             online: "온라인에서 가사 찾기",
             onlineHint: "가사가 열려 있는 동안 곡 제목, 아티스트, 앨범 및 재생 시간을 lrclib.net으로 보냅니다. 가져온 가사는 이 Mac에만 유지됩니다.",
             importLyrics: "가사 가져오기…",
-            importHint: "이 녹음에 맞는 시간 정보가 있는 가사를 선택하세요. 이 곡이 열려 있는 동안만 유지됩니다.",
+            importHint: "현재 녹음에 맞는 LRC 또는 TTML 파일을 선택하세요. 이 Mac에서 이 곡이 열려 있는 동안만 유지됩니다.",
             loading: "가사 불러오는 중…",
             unavailable: "이 녹음과 일치하는 가사가 없습니다.",
             failed: "가사를 불러올 수 없습니다.",
@@ -528,12 +540,13 @@ extension FeatureStrings {
             openNamedPlayer: "%@ 열기")
         case .zhHans: return NotchMusicExtrasStrings(
             lyrics: "歌词",
+            writtenBy: "词曲作者",
             lyricsDescription: "在Dynamic Island中跟随当前歌曲的歌词。",
             enableLyrics: "显示歌词",
             online: "在线查找歌词",
             onlineHint: "歌词打开时，会将歌曲标题、艺人、专辑和时长发送至 lrclib.net。导入的歌词保留在此 Mac 上。",
             importLyrics: "导入歌词…",
-            importHint: "选择与当前录音匹配的同步歌词。仅在此歌曲打开期间保留。",
+            importHint: "选择与当前录音匹配的 LRC 或 TTML 文件。仅在此歌曲打开期间保留在此 Mac 上。",
             loading: "正在载入歌词…",
             unavailable: "没有与此录音匹配的歌词。",
             failed: "无法载入歌词。",
@@ -571,12 +584,13 @@ extension FeatureStrings {
             openNamedPlayer: "打开 %@")
         case .zhTW: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
+            writtenBy: "詞曲作者",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
             enableLyrics: "顯示歌詞",
             online: "線上尋找歌詞",
             onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。",
             importLyrics: "匯入歌詞…",
-            importHint: "選擇與目前錄音相符的同步歌詞。僅在這首歌曲開啟期間保留。",
+            importHint: "選擇與目前錄音相符的 LRC 或 TTML 檔案。僅在這首歌曲開啟期間保留在此 Mac 上。",
             loading: "正在載入歌詞…",
             unavailable: "沒有與此錄音相符的歌詞。",
             failed: "無法載入歌詞。",
@@ -614,12 +628,13 @@ extension FeatureStrings {
             openNamedPlayer: "開啟 %@")
         case .zhHK: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
+            writtenBy: "詞曲作者",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
             enableLyrics: "顯示歌詞",
             online: "網上尋找歌詞",
             onlineHint: "歌詞開啟時，會將歌曲名稱、演出者、專輯和長度傳送至 lrclib.net。匯入的歌詞保留在此 Mac 上。",
             importLyrics: "匯入歌詞…",
-            importHint: "選擇與目前錄音相符的同步歌詞。僅在這首歌曲開啟期間保留。",
+            importHint: "選擇與目前錄音相符的 LRC 或 TTML 檔案。只在這首歌曲開啟期間保留於此 Mac。",
             loading: "正在載入歌詞…",
             unavailable: "沒有與此錄音相符的歌詞。",
             failed: "無法載入歌詞。",
@@ -657,12 +672,13 @@ extension FeatureStrings {
             openNamedPlayer: "開啟 %@")
         case .uk: return NotchMusicExtrasStrings(
             lyrics: "Текст пісні",
+            writtenBy: "Автори",
             lyricsDescription: "Слідкуйте за текстом поточної пісні у Dynamic Island.",
             enableLyrics: "Показувати текст пісні",
             online: "Шукати тексти онлайн",
             onlineHint: "Поки текст відкрито, програма надсилає назву пісні, виконавця, альбом та тривалість на lrclib.net. Імпортовані тексти залишаються на цьому Mac.",
             importLyrics: "Імпортувати текст…",
-            importHint: "Виберіть синхронізований текст для поточного запису. Він зберігається, лише поки відкрита ця пісня.",
+            importHint: "Виберіть файл LRC або TTML для цього запису. Він залишається на цьому Mac, лише поки відкрита пісня.",
             loading: "Завантаження тексту…",
             unavailable: "Немає тексту, що відповідає цьому запису.",
             failed: "Не вдалося завантажити текст.",

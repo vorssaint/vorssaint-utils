@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 "NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra seus próximos compromissos na parte superior da tela. Os eventos do calendário ficam neste Mac.";
+
+/* Native Apple Music authorization. */
+"NSAppleMusicUsageDescription" = "O Vorssaint usa sua conta do Apple Music para obter letras sincronizadas das músicas tocadas no app Música.";

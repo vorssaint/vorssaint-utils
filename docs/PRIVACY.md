@@ -4,8 +4,8 @@ Vorssaint is built to be local-first. Core features run on your Mac, and the app
 
 ## The short version
 
-- **No account.** There is nothing to sign up for and nobody to log in as.
-- **No subscription.** The app is free and stays free, with nothing held back behind a paid tier.
+- **No Vorssaint account.** There is nothing to sign up for with Vorssaint. The optional Apple Music lyrics provider uses the Apple Music account already configured on your Mac.
+- **No Vorssaint subscription.** The app is free and stays free, with nothing held back behind a paid tier. The optional Apple Music lyrics provider requires a subscription to Apple Music.
 - **No automatic telemetry.** Vorssaint gathers no usage stats, crash reports or device identifiers. Feedback sends technical details only when you select them after seeing the complete list.
 - **No Vorssaint analytics or tracking.** There are no analytics kits, no ad networks and no third party tracking anywhere in the app.
 - **No data selling.** Vorssaint never sells personal information or shared screenshots and recordings.
@@ -13,7 +13,7 @@ Vorssaint is built to be local-first. Core features run on your Mac, and the app
 
 ## What it reads, and where that stays
 
-Everything Vorssaint shows you, from the CPU and memory load to the temperatures, the battery details, the network rates, the window list, per app volume and the files on the Shelf, is read locally through native macOS APIs and shown to you right there. Those readings are not uploaded automatically. Optional online lyric lookup sends only the song metadata described below.
+Everything Vorssaint shows you, from the CPU and memory load to the temperatures, the battery details, the network rates, the window list, per app volume and the files on the Shelf, is read locally through native macOS APIs and shown to you right there. Those readings are not uploaded automatically. Optional online lyric lookup contacts the selected provider as described below.
 
 Clipboard history, including the images and files you copy, lives in the app's local storage on your Mac and never leaves it. Copy text from screen recognizes the text entirely on device with Apple's Vision framework, and the temporary capture is deleted as soon as the text is read. Automatic clearing, when you switch it on, only empties the system clipboard on this Mac: nothing is sent anywhere, and items already saved to your history are left as they are.
 
@@ -33,7 +33,7 @@ The camera mirror starts only after an explicit action. Its frames go to the loc
 
 Timers and focus sessions are kept only for the current app session. Accessory alerts use local system readings. Download monitoring is limited to a folder you choose; its access bookmark stays on this Mac and is excluded from settings exports. File compression and conversion run locally, preserve originals, and save only to the destination you choose.
 
-Imported lyrics and timing adjustments are kept for only the current song in memory. Opening a different section cancels lookup work without losing that song's imported text. Observing a different song or disabling the feature clears it. The upcoming music queue comes from the local player and is not uploaded.
+Imported lyrics and timing adjustments are kept for only the current song in memory. Opening a different section cancels lookup work without losing that song's imported text. Observing a different song, changing providers or disabling the feature clears it. The upcoming music queue comes from the local player and is not uploaded.
 
 The live equalizer is off until you turn it on. When on, it reads the audio output of the current player through a Core Audio process tap on this Mac, limited to the audio processes that player is responsible for, which is how a browser playing through a helper process is heard, and keeps only a fraction of a second of samples in memory to compute seven levels for the island's bars. It does not record, store or send audio. macOS asks for system audio recording permission the first time; if it is declined, the tap only delivers silence, so the bars return to their usual synthetic motion and the tap is released. It is also released when playback stops, when the player moves its sound to another process, and when the option is turned off or the feature is uninstalled from the features hub, where the permission it uses is listed; a change of output device rebuilds it in place.
 
@@ -71,7 +71,13 @@ The service validates and rebuilds the MP4 without its original metadata. The vi
 
 Feedback is delivered to private support channels visible to the service owner. After delivery, the text and any technical details you selected remain there until the service owner deletes them. The temporary delivery copy is then deleted; if delivery never succeeds, that copy is permanently deleted after 7 days. No contact information is sent, so feedback cannot receive a direct reply.
 
-8. **Online lyrics, only after you enable the separate lookup option.** While the lyrics view is open, a lookup sends the current song's title, artist, album and duration over HTTPS to `lrclib.net`. Audio, artwork, local paths, accounts and listening history are not included. The provider receives ordinary request data, including your public IP address, under its own policies. Requests use an ephemeral session without stored cookies, reject redirects and stop when you hide the view or disable lookup. Lyrics are kept only in memory for the current song. Local lyric import works without this connection.
+8. **Online lyrics, only after you enable the separate lookup option.** LRCLIB remains the default; Apple Music is an optional experimental provider. Lookup requests run while the lyrics view is open. Hiding the view, disabling lookup or changing tracks/providers cancels pending results. Lyrics and timing adjustments stay in memory for the current recording. Local LRC/TTML import works without a network connection.
+
+With LRCLIB selected, the current song's title, artist, album when available and duration are sent over HTTPS to `lrclib.net`. Audio, artwork, local paths, accounts and listening-history files are not included. Requests use an ephemeral session without stored cookies and reject redirects.
+
+With Apple Music selected and access enabled, MusicKit uses the account configured on the Mac to supply a subscriber token. Vorssaint downloads public bootstrap text from `music.apple.com`, then sends authenticated requests to `amp-api.music.apple.com` to check subscription/storefront, resolve a recording and retrieve lyrics. Catalog requests send the catalog identifier, or title/artist search terms when it is unavailable; metadata and duration are checked locally. No browser is embedded and no JavaScript is executed. The provider's HTTP sessions have no stored cookies, credentials or URL caches, and redirects must retain the same HTTPS host.
+
+Apple receives the subscriber token and the requested account/catalog/lyric resources. Neither provider receives audio, artwork or local file paths through this feature; ordinary request data, including your public IP address, is processed under the provider's own policies. Vorssaint keeps authentication tokens in process memory and does not log, export or write them to preferences. MusicKit manages its own system token cache. The provider selection is included in settings backup; the machine-specific access-enabled flag is excluded. **Disable Apple Music access** cancels requests and clears the provider's tokens in memory without signing out Music.app or revoking the macOS permission. See [native lyrics](APPLE-MUSIC-LYRICS.md) for the experimental dependency and [Permissions](PERMISSIONS.md#media--apple-music) for the optional system grant.
 
 9. **The AI price list, only while the AI Agents section is on.** So a model launched after a release still gets an API value, Vorssaint downloads this project's public price list from `raw.githubusercontent.com` at most once a day, and again a few hours after a failed attempt. The request carries only a standard user agent with the app name and its version; no usage, account, identifier or file goes along with it. The list is checked before it is used and kept in the app's own folder; when a download fails, the newer of that saved list and the copy inside the app stays in use. You can turn this off with Keep prices up to date in the section's settings. Requests use an ephemeral session without cookies, and redirects to other addresses are rejected.
 

@@ -7,11 +7,13 @@ import UniformTypeIdentifiers
 
 final class NotchLyricsService: ObservableObject {
     static let shared = NotchLyricsService()
-    enum State: Equatable { case idle, consent, loading, unavailable, failed, ready }
+    enum State: Equatable { case idle, consent, loading, unavailable, failed, ready, appleMusicSignIn, appleMusicSubscription, appleMusicDenied, appleMusicOnly }
     @Published private(set) var state: State = .idle
+    @Published private(set) var usesAppleMusic = false
     @Published private var memory = NotchLyricsMemory()
     var lyrics: NotchLyrics? { memory.lyrics }
     var offset: Double { memory.offset }
+    var importedName: String? { memory.importedName }
     private var track: NotchMusicIdentity? { memory.track }
     private var session: URLSession?
     private var generation = UUID()
@@ -27,10 +29,15 @@ final class NotchLyricsService: ObservableObject {
         let next = playback.map(NotchMusicIdentity.init)
         let wanted = visible && next != nil
         let online = NotchLyricsSupport.onlineEnabled()
+        let appleMusic = NotchAppleMusicLyricsSupport.isSelected()
+        let changedProvider = appleMusic != usesAppleMusic
         let changedTrack = next != nil && next != track
-        guard changedTrack || wanted != self.visible || online != self.online else { return }
+        guard changedTrack || changedProvider || wanted != self.visible || online != self.online else { return }
         cancel()
         if changedTrack { memory.select(next) }
+        if changedProvider, let track { memory.replace(nil, for: track) }
+        usesAppleMusic = appleMusic
+        if !appleMusic || !online { NotchAppleMusicLyricsProvider.shared.suspend() }
         self.visible = wanted
         self.online = online
         guard wanted, let track else { state = lyrics == nil ? .idle : .ready; return }
@@ -64,6 +71,7 @@ final class NotchLyricsService: ObservableObject {
 
     func hide() {
         cancel()
+        NotchAppleMusicLyricsProvider.shared.suspend()
         visible = false
         if !NotchLyricsSupport.isEnabled() { memory.clear() }
         state = lyrics == nil ? .idle : .ready
@@ -73,6 +81,8 @@ final class NotchLyricsService: ObservableObject {
         cancel()
         visible = false
         online = false
+        usesAppleMusic = false
+        NotchAppleMusicLyricsProvider.shared.close()
         memory.clear()
         state = .idle
     }
@@ -81,11 +91,13 @@ final class NotchLyricsService: ObservableObject {
         generation = UUID()
         session?.invalidateAndCancel()
         session = nil
+        NotchAppleMusicLyricsProvider.shared.cancel()
         importPanel?.cancel(nil)
         importPanel = nil
     }
 
     private func load(_ track: NotchMusicIdentity) {
+        if usesAppleMusic { loadAppleMusic(track); return }
         guard let url = NotchLyricsSupport.lookupURL(for: track) else { state = .unavailable; return }
         state = .loading
         let requested = generation
@@ -101,12 +113,58 @@ final class NotchLyricsService: ObservableObject {
         }
     }
 
+    func connectAppleMusic() {
+        NotchAppleMusicLyricsProvider.shared.connect { [weak self] in
+            guard let self else { return }
+            // A hidden Lyrics view cannot retry yet. Clear its previous access
+            // error without claiming that the newly enabled access was verified.
+            self.state = self.lyrics == nil ? .idle : .ready
+            self.retry()
+        }
+    }
+
+    func disconnectAppleMusic() {
+        cancel()
+        if let track { memory.replace(nil, for: track) }
+        state = usesAppleMusic ? .appleMusicSignIn : .idle
+        NotchAppleMusicLyricsProvider.shared.disconnect { [weak self] in self?.retry() }
+    }
+
+    func providerPreferenceChanged() {
+        update(playback: NotchMusicService.shared.playback, visible: visible)
+        if NotchLyricsProvider.selected() != .appleMusic || !NotchLyricsSupport.onlineEnabled() {
+            NotchAppleMusicLyricsProvider.shared.close()
+        }
+    }
+
+    private func loadAppleMusic(_ track: NotchMusicIdentity) {
+        guard track.bundle == "com.apple.Music" else { state = .appleMusicOnly; return }
+        state = .loading
+        let requested = generation
+        NotchAppleMusicLyricsProvider.shared.load(track) { [weak self] result in
+            guard let self, self.visible, self.generation == requested, self.track == track,
+                  NotchAppleMusicLyricsSupport.canLoad(track) else { return }
+            switch result {
+            case .ready(let lyrics):
+                self.memory.replace(lyrics, for: track)
+                self.state = .ready
+            case .signIn: self.state = .appleMusicSignIn
+            case .subscription: self.state = .appleMusicSubscription
+            case .denied: self.state = .appleMusicDenied
+            case .unavailable: self.state = .unavailable
+            case .failed: self.state = .failed
+            }
+        }
+    }
+
     func importLyrics() {
         guard visible, NotchLyricsSupport.isEnabled(), let track, importPanel == nil,
               let parent = NotchService.shared.presentationWindow,
               canReturnToLyrics(parent, track: track) else { return }
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [UTType(filenameExtension: "lrc") ?? .plainText, .plainText]
+        panel.allowedContentTypes = [UTType(filenameExtension: "lrc") ?? .plainText,
+                                     UTType(filenameExtension: "ttml") ?? UTType(importedAs: "org.w3.ttml", conformingTo: .xml),
+                                     .xml, .plainText]
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.message = FeatureStrings.notchMusicExtras(L10n.shared.language).importHint
@@ -138,22 +196,20 @@ final class NotchLyricsService: ObservableObject {
             DispatchQueue.global(qos: .userInitiated).async {
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-                var lines: [NotchLyricLine] = []
+                var imported: NotchLyrics?
                 if let handle = try? FileHandle(forReadingFrom: url) {
                     defer { try? handle.close() }
                     if let data = try? handle.read(upToCount: NotchLyricsSupport.maximumBytes + 1),
-                       data.count <= NotchLyricsSupport.maximumBytes,
-                       let text = String(data: data, encoding: .utf8) {
-                        lines = NotchLyricsSupport.parse(text, duration: track.duration)
+                       data.count <= NotchLyricsSupport.maximumBytes {
+                        imported = NotchAppleMusicLyricsSupport.decode(data, duration: track.duration)
                     }
                 }
-                let imported = lines
+                let result = imported
                 DispatchQueue.main.async {
                     guard self.generation == importedGeneration, self.track == track, self.visible,
                           NotchLyricsSupport.isEnabled() else { return }
-                    guard self.memory.replace(imported.isEmpty ? nil : NotchLyrics(lines: imported, plain: "", instrumental: false),
-                                              for: track) else { return }
-                    self.state = imported.isEmpty ? .failed : .ready
+                    guard self.memory.replace(result, for: track, importedName: url.lastPathComponent) else { return }
+                    self.state = result == nil ? .failed : .ready
                 }
             }
         }

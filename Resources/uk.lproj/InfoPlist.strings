@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали. Очищення також шукає забуті знімки екрана, якщо ви зберігаєте їх сюди.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали. Очищення також шукає забуті знімки екрана, якщо ви зберігаєте їх сюди.";
 "NSCalendarsFullAccessUsageDescription" = "Показує ваші майбутні події у верхній частині екрана. Події календаря залишаються на цьому Mac.";
+
+/* Native Apple Music authorization. */
+"NSAppleMusicUsageDescription" = "Vorssaint використовує ваш обліковий запис Apple Music для отримання синхронізованих текстів пісень у програмі «Музика».";

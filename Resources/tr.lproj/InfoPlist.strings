@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler. Ekran görüntülerinizi buraya kaydediyorsanız Temizlik unutulan ekran görüntülerini de arar.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint, doğrulanmış WhatsApp indirmelerini açıkça seçtiğiniz bir hedef klasörde düzenler. Ekran görüntülerinizi buraya kaydediyorsanız Temizlik unutulan ekran görüntülerini de arar.";
 "NSCalendarsFullAccessUsageDescription" = "Yaklaşan randevularınızı ekranın üst kısmında gösterir. Takvim etkinlikleri bu Mac’te kalır.";
+
+/* Native Apple Music authorization. */
+"NSAppleMusicUsageDescription" = "Vorssaint, Müzik uygulamasındaki şarkıların eşzamanlı sözlerini almak için Apple Music hesabınızı kullanır.";
