@@ -817,11 +817,18 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        guard usage.loaded else { return nil }
-        let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
+        let profiles = UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsClaude)
+            ? ClaudeProfileLimitsService.shared.states.map(\.profile) : []
+        let codexProfiles = UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsCodex)
+            ? CodexProfileLimitsService.shared.states.map(\.profile) : []
+        guard usage.loaded || !profiles.isEmpty || !codexProfiles.isEmpty else { return nil }
+        let providers = NotchAgentSupport.providers().filter {
+            usage.seen.contains($0) || ($0 == .claude && !profiles.isEmpty) || ($0 == .codex && !codexProfiles.isEmpty)
+        }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
+                                    claudeProfiles: profiles, codexProfiles: codexProfiles), width: width))
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -3794,6 +3801,20 @@ final class NotchService: ObservableObject {
             NotchDownloadService.shared.onFailure = { [weak self] in self?.reactMascot(.confused) }
         }
         if modules.contains(.agents) {
+            CodexProfileLimitsService.shared.$states
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.selected == .agents else { return }
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
+            ClaudeProfileLimitsService.shared.$states
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.selected == .agents else { return }
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
             // Only what changes the island's size or strip: a turn starting or
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.

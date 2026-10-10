@@ -193,13 +193,16 @@ final class AgentCodexConversation {
     private let input = Pipe()
     private let output = Pipe()
     private let deadline: DispatchTime
+    private let cancellation: BoundedProcessCancellation?
     private let arrived = DispatchSemaphore(value: 0)
     private let lock = NSLock()
     private var buffer = Data()
     private var closed = false
     private var lastID = 0
 
-    init?(_ executable: URL, environment: [String: String], timeout: TimeInterval) {
+    init?(_ executable: URL, environment: [String: String], timeout: TimeInterval,
+          cancellation: BoundedProcessCancellation? = nil) {
+        self.cancellation = cancellation
         deadline = .now() + timeout
         process.executableURL = executable
         // As it starts, Codex's server brings its plugins up to date, which
@@ -221,7 +224,8 @@ final class AgentCodexConversation {
             self?.receive(chunk)
         }
         do {
-            try process.run()
+            if let cancellation { try cancellation.launch(process) }
+            else { try process.run() }
         } catch {
             output.fileHandleForReading.readabilityHandler = nil
             return nil
@@ -262,6 +266,19 @@ final class AgentCodexConversation {
     func end() {
         try? input.fileHandleForWriting.close()
         let child = process
+        if let cancellation {
+            // Profile checks are sequential: finish this child before releasing
+            // the token for the next home. Closing/locking the page cancels it too.
+            let until = ProcessInfo.processInfo.systemUptime + 0.3
+            while child.isRunning, ProcessInfo.processInfo.systemUptime < until { usleep(10_000) }
+            if child.isRunning { child.terminate() }
+            let stopped = ProcessInfo.processInfo.systemUptime + 0.5
+            while child.isRunning, ProcessInfo.processInfo.systemUptime < stopped { usleep(10_000) }
+            if child.isRunning { kill(child.processIdentifier, SIGKILL) }
+            output.fileHandleForReading.readabilityHandler = nil
+            cancellation.release(child)
+            return
+        }
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
             guard child.isRunning else { return }
             child.terminate()
@@ -272,7 +289,8 @@ final class AgentCodexConversation {
     }
 
     private func send(_ message: [String: Any]) -> Bool {
-        guard JSONSerialization.isValidJSONObject(message),
+        guard cancellation?.isCancelled != true, DispatchTime.now() < deadline,
+              JSONSerialization.isValidJSONObject(message),
               var line = try? JSONSerialization.data(withJSONObject: message, options: .withoutEscapingSlashes)
         else { return false }
         line.append(0x0A)
@@ -295,6 +313,7 @@ final class AgentCodexConversation {
     /// The next message, or nil once the server has ended or time is up.
     private func next() -> [String: Any]? {
         while true {
+            guard cancellation?.isCancelled != true, DispatchTime.now() < deadline else { return nil }
             let (line, ended): (Data?, Bool) = lock.withLock {
                 guard let newline = buffer.firstIndex(of: 0x0A) else { return (nil, closed) }
                 let line = buffer.subdata(in: buffer.startIndex..<newline)
@@ -305,7 +324,10 @@ final class AgentCodexConversation {
                 if let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] { return message }
                 continue
             }
-            if ended || arrived.wait(timeout: deadline) == .timedOut { return nil }
+            if ended { return nil }
+            // Poll cancellation without leaving a waiting thread until the full
+            // network deadline. The deadline also applies to noisy servers.
+            _ = arrived.wait(timeout: min(deadline, .now() + 0.1))
         }
     }
 }

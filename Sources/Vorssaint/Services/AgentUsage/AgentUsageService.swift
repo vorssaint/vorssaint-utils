@@ -104,12 +104,14 @@ final class AgentUsageService: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
+        ClaudeProfileLimitsService.shared.synchronize()
+        CodexProfileLimitsService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading, which would not
         // resume progress saved for the old set, so it goes at once.
-        if running, wanted != providers { stop(keepingProgress: false) }
+        if running, wanted != providers { stop(keepingProgress: false, pausingProfiles: false) }
         if !running {
             running = true
             session += 1
@@ -126,6 +128,8 @@ final class AgentUsageService: ObservableObject {
     /// the Mac locked, and keeps what was read: reading every log again on the
     /// way back costs far more than the pause saves.
     func pause() {
+        ClaudeProfileLimitsService.shared.pause()
+        CodexProfileLimitsService.shared.pause()
         guard running, !paused else { return }
         paused = true
         timer?.invalidate()
@@ -152,7 +156,13 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    func stop(keepingProgress keeps: Bool = true) {
+    func stop(keepingProgress keeps: Bool = true, pausingProfiles: Bool = true) {
+        // Restarting the log reader for a provider toggle must not stop the
+        // other account cards while their page is still visible.
+        if pausingProfiles {
+            ClaudeProfileLimitsService.shared.pause()
+            CodexProfileLimitsService.shared.pause()
+        }
         // A first read still going stops at its next chunk, so the wait
         // below is short.
         if running { cancellation.cancel() }

@@ -53,7 +53,8 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") }
+    var profileID: String? = nil
+    var id: String { card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (profileID.map { "." + $0 } ?? "") }
 }
 
 enum NotchAgentSupport {
@@ -234,10 +235,15 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
-    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
+    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
+                      claudeProfiles: [ClaudeAccountProfile] = [], codexProfiles: [CodexAccountProfile] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
-            case .limits: return providers.filter(\.reportsLimits).map { NotchAgentTile(card: .limits, provider: $0) }
+            case .limits: return providers.filter(\.reportsLimits).flatMap { provider in
+                let ids = provider == .claude ? claudeProfiles.map(\.id) : (provider == .codex ? codexProfiles.map(\.id) : [])
+                return ids.isEmpty ? [NotchAgentTile(card: .limits, provider: provider)]
+                    : ids.map { NotchAgentTile(card: .limits, provider: provider, profileID: $0) }
+            }
             // Banked resets belong to a Codex account.
             case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
             default: return [NotchAgentTile(card: card, provider: nil)]
@@ -268,7 +274,7 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
-        row.contains { $0.card.fullWidth } ? chartHeight : cardHeight
+        row.contains { $0.card.fullWidth } ? chartHeight : (row.contains { $0.profileID != nil } ? 116 : cardHeight)
     }
 
     static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
