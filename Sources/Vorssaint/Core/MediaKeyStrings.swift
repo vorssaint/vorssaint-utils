@@ -25,6 +25,8 @@ extension FeatureStrings {
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
+        case .sk: return .sk
+        case .uk: return .uk
         case .ru: return .ru
         case .tr: return .tr
         case .ja: return .ja

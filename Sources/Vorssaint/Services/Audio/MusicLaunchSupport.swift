@@ -218,7 +218,7 @@ enum MediaKeyPlayerSupport {
         guard !usable.isEmpty else { return .system }
         let playing = usable.filter { sounds($0, in: sounding) }
         let otherSounds = sounding.contains { process in
-            process.pid != ownPID && !players.contains { sounds($0, in: [process]) }
+            process.pid != ownPID && !usable.contains { sounds($0, in: [process]) }
         }
         let pool: [Player]
         if !playing.isEmpty {

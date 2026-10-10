@@ -233,6 +233,7 @@ private struct MusicBlockingSettings: View {
     @AppStorage(DefaultsKey.musicBlockEnabled) private var enabled = false
     @AppStorage(DefaultsKey.musicBlockReplacementPath) private var replacementPath = ""
     @AppStorage(DefaultsKey.musicBlockPlayReplacement) private var playReplacement = true
+    @AppStorage(DefaultsKey.mediaKeysPlayerOnly) private var mediaKeysPlayerOnly = false
 
     var body: some View {
         SettingsCard(title: l10n.s.musicBlockSection) {
