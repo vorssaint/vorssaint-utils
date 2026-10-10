@@ -814,6 +814,10 @@ final class DockClickService {
     /// frames shifted on the short axis (observed ~72 pt on macOS 27), while
     /// the long-axis coordinates stay truthful. The strip gate above already
     /// bounded the short axis.
+    ///
+    /// The tile's place in that list is carried into the resolution: several
+    /// tiles can name one bundle, one per process of an app that runs as
+    /// several.
     private func dockApplication(at point: CGPoint) -> NSRunningApplication? {
         guard let dockPID = dockProcessID() else { return nil }
         let dockElement = AXUIElementCreateApplication(dockPID)
@@ -825,17 +829,19 @@ final class DockClickService {
                   let listFrame = Self.axFrame(child)
             else { continue }
             let horizontal = listFrame.width >= listFrame.height
-            for item in items {
+            for (index, item) in items.enumerated() {
                 guard let frame = Self.axFrame(item) else { continue }
                 let hit = horizontal
                     ? (point.x >= frame.minX && point.x <= frame.maxX)
                     : (point.y >= frame.minY && point.y <= frame.maxY)
                 guard hit, let url = Self.urlAttribute(item) else { continue }
-                let standardized = url.standardizedFileURL.path
-                return NSWorkspace.shared.runningApplications.first {
-                    $0.activationPolicy == .regular && !$0.isTerminated
-                        && $0.bundleURL?.standardizedFileURL.path == standardized
-                }
+                // Which tile was hit, not just which bundle it names, decides
+                // the process the click acts on: an app running as several
+                // processes gets a tile each and every one carries the same URL,
+                // while everything this service does afterwards is keyed by pid.
+                return DockTileResolver.application(forTileAt: index,
+                                                    in: items,
+                                                    bundlePath: url.standardizedFileURL.path)
             }
         }
         return nil

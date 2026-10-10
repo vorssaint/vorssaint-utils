@@ -1219,6 +1219,142 @@ enum UtilitiesFeatureTests {
         suite.expect(DockClickSupport.restoreSequence(ids: [nil, nil], frontToBack: []) == [0, 1],
                "unresolvable windows are never deduped away")
 
+        // MARK: Dock tiles for apps that run as several processes
+
+        func pid(of tile: String, in pairings: [DockTilePairing<String>]) -> pid_t? {
+            pairings.first { $0.tile == tile }?.pid
+        }
+        // Listed newest first on purpose: the workspace's own order is what used
+        // to decide this, and it must not.
+        let twoInstances = [DockAppInstance(pid: 9123, launchTime: 200),
+                            DockAppInstance(pid: 8566, launchTime: 100)]
+        let firstLook = DockClickSupport.pairTiles(["left", "right"], instances: twoInstances, previous: [])
+        suite.expect(pid(of: "left", in: firstLook) == 8566,
+                     "on a first look the first tile means the oldest instance, not the first one listed")
+        suite.expect(pid(of: "right", in: firstLook) == 9123,
+                     "on a first look the second tile means the next instance by launch time")
+        suite.expect(DockClickSupport.pairTiles(["only"], instances: [DockAppInstance(pid: 42, launchTime: 1)],
+                                                previous: []) == [DockTilePairing(tile: "only", pid: 42, launchTime: 1)],
+                     "an ordinary single process app pairs its one tile with itself")
+        suite.expect(DockClickSupport.pairTiles(["left"], instances: [], previous: []).isEmpty,
+                     "a tile whose app is not running pairs with nothing")
+
+        // A dragged tile comes back as a new element; the one that stayed put
+        // keeps its element. The Dock keeps both bound to their processes.
+        let afterDrag = DockClickSupport.pairTiles(["dragged", "left"], instances: twoInstances,
+                                                   previous: firstLook)
+        suite.expect(pid(of: "left", in: afterDrag) == 8566,
+                     "a tile that stayed put keeps its process after another tile moves past it")
+        suite.expect(pid(of: "dragged", in: afterDrag) == 9123,
+                     "a dragged tile, back as a new element, keeps the process whose tile went away")
+
+        let afterQuit = DockClickSupport.pairTiles(["left", "right"],
+                                                   instances: [DockAppInstance(pid: 8566, launchTime: 100),
+                                                               DockAppInstance(pid: 7001, launchTime: 300)],
+                                                   previous: firstLook)
+        suite.expect(pid(of: "left", in: afterQuit) == 8566 && pid(of: "right", in: afterQuit) == 7001,
+                     "a tile whose process quit goes to the instance that has no tile yet")
+        suite.expect(pid(of: "right", in: DockClickSupport.pairTiles(
+                        ["left", "right"], instances: [DockAppInstance(pid: 8566, launchTime: 100)],
+                        previous: firstLook)) == nil,
+                     "a tile with no instance left to take stays unpaired, so the click goes to the Dock")
+
+        // The system hands a pid to a new process once the old one is gone. A
+        // remembered pairing only holds for the process it was made with.
+        let reusedPID = DockClickSupport.pairTiles(
+            ["pinned", "extra"],
+            instances: [DockAppInstance(pid: 300, launchTime: 500),
+                        DockAppInstance(pid: 100, launchTime: 900)],
+            previous: [DockTilePairing(tile: "pinned", pid: 100, launchTime: 100)])
+        suite.expect(pid(of: "pinned", in: reusedPID) == 300 && pid(of: "extra", in: reusedPID) == 100,
+                     "a tile paired with a process that quit does not pass to a new one reusing its pid")
+
+        // A partial read cannot tell a missed tile from one that went away.
+        let partialRead = DockClickSupport.pairTiles(["left", "new"], instances: twoInstances + [
+            DockAppInstance(pid: 7001, launchTime: 300)], previous: firstLook, complete: false)
+        suite.expect(pid(of: "left", in: partialRead) == 8566,
+                     "a partial read keeps a pairing that still holds")
+        suite.expect(pid(of: "new", in: partialRead) == nil,
+                     "a partial read pairs no new tile, so it cannot take the process of a tile it missed")
+
+        // While an instance launches or quits, its tile and its process come
+        // and go at different moments, and an order taken then would be
+        // remembered wrong.
+        let threeInstances = [DockAppInstance(pid: 30, launchTime: 300),
+                              DockAppInstance(pid: 10, launchTime: 100),
+                              DockAppInstance(pid: 20, launchTime: 200)]
+        let twoTiles = DockClickSupport.pairTiles(["left", "right"], instances: threeInstances, previous: [])
+        suite.expect(pid(of: "left", in: twoTiles) == nil && pid(of: "right", in: twoTiles) == nil,
+                     "an instance whose tile has not appeared yet stops tiles pairing by order")
+        let quitting = DockClickSupport.pairTiles(["a", "b", "c"],
+                                                  instances: [DockAppInstance(pid: 20, launchTime: 200),
+                                                              DockAppInstance(pid: 30, launchTime: 300)],
+                                                  previous: [])
+        suite.expect(quitting.isEmpty,
+                     "a tile still showing an instance that just quit stops tiles pairing by order")
+        let keptWhileQuitting = DockClickSupport.pairTiles(["left", "right", "late"], instances: twoInstances,
+                                                           previous: firstLook)
+        suite.expect(pid(of: "left", in: keptWhileQuitting) == 8566 && pid(of: "late", in: keptWhileQuitting) == nil,
+                     "pairings that still hold keep working while the counts differ")
+        suite.expect(!DockClickSupport.canPairByOrder(tileCount: 3, instanceCount: 2, complete: true)
+                        && !DockClickSupport.canPairByOrder(tileCount: 2, instanceCount: 2, complete: false)
+                        && DockClickSupport.canPairByOrder(tileCount: 2, instanceCount: 2, complete: true),
+                     "only a whole read with as many running tiles as instances is remembered")
+
+        suite.expect(pid(of: "middle", in: DockClickSupport.pairTiles(
+                        ["left", "middle", "right"],
+                        instances: [DockAppInstance(pid: 300, launchTime: 100),
+                                    DockAppInstance(pid: 100, launchTime: 100),
+                                    DockAppInstance(pid: 200, launchTime: 100)],
+                        previous: [])) == 200,
+                     "instances sharing a launch time keep a stable order by pid")
+        suite.expect(pid(of: "left", in: DockClickSupport.pairTiles(
+                        ["left", "right"],
+                        instances: [DockAppInstance(pid: 700, launchTime: 50),
+                                    DockAppInstance(pid: 600, launchTime: nil)],
+                        previous: [])) == 600,
+                     "an instance with no launch time sorts oldest and keeps the first tile")
+        suite.expect(pid(of: "right", in: DockClickSupport.pairTiles(
+                        ["left", "right"],
+                        instances: [DockAppInstance(pid: 700, launchTime: nil),
+                                    DockAppInstance(pid: 600, launchTime: nil)],
+                        previous: [])) == 700,
+                     "with no launch times at all pid order stands in for launch order")
+
+        // An instance started by running its executable directly has no
+        // launch date; its process start time keeps it in its real place.
+        let openedEarlier = DockClickSupport.launchTime(
+            processStartMicroseconds: nil, launchDate: Date(timeIntervalSince1970: 1_700_000_000))
+        let startedDirectlyLater = DockClickSupport.launchTime(
+            processStartMicroseconds: 1_700_000_060_000_000, launchDate: nil)
+        suite.expect(pid(of: "left", in: DockClickSupport.pairTiles(
+                        ["left", "right"],
+                        instances: [DockAppInstance(pid: 2, launchTime: startedDirectlyLater),
+                                    DockAppInstance(pid: 1, launchTime: openedEarlier)],
+                        previous: [])) == 1,
+                     "a newer instance started without Launch Services does not take the first tile")
+        suite.expect(DockClickSupport.launchTime(
+                        processStartMicroseconds: 1_700_000_000_500_000,
+                        launchDate: Date(timeIntervalSince1970: 1_800_000_000))
+                        == Date(timeIntervalSince1970: 1_700_000_000.5).timeIntervalSinceReferenceDate,
+                     "the process start time wins over the launch date and keeps its microseconds")
+        suite.expect(DockClickSupport.launchTime(processStartMicroseconds: nil, launchDate: nil) == nil,
+                     "an instance with neither time stays unknown")
+
+        // A tile kept in the Dock after its instance quit stays next to the
+        // tile of the instance left, reading not running.
+        var otherTilesRead = false
+        let runningTile = DockClickSupport.soleInstanceIsBehindTile(
+            tileReadsRunning: true, anotherTileReadsRunning: { otherTilesRead = true; return true })
+        suite.expect(runningTile && !otherTilesRead,
+                     "a tile that reads running stands for the one instance, with no read of the other tiles")
+        suite.expect(!DockClickSupport.soleInstanceIsBehindTile(tileReadsRunning: false,
+                                                                anotherTileReadsRunning: { true }),
+                     "a tile kept after its instance quit leaves the instance left to that instance's tile")
+        suite.expect(DockClickSupport.soleInstanceIsBehindTile(tileReadsRunning: false,
+                                                               anotherTileReadsRunning: { false }),
+                     "a tile that reads not running keeps the one instance while no other tile reads running")
+
         // MARK: Quick toggles
 
         suite.expect(QuickTogglesSupport.emptyTrashSource == "tell application \"Finder\" to empty trash",

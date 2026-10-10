@@ -1201,30 +1201,43 @@ final class DockPreviewService: ObservableObject {
             accessibilityHitProcessID: { hitElement().flatMap { self.pid(of: $0) } }
         ), let element = hitElement() else { return nil }
 
-        for candidate in elementAndParents(from: element) {
-            guard pid(of: candidate) == dockPID,
-                  let frame = appKitFrame(of: candidate),
-                  let app = runningApplication(forDockElement: candidate)
+        // Resolving by bundle comes first, for the whole chain. Only a tile
+        // names a process, while the labels below read the same across the
+        // tiles of an app that runs as several processes: letting a label match
+        // answer first would collapse those tiles onto one instance and, by
+        // returning here, keep the tile itself from ever being asked. Taking
+        // the frame from the element that resolved also pins the panel to the
+        // icon rather than to whatever sat under the pointer inside it.
+        let chain = elementAndParents(from: element).filter { pid(of: $0) == dockPID }
+        for candidate in chain {
+            switch DockTileResolver.resolution(forTile: candidate) {
+            case .instance(let app):
+                guard let frame = appKitFrame(of: candidate) else { continue }
+                return DockHit(app: app, iconFrame: frame, preferences: preferences)
+            case .unpaired:
+                return nil
+            case .unknown:
+                continue
+            }
+        }
+        for candidate in chain {
+            guard let frame = appKitFrame(of: candidate),
+                  let app = applicationByLabel(forDockElement: candidate)
             else { continue }
             return DockHit(app: app, iconFrame: frame, preferences: preferences)
         }
         return nil
     }
 
-    private func runningApplication(forDockElement element: AXUIElement) -> NSRunningApplication? {
+    /// Last resort for a Dock element whose chain named no bundle at all, or
+    /// named one no running app owns. Labels cannot tell two processes of one
+    /// app apart, so this only ever runs where there is nothing to tell apart.
+    private func applicationByLabel(forDockElement element: AXUIElement) -> NSRunningApplication? {
+        let labels = labelCandidates(from: element)
+        guard !labels.isEmpty else { return nil }
         let running = NSWorkspace.shared.runningApplications.filter {
             $0.activationPolicy == .regular && !$0.isTerminated
         }
-
-        if let url = urlAttribute(element) {
-            let standardized = url.standardizedFileURL.path
-            if let app = running.first(where: { $0.bundleURL?.standardizedFileURL.path == standardized }) {
-                return app
-            }
-        }
-
-        let labels = labelCandidates(from: element)
-        guard !labels.isEmpty else { return nil }
         return running.first { app in
             let names = [
                 app.localizedName,
@@ -1395,14 +1408,6 @@ final class DockPreviewService: ObservableObject {
               let value
         else { return nil }
         return value as? String
-    }
-
-    private func urlAttribute(_ element: AXUIElement) -> URL? {
-        var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXURLAttribute as CFString, &value) == .success,
-              let value
-        else { return nil }
-        return value as? URL
     }
 
     private func normalizeLabel(_ value: String) -> String {
