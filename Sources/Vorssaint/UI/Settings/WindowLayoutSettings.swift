@@ -247,6 +247,12 @@ struct WindowLayoutSettings: View {
             Text(l10n.s.windowMaximizeCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // The shared gaps section below is present only with Window
+            // Layout. Keep Screen gap reachable in a maximizer-only setup,
+            // without showing the same preference twice when both are present.
+            if !AppFeature.windowLayout.isAvailable {
+                gapPicker(text.screenGap, selection: $screenGap)
+            }
             if maximizeEnabled, maximizer.isRunning {
                 Label(l10n.s.windowMaximizeActiveNow, systemImage: "checkmark.circle.fill")
                     .font(.caption)
