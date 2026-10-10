@@ -319,8 +319,24 @@ enum ClipboardHistoryEditing {
         return text != original
     }
 
+    /// `retentionDays` drops recent entries copied longer ago than that, even
+    /// under `recentLimit`; 0 keeps them. Pinned entries never expire, and
+    /// `ageExemptIDs` (an entry open in the editor) wait until they are let go.
+    /// An unpinned entry lands at the top of the recent list, so it counts as
+    /// just used: keeping its original copy date would let the retention
+    /// window drop it on the spot and silently undo the unpin.
+    static func unpinned(_ entry: ClipboardHistoryEntry, now: Date = Date()) -> ClipboardHistoryEntry {
+        var entry = entry
+        entry.pinnedAt = nil
+        entry.copiedAt = now
+        return entry
+    }
+
     static func retainedEntries(_ entries: [ClipboardHistoryEntry],
                                 recentLimit: Int,
+                                retentionDays: Int = 0,
+                                ageExemptIDs: Set<UUID> = [],
+                                now: Date = Date(),
                                 textByteLimit: Int = maxStoredTextUTF8Bytes) -> [ClipboardHistoryEntry] {
         var remainingBytes = max(0, textByteLimit)
         func retained(_ candidates: [ClipboardHistoryEntry], limit: Int?) -> [ClipboardHistoryEntry] {
@@ -336,7 +352,14 @@ enum ClipboardHistoryEditing {
         }
         let pinned = retained(entries.filter(\.isPinned), limit: nil)
         let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
-        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
+        let cutoff = retentionDays > 0
+            ? now.addingTimeInterval(-Double(retentionDays) * 86_400)
+            : nil
+        let recent = retained(entries.filter { entry in
+            guard !entry.isPinned else { return false }
+            guard let cutoff, !ageExemptIDs.contains(entry.id) else { return true }
+            return entry.copiedAt >= cutoff
+        }, limit: recentLimitOrNil)
         return pinned + recent
     }
 

@@ -546,6 +546,7 @@ enum DefaultsKey {
     static let clipboardHistoryEnabled = "clipboardHistoryEnabled"
     static let clipboardHistoryEntries = "clipboardHistoryEntries"
     static let clipboardHistoryLimit = "clipboardHistoryLimit"
+    static let clipboardHistoryRetentionDays = "clipboardHistoryRetentionDays" // 0 keeps items until the limit drops them
     static let clipboardHistorySkipSensitive = "clipboardHistorySkipSensitive"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
@@ -1162,6 +1163,7 @@ enum Defaults {
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000, 10_000, 0]
+    static let allowedClipboardHistoryRetentionDays = [1, 7, 30, 90, 365, 0]
     static let allowedClipboardAutoClearDelayRange = 5...3_600
     static let defaultClipboardAutoClearDelay = 20
     static let allowedClipboardMenuBarPreviewLengthRange = 5...50
@@ -1727,6 +1729,7 @@ enum Defaults {
         DefaultsKey.mediaTextLanguageCorrection: true,
         DefaultsKey.clipboardHistoryEnabled: false,
         DefaultsKey.clipboardHistoryLimit: 50,
+        DefaultsKey.clipboardHistoryRetentionDays: 0,
         DefaultsKey.clipboardHistorySkipSensitive: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
@@ -2546,6 +2549,10 @@ enum Defaults {
 
     static func sanitizedClipboardHistoryLimit(_ value: Int) -> Int {
         allowedClipboardHistoryLimits.contains(value) ? value : 50
+    }
+
+    static func sanitizedClipboardHistoryRetentionDays(_ value: Int) -> Int {
+        allowedClipboardHistoryRetentionDays.contains(value) ? value : 0
     }
 
     static func sanitizedMonitorAlertCooldown(_ value: Int) -> Int {

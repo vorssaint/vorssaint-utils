@@ -1140,6 +1140,70 @@ enum ClipboardFeatureTests {
             textByteLimit: 1_000)
         suite.expect(tenThousandHistory.count == 2,
                "clipboard history retainedEntries preserves entries with 10_000 limit")
+        let retentionNow = Date(timeIntervalSince1970: 1_000_000_000)
+        let freshRecent = ClipboardHistoryEntry(text: "fresh",
+                                                copiedAt: retentionNow.addingTimeInterval(-86_400))
+        let staleRecent = ClipboardHistoryEntry(text: "stale",
+                                                copiedAt: retentionNow.addingTimeInterval(-8 * 86_400))
+        let stalePinned = ClipboardHistoryEntry(text: "old pin",
+                                                copiedAt: retentionNow.addingTimeInterval(-400 * 86_400),
+                                                pinnedAt: retentionNow.addingTimeInterval(-400 * 86_400))
+        let weekHistory = ClipboardHistoryEditing.retainedEntries(
+            [stalePinned, freshRecent, staleRecent],
+            recentLimit: 0,
+            retentionDays: 7,
+            now: retentionNow)
+        suite.expect(weekHistory.map(\.id) == [stalePinned.id, freshRecent.id],
+               "clipboard history drops recent entries older than the retention days but keeps pinned ones")
+        let foreverHistory = ClipboardHistoryEditing.retainedEntries(
+            [freshRecent, staleRecent],
+            recentLimit: 0,
+            retentionDays: 0,
+            now: retentionNow)
+        suite.expect(foreverHistory.count == 2,
+               "clipboard history keeps entries of any age when retention is 0 (forever)")
+        let limitAndRetention = ClipboardHistoryEditing.retainedEntries(
+            [freshRecent, staleRecent],
+            recentLimit: 20,
+            retentionDays: 30,
+            now: retentionNow)
+        suite.expect(limitAndRetention.count == 2,
+               "clipboard history keeps entries that are inside both the limit and the retention window")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryRetentionDays] as? Int == 0
+                && Defaults.sanitizedClipboardHistoryRetentionDays(30) == 30
+                && Defaults.sanitizedClipboardHistoryRetentionDays(0) == 0
+                && Defaults.sanitizedClipboardHistoryRetentionDays(12) == 0,
+               "clipboard history retention defaults to forever and only accepts the offered day counts")
+        let retentionLabels = FeatureStrings.clipboardRetention(.enUS)
+        suite.expect(retentionLabels.label(days: 0) == "Forever"
+                && retentionLabels.label(days: 1) == "1 day"
+                && retentionLabels.label(days: 30) == "30 days",
+               "clipboard history retention labels name forever, one day and several days")
+        let unpinnedOld = ClipboardHistoryEditing.unpinned(stalePinned, now: retentionNow)
+        let afterUnpin = ClipboardHistoryEditing.retainedEntries(
+            [freshRecent, unpinnedOld, staleRecent],
+            recentLimit: 0,
+            retentionDays: 7,
+            now: retentionNow)
+        suite.expect(!unpinnedOld.isPinned
+                && afterUnpin.contains { $0.id == stalePinned.id }
+                && !afterUnpin.contains { $0.id == staleRecent.id },
+               "unpinning an item older than the retention window keeps it as a just-used recent entry")
+        let duringEdit = ClipboardHistoryEditing.retainedEntries(
+            [freshRecent, staleRecent],
+            recentLimit: 0,
+            retentionDays: 7,
+            ageExemptIDs: [staleRecent.id],
+            now: retentionNow)
+        suite.expect(duringEdit.map(\.id) == [freshRecent.id, staleRecent.id],
+               "an entry open in the editor does not expire while its draft is unsaved")
+        let afterEdit = ClipboardHistoryEditing.retainedEntries(
+            duringEdit,
+            recentLimit: 0,
+            retentionDays: 7,
+            now: retentionNow)
+        suite.expect(afterEdit.map(\.id) == [freshRecent.id],
+               "an expired entry is dropped on the first trim after the editor lets it go")
         let previewID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let nextPreviewID = UUID(uuidString: "00000000-0000-0000-0000-000000000102")!
         let updatedPreview = ClipboardHistoryEntry(id: previewID, text: "updated")
