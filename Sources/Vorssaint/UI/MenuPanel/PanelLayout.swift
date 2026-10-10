@@ -87,11 +87,7 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .disk: return [.monitorDisk]
         case .power: return [.monitorPower]
         case .fanControl: return [.fanControl]
-        case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
-                                 .clipboardHistory,
-                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
-                                 .colorPicker, .screenshot, .screenRecorder,
-                                 .cameraPreview, .scratchpad, .commandBar, .portManager]
+        case .utilities: return AppFeature.utilityPanelFeatures
         case .controls: return [.scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
                                 .finderCutPaste, .autoQuit,
                                 .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick, .spacesOrder,

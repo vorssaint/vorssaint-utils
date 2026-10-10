@@ -624,6 +624,8 @@ struct UtilitiesSection: View {
     @State private var draggingItem: UtilityPanelItem?
     var collapsible = true
     var startCleaning: () -> Void
+    /// An embedded island page uses Escape to return from the hosted tool.
+    var hostedLayerChanged: ((() -> Void)?) -> Void = { _ in }
 
     var body: some View {
         PanelSection(.utilities, title: l10n.s.utilitiesSection, collapsible: collapsible,
@@ -694,12 +696,29 @@ struct UtilitiesSection: View {
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onChange(of: isHostingUtility, initial: true) { _, hosting in
+            hostedLayerChanged(hosting ? closeHostedUtility : nil)
+        }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
             // tool off screen with it; a closed panel does not, and keeps it.
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
             PanelInteractionState.shared.hostedSettingsPage = nil
+            hostedLayerChanged(nil)
         }
+    }
+
+    private func closeHostedUtility() {
+        showUninstaller = false
+        showCleanerPanel = false
+        showURLCleaner = false
+        showHomebrewPanel = false
+        showAppUpdatesPanel = false
+        showMediaPanel = false
+        showClipboardPanel = false
+        showRecentCapturesPanel = false
+        showWindowLayoutPanel = false
+        showPortManagerPanel = false
     }
 
     /// The Settings page that belongs to whichever tool the section is
@@ -2468,7 +2487,7 @@ struct PanelBetaBadge: View {
 /// content is pinned to the full width and reports its natural height back after
 /// every layout pass, so the popover sizes itself to fit and only scrolls once the
 /// content is taller than the screen.
-private struct OverlayScrollView<Content: View>: NSViewRepresentable {
+struct OverlayScrollView<Content: View>: NSViewRepresentable {
     @Binding var measuredHeight: CGFloat
     let content: Content
 
@@ -2528,14 +2547,14 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+    final class Coordinator { fileprivate var host: HeightReportingHostingView<Content>? }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The
 /// menu panel uses it because collapsing or expanding a section flips state inside
 /// this view's own SwiftUI graph and never re-runs the surrounding `updateNSView`
 /// — so the height has to be read from here, where the change actually lands.
-private final class HeightReportingHostingView<Content: View>: NSHostingView<Content> {
+fileprivate final class HeightReportingHostingView<Content: View>: NSHostingView<Content> {
     var onLayout: (() -> Void)?
 
     required init(rootView: Content) {

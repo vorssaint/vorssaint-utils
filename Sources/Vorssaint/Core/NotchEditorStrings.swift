@@ -74,7 +74,7 @@ struct NotchEditorStrings {
     func showPage(_ title: String) -> String { String(format: showPageFormat, title) }
 
     /// One line on what a section of the island shows.
-    func summary(_ module: NotchModule) -> String {
+    func summary(_ module: NotchModule, language: AppLanguage) -> String {
         switch module {
         case .controls: return controlsSummary
         case .mixer: return mixerSummary
@@ -84,6 +84,9 @@ struct NotchEditorStrings {
         case .files: return filesSummary
         case .system: return systemSummary
         case .tools: return toolsSummary
+        case .utilities:
+            let strings = Strings.localized(language)
+            return [strings.cleanerName, strings.uninstallerName, strings.homebrewName].joined(separator: " · ")
         case .calendar: return calendarSummary
         case .notifications: return notificationsSummary
         case .timer: return timerSummary

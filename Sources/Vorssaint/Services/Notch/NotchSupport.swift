@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, utilities, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -28,6 +28,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .system: return "gauge.with.dots.needle.50percent"
         // The quick panel's own mark; the grid belongs to the sections button.
         case .tools: return AppFeature.quickLauncher.symbolName
+        case .utilities: return "wrench.and.screwdriver.fill"
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
@@ -45,6 +46,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .files: return "f"
         case .system: return "i"
         case .tools: return "t"
+        case .utilities: return "u"
         case .calendar: return "a"
         case .notifications: return "n"
         case .timer: return "r"
@@ -66,6 +68,8 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .calendar: return AppFeature.notchCalendar.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults)
         case .tools: return AppFeature.quickLauncher.isAvailable(in: defaults)
+        case .utilities:
+            return AppFeature.utilityPanelFeatures.contains { $0.isAvailable(in: defaults) }
         case .clipboard: return AppFeature.clipboardHistory.isAvailable(in: defaults)
         case .captures:
             return AppFeature.screenshot.isAvailable(in: defaults)
@@ -2404,6 +2408,9 @@ struct NotchGeometry: Equatable {
                 guard let toolCount else { contentHeight = pageBudget; break }
                 contentHeight = min(budget, toolCount == 0 ? NotchLayout.emptyHeight
                     : NotchLayout.railHeight(rows: toolRows(count: toolCount), rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing))
+            case .utilities:
+                // Hosted tools need a readable work surface even in Compact.
+                contentHeight = pageBudget
             case .timer:
                 contentHeight = min(budget, NotchLayout.timer(mode: timerMode, hasSession: timerHasSession, width: contentWidth, height: budget))
             case .agents:
