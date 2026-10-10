@@ -91,7 +91,7 @@ final class DiskImageInstallerService {
     }
 
     private func inspect(mountURL: URL) {
-        guard mountObserver != nil else { return }
+        guard mountObserver != nil, !Self.isHomebrewInstallingApp else { return }
         let path = mountURL.standardizedFileURL.resolvingSymlinksInPath().path
         guard processingMounts.insert(path).inserted else { return }
 
@@ -100,11 +100,37 @@ final class DiskImageInstallerService {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.processingMounts.remove(path)
-                guard self.mountObserver != nil, let candidate else { return }
+                guard self.mountObserver != nil,
+                      !Self.isHomebrewInstallingApp,
+                      let candidate else { return }
                 self.pending.append(candidate)
                 self.presentNextCandidate()
             }
         }
+    }
+
+    /// Homebrew casks can mount disk images as part of their own install flow.
+    /// Those mounts belong to Homebrew, so they should never enter this UI.
+    private static var isHomebrewInstallingApp: Bool {
+        guard let status = HomebrewManager.shared.operationStatus, status.isActive else { return false }
+        switch status.action {
+        case .install, .upgrade:
+            return status.package?.kind == .cask
+        case .upgradeAll:
+            return true
+        case .uninstall, .updateHomebrew:
+            return false
+        }
+    }
+
+    private static func isHomebrewImage(_ imageURL: URL) -> Bool {
+        guard let libraryURL = FileManager.default.urls(for: .libraryDirectory,
+                                                        in: .userDomainMask).first else { return false }
+        let cacheURL = libraryURL.appendingPathComponent("Caches/Homebrew", isDirectory: true)
+            .standardizedFileURL.resolvingSymlinksInPath()
+        let imagePath = imageURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let cachePath = cacheURL.path
+        return imagePath == cachePath || imagePath.hasPrefix(cachePath + "/")
     }
 
     private func candidate(mountedAt mountURL: URL) -> Candidate? {
@@ -113,6 +139,7 @@ final class DiskImageInstallerService {
         guard info.status == 0,
               let imageURL = DiskImageInstallerSupport.imageURL(mountedAt: mountURL,
                                                                  hdiutilInfo: info.output),
+              !Self.isHomebrewImage(imageURL),
               let imageIdentity = Self.fileIdentity(at: imageURL),
               let entries = try? fm.contentsOfDirectory(at: mountURL,
                                                         includingPropertiesForKeys: [
