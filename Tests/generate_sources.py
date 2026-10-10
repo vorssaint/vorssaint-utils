@@ -254,14 +254,25 @@ def main():
           + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
           + "".join(declaration(fan_control, prefix)
                     .replace("@objc private func", "func", 1)
+                    .replace("@discardableResult private func", "@discardableResult func", 1)
                     .replace("private static var", "static var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
                         "    func returnToSystem(", "    func resumePreferenceDidChange(",
+                        "    func restoreAutomatic() {",
+                        "    private func restoreAutomatic(supersedingCurrentRequest:",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
-                        "    @objc private func workspaceDidWake("])
+                        "    @objc private func workspaceDidWake(",
+                        "    @objc private func workspaceWillSleep(",
+                        "    private func applyConfiguration(_ configuration: FanControlConfiguration,",
+                        "    private func apply(_ response:",
+                        "    private func rememberTimedManual(",
+                        "    private static var storedTimedManual:",
+                        "    private func forgetTimedManual(",
+                        "    @discardableResult private func discardEndedTimedManual(",
+                        "    private func expireTimedManualIfNeeded("])
           + "}\n}\n")
     write("NotchAudioLevelLifecycle.swift", "import Combine\nimport Foundation\n"
           + "extension NotchAudioLevelLifecycleContract {\n"

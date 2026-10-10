@@ -417,6 +417,15 @@ enum DefaultsKey {
     static let fanControlMode = "fanControlMode"
     static let fanControlCoolingLevel = "fanControlCoolingLevel"
     static let fanControlCurves = "fanControlCurves"
+    // Minutes a manual speed holds before the fans return to the system;
+    // 0 keeps it until the user changes it.
+    static let fanControlManualMinutes = "fanControlManualMinutes"
+    // Machine-only: when the running timed manual speed ends, as seconds since
+    // the reference date; 0 when none runs.
+    static let fanControlManualEnd = "fanControlManualEnd"
+    // Machine-only: the minutes picked for that end, which bound how far away
+    // it can be. Written and cleared with it.
+    static let fanControlManualEndMinutes = "fanControlManualEndMinutes"
     // Re-apply the last manual speed or curve when the app opens and after wake.
     static let fanControlResume = "fanControlResume"
     // Machine-only: the control the user left running while resume is on,
@@ -1632,6 +1641,9 @@ enum Defaults {
         DefaultsKey.fanControlMode: FanControlMode.system.rawValue,
         DefaultsKey.fanControlCoolingLevel: FanControlPolicy.defaultCoolingLevel,
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
+        DefaultsKey.fanControlManualMinutes: FanControlManualDuration.untilChanged,
+        DefaultsKey.fanControlManualEnd: 0.0,
+        DefaultsKey.fanControlManualEndMinutes: 0,
         DefaultsKey.fanControlResume: false,
         DefaultsKey.fanControlResumeConfiguration: "",
         DefaultsKey.fanControlRecoveryNeeded: false,

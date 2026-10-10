@@ -3194,13 +3194,15 @@ enum DurationPicker {
     }
 
     /// Chip-sized label ("15m", "1h" in English), localized by Foundation.
-    static func shortTitle(for minutes: Int, _ s: Strings, _ language: AppLanguage) -> String {
+    /// `style` spells the same duration out, for VoiceOver.
+    static func shortTitle(for minutes: Int, _ s: Strings, _ language: AppLanguage,
+                           style: DateComponentsFormatter.UnitsStyle = .abbreviated) -> String {
         guard minutes > 0 else { return "∞" }
         let formatter = DateComponentsFormatter()
         var calendar = Calendar.current
         calendar.locale = Locale(identifier: language.rawValue)
         formatter.calendar = calendar
-        formatter.unitsStyle = .abbreviated
+        formatter.unitsStyle = style
         formatter.allowedUnits = [.hour, .minute]
         return formatter.string(from: TimeInterval(minutes * 60)) ?? title(for: minutes, s)
     }

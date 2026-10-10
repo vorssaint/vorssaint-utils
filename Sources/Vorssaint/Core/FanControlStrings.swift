@@ -47,6 +47,10 @@ struct FanControlFeatureStrings {
     let hottestGPU: String
     let helperUnavailable: String
     let resumeAfterRestart: String
+    let keepManualFor: String
+    let untilChanged: String
+    let returnsToSystemFormat: String
+    let timedSafetyCaption: String
 }
 
 extension FeatureStrings {
@@ -115,7 +119,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "Hottest CPU",
         hottestGPU: "Hottest GPU",
         helperUnavailable: "The protected fan controller is unavailable. Allow Vorssaint in Login Items, then try again.",
-        resumeAfterRestart: "Resume after restart or sleep"
+        resumeAfterRestart: "Resume after restart or sleep",
+        keepManualFor: "Keep this speed for",
+        untilChanged: "Until I change it",
+        returnsToSystemFormat: "Back to System in %@",
+        timedSafetyCaption: "Control stays active until the time you picked ends or you return to System. It returns automatically if the app disconnects, the Mac sleeps, sensor readings fail or thermal pressure rises."
     )
 
     static let ptBR = FanControlFeatureStrings(
@@ -161,7 +169,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU mais quente",
         hottestGPU: "GPU mais quente",
         helperUnavailable: "O controlador protegido das ventoinhas não está disponível. Permita o Vorssaint nos Itens de Início e tente novamente.",
-        resumeAfterRestart: "Retomar depois de reiniciar ou repousar"
+        resumeAfterRestart: "Retomar depois de reiniciar ou repousar",
+        keepManualFor: "Manter esta velocidade por",
+        untilChanged: "Até eu mudar",
+        returnsToSystemFormat: "Volta ao Sistema em %@",
+        timedSafetyCaption: "O controle fica ativo até acabar o tempo escolhido ou você voltar ao Sistema. Ele é devolvido automaticamente se o app desconectar, o Mac repousar, os sensores falharem ou a pressão térmica subir."
     )
 
     static let tr = FanControlFeatureStrings(
@@ -207,7 +219,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "En sıcak CPU",
         hottestGPU: "En sıcak GPU",
         helperUnavailable: "Korumalı fan denetleyicisi kullanılamıyor. Giriş Öğeleri’nde Vorssaint’e izin verip yeniden deneyin.",
-        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür"
+        resumeAfterRestart: "Yeniden başlatma veya uykudan sonra sürdür",
+        keepManualFor: "Bu hızı koruma süresi",
+        untilChanged: "Ben değiştirene kadar",
+        returnsToSystemFormat: "%@ sonra Sisteme dönecek",
+        timedSafetyCaption: "Denetim, seçtiğiniz süre dolana veya Sistem’e dönene kadar etkin kalır. Uygulama bağlantısı kesilirse, Mac uyursa, sensör okumaları başarısız olursa veya termal basınç yükselirse otomatik olarak geri verilir."
     )
 
     static let ru = FanControlFeatureStrings(
@@ -253,7 +269,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "Самая горячая CPU",
         hottestGPU: "Самая горячая GPU",
         helperUnavailable: "Защищённый контроллер вентиляторов недоступен. Разрешите Vorssaint в Объектах входа и повторите попытку.",
-        resumeAfterRestart: "Возобновлять после перезагрузки или сна"
+        resumeAfterRestart: "Возобновлять после перезагрузки или сна",
+        keepManualFor: "Держать эту скорость",
+        untilChanged: "Пока я не изменю",
+        returnsToSystemFormat: "Возврат к системе через %@",
+        timedSafetyCaption: "Управление действует до конца выбранного времени или до возврата в режим «Система». Оно возвращается автоматически при отключении приложения, сне Mac, сбое датчиков или росте тепловой нагрузки."
     )
 
     static let es = FanControlFeatureStrings(
@@ -299,7 +319,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU más caliente",
         hottestGPU: "GPU más caliente",
         helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
-        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
+        resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo",
+        keepManualFor: "Mantener esta velocidad",
+        untilChanged: "Hasta que la cambie",
+        returnsToSystemFormat: "Vuelve a Sistema en %@",
+        timedSafetyCaption: "El control sigue activo hasta que acabe el tiempo elegido o vuelvas a Sistema. Se devuelve automáticamente si la app se desconecta, el Mac entra en reposo, fallan los sensores o aumenta la presión térmica."
     )
 
     static let sk = FanControlFeatureStrings(
@@ -345,7 +369,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "Najteplejší CPU",
         hottestGPU: "Najteplejší GPU",
         helperUnavailable: "Chránený ovládač ventilátorov nie je dostupný. Povoľte Vorssaint v časti Položky a rozšírenia spúšťané pri prihlásení a skúste to znova.",
-        resumeAfterRestart: "Pokračovať po reštarte alebo spánku"
+        resumeAfterRestart: "Pokračovať po reštarte alebo spánku",
+        keepManualFor: "Ponechať túto rýchlosť",
+        untilChanged: "Kým ju nezmením",
+        returnsToSystemFormat: "Návrat na Systém o %@",
+        timedSafetyCaption: "Ovládanie zostáva aktívne, kým neuplynie zvolený čas alebo sa nevrátite na Systém. Automaticky sa vráti, ak sa aplikácia odpojí, Mac uspí, zlyhajú snímače alebo stúpne tepelný tlak."
     )
 
     static let de = FanControlFeatureStrings(
@@ -391,7 +419,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "Heißeste CPU",
         hottestGPU: "Heißeste GPU",
         helperUnavailable: "Die geschützte Lüftersteuerung ist nicht verfügbar. Erlaube Vorssaint unter Anmeldeobjekte und versuche es erneut.",
-        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen"
+        resumeAfterRestart: "Nach Neustart oder Ruhezustand fortsetzen",
+        keepManualFor: "Diese Geschwindigkeit halten",
+        untilChanged: "Bis ich sie ändere",
+        returnsToSystemFormat: "Zurück zu System in %@",
+        timedSafetyCaption: "Die Steuerung bleibt bis zum Ende der gewählten Zeit oder bis zur Rückkehr zu System aktiv. Sie wird bei getrennter App, Ruhezustand, Sensorausfall oder steigendem thermischem Druck automatisch zurückgegeben."
     )
 
     static let fr = FanControlFeatureStrings(
@@ -437,7 +469,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU le plus chaud",
         hottestGPU: "GPU le plus chaud",
         helperUnavailable: "Le contrôleur protégé des ventilateurs est indisponible. Autorisez Vorssaint dans Ouverture, puis réessayez.",
-        resumeAfterRestart: "Reprendre après un redémarrage ou la veille"
+        resumeAfterRestart: "Reprendre après un redémarrage ou la veille",
+        keepManualFor: "Garder cette vitesse pendant",
+        untilChanged: "Jusqu’à ce que je la change",
+        returnsToSystemFormat: "Retour à Système dans %@",
+        timedSafetyCaption: "Le contrôle reste actif jusqu’à la fin de la durée choisie ou jusqu’au retour à Système. Il est rendu automatiquement si l’app se déconnecte, si le Mac veille, si les capteurs échouent ou si la pression thermique augmente."
     )
 
     static let it = FanControlFeatureStrings(
@@ -483,7 +519,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU più calda",
         hottestGPU: "GPU più calda",
         helperUnavailable: "Il controller protetto delle ventole non è disponibile. Consenti Vorssaint negli elementi di login e riprova.",
-        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop"
+        resumeAfterRestart: "Riprendi dopo il riavvio o lo stop",
+        keepManualFor: "Mantieni questa velocità per",
+        untilChanged: "Finché non la cambio",
+        returnsToSystemFormat: "Ritorno a Sistema tra %@",
+        timedSafetyCaption: "Il controllo resta attivo finché non scade il tempo scelto o non torni a Sistema. Viene restituito automaticamente se l’app si disconnette, il Mac va in stop, i sensori falliscono o aumenta la pressione termica."
     )
 
     static let ja = FanControlFeatureStrings(
@@ -529,7 +569,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "最高CPU",
         hottestGPU: "最高GPU",
         helperUnavailable: "保護されたファンコントローラを利用できません。ログイン項目でVorssaintを許可してから、もう一度お試しください。",
-        resumeAfterRestart: "再起動やスリープのあとに再開"
+        resumeAfterRestart: "再起動やスリープのあとに再開",
+        keepManualFor: "この速度を保つ時間",
+        untilChanged: "変更するまで",
+        returnsToSystemFormat: "あと%@でシステムに戻ります",
+        timedSafetyCaption: "選んだ時間が終わるか、システムへ戻すまで制御は有効です。アプリの切断、Macのスリープ、センサー障害、熱圧力の上昇時には自動でシステムへ戻ります。"
     )
 
     static let ko = FanControlFeatureStrings(
@@ -575,7 +619,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "가장 뜨거운 CPU",
         hottestGPU: "가장 뜨거운 GPU",
         helperUnavailable: "보호된 팬 컨트롤러를 사용할 수 없습니다. 로그인 항목에서 Vorssaint를 허용한 다음 다시 시도하세요.",
-        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용"
+        resumeAfterRestart: "재시작 또는 잠자기 후 다시 적용",
+        keepManualFor: "이 속도 유지 시간",
+        untilChanged: "직접 바꿀 때까지",
+        returnsToSystemFormat: "%@ 후 시스템으로 돌아갑니다",
+        timedSafetyCaption: "선택한 시간이 끝나거나 시스템으로 돌아갈 때까지 제어가 유지됩니다. 앱 연결 해제, Mac 잠자기, 센서 오류 또는 열 압력 상승 시 자동으로 시스템에 반환됩니다."
     )
 
     static let zhHans = FanControlFeatureStrings(
@@ -621,7 +669,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高温度",
         hottestGPU: "GPU最高温度",
         helperUnavailable: "受保护的风扇控制器不可用。请在登录项中允许 Vorssaint，然后重试。",
-        resumeAfterRestart: "重新启动或睡眠后恢复"
+        resumeAfterRestart: "重新启动或睡眠后恢复",
+        keepManualFor: "保持此速度",
+        untilChanged: "直到我更改",
+        returnsToSystemFormat: "%@后恢复系统控制",
+        timedSafetyCaption: "控制会保持到所选时间结束或你恢复系统模式。App 断开、Mac睡眠、传感器失效或热压力升高时会自动交还系统。"
     )
 
     static let zhTW = FanControlFeatureStrings(
@@ -667,7 +719,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目中允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新開機或睡眠後恢復"
+        resumeAfterRestart: "重新開機或睡眠後恢復",
+        keepManualFor: "維持此速度",
+        untilChanged: "直到我變更",
+        returnsToSystemFormat: "%@後恢復系統控制",
+        timedSafetyCaption: "控制會持續到所選時間結束或你恢復系統模式。App中斷、Mac睡眠、感測器失效或熱壓力升高時會自動交還系統。"
     )
 
     static let zhHK = FanControlFeatureStrings(
@@ -713,7 +769,11 @@ extension FanControlFeatureStrings {
         hottestCPU: "CPU最高溫度",
         hottestGPU: "GPU最高溫度",
         helperUnavailable: "受保護的風扇控制器無法使用。請在登入項目允許 Vorssaint，然後再試一次。",
-        resumeAfterRestart: "重新啟動或睡眠後恢復"
+        resumeAfterRestart: "重新啟動或睡眠後恢復",
+        keepManualFor: "維持此速度",
+        untilChanged: "直到我更改",
+        returnsToSystemFormat: "%@後恢復系統控制",
+        timedSafetyCaption: "控制會持續到所選時間結束或你恢復系統模式。App中斷、Mac睡眠、感測器失效或熱壓力升高時會自動交還系統。"
     )
     static let uk = FanControlFeatureStrings(
         title: "Керування вентиляторами",
@@ -758,6 +818,10 @@ extension FanControlFeatureStrings {
         hottestCPU: "Найгарячіший CPU",
         hottestGPU: "Найгарячіший GPU",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
-        resumeAfterRestart: "Відновлювати після перезавантаження або сну"
+        resumeAfterRestart: "Відновлювати після перезавантаження або сну",
+        keepManualFor: "Тримати цю швидкість",
+        untilChanged: "Доки я не зміню",
+        returnsToSystemFormat: "Повернення до системи через %@",
+        timedSafetyCaption: "Керування залишається активним до кінця вибраного часу або доки ви не повернетесь до «Система». Воно повертається автоматично, якщо програма відключається, Mac засинає, датчики дають збій або зростає термічний тиск."
     )
 }
