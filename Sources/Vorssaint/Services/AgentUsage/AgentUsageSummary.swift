@@ -428,14 +428,37 @@ enum AgentLimitSupport {
         }
     }
 
+    enum WarnedChange: Equatable {
+        /// Renewed before its time, as by a banked reset.
+        case renewed(AgentLimitWindow)
+        /// Still spent, with its renewal dated again.
+        case redated(AgentLimitWindow)
+    }
+
+    /// What a newer reading says of a window that was warned about.
+    static func warnedChange(_ warned: AgentLimitWindow, current: AgentLimitWindow?, threshold: Double) -> WarnedChange? {
+        guard let current, let resets = current.resetsAt else { return nil }
+        // A warning can precede the first known renewal. Once the provider
+        // supplies it, the pending reset notice must follow that date even
+        // when use has since fallen below the warning threshold.
+        guard let was = warned.resetsAt else { return .redated(current) }
+        guard abs(resets.timeIntervalSince(was)) > 60 else { return nil }
+        if resets > was, current.usedPercent < threshold { return .renewed(current) }
+        return current.usedPercent >= threshold ? .redated(current) : nil
+    }
+
     /// Windows that reached `threshold` percent between two readings of the
-    /// same account. A renewed window starts again from zero.
+    /// same account. A renewed window starts again from zero: one whose
+    /// renewal passed before the new reading. A renewal dated again before
+    /// then, as when a guess gives way to the provider's date, is the same
+    /// period.
     static func crossings(previous: AgentLimits?, current: AgentLimits, threshold: Double) -> [AgentLimitWindow] {
         guard threshold > 0 else { return [] }
         return current.windows.filter { window in
             guard window.usedPercent >= threshold else { return false }
-            guard let before = previous?.windows.first(where: { $0.id == window.id }) else { return false }
-            if let was = before.resetsAt, let now = window.resetsAt, now.timeIntervalSince(was) > 60 { return true }
+            guard let previous, let before = previous.windows.first(where: { $0.id == window.id }) else { return false }
+            if let was = before.resetsAt, let now = window.resetsAt, now.timeIntervalSince(was) > 60,
+               was <= current.observedAt { return true }
             return before.usedPercent < threshold
         }
     }

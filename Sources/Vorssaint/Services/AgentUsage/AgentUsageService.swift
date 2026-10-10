@@ -23,6 +23,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var snapshot = AgentUsageSnapshot()
     /// When the Claude app last saved the plan's limits; nil when it never has.
     @Published private(set) var claudeAppChecked: Date?
+    /// When Claude Code last checked the plan's limits; nil when it never has.
+    @Published private(set) var claudeCodeChecked: Date?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -87,6 +89,8 @@ final class AgentUsageService: ObservableObject {
     /// The organization Claude Code signs in to, when its profile says.
     private var claudeOrganization: String?
     private var claudeProfileModified: Date?
+    /// The plan's limits Claude Code last cached in its profile.
+    private var claudeCodeReading: AgentClaudeCodeUsage.Reading?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var shippedPrices: AgentPriceList?
@@ -168,6 +172,7 @@ final class AgentUsageService: ObservableObject {
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
         claudeAppChecked = nil
+        claudeCodeChecked = nil
         queue.async { [self] in
             readerSession = -1
             readerCancellation = nil
@@ -188,6 +193,7 @@ final class AgentUsageService: ObservableObject {
             claudePlan = nil
             claudeOrganization = nil
             claudeProfileModified = nil
+            claudeCodeReading = nil
             claudeAppModified = nil
             claudeAppSamples = []
             savedMark = nil
@@ -207,12 +213,13 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    /// Opening the page shows the latest limits the Claude app saved.
+    /// Opening the page shows the latest limits Claude saved.
     func pageDidAppear() {
         guard running else { return }
         queue.async { [self] in
             guard readerSession >= 0 else { return }
-            readClaudeApp(now: Date())
+            readClaudePlan()
+            readClaudeLimits(now: Date())
             checkLimits()
             publish()
         }
@@ -260,7 +267,7 @@ final class AgentUsageService: ObservableObject {
             closeEndedTurns(roots, atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
-            readClaudeApp(now: now)
+            readClaudeLimits(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
@@ -538,9 +545,11 @@ final class AgentUsageService: ObservableObject {
                     watch(roots)
                 }
                 lastRootCheck = now
-                readClaudePlan()
             }
-            readClaudeApp(now: now)
+            // Claude Code saves its profile often; it is read again only
+            // when it changed, for the limits it caches there.
+            readClaudePlan()
+            readClaudeLimits(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -560,12 +569,14 @@ final class AgentUsageService: ObservableObject {
         let claudePlan: AgentPlan?
         let claudeOrganization: String?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let claudeCode: AgentClaudeCodeUsage.Reading?
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
-               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
+               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples,
+               claudeCode: claudeCodeReading)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -581,11 +592,14 @@ final class AgentUsageService: ObservableObject {
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
         })?.date : nil
+        let checkedByCode = enabled.contains(.claude)
+            ? AgentClaudeCodeUsage.validated(claudeCodeReading, now: next.now)?.date : nil
         let listed = AgentPricing.list.updated
         let prices = listed == AgentPriceList.empty.updated ? nil : listed
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, self.session == session else { return }
             if self.claudeAppChecked != checked { self.claudeAppChecked = checked }
+            if self.claudeCodeChecked != checkedByCode { self.claudeCodeChecked = checkedByCode }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
             if self.snapshot != next { self.snapshot = next }
         }
@@ -624,12 +638,19 @@ final class AgentUsageService: ObservableObject {
         }
         // A banked reset renews a warned window before its time, which is
         // news now rather than at the renewal it replaced.
+        // A renewal dated better since, as when Claude Code's date replaces
+        // the Claude app's guess, moves the word that it renewed.
         for (id, entry) in warned {
-            guard let window = store.limits[entry.provider]?.windows.first(where: { $0.id == id }),
-                  let was = entry.window.resetsAt, let resets = window.resetsAt,
-                  resets.timeIntervalSince(was) > 60, window.usedPercent < threshold else { continue }
-            warned[id] = nil
-            report(.limitReset(provider: entry.provider, window: window))
+            let window = store.limits[entry.provider]?.windows.first(where: { $0.id == id })
+            switch AgentLimitSupport.warnedChange(entry.window, current: window, threshold: threshold) {
+            case .renewed(let window):
+                warned[id] = nil
+                report(.limitReset(provider: entry.provider, window: window))
+            case .redated(let window):
+                warned[id] = (entry.provider, window)
+            case nil:
+                break
+            }
         }
         previousLimits = store.limits
     }
@@ -654,21 +675,26 @@ final class AgentUsageService: ObservableObject {
 
     // MARK: Plans and limits
 
-    /// The plan comes from the account profile Claude Code caches; nothing
-    /// else in that file is kept.
+    /// The plan and the limits Claude Code last checked come from the
+    /// account profile it caches; nothing else in that file is kept.
     private func readClaudePlan() {
         guard enabled.contains(.claude) else { return }
-        let url = home.appending(path: ".claude.json")
+        let url = AgentClaudeCodeUsage.profileURL(home: home)
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         guard modified != claudeProfileModified else { return }
+        let json = modified == nil ? nil : (try? Data(contentsOf: url, options: .mappedIfSafe))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        // A profile caught while Claude Code rewrites it is read at the next
+        // look, keeping what the last one gave meanwhile.
+        if modified != nil, json == nil { return }
         claudeProfileModified = modified
-        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe),
-              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let account = json["oauthAccount"] as? [String: Any] else {
+        guard let json, let account = json["oauthAccount"] as? [String: Any] else {
             claudePlan = nil
             claudeOrganization = nil
+            claudeCodeReading = nil
             return
         }
+        claudeCodeReading = AgentClaudeCodeUsage.reading(from: json)
         claudeOrganization = account["organizationUuid"] as? String
         claudePlan = AgentPlans.claude(organizationType: account["organizationType"] as? String,
                                        rateLimitTier: account["organizationRateLimitTier"] as? String
@@ -676,11 +702,13 @@ final class AgentUsageService: ObservableObject {
     }
 
     /// Reads the limits the Claude app saved when the file changes, and
-    /// places them at `now` on every call, since a session ages out between
-    /// saves. Runs on `queue`.
-    private func readClaudeApp(now: Date) {
+    /// places them and those Claude Code cached at `now` on every call, since
+    /// a window ages out between saves. The newer of the two is kept. Runs on
+    /// `queue`.
+    private func readClaudeLimits(now: Date) {
+        let fromFiles: Set<AgentLimits.Source> = [.claudeApp, .claudeCode]
         guard enabled.contains(.claude) else {
-            if store.limits[.claude]?.source == .claudeApp { store.clearLimits(.claude) }
+            if let source = store.limits[.claude]?.source, fromFiles.contains(source) { store.clearLimits(.claude) }
             claudeAppModified = nil
             claudeAppSamples = []
             return
@@ -695,10 +723,10 @@ final class AgentUsageService: ObservableObject {
         // Claude Code's own first request can place the session's start.
         let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
                                                      organization: claudeOrganization)
-        if let limits = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
-                                                   organization: claudeOrganization) {
+        if let limits = AgentClaudeCodeUsage.limits(app: claudeAppSamples, code: claudeCodeReading, now: now,
+                                                    sessionStart: start, organization: claudeOrganization) {
             store.setLimits(limits)
-        } else if store.limits[.claude]?.source == .claudeApp {
+        } else if let source = store.limits[.claude]?.source, fromFiles.contains(source) {
             store.clearLimits(.claude)
         }
     }
