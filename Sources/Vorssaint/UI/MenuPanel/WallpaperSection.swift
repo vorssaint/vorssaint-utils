@@ -108,6 +108,17 @@ struct WallpaperSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
+            Toggle(text.autoAppearance, isOn: Binding(
+                get: { service.autoAppearanceEnabled },
+                set: { service.setAutoAppearanceEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            if service.autoAppearanceEnabled {
+                appearanceSlotsRow
+            }
+
             HStack(spacing: 8) {
                 Button(text.addImage) { service.addImages() }
                     .buttonStyle(.bordered)
@@ -127,6 +138,108 @@ struct WallpaperSection: View {
                 Spacer(minLength: 0)
             }
         }
+    }
+
+    private var appearanceSlotsRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                slotCard(mode: .light,
+                         slot: service.lightSlot,
+                         title: text.lightModeTitle,
+                         systemImage: "sun.max.fill",
+                         isActive: !service.systemIsDark)
+                slotCard(mode: .dark,
+                         slot: service.darkSlot,
+                         title: text.darkModeTitle,
+                         systemImage: "moon.fill",
+                         isActive: service.systemIsDark)
+            }
+            Text(text.appearanceHint)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func slotCard(mode: WallpaperSupport.AppearanceMode,
+                          slot: WallpaperSupport.AppearanceSlot?,
+                          title: String,
+                          systemImage: String,
+                          isActive: Bool) -> some View {
+        HStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.secondary.opacity(0.12))
+                    .frame(width: 32, height: 24)
+                if let slot {
+                    SlotThumbnailView(url: slot.previewURL, epoch: service.thumbEpoch)
+                        .frame(width: 32, height: 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 4) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 9))
+                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    Text(title)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(isActive ? Color.primary : Color.secondary)
+                }
+                Text(slot?.title ?? text.chooseImage)
+                    .font(.system(size: 10))
+                    .foregroundStyle(slot == nil ? Color.accentColor : Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            Spacer(minLength: 0)
+
+            if slot != nil {
+                Button {
+                    service.clearSlot(for: mode)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(text.clearSlot)
+                .accessibilityLabel(text.clearSlot)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.secondary.opacity(isActive ? 0.14 : 0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(
+                    slot == nil
+                        ? Color.secondary.opacity(0.25)
+                        : (isActive ? Color.accentColor.opacity(0.6) : Color.clear),
+                    lineWidth: 1
+                )
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let slot {
+                service.applySlot(slot)
+            } else {
+                service.pickImageForSlot(mode)
+            }
+        }
+        .help(slot == nil ? text.chooseImage : title)
     }
 
     // folders + unreachable + orphan file bookmarks
@@ -209,11 +322,18 @@ struct WallpaperSection: View {
                         WallpaperThumbButton(
                             entry: entry,
                             isApplied: service.appliedPath == entry.imageURL.path,
+                            isLightSlot: service.lightSlot?.id == entry.id,
+                            isDarkSlot: service.darkSlot?.id == entry.id,
+                            showsAppearanceBadges: service.autoAppearanceEnabled && !isRemovingSources,
                             thumbEpoch: service.thumbEpoch,
                             height: Self.thumbHeight,
                             showsRemoveBadge: isRemovingSources && entry.source == .own,
                             appliesEnabled: !isRemovingSources && !service.isApplying,
-                            removeLabel: text.removeAdded
+                            removeLabel: text.removeAdded,
+                            setLightLabel: text.setForLightMode,
+                            setDarkLabel: text.setForDarkMode,
+                            onSetLight: { service.setSlot(for: .light, entry: entry) },
+                            onSetDark: { service.setSlot(for: .dark, entry: entry) }
                         ) {
                             service.apply(entry)
                         } onRemove: {
@@ -289,11 +409,18 @@ struct WallpaperSection: View {
 private struct WallpaperThumbButton: View {
     let entry: WallpaperSupport.Entry
     let isApplied: Bool
+    var isLightSlot = false
+    var isDarkSlot = false
+    var showsAppearanceBadges = false
     let thumbEpoch: Int
     var height: CGFloat = 54
     var showsRemoveBadge = false
     var appliesEnabled = true
     var removeLabel = ""
+    var setLightLabel = ""
+    var setDarkLabel = ""
+    var onSetLight: (() -> Void)? = nil
+    var onSetDark: (() -> Void)? = nil
     let action: () -> Void
     var onRemove: () -> Void = {}
     @State private var image: NSImage?
@@ -330,6 +457,43 @@ private struct WallpaperThumbButton: View {
             .disabled(!appliesEnabled)
             .help(entry.title)
             .accessibilityLabel(entry.title)
+            .contextMenu {
+                if let onSetLight {
+                    Button(action: onSetLight) {
+                        Label(setLightLabel, systemImage: "sun.max")
+                    }
+                }
+                if let onSetDark {
+                    Button(action: onSetDark) {
+                        Label(setDarkLabel, systemImage: "moon")
+                    }
+                }
+            }
+
+            if showsAppearanceBadges {
+                HStack(spacing: 3) {
+                    if let onSetLight {
+                        appearanceButton(
+                            systemImage: isLightSlot ? "sun.max.fill" : "sun.max",
+                            isActive: isLightSlot,
+                            activeColor: .orange,
+                            label: setLightLabel,
+                            action: onSetLight
+                        )
+                    }
+                    if let onSetDark {
+                        appearanceButton(
+                            systemImage: isDarkSlot ? "moon.fill" : "moon",
+                            isActive: isDarkSlot,
+                            activeColor: Color(nsColor: .systemIndigo),
+                            label: setDarkLabel,
+                            action: onSetDark
+                        )
+                    }
+                }
+                .padding(3)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
 
             if showsRemoveBadge {
                 Button(action: onRemove) {
@@ -357,6 +521,72 @@ private struct WallpaperThumbButton: View {
                 return
             }
             let url = entry.previewURL
+            let loaded = await WallpaperThumbnailCache.load(url: url, generation: gen)
+            guard !Task.isCancelled,
+                  WallpaperThumbnailCache.matchesGeneration(gen)
+            else { return }
+            image = loaded
+        }
+    }
+
+    private func appearanceButton(
+        systemImage: String,
+        isActive: Bool,
+        activeColor: Color,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(isActive ? activeColor : Color.black.opacity(0.55))
+                    .frame(width: 18, height: 18)
+                if isActive {
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.85), lineWidth: 1)
+                        .frame(width: 18, height: 18)
+                }
+                Image(systemName: systemImage)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color.white)
+            }
+            .contentShape(Circle())
+            .shadow(color: .black.opacity(0.35), radius: 1, y: 1)
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .accessibilityLabel(label)
+    }
+}
+
+private struct SlotThumbnailView: View {
+    let url: URL
+    let epoch: Int
+    @State private var image: NSImage?
+
+    private var taskID: String { "\(url.path)#\(epoch)" }
+
+    var body: some View {
+        Group {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Color.secondary.opacity(0.15)
+            }
+        }
+        .onAppear {
+            if image == nil, let cached = WallpaperThumbnailCache.image(for: url) {
+                image = cached
+            }
+        }
+        .task(id: taskID) {
+            let gen = WallpaperThumbnailCache.snapshotGeneration()
+            if let cached = WallpaperThumbnailCache.image(for: url) {
+                image = cached
+                return
+            }
             let loaded = await WallpaperThumbnailCache.load(url: url, generation: gen)
             guard !Task.isCancelled,
                   WallpaperThumbnailCache.matchesGeneration(gen)

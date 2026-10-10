@@ -68,6 +68,70 @@ enum WallpaperSupport {
         let source: Source
     }
 
+    enum AppearanceMode: String, Codable, CaseIterable {
+        case light
+        case dark
+    }
+
+    struct AppearanceSlot: Codable, Equatable {
+        let id: String
+        let path: String
+        let previewPath: String?
+        let title: String
+        let isApple: Bool
+        let bookmark: Data?
+
+        init(id: String, path: String, previewPath: String? = nil, title: String, isApple: Bool, bookmark: Data? = nil) {
+            self.id = id
+            self.path = path
+            self.previewPath = previewPath
+            self.title = title
+            self.isApple = isApple
+            self.bookmark = bookmark
+        }
+
+        init(entry: Entry, bookmark: Data? = nil) {
+            self.id = entry.id
+            self.path = entry.imageURL.standardizedFileURL.path
+            self.previewPath = entry.previewURL.standardizedFileURL.path
+            self.title = entry.title
+            self.isApple = entry.source == .apple
+            self.bookmark = bookmark
+        }
+
+        var previewURL: URL {
+            if let previewPath, !previewPath.isEmpty {
+                return URL(fileURLWithPath: previewPath)
+            }
+            return URL(fileURLWithPath: path)
+        }
+    }
+
+    static func encodeAppearanceSlot(_ slot: AppearanceSlot) -> Data? {
+        try? JSONEncoder().encode(slot)
+    }
+
+    static func decodeAppearanceSlot(from data: Data) -> AppearanceSlot? {
+        try? JSONDecoder().decode(AppearanceSlot.self, from: data)
+    }
+
+    static func resolveSlotEntry(from slot: AppearanceSlot,
+                                  resolvedBookmarkURL: URL? = nil) -> Entry? {
+        let fileURL: URL
+        if slot.isApple {
+            fileURL = URL(fileURLWithPath: slot.path)
+        } else if let resolved = resolvedBookmarkURL {
+            fileURL = resolved
+        } else {
+            fileURL = URL(fileURLWithPath: slot.path)
+        }
+        return Entry(id: slot.id,
+                     imageURL: fileURL,
+                     previewURL: slot.previewURL,
+                     title: slot.title,
+                     source: slot.isApple ? .apple : .own)
+    }
+
     static let appleDesktopPicturesPath = "/System/Library/Desktop Pictures"
     static let appleDesktopPicturesURL = URL(fileURLWithPath: appleDesktopPicturesPath,
                                              isDirectory: true)

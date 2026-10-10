@@ -174,6 +174,11 @@ struct QuickToolsSettings: View {
 
             if AppFeature.wallpaper.isAvailable {
                 Section {
+                    Toggle(FeatureStrings.wallpaper(l10n.language).autoAppearance,
+                           isOn: Binding(
+                            get: { WallpaperService.shared.autoAppearanceEnabled },
+                            set: { WallpaperService.shared.setAutoAppearanceEnabled($0) }
+                           ))
                     Toggle(FeatureStrings.wallpaper(l10n.language).applyAllDisplays,
                            isOn: Binding(
                             get: { WallpaperService.shared.applyAllDisplays },

@@ -588,6 +588,9 @@ enum DefaultsKey {
     static let wallpaperOwnBookmarks = "wallpaperOwnBookmarks"
     // paths hidden from folder scans (does not delete files)
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
+    static let wallpaperAutoAppearanceEnabled = "wallpaperAutoAppearanceEnabled"
+    static let wallpaperLightSlot = "wallpaperLightSlot"
+    static let wallpaperDarkSlot = "wallpaperDarkSlot"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
@@ -1768,6 +1771,7 @@ enum Defaults {
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
         DefaultsKey.wallpaperApplyAllDisplays: true,
         DefaultsKey.wallpaperFilter: "all",
+        DefaultsKey.wallpaperAutoAppearanceEnabled: false,
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
         DefaultsKey.commandBarShortcutEnabled: false,
