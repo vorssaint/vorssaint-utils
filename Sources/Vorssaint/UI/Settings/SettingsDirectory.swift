@@ -433,6 +433,12 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).kindMedia,
                                                  FeatureStrings.radialMenu(language).kindSubmenu,
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
+                SettingsDirectoryItem(page: .menuBarHider,
+                                      title: FeatureStrings.menuBarHider(language).pageTitle,
+                                      icon: "chevron.left.circle",
+                                      keywords: [FeatureStrings.menuBarHider(language).enable,
+                                                 FeatureStrings.menuBarHider(language).autoCollapseSection,
+                                                 FeatureStrings.menuBarHider(language).alwaysHiddenSection]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",

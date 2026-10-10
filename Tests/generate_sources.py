@@ -68,6 +68,27 @@ def main():
                         "    private static func accessibilityWindows(for pid: pid_t,",
                         "    private static func appendUnique(", "    private static func contains("])
           + "}\n")
+    hider = "Sources/Vorssaint/Services/MenuBarHider/MenuBarHiderService.swift"
+    write("MenuBarHiderRuntime.swift", "import AppKit\nimport Foundation\nextension MenuBarHiderRuntimeTests {\n"
+          + "final class Host: Fixture {\n"
+          + "".join(declaration(hider, prefix).replace("private ", "", 1)
+                    .replace("UserDefaults.standard", "defaults")
+                    .replace("AppFeature.menuBarHider.isAvailable", "AppFeature.menuBarHider.isAvailable(in: defaults)")
+                    .replace("GlobalShortcut.saved(for: DefaultsKey.menuBarHiderShortcut,\n                                            fallback: .menuBarHiderDefault)",
+                             "GlobalShortcut(storageValue: defaults.string(forKey: DefaultsKey.menuBarHiderShortcut) ?? \"\") ?? .menuBarHiderDefault")
+                    .replace("for: shortcut, excluding: .menuBarHider, includeInactive: true)",
+                             "for: shortcut, excluding: .menuBarHider, isAvailable: { $0.isAvailable(in: self.defaults) }, includeInactive: true)")
+                    for prefix in [
+                        "    func syncWithPreferences()", "    func resetSeparatorPositions()",
+                        "    private func syncHotkey()", "    private func teardown()", "    private func setupScrollMonitor()",
+                        "    func toggle()", "    func expand(", "    func collapse()", "    func showAll(",
+                        "    private func applySeparatorOrder(", "    private func repairSeparatorOrder()", "    private func applyFallbackSeparatorOrder(", "    private func cancelPendingClick()", "    private func finishPendingClick(",
+                        "    private func handleToggleClick(", "    private func performSingleClickToggle()",
+                        "    func beginConfigurationMode()", "    func endConfigurationMode()",
+                        "    func revealForStatusItemRecovery()", "    private func persistCollapsedState()",
+                        "    private func restartAutoCollapseTimerIfNeeded()", "    private func autoCollapseIfCurrent(",
+                        "    private func stopAutoCollapseTimer()"])
+          + "}\n}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
           + "extension LaunchAtLoginSettingsTests.View {\n"
