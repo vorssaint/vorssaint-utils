@@ -16,6 +16,9 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var gate = PreciseVolumeRollerGate()
     private var keyOwnership = PreciseVolumeKeyOwnership()
     private var notchKeyGate = NotchVolumeKeyGate()
+    /// Monitor volume presses this tap claimed and has not yet seen released,
+    /// so their key-ups are consumed too. Main thread only: the tap runs there.
+    private var monitorVolumeKeysHeld = Set<BrightnessSupport.VolumeKeyAction>()
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
@@ -30,9 +33,10 @@ final class PreciseVolumeRollerService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let wanted = AppFeature.mixer.isAvailable
+        let wanted = (AppFeature.mixer.isAvailable
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
-                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback))
+                || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)))
+            || BrightnessService.shared.wantsMonitorVolumeKeys
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -63,6 +67,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         notchKeyGate = NotchVolumeKeyGate()
         feedback = nil
         keyOwnership = PreciseVolumeKeyOwnership()
+        monitorVolumeKeysHeld = []
     }
 
     private func start() {
@@ -120,6 +125,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         if PreciseVolumeKeyEvents.isPosted(event) {
             return Unmanaged.passUnretained(event)
         }
+        if routeMonitorVolume(nsEvent, flags: event.flags) { return nil }
         if routeNotchVolume(nsEvent, event: event) { return nil }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
@@ -139,6 +145,31 @@ final class PreciseVolumeRollerService: ObservableObject {
         }
         Self.postFineStep(volumePress.keyCode)
         return nil
+    }
+
+    /// Routes a volume press to the monitor the sound plays through, when macOS
+    /// cannot set that output's volume. Every other press keeps its path. The
+    /// press is claimed here and applied on main, so the tap waits on nothing.
+    private func routeMonitorVolume(_ nsEvent: NSEvent, flags: CGEventFlags) -> Bool {
+        guard let press = BrightnessSupport.volumeKeyEvent(
+            subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) else { return false }
+        if !press.isKeyDown {
+            return monitorVolumeKeysHeld.remove(press.action) != nil
+        }
+        guard let fine = BrightnessSupport.volumeKeyFineness(
+            option: flags.contains(.maskAlternate),
+            shift: flags.contains(.maskShift),
+            commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])) else { return false }
+        if press.isRepeat, case .toggleMute = press.action {
+            return monitorVolumeKeysHeld.contains(press.action)
+        }
+        guard BrightnessService.shared.claimsMonitorVolumeKey(press.action) else { return false }
+        monitorVolumeKeysHeld.insert(press.action)
+        let action = press.action
+        DispatchQueue.main.async {
+            BrightnessService.shared.applyMonitorVolumeKey(action, fine: fine)
+        }
+        return true
     }
 
     private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {

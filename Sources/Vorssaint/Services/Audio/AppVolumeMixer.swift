@@ -1957,7 +1957,7 @@ final class AppVolumeMixer: ObservableObject {
         return nil
     }
 
-    private static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
+    static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
         for selector in outputVolumeSelectors {
             var address = AudioObjectPropertyAddress(mSelector: selector,
                                                      mScope: kAudioObjectPropertyScopeOutput,
@@ -2206,7 +2206,7 @@ final class AppVolumeMixer: ObservableObject {
         return setOutputMuted(muted, for: device)
     }
 
-    fileprivate static func defaultOutputDeviceID() -> AudioObjectID? {
+    static func defaultOutputDeviceID() -> AudioObjectID? {
         var device = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    kAudioHardwarePropertyDefaultOutputDevice, &device),

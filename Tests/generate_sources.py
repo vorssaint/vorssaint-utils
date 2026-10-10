@@ -168,7 +168,7 @@ def main():
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
           + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
-              "    private struct Route", "    private enum DDCProbe"])
+              "    private struct AudioRoute", "    private struct Route", "    private enum DDCProbe"])
           + "final class Service: Fixture {\n"
           + declaration(brightness, "    private func step(").replace("private ", "", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)

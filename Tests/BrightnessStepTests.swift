@@ -74,7 +74,8 @@ enum BrightnessStepTests {
                         method: BrightnessDisplay.Method, showOSD: Bool) {
             committed.append(current + delta)
         }
-        func ddcProbeLuminance(for id: UInt32, service: CFTypeRef) -> DDCProbe {
+        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef,
+                      classifyingChannel: Bool = false) -> DDCProbe {
             .replied(current: reply.current, maximum: reply.maximum)
         }
         func forgetWriteOnlyDDCPath(_ path: String?) {}
