@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreGraphics
 
 /// Pure math for smooth mouse-wheel scrolling, kept free of AppKit so the
 /// unit harness can pin it.
@@ -13,6 +14,25 @@ enum SmoothScrollSupport {
     struct Axes: Equatable {
         let vertical: Double
         let horizontal: Double
+    }
+
+    /// A smoothed wheel gesture stays routed to the point where that glide
+    /// began. Quartz otherwise hit-tests each synthetic frame at the pointer's
+    /// current position, so moving the mouse during the tail can scroll a
+    /// different window or a different scroll view.
+    struct TargetLatch {
+        private(set) var point: CGPoint?
+
+        mutating func location(for input: CGPoint, startsNewGlide: Bool) -> CGPoint {
+            if startsNewGlide || point == nil {
+                point = input
+            }
+            return point ?? input
+        }
+
+        mutating func reset() {
+            point = nil
+        }
     }
 
     struct Frame {
