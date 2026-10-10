@@ -77,6 +77,78 @@ enum InputSourceSelection {
         }
     }
 
+    // MARK: - Command bar keyboard recovery
+
+    private static var commandBarMaps: [[String: String]]?
+    private static var commandBarMapsObserver: NSObjectProtocol?
+
+    /// Read enabled layouts once, then invalidate when the Input Sources list
+    /// changes. Input methods without physical key tables are left alone.
+    /// No input source is selected or changed to perform this lookup.
+    static func commandBarKeyboardMaps() -> [[String: String]] {
+        guard Thread.isMainThread else { return [] }
+        if let commandBarMaps { return commandBarMaps }
+        if commandBarMapsObserver == nil {
+            commandBarMapsObserver = DistributedNotificationCenter.default().addObserver(
+                forName: NSNotification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String),
+                object: nil, queue: .main
+            ) { _ in commandBarMaps = nil }
+        }
+        let allLayouts = TISCreateInputSourceList(
+            [kTISPropertyInputSourceType: kTISTypeKeyboardLayout] as CFDictionary, true)?
+            .takeRetainedValue() as? [TISInputSource] ?? []
+        guard let us = allLayouts.first(where: {
+            inputSourceString($0, property: kTISPropertyInputSourceID) == "com.apple.keylayout.US"
+        }), let target = keyboardLayoutData(us) else { return [] }
+        let maps = selectableInputSources().compactMap { source -> [String: String]? in
+            guard let data = keyboardLayoutData(source) else { return nil }
+            let map = keyboardMap(from: data, to: target)
+            return map.isEmpty ? nil : map
+        }
+        commandBarMaps = maps
+        return maps
+    }
+
+    static func keyboardLayoutData(_ source: TISInputSource) -> Data? {
+        guard let pointer = TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) else { return nil }
+        return Unmanaged<CFData>.fromOpaque(pointer).takeUnretainedValue() as Data
+    }
+
+    /// Both sides come from macOS, including custom layouts. Lowercase before
+    /// folding accents so separate keys such as Russian й and и stay distinct.
+    static func keyboardMap(from source: Data, to target: Data) -> [String: String] {
+        var map: [String: String] = [:]
+        for shifted in [false, true] {
+            for code in UInt16(0)...50 {
+                guard let typed = keyboardCharacter(code, shifted: shifted, data: source),
+                      let intended = keyboardCharacter(code, shifted: shifted, data: target),
+                      typed != intended, !typed.allSatisfy(\.isNumber),
+                      typed.contains(where: \.isLetter) || intended.contains(where: \.isLetter),
+                      map[typed] == nil else { continue }
+                map[typed] = intended
+            }
+        }
+        return map
+    }
+
+    private static func keyboardCharacter(_ code: UInt16, shifted: Bool, data: Data) -> String? {
+        var dead: UInt32 = 0
+        var characters = [UniChar](repeating: 0, count: 8)
+        var count = 0
+        let status = data.withUnsafeBytes { bytes -> OSStatus in
+            guard let keyboard = bytes.bindMemory(to: UCKeyboardLayout.self).baseAddress else { return OSStatus(paramErr) }
+            return UCKeyTranslate(keyboard, code, UInt16(kUCKeyActionDisplay),
+                                  shifted ? UInt32((shiftKey >> 8) & 0xff) : 0,
+                                  UInt32(LMGetKbdType()), OptionBits(kUCKeyTranslateNoDeadKeysMask),
+                                  &dead, characters.count, &count, &characters)
+        }
+        guard status == noErr, count > 0 else { return nil }
+        let text = String(utf16CodeUnits: characters, count: count).lowercased()
+        guard !text.isEmpty, !text.contains(where: \.isWhitespace),
+              !text.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return text
+    }
+
     static func inputSourceString(_ source: TISInputSource,
                                   property: CFString) -> String? {
         guard let pointer = TISGetInputSourceProperty(source, property) else { return nil }

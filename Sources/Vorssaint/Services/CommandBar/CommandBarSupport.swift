@@ -165,6 +165,43 @@ struct CommandBarCandidate {
 /// also matches as an in-order subsequence of a word ("brlho" finds "brilho")
 /// and, as a last resort, within one edit of a word ("birlho" too).
 enum CommandBarSearch {
+    /// Physical-key alternatives, not transliterations: Russian `еукьш`
+    /// is `termi` on US QWERTY. Keep the literal query first so native names
+    /// remain searchable. The system supplies mappings for enabled layouts.
+    static func queryAlternatives(_ query: String,
+                                  layouts: [[String: String]] = InputSourceSelection.commandBarKeyboardMaps()) -> [String] {
+        var alternatives = [normalized(query)]
+        // Remap before accent folding: й, ї and ё carry keyboard identity
+        // that the ordinary text normalizer deliberately discards.
+        let lowercased = strippingInvisibles(query).lowercased()
+        for layout in layouts {
+            let remapped = normalized(remapping(lowercased, with: layout))
+            if !alternatives.contains(remapped) { alternatives.append(remapped) }
+        }
+        return alternatives
+    }
+
+    /// A single physical key may produce several characters, such as Arabic
+    /// lam-alef. Consume that sequence together before trying individual keys.
+    private static func remapping(_ query: String, with layout: [String: String]) -> String {
+        let sequences = layout.keys.filter { $0.count > 1 }.sorted {
+            $0.count != $1.count ? $0.count > $1.count : $0 < $1
+        }
+        var result = ""
+        var position = query.startIndex
+        while position < query.endIndex {
+            if let sequence = sequences.first(where: { query[position...].hasPrefix($0) }) {
+                result += layout[sequence]!
+                position = query.index(position, offsetBy: sequence.count)
+            } else {
+                let character = String(query[position])
+                result += layout[character] ?? character
+                position = query.index(after: position)
+            }
+        }
+        return result
+    }
+
     /// A leading colon scopes the global search to emoji. The marker is not
     /// part of the text being matched, so `:fire` finds the same emoji as
     /// `fire` inside the Emoji category.
@@ -266,17 +303,20 @@ enum CommandBarSearch {
         return rowTitles.contains { normalized($0).contains(typed) } ? 1 : 0
     }
 
-    static func matches(title: String, keywords: String = "", query: String) -> Bool {
-        score(title: title, keywords: keywords, query: query) != nil
+    static func matches(title: String, keywords: String = "", query: String,
+                        layouts: [[String: String]] = InputSourceSelection.commandBarKeyboardMaps()) -> Bool {
+        score(title: title, keywords: keywords, query: query, layouts: layouts) != nil
     }
 
     /// Nil when the query does not match; otherwise a comparable score.
     /// Whole-query hits on the title dominate, then per-token quality
     /// (whole word > word prefix > substring > subsequence > one typo).
-    static func score(title: String, keywords: String = "", query: String) -> Int? {
-        score(normalizedTitle: normalized(title),
-              normalizedKeywords: normalized(keywords),
-              normalizedQuery: normalized(query))
+    static func score(title: String, keywords: String = "", query: String,
+                      layouts: [[String: String]] = InputSourceSelection.commandBarKeyboardMaps()) -> Int? {
+        let title = normalized(title), keywords = normalized(keywords)
+        return queryAlternatives(query, layouts: layouts).compactMap {
+            score(normalizedTitle: title, normalizedKeywords: keywords, normalizedQuery: $0)
+        }.max()
     }
 
     /// The scoring itself, over text that is already folded. Everything the
@@ -313,22 +353,31 @@ enum CommandBarSearch {
     /// Indexes of the matching candidates, best first. Deliberate preferences
     /// lead match quality; ties keep the caller's order so equally good rows
     /// stay where the catalog put them.
-    static func rankedIndexes(candidates: [CommandBarCandidate], matching query: String) -> [Int] {
-        let normalizedQuery = normalized(query)
-        let scored: [(index: Int, priority: Int, tier: Int, score: Int, position: Int)] = candidates.enumerated()
+    static func rankedIndexes(candidates: [CommandBarCandidate], matching query: String,
+                              layouts: [[String: String]] = InputSourceSelection.commandBarKeyboardMaps()) -> [Int] {
+        let queries = queryAlternatives(query, layouts: layouts)
+        let scored: [(index: Int, priority: Int, literal: Bool, tier: Int, score: Int, position: Int)] = candidates.enumerated()
             .compactMap { position, candidate in
-                guard let base = score(normalizedTitle: candidate.normalizedTitle,
-                                       normalizedKeywords: candidate.normalizedKeywords,
-                                       normalizedQuery: normalizedQuery) else { return nil }
-                let tier = matchTier(title: candidate.normalizedTitle,
-                                     keywords: candidate.normalizedKeywords,
-                                     query: normalizedQuery)
-                return (candidate.index, candidate.priority, tier,
-                        base + candidate.boost, position)
+                let matches = queries.enumerated().compactMap { offset, query -> (literal: Bool, tier: Int, score: Int)? in
+                    guard let base = score(normalizedTitle: candidate.normalizedTitle,
+                                           normalizedKeywords: candidate.normalizedKeywords,
+                                           normalizedQuery: query) else { return nil }
+                    return (offset == 0,
+                            matchTier(title: candidate.normalizedTitle,
+                                      keywords: candidate.normalizedKeywords, query: query), base)
+                }
+                guard let best = matches.max(by: {
+                    if $0.literal != $1.literal { return !$0.literal }
+                    if $0.tier != $1.tier { return $0.tier < $1.tier }
+                    return $0.score < $1.score
+                }) else { return nil }
+                return (candidate.index, candidate.priority, best.literal, best.tier,
+                        best.score + candidate.boost, position)
             }
         return scored
             .sorted {
                 if $0.priority != $1.priority { return $0.priority > $1.priority }
+                if $0.literal != $1.literal { return $0.literal }
                 if $0.tier != $1.tier { return $0.tier > $1.tier }
                 if $0.score != $1.score { return $0.score > $1.score }
                 return $0.position < $1.position
