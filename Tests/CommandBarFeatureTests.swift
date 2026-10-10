@@ -1561,8 +1561,9 @@ enum CommandBarFeatureTests {
             .components(separatedBy: "private var storedHiddenKeys").first ?? ""
         suite.expect(runRowCode.contains("!isVisible, let app = installedApp(for: entry)")
                 && runRowCode.contains("CommandBarRowShortcuts.hidesAppInFront(")
-                && runRowCode.contains("running.hide() {"),
-               "only a closed bar hides an app row, through the shared rule, and a refused hide opens it")
+                && runRowCode.contains("running.hide()\n            return")
+                && !runRowCode.contains("running.hide() {"),
+               "only a closed bar hides an app row, through the shared rule, whatever hide() returns")
         suite.expect(runRowCode.contains(
                     "NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier")
                 && runRowCode.contains("ownsFrontWindow: WindowServerSupport.frontWindowOwner(")
