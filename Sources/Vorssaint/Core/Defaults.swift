@@ -148,6 +148,7 @@ enum DefaultsKey {
     static let mixerAppArrangement = "mixerAppArrangement"
     static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
+    static let mixerControlledBypassApps = "mixerControlledBypassApps" // [persistence id] of Zoom/DAWs tapped anyway (issue #390)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"

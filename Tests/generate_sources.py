@@ -555,6 +555,14 @@ def main():
           + "var outputDevices: [Device] = []\nvar currentOutputDeviceUID: String?\nvar switchedTo: [String] = []\n"
           + "func setUniversalOutputDeviceUID(_ uid: String) -> Bool { switchedTo.append(uid); return true }\n"
           + declaration(mixer, "    func switchToNextSoundOutput(") + "}\n}\n")
+    write("MixerBypassControl.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension MixerBypassControlContract {\n" + declaration(mixer, "struct MixerApp:")
+          + "final class Mixer {\nvar engineRecovery = MixerEngineRecovery()\nvar refreshes = 0\n"
+          + "func refreshApps() { refreshes += 1 }\n"
+          + (declaration(mixer, "    func setMixerControl(")
+             + declaration(mixer, "    private func savedControlledBypassApps(")
+             + declaration(mixer, "    private static func coalescingAppsWithDuplicateIDs(")).replace("private ", "")
+          + "}\n}\n")
     write("MixerOutputAdjustment.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerOutputAdjustmentContract {\nfinal class Mixer {\n"
           + declaration(mixer, "    private struct OutputAdjustment {")

@@ -635,6 +635,12 @@ private struct NotchAppFader: View {
                 .disabled(moveBack == nil)
             Button { moveForward?() } label: { Label(strings.moveRight, systemImage: "arrow.right") }
                 .disabled(moveForward == nil)
+            if app.isBypassed || app.isBypassOverridden {
+                Button { mixer.setMixerControl(app.isBypassed, for: app) } label: {
+                    Label(app.isBypassed ? strings.controlAnyway : strings.leaveAudioToApp,
+                          systemImage: app.isBypassed ? "slider.horizontal.3" : "arrow.uturn.backward")
+                }
+            }
         }
         if !app.isBypassed {
             if app.persistenceID != nil { Divider() }

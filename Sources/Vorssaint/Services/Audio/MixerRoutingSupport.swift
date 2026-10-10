@@ -660,6 +660,10 @@ enum MixerRoutingSupport {
         return sanitized
     }
 
+    static func sanitizedAppIDs(_ raw: [Any]) -> Set<String> {
+        Set(raw.compactMap { ($0 as? String).flatMap(sanitizedAppID) })
+    }
+
     /// Every persistence id a refresh must leave out of the list: the apps the
     /// user hid, plus the Finder while its own toggle says so.
     static func hiddenRowIDs(hiddenApps: [String: String], showFinder: Bool) -> Set<String> {
@@ -722,6 +726,14 @@ enum MixerRoutingSupport {
         return normalizedName == "zoom"
             || normalizedName == "zoom.us"
             || normalizedName == "zoom workplace"
+    }
+
+    /// An app that manages its own audio is tapped anyway only when the user
+    /// opted that app in (issue #390); a row with no lasting id never is.
+    static func isBypassOverridden(managesOwnAudio: Bool, persistenceID: String?,
+                                   controlledIDs: Set<String>) -> Bool {
+        guard managesOwnAudio, let persistenceID else { return false }
+        return controlledIDs.contains(persistenceID)
     }
 
     /// Ordering for mixer rows: display name, then id. Swift's sort is not

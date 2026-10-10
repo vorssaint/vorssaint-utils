@@ -852,6 +852,20 @@ enum MixerFeatureTests {
                "Zoom is kept out of process-tap audio routing")
         suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.ZoomAutoUpdater", name: "Zoom"),
                "Zoom helper bundle ids are kept out of process-tap audio routing")
+        let controlledZoom = MixerRoutingSupport.sanitizedAppIDs(["us.zoom.xos", "", 3])
+        suite.expect(controlledZoom == ["us.zoom.xos"],
+               "the opted-in list keeps only real app ids")
+        suite.expect(MixerRoutingSupport.isBypassOverridden(managesOwnAudio: true, persistenceID: "us.zoom.xos",
+                                                            controlledIDs: controlledZoom),
+               "Zoom runs through the mixer once the user opts it in (issue #390)")
+        suite.expect(!MixerRoutingSupport.isBypassOverridden(managesOwnAudio: true, persistenceID: "com.ableton.live",
+                                                             controlledIDs: controlledZoom)
+                && !MixerRoutingSupport.isBypassOverridden(managesOwnAudio: true, persistenceID: nil,
+                                                           controlledIDs: controlledZoom),
+               "apps the user did not opt in stay bypassed")
+        suite.expect(!MixerRoutingSupport.isBypassOverridden(managesOwnAudio: false, persistenceID: "us.zoom.xos",
+                                                             controlledIDs: controlledZoom),
+               "the opt-in only matters for apps that manage their own audio")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.Safari", name: "Safari"),
                "regular apps remain eligible for process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: nil, name: "Zoomable Notes"),
