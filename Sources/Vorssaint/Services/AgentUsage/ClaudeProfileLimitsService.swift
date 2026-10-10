@@ -35,6 +35,7 @@ final class ClaudeProfileLimitsService: ObservableObject {
     private var inFlight = false
 
     func synchronize() {
+        if !NotchAgentSupport.isEnabled() || !UserDefaults.standard.bool(forKey: DefaultsKey.notchAgentsClaude) { pause() }
         let wanted = ClaudeAccountProfile.decode(UserDefaults.standard.string(forKey: DefaultsKey.notchAgentsClaudeProfiles) ?? "")
         if states.map(\.profile) != wanted {
             pause()

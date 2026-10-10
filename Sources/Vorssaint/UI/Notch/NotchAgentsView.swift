@@ -72,6 +72,9 @@ struct NotchAgentsView: View {
         .onDisappear { claudeProfiles.pause(); codexProfiles.pause() }
         .onChange(of: profilesJSON) { _, _ in claudeProfiles.pageDidAppear() }
         .onChange(of: codexProfilesJSON) { _, _ in codexProfiles.pageDidAppear() }
+        .onChange(of: claude) { _, on in
+            if on { claudeProfiles.pageDidAppear() } else { claudeProfiles.pause() }
+        }
         .onChange(of: codex) { _, on in
             if on { codexProfiles.pageDidAppear() } else { codexProfiles.pause() }
         }
