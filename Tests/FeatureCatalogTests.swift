@@ -386,13 +386,13 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
             "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
+            "mouseClickDebounce", "keyboardDebounce", "keyboardRemap", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
@@ -526,7 +526,7 @@ enum FeatureCatalogTests {
                 installDefaults.persistentDomain(forName: installSuiteName) ?? [:]
             }
             for feature in AppFeature.allCases
-            where !feature.enabledKeys.isEmpty && feature != .notchLiveEqualizer {
+            where !feature.enabledKeys.isEmpty && feature != .notchLiveEqualizer && feature != .keyboardRemap {
                 feature.enableOnFirstInstall(in: installDefaults, savedValues: savedValues())
                 suite.expect(feature.enabledKeys.contains {
                     savedValues()[$0] as? Bool == true
@@ -537,6 +537,21 @@ enum FeatureCatalogTests {
                                                                 savedValues: savedValues())
             suite.expect(savedValues()[DefaultsKey.notchLiveEqualizer] == nil,
                    "installing the live equalizer leaves its audio recording switch off")
+            AppFeature.keyboardRemap.enableOnFirstInstall(in: installDefaults,
+                                                          savedValues: savedValues())
+            suite.expect(savedValues()[DefaultsKey.keyboardRemapEnabled] == nil
+                    && savedValues()[DefaultsKey.keyboardRemapKeyRules] == nil
+                    && savedValues()[DefaultsKey.keyboardRemapShortcutRules] == nil,
+                   "installing keyboard remaps leaves remapping off and adds no rules")
+            installDefaults.set(false, forKey: DefaultsKey.keyboardRemapEnabled)
+            installDefaults.set("custom key rules", forKey: DefaultsKey.keyboardRemapKeyRules)
+            installDefaults.set("custom shortcut rules", forKey: DefaultsKey.keyboardRemapShortcutRules)
+            AppFeature.keyboardRemap.enableOnFirstInstall(in: installDefaults,
+                                                          savedValues: savedValues())
+            suite.expect(savedValues()[DefaultsKey.keyboardRemapEnabled] as? Bool == false
+                    && installDefaults.string(forKey: DefaultsKey.keyboardRemapKeyRules) == "custom key rules"
+                    && installDefaults.string(forKey: DefaultsKey.keyboardRemapShortcutRules) == "custom shortcut rules",
+                   "reinstalling keyboard remaps preserves disabled choices and custom rules")
             AppFeature.windowLayout.enableOnFirstInstall(in: installDefaults,
                                                           savedValues: savedValues())
             suite.expect(installDefaults.bool(forKey: DefaultsKey.windowLayoutShortcutsEnabled),

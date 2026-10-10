@@ -507,6 +507,14 @@ def main():
           + declaration("Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
                         "    private func handle(type:").replace("private func", "func", 1)
           + "}\n")
+    write("KeyboardRemapTap.swift", "import AppKit\nimport ApplicationServices\nimport Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
+          + "extension KeyboardRemapTapTests {\nfinal class Service: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/KeyboardRemap/KeyboardRemapService.swift",
+                        "    private func handle(type:").replace("private func", "func", 1)
+          + "}\nfinal class QuitService {\n"
+          + declaration("Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+                        "    private func shouldYieldToKeyboardRemap(").replace("private func", "func", 1)
+          + "}\n}\n")
     # Entire input/mute services retain their production control flow. Only
     # visibility, scheduling, defaults and HAL transport are replaced by fixtures.
     input_source = "Sources/Vorssaint/Services/Audio/AudioInputDeviceManager.swift"

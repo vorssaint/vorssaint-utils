@@ -74,6 +74,10 @@ enum DefaultsKey {
     static let mouseSpacesGestureFollowsDrag = "mouseSpacesGestureFollowsDrag" // the Space moves with the hand, the way natural scrolling does
     static let mouseClickDebounceEnabled = "mouseClickDebounceEnabled"
     static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
+    static let keyboardRemapEnabled = "keyboardRemapEnabled"
+    static let keyboardRemapKeyRules = "keyboardRemapKeyRules"
+    static let keyboardRemapShortcutRules = "keyboardRemapShortcutRules"
+    static let keyboardRemapOwnedMappings = "keyboardRemapOwnedMappings" // machine recovery state
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -1218,6 +1222,9 @@ enum Defaults {
         DefaultsKey.mouseSpacesGestureFollowsDrag: false,
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
+        DefaultsKey.keyboardRemapEnabled: false,
+        DefaultsKey.keyboardRemapKeyRules: "[]",
+        DefaultsKey.keyboardRemapShortcutRules: "[]",
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,

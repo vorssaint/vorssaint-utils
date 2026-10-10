@@ -116,6 +116,17 @@ final class SuperKeyService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        if AppFeature.keyboardRemap.isAvailable {
+            KeyboardRemapService.shared.syncWithPreferences()
+            if UserDefaults.standard.bool(forKey: DefaultsKey.superKeyEnabled),
+               !KeyboardRemapSupport.storedMappings(
+                UserDefaults.standard.string(forKey: DefaultsKey.keyboardRemapOwnedMappings) ?? ""
+            ).isEmpty {
+                stop()
+                setMappingFailure(.foreignMapping)
+                return
+            }
+        }
         let defaults = UserDefaults.standard
         let action = SuperKeySoloAction.sanitized(
             defaults.string(forKey: DefaultsKey.superKeySoloAction)

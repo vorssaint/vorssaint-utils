@@ -411,6 +411,8 @@ enum SettingsDirectory {
                                        featureKeywords: SettingsSearchSupport
                                         .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
+                SettingsDirectoryItem(page: .keyboardRemap, title: KeyboardRemapStrings.text("pageTitle", language: language), icon: "keyboard",
+                                      keywords: ["Fn", "Globe", "Caps Lock", "language", "Command Q", "Option Q", "Karabiner", "Terminal", "Home", "End"]),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,

@@ -185,6 +185,15 @@ final class QuitProtectionService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
+        // An active remap rule owns bare Command-Q. Yield before a
+        // hold/double-press can consume it and later confirm a quit,
+        // regardless of which tap was installed first.
+        if shouldYieldToKeyboardRemap(type: type, event: event) {
+            if pending?.shortcut == .quit { cancelPending() }
+            if swallowShortcut == .quit { swallowShortcut = nil }
+            return Unmanaged.passUnretained(event)
+        }
+
         // Ordinary typing still avoids consulting another service. A
         // switcher-owned press must reach its tap, regardless of tap order.
         if (hasPressInFlight || event.flags.contains(.maskCommand)),
@@ -201,6 +210,16 @@ final class QuitProtectionService: ObservableObject {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    private func shouldYieldToKeyboardRemap(type: CGEventType, event: CGEvent) -> Bool {
+        type == .keyDown
+            && AppFeature.keyboardRemap.isAvailable
+            && KeyboardRemapService.shared.ownsNativeQuit
+            && GlobalShortcutModifiers(cgFlags: event.flags) == .command
+            && GlobalShortcut.layoutKeyLabel(
+                for: event.getIntegerValueField(.keyboardEventKeycode), usesCommand: true
+            )?.lowercased() == "q"
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -593,6 +612,7 @@ final class QuitProtectionService: ObservableObject {
 
     private func isSynthetic(_ event: CGEvent) -> Bool {
         event.getIntegerValueField(.eventSourceUserData) == Self.syntheticMarker
+            || event.getIntegerValueField(.eventSourceUserData) == OwnKeyEvent.keyboardRemapMarker
     }
 
     private func confirm(shortcut: QuitProtectionShortcut,

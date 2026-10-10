@@ -299,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         MouseClickDebounceService.shared.suspend()
         TextSnippetService.shared.suspend()
         // Takes the Super key mapping back out before the process goes away.
+        KeyboardRemapService.shared.suspend()
         SuperKeyService.shared.suspend()
         // Dock's app and window switcher hotkeys persist after quit.
         AppSwitcher.shared.suspend()
