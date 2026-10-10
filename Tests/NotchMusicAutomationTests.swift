@@ -123,6 +123,7 @@ enum NotchMusicAutomationTests {
         descriptors(suite)
         shuffle(suite)
         shuffleFlow(suite)
+        shuffleSkipsOutputOnly(suite)
         lifecycle(suite)
         refresh(suite)
     }
@@ -263,6 +264,24 @@ enum NotchMusicAutomationTests {
     /// The shuffle button asks for consent only when pressed, sends one
     /// switch at a time, and lets a reply land only on the player and the
     /// page it was sent from.
+    private static func shuffleSkipsOutputOnly(_ suite: TestSuite) {
+        typealias Context = NotchMusicAutomationFlowContract
+        typealias Automation = Context.NotchMusicAutomation
+        Context.reset()
+        defer { Context.reset() }
+        Automation.capabilities = NotchMusicAutomationCapabilities.parse(Data(dictionary.replacingOccurrences(
+            of: "type=\"real\"/>", with: "type=\"real\"/><property name=\"shuffling\" code=\"pShu\" type=\"boolean\"/>").utf8))
+        let service = Context.ShuffleService()
+        let output = NotchAudioSourceSupport.playback(for: NotchPlaybackSource(pid: 42, bundleIdentifier: "local.test.player",
+            isMusicApp: true, isPlaying: true, hasTrack: false, displayName: "Player", isAudioOnly: true))
+        service.refresh(for: output)
+        while !service.queue.jobs.isEmpty || !Context.DispatchQueue.main.jobs.isEmpty {
+            service.queue.drain(); Context.DispatchQueue.main.drain()
+        }
+        suite.expect(Automation.inspections == 0 && service.availability == nil && !service.isOffered,
+               "an app known only by its audio output is not asked for a shuffle switch")
+    }
+
     private static func shuffleFlow(_ suite: TestSuite) {
         typealias Context = NotchMusicAutomationFlowContract
         typealias Automation = Context.NotchMusicAutomation

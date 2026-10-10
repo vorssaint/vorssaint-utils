@@ -44,6 +44,8 @@ struct NotchPlayback: Equatable {
     /// Nil when the player's commands could not be read.
     var canSkipNext: Bool? = nil
     var canSkipPrevious: Bool? = nil
+    /// Output activity identifies an app, but does not supply a track or controls.
+    var isAudioOnly = false
 
     /// The same recording from the same player. Readings without a name
     /// share no recording, so only their player tells them apart.
@@ -220,5 +222,64 @@ struct NotchTrackChange {
     private static func cleaned(_ text: String?) -> String? {
         guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
         return text
+    }
+}
+
+
+/// Resolves output-only apps without claiming track metadata or command support.
+enum NotchAudioSourceSupport {
+    /// The same identity the Now Playing adapter resolves: the process's own
+    /// bundle identifier, or its registered app bundle's when the process has
+    /// none (a player launched from Terminal). Keeping both sides alike lets
+    /// an output row group with that player's media session instead of
+    /// being dropped or listed twice.
+    static func bundleIdentifier(process: String?, bundle: String?) -> String? {
+        (process ?? bundle).flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
+    }
+
+    static func eligible(_ sources: [NotchPlaybackSource], includeOtherPlayers: Bool) -> [NotchPlaybackSource] {
+        sources.filter { $0.pid > 0 && $0.isAudioOnly && $0.isPlaying
+            && NotchPlaybackCommand.validIdentifier($0.bundleIdentifier)
+            && (includeOtherPlayers || $0.isMusicApp) }
+    }
+
+    static func fallback(in sources: [NotchPlaybackSource], metadata: NotchPlayback?,
+                         explicitMetadataSelection: Bool, selectedAudio: NotchPlaybackSource.Selection?,
+                         previousPID: Int32?, metadataSources: [NotchPlaybackSource] = []) -> NotchPlaybackSource? {
+        if let selectedAudio {
+            guard let selected = sources.first(where: { $0.selection == selectedAudio }) else { return nil }
+            if metadata?.track.appBundleIdentifier == selected.bundleIdentifier { return nil }
+            return selected
+        }
+        guard !explicitMetadataSelection, metadata?.isPlaying != true else { return nil }
+        // A paused song keeps its resume control while its own app, or the
+        // browser its helper belongs to, still holds the output open.
+        let candidates = sources.filter { !owns(metadata, $0, metadataSources: metadataSources) }
+        return candidates.first { $0.pid == previousPID } ?? candidates.sorted { $0.pid < $1.pid }.first
+    }
+
+    /// The output comes from the app whose media session the metadata reports.
+    static func owns(_ metadata: NotchPlayback?, _ source: NotchPlaybackSource,
+                     metadataSources: [NotchPlaybackSource]) -> Bool {
+        guard let track = metadata?.track else { return false }
+        if source.pid == track.appPID || source.bundleIdentifier == track.appBundleIdentifier { return true }
+        return metadataSources.contains { $0.pid == track.appPID && $0.applicationBundleIdentifier == source.bundleIdentifier }
+    }
+
+    static func playback(for source: NotchPlaybackSource, now: Date = Date()) -> NotchPlayback {
+        let track = RadialNowPlayingSnapshot(title: source.displayName ?? source.bundleIdentifier,
+            artist: nil, album: nil, artworkData: nil, appBundleIdentifier: source.bundleIdentifier, appPID: source.pid)
+        return NotchPlayback(track: track, isPlaying: true, elapsed: 0, duration: 0, rate: 1, sampledAt: now,
+                             canSeek: false, hasPosition: false, isAudioOnly: true)
+    }
+
+    static func merged(metadata: [NotchPlaybackSource], audio: [NotchPlaybackSource]) -> [NotchPlaybackSource] {
+        // A browser's media session can belong to a helper; use that exact PID
+        // for commands rather than adding its parent as a second selectable row.
+        let extra = audio.filter { source in !metadata.contains {
+            $0.pid == source.pid || $0.bundleIdentifier == source.bundleIdentifier
+                || $0.applicationBundleIdentifier == source.bundleIdentifier
+        } }
+        return Array((metadata + extra).prefix(16))
     }
 }

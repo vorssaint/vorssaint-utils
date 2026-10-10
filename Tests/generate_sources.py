@@ -1400,6 +1400,8 @@ def main():
           + "func bool(forKey key: String) -> Bool { includeOtherPlayers } } }\n"
           + "var wantsPlayback = false\nvar includeOtherPlayers = false\nvar awaitingPlayback = false\nvar restartCount = 0\nvar restartWork: DispatchWorkItem?\nvar launches = 0\n"
           + "var selectedSourcePID: Int32?\nvar chosenSource: NotchPlaybackSource.Selection?\nvar restoringSource = false\n"
+          + "final class NotchAudioSourceReader { func start(onChange: @escaping ([NotchPlaybackSource]) -> Void) {}\nfunc stop() {} }\n"
+          + "let audioSourceReader = NotchAudioSourceReader()\nvar audioSources: [NotchPlaybackSource] = []\nvar selectedAudioSource: NotchPlaybackSource.Selection?\nvar adapterReading: Reading?\n"
           + "var launchedAt: TimeInterval?\nvar uptime: TimeInterval = 0\nvar trackChange = NotchTrackChange()\n"
           + "func launch() { guard wantsPlayback, process == nil else { return }; launches += 1; process = Process(); input = Pipe(); commandWriter.start(); launchedAt = uptime; restoreSource() }\n"
           + "func disconnect() { endPlaybackGap(); generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
@@ -1413,6 +1415,7 @@ def main():
           + declaration(music, "    private func receive(").replace("private func", "func", 1)
           + declaration(music, "    private func endPlaybackGap()").replace("private func", "func", 1)
           + declaration(music, "    private func apply(").replace("private func", "func", 1)
+          + declaration(music, "    private func applyPresentation(").replace("private func", "func", 1)
           + declaration(music, "    func seek(")
           + declaration(music, "    func selectSource(")
           + declaration(music, "    func send(_ command: Command)").replace("    func", "    @discardableResult\n    func", 1)

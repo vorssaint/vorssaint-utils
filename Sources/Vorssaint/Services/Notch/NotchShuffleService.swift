@@ -35,7 +35,9 @@ final class NotchShuffleService: ObservableObject {
     /// Runs when the page opens and whenever its song or player changes, since
     /// shuffle can also be switched in the player itself.
     func refresh(for playback: NotchPlayback?) {
-        let target = playback.flatMap(NotchMusicAutomation.Target.init)
+        // An app known only by its audio output has no song to shuffle, and
+        // the island sends it no commands, so its dictionary is not read.
+        let target = playback.flatMap { $0.isAudioOnly ? nil : NotchMusicAutomation.Target($0) }
         let requested = UUID()
         generation = requested
         open = true
