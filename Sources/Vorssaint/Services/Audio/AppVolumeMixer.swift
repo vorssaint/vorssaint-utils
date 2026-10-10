@@ -60,6 +60,22 @@ struct MixerHiddenApp: Identifiable, Equatable {
     let name: String
 }
 
+/// One of the mixer's system volume sliders. Each row drives one output
+/// device's own level, so a second slider can sit on a different speaker
+/// than the first. A row with no device assigned follows the system default,
+/// the way the single slider has always read.
+struct MixerOutputSlider: Identifiable, Equatable {
+    let index: Int
+    /// Nil when the row follows the system default.
+    let deviceUID: String?
+    /// Nil when the device exposes no software volume control, which is why
+    /// the row then shows no slider rather than one that does nothing.
+    var volume: Double?
+    var muted: Bool?
+
+    var id: Int { index }
+}
+
 /// Per-app volume control, something macOS does not offer natively.
 ///
 /// For every app the user turns down or routes to a specific output, a muted
@@ -92,6 +108,17 @@ final class AppVolumeMixer: ObservableObject {
     /// Apps kept out of the list (issue #300), including the Finder when its
     /// own toggle hides it, so the panel can offer to bring any of them back.
     @Published private(set) var hiddenApps: [MixerHiddenApp] = []
+    /// The system volume sliders the panel shows, in row order. Always at
+    /// least one; more when the user asked for them in Settings.
+    @Published private(set) var outputSliders: [MixerOutputSlider] = []
+    /// How many sliders the user asked for, held to what the screen allows.
+    /// The panel owns that ceiling, so the mixer only stores the count and
+    /// lets the panel clamp on read.
+    @Published private(set) var requestedOutputSliderCount: Int = 1
+    /// The ceiling the last panel pass computed for the display the menu bar
+    /// icon is on. `nil` until a panel has measured, so anything reading the
+    /// count off the main thread falls back to the absolute ceiling.
+    @Published private(set) var maximumOutputSliderCount: Int?
 
     private var engines: [String: any GainEngine] = [:]
     /// Arbitrates the engine builds running off-main: it suppresses duplicate
@@ -218,6 +245,10 @@ final class AppVolumeMixer: ObservableObject {
     func start() {
         stopped = false
         processMonitoringEnabled = AppFeature.mixer.isAvailable
+        // The user's choice is clamped by whatever the panel last measured for
+        // this display, so a count set on a larger screen cannot fill a small
+        // one before the panel has had a chance to correct it.
+        applyRequestedSliderCount()
         if processMonitoringEnabled {
             publishHiddenApps()
             // Created here, on the main thread, before any refresh reads the
@@ -692,6 +723,195 @@ final class AppVolumeMixer: ObservableObject {
                 } else {
                     self.scheduleListenerRefresh()
                 }
+            }
+        }
+    }
+
+    /// Volume and mute for the device one mixer slider row drives.
+    ///
+    /// Written against that device's own AudioObjectID rather than the
+    /// default, so a second slider on a different output adjusts that output
+    /// and leaves the first one alone. Rows following the default resolve to
+    /// the default device, which is what the single slider has always driven.
+    func outputDeviceID(forSliderAt index: Int) -> AudioObjectID? {
+        guard let uid = sliderDeviceUID(at: index) else {
+            return Self.defaultOutputDeviceID()
+        }
+        return outputDevices.first(where: { $0.uid == uid })?.audioObjectID
+    }
+
+    /// The output a row is assigned to, or nil when it follows the system
+    /// default. Only routable devices count: a row cannot be pointed at a
+    /// device the mixer does not list.
+    func sliderDeviceUID(at index: Int) -> String? {
+        guard index >= 0, index < outputSliders.count else { return nil }
+        return outputSliders[index].deviceUID
+    }
+
+    /// Sets one row's device level, clamped to 0...1 the way the device's own
+    /// scalar is. Asking for sound unmutes, the same rule the volume keys
+    /// follow, so a slider cannot be moved to a level nobody can hear.
+    @discardableResult
+    func setOutputSliderVolume(_ volume: Double, at index: Int) -> Bool {
+        let clamped = min(max(volume, 0), 1)
+        guard let device = outputDeviceID(forSliderAt: index) else {
+            scheduleListenerRefresh()
+            return false
+        }
+        guard Self.setOutputVolume(Float32(clamped), for: device) else {
+            scheduleListenerRefresh()
+            return false
+        }
+        if clamped > 0 { _ = Self.setOutputMuted(false, for: device) }
+        applyOutputSlider(at: index)
+        return true
+    }
+
+    /// Points a row at an output, or back at the system default with nil. The
+    /// choice is remembered per row, so two rows can sit on two outputs and
+    /// each keeps its own level.
+    func setOutputSliderDeviceUID(_ uid: String?, at index: Int) {
+        guard index >= 0 else { return }
+        let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid)
+        guard sanitized != nil || uid == nil else { return }
+        var stored = storedOutputSliderDevices()
+        if let sanitized {
+            stored[index] = sanitized
+        } else {
+            // Clearing the row lets it follow the system default again, so a
+            // later default change keeps moving the row with it.
+            stored.removeValue(forKey: index)
+        }
+        UserDefaults.standard.set(
+            Dictionary(uniqueKeysWithValues: stored.map { (String($0.key), $0.value) }),
+            forKey: DefaultsKey.mixerOutputSliderDevices)
+        rebuildOutputSliders()
+        // A row that changed device needs to hear about its new device's level.
+        scheduleListenerRefresh()
+    }
+
+    /// Asks for a different number of sliders, from Settings or from the panel.
+    /// The request is clamped to what this screen allows, so asking for more
+    /// than fits leaves the mixer with what fits rather than overflowing.
+    @discardableResult
+    func requestOutputSliderCount(_ count: Int) -> Int {
+        // The one place the stored count is written: the user asked for this.
+        let clamped = MixerRoutingSupport.MixerOutputSliders.storeCount(
+            count,
+            maximumCount: maximumOutputSliderCount
+                ?? MixerRoutingSupport.MixerOutputSliders.hardMaximumCount,
+            defaults: .standard,
+            key: DefaultsKey.mixerOutputSliderCount)
+        applyRequestedSliderCount()
+        return clamped
+    }
+
+    /// How many sliders the panel may offer. The panel measures the display and
+    /// calls this; until it does, the stored count is clamped only by the hard
+    /// ceiling so the stepper has something to show.
+    func updateOutputSliderLimit(maximumCount: Int) {
+        guard maximumOutputSliderCount != maximumCount else {
+            applyRequestedSliderCount()
+            return
+        }
+        maximumOutputSliderCount = maximumCount
+        applyRequestedSliderCount()
+    }
+
+    /// The user's stored choice, clamped to what this screen allows. The stored
+    /// preference is the source of truth; `requestedOutputSliderCount` is only
+    /// ever its clamped form, so reading either gives the same answer.
+    private var effectiveSliderCount: Int {
+        MixerRoutingSupport.MixerOutputSliders.displayedCount(
+            stored: UserDefaults.standard.integer(forKey: DefaultsKey.mixerOutputSliderCount),
+            maximumCount: maximumOutputSliderCount
+                ?? MixerRoutingSupport.MixerOutputSliders.hardMaximumCount)
+    }
+
+    /// Publishes the count this screen allows, without touching the stored
+    /// preference. Clamping on read is what keeps the rows on screen; writing
+    /// the clamped number back would make the ceiling permanent, so a count
+    /// set on a large display would be lost for good the moment the menu bar
+    /// icon moved to a smaller one. The stored value stays what the user
+    /// asked for and comes back with the display.
+    private func applyRequestedSliderCount() {
+        let count = effectiveSliderCount
+        if requestedOutputSliderCount != count { requestedOutputSliderCount = count }
+        rebuildOutputSliders()
+    }
+
+    /// The per-row assignment, trimmed to the rows currently on screen. The
+    /// trim is written back by the shared helper, so a row the user can no
+    /// longer see is one they can no longer correct.
+    private func storedOutputSliderDevices() -> [Int: String] {
+        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerOutputSliderDevices)
+            ?? [:]
+        return MixerRoutingSupport.MixerOutputSliders.persistedDeviceUIDs(
+            raw,
+            count: effectiveSliderCount,
+            defaults: .standard,
+            key: DefaultsKey.mixerOutputSliderDevices)
+    }
+
+    /// Rebuilds every row from the stored assignment and what the HAL reports
+    /// now. Runs after a HAL refresh and after a row changes, so the rows and
+    /// the devices behind them cannot drift apart.
+    func rebuildOutputSliders() {
+        let count = effectiveSliderCount
+        let stored = storedOutputSliderDevices()
+        let uids = MixerRoutingSupport.MixerOutputSliders.resolvedDeviceUIDs(
+            storedUIDs: stored,
+            count: count,
+            availableUIDs: Set(outputDevices.map(\.uid)))
+        let next = uids.enumerated().map { index, uid in
+            MixerOutputSlider(index: index,
+                              deviceUID: uid,
+                              volume: nil,
+                              muted: nil)
+        }
+        guard !next.isEmpty else { return }
+        outputSliders = next
+        halQueue.async { [weak self] in
+            guard let self else { return }
+            let read = next.map { slider -> MixerOutputSlider in
+                guard let device = self.outputDeviceID(forSliderAt: slider.index) else {
+                    return slider
+                }
+                var updated = slider
+                updated.volume = Self.hasSettableOutputVolume(for: device)
+                    ? Self.outputVolume(for: device).map(Double.init)
+                    : nil
+                updated.muted = Self.outputMuted(for: device)
+                return updated
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                // A newer pass may have rebuilt the rows while this read was
+                // running; only publish if they still describe the same rows.
+                guard read.count == self.outputSliders.count,
+                      zip(read, self.outputSliders).allSatisfy({ $0.index == $1.index }) else { return }
+                if self.outputSliders != read { self.outputSliders = read }
+            }
+        }
+    }
+
+    /// Publishes one row's freshly written level without waiting for the next
+    /// HAL notification, so the slider follows the drag.
+    private func applyOutputSlider(at index: Int) {
+        guard outputSliders.indices.contains(index) else { return }
+        halQueue.async { [weak self] in
+            guard let self else { return }
+            let device = self.outputDeviceID(forSliderAt: index)
+            let volume = device.flatMap { id in
+                Self.hasSettableOutputVolume(for: id)
+                    ? Self.outputVolume(for: id).map(Double.init)
+                    : nil
+            }
+            let muted = device.flatMap { Self.outputMuted(for: $0) }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.outputSliders.indices.contains(index) else { return }
+                self.outputSliders[index].volume = volume
+                self.outputSliders[index].muted = muted
             }
         }
     }
@@ -1266,6 +1486,9 @@ final class AppVolumeMixer: ObservableObject {
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
+        // The rows read the device list and the default published just above,
+        // so they are rebuilt here rather than inside the snapshot read.
+        applyRequestedSliderCount()
 
         guard let next = snapshot.apps else {
             if !apps.isEmpty {

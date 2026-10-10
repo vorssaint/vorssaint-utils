@@ -53,7 +53,37 @@ struct MixerSection: View {
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("NSSystemColorsDidChangeNotification"))) { _ in
             refreshSliderTint()
         }
-        .onAppear { mixer.refreshApps() }
+        .onAppear {
+            mixer.refreshApps()
+            publishSliderLimit()
+        }
+        .onChange(of: inNotch) { _, _ in publishSliderLimit() }
+    }
+
+    /// Tells the mixer how many sliders this screen has room for. The panel
+    /// already caps its own height against the display it is anchored to, and
+    /// the sliders have to fit inside what is left after the app rows, the
+    /// other pickers and the panel chrome. Measuring it here keeps the cap and
+    /// the rows in step instead of trusting a stored count a bigger screen
+    /// wrote.
+    private func publishSliderLimit() {
+        guard !settingsMode else { return }
+        mixer.updateOutputSliderLimit(maximumCount: screenFittedSliderCount)
+    }
+
+    private var screenFittedSliderCount: Int {
+        // The same attachment check MenuPanelView makes: a screen the user has
+        // unplugged must not decide the ceiling, or the rows and the panel
+        // would measure themselves against different displays.
+        let anchored = PanelInteractionState.shared.anchorScreen
+            .flatMap { $0.isStillAttached ? $0 : nil }
+        let screenHeight = (anchored ?? NSScreen.withMenuBar)?.visibleFrame.height ?? 760
+        // The same budget the panel measures against: its chrome plus an
+        // estimate of the mixer's own rows. What is left belongs to the
+        // sliders, so the panel cannot be pushed past the menu bar.
+        return MixerRoutingSupport.MixerOutputSliders.maximumCount(
+            screenHeight: screenHeight,
+            reservedHeight: sliderCountReservedHeight)
     }
 
     private var mixerControls: some View {
@@ -81,7 +111,7 @@ struct MixerSection: View {
 
     private var audioDevicesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            universalOutputPicker
+            outputSlidersSection
             systemSoundOutputPicker
             microphonePicker
             if let outputSwitchError = mixer.outputSwitchError {
@@ -89,6 +119,154 @@ struct MixerSection: View {
                              systemImage: "exclamationmark.triangle")
             }
         }
+    }
+
+    /// The system output the mixer has always shown, plus one row per extra
+    /// slider the user asked for in Settings.
+    ///
+    /// The first row is untouched: its picker still moves the system default
+    /// output and its slider still drives that output, which is what everyone
+    /// already has. The added rows are separate: each picks its own device and
+    /// drives that device's level, so two sliders can sit on two outputs at
+    /// once. Only the added rows come and go with the count.
+    private var outputSlidersSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(mixer.outputSliders) { slider in
+                outputSliderRow(slider)
+            }
+            // The no-outputs notice belongs to row 0's picker, which is always
+            // present and already says it. Repeating it here would show the
+            // same line once per slider.
+        }
+    }
+
+    @ViewBuilder
+    private func outputSliderRow(_ slider: MixerOutputSlider) -> some View {
+        // Row 0 is the system output: the picker moves the default device and
+        // the slider drives it, exactly as it did before the extra rows
+        // existed. Later rows are per-device and independent of that.
+        if slider.index == 0 {
+            universalOutputPicker
+        } else {
+            extraOutputSliderRow(slider)
+        }
+    }
+
+    private func extraOutputSliderRow(_ slider: MixerOutputSlider) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label {
+                    Text(sliderTitle(slider))
+                        .font(.system(size: 11.5, weight: .medium))
+                } icon: {
+                    Image(systemName: sliderIcon(slider))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .frame(width: 16)
+                }
+                .foregroundStyle(.secondary)
+
+                Spacer(minLength: 6)
+
+                Picker(l10n.s.mixerSystemOutputTooltip,
+                       selection: sliderOutputSelectionBinding(slider)) {
+                    Text(l10n.s.mixerOutputDefault)
+                        .tag(MixerRoutingSupport.systemDefaultSelectionID)
+                    ForEach(universalOutputDevices) { device in
+                        Text(outputDeviceTitle(device))
+                            .tag(device.uid)
+                    }
+                    if let selected = slider.deviceUID,
+                       !universalOutputDevices.contains(where: { $0.uid == selected }) {
+                        Text(l10n.s.mixerOutputUnavailable)
+                            .tag(selected)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(width: 164)
+                .disabled(universalOutputDevices.isEmpty)
+                .help(l10n.s.mixerSystemOutputTooltip)
+            }
+
+            if let volume = slider.volume {
+                HStack(spacing: 8) {
+                    Image(systemName: sliderIcon(slider))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    MixerVolumeSlider(value: sliderVolumeBinding(slider),
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      glassEnabled: glassEnabled,
+                                      maximum: 1,
+                                      accessibilityLabel: sliderTitle(slider))
+
+                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                                          maximumPercent: 100,
+                                          width: 36,
+                                          editorID: "output-slider:\(slider.index)",
+                                          editingID: $editingVolumeID,
+                                          accessibilityLabel: sliderTitle(slider)) {
+                        Text("\(Int((volume * 100).rounded()))%")
+                            .font(.system(size: 10.5, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    } onCommit: {
+                        setOutputSliderVolume($0, at: slider.index)
+                    }
+                }
+            } else {
+                inputMessage(l10n.s.mixerOutputNoVolumeControl, systemImage: "speaker.slash")
+            }
+        }
+    }
+
+    private func sliderIcon(_ slider: MixerOutputSlider) -> String {
+        (slider.muted == true || (slider.volume ?? 0) <= 0.001)
+            ? "speaker.slash.fill"
+            : "speaker.wave.2.fill"
+    }
+
+    /// Added rows say which one they are, so two rows on two devices do not
+    /// read as the same control twice.
+    private func sliderTitle(_ slider: MixerOutputSlider) -> String {
+        // The catalogs number this the C way (%ld), which is what the other
+        // format strings here already use, so the position goes in as Int32.
+        String(format: l10n.s.mixerOutputSliderTitleFormat, Int32(slider.index + 1))
+    }
+
+    private func sliderOutputSelectionBinding(_ slider: MixerOutputSlider) -> Binding<String> {
+        Binding(
+            get: { slider.deviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            set: { selection in
+                setOutputSliderDeviceUID(
+                    selection == MixerRoutingSupport.systemDefaultSelectionID ? nil : selection,
+                    at: slider.index)
+            }
+        )
+    }
+
+    private func sliderVolumeBinding(_ slider: MixerOutputSlider) -> Binding<Double> {
+        Binding(
+            get: { slider.volume ?? 0 },
+            set: { setOutputSliderVolume($0, at: slider.index) }
+        )
+    }
+
+    private func setOutputSliderVolume(_ value: Double, at index: Int) {
+        if inNotch {
+            // The slider shows the level; the island's header need not repeat it.
+            NotchService.shared.noteOwnVolumeAdjustment()
+        }
+        mixer.setOutputSliderVolume(value, at: index)
+    }
+
+    private func setOutputSliderDeviceUID(_ uid: String?, at index: Int) {
+        mixer.setOutputSliderDeviceUID(uid, at: index)
     }
 
     private var optionsDisclosure: some View {
@@ -112,10 +290,61 @@ struct MixerSection: View {
             .buttonStyle(.plain)
 
             if optionsExpanded {
-                MixerOptionsControls(includeSharedAudioFeatures: !settingsMode)
-                    .padding(.leading, 19)
+                VStack(alignment: .leading, spacing: 8) {
+                    if settingsMode {
+                        outputSliderCountControl
+                    }
+                    MixerOptionsControls(includeSharedAudioFeatures: !settingsMode)
+                        .padding(.leading, settingsMode ? 0 : 19)
+                }
             }
         }
+    }
+
+    /// How many volume sliders the mixer shows. Only Settings carries this:
+    /// the panel's own options stay about the app rows, the way they have
+    /// always been read. The stepper stops at what the screen can show, so
+    /// the mixer can never be given a count it would not fit.
+    private var outputSliderCountControl: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Stepper(value: outputSliderCountBinding,
+                    in: MixerRoutingSupport.MixerOutputSliders.minimumCount...sliderCountCeiling,
+                    step: 1) {
+                Text(l10n.s.mixerOutputSliderCount)
+                    .font(.system(size: 11.5, weight: .medium))
+            }
+            .controlSize(.small)
+
+            Text(l10n.s.mixerOutputSliderCountCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Settings has no panel of its own to measure, so it works the ceiling out
+    /// from the display it is open on: the same figures the panel uses, with
+    /// the main screen standing in when the window has not reported one.
+    private var sliderCountCeiling: Int {
+        if let measured = mixer.maximumOutputSliderCount { return measured }
+        return MixerRoutingSupport.MixerOutputSliders.maximumCount(
+            screenHeight: NSScreen.main?.visibleFrame.height ?? 760,
+            reservedHeight: sliderCountReservedHeight)
+    }
+
+    /// The panel chrome plus an estimate of the mixer's own rows, matching
+    /// what the panel reserves for itself.
+    private var sliderCountReservedHeight: CGFloat { 180 + 250 }
+
+    private var outputSliderCountBinding: Binding<Int> {
+        Binding(
+            get: {
+                MixerRoutingSupport.MixerOutputSliders.displayedCount(
+                    stored: mixer.requestedOutputSliderCount,
+                    maximumCount: sliderCountCeiling)
+            },
+            set: { mixer.requestOutputSliderCount($0) }
+        )
     }
 
     private var universalOutputPicker: some View {

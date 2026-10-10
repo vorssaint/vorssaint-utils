@@ -148,6 +148,15 @@ enum DefaultsKey {
     static let mixerAppArrangement = "mixerAppArrangement"
     static let mixerHideInactiveApps = "mixerHideInactiveApps"
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
+    /// How many system volume sliders the mixer's output area shows (1...max).
+    /// The ceiling is derived from the screen so the rows cannot outgrow the
+    /// panel, which scrolls rather than growing past the menu bar.
+    static let mixerOutputSliderCount = "mixerOutputSliderCount"
+    /// The output each slider row drives: [row index: audio device UID]. Row 0
+    /// left empty means the system default, the way a single slider has always
+    /// read. Rows past the count are ignored, and a row whose device is gone
+    /// falls back to the default instead of disappearing.
+    static let mixerOutputSliderDevices = "mixerOutputSliderDevices"
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
@@ -1274,6 +1283,7 @@ enum Defaults {
         DefaultsKey.mixerShowFinder: true,
         DefaultsKey.mixerHideInactiveApps: false,
         DefaultsKey.mixerAppArrangement: "",
+        DefaultsKey.mixerOutputSliderCount: MixerRoutingSupport.MixerOutputSliders.minimumCount,
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.preciseVolumeRollerEnabled: false,

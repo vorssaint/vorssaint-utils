@@ -782,6 +782,14 @@ struct Strings {
     let mixerSystemOutputNoDevices: String
     let mixerSystemOutputTooltip: String
     let mixerSystemOutputErrorFormat: String
+    /// Labels an added volume slider by its position, counting from 1.
+    let mixerOutputSliderTitleFormat: String
+    /// Shown under a slider whose device has no software level of its own.
+    let mixerOutputNoVolumeControl: String
+    /// Settings: how many volume sliders the mixer shows.
+    let mixerOutputSliderCount: String
+    /// Settings caption for the slider count.
+    let mixerOutputSliderCountCaption: String
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
@@ -1901,6 +1909,10 @@ extension Strings {
         mixerSystemOutputNoDevices: "Nenhuma saída encontrada",
         mixerSystemOutputTooltip: "Escolher saída do sistema",
         mixerSystemOutputErrorFormat: "Não foi possível trocar: %@",
+        mixerOutputSliderTitleFormat: "Saída %ld",
+        mixerOutputNoVolumeControl: "Esta saída não tem controle de volume próprio.",
+        mixerOutputSliderCount: "Controles de volume",
+        mixerOutputSliderCountCaption: "Quantos controles de volume o mixer mostra. Cada um escolhe sua própria saída no painel, então você pode controlar duas saídas ao mesmo tempo. O limite depende da sua tela.",
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
@@ -2997,6 +3009,10 @@ extension Strings {
         mixerSystemOutputNoDevices: "No outputs found",
         mixerSystemOutputTooltip: "Choose system output",
         mixerSystemOutputErrorFormat: "Could not switch: %@",
+        mixerOutputSliderTitleFormat: "Output %ld",
+        mixerOutputNoVolumeControl: "This output has no volume control of its own.",
+        mixerOutputSliderCount: "Volume sliders",
+        mixerOutputSliderCountCaption: "How many volume sliders the mixer shows. Each one picks its own output in the panel, so you can control two outputs at once. The limit depends on your screen.",
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",
