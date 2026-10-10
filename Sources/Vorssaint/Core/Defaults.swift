@@ -583,6 +583,9 @@ enum DefaultsKey {
     static let micMuteShortcut = "micMuteShortcut"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
+    static let continuityCaptureShortcutEnabled = "continuityCaptureShortcutEnabled"
+    static let continuityCaptureShortcut = "continuityCaptureShortcut"
+    static let continuityCaptureAutoPasteEnabled = "continuityCaptureAutoPasteEnabled"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
     static let wallpaperFilter = "wallpaperFilter"
     static let wallpaperOwnBookmarks = "wallpaperOwnBookmarks"
@@ -632,6 +635,7 @@ enum DefaultsKey {
     static let panelUtilityColorPicker = "panelUtilityColorPicker"
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
     static let panelUtilityCameraPreview = "panelUtilityCameraPreview"
+    static let panelUtilityContinuityCapture = "panelUtilityContinuityCapture"
     static let panelUtilityScratchpad = "panelUtilityScratchpad"
     static let clipboardHistoryShortcutEnabled = "clipboardHistoryShortcutEnabled"
     static let clipboardHistoryShortcut = "clipboardHistoryShortcut"
@@ -1766,6 +1770,9 @@ enum Defaults {
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
+        DefaultsKey.continuityCaptureShortcutEnabled: false,
+        DefaultsKey.continuityCaptureShortcut: GlobalShortcut.continuityCaptureDefault.storageValue,
+        DefaultsKey.continuityCaptureAutoPasteEnabled: true,
         DefaultsKey.wallpaperApplyAllDisplays: true,
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
@@ -1797,6 +1804,7 @@ enum Defaults {
         DefaultsKey.panelUtilityColorPicker: true,
         DefaultsKey.panelUtilityScreenOCR: true,
         DefaultsKey.panelUtilityCameraPreview: true,
+        DefaultsKey.panelUtilityContinuityCapture: true,
         DefaultsKey.panelUtilityScratchpad: true,
         DefaultsKey.clipboardHistoryShortcutEnabled: true,
         DefaultsKey.clipboardHistoryShortcut: GlobalShortcut.clipboardDefault.storageValue,
