@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The music page has a heart beside the playback buttons. For Apple Music it shows whether the song is a favorite and changes it, asking once to control Music like the playback buttons do. For Spotify it shows whether the song is in Liked Songs, once "Spotify likes" is turned on in Features and your own Spotify developer app is connected in Settings → Dynamic Island → Content → Now Playing.
+- With Spotify likes connected, Up next lists Spotify's own upcoming songs, which Spotify does not share with the system.
+
 ## [3.4.1] - 2026-10-08
 
 ### Summary
