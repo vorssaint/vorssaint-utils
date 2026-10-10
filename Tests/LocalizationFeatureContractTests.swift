@@ -234,7 +234,9 @@ enum LocalizationFeatureContractTests {
                    "\(prefix) the waiting cap stays short enough for the field")
             let ocrStrings = [strings.ocrRemoveLineBreaksToggle, strings.ocrRemoveLineBreaksCaption,
                               strings.ocrQRToggle, strings.ocrQRCaption, strings.ocrQRCopied,
-                              strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen]
+                              strings.qrResultTitle, strings.qrResultCopy, strings.qrResultOpen,
+                              strings.qrResultActionLabel, strings.qrResultActionCaption]
+                + QRResultAction.allCases.map { $0.label(strings) }
             suite.expect(ocrStrings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "\(prefix) screen OCR strings are present without em dash")
             let cleaningStrings = [strings.cleaningKeepScreenVisibleToggle, strings.cleaningKeepScreenVisibleCaption,

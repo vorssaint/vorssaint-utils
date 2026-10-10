@@ -66,9 +66,7 @@ final class ScreenTextService: ObservableObject {
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):
-                    // Show what the code holds instead of copying it blindly;
-                    // the panel offers copy and, for a link, open.
-                    QRResultController.shared.show(reading: reading)
+                    QRResultController.shared.handle(reading: reading)
                 case .text(let text):
                     Self.copyToPasteboard(text)
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)

@@ -1634,11 +1634,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         QuickToolHUD.show(icon: "text.viewfinder", message: L10n.shared.s.ocrCopied)
     }
 
-    /// Shows the detected code's content in the shared result panel; the
-    /// editor stays open behind it so the capture can still be worked on.
     func showQRResult() {
         guard let reading = model.qrReading else { return }
-        QRResultController.shared.show(reading: reading)
+        QRResultController.shared.handle(reading: reading)
     }
 
     // MARK: NSWindowDelegate

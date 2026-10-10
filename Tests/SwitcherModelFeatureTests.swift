@@ -4509,6 +4509,65 @@ enum SwitcherModelFeatureTests {
         expectEqual(QuickToolsSupport.joinedRecognizedText([], removingLineBreaks: false), "",
                     "screen OCR joins an empty result to an empty string")
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.qrResultAction] as? String
+                     == QRResultAction.popup.rawValue,
+                     "QR results keep the popup as the registered default")
+        for storedValue in [nil, "", "unknown", "OPENLINK"] as [String?] {
+            suite.expect(QRResultAction(storedValue: storedValue) == .popup,
+                         "missing or unknown QR action preferences use the popup")
+        }
+        let qrActions: [(QRResultAction, Bool, QRResultAction)] = [
+            (.copy, false, .copy), (.copy, true, .copy),
+            (.popup, false, .popup), (.popup, true, .popup),
+            (.openLink, false, .copy), (.openLink, true, .openLink),
+        ]
+        for (action, hasWebURL, expected) in qrActions {
+            suite.expect(action.resolved(hasWebURL: hasWebURL) == expected,
+                         "QR action \(action.rawValue) with web URL \(hasWebURL) resolves to \(expected.rawValue)")
+        }
+        for action in QRResultAction.allCases {
+            suite.expect(QRResultAction(storedValue: action.rawValue) == action,
+                         "the stored QR action restores \(action.rawValue)")
+            let payload = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.qrResultAction ? action.rawValue : nil
+            }
+            let data = try? JSONSerialization.data(withJSONObject: payload)
+            let restored = data.flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any]
+            let settings = restored.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
+            suite.expect(settings?[DefaultsKey.qrResultAction] as? String == action.rawValue,
+                         "JSON settings backup round-trips the QR action \(action.rawValue)")
+        }
+        for invalid in ["unknown", "", 1, true, ["copy"]] as [Any] {
+            let payload: [String: Any] = [SettingsBackupSupport.formatVersionKey: 1,
+                                         SettingsBackupSupport.settingsKey: [DefaultsKey.qrResultAction: invalid]]
+            let settings = SettingsBackupSupport.sanitizedSettings(from: payload)
+            suite.expect(settings != nil && settings?[DefaultsKey.qrResultAction] == nil,
+                         "settings backup drops an unsupported QR action value")
+        }
+        let olderBackup: [String: Any] = [SettingsBackupSupport.formatVersionKey: 1,
+                                         SettingsBackupSupport.settingsKey: [DefaultsKey.screenOCRDetectQRCodes: false]]
+        let olderSettings = SettingsBackupSupport.sanitizedSettings(from: olderBackup)
+        suite.expect(olderSettings?[DefaultsKey.screenOCRDetectQRCodes] as? Bool == false
+                     && olderSettings?[DefaultsKey.qrResultAction] == nil,
+                     "older backups contain no QR action")
+        let importSettings = olderSettings ?? [:]
+        let keysToClear = SettingsBackupSupport.keysToClear(whenImporting: importSettings)
+        suite.expect(keysToClear.contains(DefaultsKey.qrResultAction),
+                     "importing an older backup clears the current QR action")
+        let qrDomain = "com.vorssaint.tests.qr-action.\(UUID().uuidString)"
+        if let defaults = UserDefaults(suiteName: qrDomain) {
+            defer { defaults.removePersistentDomain(forName: qrDomain) }
+            defaults.register(defaults: [DefaultsKey.qrResultAction: QRResultAction.popup.rawValue])
+            defaults.set(QRResultAction.openLink.rawValue, forKey: DefaultsKey.qrResultAction)
+            for key in keysToClear { defaults.removeObject(forKey: key) }
+            for (key, value) in importSettings { defaults.set(value, forKey: key) }
+            suite.expect(defaults.string(forKey: DefaultsKey.qrResultAction) == QRResultAction.popup.rawValue
+                         && !defaults.bool(forKey: DefaultsKey.screenOCRDetectQRCodes),
+                         "the import clear-and-set flow restores popup for older backups")
+        } else {
+            suite.expect(false, "the isolated QR action preference domain opens")
+        }
+
         // QR codes: several join top to bottom, left to right, blanks dropped.
         let qrCodes = [
             QuickToolsSupport.DecodedBarcode(payload: "second", x: 0.6, y: 0.8),
@@ -4536,6 +4595,12 @@ enum SwitcherModelFeatureTests {
                "plain text is never an open link")
         suite.expect(QuickToolsSupport.openableURL(from: "example.com") == nil,
                "a bare host with no scheme is not opened")
+
+        for payload in ["https://example.com\nhttps://example.org", "https://example.com\ncaption",
+                        "file:///tmp/example", "javascript:alert(1)"] {
+            suite.expect(QuickToolsSupport.openableURL(from: payload) == nil,
+                         "multiline or non-web QR content is never opened automatically")
+        }
 
         for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
                          "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {

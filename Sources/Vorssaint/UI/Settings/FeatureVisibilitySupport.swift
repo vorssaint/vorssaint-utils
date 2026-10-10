@@ -47,6 +47,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case screenRecorder
     case colorPicker
     case screenOCR
+    case qrResult
     case micMute
     case cameraPreview
     case wallpaper
@@ -72,7 +73,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .wallpaper, .scratchpad, .cleaningMode:
             return .quickTools
-        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
+        case .screenshot, .screenRecorder, .colorPicker, .screenOCR, .qrResult:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
         case .fanControl: return .monitor

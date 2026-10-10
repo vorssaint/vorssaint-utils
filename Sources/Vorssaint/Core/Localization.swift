@@ -1208,6 +1208,11 @@ struct Strings {
     let ocrQRCaption: String
     let ocrQRCopied: String
     let qrResultTitle: String
+    let qrResultActionLabel: String
+    let qrResultActionCopy: String
+    let qrResultActionPopup: String
+    let qrResultActionOpenLink: String
+    let qrResultActionCaption: String
     let qrResultCopy: String
     let qrResultOpen: String
     let highlightsTitle: String
@@ -2300,9 +2305,14 @@ extension Strings {
         ocrRemoveLineBreaksToggle: "Remover quebras de linha",
         ocrRemoveLineBreaksCaption: "Remove as quebras de linha para que o texto copiado seja colado como um único parágrafo.",
         ocrQRToggle: "Ler QR codes",
-        ocrQRCaption: "Se a área tiver um QR code, o conteúdo dele aparece para copiar ou abrir.",
+        ocrQRCaption: "Leia o conteúdo do QR code em vez do texto quando a área selecionada contiver um QR code.",
         ocrQRCopied: "QR code copiado",
         qrResultTitle: "QR code",
+        qrResultActionLabel: "Ação do QR code",
+        qrResultActionCopy: "Copiar conteúdo",
+        qrResultActionPopup: "Mostrar janela",
+        qrResultActionOpenLink: "Abrir link",
+        qrResultActionCaption: "Aplica-se ao texto da tela e aos botões QR das capturas. Abrir link usa o navegador padrão. Outros conteúdos são copiados.",
         qrResultCopy: "Copiar",
         qrResultOpen: "Abrir link",
         highlightsTitle: "Novidades desta versão",
@@ -3396,9 +3406,14 @@ extension Strings {
         ocrRemoveLineBreaksToggle: "Remove line breaks",
         ocrRemoveLineBreaksCaption: "Removes line breaks so copied text pastes as one paragraph.",
         ocrQRToggle: "Read QR codes",
-        ocrQRCaption: "If the area has a QR code, its content is shown to copy or open.",
+        ocrQRCaption: "Read QR content instead of text when the selected area contains a QR code.",
         ocrQRCopied: "QR code copied",
         qrResultTitle: "QR code",
+        qrResultActionLabel: "QR code action",
+        qrResultActionCopy: "Copy content",
+        qrResultActionPopup: "Show popup",
+        qrResultActionOpenLink: "Open link",
+        qrResultActionCaption: "Applies to screen text and screenshot QR buttons. Open link uses the default browser. Other content is copied.",
         qrResultCopy: "Copy",
         qrResultOpen: "Open link",
         highlightsTitle: "New in this update",

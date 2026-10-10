@@ -45,6 +45,9 @@ struct ScreenCaptureSettings: View {
                 }
             }
 
+            if currentTool == .screenshot || currentTool == .text {
+                QRResultSettings()
+            }
             selectedSettings
         }
         .formStyle(.grouped)
@@ -85,7 +88,10 @@ struct ScreenCaptureSettings: View {
 
     private func reconcileSelection(withDestination: Bool) {
         if withDestination {
-            if let anchor = router.destination.sectionAnchor,
+            if router.destination.sectionAnchor == .qrResult,
+               let tool = availableTools.first(where: { $0 == .screenshot || $0 == .text }) {
+                selectedTool = tool
+            } else if let anchor = router.destination.sectionAnchor,
                let requestedTool = anchor.screenCaptureTool,
                availableTools.contains(requestedTool) {
                 selectedTool = requestedTool
@@ -171,6 +177,29 @@ private struct ToolShortcutRows: View {
                 .font(.caption)
                 .foregroundStyle(.orange)
         }
+    }
+}
+
+private struct QRResultSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.qrResultAction) private var action = QRResultAction.popup.rawValue
+
+    var body: some View {
+        Section {
+            Picker(l10n.s.qrResultActionLabel, selection: Binding(
+                get: { QRResultAction(storedValue: action).rawValue },
+                set: { action = $0 })) {
+                ForEach(QRResultAction.allCases, id: \.rawValue) { action in
+                    Text(action.label(l10n.s)).tag(action.rawValue)
+                }
+            }
+            Text(l10n.s.qrResultActionCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } header: {
+            Text(l10n.s.qrResultTitle)
+        }
+        .settingsFormSectionAnchor(.qrResult)
     }
 }
 
