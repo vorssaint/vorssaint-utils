@@ -289,6 +289,7 @@ final class FeatureRuntime: ObservableObject {
             NotchFileToolsService.shared.syncWithPreferences()
         },
         .urlCleaner: { URLCleanerService.shared.syncWithPreferences() },
+        .browserPicker: { BrowserPickerService.shared.syncWithPreferences() },
         .diskImageInstaller: { DiskImageInstallerService.shared.syncWithPreferences() },
         .mixer: {
             PreciseVolumeRollerService.shared.syncWithPreferences()
