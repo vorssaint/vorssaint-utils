@@ -75,6 +75,36 @@ enum MouseNavigationSupport {
         return first.isUppercase
     }
 
+    /// The menu item to press for Back or Forward, the shortcut it carries,
+    /// and whether it read enabled. For each shortcut the command may sit on,
+    /// most likely first, `enabled` holds the first item found carrying it
+    /// that read enabled, and `disabled` every item carrying it that read
+    /// disabled.
+    ///
+    /// What a menu reports can trail the app: right after Forward, Finder and
+    /// Safari still report Back as disabled for up to about a second, while
+    /// their menu may already have it enabled. With no enabled item under any
+    /// of the shortcuts, one that reads disabled is pressed all the same.
+    /// AppKit carries out a press only when the app's menu has the item
+    /// enabled at that moment, without validating it again, so an item that
+    /// really is off stays untouched. It has to be the only item that carries
+    /// any of the shortcuts, found by a search that read every menu: a key the
+    /// Go menu kept from another keyboard can belong to another command, and
+    /// an app can give an editing command the same key, so of two items either
+    /// may be the one really enabled, and a search cut short may have missed
+    /// the second. An enabled item under any shortcut comes first.
+    static func itemToPress<Item>(enabled: [Item?], disabled: [[Item]], searchedInFull: Bool)
+        -> (item: Item, shortcut: Int, readEnabled: Bool)? {
+        if let index = enabled.firstIndex(where: { $0 != nil }), let item = enabled[index] {
+            return (item, index, true)
+        }
+        let found = disabled.enumerated().flatMap { index, items in
+            items.map { (shortcut: index, item: $0) }
+        }
+        guard searchedInFull, found.count == 1, let only = found.first else { return nil }
+        return (only.item, only.shortcut, false)
+    }
+
     /// Apps whose side buttons must reach them untouched. These handle Back
     /// and Forward themselves (or forward the raw press to a guest system),
     /// and none of them exposes the command as a menu bar item the AX path
