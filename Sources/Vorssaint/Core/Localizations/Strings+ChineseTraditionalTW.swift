@@ -721,6 +721,7 @@ extension Strings {
         monitorSeparateMenuBarMetrics: "將指標分成獨立項目",
         monitorSeparateMenuBarMetricsCaption: "將已啟用的區塊拆成獨立的選單列項目，合併開啟時使用率和溫度仍會保持在一起。",
         monitorNetworkUploadFirst: "上傳顯示在下載上方",
+        monitorFanStacked: "風扇上下排列",
         monitorShowCPU: "CPU",
         monitorShowMemory: "記憶體",
         monitorShowNetwork: "網路",
