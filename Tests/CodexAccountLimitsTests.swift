@@ -104,7 +104,7 @@ enum CodexAccountLimitsTests {
 
     private static let server = #"""
     #!/bin/sh
-    [ "$1" = app-server ] || exit 1
+    [ "$1" = -c ] && [ "$2" = features.plugins=false ] && [ "$3" = app-server ] || exit 1
     [ "$PWD" = / ] || exit 2
     [ -z "${OPENAI_API_KEY+x}${CODEX_ACCESS_TOKEN+x}${CODEX_SQLITE_HOME+x}" ] || exit 3
     case "$CODEX_HOME" in *.codex-personal) USED=14; WEEK=61; PLAN=plus;; *.codex-work) USED=100; WEEK=41; PLAN=business;; *) exit 4;; esac
@@ -218,9 +218,12 @@ enum CodexAccountLimitsTests {
         let domain = "com.vorssaint.tests.codex-accounts." + UUID().uuidString
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
-        defaults.register(defaults: Defaults.registeredDefaults)
+        // The registration domain is shared with other suites. Keep this
+        // fixture in its own persistent domain so later tests see no defaults.
+        for (key, value) in Defaults.registeredDefaults { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         defaults.set(CodexAccountProfile.encode(profiles), forKey: DefaultsKey.notchAgentsCodexProfiles)
         let probe = Probe()
         let service = CodexProfileLimitsService(defaults: defaults, reader: probe.read)
