@@ -79,7 +79,13 @@ final class BrightnessService: ObservableObject {
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                     category: "display")
 
-    @Published private(set) var displays: [BrightnessDisplay] = []
+    @Published private(set) var displays: [BrightnessDisplay] = [] {
+        didSet {
+            guard displays.map(SpeakerRoute.init) != oldValue.map(SpeakerRoute.init) else { return }
+            refreshAudioKeyTarget()
+        }
+    }
+
     /// The displays that currently put a picture in front of a person, as the
     /// last rebuild found them. The panel decides from this snapshot instead
     /// of asking the display server itself: `canToggleDisplay` is read from a
@@ -504,8 +510,9 @@ final class BrightnessService: ObservableObject {
         stateLock.unlock()
         if wanted, running, wantsMonitorVolume != covered { refresh(force: true) }
         // Knowing which monitor carries the sound is only worth a CoreAudio
-        // observer while the keys are aimed at it.
-        if running, wantsMonitorVolumeKeys { installAudioOutputObserver() } else { removeAudioOutputObserver() }
+        // observer while its speakers are on: the level shown and the keys follow it.
+        if running, wantsMonitorVolume { installAudioOutputObserver() } else { removeAudioOutputObserver() }
+        refreshAudioKeyTarget()
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
@@ -2764,29 +2771,42 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    /// Applies a press the tap has already claimed. Main thread only: it reads
-    /// and moves the published levels, the same way the slider does.
-    func applyMonitorVolumeKey(_ action: BrightnessSupport.VolumeKeyAction, fine: Bool) {
-        dispatchPrecondition(condition: .onQueue(.main))
-        let target = keyThreadLock.withLock { audioKeyTarget }
-        guard let id = target?.id,
-              let audio = displays.first(where: { $0.id == id })?.audio else { return }
-        switch action {
-        case let .step(direction):
-            let level = BrightnessSupport.steppedLevel(
-                audio.volume,
-                delta: BrightnessSupport.volumeKeyDelta(direction: direction, fine: fine))
-            // A raise is the one press a muted monitor has to hear, so it lifts the mute too.
-            if direction > 0, audio.muted == true { setMuted(false, for: id) }
-            setVolume(level, for: id)
-            let stillMuted = direction > 0 ? false : audio.muted
-            BrightnessOSD.show(displayID: id, level: level,
-                               kind: stillMuted == true ? .mutedVolume : .volume)
-        case .toggleMute:
-            guard let muted = audio.muted else { return }
-            setMuted(!muted, for: id)
-            BrightnessOSD.show(displayID: id, level: audio.volume,
-                               kind: muted ? .volume : .mutedVolume)
+    /// The monitor whose speakers carry the sound, when its speakers are on and
+    /// macOS cannot set that output's volume. Main thread only: it reads the
+    /// published display list. Nil for every other output.
+    func monitorSpeakerOutput() -> BrightnessSupport.MonitorSpeakerOutput? {
+        guard running, wantsMonitorVolume, let output = Self.defaultOutputDevice(),
+              BrightnessSupport.displayOwnsOutputVolume(
+                  transport: output.transport,
+                  outputHasSettableVolume: AppVolumeMixer.hasSettableOutputVolume(for: output.id))
+        else { return nil }
+        let candidates = displays.compactMap { display -> (id: UInt32, name: String)? in
+            guard display.isActive, display.audio != nil else { return nil }
+            return (display.id, display.name)
+        }
+        guard let id = BrightnessSupport.displayForAudioOutput(
+            deviceName: output.name, candidates: candidates,
+            connectedDisplayCount: displays.filter(\.isActive).count),
+              let audio = displays.first(where: { $0.id == id })?.audio
+        else { return nil }
+        return BrightnessSupport.MonitorSpeakerOutput(
+            displayID: id, volume: audio.volume, muted: audio.muted)
+    }
+
+    /// The fields of a display that decide where the volume keys go and what
+    /// the monitor's levels read. Brightness is left out on purpose, so a
+    /// brightness drag does not ask CoreAudio again.
+    private struct SpeakerRoute: Equatable {
+        let id: CGDirectDisplayID
+        let name: String
+        let isActive: Bool
+        let audio: BrightnessDisplay.Audio?
+
+        init(_ display: BrightnessDisplay) {
+            id = display.id
+            name = display.name
+            isActive = display.isActive
+            audio = display.audio
         }
     }
 
@@ -2841,26 +2861,13 @@ final class BrightnessService: ObservableObject {
         audioOutputListener = nil
     }
 
-    /// Main thread only: it reads the published display list. The keys reach
-    /// a monitor only when the Mac plays through that monitor's cable and
-    /// macOS cannot set the output volume itself. Every other output keeps
-    /// the keys it has.
+    /// Main thread only. The keys reach a monitor only when its speakers carry
+    /// the sound and the volume keys are on; every other output keeps the keys
+    /// it has. The presented level follows the same output through the mixer.
     private func refreshAudioKeyTarget() {
         var target: (id: CGDirectDisplayID, supportsMute: Bool)?
-        if wantsMonitorVolumeKeys, let output = Self.defaultOutputDevice(),
-           BrightnessSupport.routesVolumeKeysToDisplay(
-               transport: output.transport,
-               outputHasSettableVolume: AppVolumeMixer.hasSettableOutputVolume(for: output.id)) {
-            let candidates = displays.compactMap { display -> (id: UInt32, name: String)? in
-                guard display.isActive, display.audio != nil else { return nil }
-                return (display.id, display.name)
-            }
-            if let id = BrightnessSupport.displayForAudioOutput(
-                deviceName: output.name, candidates: candidates,
-                connectedDisplayCount: displays.filter(\.isActive).count) {
-                let supportsMute = displays.first(where: { $0.id == id })?.audio?.muted != nil
-                target = (id: id, supportsMute: supportsMute)
-            }
+        if wantsMonitorVolumeKeys, let output = monitorSpeakerOutput() {
+            target = (id: output.displayID, supportsMute: output.muted != nil)
         }
         let previous = keyThreadLock.withLock { () -> CGDirectDisplayID? in
             let previous = audioKeyTarget?.id
@@ -2871,6 +2878,7 @@ final class BrightnessService: ObservableObject {
             let shown = target.map { String($0.id) } ?? "none"
             Self.log.log("volume keys now reach display \(shown, privacy: .public)")
         }
+        AppVolumeMixer.shared.refreshMonitorOutput()
     }
 
     /// The device the Mac plays through, with its name and how it is wired.

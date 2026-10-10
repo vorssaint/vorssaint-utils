@@ -30,13 +30,18 @@ enum DisplaySpeakerVolumeTests {
                      && !BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeBuiltIn)
                      && !BrightnessSupport.isDisplayAudioTransport(kAudioDeviceTransportTypeBluetooth),
                      "only HDMI and DisplayPort outputs can belong to a monitor")
-        suite.expect(BrightnessSupport.routesVolumeKeysToDisplay(
+        suite.expect(BrightnessSupport.displayOwnsOutputVolume(
                         transport: kAudioDeviceTransportTypeHDMI, outputHasSettableVolume: false)
-                     && !BrightnessSupport.routesVolumeKeysToDisplay(
+                     && !BrightnessSupport.displayOwnsOutputVolume(
                         transport: kAudioDeviceTransportTypeHDMI, outputHasSettableVolume: true)
-                     && !BrightnessSupport.routesVolumeKeysToDisplay(
+                     && !BrightnessSupport.displayOwnsOutputVolume(
                         transport: kAudioDeviceTransportTypeBuiltIn, outputHasSettableVolume: false),
                      "keys reach a monitor only when its output cannot take macOS volume")
+        suite.expect(BrightnessSupport.unmutesOnStep(muted: true, raises: true)
+                     && !BrightnessSupport.unmutesOnStep(muted: true, raises: false)
+                     && !BrightnessSupport.unmutesOnStep(muted: false, raises: true)
+                     && !BrightnessSupport.unmutesOnStep(muted: nil, raises: true),
+                     "only a raise on a muted output lifts its mute")
 
         let monitors: [(id: UInt32, name: String)] = [(2, "LG HDR 4K"), (3, "DELL U2720Q")]
         suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "DELL U2720Q",

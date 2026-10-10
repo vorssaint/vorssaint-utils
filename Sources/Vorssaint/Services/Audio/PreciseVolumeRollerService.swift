@@ -167,9 +167,37 @@ final class PreciseVolumeRollerService: ObservableObject {
         monitorVolumeKeysHeld.insert(press.action)
         let action = press.action
         DispatchQueue.main.async {
-            BrightnessService.shared.applyMonitorVolumeKey(action, fine: fine)
+            Self.applyMonitorVolumeKey(action, fine: fine)
         }
         return true
+    }
+
+    /// Applies a press that routeMonitorVolume claimed. Main thread only, where
+    /// the mixer's monitor output and its request path live.
+    private static func applyMonitorVolumeKey(_ action: BrightnessSupport.VolumeKeyAction, fine: Bool) {
+        let mixer = AppVolumeMixer.shared
+        guard mixer.outputIsMonitorSpeakers else { return }
+        switch action {
+        case let .step(direction):
+            mixer.requestOutputStep(level: {
+                BrightnessSupport.steppedLevel($0, delta: BrightnessSupport.volumeKeyDelta(direction: direction, fine: fine))
+            }, raises: direction > 0, completion: { applied in
+                if applied { Self.showMonitorFeedback() }
+            })
+        case .toggleMute:
+            mixer.requestOutputMuteToggle(completion: { applied in
+                if applied { Self.showMonitorFeedback() }
+            })
+        }
+    }
+
+    /// Shows the monitor's level after a key moved it. The island takes the
+    /// notice when it can; the brightness overlay is the fallback.
+    private static func showMonitorFeedback() {
+        if NotchService.shared.showCurrentVolume() { return }
+        guard let output = AppVolumeMixer.shared.monitorOutput else { return }
+        BrightnessOSD.show(displayID: output.displayID, level: output.volume,
+                           kind: output.muted == true ? .mutedVolume : .volume)
     }
 
     private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {
@@ -181,7 +209,8 @@ final class PreciseVolumeRollerService: ObservableObject {
             keyCode: code, state: state, isRepeat: nsEvent.data1 & 1 != 0,
             enabled: NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback,
             acceptsNewPress: NotchService.shared.showsSystemFeedback,
-            hasVolume: mixer.systemOutputVolume != nil, hasMute: mixer.systemOutputMuted != nil,
+            hasVolume: mixer.systemOutputVolume != nil && !mixer.outputIsMonitorSpeakers,
+            hasMute: mixer.systemOutputMuted != nil && !mixer.outputIsMonitorSpeakers,
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift),
             commandOrControl: event.flags.contains(.maskCommand) || event.flags.contains(.maskControl))
         if action == .passThrough { return false }

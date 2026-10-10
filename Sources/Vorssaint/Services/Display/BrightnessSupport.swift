@@ -728,13 +728,27 @@ enum BrightnessSupport {
             || transportType == kAudioDeviceTransportTypeDisplayPort
     }
 
-    /// Whether the volume keys move a monitor rather than leaving the system
-    /// alone: only when the sound leaves through a display cable whose device
+    /// Whether macOS hands the output's volume to a monitor rather than leaving
+    /// it alone: only when the sound leaves through a display cable whose device
     /// macOS cannot set the volume of. Any output macOS can set keeps its own
     /// keys, so built-in speakers and headphones never change behaviour.
-    static func routesVolumeKeysToDisplay(transport: UInt32,
-                                          outputHasSettableVolume: Bool) -> Bool {
+    static func displayOwnsOutputVolume(transport: UInt32,
+                                        outputHasSettableVolume: Bool) -> Bool {
         isDisplayAudioTransport(transport) && !outputHasSettableVolume
+    }
+
+    /// The monitor whose speakers carry the sound, with the levels read from it.
+    /// `muted` is nil when the monitor has no MCCS mute control.
+    struct MonitorSpeakerOutput: Equatable {
+        let displayID: UInt32
+        let volume: Double
+        let muted: Bool?
+    }
+
+    /// A raise on a muted output lifts the mute, the same as on the built-in
+    /// speakers; a lower leaves the mute where it is.
+    static func unmutesOnStep(muted: Bool?, raises: Bool) -> Bool {
+        muted == true && raises
     }
 
     /// Which monitor the sound is coming out of. A single display is the whole
