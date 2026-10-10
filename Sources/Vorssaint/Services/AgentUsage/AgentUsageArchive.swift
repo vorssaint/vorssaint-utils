@@ -328,6 +328,7 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            bool(value.namedWorkspace)
         }
     }
 
@@ -480,6 +481,7 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            value.namedWorkspace = try bool()
             return value
         }
     }
