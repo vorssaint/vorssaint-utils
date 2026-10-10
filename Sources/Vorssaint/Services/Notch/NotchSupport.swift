@@ -239,7 +239,11 @@ enum NotchLayout {
     /// The gallery's row indicator beside the tiles, with its gap.
     static let sectionIndicatorWidth: CGFloat = 12
     static let clipboardSearchHeight: CGFloat = 36
+    /// The row of actions while the search field is closed.
+    static let clipboardActionsHeight: CGFloat = 28
     static let clipboardCardHeight: CGFloat = 104
+    /// One or two lines of the entry, until the pointer rests on it.
+    static let clipboardCompactCardHeight: CGFloat = 52
     static let emptyHeight: CGFloat = 140
     static let musicControlsRowHeight: CGFloat = 32
     static let musicIdleHeight: CGFloat = 84
@@ -504,6 +508,12 @@ enum NotchLayout {
         let extra = min(extras, page)
         return (max(0, page - extra - rowSpacing), extra, page - extra - rowSpacing >= 88)
     }
+}
+
+enum NotchClipboardKey: Equatable {
+    case move(backwards: Bool)
+    case paste
+    case type(String)
 }
 
 struct NotchControlsLayout: Equatable {
@@ -1527,6 +1537,29 @@ enum NotchSupport {
     static func searchHighlight<ID: Equatable>(keeping current: ID?, in ids: [ID], query: String) -> ID? {
         if let current, ids.contains(current) { return current }
         return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : ids.first
+    }
+
+    /// What opening the clipboard highlights: the entry copied last. Pinned
+    /// entries sit above the recent ones, so it is the first one that is not
+    /// pinned; with only pinned entries, the top of the list.
+    static func restingClipboardHighlight<ID>(_ entries: [(ID, Bool)]) -> ID? {
+        (entries.first { !$0.1 } ?? entries.first)?.0
+    }
+
+    /// What a key does on the clipboard page, whether or not the search field
+    /// has the focus. A letter starts a search; keys held with Command,
+    /// Control or Option belong to their own shortcuts.
+    static func clipboardKey(keyCode: UInt16, characters: String, hasCommandModifier: Bool, editing: Bool) -> NotchClipboardKey? {
+        guard !hasCommandModifier else { return nil }
+        switch keyCode {
+        case 125, 126: return .move(backwards: keyCode == 126)
+        case 36, 76: return .paste
+        default: break
+        }
+        // Function and arrow keys report private-use characters.
+        let typed = !characters.isEmpty && !characters.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && characters.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }
+        return typed && !editing ? .type(characters) : nil
     }
 
     /// Automatic order until the user chooses one of the live activities.

@@ -415,7 +415,11 @@ struct NotchView: View {
                     Text(service.selected.title(l10n.language))
                         .font(Font(NotchLayout.headerTitleFont as CTFont))
                         .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if showsClipboardActions {
+                        NotchIconButton(symbol: "magnifyingglass", title: FeatureStrings.clipboard(l10n.language).search,
+                                        action: service.requestClipboardSearch)
+                    }
+                    Spacer(minLength: 0)
                 }
             }
             .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil)
@@ -468,6 +472,12 @@ struct NotchView: View {
     private var showsCapturesClear: Bool {
         service.selected == .captures && service.captureContent == nil && !showsDetail
             && !service.showingSections && !service.modules.isEmpty
+    }
+
+    /// The clipboard page keeps its search and filter in the header, so the
+    /// entries have the rows they would take.
+    private var showsClipboardActions: Bool {
+        service.selected == .clipboard && !showsDetail && !service.showingSections && !service.modules.isEmpty
     }
 
     /// Notifications show only cards too; every row of height is theirs.
@@ -558,6 +568,7 @@ struct NotchView: View {
                 }
             }
             if showsCapturesClear { NotchClearCapturesButton() }
+            if showsClipboardActions { NotchClipboardHeaderActions(service: service) }
             if showsNotificationsClear { NotchClearNotificationsButton() }
             // Keeping the island open is one click, like the floating buttons;
             // a header button steps aside when the same action floats beside it.

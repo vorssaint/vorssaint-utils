@@ -83,6 +83,9 @@ Dynamic Island adds audio controls, music shortcuts and battery warnings while u
 ### Dynamic Island
 - Tools uses the quick panel's wand icon, so it is easier to tell apart from the sections button.
 - When hover opens Dynamic Island, you can set how long it waits before closing, from 0.10 to 2 seconds. Settings → Dynamic Island → Behavior → Closing time.
+- The clipboard page opens on the entry you copied last, so Return pastes it and the arrow keys move from it, with no need to click first. The search field stays behind a magnifier, which opens it on a click or when the pointer rests on it, and typing a letter opens it too. Escape closes the search before the island.
+- The clipboard page opens on the entry you copied last, so Return pastes it and the arrow keys move from it, with no need to click first. The search sits behind a magnifier beside the page title, which opens it, and typing a letter opens it too, with the pin filter, clearing and history actions in the header. Escape closes the search before the island.
+- Clipboard entries on the island are compact by default: one or two lines, with their actions shown for the entry under the pointer, and the whole entry opens once the pointer rests on it (or, a little longer, once the arrow keys rest on it), to its text or image, with the icon of the app it was copied from and the date. Settings → Dynamic Island → Content → Clipboard → Entry size switches back to the full-size entries.
 - Controls can show a keyboard light slider next to Volume and Brightness, and its icon turns the light off and on. Settings → Dynamic Island → Content → Controls.
 - The mixer puts a microphone fader beside the output, with mute and an editable percentage on supported devices.
 - The music page can switch shuffle beside the playback controls for players that offer it. The first press asks for Automation permission.

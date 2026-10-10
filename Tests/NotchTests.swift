@@ -1100,6 +1100,39 @@ enum NotchTests {
         NotchMusicExtrasTests.run(suite)
         NotchLockScreenTests.run(suite)
         NowPlayingOpenContract.run(suite)
+        for language in AppLanguage.allCases {
+            let strings = Mirror(reflecting: FeatureStrings.notchClipboardSize(language)).children.compactMap { $0.value as? String }
+            suite.expect(strings.count == 4 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                         "the clipboard entry size has complete strings in \(language.rawValue)")
+        }
+        let sizeDomain = "com.vorssaint.tests.notch-clipboard-size"
+        let sizeDefaults = UserDefaults(suiteName: sizeDomain)!
+        sizeDefaults.removePersistentDomain(forName: sizeDomain)
+        defer { sizeDefaults.removePersistentDomain(forName: sizeDomain) }
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .compact, "clipboard entries start compact")
+        sizeDefaults.set("comfortable", forKey: DefaultsKey.notchClipboardCardSize)
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .comfortable, "the chosen entry size is read")
+        sizeDefaults.set("huge", forKey: DefaultsKey.notchClipboardCardSize)
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .compact, "an unknown entry size falls back to compact")
+        typealias Size = NotchClipboardCardSize
+        suite.expect(Size.openLines(for: "one line", width: 400) == 1
+                     && Size.openLines(for: "a\nb\nc", width: 400) == 3
+                     && Size.openLines(for: String(repeating: "x", count: 130), width: 400) == 3
+                     && Size.openLines(for: String(repeating: "word ", count: 1000), width: 400) == Size.maximumOpenLines
+                     && Size.openLines(for: "", width: 400) == 1,
+                     "an open entry shows its lines, counting wrapped ones, up to a limit")
+        suite.expect(Size.openHeight(text: "short", width: 400) == Size.openLineHeight + Size.openChrome
+                     && Size.openHeight(text: String(repeating: "x\n", count: 50), width: 400)
+                        == CGFloat(Size.maximumOpenLines) * Size.openLineHeight + Size.openChrome,
+                     "an open text entry is as tall as its lines, up to a limit")
+        suite.expect(Size.openHeight(aspectRatio: 1.6, width: 400) == Size.maximumOpenImage + Size.openChrome,
+                     "a wide image opens at the tallest it may")
+        suite.expect(Size.openHeight(aspectRatio: 20, width: 400) == Size.minimumOpenImage + Size.openChrome
+                     && Size.openHeight(aspectRatio: 1, width: 100) == 100 + Size.openChrome
+                     && Size.openHeight(aspectRatio: nil, width: 300) == Size.maximumOpenImage + Size.openChrome,
+                     "an open image keeps its proportions within a range, and one with none is taken as wide")
+        suite.expect(NotchLayout.clipboardCompactCardHeight < NotchLayout.clipboardCardHeight && NotchClipboardCardSize.dwell > 0,
+                     "a compact entry is shorter than an open one and opens after a pause")
         let domain = "com.vorssaint.tests.notch"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -1526,6 +1559,25 @@ enum NotchTests {
                 && NotchSupport.clipboardPasteTarget(highlighted: 9, in: [1, 2, 3]) == 1
                 && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [Int]()) == nil,
                "Return pastes the highlighted or first visible clipboard entry, and nothing from an empty list")
+        // Opening the page highlights what was copied last, which is the first recent entry below any pinned ones.
+        suite.expect(NotchSupport.restingClipboardHighlight([(1, true), (2, true), (3, false), (4, false)]) == 3
+                && NotchSupport.restingClipboardHighlight([(1, true), (2, true)]) == 1
+                && NotchSupport.restingClipboardHighlight([(5, false)]) == 5
+                && NotchSupport.restingClipboardHighlight([(Int, Bool)]()) == nil,
+               "the clipboard opens on the entry copied last, not on a pinned one, and on the top pinned one when only those exist")
+        func key(_ code: UInt16, _ characters: String = "", command: Bool = false, editing: Bool = false) -> NotchClipboardKey? {
+            NotchSupport.clipboardKey(keyCode: code, characters: characters, hasCommandModifier: command, editing: editing)
+        }
+        suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
+                && key(36) == .paste && key(76) == .paste && key(125, editing: true) == .move(backwards: false)
+                && key(36, editing: true) == .paste,
+               "the arrow keys and Return drive the list with or without the search field focused")
+        suite.expect(key(0, "a") == .type("a") && key(0, "Ab") == .type("Ab") && key(0, "ñ") == .type("ñ")
+                && key(0, "a", editing: true) == nil && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
+                && key(125, "\u{F701}") == .move(backwards: false),
+               "a letter starts a search, but a field already being typed in, a space and control keys do not")
+        suite.expect(key(36, command: true) == nil && key(18, "1", command: true) == nil && key(0, "a", command: true) == nil,
+               "keys held with Command, Control or Option are left to their own shortcuts")
         suite.expect(NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: false) == 1
                && NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: true) == 1
                && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: false) == 2
