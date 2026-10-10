@@ -16,7 +16,7 @@ struct GeneralToolSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 switch anchor {
-                case .panelConfiguration:
+                case .panelConfiguration, .iconDrawer:
                     SettingsCard(title: l10n.s.menuBarSection) {
                         Text(text.panelIntro)
                             .font(.callout)
@@ -34,6 +34,8 @@ struct GeneralToolSettings: View {
                         }
                     }
                     .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
+                    MenuBarOverflowSettings()
+                        .settingsSectionAnchor(.iconDrawer, cornerRadius: 16)
                 case .mixer:
                     MixerSection(settingsMode: true)
                         .settingsSectionAnchor(.mixer, cornerRadius: 16)

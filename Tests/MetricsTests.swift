@@ -10,6 +10,7 @@ struct MetricsTests {
     static func main() {
         let suite = TestSuite()
         let groups: [(String, () -> Void)] = [
+            ("menu-bar-overflow", { MenuBarOverflowTests.run(suite) }),
             ("harness", {
                 TestHarnessTests.run(suite)
                 PreferenceNamespaceTests.run(suite)

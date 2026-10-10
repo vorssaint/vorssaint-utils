@@ -312,9 +312,16 @@ struct SettingsView: View {
         }
     }
 
+    // The drawer is a section of Menu bar, rather than a separate sidebar page.
+    private var sidebarDestination: FeatureSettingsDestination {
+        router.destination.sectionAnchor == .iconDrawer
+            ? FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration)
+            : router.destination
+    }
+
     private var selectedSidebarItem: SettingsSidebarItem.ID? {
         let items = sidebarItems
-        return SettingsSidebarSupport.selection(for: router.destination, in: items,
+        return SettingsSidebarSupport.selection(for: sidebarDestination, in: items,
                                                 preferredID: router.sidebarFeature.map { .feature($0) })
             ?? items.first?.id
     }
@@ -541,7 +548,7 @@ struct SettingsView: View {
             return
         }
         guard router.destination.sectionAnchor != nil,
-              !sidebarItems.contains(where: { $0.destination == router.destination }) else { return }
+              !sidebarItems.contains(where: { $0.destination == sidebarDestination }) else { return }
         switch router.page {
         case .general:
             // General stays visible when one of its tools is uninstalled.
@@ -566,9 +573,9 @@ struct SettingsView: View {
         switch router.page {
         case .general:
             if let anchor = router.destination.sectionAnchor,
-               [.panelConfiguration, .mixer, .soundOutputSwitcher,
+               [.panelConfiguration, .iconDrawer, .mixer, .soundOutputSwitcher,
                 .audioPriority, .musicBlocking].contains(anchor),
-               sidebarItems.contains(where: { $0.destination == router.destination }) {
+               sidebarItems.contains(where: { $0.destination == sidebarDestination }) {
                 GeneralToolSettings(anchor: anchor)
             } else {
                 GeneralSettings()

@@ -101,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         PanelLayout.resetCollapsedSectionsOnce(for: "2.15.1")
 
         statusController = StatusItemController()
+        MenuBarOverflowController.shared.onChooseIcons = { [weak self] in
+            SettingsRouter.shared.request(FeatureSettingsDestination(.general, sectionAnchor: .iconDrawer))
+            self?.openSettingsWindow()
+        }
+        MenuBarOverflowController.shared.start()
         statusController.onLeftClick = { [weak self] in
             self?.captureStatusClick()
             self?.toggleMainPopover()
@@ -282,6 +287,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        MenuBarOverflowController.shared.stopHiding()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -1560,6 +1566,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.activate(minutes: sender.tag)
     }
 
+    @objc private func menuOpenIconDrawer() {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.menuBarOverflowEnabled) {
+            MenuBarOverflowController.shared.showDrawer()
+        } else {
+            SettingsRouter.shared.request(FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration))
+            openSettingsWindow()
+        }
+    }
+
     @objc private func menuOpenSettings() {
         openSettingsWindow()
     }
@@ -1621,6 +1636,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let settings = NSMenuItem(title: strings.menuSettings, action: #selector(menuOpenSettings), keyEquivalent: ",")
         settings.target = self
         appMenu.addItem(settings)
+        let iconDrawer = NSMenuItem(title: "Open Icon Drawer", action: #selector(menuOpenIconDrawer), keyEquivalent: "o")
+        iconDrawer.keyEquivalentModifierMask = [.command, .option]
+        iconDrawer.target = self
+        appMenu.addItem(iconDrawer)
         appMenu.addItem(.separator())
 
         appMenu.addItem(NSMenuItem(title: strings.menuHide,
