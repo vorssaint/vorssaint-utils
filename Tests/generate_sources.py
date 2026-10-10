@@ -890,6 +890,12 @@ def main():
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
               "    private func removeScreenEdgeClickMonitors("])
           + "}\n}\n")
+    write("NotchScreenEdgeScrolls.swift", "import AppKit\nextension NotchScreenEdgeScrollTests {\nfinal class Service: State {\n"
+          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    private var screenEdgeScrollsWanted:", "    private func syncScreenEdgeScrolls(",
+              "    private func handleScreenEdgeScroll(", "    private func removeScreenEdgeScrollMonitors("])
+              .replace("NotchGestureSupport.isEnabled()", "gesturesEnabled")
+          + "}\n}\n")
     write("NotchScreenRefresh.swift", "import Foundation\n\nextension NotchScreenRefreshContract {\nfinal class Service: State {\n"
           + declaration(notch, "    private func schedulePreferenceSync()").replace("private func", "func", 1)
           + declaration(notch, "    private func screenParametersDidChange()").replace("private func", "func", 1)

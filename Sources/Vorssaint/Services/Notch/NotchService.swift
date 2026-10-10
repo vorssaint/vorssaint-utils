@@ -167,6 +167,7 @@ final class NotchService: ObservableObject {
     private var subscriptions = Set<AnyCancellable>()
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
+    private var screenEdgeScrollMonitors: [Any] = []
     private var screenEdgePressArea: CGRect?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
@@ -1247,6 +1248,7 @@ final class NotchService: ObservableObject {
         openedByHover = false
         removeEventMonitors()
         removeScreenEdgeClickMonitors()
+        removeScreenEdgeScrollMonitors()
         removeCaptureControlsClickThrough()
         removeHiddenHoverMonitors()
         removeHoverExitMonitors()
@@ -2500,6 +2502,7 @@ final class NotchService: ObservableObject {
             if hiddenUntilHover { windowHost?.hide(animated: animated, transitionContent: transitionContent) }
             else { panel?.orderOut(nil) }
             removeScreenEdgeClickMonitors()
+            removeScreenEdgeScrollMonitors()
             return
         }
         let open = expanded || peeking || notice != nil || dragPlaceholder || captureControls != nil
@@ -2509,6 +2512,7 @@ final class NotchService: ObservableObject {
             if heldMusic != nil { heldMusic = nil }
             windowHost?.hide(animated: animated, transitionContent: transitionContent)
             removeScreenEdgeClickMonitors()
+            removeScreenEdgeScrollMonitors()
             return
         }
         let access = NotchQuickAccessConfiguration.current()
@@ -2597,6 +2601,7 @@ final class NotchService: ObservableObject {
             } else { finishMusicDeparture() }
         }
         syncScreenEdgeClicks()
+        syncScreenEdgeScrolls()
     }
 
     private func syncHiddenHoverMonitoring() {
@@ -3090,6 +3095,39 @@ final class NotchService: ObservableObject {
         screenEdgeClickMonitors.forEach(NSEvent.removeMonitor)
         screenEdgeClickMonitors.removeAll()
         screenEdgePressArea = nil
+    }
+
+    /// The first screen row belongs to the menu bar for scrolls as well, and
+    /// a pointer pushed up into the notch rests on exactly that row, so a
+    /// gesture there never reached the island.
+    private var screenEdgeScrollsWanted: Bool {
+        guard geometry.isNotched, running, !suspended, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return false }
+        return NotchGestureSupport.isEnabled()
+    }
+
+    private func syncScreenEdgeScrolls() {
+        guard screenEdgeScrollsWanted else { removeScreenEdgeScrollMonitors(); return }
+        guard screenEdgeScrollMonitors.isEmpty else { return }
+        // Global only: the island's own window already hands its scrolls to
+        // the gesture, and another app's are observed, never taken.
+        if let token = NSEvent.addGlobalMonitorForEvents(matching: .scrollWheel, handler: { [weak self] event in
+            self?.handleScreenEdgeScroll(event)
+        }) { screenEdgeScrollMonitors.append(token) }
+    }
+
+    /// Every scroll in every app passes here while the island is shown, so
+    /// anything off the first row leaves before a preference is read.
+    private func handleScreenEdgeScroll(_ event: NSEvent) {
+        guard let location = event.cgEvent?.location, let primary = NSScreen.withMenuBar,
+              let point = NotchSupport.screenEdgeScrollPoint(
+                CGPoint(x: location.x, y: primary.frame.maxY - location.y), screen: geometry.screen),
+              screenEdgeScrollsWanted else { return }
+        handleGesture(event, at: point)
+    }
+
+    private func removeScreenEdgeScrollMonitors() {
+        screenEdgeScrollMonitors.forEach(NSEvent.removeMonitor)
+        screenEdgeScrollMonitors.removeAll()
     }
 
     private func stopMenuSpaceMonitoring() {
@@ -3592,6 +3630,7 @@ final class NotchService: ObservableObject {
     private func syncGestures() {
         if !NotchGestureSupport.isEnabled() { gesture = NotchGestureSupport() }
         panel?.handleScroll = { [weak self] event in self?.handleScroll(event) ?? false }
+        syncScreenEdgeScrolls()
     }
 
     /// The gallery steps its rows from the wheel; every other scroll over the
@@ -3622,20 +3661,24 @@ final class NotchService: ObservableObject {
         return true
     }
 
-    private func handleGesture(_ event: NSEvent) -> Bool {
+    /// `screenPoint` is given for a scroll another window received, which
+    /// carries no position in the island's window.
+    @discardableResult
+    private func handleGesture(_ event: NSEvent, at screenPoint: CGPoint? = nil) -> Bool {
         guard running, !suspended, NotchGestureSupport.isEnabled(), let panel,
               !trackingMenu, captureControls == nil, !heldDrag,
               event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty else {
             gesture = NotchGestureSupport()
             return false
         }
-        let screenPoint = panel.convertPoint(toScreen: event.locationInWindow)
+        let screenPoint = screenPoint ?? panel.convertPoint(toScreen: event.locationInWindow)
         guard windowHost?.contains(screenPoint) == true else { gesture = NotchGestureSupport(); return false }
         let fromTop = panel.frame.maxY - screenPoint.y
         let inHeader = NotchSupport.gestureIsOverHeader(expanded: expanded, peeking: peeking,
                                                        fromTop: fromTop, safeTop: expanded ? expandedGeometry.headerTopInset : geometry.safeContentTop,
                                                        height: expanded ? expandedGeometry.headerRowHeight : NotchLayout.headerHeight)
-        let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
+        let interaction = NotchGestureSupport.nativeInteraction(
+            at: panel.contentView?.hitTest(panel.convertPoint(fromScreen: screenPoint)))
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
                                           && !showingCommandBar))
