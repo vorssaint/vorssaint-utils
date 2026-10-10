@@ -18,6 +18,7 @@ enum FanControlMode: String, Codable, Sendable {
     case system
     case manual
     case curve
+    case adaptive
 }
 
 enum FanControlTemperatureSource: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -49,6 +50,28 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
     var mode: FanControlMode
     var manualLevel: Int
     var curves: [FanControlCurve]
+    var adaptive: FanControlAdaptiveSettings = .balanced
+
+    init(mode: FanControlMode,
+         manualLevel: Int,
+         curves: [FanControlCurve],
+         adaptive: FanControlAdaptiveSettings = .balanced) {
+        self.mode = mode
+        self.manualLevel = manualLevel
+        self.curves = curves
+        self.adaptive = adaptive
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decode(FanControlMode.self, forKey: .mode)
+        manualLevel = try container.decode(Int.self, forKey: .manualLevel)
+        curves = try container.decode([FanControlCurve].self, forKey: .curves)
+        // Resume records and requests written before adaptive control carry
+        // no tuning.
+        adaptive = try container.decodeIfPresent(FanControlAdaptiveSettings.self,
+                                                 forKey: .adaptive) ?? .balanced
+    }
 
     static let defaultCurve = FanControlCurve(
         sensor: .hottestSoC,
@@ -67,6 +90,15 @@ struct FanControlConfiguration: Codable, Equatable, Sendable {
         FanControlConfiguration(mode: .curve,
                                 manualLevel: FanControlPolicy.defaultCoolingLevel,
                                 curves: curves)
+    }
+
+    static func adaptive(
+        _ settings: FanControlAdaptiveSettings = .balanced
+    ) -> FanControlConfiguration {
+        FanControlConfiguration(mode: .adaptive,
+                                manualLevel: FanControlPolicy.defaultCoolingLevel,
+                                curves: [],
+                                adaptive: settings)
     }
 
     static func encodeCurves(_ curves: [FanControlCurve]) -> String? {
@@ -102,6 +134,58 @@ struct FanControlSnapshot: Codable, Equatable, Sendable {
                                           coolingLevel: nil,
                                           configuration: nil,
                                           temperatures: nil)
+}
+
+struct FanControlHistorySample: Codable, Equatable, Sendable {
+    let timestamp: TimeInterval
+    let temperature: Double
+    let actualRPM: Double
+    let targetRPM: Double
+}
+
+struct FanControlHistory {
+    static let defaultCapacity = 10 * 60
+
+    let capacity: Int
+    private(set) var samples: [FanControlHistorySample] = []
+
+    init(capacity: Int = FanControlHistory.defaultCapacity) {
+        self.capacity = max(2, capacity)
+    }
+
+    mutating func append(_ sample: FanControlHistorySample) {
+        samples.append(sample)
+        if samples.count > capacity {
+            samples.removeFirst(samples.count - capacity)
+        }
+    }
+
+    mutating func append(snapshot: FanControlSnapshot,
+                         timestamp: TimeInterval = Date().timeIntervalSinceReferenceDate) {
+        guard snapshot.isCooling,
+              snapshot.configuration?.mode == .adaptive,
+              let temperature = FanControlAdaptivePolicy.controlTemperature(
+                  from: snapshot.temperatures ?? []
+              ),
+              !snapshot.fans.isEmpty else { return }
+
+        let targetRPM = snapshot.fans.map(\.targetRPM).max() ?? 0
+        let actualRPM = snapshot.fans.map(\.actualRPM).reduce(0, +)
+            / Double(snapshot.fans.count)
+        guard FanControlPolicy.validReading(temperature),
+              FanControlPolicy.validReading(targetRPM),
+              FanControlPolicy.validReading(actualRPM),
+              targetRPM > 0 else { return }
+
+        append(FanControlHistorySample(timestamp: timestamp,
+                                       temperature: temperature,
+                                       actualRPM: actualRPM,
+                                       targetRPM: targetRPM))
+    }
+
+    mutating func reset() {
+        samples.removeAll(keepingCapacity: true)
+    }
 }
 
 enum FanControlStopReason: String, Codable, Equatable, Sendable {
@@ -201,6 +285,15 @@ enum FanControlPolicy {
         return minimum + (maximum - minimum) * Double(level) / 100
     }
 
+    /// The adaptive target: a continuous share of each fan's own range, so
+    /// fans with different limits move together like they do for a level.
+    static func coolingTargetRPM(minimum: Double, maximum: Double,
+                                 fraction: Double) -> Double? {
+        guard validBounds(minimum: minimum, maximum: maximum),
+              fraction.isFinite, (0...1).contains(fraction) else { return nil }
+        return (minimum + (maximum - minimum) * fraction).rounded()
+    }
+
     static func validConfiguration(_ configuration: FanControlConfiguration) -> Bool {
         switch configuration.mode {
         case .system:
@@ -209,6 +302,10 @@ enum FanControlPolicy {
             return validCoolingLevel(configuration.manualLevel)
         case .curve:
             return validCurves(configuration.curves)
+        case .adaptive:
+            return configuration.curves.isEmpty
+                && validCoolingLevel(configuration.manualLevel)
+                && FanControlAdaptivePolicy.validSettings(configuration.adaptive)
         }
     }
 
@@ -413,6 +510,356 @@ enum FanControlPolicy {
             return .thermalPressure
         }
         return nil
+    }
+}
+
+/// Adaptive tuning. Speeds are percentages of each fan's own range, like the
+/// manual level, so one setting fits every Mac and every fan in it.
+struct FanControlAdaptiveSettings: Codable, Equatable, Sendable {
+    var sweetSpotLevel: Int
+    var maximumLevel: Int
+    var rampStartTemperature: Int
+    var maximumTemperature: Int
+    var sensitivity: FanControlAdaptiveSensitivity = .standard
+
+    enum CodingKeys: String, CodingKey {
+        case sweetSpotLevel, maximumLevel, rampStartTemperature, maximumTemperature, sensitivity
+    }
+
+    // Measured on an M1 Max in system mode, the firmware keeps the fans off
+    // until the chip is near 90 degrees and then holds about 40% of their
+    // range even at 100 degrees. Quiet sits close to that; the other two cool
+    // progressively earlier and harder.
+    static let quiet = FanControlAdaptiveSettings(sweetSpotLevel: 5, maximumLevel: 60,
+                                                  rampStartTemperature: 75,
+                                                  maximumTemperature: 100,
+                                                  sensitivity: .relaxed)
+    static let balanced = FanControlAdaptiveSettings(sweetSpotLevel: 10, maximumLevel: 80,
+                                                     rampStartTemperature: 70,
+                                                     maximumTemperature: 95)
+    static let performance = FanControlAdaptiveSettings(sweetSpotLevel: 20, maximumLevel: 100,
+                                                        rampStartTemperature: 60,
+                                                        maximumTemperature: 85,
+                                                        sensitivity: .responsive)
+}
+
+extension FanControlAdaptiveSettings {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sweetSpotLevel = try container.decode(Int.self, forKey: .sweetSpotLevel)
+        maximumLevel = try container.decode(Int.self, forKey: .maximumLevel)
+        rampStartTemperature = try container.decode(Int.self, forKey: .rampStartTemperature)
+        maximumTemperature = try container.decode(Int.self, forKey: .maximumTemperature)
+        // Tuning stored before sensitivity existed keeps the original response.
+        sensitivity = try container.decodeIfPresent(FanControlAdaptiveSensitivity.self,
+                                                    forKey: .sensitivity) ?? .standard
+    }
+}
+
+/// How quickly the fans follow the temperature. The filters are time
+/// constants rather than per-tick weights, so a late tick cannot change them.
+/// Heat is followed sooner than it is let go: the fans answer a sustained load
+/// in a few seconds, while a short compiler burst or sensor jitter does not
+/// become audible fan hunting. Readings that already call for the maximum
+/// speed skip all of this whatever the sensitivity.
+struct FanControlAdaptiveResponse: Equatable, Sendable {
+    let riseTimeConstant: Double
+    // One core spikes for a moment under almost any load, so the hottest
+    // sensor is slower to rise than the average.
+    let hotspotTimeConstant: Double
+    let fallTimeConstant: Double
+    // Shares of the fan range per second.
+    let maximumRisePerSecond: Double
+    let maximumFallPerSecond: Double
+}
+
+enum FanControlAdaptiveSensitivity: String, Codable, CaseIterable, Identifiable, Sendable {
+    case relaxed
+    case standard
+    case responsive
+
+    var id: String { rawValue }
+
+    var response: FanControlAdaptiveResponse {
+        switch self {
+        case .relaxed:
+            return FanControlAdaptiveResponse(riseTimeConstant: 12, hotspotTimeConstant: 30,
+                                              fallTimeConstant: 30,
+                                              maximumRisePerSecond: 0.015,
+                                              maximumFallPerSecond: 0.008)
+        case .standard:
+            return FanControlAdaptiveResponse(riseTimeConstant: 5, hotspotTimeConstant: 15,
+                                              fallTimeConstant: 15,
+                                              maximumRisePerSecond: 0.03,
+                                              maximumFallPerSecond: 0.015)
+        case .responsive:
+            return FanControlAdaptiveResponse(riseTimeConstant: 2, hotspotTimeConstant: 8,
+                                              fallTimeConstant: 10,
+                                              maximumRisePerSecond: 0.06,
+                                              maximumFallPerSecond: 0.025)
+        }
+    }
+}
+
+enum FanControlAdaptiveProfile: String, CaseIterable, Identifiable, Sendable {
+    case quiet
+    case balanced
+    case performance
+
+    var id: String { rawValue }
+
+    var settings: FanControlAdaptiveSettings {
+        switch self {
+        case .quiet: return .quiet
+        case .balanced: return .balanced
+        case .performance: return .performance
+        }
+    }
+
+    init?(matching settings: FanControlAdaptiveSettings) {
+        guard let profile = Self.allCases.first(where: { $0.settings == settings }) else {
+            return nil
+        }
+        self = profile
+    }
+}
+
+enum FanControlAdaptivePolicy {
+    static let levelStep = FanControlPolicy.coolingLevelStep
+    static let minimumLevelSpan = 10
+    static let sweetSpotLevelRange = 0...(FanControlPolicy.maximumCoolingLevel - minimumLevelSpan)
+    static let maximumLevelRange = minimumLevelSpan...FanControlPolicy.maximumCoolingLevel
+    static let minimumConfiguredTemperature = 45
+    // Apple Silicon throttles a little above this, so a later maximum would
+    // never be reached with the fans still ramping.
+    static let maximumConfiguredTemperature = 100
+    static let configuredTemperatureRange = minimumConfiguredTemperature...maximumConfiguredTemperature
+    static let minimumTemperatureSpan = 8
+    // The fans idle at their minimum this far below the ramp start and climb
+    // to the sweet spot across it, so a cool Mac is as quiet as the hardware
+    // allows instead of holding the sweet spot for nothing.
+    static let quietTemperatureSpan = 10.0
+    // The average hides one hot core or a busy GPU. Their hottest reading asks
+    // for the same speed as the average curve once it runs this far above that
+    // curve's thresholds. The usual spread between the hottest sensor and the
+    // average therefore never changes the fan speed, but a hotspot cannot sit
+    // at the sweet spot either.
+    static let hotspotGuardOffset = 15.0
+    // The guard reaches the maximum speed here at the latest, whatever the
+    // configured thresholds, because the chip throttles soon after.
+    static let hotspotCeilingTemperature = 100.0
+    // A smaller change is not worth an SMC write. It only gates the write; the
+    // demand behind it keeps moving.
+    static let minimumLevelChange = 0.012
+    static let bootstrapCoolingLevel = 10
+
+    static func validSettings(_ settings: FanControlAdaptiveSettings) -> Bool {
+        sweetSpotLevelRange.contains(settings.sweetSpotLevel)
+            && maximumLevelRange.contains(settings.maximumLevel)
+            && settings.maximumLevel - settings.sweetSpotLevel >= minimumLevelSpan
+            && configuredTemperatureRange.contains(settings.rampStartTemperature)
+            && configuredTemperatureRange.contains(settings.maximumTemperature)
+            && settings.maximumTemperature - settings.rampStartTemperature
+                >= minimumTemperatureSpan
+    }
+
+    /// Stored tuning that no longer validates falls back as a whole: a half
+    /// repaired set of thresholds is not what the user chose either.
+    static func normalized(_ settings: FanControlAdaptiveSettings) -> FanControlAdaptiveSettings {
+        validSettings(settings) ? settings : .balanced
+    }
+
+    private static func hotspotGuardRange(
+        _ settings: FanControlAdaptiveSettings
+    ) -> (start: Double, end: Double) {
+        let end = min(Double(settings.maximumTemperature) + hotspotGuardOffset,
+                      hotspotCeilingTemperature)
+        let start = min(Double(settings.rampStartTemperature) + hotspotGuardOffset,
+                        end - Double(minimumTemperatureSpan))
+        return (start, end)
+    }
+
+    /// The share of the fan range, from 0 to 1, the temperatures ask for.
+    static func baseLevel(temperature: Double,
+                          hotspotTemperature: Double? = nil,
+                          settings: FanControlAdaptiveSettings = .balanced) -> Double? {
+        guard FanControlPolicy.validTemperature(temperature),
+              validSettings(settings) else { return nil }
+        let sweetSpot = Double(settings.sweetSpotLevel) / 100
+        let maximum = Double(settings.maximumLevel) / 100
+        let rampStart = Double(settings.rampStartTemperature)
+        // Linear from the sweet spot at `start` to the maximum at `end`.
+        let rampAbove = { (celsius: Double, start: Double, end: Double) -> Double in
+            if celsius >= end { return maximum }
+            return sweetSpot + (maximum - sweetSpot) * (celsius - start) / (end - start)
+        }
+
+        var level: Double
+        let quietTemperature = rampStart - quietTemperatureSpan
+        if temperature <= quietTemperature {
+            level = 0
+        } else if temperature < rampStart {
+            level = sweetSpot * (temperature - quietTemperature) / quietTemperatureSpan
+        } else {
+            level = rampAbove(temperature, rampStart, Double(settings.maximumTemperature))
+        }
+
+        // The guard only ever raises the level. Below its start it asks for
+        // nothing, so it cannot nudge the quiet part of the curve either.
+        if let hotspotTemperature, FanControlPolicy.validTemperature(hotspotTemperature) {
+            let range = hotspotGuardRange(settings)
+            if hotspotTemperature >= range.start {
+                level = max(level, rampAbove(hotspotTemperature, range.start, range.end))
+            }
+        }
+        return level
+    }
+
+    /// Whether the raw readings already call for the maximum speed. Such heat
+    /// is not smoothed or ramped: the filters exist for noise, not for this.
+    static func demandsMaximum(temperature: Double, hotspotTemperature: Double?,
+                               settings: FanControlAdaptiveSettings) -> Bool {
+        if temperature >= Double(settings.maximumTemperature) { return true }
+        guard let hotspotTemperature,
+              FanControlPolicy.validTemperature(hotspotTemperature) else { return false }
+        return hotspotTemperature >= hotspotGuardRange(settings).end
+    }
+
+    /// Whether the hottest sensor, not the average, is setting the speed.
+    static func hotspotLeads(_ readings: [FanControlTemperatureReading],
+                             settings: FanControlAdaptiveSettings) -> Bool {
+        guard let temperature = controlTemperature(from: readings),
+              let hotspot = hotspotTemperature(from: readings),
+              let guarded = baseLevel(temperature: temperature, hotspotTemperature: hotspot,
+                                      settings: settings),
+              let average = baseLevel(temperature: temperature, settings: settings) else {
+            return false
+        }
+        return guarded > average
+    }
+
+    static func controlTemperature(from readings: [FanControlTemperatureReading]) -> Double? {
+        let values = Dictionary(readings.map { ($0.source, $0.celsius) },
+                                uniquingKeysWith: { _, newest in newest })
+        let preferred: [FanControlTemperatureSource] = [
+            // Macs Fan Control's matching preset uses CPU Core Average. Prefer
+            // the same stable signal before considering hotspot sensors.
+            .averageCPU, .averageSoC, .hottestCPU, .hottestSoC, .hottestGPU,
+        ]
+        for source in preferred {
+            if let value = values[source], FanControlPolicy.validTemperature(value) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    /// The hottest chip sensor, whether it is a CPU core or the GPU. The
+    /// control temperature averages the cores and hides it by design.
+    static func hotspotTemperature(from readings: [FanControlTemperatureReading]) -> Double? {
+        let hottest: Set<FanControlTemperatureSource> = [.hottestSoC, .hottestCPU, .hottestGPU]
+        return readings
+            .filter { hottest.contains($0.source) && FanControlPolicy.validTemperature($0.celsius) }
+            .map(\.celsius)
+            .max()
+    }
+}
+
+/// Converts the temperature readings into a share of the fan range. The
+/// filters and slew limits keep sensor noise from becoming audible fan
+/// hunting. They act on a demand that moves on every tick; the deadband only
+/// decides whether a change is worth an SMC write, so it can never hold the
+/// demand back. The hottest sensor is filtered the same way and raises the
+/// demand when it runs far above the average.
+final class FanControlAdaptiveController {
+    private(set) var filteredTemperature: Double?
+    private(set) var filteredHotspot: Double?
+    /// The level last handed to the fans.
+    private(set) var currentLevel: Double?
+    private var demand: Double?
+    private var lastUptime: TimeInterval?
+
+    func reset() {
+        filteredTemperature = nil
+        filteredHotspot = nil
+        currentLevel = nil
+        demand = nil
+        lastUptime = nil
+    }
+
+    private static func filtered(_ previous: Double?, toward value: Double,
+                                 elapsed: TimeInterval,
+                                 riseTimeConstant: Double,
+                                 fallTimeConstant: Double) -> Double {
+        guard let previous else { return value }
+        let timeConstant = value > previous ? riseTimeConstant : fallTimeConstant
+        let weight = 1 - exp(-elapsed / timeConstant)
+        return previous + weight * (value - previous)
+    }
+
+    /// New settings take effect on the next call and keep the filters and the
+    /// demand, so retuning a running control ramps instead of jumping.
+    func nextLevel(temperatures: [FanControlTemperatureReading],
+                   settings: FanControlAdaptiveSettings = .balanced,
+                   now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Double? {
+        guard FanControlAdaptivePolicy.validSettings(settings),
+              let temperature = FanControlAdaptivePolicy.controlTemperature(from: temperatures) else {
+            return nil
+        }
+        let response = settings.sensitivity.response
+        let hotspot = FanControlAdaptivePolicy.hotspotTemperature(from: temperatures)
+        let urgent = FanControlAdaptivePolicy.demandsMaximum(temperature: temperature,
+                                                             hotspotTemperature: hotspot,
+                                                             settings: settings)
+
+        let elapsed = lastUptime.map { min(max(now - $0, 0.25), 3.0) } ?? 1.0
+        lastUptime = now
+        let smoothedTemperature = urgent
+            ? max(temperature, filteredTemperature ?? temperature)
+            : Self.filtered(filteredTemperature, toward: temperature, elapsed: elapsed,
+                            riseTimeConstant: response.riseTimeConstant,
+                            fallTimeConstant: response.fallTimeConstant)
+        filteredTemperature = smoothedTemperature
+        // A tick without a hotspot reading simply goes without the guard.
+        let smoothedHotspot = hotspot.map {
+            urgent ? max($0, filteredHotspot ?? $0)
+                   : Self.filtered(filteredHotspot, toward: $0, elapsed: elapsed,
+                                   riseTimeConstant: response.hotspotTimeConstant,
+                                   fallTimeConstant: response.fallTimeConstant)
+        }
+        if let smoothedHotspot { filteredHotspot = smoothedHotspot }
+
+        guard let requested = FanControlAdaptivePolicy.baseLevel(
+            temperature: smoothedTemperature,
+            hotspotTemperature: smoothedHotspot,
+            settings: settings
+        ) else { return nil }
+
+        let limited: Double
+        if let demand, !urgent {
+            let maximumRise = response.maximumRisePerSecond * elapsed
+            let maximumFall = response.maximumFallPerSecond * elapsed
+            limited = min(demand + maximumRise, max(demand - maximumFall, requested))
+        } else {
+            limited = requested
+        }
+        let maximum = Double(settings.maximumLevel) / 100
+        // Not clamped to the configured maximum: a demand left above a lowered
+        // maximum comes down at the fall rate like any other.
+        let level = min(1, max(0, limited))
+        demand = level
+
+        // Hold back drift too small to write, but never strand the fans a
+        // deadband short of either end of the range.
+        if let currentLevel {
+            let atEndPoint = level >= maximum || level <= 0
+            let worthWriting = abs(level - currentLevel)
+                >= FanControlAdaptivePolicy.minimumLevelChange
+                || (atEndPoint && level != currentLevel)
+            guard worthWriting else { return currentLevel }
+        }
+        currentLevel = level
+        return level
     }
 }
 

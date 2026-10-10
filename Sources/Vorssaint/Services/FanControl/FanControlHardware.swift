@@ -12,8 +12,8 @@ enum FanControlHardwareError: Error {
 
 /// The only SMC write policy used by Fan Control. It discovers the keys the
 /// hardware actually exposes, accepts only sane reported bounds, and writes
-/// only a validated cooling level or automatic mode. There is no arbitrary key
-/// or RPM entry point.
+/// only a validated cooling level, as a step or as the adaptive share of the
+/// fan range, or automatic mode. There is no arbitrary key or RPM entry point.
 final class FanControlHardware {
     private struct TelemetryFan {
         let index: Int
@@ -166,6 +166,28 @@ final class FanControlHardware {
                 minimum: fan.minimumRPM,
                 maximum: fan.maximumRPM,
                 level: level
+            ) else { throw FanControlHardwareError.operationFailed }
+            return target
+        }
+        for (fan, target) in zip(fans, targets) {
+            guard setTargetRPM(target, for: fan, attempts: 10) else {
+                throw FanControlHardwareError.operationFailed
+            }
+        }
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
+            throw FanControlHardwareError.operationFailed
+        }
+        activeTargets = targets
+        return try readings(for: fans)
+    }
+
+    func updateCooling(fraction: Double) throws -> [FanControlFanReading] {
+        let fans = try discoverControlledFans()
+        let targets = try fans.map { fan -> Double in
+            guard let target = FanControlPolicy.coolingTargetRPM(
+                minimum: fan.minimumRPM,
+                maximum: fan.maximumRPM,
+                fraction: fraction
             ) else { throw FanControlHardwareError.operationFailed }
             return target
         }

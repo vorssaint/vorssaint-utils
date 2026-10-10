@@ -422,6 +422,11 @@ enum DefaultsKey {
     // Machine-only: the control the user left running while resume is on,
     // cleared when they return to System so it never outlives that choice.
     static let fanControlResumeConfiguration = "fanControlResumeConfiguration"
+    static let fanControlAdaptiveSensitivity = "fanControlAdaptiveSensitivity"
+    static let fanControlAdaptiveSweetSpotLevel = "fanControlAdaptiveSweetSpotLevel"
+    static let fanControlAdaptiveMaximumLevel = "fanControlAdaptiveMaximumLevel"
+    static let fanControlAdaptiveRampStartTemperature = "fanControlAdaptiveRampStartTemperature"
+    static let fanControlAdaptiveMaximumTemperature = "fanControlAdaptiveMaximumTemperature"
     // Previous panel visibility key, read once by the migration below.
     static let monitorShowFanControlBeta = "monitorShowFanControlBeta"
     // Machine-only recovery state. A true value means the helper must confirm
@@ -1634,6 +1639,16 @@ enum Defaults {
         DefaultsKey.fanControlCurves: FanControlConfiguration.defaultCurvesStorage,
         DefaultsKey.fanControlResume: false,
         DefaultsKey.fanControlResumeConfiguration: "",
+        DefaultsKey.fanControlAdaptiveSensitivity:
+            FanControlAdaptiveSettings.balanced.sensitivity.rawValue,
+        DefaultsKey.fanControlAdaptiveSweetSpotLevel:
+            FanControlAdaptiveSettings.balanced.sweetSpotLevel,
+        DefaultsKey.fanControlAdaptiveMaximumLevel:
+            FanControlAdaptiveSettings.balanced.maximumLevel,
+        DefaultsKey.fanControlAdaptiveRampStartTemperature:
+            FanControlAdaptiveSettings.balanced.rampStartTemperature,
+        DefaultsKey.fanControlAdaptiveMaximumTemperature:
+            FanControlAdaptiveSettings.balanced.maximumTemperature,
         DefaultsKey.fanControlRecoveryNeeded: false,
         DefaultsKey.fanControlHelperVersion: "",
         DefaultsKey.panelNavigationEnabled: true,
