@@ -1781,7 +1781,11 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
-                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
+                    for prefix in ["    private func start(", "    private func read(_", "    private func filesChanged(",
+                                   "    private func readFiles(", "    private func revealRunningTurns(",
+                                   "    private func cursorStillWorking(", "    private func readHistory(",
+                                   "    private func finishInitialRead(", "    private func openCursorTurns(",
+                                   "    private func deliver("])
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

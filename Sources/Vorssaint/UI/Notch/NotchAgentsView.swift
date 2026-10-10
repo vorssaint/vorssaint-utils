@@ -16,14 +16,39 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
+    /// Nil shows every enabled assistant together. A provider filters the page to that one.
+    @State private var focus: AgentProvider?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
-    /// Only agents that left something on this Mac get cards.
+    /// Assistants turned on in Settings, in a stable order.
+    private var enabledProviders: [AgentProvider] {
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, cursor ? .cursor : nil].compactMap { $0 }
+    }
+
+    /// Enabled assistants that may appear in the UI. Claude, Codex and Cursor need a CLI sign-in.
+    private var admittedProviders: [AgentProvider] {
+        enabledProviders.filter { AgentMeterAccounts.showsInUI($0, signedIn: usage.meterSignedIn) }
+    }
+
+    private var needsMeterSignIn: Bool {
+        enabledProviders.contains { AgentMeterAccounts.requiresSignIn($0) }
+            && !enabledProviders.filter { AgentMeterAccounts.requiresSignIn($0) }
+                .allSatisfy { usage.meterSignedIn.contains($0) }
+    }
+
+    /// Cards for the current focus. "All" keeps anyone already seen or with a
+    /// plan reading; a single assistant stays visible even before history lands.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
-            .filter(usage.snapshot.seen.contains)
+        let enabled = admittedProviders
+        if let focus { return enabled.filter { $0 == focus } }
+        return enabled.filter { provider in
+            usage.snapshot.seen.contains(provider) || usage.snapshot.limits[provider] != nil
+                || usage.snapshot.live.contains { $0.provider == provider }
+        }
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -41,18 +66,31 @@ struct NotchAgentsView: View {
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty {
+            } else if enabledProviders.isEmpty {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
-            } else if rows.isEmpty {
-                NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
+            } else if admittedProviders.isEmpty && needsMeterSignIn {
+                signInPrompt
             } else {
-                let rows = rows
-                TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
-                        ScrollView { grid(rows, now: context.date) }
-                            .scrollIndicators(.automatic)
+                VStack(spacing: 8) {
+                    if needsMeterSignIn { signInBanner }
+                    if admittedProviders.count > 1 { switcher }
+                    if providers.isEmpty {
+                        NotchEmptyView(symbol: "sparkles", message: text.empty)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else if rows.isEmpty {
+                        NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        grid(rows, now: context.date)
+                        let rows = rows
+                        let switcherHeight: CGFloat = admittedProviders.count > 1 ? 28 : 0
+                        TimelineView(.periodic(from: .now, by: 15)) { context in
+                            if NotchAgentSupport.contentHeight(rows) + switcherHeight > size.height + 0.5 {
+                                ScrollView { grid(rows, now: context.date) }
+                                    .scrollIndicators(.automatic)
+                            } else {
+                                grid(rows, now: context.date)
+                            }
+                        }
                     }
                 }
             }
@@ -60,6 +98,107 @@ struct NotchAgentsView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear { usage.pageDidAppear() }
+        .onChange(of: enabledProviders.map(\.rawValue).joined(separator: ",")) { _, _ in
+            if let focus, !admittedProviders.contains(focus) { self.focus = nil }
+        }
+    }
+
+    private var signInPrompt: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.plus")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(text.signInPrompt)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 6) {
+                ForEach(usage.meterSignInAccounts) { account in
+                    Button {
+                        AgentMeterAccounts.signIn(account)
+                        usage.refreshMeterSignIn()
+                    } label: {
+                        HStack(spacing: 6) {
+                            NotchAgentMark(provider: account.provider, size: 10)
+                            Text(text.signInTo(account.displayName))
+                                .font(.system(size: 11, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Color.white.opacity(0.1), in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 8)
+    }
+
+    private var signInBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text.signInBanner)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                ForEach(usage.meterSignInAccounts) { account in
+                    Button {
+                        AgentMeterAccounts.signIn(account)
+                        usage.refreshMeterSignIn()
+                    } label: {
+                        HStack(spacing: 4) {
+                            NotchAgentMark(provider: account.provider, size: 9)
+                            Text(account.displayName)
+                                .font(.system(size: 10, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.white.opacity(0.08), in: Capsule(style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One chip per assistant, plus a combined view. Choosing a chip filters
+    /// Limits, Spending and Now to that assistant.
+    private var switcher: some View {
+        HStack(spacing: 5) {
+            switchChip(selected: focus == nil, tint: .white) {
+                focus = nil
+            } label: {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: 9, weight: .semibold))
+            }
+            .accessibilityLabel("All")
+            ForEach(admittedProviders) { provider in
+                switchChip(selected: focus == provider, tint: provider.tint) {
+                    focus = provider
+                } label: {
+                    NotchAgentMark(provider: provider, size: 10)
+                }
+                .accessibilityLabel(provider.displayName)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 1)
+    }
+
+    private func switchChip<Label: View>(selected: Bool, tint: Color, action: @escaping () -> Void,
+                                         @ViewBuilder label: () -> Label) -> some View {
+        Button(action: action) {
+            label()
+                .frame(width: 22, height: 22)
+                .background(selected ? tint.opacity(0.22) : Color.white.opacity(0.06),
+                            in: Capsule(style: .continuous))
+                .overlay(Capsule(style: .continuous).strokeBorder(selected ? tint.opacity(0.55) : .clear, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
@@ -84,19 +223,28 @@ struct NotchAgentsView: View {
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
+            NotchAgentSpendCard(usage: snapshot.usage(shown).restricted(to: providers),
+                                snapshot: snapshot, providers: providers, period: $period, text: text)
+                .id(providers.map(\.rawValue).joined(separator: ","))
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+                .id("live-" + providers.map(\.rawValue).joined(separator: ","))
         case .trend:
             NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+                .id("trend-" + providers.map(\.rawValue).joined(separator: ","))
         case .models:
+            let usage = snapshot.usage(shown).restricted(to: providers)
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
-                                shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
+                                shares: usage.models, byCost: usage.fullyPriced, text: text)
+                .id("models-" + providers.map(\.rawValue).joined(separator: ","))
         case .projects:
+            let usage = snapshot.usage(shown).restricted(to: providers)
             NotchAgentShareCard(title: text.projectsCard, symbol: NotchAgentCard.projects.symbol,
-                                shares: snapshot.usage(shown).projects, byCost: snapshot.usage(shown).fullyPriced, text: text)
+                                shares: usage.projects, byCost: usage.fullyPriced, text: text)
+                .id("projects-" + providers.map(\.rawValue).joined(separator: ","))
         case .activity:
-            NotchAgentActivityCard(snapshot: snapshot, text: text)
+            NotchAgentActivityCard(snapshot: snapshot, providers: providers, text: text)
+                .id("activity-" + providers.map(\.rawValue).joined(separator: ","))
         case .resets:
             NotchAgentResetsCard(now: now, text: text)
         }
@@ -355,6 +503,8 @@ private struct NotchAgentInlineLabel: LabelStyle {
 // MARK: Spending
 
 private struct NotchAgentSpendCard: View {
+    /// Already limited to the assistants on this tab.
+    let usage: AgentPeriodUsage
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
     @Binding var period: String
@@ -363,7 +513,6 @@ private struct NotchAgentSpendCard: View {
     private var chosen: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     var body: some View {
-        let usage = snapshot.usage(chosen)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) { periodMenu }
@@ -371,7 +520,6 @@ private struct NotchAgentSpendCard: View {
                     Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
                         .monospacedDigit()
-                        .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text(text.apiValue)
@@ -379,11 +527,11 @@ private struct NotchAgentSpendCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if chosen == .month { multiples(usage) }
+                    if chosen == .month { multiples }
                 }
                 .help(usage.fullyPriced ? text.valueNote : text.unpriced)
-                split(usage)
-                Text(footer(usage))
+                split
+                Text(footer)
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -406,7 +554,7 @@ private struct NotchAgentSpendCard: View {
     }
 
     /// Thirty days of API value against a plan's monthly price.
-    @ViewBuilder private func multiples(_ usage: AgentPeriodUsage) -> some View {
+    @ViewBuilder private var multiples: some View {
         HStack(spacing: 3) {
             ForEach(providers) { provider in
                 if let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
@@ -419,7 +567,7 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
-    @ViewBuilder private func split(_ usage: AgentPeriodUsage) -> some View {
+    @ViewBuilder private var split: some View {
         let byCost = usage.fullyPriced
         let parts = providers.map { usage.byProvider[$0]?.weight(byCost: byCost) ?? 0 }
         let total = parts.reduce(0, +)
@@ -445,7 +593,7 @@ private struct NotchAgentSpendCard: View {
         .accessibilityHidden(true)
     }
 
-    private func footer(_ usage: AgentPeriodUsage) -> String {
+    private var footer: String {
         var parts = [text.tokens(AgentFormat.tokens(usage.total.tokens.total))]
         if let rate = usage.total.tokens.cacheHitRate, rate > 0 { parts.append(text.cached(AgentFormat.percent(rate))) }
         return parts.joined(separator: " · ")
@@ -545,11 +693,12 @@ private struct NotchAgentTrendCard: View {
     }
 
     var body: some View {
-        let byCost = snapshot.usage(period).fullyPriced
+        let usage = snapshot.usage(period).restricted(to: providers)
+        let byCost = usage.fullyPriced
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.trendCard, symbol: NotchAgentCard.trend.symbol) {
-                    Text(caption(byCost: byCost))
+                    Text(caption(usage: usage, byCost: byCost))
                         .font(.system(size: 9.5, weight: .medium))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
@@ -561,13 +710,14 @@ private struct NotchAgentTrendCard: View {
         }
     }
 
-    private func caption(byCost: Bool) -> String {
+    private func caption(usage: AgentPeriodUsage, byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
-            // A pointed-at bar reads its tokens beside its cost.
-            let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
+            // A pointed-at bar reads its tokens beside its cost, for this tab only.
+            let totals = bucket.total(for: providers)
+            let tokens = byCost ? " · " + value(totals, byCost: false) : ""
+            return label(bucket.start, long: true) + " · " + value(totals, byCost: byCost) + tokens
         }
-        return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
+        return text.period(period) + " · " + value(usage.total, byCost: byCost)
     }
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
@@ -658,22 +808,29 @@ private struct NotchAgentShareCard: View {
 
 private struct NotchAgentActivityCard: View {
     let snapshot: AgentUsageSnapshot
+    let providers: [AgentProvider]
     let text: NotchAgentStrings
     @State private var hovered: Date?
     @Environment(\.locale) private var locale
 
+    private var days: [AgentBucket] {
+        snapshot.days.map { $0.restricted(to: providers) }
+    }
+
     /// Days in a row with any use, counting today only once it has some.
     private var streak: Int {
+        let days = days
         var count = 0
-        for day in snapshot.days.reversed() {
+        for day in days.reversed() {
             if day.total.requests > 0 { count += 1 }
-            else if count > 0 || day.id != snapshot.days.last?.id { break }
+            else if count > 0 || day.id != days.last?.id { break }
         }
         return count
     }
 
     var body: some View {
-        let byCost = snapshot.days.allSatisfy { $0.total.unpriced == 0 }
+        let days = days
+        let byCost = days.allSatisfy { $0.total.unpriced == 0 }
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
@@ -688,11 +845,11 @@ private struct NotchAgentActivityCard: View {
                     }
                 }
                 GeometryReader { proxy in
-                    let map = NotchAgentHeatmap.width(height: proxy.size.height, days: snapshot.days)
+                    let map = NotchAgentHeatmap.width(height: proxy.size.height, days: days)
                     HStack(alignment: .top, spacing: 14) {
-                        NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered)
+                        NotchAgentHeatmap(days: days, byCost: byCost, hovered: $hovered)
                             .frame(width: map, height: proxy.size.height)
-                        figures(byCost: byCost)
+                        figures(days: days, byCost: byCost)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                 }
@@ -702,17 +859,17 @@ private struct NotchAgentActivityCard: View {
 
     /// The total for the whole map, its active days and its busiest day; a
     /// hovered day takes the place of the busiest one.
-    private func figures(byCost: Bool) -> some View {
-        let active = snapshot.days.filter { $0.total.requests > 0 }
+    private func figures(days: [AgentBucket], byCost: Bool) -> some View {
+        let active = days.filter { $0.total.requests > 0 }
         let busiest = active.max { $0.total.weight(byCost: byCost) < $1.total.weight(byCost: byCost) }
-        let pointed = hovered.flatMap { date in snapshot.days.first { $0.start == date } }
+        let pointed = hovered.flatMap { date in days.first { $0.start == date } }
         return VStack(alignment: .leading, spacing: 2) {
-            Text(value(snapshot.days.reduce(into: AgentTotals()) { $0 += $1.total }, byCost: byCost))
+            Text(value(days.reduce(into: AgentTotals()) { $0 += $1.total }, byCost: byCost))
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(AgentFormat.span(days: snapshot.days.count, locale: locale))
+            Text(AgentFormat.span(days: days.count, locale: locale))
                 .font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 4)
             figure(text.activeDays, "\(active.count)")

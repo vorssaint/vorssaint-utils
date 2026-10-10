@@ -29,6 +29,7 @@ enum NotchAgentTests {
         reading(suite)
         AgentUsageReadTests.run(suite)
         AgentUsagePollingTests.run(suite)
+        AgentMeterSessionTests.run(suite)
         AgentUsageArchiveTests.run(suite)
         AgentUsageArchiveSettleTests.run(suite)
         AgentUsageArchiveSaveTests.run(suite)
@@ -1931,6 +1932,11 @@ enum NotchAgentTests {
         suite.expect(snapshot.usage(.today).models.map(\.name) == ["Sonnet 5", "GPT-6 Astra", "Opus 5"]
                         && snapshot.usage(.today).projects.map(\.name) == ["app", "web"],
                      "models and projects are ranked by what they cost")
+        let claudeSpend = snapshot.usage(.today).restricted(to: [.claude])
+        suite.expect(claudeSpend.total.cost == 8 && Set(claudeSpend.byProvider.keys) == [.claude]
+                        && claudeSpend.models.map(\.name) == ["Sonnet 5", "Opus 5"]
+                        && claudeSpend.projects.map(\.name) == ["app"],
+                     "a focused assistant keeps only its own spending, models and projects")
         suite.expect(snapshot.claudeBlock == AgentBlock(start: AgentTimestamp.parse("2026-09-22T15:20:00Z")!,
                                                         end: AgentTimestamp.parse("2026-09-22T20:20:00Z")!,
                                                         totals: { var totals = AgentTotals(); totals.add(records[2]); return totals }()),
@@ -2219,6 +2225,12 @@ enum NotchAgentTests {
         var registry = AgentSessionRegistry.read([folder, folder.appending(path: "missing")]) { running.contains($0) }
         suite.expect(registry == AgentSessionRegistry(running: ["quit", "killed"], ended: [], complete: true, listed: true),
                      "a session with a running process reads as running, even beside a killed one's record, and a container's record proves nothing")
+        write("600.json", #"{"pid":600,"sessionId":"asked","status":"waiting","waitingFor":"Approve edit","pidDomain":"darwin"}"#)
+        let waiting = AgentSessionRegistry.read([folder]) { running.union([600]).contains($0) }
+        suite.expect(waiting.waiting == ["asked"] && waiting.running.contains("asked")
+                        && waiting.waitingReasons["asked"] == "Approve edit",
+                     "a Claude session that stopped for input is waiting, and its process is still running")
+        try? FileManager.default.removeItem(at: folder.appending(path: "600.json"))
         write("400.json", #"{"pid":"#)
         registry = AgentSessionRegistry.read([folder]) { $0 == 100 }
         suite.expect(registry.running == ["quit"] && registry.ended == ["killed"] && !registry.complete,
@@ -2607,11 +2619,14 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor],
+                     "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor],
+                     "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor],
+                     "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -2624,7 +2639,8 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
+                    DefaultsKey.notchAgentsEdgeMeter, DefaultsKey.notchAgentsEdgeOffset,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -2647,8 +2663,9 @@ enum NotchAgentTests {
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot])
                         == [limits, codex, trend] && !AgentProvider.copilot.reportsLimits
+                        && AgentProvider.cursor.reportsLimits
                         && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
-                     "only agents whose local logs report plan allowances get a limits card")
+                     "only agents that report a plan allowance get a limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]
                         && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [spend],

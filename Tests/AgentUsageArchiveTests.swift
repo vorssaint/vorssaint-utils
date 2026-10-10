@@ -300,7 +300,7 @@ enum AgentUsageArchiveTests {
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "tracksTurns", "parent", "openCode", "offset", "identity", "pending", "discarding",
-              "state", "modified", "restarted", "fingerprinted"]),
+              "state", "cursorWaiting", "cursorWaitingReason", "cursorSettled", "modified", "restarted", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),

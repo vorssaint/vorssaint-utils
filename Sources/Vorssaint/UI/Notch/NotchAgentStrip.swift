@@ -23,6 +23,7 @@ struct NotchAgentStrip: View {
 
     var body: some View {
         // The last agent stopping empties the list before the strip has left.
+        // Live turns always show — sign-in only gates the empty Agents page.
         NotchStripHold(usage.snapshot.live, shows: !usage.snapshot.live.isEmpty) { strip(live: $0) }
     }
 
@@ -33,18 +34,20 @@ struct NotchAgentStrip: View {
         let geometry = displayGeometry ?? service.compactActivityGeometry
         let working = working(live)
         let tint = working.first?.tint ?? .white
-        let budget = geometry.compactActivityContentHeight - NotchLayout.compactEdgeGap * 2
-        let iconSize = min(working.count > 1 ? 11.0 : 14.0, max(8, budget - 4))
         let textSize = NotchAgentSupport.stripTextSize(height: geometry.compactActivityContentHeight)
+        let iconSize = NotchAgentSupport.stripMarkSize(height: geometry.compactActivityContentHeight)
+        // Leave a little air so the silhouette never clips the mark.
+        let ringSize = min(iconSize + 2, geometry.compactActivityContentHeight - 2)
+        let asked = !working.filter { usage.meterWaiting.contains($0) }.isEmpty
         let iconInset = !geometry.compactActivityUsesFooter
-            ? geometry.compactActivityEdgeInset(boxHeight: iconSize + 4, radius: (iconSize + 4) / 2) : 0
+            ? geometry.compactActivityEdgeInset(boxHeight: ringSize, radius: ringSize / 2) : 0
         let textInset = !geometry.compactActivityUsesFooter
             ? geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0) : 0
         HStack(spacing: 0) {
             Button { service.openActivity(.agents) } label: {
-                HStack(spacing: 1) {
+                HStack(spacing: 4) {
                     if geometry.compactActivityWingWidth >= 28 {
-                        ForEach(working) { NotchAgentGlyph(provider: $0, size: iconSize) }
+                        AgentMeterRingRow(rings: liveRings(working, live: live), size: ringSize)
                     }
                 }
                 .padding(.leading, iconInset)
@@ -61,7 +64,7 @@ struct NotchAgentStrip: View {
                             Text(text)
                                 .font(.system(size: textSize, weight: .medium))
                                 .monospacedDigit()
-                                .foregroundStyle(tint)
+                                .foregroundStyle(asked ? Color.orange : tint)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                                 // A reading that gains a digit, like an hour
@@ -89,6 +92,27 @@ struct NotchAgentStrip: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { service.openActivity(.agents) }
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    /// One ring per assistant that is working: filled by its plan, a thin arc
+    /// while it runs, and an amber pulse while it is waiting on a person.
+    private func liveRings(_ working: [AgentProvider], live: [AgentLiveSession]) -> [AgentMeterRing] {
+        let now = Date()
+        return working.map { provider in
+            let asks = usage.meterWaiting.contains(provider)
+            let calm = usage.meterSettled.contains(provider)
+            let fraction = AgentMeterQuota.headline(usage.snapshot.limits[provider]?.windows ?? [])?.usedFraction ?? 0
+            return AgentMeterRing(id: provider.rawValue, provider: provider, fraction: fraction,
+                                  spinning: !asks && !calm, waiting: asks,
+                                  detail: detail(provider, live: live, now: now))
+        }
+    }
+
+    private func detail(_ provider: AgentProvider, live: [AgentLiveSession], now: Date) -> String {
+        NotchAgentSupport.meterDetail(provider: provider, live: live,
+                                      waiting: usage.meterWaiting.contains(provider),
+                                      reason: usage.meterWaitingDetail[provider],
+                                      limits: usage.snapshot.limits[provider], now: now)
     }
 
     private func reading(at now: Date, live: [AgentLiveSession]) -> String {
@@ -136,7 +160,12 @@ struct NotchAgentRestingWing: View {
         let snapshot = usage.snapshot
         let limit = NotchAgentSupport.restingLimit(snapshot, focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
         let used = display == NotchAgentLimitDisplay.used.rawValue
-        if let limit {
+        let rings = AgentMeterRings.models(snapshot: snapshot, waiting: usage.meterWaiting,
+                                           settled: usage.meterSettled, details: usage.meterWaitingDetail,
+                                           signedIn: usage.meterSignedIn, now: now)
+        if leading, rings.contains(where: { $0.spinning || $0.waiting }) || rings.count > 1 {
+            AgentMeterRingRow(rings: rings)
+        } else if let limit {
             let tint = agentLimitTint(limit.provider, usedFraction: limit.window.usedFraction)
             if leading {
                 NotchAgentRing(value: used ? limit.window.usedFraction : limit.window.remainingFraction,

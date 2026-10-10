@@ -97,6 +97,22 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let meterTitle: String
+    let meterEdgeToggle: String
+    let meterEdgeHint: String
+    let meterSignedIn: String
+    let meterNotSignedIn: String
+    let meterMissingToolFormat: String
+    let signIn: String
+    let logOut: String
+    let signInPrompt: String
+    let signInToFormat: String
+    let signInBanner: String
+    let waitingForYou: String
+    let waitingReasonFormat: String
+    let working: String
+    let meterUsedFormat: String
+    let meterResetsFormat: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -111,6 +127,11 @@ struct NotchAgentStrings {
     func claudeLimitsStale(_ when: String) -> String { String(format: claudeLimitsStaleFormat, when) }
     func pricesFrom(_ day: String) -> String { String(format: pricesFromFormat, day) }
     func resetsExpiry(_ when: String) -> String { String(format: resetsExpiryFormat, when) }
+    func meterMissingTool(_ name: String) -> String { String(format: meterMissingToolFormat, name) }
+    func signInTo(_ name: String) -> String { String(format: signInToFormat, name) }
+    func waitingReason(_ reason: String) -> String { String(format: waitingReasonFormat, reason) }
+    func meterUsed(_ percent: String) -> String { String(format: meterUsedFormat, percent) }
+    func meterResets(_ when: String) -> String { String(format: meterResetsFormat, when) }
 
     func period(_ period: AgentPeriod) -> String {
         switch period {
@@ -176,8 +197,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, Cursor, OpenCode and GitHub Copilot in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, Cursor, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -203,7 +224,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code, Codex, OpenCode or GitHub Copilot yet. It appears here as soon as any of them works on this Mac.",
+        empty: "No usage from Claude Code, Codex, Cursor, OpenCode or GitHub Copilot yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         unpriced: "Some models have no known price, so this is a minimum.",
@@ -267,7 +288,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        meterTitle: "Assistant meter",
+        meterEdgeToggle: "Show the meter on the screen edge",
+        meterEdgeHint: "One ring for each signed-in assistant. Drag it along the top edge.",
+        meterSignedIn: "Signed in",
+        meterNotSignedIn: "Not signed in",
+        meterMissingToolFormat: "%@ is not installed",
+        signIn: "Sign in",
+        logOut: "Log out",
+        signInPrompt: "Sign in to the assistants you turned on to see usage and the meter.",
+        signInToFormat: "Sign in to %@",
+        signInBanner: "Sign in to show usage for the assistants still waiting on you.",
+        waitingForYou: "Waiting for you",
+        waitingReasonFormat: "Waiting · %@",
+        working: "Working",
+        meterUsedFormat: "%@ used",
+        meterResetsFormat: "resets %@")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -362,7 +399,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        meterTitle: "Лічильник асистентів",
+        meterEdgeToggle: "Показувати лічильник на краю екрана",
+        meterEdgeHint: "По одному кільцю для кожного введеного асистента. Перетягніть уздовж верхнього краю.",
+        meterSignedIn: "Увійшли",
+        meterNotSignedIn: "Не ввійшли",
+        meterMissingToolFormat: "%@ не встановлено",
+        signIn: "Увійти",
+        logOut: "Вийти",
+        signInPrompt: "Увійдіть в увімкнені асистенти, щоб бачити використання та лічильник.",
+        signInToFormat: "Увійти в %@",
+        signInBanner: "Увійдіть, щоб показати використання для асистентів, які ще чекають на вас.",
+        waitingForYou: "Чекає на вас",
+        waitingReasonFormat: "Очікування · %@",
+        working: "Працює",
+        meterUsedFormat: "%@ використано",
+        meterResetsFormat: "оновлення %@")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -457,7 +510,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        meterTitle: "Medidor de assistentes",
+        meterEdgeToggle: "Mostrar o medidor na borda da tela",
+        meterEdgeHint: "Um anel para cada assistente conectado. Arraste ao longo da borda superior.",
+        meterSignedIn: "Conectado",
+        meterNotSignedIn: "Não conectado",
+        meterMissingToolFormat: "%@ não está instalado",
+        signIn: "Entrar",
+        logOut: "Sair",
+        signInPrompt: "Entre nos assistentes que você ativou para ver o uso e o medidor.",
+        signInToFormat: "Entrar em %@",
+        signInBanner: "Entre para mostrar o uso dos assistentes que ainda aguardam você.",
+        waitingForYou: "Aguardando você",
+        waitingReasonFormat: "Aguardando · %@",
+        working: "Trabalhando",
+        meterUsedFormat: "%@ usado",
+        meterResetsFormat: "renova %@")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -552,7 +621,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        meterTitle: "Medidor de asistentes",
+        meterEdgeToggle: "Mostrar el medidor en el borde de la pantalla",
+        meterEdgeHint: "Un anillo por cada asistente con sesión. Arrástralo por el borde superior.",
+        meterSignedIn: "Sesión iniciada",
+        meterNotSignedIn: "Sin sesión",
+        meterMissingToolFormat: "%@ no está instalado",
+        signIn: "Iniciar sesión",
+        logOut: "Cerrar sesión",
+        signInPrompt: "Inicia sesión en los asistentes que activaste para ver el uso y el medidor.",
+        signInToFormat: "Iniciar sesión en %@",
+        signInBanner: "Inicia sesión para mostrar el uso de los asistentes que aún te esperan.",
+        waitingForYou: "Esperándote",
+        waitingReasonFormat: "Esperando · %@",
+        working: "Trabajando",
+        meterUsedFormat: "%@ usado",
+        meterResetsFormat: "se reinicia %@")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -647,7 +732,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        meterTitle: "Meranie asistentov",
+        meterEdgeToggle: "Zobraziť meranie na okraji obrazovky",
+        meterEdgeHint: "Jeden krúžok pre každého prihláseného asistenta. Potiahnite pozdĺž horného okraja.",
+        meterSignedIn: "Prihlásené",
+        meterNotSignedIn: "Neprihlásené",
+        meterMissingToolFormat: "%@ nie je nainštalovaný",
+        signIn: "Prihlásiť sa",
+        logOut: "Odhlásiť sa",
+        signInPrompt: "Prihláste sa do zapnutých asistentov, aby ste videli využitie a meranie.",
+        signInToFormat: "Prihlásiť sa do %@",
+        signInBanner: "Prihláste sa, aby sa zobrazilo využitie asistentov, ktorí na vás ešte čakajú.",
+        waitingForYou: "Čaká na vás",
+        waitingReasonFormat: "Čakanie · %@",
+        working: "Pracuje",
+        meterUsedFormat: "%@ použitých",
+        meterResetsFormat: "obnovenie %@")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -742,7 +843,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        meterTitle: "Assistenten-Anzeige",
+        meterEdgeToggle: "Anzeige am Bildschirmrand zeigen",
+        meterEdgeHint: "Ein Ring für jeden angemeldeten Assistenten. Am oberen Rand verschieben.",
+        meterSignedIn: "Angemeldet",
+        meterNotSignedIn: "Nicht angemeldet",
+        meterMissingToolFormat: "%@ ist nicht installiert",
+        signIn: "Anmelden",
+        logOut: "Abmelden",
+        signInPrompt: "Melde dich bei den eingeschalteten Assistenten an, um Nutzung und Anzeige zu sehen.",
+        signInToFormat: "Bei %@ anmelden",
+        signInBanner: "Melde dich an, um die Nutzung der Assistenten zu zeigen, die noch auf dich warten.",
+        waitingForYou: "Wartet auf dich",
+        waitingReasonFormat: "Wartet · %@",
+        working: "Arbeitet",
+        meterUsedFormat: "%@ verbraucht",
+        meterResetsFormat: "erneuert %@")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -837,7 +954,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        meterTitle: "Compteur d’assistants",
+        meterEdgeToggle: "Afficher le compteur au bord de l’écran",
+        meterEdgeHint: "Un anneau par assistant connecté. Faites-le glisser le long du bord supérieur.",
+        meterSignedIn: "Connecté",
+        meterNotSignedIn: "Non connecté",
+        meterMissingToolFormat: "%@ n’est pas installé",
+        signIn: "Se connecter",
+        logOut: "Se déconnecter",
+        signInPrompt: "Connectez-vous aux assistants activés pour voir l’usage et le compteur.",
+        signInToFormat: "Se connecter à %@",
+        signInBanner: "Connectez-vous pour afficher l’usage des assistants qui vous attendent encore.",
+        waitingForYou: "En attente de vous",
+        waitingReasonFormat: "En attente · %@",
+        working: "En cours",
+        meterUsedFormat: "%@ utilisé",
+        meterResetsFormat: "renouvellement %@")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -932,7 +1065,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        meterTitle: "Misuratore assistenti",
+        meterEdgeToggle: "Mostra il misuratore sul bordo dello schermo",
+        meterEdgeHint: "Un anello per ogni assistente con accesso. Trascinalo lungo il bordo superiore.",
+        meterSignedIn: "Accesso effettuato",
+        meterNotSignedIn: "Non connesso",
+        meterMissingToolFormat: "%@ non è installato",
+        signIn: "Accedi",
+        logOut: "Esci",
+        signInPrompt: "Accedi agli assistenti attivati per vedere l’utilizzo e il misuratore.",
+        signInToFormat: "Accedi a %@",
+        signInBanner: "Accedi per mostrare l’utilizzo degli assistenti che ti stanno ancora aspettando.",
+        waitingForYou: "In attesa di te",
+        waitingReasonFormat: "In attesa · %@",
+        working: "Al lavoro",
+        meterUsedFormat: "%@ usato",
+        meterResetsFormat: "si rinnova %@")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1027,7 +1176,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        meterTitle: "Счётчик ассистентов",
+        meterEdgeToggle: "Показывать счётчик у края экрана",
+        meterEdgeHint: "По кольцу на каждого вошедшего ассистента. Перетащите вдоль верхнего края.",
+        meterSignedIn: "Вход выполнен",
+        meterNotSignedIn: "Нет входа",
+        meterMissingToolFormat: "%@ не установлен",
+        signIn: "Войти",
+        logOut: "Выйти",
+        signInPrompt: "Войдите во включённых ассистентов, чтобы видеть использование и счётчик.",
+        signInToFormat: "Войти в %@",
+        signInBanner: "Войдите, чтобы показать использование ассистентов, которые ещё ждут вас.",
+        waitingForYou: "Ждёт вас",
+        waitingReasonFormat: "Ожидание · %@",
+        working: "Работает",
+        meterUsedFormat: "%@ использовано",
+        meterResetsFormat: "обновление %@")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1122,7 +1287,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        meterTitle: "Asistan ölçeri",
+        meterEdgeToggle: "Ölçeri ekran kenarında göster",
+        meterEdgeHint: "Oturum açmış her asistan için bir halka. Üst kenar boyunca sürükleyin.",
+        meterSignedIn: "Oturum açıldı",
+        meterNotSignedIn: "Oturum yok",
+        meterMissingToolFormat: "%@ yüklü değil",
+        signIn: "Oturum aç",
+        logOut: "Çıkış yap",
+        signInPrompt: "Kullanımı ve ölçeri görmek için açtığınız asistanlarda oturum açın.",
+        signInToFormat: "%@ oturumu aç",
+        signInBanner: "Hâlâ sizi bekleyen asistanların kullanımını göstermek için oturum açın.",
+        waitingForYou: "Sizi bekliyor",
+        waitingReasonFormat: "Bekliyor · %@",
+        working: "Çalışıyor",
+        meterUsedFormat: "%@ kullanıldı",
+        meterResetsFormat: "yenilenme %@")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1217,7 +1398,23 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        meterTitle: "アシスタントメーター",
+        meterEdgeToggle: "画面端にメーターを表示",
+        meterEdgeHint: "サインイン済みのアシスタントごとに1つのリング。上端に沿ってドラッグできます。",
+        meterSignedIn: "サインイン済み",
+        meterNotSignedIn: "未サインイン",
+        meterMissingToolFormat: "%@ はインストールされていません",
+        signIn: "サインイン",
+        logOut: "サインアウト",
+        signInPrompt: "オンにしたアシスタントにサインインすると、使用状況とメーターが表示されます。",
+        signInToFormat: "%@ にサインイン",
+        signInBanner: "まだ応答待ちのアシスタントの使用状況を表示するにはサインインしてください。",
+        waitingForYou: "あなたの応答待ち",
+        waitingReasonFormat: "待機中 · %@",
+        working: "作業中",
+        meterUsedFormat: "%@ 使用",
+        meterResetsFormat: "リセット %@")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1312,7 +1509,23 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        meterTitle: "어시스턴트 미터",
+        meterEdgeToggle: "화면 가장자리에 미터 표시",
+        meterEdgeHint: "로그인한 어시스턴트마다 링 하나. 상단 가장자리를 따라 드래그하세요.",
+        meterSignedIn: "로그인됨",
+        meterNotSignedIn: "로그인되지 않음",
+        meterMissingToolFormat: "%@이(가) 설치되어 있지 않습니다",
+        signIn: "로그인",
+        logOut: "로그아웃",
+        signInPrompt: "켠 어시스턴트에 로그인하면 사용량과 미터를 볼 수 있습니다.",
+        signInToFormat: "%@에 로그인",
+        signInBanner: "아직 응답을 기다리는 어시스턴트 사용량을 보려면 로그인하세요.",
+        waitingForYou: "응답 대기 중",
+        waitingReasonFormat: "대기 중 · %@",
+        working: "작업 중",
+        meterUsedFormat: "%@ 사용",
+        meterResetsFormat: "초기화 %@")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1407,7 +1620,23 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        meterTitle: "助手用量环",
+        meterEdgeToggle: "在屏幕边缘显示用量环",
+        meterEdgeHint: "每个已登录的助手一个圆环。可沿上边缘拖动。",
+        meterSignedIn: "已登录",
+        meterNotSignedIn: "未登录",
+        meterMissingToolFormat: "未安装 %@",
+        signIn: "登录",
+        logOut: "退出登录",
+        signInPrompt: "登录你已开启的助手后，即可查看用量与用量环。",
+        signInToFormat: "登录 %@",
+        signInBanner: "登录后即可显示仍在等待你的助手的用量。",
+        waitingForYou: "等待你回应",
+        waitingReasonFormat: "等待 · %@",
+        working: "工作中",
+        meterUsedFormat: "已用 %@",
+        meterResetsFormat: "重置 %@")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1502,7 +1731,23 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        meterTitle: "助手用量環",
+        meterEdgeToggle: "在螢幕邊緣顯示用量環",
+        meterEdgeHint: "每個已登入的助手一個圓環。可沿上邊緣拖曳。",
+        meterSignedIn: "已登入",
+        meterNotSignedIn: "未登入",
+        meterMissingToolFormat: "尚未安裝 %@",
+        signIn: "登入",
+        logOut: "登出",
+        signInPrompt: "登入你已開啟的助手後，即可查看用量與用量環。",
+        signInToFormat: "登入 %@",
+        signInBanner: "登入後即可顯示仍在等待你的助手的用量。",
+        waitingForYou: "等待你回應",
+        waitingReasonFormat: "等待 · %@",
+        working: "工作中",
+        meterUsedFormat: "已用 %@",
+        meterResetsFormat: "重設 %@")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1597,5 +1842,21 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        meterTitle: "助手用量環",
+        meterEdgeToggle: "在螢幕邊緣顯示用量環",
+        meterEdgeHint: "每個已登入的助手一個圓環。可沿上邊緣拖曳。",
+        meterSignedIn: "已登入",
+        meterNotSignedIn: "未登入",
+        meterMissingToolFormat: "尚未安裝 %@",
+        signIn: "登入",
+        logOut: "登出",
+        signInPrompt: "登入你已開啟的助手後，即可查看用量與用量環。",
+        signInToFormat: "登入 %@",
+        signInBanner: "登入後即可顯示仍在等待你的助手的用量。",
+        waitingForYou: "等待你回應",
+        waitingReasonFormat: "等待 · %@",
+        working: "工作中",
+        meterUsedFormat: "已用 %@",
+        meterResetsFormat: "重設 %@")
 }

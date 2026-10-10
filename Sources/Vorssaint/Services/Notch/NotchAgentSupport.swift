@@ -88,6 +88,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .cursor: return DefaultsKey.notchAgentsCursor
         }
     }
 
@@ -196,6 +197,32 @@ enum NotchAgentSupport {
     static let stripCameraGap: CGFloat = 6
 
     static func stripTextSize(height: CGFloat) -> CGFloat { min(15, height - 7) }
+
+    /// The working agent's mark, a step larger than the reading beside it.
+    static func stripMarkSize(height: CGFloat) -> CGFloat { min(26, stripTextSize(height: height) + 6) }
+
+    /// Hover text for a meter ring or strip mark: name, state, reason, project, plan %.
+    static func meterDetail(provider: AgentProvider, live: [AgentLiveSession], waiting: Bool,
+                            reason: String? = nil, limits: AgentLimits? = nil, now: Date = Date(),
+                            text: NotchAgentStrings = FeatureStrings.notchAgents(L10n.shared.language)) -> String {
+        let sessions = live.filter { $0.provider == provider }
+        let place = sessions.map(\.project).filter { !$0.isEmpty }.joined(separator: ", ")
+        var parts = [provider.displayName]
+        if waiting {
+            let trimmed = reason?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            parts.append(trimmed.isEmpty ? text.waitingForYou : text.waitingReason(trimmed))
+        } else if !sessions.isEmpty {
+            parts.append(text.working)
+        }
+        if !place.isEmpty { parts.append(place) }
+        if let window = AgentMeterQuota.headline(limits?.windows ?? []) {
+            parts.append(text.meterUsed(AgentFormat.percent(window.usedFraction)))
+            if let resets = window.resetsAt, resets > now {
+                parts.append(text.meterResets(resets.formatted(date: .abbreviated, time: .shortened)))
+            }
+        }
+        return parts.joined(separator: " · ")
+    }
 
     /// What the strip shows beside the camera while agents work: the reading
     /// the person chose, or the time elapsed while that one is unknown.
