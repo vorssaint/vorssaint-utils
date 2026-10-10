@@ -68,6 +68,24 @@ def main():
                         "    private static func accessibilityWindows(for pid: pid_t,",
                         "    private static func appendUnique(", "    private static func contains("])
           + "}\n")
+    runtime = "Sources/Vorssaint/App/FeatureRuntime.swift"
+    runtime_body = "".join(declaration(runtime, prefix).replace("private func", "func", 1)
+                          for prefix in ["    private func mayFlip(", "    func setAvailable(",
+                                         "    private func configurationValues()", "    private func applyHistoryChange(",
+                                         "    func undoLastFeatureChange()", "    func redoLastFeatureChange()",
+                                         "    func setAllAvailable(",
+                                         "    func turnOn(", "    func replaceAvailable("])
+    runtime_body = (runtime_body
+                    .replace("UserDefaults.standard", "Self.defaults")
+                    .replace("in: .standard", "in: Self.defaults")
+                    .replace(".filter(\\.isAvailable)", ".filter { $0.isAvailable(in: Self.defaults) }")
+                    .replace("feature.isAvailable", "feature.isAvailable(in: Self.defaults)")
+                    .replace("AppFeature.notch.isAvailable", "AppFeature.notch.isAvailable(in: Self.defaults)")
+                    .replace("feature.isHardwareSupported", "Self.supported.contains(feature)")
+                    .replace("Self.bindings[feature]?()", "syncFeature(feature)"))
+    write("FeatureRuntimeConfiguration.swift", "import Foundation\n"
+          + "extension FeatureRuntimeContract {\nfinal class Host: Fixture {\n"
+          + runtime_body + "}\n}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
           + "extension LaunchAtLoginSettingsTests.View {\n"

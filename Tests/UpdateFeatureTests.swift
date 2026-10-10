@@ -415,6 +415,23 @@ enum UpdateFeatureTests {
                 && scrollingRows[0].destination == scrollingRows[1].destination
                 && sidewaysOnlyRows.first?.id == .feature(.scrollHorizontal),
                "tools sharing a section keep separate named rows")
+        let discoverySections = [SettingsSidebarSection(id: 10, title: "Tools", items: [
+            pageRow(.windowLayout), pageRow(.superKey), pageRow(.commandBar)])]
+        let simpleRows = SettingsSidebarSupport.visibleSections(discoverySections,
+            experience: .simple, selected: FeatureSettingsDestination(.general)).flatMap(\.items)
+        suite.expect(simpleRows.map(\.id) == [.page(.windowLayout)],
+                     "Simple sidebar limits advanced features without touching availability")
+        let linkedRows = SettingsSidebarSupport.visibleSections(discoverySections,
+            experience: .simple, selected: FeatureSettingsDestination(.superKey)).flatMap(\.items)
+        suite.expect(linkedRows.map(\.id) == [.page(.windowLayout), .page(.superKey)],
+                     "search and deep links keep destinations outside the selected level reachable")
+
+        suite.expect(SettingsSidebarSupport.visibleSections([
+            SettingsSidebarSection(id: 0, title: "Essentials", items: [pageRow(.features)])],
+            experience: .simple, selected: FeatureSettingsDestination(.general))
+                .first?.items.first?.id == .page(.features),
+                     "Features remains reachable in Simple even when hub-only tools are hidden")
+
         let keyboardDestination = FeatureSettingsDestination(
             .shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
         let keyboardShortcutItem = SettingsSearchSupport.keyboardBrightnessShortcutItem(language: .enUS)
@@ -2002,7 +2019,7 @@ enum UpdateFeatureTests {
                "app update preferences travel in a backup, the last check does not")
         suite.expect(AppFeature.appUpdates.enabledKeys.isEmpty
                 && AppFeature.appUpdates.permissions == [.notifications, .appManagement]
-                && AppFeature.appUpdates.group == .tools,
+                && AppFeature.appUpdates.group == .applications,
                "app updates is an on demand tool that declares its update access")
         suite.expect(FeatureVisibilitySupport.features(for: .appUpdates) == [.appUpdates]
                 && !FeatureVisibilitySupport.isPageVisible(.appUpdates, isAvailable: { _ in false }),

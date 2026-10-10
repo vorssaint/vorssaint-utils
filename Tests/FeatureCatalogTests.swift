@@ -36,6 +36,53 @@ enum FeatureCatalogTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
+        suite.expect(SettingsExperience.simple.features.isStrictSubset(of: SettingsExperience.advanced.features)
+                     && SettingsExperience.advanced.features.isStrictSubset(of: SettingsExperience.expert.features)
+                     && SettingsExperience.expert.features == Set(AppFeature.allCases),
+                     "discovery levels progressively reveal the full catalog")
+        suite.expect(Array(FeatureGroup.allCases.prefix(2)) == [.dynamicIsland, .monitor],
+                     "Dynamic Island and System Monitor lead every feature category list")
+        suite.expect(SettingsExperience.allCases.allSatisfy { view in
+            view.shows(.notch) && AppFeature.features(in: .monitor).allSatisfy { view.shows($0) }
+        }, "Dynamic Island, Fan Control and every monitor remain discoverable in every view")
+        let focusedHidden = SettingsExperience.simple.hiddenFeatureCount()
+        suite.expect(focusedHidden == AppFeature.allCases.count - SettingsExperience.simple.features.count
+                     && SettingsExperience.expert.hiddenFeatureCount() == 0
+                     && SettingsExperience.simple.hiddenFeatureCount(revealing: .superKey) == focusedHidden - 1,
+                     "visibility counts match hidden catalog features and account for a revealed search result")
+        suite.expect(SettingsDiscoveryStrings.localized(.enUS).name(.simple) == "Focused"
+                     && SettingsDiscoveryStrings.localized(.enUS).name(.advanced) == "Expanded"
+                     && SettingsDiscoveryStrings.localized(.enUS).name(.expert) == "Everything",
+                     "feature views describe their scope without expertise labels")
+        for language in AppLanguage.allCases {
+            let discovery = SettingsDiscoveryStrings.localized(language)
+            suite.expect(SettingsDiscoveryStrings.Control.allCases.allSatisfy { !discovery.text($0).isEmpty },
+                         "discovery chrome is translated in \(language)")
+            expectFormat(discovery.text(.hidden), ["d"], "hidden feature count in \(language)")
+            expectFormat(discovery.text(.shown), ["d"], "shown feature count in \(language)")
+            suite.expect(TestFormat.parse(discovery.text(.hiddenBy))?.conversions.sorted() == ["@", "d"],
+                         "visibility view count accepts translated argument order in \(language)")
+            let hiddenLabel = String(format: discovery.text(.hiddenBy), 56, discovery.name(.simple))
+            suite.expect(hiddenLabel.contains("56") && hiddenLabel.contains(discovery.name(.simple)),
+                         "visibility view count places its number and translated name correctly in \(language)")
+        }
+        suite.expect(SettingsExperience.sanitized("unknown") == .expert,
+                     "unknown saved levels preserve full settings access")
+        suite.expect(AppFeature.windowLayout.enabledKeys.contains(DefaultsKey.windowLayoutShortcutsEnabled)
+                     && AppFeature.windowLayout.enabledKeys.contains(DefaultsKey.windowEdgeSnapEnabled),
+                     "Window Layout describes the behaviors it actually controls")
+        suite.expect(AppFeature.windowLayout.configurationState(isAvailable: { _ in true }, boolFor: { _ in false }) == .configuredOff
+                     && AppFeature.mixer.configurationState(isAvailable: { _ in true }, boolFor: { _ in false }) == .onDemand
+                     && AppFeature.notchLyrics.configurationState(isAvailable: { $0 != .notch }, boolFor: { _ in true }) == .parentRequired
+                     && AppFeature.switcher.configurationState(isAvailable: { _ in false }, boolFor: { _ in true }) == .excluded,
+                     "feature status distinguishes off behavior, on-demand tools, missing parents and exclusion")
+        suite.expect(AppFeature.sorted([.shelf, .mixer, .switcher]) { $0.rawValue } == [.mixer, .shelf, .switcher],
+                     "feature sorting follows localized names with stable identities")
+        suite.expect(AppFeature.screenRecorder.group == .capture && AppFeature.appUpdates.group == .applications,
+                     "capture and app maintenance are separate categories")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.settingsExperience),
+                     "discovery level travels with a settings backup")
+
         // MARK: Cleaning-mode unlock gesture
 
         let escapeKeyCode: Int64 = 53
@@ -677,10 +724,6 @@ enum FeatureCatalogTests {
         }
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.featureHubKeptFeatures),
                "features someone chose to keep travel in backups, so a restored Mac never offers them again")
-        let hubUndoSource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift",
-                                         encoding: .utf8)) ?? ""
-        suite.expect(hubUndoSource.contains("setAvailable(batch, true, enablingFirstInstalls: false)"),
-               "undoing the offer reinstalls without switching on what was never on")
         suite.expect(FeatureGroup.allCases.map { AppFeature.features(in: $0).count }.reduce(0, +)
                 == AppFeature.allCases.count,
                "every feature belongs to exactly one group")
@@ -1308,7 +1351,7 @@ enum FeatureCatalogTests {
                "Window Layout does not poll permissions when every snap zone is off")
 
         suite.expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.cleaningMode, .commandBar, .screenRecorder],
                "with nothing enabled only on-demand features use accessibility")
         func radialMenuUsesAccessibility(_ profile: RadialMenuProfile, legacyItems: [RadialMenuItem]) -> Bool {
             let stored = [DefaultsKey.radialMenuProfiles: RadialMenuSupport.encodeProfiles([profile]),

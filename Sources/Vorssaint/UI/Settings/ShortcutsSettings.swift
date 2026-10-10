@@ -82,7 +82,7 @@ struct ShortcutsSettings: View {
         AppFeature.allCases.filter { feature in
             // The screenshot slot anchors the combined capture group; the
             // other capture tools render inside it instead of on their own.
-            if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
+            if feature == .screenshot { return group == .capture && !captureRoles.isEmpty }
             if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
             if feature == .windowLayout {
                 return group == .windowsDock && feature.isAvailable
@@ -269,16 +269,7 @@ struct ShortcutsSettings: View {
     }
 
     private func groupTitle(_ group: FeatureGroup) -> String {
-        switch group {
-        case .windowsDock: return hub.groupWindowsDock
-        case .mouseKeyboard: return hub.groupMouseKeyboard
-        case .clipboardFiles: return hub.groupClipboardFiles
-        case .sound: return hub.groupSound
-        case .energyDisplay: return hub.groupEnergyDisplay
-        case .tools: return hub.groupTools
-        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
-        case .monitor: return hub.groupMonitor
-        }
+        group.title(l10n.language, hub: hub)
     }
 }
 

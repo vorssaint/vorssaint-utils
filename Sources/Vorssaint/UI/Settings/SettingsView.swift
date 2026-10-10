@@ -55,6 +55,7 @@ struct SettingsView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
+    @AppStorage(DefaultsKey.settingsExperience) private var experienceRaw = SettingsExperience.expert.rawValue
     @State private var searchQuery = ""
     @State private var activeSearchIndex: Int?
     @State private var directoryCache = SettingsDirectoryCache()
@@ -87,11 +88,13 @@ struct SettingsView: View {
     }
 
     private var sidebarSections: [SettingsSidebarSection] {
-        directoryCache.navigation(
+        let sections = directoryCache.navigation(
             strings: l10n.s, language: l10n.language,
             superKeySource: SuperKeySource.sanitized(superKeySourceRaw),
             featureRevision: features.revision,
             isAvailable: { features.isAvailable($0) })
+        return SettingsSidebarSupport.visibleSections(sections,
+            experience: .sanitized(experienceRaw), selected: router.destination)
     }
 
     private var sidebarItems: [SettingsSidebarItem] {
@@ -164,39 +167,7 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            // SwiftUI adds its sidebar button only to windows it creates, and
-            // this one is AppKit's. Without it, a sidebar dragged shut could
-            // only be dragged back from a one-point strip at the window's
-            // edge, and a full-screen window could only peek at it.
-            ToolbarItem(placement: .navigation) {
-                let strings = SettingsNavigationStrings.localized(l10n.language)
-                let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
-                Button(action: toggleSidebar) {
-                    Label(title, systemImage: "sidebar.left")
-                }
-                .keyboardShortcut("s", modifiers: [.control, .command])
-                .help(title)
-            }
-            ToolbarItemGroup(placement: .navigation) {
-                let strings = SettingsNavigationStrings.localized(l10n.language)
-                Button {
-                    router.goBack(isPageVisible: isPageVisible)
-                } label: {
-                    Label(strings.back, systemImage: "chevron.backward")
-                }
-                .disabled(!router.canGoBack(isPageVisible: isPageVisible))
-                .help(strings.back)
-
-                Button {
-                    router.goForward(isPageVisible: isPageVisible)
-                } label: {
-                    Label(strings.forward, systemImage: "chevron.forward")
-                }
-                .disabled(!router.canGoForward(isPageVisible: isPageVisible))
-                .help(strings.forward)
-            }
-        }
+        .toolbar { navigationToolbar }
         .frame(minWidth: 772, maxWidth: .infinity, minHeight: 528, maxHeight: .infinity)
         .onAppear {
             ensureVisiblePage()
@@ -213,39 +184,66 @@ struct SettingsView: View {
         }
     }
 
-    /// macOS 27 backs the pinned sidebar search field with a hard top scroll
-    /// edge, so rows fade out cleanly under it. On macOS 26 that effect does
-    /// not render inside split-view sidebars and the pinned field has no
-    /// backing of its own, so rows slid legibly across the placeholder
-    /// (issues #183, #254); there the field lives on a fixed header above the
-    /// list, where rows can never reach it. Earlier systems keep the classic
-    /// opaque sidebar chrome.
-    @ViewBuilder
-    private func sidebar(searchResults: SearchResultsSnapshot) -> some View {
-#if compiler(>=6.2)
-        if #available(macOS 27, *) {
-            sidebarList(searchResults: searchResults)
-                .searchable(text: $searchQuery,
-                            placement: .sidebar,
-                            prompt: l10n.s.settingsSearchPlaceholder)
-                .scrollEdgeEffectStyle(.hard, for: .top)
-        } else if #available(macOS 26, *) {
-            VStack(spacing: 0) {
-                SidebarSearchField(query: $searchQuery, isFocused: $sidebarSearchFocused)
-                sidebarList(searchResults: searchResults)
+    @ToolbarContentBuilder
+    private var navigationToolbar: some ToolbarContent {
+        // This Settings window is created by AppKit, so SwiftUI does not add
+        // its sidebar button. Keep a way to reopen a sidebar dragged shut.
+        ToolbarItem(placement: .navigation) {
+            let strings = SettingsNavigationStrings.localized(l10n.language)
+            let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
+            Button(action: toggleSidebar) {
+                Label(title, systemImage: "sidebar.left")
             }
-        } else {
-            sidebarList(searchResults: searchResults)
-                .searchable(text: $searchQuery,
-                            placement: .sidebar,
-                            prompt: l10n.s.settingsSearchPlaceholder)
+            .keyboardShortcut("s", modifiers: [.control, .command])
+            .help(title)
         }
-#else
-        sidebarList(searchResults: searchResults)
-            .searchable(text: $searchQuery,
-                        placement: .sidebar,
-                        prompt: l10n.s.settingsSearchPlaceholder)
-#endif
+        ToolbarItemGroup(placement: .navigation) {
+            let strings = SettingsNavigationStrings.localized(l10n.language)
+            Button {
+                router.goBack(isPageVisible: isPageVisible)
+            } label: {
+                Label(strings.back, systemImage: "chevron.backward")
+            }
+            .disabled(!router.canGoBack(isPageVisible: isPageVisible))
+            .help(strings.back)
+
+            Button {
+                router.goForward(isPageVisible: isPageVisible)
+            } label: {
+                Label(strings.forward, systemImage: "chevron.forward")
+            }
+            .disabled(!router.canGoForward(isPageVisible: isPageVisible))
+            .help(strings.forward)
+        }
+    }
+
+    /// Search and visibility belong together in a fixed sidebar header. The
+    /// controls stay visible while categories scroll, with no floating toolbar
+    /// capsule or footer competing with the selected feature.
+    private func sidebar(searchResults: SearchResultsSnapshot) -> some View {
+        VStack(spacing: 0) {
+            SidebarSearchField(query: $searchQuery, isFocused: $sidebarSearchFocused)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(SettingsDiscoveryStrings.localized(l10n.language).text(.show)).font(.caption).foregroundStyle(.secondary)
+                    Picker(SettingsDiscoveryStrings.localized(l10n.language).text(.visibility), selection: $experienceRaw) {
+                        ForEach(SettingsExperience.allCases) { level in
+                            Text(SettingsDiscoveryStrings.localized(l10n.language).name(level)).tag(level.rawValue)
+                        }
+                    }
+                    .labelsHidden().pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
+                    .help(SettingsDiscoveryStrings.localized(l10n.language).text(.filterHelp))
+                }
+                Text(String(format: SettingsDiscoveryStrings.localized(l10n.language).text(.hidden),
+                            SettingsExperience.sanitized(experienceRaw).hiddenFeatureCount()))
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .help(SettingsDiscoveryStrings.localized(l10n.language).text(.filterHelp))
+            }
+            .padding(.horizontal, 12).padding(.top, 3).padding(.bottom, 10)
+            Divider()
+            sidebarList(searchResults: searchResults)
+        }
     }
 
     private var hasSearchQuery: Bool {

@@ -15,7 +15,12 @@ struct FeatureHubSettings: View {
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: Tab = .features
-    @State private var confirmingPreset: FeaturePreset?
+    @AppStorage(DefaultsKey.settingsExperience) private var experienceRaw = SettingsExperience.expert.rawValue
+    @State private var catalogQuery = ""
+    @State private var selectedGroup: FeatureGroup?
+    @State private var includedOnly = false
+    @State private var enabledFirst = false
+    @State private var revealedFeature: AppFeature?
     /// Tracks the feature-target request currently being revealed, so a
     /// delayed retry from an older request cannot act after a newer one has
     /// already taken over (same convention as `SettingsSectionFocusModifier`).
@@ -25,13 +30,9 @@ struct FeatureHubSettings: View {
     /// gives an ordinary page anchor.
     @State private var highlightedFeature: AppFeature?
     @State private var expandedGroups = Set(FeatureGroup.allCases)
-    @State private var islandExtensionsExpanded = true
-    @State private var presetsExpanded = true
     /// Installed switches never once turned on, read when the page appears
     /// and after every install change rather than on every redraw.
     @State private var neverUsed: [AppFeature] = []
-    /// The batch just uninstalled from that card, kept for its Undo.
-    @State private var recentlyUninstalled: [AppFeature] = []
 
     /// Below this, the offer would be more to read than it saves.
     private static let neverUsedMinimum = 3
@@ -49,6 +50,18 @@ struct FeatureHubSettings: View {
                 }
                 .onChange(of: router.requestID) { _, _ in revealPendingFeatureTarget(using: proxy) }
                 .onChange(of: features.revision) { _, _ in refreshNeverUsed() }
+                .onChange(of: experienceRaw) { _, _ in
+                    revealedFeature = nil
+                    selectedGroup = nil
+                    refreshNeverUsed()
+                    proxy.scrollTo("catalog", anchor: .top)
+                }
+                .onChange(of: catalogQuery) { _, query in
+                    if !query.isEmpty { expandedGroups = Set(FeatureGroup.allCases) }
+                }
+                .onChange(of: selectedGroup) { _, group in
+                    if let group { expandedGroups.insert(group) }
+                }
         }
     }
 
@@ -78,13 +91,15 @@ struct FeatureHubSettings: View {
                     restartCard
                 }
                 if tab == .features {
+                    catalogControls.id("catalog")
                     summaryCard
-                    neverUsedCard
-                    dynamicIslandCard
-                    presetsCard
-                    ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
+                    ForEach(FeatureGroup.allCases.filter { !members(in: $0).isEmpty }, id: \.self) { group in
                         groupCard(group)
                     }
+                    if FeatureGroup.allCases.allSatisfy({ members(in: $0).isEmpty }) {
+                        ContentUnavailableView.search(text: catalogQuery)
+                    }
+                    neverUsedCard
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hub.footerNote)
                         Text(hub.energyHelp)
@@ -102,19 +117,80 @@ struct FeatureHubSettings: View {
             .frame(maxWidth: .infinity)
             .padding(22)
         }
-        .alert(confirmingPreset.map { presetName($0) } ?? "",
-               isPresented: Binding(get: { confirmingPreset != nil },
-                                    set: { if !$0 { confirmingPreset = nil } }),
-               presenting: confirmingPreset) { preset in
-            Button(hub.presetConfirmApply) {
-                withAnimation(.easeOut(duration: 0.22)) {
-                    FeatureRuntime.shared.apply(preset)
+
+    }
+
+    private var discovery: SettingsDiscoveryStrings { .localized(l10n.language) }
+    private var experience: SettingsExperience { .sanitized(experienceRaw) }
+
+    private func members(in group: FeatureGroup) -> [AppFeature] {
+        guard selectedGroup == nil || selectedGroup == group else { return [] }
+        let query = catalogQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidates = AppFeature.features(in: group).filter { feature in
+            experience.shows(feature, revealing: revealedFeature)
+                && (!includedOnly || feature.isAvailable)
+                && (query.isEmpty || SettingsSearchSupport.matches(query: query,
+                    title: feature.hubTitle(l10n.s, hub: hub),
+                    keywords: [feature.hubDescription(hub), group.title(l10n.language, hub: hub)]))
+        }
+        let sorted = AppFeature.sorted(candidates) { $0.hubTitle(l10n.s, hub: hub) }
+        if enabledFirst { return sorted.filter(\.isAvailable) + sorted.filter { !$0.isAvailable } }
+        if group == .dynamicIsland {
+            return sorted.filter { $0 == .notch } + sorted.filter { $0 != .notch }
+        }
+        return sorted
+    }
+
+    private var catalogControls: some View {
+        SettingsCard {
+            TextField(l10n.s.settingsSearchPlaceholder, text: $catalogQuery)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(discovery.text(.searchVisible))
+            ViewThatFits(in: .horizontal) {
+                HStack { categoryPicker; catalogOptions }
+                VStack(alignment: .leading) { categoryPicker; catalogOptions }
+            }
+            let shown = FeatureGroup.allCases.reduce(0) { $0 + members(in: $1).count }
+            Text(String(format: discovery.text(.shown), shown))
+                .font(.caption).foregroundStyle(.secondary)
+            let hidden = experience.hiddenFeatureCount(revealing: revealedFeature)
+            if hidden > 0 {
+                Divider()
+                HStack(spacing: 12) {
+                    Image(systemName: "eye.slash")
+                        .font(.title3).foregroundStyle(Color.accentColor)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(String(format: discovery.text(.hidden), hidden))
+                            .font(.callout.weight(.semibold))
+                        Text(discovery.text(.filterHelp))
+                            .font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                    Button(discovery.text(.showEverything)) { experienceRaw = SettingsExperience.expert.rawValue }
+                        .buttonStyle(.link)
                 }
             }
-            Button(hub.presetConfirmCancel, role: .cancel) {}
-        } message: { preset in
-            Text(String(format: hub.presetConfirmFormat, presetName(preset)))
+
         }
+    }
+
+    private var categoryPicker: some View {
+        Picker(discovery.text(.category), selection: $selectedGroup) {
+            Text(discovery.text(.allCategories)).tag(Optional<FeatureGroup>.none)
+            ForEach(FeatureGroup.allCases.filter { group in
+                AppFeature.features(in: group).contains { experience.shows($0, revealing: revealedFeature) }
+            }, id: \.self) { group in
+                Text(group.title(l10n.language, hub: hub)).tag(Optional(group))
+            }
+        }.pickerStyle(.menu)
+    }
+
+    private var catalogOptions: some View {
+        HStack(spacing: 12) {
+            Toggle(discovery.text(.includedOnly), isOn: $includedOnly).toggleStyle(.checkbox)
+            Toggle(discovery.text(.includedFirst), isOn: $enabledFirst).toggleStyle(.checkbox)
+        }.font(.caption)
     }
 
     /// Consumes a pending Feature Hub target: switches off the Permissions
@@ -126,12 +202,12 @@ struct FeatureHubSettings: View {
         guard let request = router.pendingFeatureTarget else { return }
         router.consumeFeatureTarget(id: request.id)
         revealID = request.id
+        revealedFeature = request.feature
+        selectedGroup = nil
+        includedOnly = false
+        catalogQuery = ""
         if tab == .permissions { tab = .features }
-        if request.feature.group == .dynamicIsland {
-            if request.feature != .notch { islandExtensionsExpanded = true }
-        } else {
-            expandedGroups.insert(request.feature.group)
-        }
+        expandedGroups.insert(request.feature.group)
         DispatchQueue.main.async {
             guard self.revealID == request.id else { return }
             proxy.scrollTo(request.feature.group, anchor: .top)
@@ -209,6 +285,13 @@ struct FeatureHubSettings: View {
                 .disabled(features.availableCount == 0)
             }
             InstalledShareBar(installed: features.availableCount, total: features.installableCount)
+            HStack {
+                Spacer(minLength: 12)
+                Button(l10n.s.menuUndo) { features.undoLastFeatureChange() }
+                    .disabled(features.undoCount == 0)
+                Button(l10n.s.menuRedo) { features.redoLastFeatureChange() }
+                    .disabled(features.redoCount == 0)
+            }
         }
     }
 
@@ -218,21 +301,7 @@ struct FeatureHubSettings: View {
     /// features, and Undo puts back exactly what left.
     @ViewBuilder
     private var neverUsedCard: some View {
-        if !recentlyUninstalled.isEmpty {
-            SettingsCard {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.green)
-                        .accessibilityHidden(true)
-                    Text(hub.footerNote)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 12)
-                    Button(l10n.s.menuUndo, action: undoNeverUsedUninstall)
-                }
-            }
-        } else if neverUsed.count >= Self.neverUsedMinimum {
+        if neverUsed.count >= Self.neverUsedMinimum {
             SettingsCard(title: hub.neverUsedTitle) {
                 Text(String(format: hub.neverUsedMessageFormat,
                             neverUsed.map { $0.hubTitle(l10n.s, hub: hub) }.joined(separator: ", ")))
@@ -250,6 +319,7 @@ struct FeatureHubSettings: View {
 
     private func refreshNeverUsed() {
         neverUsed = FeatureRuntime.shared.neverSwitchedOnFeatures()
+            .filter { experience.shows($0, revealing: revealedFeature) }
     }
 
     private func uninstallNeverUsed() {
@@ -261,21 +331,8 @@ struct FeatureHubSettings: View {
             refreshNeverUsed()
             return
         }
-        recentlyUninstalled = batch
         withAnimation(.easeOut(duration: 0.22)) {
             FeatureRuntime.shared.setAvailable(batch, false)
-        }
-    }
-
-    /// Changing one's mind is also an answer to the offer, so the features
-    /// that come back are kept and never offered again. None of them was
-    /// ever on, and the reinstall leaves their switches off too.
-    private func undoNeverUsedUninstall() {
-        let batch = recentlyUninstalled
-        recentlyUninstalled = []
-        FeatureRuntime.shared.keep(batch)
-        withAnimation(.easeOut(duration: 0.22)) {
-            FeatureRuntime.shared.setAvailable(batch, true, enablingFirstInstalls: false)
         }
     }
 
@@ -286,83 +343,10 @@ struct FeatureHubSettings: View {
         }
     }
 
-    /// Three one-click starting points. Nobody arrives wanting 67 decisions;
-    /// a preset shapes the app in one move and everything else stays one
-    /// click away in the list below.
-    private var presetsCard: some View {
-        SettingsCard {
-            DisclosureGroup(hub.presetsTitle, isExpanded: $presetsExpanded) {
-                if presetsExpanded {
-                    HStack(alignment: .top, spacing: 10) {
-                        ForEach(FeaturePreset.allCases) { preset in
-                            PresetCard(preset: preset,
-                                       name: presetName(preset),
-                                       caption: presetDescription(preset),
-                                       applyTitle: hub.presetApplyButton) {
-                                confirmingPreset = preset
-                            }
-                        }
-                    }
-                    Text(hub.presetsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func presetName(_ preset: FeaturePreset) -> String {
-        switch preset {
-        case .essential: return hub.presetEssentialName
-        case .windows: return hub.presetWindowsName
-        case .battery: return hub.presetBatteryName
-        }
-    }
-
-    private func presetDescription(_ preset: FeaturePreset) -> String {
-        switch preset {
-        case .essential: return hub.presetEssentialDesc
-        case .windows: return hub.presetWindowsDesc
-        case .battery: return hub.presetBatteryDesc
-        }
-    }
-
-    /// The island stays near the top, with its additions in a group the user
-    /// can close when they want a shorter catalog.
-    private var dynamicIslandCard: some View {
-        let members = AppFeature.features(in: .dynamicIsland)
-        let installed = members.filter(\.isAvailable).count
-        return SettingsCard {
-            groupHeader(.dynamicIsland, installed: installed, total: members.count)
-            FeatureHubRow(feature: .notch, hub: hub,
-                          isHighlighted: highlightedFeature == .notch)
-                .id(AppFeature.notch)
-            DisclosureGroup(
-                FeatureStrings.notch(l10n.language).modules,
-                isExpanded: $islandExtensionsExpanded
-            ) {
-                if islandExtensionsExpanded {
-                    VStack(spacing: 0) {
-                        ForEach(members.filter { $0 != .notch }, id: \.self) { feature in
-                            FeatureHubRow(feature: feature, hub: hub,
-                                          isHighlighted: highlightedFeature == feature)
-                                .id(feature)
-                            if feature != members.last {
-                                Divider().padding(.leading, 8)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        .id(FeatureGroup.dynamicIsland)
-    }
-
-    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Every category uses the same disclosure, rows and sorting rules.
     /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
-        let members = AppFeature.features(in: group)
+        let members = members(in: group)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
             DisclosureGroup(isExpanded: Binding(
@@ -421,31 +405,7 @@ struct FeatureHubSettings: View {
     }
 
     private func groupTitle(_ group: FeatureGroup) -> String {
-        switch group {
-        case .windowsDock: return hub.groupWindowsDock
-        case .mouseKeyboard: return hub.groupMouseKeyboard
-        case .clipboardFiles: return hub.groupClipboardFiles
-        case .sound: return hub.groupSound
-        case .energyDisplay: return hub.groupEnergyDisplay
-        case .tools: return hub.groupTools
-        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
-        case .monitor: return hub.groupMonitor
-        }
-    }
-}
-
-private extension FeatureGroup {
-    var symbolName: String {
-        switch self {
-        case .windowsDock: return "macwindow.on.rectangle"
-        case .mouseKeyboard: return "computermouse"
-        case .clipboardFiles: return "doc.on.clipboard"
-        case .sound: return "speaker.wave.2.fill"
-        case .energyDisplay: return "bolt.fill"
-        case .tools: return "wrench.and.screwdriver.fill"
-        case .dynamicIsland: return AppFeature.notch.symbolName
-        case .monitor: return "chart.line.uptrend.xyaxis"
-        }
+        group.title(l10n.language, hub: hub)
     }
 }
 
@@ -462,44 +422,6 @@ private struct InstalledShareBar: View {
     }
 }
 
-// MARK: - Preset card
-
-private struct PresetCard: View {
-    let preset: FeaturePreset
-    let name: String
-    let caption: String
-    let applyTitle: String
-    let onApply: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Image(systemName: preset.symbolName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-            Text(name)
-                .font(.system(size: 13, weight: .semibold))
-                .lineLimit(1)
-            Text(caption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
-            Button(applyTitle, action: onApply)
-                .controlSize(.small)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 138, alignment: .topLeading)
-        .background(Color.primary.opacity(0.05),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(name). \(caption)")
-    }
-}
-
 // MARK: - Feature row
 
 /// Icon, name and one line about the feature; small icons for the
@@ -510,11 +432,12 @@ private struct FeatureHubRow: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var confirmingExtensions = false
     @State private var hovering = false
-    @State private var showingMetadata = false
+    @State private var preferenceRevision = 0
     let feature: AppFeature
     let hub: FeatureHubStrings
     var isHighlighted: Bool = false
 
+    private var discovery: SettingsDiscoveryStrings { .localized(l10n.language) }
     private var installed: Bool { feature.isAvailable }
 
     private var opensSettings: Bool { installed && feature.hasNavigableSettingsDestination }
@@ -535,28 +458,6 @@ private struct FeatureHubRow: View {
         let title = feature.hubTitle(l10n.s, hub: hub)
         if feature == .notch { return "\(title). \(hub.experimentalBadge)" }
         return feature.isBeta ? "\(title). \(l10n.s.betaFeatureWarning)" : title
-    }
-
-    private var energyLabel: String {
-        switch feature.energyProfile {
-        case .idle: return hub.energyIdle
-        case .mouse: return hub.energyMouse
-        case .pointer: return hub.energyPointer
-        case .keyboard: return hub.energyKeyboard
-        case .inputs: return hub.energyInputs
-        case .periodic: return hub.energyPeriodic
-        }
-    }
-
-    private var energySymbols: [String] {
-        switch feature.energyProfile {
-        case .idle: return ["leaf"]
-        case .mouse: return ["computermouse"]
-        case .pointer: return ["hand.point.up.left"]
-        case .keyboard: return ["keyboard"]
-        case .inputs: return ["computermouse", "keyboard"]
-        case .periodic: return ["clock.arrow.circlepath"]
-        }
     }
 
     /// The switch reads availability itself, so it only moves once the
@@ -583,23 +484,25 @@ private struct FeatureHubRow: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub)). \(statusLabel)")
                 .accessibilityAddTraits(.isLink)
                 .accessibilityRemoveTraits(.isButton)
             } else {
                 rowContent(showsChevron: false)
                     .accessibilityElement(children: .combine)
-                    .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
+                    .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub)). \(statusLabel)")
                     .opacity(unsupportedReason == nil ? 1 : 0.4)
                     .saturation(unsupportedReason == nil ? 1 : 0)
             }
-            metadata
             installSwitch
         }
         .padding(.vertical, 7)
         .padding(.horizontal, 8)
         .background(rowFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onHover { hovering = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            preferenceRevision &+= 1
+        }
         .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
             Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
             Button(hub.notchUninstallKeepExtensions) { flip(to: false) }
@@ -611,6 +514,22 @@ private struct FeatureHubRow: View {
         }
     }
 
+    private var state: FeatureConfigurationState {
+        _ = preferenceRevision
+        return feature.configurationState(isAvailable: \.isAvailable,
+                                          boolFor: UserDefaults.standard.bool(forKey:))
+    }
+
+    private var statusLabel: String {
+        switch state {
+        case .excluded: return discovery.text(.notIncluded)
+        case .parentRequired: return discovery.text(.parentRequired)
+        case .configuredOff: return discovery.text(.behaviorOff)
+        case .configuredOn: return discovery.text(.behaviorOn)
+        case .onDemand: return discovery.text(.onDemand)
+        }
+    }
+
     private var rowFill: Color {
         if isHighlighted { return Color.accentColor.opacity(0.10) }
         return hovering && opensSettings ? Color.primary.opacity(0.04) : Color.clear
@@ -618,7 +537,12 @@ private struct FeatureHubRow: View {
 
     private func rowContent(showsChevron: Bool) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+            Image(systemName: feature.symbolName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 30, height: 30)
+                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
                         .foregroundStyle(installed ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
@@ -645,6 +569,7 @@ private struct FeatureHubRow: View {
                     .font(.caption)
                     .foregroundStyle(installed ? Color.secondary : Color.secondary.opacity(0.7))
                     .fixedSize(horizontal: false, vertical: true)
+                Text(statusLabel).font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
             if showsChevron {
@@ -658,44 +583,9 @@ private struct FeatureHubRow: View {
         .contentShape(Rectangle())
     }
 
-    /// Use a readable label instead of a row of tiny, unexplained symbols.
-    private var metadata: some View {
-        let explanation = (feature.permissions.map { $0.name(hub) } + [energyLabel])
-            .joined(separator: "\n")
-        return Button(feature.permissions.isEmpty ? energyLabel : hub.tabPermissions) {
-            showingMetadata.toggle()
-        }
-        .buttonStyle(.plain)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .help(explanation)
-        .accessibilityLabel(explanation)
-        .popover(isPresented: $showingMetadata) {
-            // Symbols differ in width, so a centered icon column keeps the texts aligned.
-            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
-                ForEach(feature.permissions, id: \.self) { permission in
-                    GridRow {
-                        Image(systemName: permission.symbolName)
-                            .gridColumnAlignment(.center)
-                            .accessibilityHidden(true)
-                        Text(permission.name(hub))
-                    }
-                }
-                GridRow {
-                    HStack(spacing: 2) {
-                        ForEach(energySymbols, id: \.self) { Image(systemName: $0) }
-                    }
-                    .accessibilityHidden(true)
-                    Text(energyLabel)
-                }
-            }
-            .padding(14)
-        }
-    }
-
     @ViewBuilder
     private var installSwitch: some View {
-        let toggle = Toggle(accessibilityTitle, isOn: installBinding)
+        let toggle = Toggle(SettingsDiscoveryStrings.localized(l10n.language).included, isOn: installBinding)
             .labelsHidden()
             .toggleStyle(.switch)
             .controlSize(.small)
@@ -709,7 +599,17 @@ private struct FeatureHubRow: View {
             .help(reason)
             .accessibilityLabel("\(accessibilityTitle). \(reason)")
         } else {
-            toggle
+            VStack(alignment: .trailing, spacing: 5) {
+                toggle
+                    .accessibilityLabel("\(accessibilityTitle): \(discovery.included)")
+                    .help(discovery.text(.includeHelp))
+                Text(SettingsDiscoveryStrings.localized(l10n.language).included)
+                    .font(.system(size: 9)).foregroundStyle(.secondary)
+                if state == .configuredOff {
+                    Button(discovery.text(.turnOn)) { features.turnOn(feature) }
+                        .buttonStyle(.borderless).font(.caption)
+                }
+            }
         }
     }
 

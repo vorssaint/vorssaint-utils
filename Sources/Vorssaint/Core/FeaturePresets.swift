@@ -160,3 +160,99 @@ extension AppFeature {
         }
     }
 }
+
+/// Discovery views only change presentation; switching views never changes
+/// feature availability, behavior settings or running services.
+enum SettingsExperience: String, CaseIterable, Identifiable {
+    case simple, advanced, expert
+    var id: String { rawValue }
+
+    static func sanitized(_ raw: String) -> Self { Self(rawValue: raw) ?? .expert }
+
+    var features: Set<AppFeature> {
+        switch self {
+        case .simple:
+            return Set<AppFeature>([.mixer, .micMute, .keepAwake, .brightness, .screenshot, .screenRecorder,
+                    .clipboardHistory, .pastePlain, .windowLayout, .switcher, .dockPreview,
+                    .notch, .notchTimer]).union(AppFeature.features(in: .monitor))
+        case .advanced:
+            return Self.simple.features.union([
+                .dockClick, .windowMaximizer, .scrollInverter, .smoothScroll, .mouseNavigation,
+                .middleClick, .textSnippets, .quitWindowProtection, .finderCutPaste, .finderRename,
+                .shelf, .urlCleaner, .soundOutputSwitcher, .audioPriority, .quickLauncher,
+                .quickToggles, .colorPicker, .screenOCR, .mediaTools, .cleaner, .uninstaller,
+                .appUpdates, .scratchpad, .commandBar, .notchCalendar, .notchNotifications,
+                .notchGestures, .notchAccessories, .notchLyrics, .notchQueue, .notchDownloads,
+                .monitorGPU, .monitorNetwork, .monitorDisk, .connectedDevices])
+        case .expert:
+            return Set(AppFeature.allCases)
+        }
+    }
+
+    /// The selector is a presentation filter. A requested search destination
+    /// can be revealed without switching profiles or changing availability.
+    func shows(_ feature: AppFeature, revealing requested: AppFeature? = nil) -> Bool {
+        features.contains(feature) || feature == requested
+    }
+
+    func hiddenFeatureCount(revealing requested: AppFeature? = nil) -> Int {
+        AppFeature.allCases.filter { !shows($0, revealing: requested) }.count
+    }
+}
+
+extension FeatureGroup {
+    func title(_ language: AppLanguage, hub: FeatureHubStrings) -> String {
+        switch self {
+        case .windowsDock: return hub.groupWindowsDock
+        case .mouseKeyboard: return hub.groupMouseKeyboard
+        case .clipboardFiles: return hub.groupClipboardFiles
+        case .capture: return SettingsDiscoveryStrings.localized(language).capture
+        case .applications: return SettingsDiscoveryStrings.localized(language).applications
+        case .sound: return hub.groupSound
+        case .energyDisplay: return hub.groupEnergyDisplay
+        case .tools: return hub.groupTools
+        case .dynamicIsland: return FeatureStrings.notch(language).title
+        case .monitor: return hub.groupMonitor
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .windowsDock: return "macwindow.on.rectangle"
+        case .mouseKeyboard: return "computermouse"
+        case .clipboardFiles: return "doc.on.clipboard"
+        case .capture: return "camera.viewfinder"
+        case .applications: return "shippingbox"
+        case .sound: return "speaker.wave.2.fill"
+        case .energyDisplay: return "bolt.fill"
+        case .tools: return "wrench.and.screwdriver.fill"
+        case .dynamicIsland: return AppFeature.notch.symbolName
+        case .monitor: return "chart.line.uptrend.xyaxis"
+        }
+    }
+}
+
+/// The visible state of a feature's availability and saved behavior, not a
+/// claim about permissions or whether a timer/on-demand tool is active now.
+enum FeatureConfigurationState {
+    case excluded, parentRequired, configuredOff, configuredOn, onDemand
+}
+
+extension AppFeature {
+    func configurationState(isAvailable: (AppFeature) -> Bool,
+                            boolFor: (String) -> Bool) -> FeatureConfigurationState {
+        guard isAvailable(self) else { return .excluded }
+        if group == .dynamicIsland && self != .notch,
+           !isAvailable(.notch) || !boolFor(DefaultsKey.notchEnabled) { return .parentRequired }
+        guard !enabledKeys.isEmpty else { return .onDemand }
+        return enabledKeys.contains(where: boolFor) ? .configuredOn : .configuredOff
+    }
+
+    /// Stable alphabetical order shared by the sidebar and discovery catalog.
+    static func sorted(_ features: [AppFeature], title: (AppFeature) -> String) -> [AppFeature] {
+        features.sorted {
+            let comparison = title($0).localizedStandardCompare(title($1))
+            return comparison == .orderedSame ? $0.rawValue < $1.rawValue : comparison == .orderedAscending
+        }
+    }
+}

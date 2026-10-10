@@ -398,16 +398,7 @@ private struct PurposeStep: View {
     }
 
     private func groupTitle(_ group: FeatureGroup) -> String {
-        switch group {
-        case .windowsDock: return hub.groupWindowsDock
-        case .mouseKeyboard: return hub.groupMouseKeyboard
-        case .clipboardFiles: return hub.groupClipboardFiles
-        case .sound: return hub.groupSound
-        case .energyDisplay: return hub.groupEnergyDisplay
-        case .tools: return hub.groupTools
-        case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
-        case .monitor: return hub.groupMonitor
-        }
+        group.title(l10n.language, hub: hub)
     }
 }
 

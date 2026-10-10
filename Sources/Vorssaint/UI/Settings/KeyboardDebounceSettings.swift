@@ -20,8 +20,8 @@ struct KeyboardDebounceSettings: View {
     @State private var selectedWindow = Defaults.defaultKeyboardDebounceWindowMs
 
     var body: some View {
-        Form {
-            Section(l10n.s.keyDebounceName) {
+        SettingsPageContent(feature: .keyboardDebounce) {
+            SettingsCard(title: l10n.s.keyDebounceName) {
                 Toggle(l10n.s.keyDebounceEnable, isOn: $enabled)
                     .onChange(of: enabled) { _, value in
                         KeyboardDebounceService.shared.syncWithPreferences()
@@ -51,7 +51,7 @@ struct KeyboardDebounceSettings: View {
                 .disabled(!enabled)
             }
 
-            Section(l10n.s.keyDebouncePerKeySection) {
+            SettingsCard(title: l10n.s.keyDebouncePerKeySection) {
                 Text(l10n.s.keyDebouncePerKeyCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -108,12 +108,11 @@ struct KeyboardDebounceSettings: View {
             .disabled(!enabled)
 
             if enabled, !permissions.accessibility {
-                Section(l10n.s.permissionRequired) {
+                SettingsCard(title: l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
             }
         }
-        .formStyle(.grouped)
         .onAppear {
             globalWindow = Defaults.sanitizedKeyboardDebounceWindow(globalWindow)
             selectedWindow = Defaults.sanitizedKeyboardDebounceWindow(selectedWindow)
