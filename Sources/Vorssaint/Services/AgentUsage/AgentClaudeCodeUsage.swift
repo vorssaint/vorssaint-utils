@@ -21,10 +21,10 @@ enum AgentClaudeCodeUsage {
     }
 
     /// When Claude Code last checked the limits, straight from its profile.
-    static func lastCheck(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Date? {
+    static func lastCheck(home: URL = FileManager.default.homeDirectoryForCurrentUser, now: Date = Date()) -> Date? {
         guard let data = try? Data(contentsOf: profileURL(home: home), options: .mappedIfSafe),
               let profile = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
-        return reading(from: profile)?.date
+        return validated(reading(from: profile), now: now)?.date
     }
 
     struct Reading: Equatable {
@@ -42,8 +42,9 @@ enum AgentClaudeCodeUsage {
     /// saved for an account other than the one signed in.
     static func reading(from profile: [String: Any]) -> Reading? {
         guard let cache = profile["cachedUsageUtilization"] as? [String: Any],
-              let milliseconds = (cache["fetchedAtMs"] as? NSNumber)?.doubleValue, milliseconds.isFinite,
-              milliseconds > 0, let utilization = cache["utilization"] as? [String: Any] else { return nil }
+              let timestamp = cache["fetchedAtMs"] as? NSNumber, CFGetTypeID(timestamp) != CFBooleanGetTypeID(),
+              timestamp.doubleValue.isFinite, timestamp.doubleValue > 0,
+              let utilization = cache["utilization"] as? [String: Any] else { return nil }
         let signedIn = (profile["oauthAccount"] as? [String: Any])?["accountUuid"] as? String
         if let account = cache["accountUuid"] as? String, account != signedIn { return nil }
         var result: [AgentLimitWindow] = []
@@ -56,14 +57,14 @@ enum AgentClaudeCodeUsage {
                                            usedPercent: min(100, max(0, number.doubleValue)), resetsAt: resets))
         }
         guard !result.isEmpty else { return nil }
-        return Reading(date: Date(timeIntervalSince1970: milliseconds / 1_000), windows: result)
+        return Reading(date: Date(timeIntervalSince1970: timestamp.doubleValue / 1_000), windows: result)
     }
 
     /// The reading's windows that still hold at `now`. One that renewed since
     /// has spent an unknown amount; without a date, a session is kept for its
     /// length and a week for a day, as with the Claude app's readings.
     static func limits(from reading: Reading?, now: Date) -> AgentLimits? {
-        guard let reading, reading.date <= now.addingTimeInterval(300) else { return nil }
+        guard let reading = validated(reading, now: now) else { return nil }
         let windows = current(reading, now: now)
         guard !windows.isEmpty else { return nil }
         return AgentLimits(provider: .claude, windows: windows, observedAt: reading.date, source: .claudeCode)
@@ -75,9 +76,24 @@ enum AgentClaudeCodeUsage {
     /// app's should be read with this reading's `renewals`, so the countdown
     /// does not move as the two take turns.
     static func merged(app: AgentLimits?, code reading: Reading?, now: Date) -> AgentLimits? {
-        guard let reading, reading.date <= now.addingTimeInterval(300) else { return app }
+        guard let reading = validated(reading, now: now) else { return app }
         guard let app, app.observedAt >= reading.date else { return limits(from: reading, now: now) }
         return app
+    }
+
+    /// Validate before sharing renewal dates with the app source, as well as
+    /// before showing the cache itself or its last-check time in Settings.
+    static func validated(_ reading: Reading?, now: Date) -> Reading? {
+        guard let reading, reading.date <= now.addingTimeInterval(300) else { return nil }
+        return reading
+    }
+
+    static func limits(app samples: [AgentClaudeAppUsage.Sample], code reading: Reading?, now: Date,
+                       sessionStart: Date? = nil, organization: String? = nil) -> AgentLimits? {
+        let reading = validated(reading, now: now)
+        let app = AgentClaudeAppUsage.limits(from: samples, now: now, sessionStart: sessionStart,
+                                             organization: organization, renewals: reading?.renewals ?? [:])
+        return merged(app: app, code: reading, now: now)
     }
 
     private static func current(_ reading: Reading, now: Date) -> [AgentLimitWindow] {

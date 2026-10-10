@@ -2036,6 +2036,12 @@ enum NotchAgentTests {
                         && AgentLimitSupport.warnedChange(warned, current: window(90, resetsIn: 130), threshold: 80) == nil
                         && AgentLimitSupport.warnedChange(warned, current: nil, threshold: 80) == nil,
                      "a warned window follows a better date for its renewal, and an early renewal is news at once")
+        let undated = AgentLimitWindow(id: "w", kind: .weekly, minutes: week, scope: nil, usedPercent: 85, resetsAt: nil)
+        suite.expect(AgentLimitSupport.warnedChange(undated, current: window(90, resetsIn: 1300), threshold: 80)
+                        == .redated(window(90, resetsIn: 1300))
+                        && AgentLimitSupport.warnedChange(undated, current: window(70, resetsIn: 1300), threshold: 80)
+                        == .redated(window(70, resetsIn: 1300)),
+                     "a pending warning adopts its first known renewal, even after use falls below the threshold")
     }
 
     // MARK: Reading files
@@ -2661,6 +2667,32 @@ enum NotchAgentTests {
                         && AgentClaudeCodeUsage.merged(app: app, code: nil, now: now) == app
                         && AgentClaudeCodeUsage.merged(app: app, code: reading, now: at("2026-10-03T05:00:00Z")) == app,
                      "either stands alone, and a Claude Code reading from the future is ignored")
+        let future = AgentClaudeCodeUsage.Reading(date: later.addingTimeInterval(301), windows: reading!.windows)
+        let ordinaryApp = AgentClaudeAppUsage.limits(from: samples, now: later)
+        let combined = AgentClaudeCodeUsage.limits(app: samples, code: future, now: later)
+        suite.expect(combined == ordinaryApp && combined?.windows.first?.resetsAt == at("2026-10-03T07:20:00Z")
+                        && AgentClaudeCodeUsage.validated(future, now: later) == nil,
+                     "a future cache cannot change the app's renewal dates or supply a Settings timestamp")
+        suite.expect(AgentClaudeCodeUsage.limits(app: samples, code: reading, now: later)?.windows.map(\.resetsAt)
+                        == [at("2026-10-03T07:40:00.319359Z"), at("2026-10-07T19:00:00.319378Z")],
+                     "the production source selection shares renewal dates from a valid cache")
+        let boundary = AgentClaudeCodeUsage.Reading(date: now.addingTimeInterval(300), windows: reading!.windows)
+        suite.expect(AgentClaudeCodeUsage.validated(boundary, now: now) == boundary,
+                     "a cache within the allowed clock skew remains usable")
+        var badTimestamp = profile()
+        var badCache = badTimestamp["cachedUsageUtilization"] as! [String: Any]
+        badCache["fetchedAtMs"] = true
+        badTimestamp["cachedUsageUtilization"] = badCache
+        suite.expect(AgentClaudeCodeUsage.reading(from: badTimestamp) == nil,
+                     "a boolean is not a cache timestamp")
+        let home = FileManager.default.temporaryDirectory.appending(path: "vorss-claude-code-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        try? FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        let url = AgentClaudeCodeUsage.profileURL(home: home)
+        try? JSONSerialization.data(withJSONObject: profile()).write(to: url)
+        suite.expect(AgentClaudeCodeUsage.lastCheck(home: home, now: now) == fetched
+                        && AgentClaudeCodeUsage.lastCheck(home: home, now: fetched.addingTimeInterval(-301)) == nil,
+                     "Settings reads the cache timestamp without needing the Claude app, and ignores future caches")
         func session(_ resets: String, from source: AgentLimits.Source, at observed: String = "2026-10-03T05:10:00Z") -> AgentLimits {
             AgentLimits(provider: .claude, windows: [AgentLimitWindow(id: "claude.fh", kind: .session, minutes: 300, scope: nil,
                                                                       usedPercent: 85, resetsAt: at(resets))],

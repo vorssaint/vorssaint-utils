@@ -168,7 +168,9 @@ struct NotchAgentsSettingsControls: View {
     /// here when they are missing or old.
     @ViewBuilder private func claudeLimitsStatus(now: Date) -> some View {
         let checked = usage.claudeAppChecked ?? claudeAppFileCheck
-        let byCode = usage.claudeCodeChecked ?? claudeCodeFileCheck
+        let byCode = (usage.claudeCodeChecked ?? claudeCodeFileCheck).flatMap {
+            $0 <= now.addingTimeInterval(300) ? $0 : nil
+        }
         // The newer of the two readings is the one shown.
         let codeLatest = byCode.map { $0 >= checked ?? $0 } ?? false
         let latest = codeLatest ? byCode : checked
@@ -198,7 +200,7 @@ struct NotchAgentsSettingsControls: View {
                     Button(text.openClaude) {
                         NSWorkspace.shared.openApplication(at: claudeApp, configuration: NSWorkspace.OpenConfiguration())
                     }
-                } else {
+                } else if !codeLatest {
                     Button(text.getClaude) { NSWorkspace.shared.open(AgentClaudeAppUsage.downloadURL) }
                 }
             }

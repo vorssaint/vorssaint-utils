@@ -592,7 +592,8 @@ final class AgentUsageService: ObservableObject {
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
         })?.date : nil
-        let checkedByCode = enabled.contains(.claude) ? claudeCodeReading?.date : nil
+        let checkedByCode = enabled.contains(.claude)
+            ? AgentClaudeCodeUsage.validated(claudeCodeReading, now: next.now)?.date : nil
         let listed = AgentPricing.list.updated
         let prices = listed == AgentPriceList.empty.updated ? nil : listed
         DispatchQueue.main.async { [weak self] in
@@ -722,10 +723,8 @@ final class AgentUsageService: ObservableObject {
         // Claude Code's own first request can place the session's start.
         let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
                                                      organization: claudeOrganization)
-        let app = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
-                                             organization: claudeOrganization,
-                                             renewals: claudeCodeReading?.renewals ?? [:])
-        if let limits = AgentClaudeCodeUsage.merged(app: app, code: claudeCodeReading, now: now) {
+        if let limits = AgentClaudeCodeUsage.limits(app: claudeAppSamples, code: claudeCodeReading, now: now,
+                                                    sessionStart: start, organization: claudeOrganization) {
             store.setLimits(limits)
         } else if let source = store.limits[.claude]?.source, fromFiles.contains(source) {
             store.clearLimits(.claude)

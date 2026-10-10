@@ -437,8 +437,12 @@ enum AgentLimitSupport {
 
     /// What a newer reading says of a window that was warned about.
     static func warnedChange(_ warned: AgentLimitWindow, current: AgentLimitWindow?, threshold: Double) -> WarnedChange? {
-        guard let current, let was = warned.resetsAt, let resets = current.resetsAt,
-              abs(resets.timeIntervalSince(was)) > 60 else { return nil }
+        guard let current, let resets = current.resetsAt else { return nil }
+        // A warning can precede the first known renewal. Once the provider
+        // supplies it, the pending reset notice must follow that date even
+        // when use has since fallen below the warning threshold.
+        guard let was = warned.resetsAt else { return .redated(current) }
+        guard abs(resets.timeIntervalSince(was)) > 60 else { return nil }
         if resets > was, current.usedPercent < threshold { return .renewed(current) }
         return current.usedPercent >= threshold ? .redated(current) : nil
     }
