@@ -219,7 +219,14 @@ enum SettingsBackupSupport {
               let settings = payload[settingsKey] as? [String: Any]
         else { return nil }
         let allowed = exportKeys()
-        let filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
+        var filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
+        // A backup predating pages replaces the flat selection, rather than
+        // silently keeping the pages already configured on this Mac.
+        if filtered[DefaultsKey.notchHomeAssistantFavorites] != nil,
+           filtered[DefaultsKey.notchHomeAssistantPages] == nil {
+            filtered[DefaultsKey.notchHomeAssistantPages] = [[String: Any]]()
+            filtered[DefaultsKey.notchHomeAssistantActivePage] = ""
+        }
         return portableNotchDisplay(portableWindowLayoutIgnoredApps(
             portableMouseExceptions(portableMediaSettings(filtered))))
     }
@@ -410,6 +417,10 @@ enum SettingsBackupSupport {
     /// code that trusts its own settings.
     static func valueLooksRight(_ key: String, _ value: Any) -> Bool {
         switch key {
+        case DefaultsKey.notchHomeAssistantPages:
+            return value is [[String: Any]]
+        case DefaultsKey.notchHomeAssistantSensors:
+            return value is [String: [String]]
         case DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird:
             return value is String
         default: break

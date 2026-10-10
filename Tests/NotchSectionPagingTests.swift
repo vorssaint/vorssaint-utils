@@ -67,6 +67,7 @@ enum NotchSectionPagingTests {
         suite.expect(feed(-10, began: true) == 0 && feed(-10, began: true) == 0 && feed(-10) == 0 && feed(-5) == 1,
                "a new beginning discards the previous gesture's distance")
         routing(suite)
+        homeScrolling(suite)
     }
 
     // The generated Service uses the production scroll handlers verbatim.
@@ -92,6 +93,9 @@ enum NotchSectionPagingTests {
     }
     class State {
         var running = true, suspended = false, expanded = true, showingSections = true, trackingMenu = false
+        var selected: NotchModule = .system
+        var showingAppPanel = false, showingCommandBar = false
+        var gesture = NotchGestureSupport()
         var panel: Panel? = Panel()
         var windowHost: Host? = Host()
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
@@ -131,5 +135,53 @@ enum NotchSectionPagingTests {
             suite.expect(!service.handleScroll(event(fromTop: headerBottom + 20)) && service.movedRows == before,
                          "transparent corners and floating controls are not captured by the gallery")
         }
+    }
+
+    private static func homeScrolling(_ suite: TestSuite) {
+        let service = Service()
+        service.selected = .homeAssistant
+        service.showingSections = false
+        let headerBottom = service.expandedGeometry.headerTopInset + service.expandedGeometry.headerRowHeight
+        func event(fromTop top: CGFloat) -> NSEvent {
+            NSEvent(locationInWindow: CGPoint(x: 100, y: service.panel!.frame.height - top))
+        }
+        suite.expect(!service.handleScroll(event(fromTop: headerBottom)) && service.gestureCalls == 1,
+                     "Home's header retains opening and closing gestures")
+        for offset in [1.0, 40.0, 160.0] {
+            for phase: AppKit.NSEvent.Phase in [.began, .changed, .ended] {
+                for momentum: AppKit.NSEvent.Phase in [[], .began, .changed, .ended] {
+                    var input = event(fromTop: headerBottom + offset)
+                    input.phase = phase
+                    input.momentumPhase = momentum
+                    suite.expect(!service.handleScroll(input) && service.gestureCalls == 1 && service.movedRows == 0,
+                                 "Home's cards and gaps pass every scroll phase and momentum event to native scrolling")
+                }
+            }
+        }
+        var wheel = event(fromTop: headerBottom + 40)
+        wheel.hasPreciseScrollingDeltas = false
+        wheel.phase = []
+        suite.expect(!service.handleScroll(wheel) && service.gestureCalls == 1,
+                     "a mouse wheel over Home also bypasses island gestures")
+        service.windowHost?.acceptsPoint = false
+        _ = service.handleScroll(wheel)
+        suite.expect(service.gestureCalls == 2, "Home's scroll exception excludes transparent corners and floating controls")
+        service.windowHost?.acceptsPoint = true
+        service.showingAppPanel = true
+        _ = service.handleScroll(wheel)
+        suite.expect(service.gestureCalls == 3, "an app panel over Home keeps its existing scroll routing")
+        service.showingAppPanel = false
+        service.showingCommandBar = true
+        _ = service.handleScroll(wheel)
+        suite.expect(service.gestureCalls == 4, "a command bar over Home keeps its existing scroll routing")
+        service.showingCommandBar = false
+        _ = service.gesture.handle(x: 0, y: -10, timestamp: 1, began: true, ended: false,
+                                   momentum: false, precise: true, hasPhase: true,
+                                   allowVertical: true, allowHorizontal: false, expanded: true)
+        _ = service.handleScroll(wheel)
+        suite.expect(service.gesture.handle(x: 0, y: -10, timestamp: 1.01, began: false, ended: false,
+                                            momentum: false, precise: true, hasPhase: true,
+                                            allowVertical: true, allowHorizontal: false, expanded: true) == nil,
+                     "scrolling a Home card discards a pending header gesture instead of closing the island mid-scroll")
     }
 }

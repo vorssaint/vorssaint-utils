@@ -844,6 +844,14 @@ enum DefaultsKey {
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     // Watch: any part of any window read live in the island.
+    static let notchHomeAssistantEnabled = "notchHomeAssistantEnabled"
+    static let notchHomeAssistantURL = "notchHomeAssistantURL"
+    static let notchHomeAssistantFavorites = "notchHomeAssistantFavorites"
+    static let notchHomeAssistantColumns = "notchHomeAssistantColumns"
+    static let notchHomeAssistantNames = "notchHomeAssistantNames"
+    static let notchHomeAssistantSensors = "notchHomeAssistantSensors"
+    static let notchHomeAssistantPages = "notchHomeAssistantPages"
+    static let notchHomeAssistantActivePage = "notchHomeAssistantActivePage"
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
     static let notchWatchCondition = "notchWatchCondition"
@@ -1457,6 +1465,14 @@ enum Defaults {
         DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: true,
         DefaultsKey.notchDownloadsEnabled: true,
+        DefaultsKey.notchHomeAssistantEnabled: false,
+        DefaultsKey.notchHomeAssistantURL: "",
+        DefaultsKey.notchHomeAssistantFavorites: [String](),
+        DefaultsKey.notchHomeAssistantColumns: 2,
+        DefaultsKey.notchHomeAssistantNames: [String: String](),
+        DefaultsKey.notchHomeAssistantSensors: [String: [String]](),
+        DefaultsKey.notchHomeAssistantPages: [[String: Any]](),
+        DefaultsKey.notchHomeAssistantActivePage: "",
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,
