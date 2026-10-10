@@ -1105,6 +1105,49 @@ enum ScreenshotRenderer {
         return data as Data
     }
 
+    /// PNG for an upload. The editor draws into RGBA, so an opaque export
+    /// still carries a fourth byte per pixel that only makes the file larger;
+    /// it goes when no pixel needs it.
+    static func compactPNGData(from image: CGImage, scale: CGFloat) -> Data? {
+        pngData(from: opaqueCopy(of: image) ?? image, scale: scale)
+    }
+
+    /// The same picture without its alpha channel, or nil when any pixel is
+    /// translucent.
+    static func opaqueCopy(of image: CGImage) -> CGImage? {
+        switch image.alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast: return image
+        default: break
+        }
+        let rect = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        guard let rgba = CGContext(data: nil,
+                                   width: image.width,
+                                   height: image.height,
+                                   bitsPerComponent: 8,
+                                   bytesPerRow: 0,
+                                   space: CGColorSpaceCreateDeviceRGB(),
+                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        rgba.draw(image, in: rect)
+        guard let bytes = rgba.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        for row in 0..<image.height {
+            let base = row * rgba.bytesPerRow
+            for column in 0..<image.width where bytes[base + column * 4 + 3] != 255 {
+                return nil
+            }
+        }
+        guard let opaque = CGContext(data: nil,
+                                     width: image.width,
+                                     height: image.height,
+                                     bitsPerComponent: 8,
+                                     bytesPerRow: 0,
+                                     space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return nil }
+        opaque.draw(image, in: rect)
+        return opaque.makeImage()
+    }
+
     /// TIFF for the pasteboard with the same density as the PNG: the point
     /// size is what the TIFF stores as its resolution, so a paste lands at
     /// the capture's on-screen size.

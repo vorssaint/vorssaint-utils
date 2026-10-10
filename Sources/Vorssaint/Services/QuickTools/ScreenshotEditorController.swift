@@ -569,6 +569,34 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         recordCleanState()
     }
 
+    /// What an export was rendered from, for an output that finishes later.
+    struct ExportSnapshot {
+        fileprivate let image: CGImage
+        fileprivate let annotations: [ScreenshotSupport.Annotation]
+        fileprivate let backdropStyle: ScreenshotSupport.BackdropStyle
+        fileprivate let watermarkStyle: ScreenshotSupport.WatermarkStyle
+        fileprivate let annotationShadowsEnabled: Bool
+    }
+
+    func exportSnapshot() -> ExportSnapshot {
+        ExportSnapshot(image: baseImage,
+                       annotations: annotations,
+                       backdropStyle: backdropStyle.sanitized(),
+                       watermarkStyle: watermarkStyle.sanitized(),
+                       annotationShadowsEnabled: annotationShadowsEnabled)
+    }
+
+    /// Marks only what was sent as saved, so an edit made while it was on
+    /// its way still counts as unsaved.
+    func markExported(_ snapshot: ExportSnapshot) {
+        cleanImage = snapshot.image
+        cleanAnnotations = snapshot.annotations
+        cleanBackdropStyle = snapshot.backdropStyle
+        cleanWatermarkStyle = snapshot.watermarkStyle
+        cleanAnnotationShadowsEnabled = snapshot.annotationShadowsEnabled
+        refreshDirtyState()
+    }
+
     private func recordCleanState() {
         cleanImage = baseImage
         cleanAnnotations = annotations
@@ -1216,6 +1244,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     let model: ScreenshotEditorModel
     private var window: NSWindow?
     private var keyMonitor: Any?
+    /// One upload at a time; discarding the edits stops it.
+    private var uploadTask: Task<Void, Never>?
     private var scrollMonitor: Any?
     private var pointerMonitor: Any?
 
@@ -1284,7 +1314,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     /// Closes without the discard confirmation used by the titlebar button.
+    /// What was discarded is not sent, so an upload on its way stops.
     func discardAndClose() {
+        uploadTask?.cancel()
         window?.close()
     }
 
@@ -1474,6 +1506,44 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                      strings: strings)
     }
 
+    /// The editor stays open afterwards, as it does after a temporary link.
+    /// A second click while one is on its way does nothing, and the first
+    /// one's completion ends both.
+    func upload(completion: @escaping () -> Void) {
+        guard uploadTask == nil else { return }
+        let destination = CaptureUploadService.shared.destination
+        let snapshot = model.exportSnapshot()
+        guard let export = model.exportImage() else {
+            CaptureUploadService.shared.announce(failure: .invalidArtifact)
+            completion()
+            return
+        }
+        uploadTask = Task { @MainActor [weak self] in
+            defer {
+                self?.uploadTask = nil
+                completion()
+            }
+            let data = await Task.detached(priority: .userInitiated) {
+                ScreenshotRenderer.compactPNGData(from: export.image, scale: export.scale)
+            }.value
+            guard let data else {
+                CaptureUploadService.shared.announce(failure: .invalidArtifact)
+                return
+            }
+            do {
+                let outcome = try await CaptureUploadService.shared.upload(pngData: data,
+                                                                           to: destination)
+                self?.model.markExported(snapshot)
+                CaptureUploadService.shared.announce(outcome)
+            } catch is CancellationError {
+            } catch let failure as CaptureUploadService.Failure {
+                CaptureUploadService.shared.announce(failure: failure)
+            } catch {
+                CaptureUploadService.shared.announce(failure: .unavailable)
+            }
+        }
+    }
+
     /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {
@@ -1651,7 +1721,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         alert.addButton(withTitle: strings.discardConfirm)
         alert.addButton(withTitle: strings.cancel)
         alert.alertStyle = .warning
-        return alert.runModal() == .alertFirstButtonReturn
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        // What was discarded is not sent, as with Trash. A close with nothing
+        // to discard lets an upload finish, as Esc does in the preview.
+        uploadTask?.cancel()
+        return true
     }
 
     func windowWillClose(_ notification: Notification) {

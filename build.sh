@@ -330,6 +330,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/RecentCaptureStrings.swift
         Sources/Vorssaint/Core/RecorderStrings.swift
         Sources/Vorssaint/Core/RecorderShareStrings.swift
+        Sources/Vorssaint/Core/CaptureUploadStrings.swift
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
@@ -486,6 +487,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
+        Sources/Vorssaint/Services/QuickTools/CaptureUploadSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift
