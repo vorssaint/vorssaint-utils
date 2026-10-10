@@ -16,13 +16,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, antigravity ? .antigravity : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -309,6 +311,41 @@ private struct NotchAgentLimitsCard: View {
                 }
             } else {
                 Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
+        } else if provider == .antigravity {
+            let todayUsage = snapshot.usage(.today).byProvider[.antigravity]
+            if let todayUsage, todayUsage.requests > 0 || todayUsage.tokens.total > 0 {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        if todayUsage.cost > 0 {
+                            Text(AgentFormat.cost(todayUsage.cost))
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                        } else {
+                            // One per planner response: a turn that calls tools counts more than once.
+                            Text(text.responses(todayUsage.requests))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        if todayUsage.tokens.total > 0 {
+                            Text(AgentFormat.tokens(todayUsage.tokens.total))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                // A turn can be live before its first response is recorded.
+                Text(text.noResponsesToday).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 lastUsed
             }
         } else {
