@@ -181,7 +181,7 @@ private struct NotchAgentRestingContent: View {
     /// Room for the number in a wing: what the ring leaves of the 44-point
     /// wing past its shoulder, or the whole wing's when alone there.
     private static let besideRing: CGFloat = 17.5
-    private static let alone: CGFloat = 22
+    private static let alone: CGFloat = 31
     private static let gap: CGFloat = 1.5
 
     var body: some View {
@@ -214,23 +214,24 @@ private struct NotchAgentRestingContent: View {
     @ViewBuilder private func one(_ meter: NotchAgentRestingMeter) -> some View {
         switch placement {
         case .leading: gauge(meter)
-        case .trailing: amount(meter, width: Self.alone)
-        case .row: HStack(spacing: Self.gap) { gauge(meter); amount(meter, width: Self.alone) }
+        case .trailing: amount(meter, width: Self.alone, worded: true)
+        case .row: HStack(spacing: Self.gap) { gauge(meter); amount(meter, width: Self.alone, worded: true) }
         }
     }
 
     /// The first account left of the camera, the second right of it, each
-    /// with its meter at the outer edge.
+    /// with its meter at the outer edge. Beside a ring the wing holds only
+    /// the bare number; the ring's fill and VoiceOver say left or used.
     @ViewBuilder private func split(_ first: NotchAgentRestingMeter, _ second: NotchAgentRestingMeter) -> some View {
         switch placement {
         case .leading:
-            HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.besideRing) }
+            HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.besideRing, worded: false) }
         case .trailing:
-            HStack(spacing: Self.gap) { amount(second, width: Self.besideRing); gauge(second) }
+            HStack(spacing: Self.gap) { amount(second, width: Self.besideRing, worded: false); gauge(second) }
         case .row:
             HStack(spacing: NotchCapsuleLayout.groupSpacing) {
-                HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.alone) }
-                HStack(spacing: Self.gap) { gauge(second); amount(second, width: Self.alone) }
+                HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.alone, worded: true) }
+                HStack(spacing: Self.gap) { gauge(second); amount(second, width: Self.alone, worded: true) }
             }
         }
     }
@@ -239,14 +240,11 @@ private struct NotchAgentRestingContent: View {
         NotchAgentRestingGauge(meter: meter, used: choices.used)
     }
 
-    /// The capsule is not bound by a wing's width, so its number grows to
-    /// the capsule's small type.
-    private func amount(_ meter: NotchAgentRestingMeter, width: CGFloat) -> some View {
+    private func amount(_ meter: NotchAgentRestingMeter, width: CGFloat, worded: Bool) -> some View {
         let text = FeatureStrings.notchAgents(l10n.language)
-        let scale: CGFloat = placement == .row ? 10.5 / 9 : 1
         return NotchAgentRestingAmount(window: meter.amount, used: choices.used,
-                                       word: choices.used ? text.restingWordUsed : text.restingWordLeft,
-                                       size: 8 * scale, width: width * scale)
+                                       word: worded ? (choices.used ? text.restingWordUsed : text.restingWordLeft) : nil,
+                                       size: 12, width: width)
     }
 
     /// No account reports a limit: the first agent's mark and today's API
