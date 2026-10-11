@@ -222,9 +222,7 @@ enum NotchLyricsSupport {
                   let artist = object["artistName"] as? String,
                   let album = object["albumName"] as? String,
                   titlesMatch(title, track), !titleKey(title).isEmpty,
-                  let primary = artistNames(track.artist).first,
-                  (key(artist) == key(track.artist) || artistNames(artist).contains(where: { key($0) == key(primary) })
-                   || aliases.contains(key(artist)) || artistNames(artist).contains(where: { aliases.contains(key($0)) })),
+                  searchCreditsMatch(artist, track, aliases: aliases),
                   recordingKinds(album) == recordingKinds(track.album),
                   let duration = object["duration"] as? Double, duration.isFinite,
                   abs(duration - track.duration) <= durationTolerance,
@@ -252,14 +250,13 @@ enum NotchLyricsSupport {
     /// by renaming the artist. Avoid metadata requests in that case.
     static func containsCatalogRecording(_ data: Data, for track: NotchMusicIdentity) -> Bool {
         guard data.count <= maximumSearchBytes,
-              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]], objects.count <= 20,
-              let primary = artistNames(track.artist).first else { return false }
+              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]], objects.count <= 20 else { return false }
         return objects.contains { object in
             guard let title = object["trackName"] as? String, titlesMatch(title, track),
                   let artist = object["artistName"] as? String,
                   let album = object["albumName"] as? String,
                   recordingKinds(album) == recordingKinds(track.album) else { return false }
-            return key(artist) == key(track.artist) || artistNames(artist).contains { key($0) == key(primary) }
+            return searchCreditsMatch(artist, track)
         }
     }
 
@@ -362,6 +359,17 @@ enum NotchLyricsSupport {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: #"^группа\s+"#, with: "", options: [.regularExpression, .caseInsensitive])
         }.filter { !$0.isEmpty }
+    }
+
+    /// Catalog credits may omit contributors or reorder known names, but
+    /// matching one performer does not establish an unrelated collaboration.
+    private static func searchCreditsMatch(_ artist: String, _ track: NotchMusicIdentity,
+                                           aliases: Set<String> = []) -> Bool {
+        guard let primary = artistNames(track.artist).first else { return false }
+        if key(artist) == key(track.artist) || aliases.contains(key(artist)) { return true }
+        let names = Set(artistNames(artist).map(key))
+        let expected = Set((artistNames(track.artist) + featuredNames(track.title)).map(key)).union(aliases)
+        return (names.contains(key(primary)) || !names.isDisjoint(with: aliases)) && names.isSubset(of: expected)
     }
 
     private static func creditsMatch(_ first: String, _ second: String) -> Bool {

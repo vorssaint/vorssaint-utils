@@ -243,6 +243,18 @@ enum NotchMusicExtrasTests {
                      "original mix is compatible with the unqualified studio title")
         suite.expect(candidates([record("Example Song (feat. Unknown Guest)", "Main Artist", "Studio Album", 180)], studio).isEmpty,
                      "unmentioned featured performers cannot be silently substituted")
+        for artist in ["Other Artist, Main Artist", "Main Artist, Unknown Guest"] {
+            suite.expect(candidates([record("Example Song", artist, "Studio Album", 180)], studio).isEmpty,
+                         "artist credits cannot introduce an unknown lead or guest")
+            suite.expect(!NotchLyricsSupport.containsCatalogRecording(
+                try! JSONSerialization.data(withJSONObject: [record("Example Song", artist, "Studio Album", 180)]), for: studio),
+                         "conflicting artist credits cannot stop verified alias lookup")
+        }
+        suite.expect(!candidates([record("Example Song", "Guest Artist & Main Artist", "Studio Album", 180)], track).isEmpty,
+                     "known collaboration credits may be reordered")
+        let titleGuest = identity("Example Song (feat. Guest Artist)", "Main Artist", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song", "Main Artist, Guest Artist", "Studio Album", 180)], titleGuest).isEmpty,
+                     "known featured credits may move from the title into the artist field")
         let extended = identity("Example Song (feat. Guest Person) (Extended Mix)", "Main Artist, Guest Person", "Studio Album", 180)
         suite.expect(!candidates([record("Example Song (featuring Guest) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
                      && candidates([record("Example Song (featuring Other) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
@@ -308,6 +320,12 @@ enum NotchMusicExtrasTests {
                      && NotchLyricsSupport.searchCandidates(encode([record]), for: track,
                                  verifiedArtistAliases: identities[0].names).count == 1,
                      "different artist names require verified identity rather than title and duration alone")
+        for credit in ["Other Artist, Fictional Artist", "Fictional Artist, Unknown Guest"] {
+            var conflicting = record; conflicting["artistName"] = credit
+            suite.expect(NotchLyricsSupport.searchCandidates(encode([conflicting]), for: track,
+                                     verifiedArtistAliases: identities[0].names).isEmpty,
+                         "a verified artist alias does not authorize unrelated collaborators")
+        }
         var wrong = record; wrong["duration"] = 183
         suite.expect(NotchLyricsSupport.searchCandidates(encode([wrong]), for: track,
                                  verifiedArtistAliases: identities[0].names).isEmpty,
