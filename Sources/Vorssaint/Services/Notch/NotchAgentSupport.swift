@@ -75,8 +75,9 @@ struct NotchAgentRestingMeter: Identifiable, Equatable {
 
     var id: String { provider.rawValue }
 
-    /// The most spent of the windows shown, the one the number follows;
-    /// nil while both are switched off.
+    /// The most spent of the windows shown, the one the number follows
+    /// unless "Limit to show" picks a shown window; nil while both are
+    /// switched off.
     static func tightest(session: AgentLimitWindow?, weekly: AgentLimitWindow?) -> AgentLimitWindow? {
         [session, weekly].compactMap { $0 }.max { $0.usedPercent < $1.usedPercent }
     }
@@ -266,18 +267,25 @@ enum NotchAgentSupport {
 
     /// Every account that rests, in the order the person keeps them: switched
     /// on, not left out at rest, and reporting a plan-wide window of a kind
-    /// shown. With both kinds off, any plan-wide window counts and the number
-    /// follows the most used one.
+    /// shown. The number reads the window the focus picks while it is shown,
+    /// and the tighter shown window otherwise. With both kinds off, any
+    /// plan-wide window counts and the number follows the most used one.
     static func restingMeters(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider],
                               hidden: Set<AgentProvider>, session: Bool, weekly: Bool,
-                              now: Date) -> [NotchAgentRestingMeter] {
+                              focus: NotchAgentLimitFocus, now: Date) -> [NotchAgentRestingMeter] {
         providers.compactMap { provider -> NotchAgentRestingMeter? in
             guard !hidden.contains(provider), let limits = snapshot.limits[provider] else { return nil }
             let planWide = limits.windows.filter { $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
             let sessionWindow = session ? planWide.first { $0.kind == .session } : nil
             let weeklyWindow = weekly ? planWide.first { $0.kind == .weekly } : nil
+            let focused: AgentLimitWindow?
+            switch focus {
+            case .mostUsed: focused = nil
+            case .session: focused = sessionWindow
+            case .weekly: focused = weeklyWindow
+            }
             let amount = session || weekly
-                ? NotchAgentRestingMeter.tightest(session: sessionWindow, weekly: weeklyWindow)
+                ? focused ?? NotchAgentRestingMeter.tightest(session: sessionWindow, weekly: weeklyWindow)
                 : planWide.max { $0.usedPercent < $1.usedPercent }
             return amount.map { NotchAgentRestingMeter(provider: provider, session: sessionWindow, weekly: weeklyWindow, amount: $0) }
         }
@@ -296,8 +304,8 @@ enum NotchAgentSupport {
     }
 
     /// What a layout shows, in its order: Single's one meter, the first two
-    /// for One per side, and for Rotate the tightest first, then the rest
-    /// in the person's order.
+    /// for One per side, and for Rotate the tightest number first, then the
+    /// rest in the person's order.
     static func restingSequence(_ snapshot: AgentUsageSnapshot, layout: NotchAgentRestingLayout,
                                 providers: [AgentProvider], hidden: Set<AgentProvider>, session: Bool, weekly: Bool,
                                 focus: NotchAgentLimitFocus, now: Date) -> [NotchAgentRestingMeter] {
@@ -306,10 +314,10 @@ enum NotchAgentSupport {
             return singleRestingMeter(snapshot, hidden: hidden, focus: focus, now: now).map { [$0] } ?? []
         case .split:
             return Array(restingMeters(snapshot, providers: providers, hidden: hidden, session: session,
-                                       weekly: weekly, now: now).prefix(2))
+                                       weekly: weekly, focus: focus, now: now).prefix(2))
         case .cycle:
             var meters = restingMeters(snapshot, providers: providers, hidden: hidden, session: session,
-                                       weekly: weekly, now: now)
+                                       weekly: weekly, focus: focus, now: now)
             // The first of the most spent, so a tie keeps the person's order.
             if let tightest = meters.indices.max(by: { meters[$0].amount.usedPercent < meters[$1].amount.usedPercent
                                                         || (meters[$0].amount.usedPercent == meters[$1].amount.usedPercent && $0 > $1) }) {
