@@ -293,6 +293,16 @@ def main():
                         "    func restoreBorrowedInputSource(",
                         "    var hasBorrowedInputSource:"])
           + "}\n}\n")
+    write("NotchInputSource.swift", "import Foundation\n"
+          + "extension CommandBarInputSourceContract {\nfinal class Island {\n"
+          + "static var shared = Island()\ntypealias InputSourceSelection = Sources\n"
+          + "var inputSourceID: String?\nvar ownInputSourceID: String?\n"
+          + "var presented: [NotchNotice] = []\n"
+          + "func show(_ notice: NotchNotice) { presented.append(notice) }\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", prefix)
+                    .replace("    private ", "    ", 1) for prefix in [
+                        "    func noteOwnInputSourceSwitch(", "    private func inputSourceChanged("])
+          + "}\n}\n")
     write("CommandBarKillProcessOrder.swift", "import Foundation\n"
           + "extension CommandBarKillProcessOrderContract {\nfinal class Service: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",

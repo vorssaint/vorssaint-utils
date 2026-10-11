@@ -252,8 +252,8 @@ final class NotchService: ObservableObject {
     /// The source the layout notice last read, so a repeated announcement of
     /// the same source, and the one the system posts at launch, say nothing.
     private var inputSourceID: String?
-    /// System uptime until which a layout change counts as the app's own.
-    private var ownInputSourceSwitchUntil: TimeInterval = 0
+    /// The accepted Command Bar selection awaiting its source-change reading.
+    private var ownInputSourceID: String?
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private var menuSpaceReading = false
@@ -3852,6 +3852,7 @@ final class NotchService: ObservableObject {
             // The layout labels already refresh on every source change and
             // post when they do, including once at launch; the current source
             // is read now so that first post announces nothing.
+            ownInputSourceID = nil
             inputSourceID = InputSourceSelection.currentReading()?.id
             NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)
                 .receive(on: DispatchQueue.main)
@@ -3993,14 +3994,16 @@ final class NotchService: ObservableObject {
     /// The Command Bar borrows a Latin layout while it is up and gives it
     /// back on close. Neither switch is news the typist asked for, so each
     /// one marks itself as the app's own.
-    func noteOwnInputSourceSwitch() {
-        ownInputSourceSwitchUntil = ProcessInfo.processInfo.systemUptime + 1
+    func noteOwnInputSourceSwitch(to sourceID: String) {
+        ownInputSourceID = sourceID
     }
 
     private func inputSourceChanged() {
         guard let reading = InputSourceSelection.currentReading(), reading.id != inputSourceID else { return }
         inputSourceID = reading.id
-        guard ProcessInfo.processInfo.systemUptime >= ownInputSourceSwitchUntil else { return }
+        let isOwnSwitch = reading.id == ownInputSourceID
+        ownInputSourceID = nil
+        guard !isOwnSwitch else { return }
         // Like the volume reading, the code takes the value's place and the
         // source's own name stands where the meter would.
         show(NotchNotice(event: .inputSource, title: reading.code, detail: reading.name, symbol: "keyboard"))
