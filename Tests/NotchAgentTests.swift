@@ -73,6 +73,22 @@ enum NotchAgentTests {
         suite.expectClose(opus.cost ?? -1, 0.132, "Opus 5.5 bills input, both cache writes, cache reads and output",
                           tol: 0.000001)
         suite.expectClose(opus.savings, 100_000 * (4 - 0.2) / 1_000_000, "cache reads save the input price they avoid")
+        // Sonnet 5.5 cache reads cost $0.10/MTok: https://platform.claude.com/docs/en/models/sonnet-5-5/overview
+        let sonnet = AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1000, cacheRead: 100_000, output: 2000)),
+                                      model: "claude-sonnet-5-5")
+        suite.expectClose(sonnet.cost ?? -1, 0.032, "Sonnet 5.5 bills cache reads at five percent of input")
+        suite.expectClose(sonnet.savings, 0.19, "Sonnet 5.5 cache savings use its reduced read rate")
+        // Haiku 5.5 counts every prompt token and charges 5x past 100K: https://platform.claude.com/docs/en/about-claude/pricing
+        var haiku = AgentBillable(tokens: AgentTokens(input: 1000, cacheWrite: 4000, cacheRead: 95_000, output: 2000))
+        haiku.longCacheWrite = 3000
+        suite.expectClose(AgentPricing.cost(haiku, model: "anthropic.claude-haiku-5-5").cost ?? -1,
+                          0.002775, "Haiku 5.5 keeps base rates at exactly 100K prompt tokens", tol: 0.00000001)
+        haiku.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0138755, "Haiku 5.5 charges five times every token rate above 100K", tol: 0.00000001)
+        haiku.isAggregate = true
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0027751, "Haiku 5.5 session totals do not imply a long individual prompt", tol: 0.00000001)
         suite.expect(AgentPricing.price(for: "claude-opus-5-5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5.5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5")?.input == 5,
@@ -158,6 +174,9 @@ enum NotchAgentTests {
                         // Pro has multiple monthly prices: https://learn.chatgpt.com/docs/pricing
                         && AgentPlans.codex(planType: "pro") == AgentPlan(name: "Pro", monthlyPrice: nil)
                         && AgentPlans.codex(planType: "business") == AgentPlan(name: "Business", monthlyPrice: nil)
+                        // Free and Go monthly prices: https://learn.chatgpt.com/docs/pricing
+                        && AgentPlans.codex(planType: "free") == AgentPlan(name: "Free", monthlyPrice: 0)
+                        && AgentPlans.codex(planType: "go") == AgentPlan(name: "Go", monthlyPrice: 8)
                         && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
                         == AgentPlan(name: "Ultra", monthlyPrice: nil),
                      "plans are recognized, and an unknown one keeps its name without a price")
