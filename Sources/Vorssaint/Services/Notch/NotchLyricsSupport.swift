@@ -208,7 +208,9 @@ enum NotchLyricsSupport {
         return urls
     }
 
-    static func searchCandidates(_ data: Data, for track: NotchMusicIdentity, durationTolerance: Double = 2) -> [Candidate] {
+    static func searchCandidates(_ data: Data, for track: NotchMusicIdentity, durationTolerance: Double = 2,
+                                 verifiedArtistAliases: [String] = []) -> [Candidate] {
+        let aliases = Set(verifiedArtistAliases.map(key))
         guard data.count <= maximumSearchBytes,
               let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
               objects.count <= 20 else { return [] }
@@ -218,7 +220,8 @@ enum NotchLyricsSupport {
                   let album = object["albumName"] as? String,
                   key(title) == key(track.title), !key(title).isEmpty,
                   let primary = artistNames(track.artist).first,
-                  (key(artist) == key(track.artist) || artistNames(artist).contains(where: { key($0) == key(primary) })),
+                  (key(artist) == key(track.artist) || artistNames(artist).contains(where: { key($0) == key(primary) })
+                   || aliases.contains(key(artist)) || artistNames(artist).contains(where: { aliases.contains(key($0)) })),
                   recordingKinds(album) == recordingKinds(track.album),
                   let duration = object["duration"] as? Double, duration.isFinite,
                   abs(duration - track.duration) <= durationTolerance,
@@ -234,9 +237,24 @@ enum NotchLyricsSupport {
                                      instrumental: instrumental)
             let score = (key(catalogAlbum(album)) == key(catalogAlbum(track.album)) ? 8 : 0)
                 + (equal(title, track.title) ? 2 : 0)
-                + (creditsMatch(artist, track.artist) ? 4 : 0)
+                + (creditsMatch(artist, track.artist) || (artistNames(track.artist).count == 1 && aliases.contains(key(artist))) ? 4 : 0)
                 + (!lines.isEmpty && !instrumental ? 1 : 0)
             return Candidate(lyrics: lyrics, score: score, distance: abs(duration - track.duration))
+        }
+    }
+
+    /// A known artist/title with the wrong recording length cannot be repaired
+    /// by renaming the artist. Avoid metadata requests in that case.
+    static func containsCatalogRecording(_ data: Data, for track: NotchMusicIdentity) -> Bool {
+        guard data.count <= maximumSearchBytes,
+              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]], objects.count <= 20,
+              let primary = artistNames(track.artist).first else { return false }
+        return objects.contains { object in
+            guard let title = object["trackName"] as? String, key(title) == key(track.title),
+                  let artist = object["artistName"] as? String,
+                  let album = object["albumName"] as? String,
+                  recordingKinds(album) == recordingKinds(track.album) else { return false }
+            return key(artist) == key(track.artist) || artistNames(artist).contains { key($0) == key(primary) }
         }
     }
 
@@ -388,5 +406,99 @@ enum NotchLyricsSupport {
               components[1].allSatisfy({ $0.isNumber || $0 == "." }),
               minutes <= 10_080 else { return nil }
         return minutes * 60 + seconds
+    }
+}
+
+extension NotchLyricsSupport {
+    struct ArtistIdentity {
+        let id: UUID
+        let names: [String]
+        let queryNames: [String]
+    }
+
+    static func artistCacheKey(for track: NotchMusicIdentity) -> String {
+        key(artistNames(track.artist).first ?? track.artist) + "|" + key(catalogAlbum(track.album))
+    }
+
+    private static func quotedQuery(_ text: String) -> String {
+        "\"" + text.replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"") + "\""
+    }
+
+    static func artistIdentityURL(for track: NotchMusicIdentity) -> URL? {
+        guard let primary = artistNames(track.artist).first, !key(primary).isEmpty, primary.utf8.count <= 256 else { return nil }
+        var url = URLComponents(string: "https://musicbrainz.org/ws/2/artist/")!
+        let phrase = quotedQuery(primary)
+        url.queryItems = [URLQueryItem(name: "query", value: "artist:\(phrase) OR alias:\(phrase)"),
+                          URLQueryItem(name: "fmt", value: "json"), URLQueryItem(name: "limit", value: "5")]
+        return url.url
+    }
+
+    /// Exact name/alias membership identifies candidates; search scores alone
+    /// cannot establish identity. Reject truncated or overly broad results.
+    static func artistIdentities(_ data: Data, for track: NotchMusicIdentity, allowTruncated: Bool = false) -> [ArtistIdentity] {
+        guard data.count <= maximumBytes, let primary = artistNames(track.artist).first, !key(primary).isEmpty,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let count = object["count"] as? Int, count >= 0, (count <= 5 || allowTruncated),
+              let artists = object["artists"] as? [[String: Any]], artists.count <= 5 else { return [] }
+        var identities: [UUID: ArtistIdentity] = [:]
+        for artist in artists {
+            guard let name = artist["name"] as? String, name.utf8.count <= 256,
+                  let rawID = artist["id"] as? String, let id = UUID(uuidString: rawID) else { continue }
+            let aliases = artist["aliases"] as? [[String: Any]] ?? []
+            guard aliases.count <= 100 else { continue }
+            let names = ([name, artist["sort-name"] as? String ?? ""] + aliases.compactMap { $0["name"] as? String })
+                .filter { !$0.isEmpty && $0.utf8.count <= 256 }
+            guard names.contains(where: { key($0) == key(primary) }) else { continue }
+            let english = aliases.filter { ($0["locale"] as? String) == "en" && ($0["primary"] as? Bool) == true }
+                .compactMap { $0["name"] as? String }.sorted()
+            var queryNames: [String] = []
+            for value in english + [name] where value.utf8.count <= 256 && key(value) != key(primary) {
+                if !queryNames.contains(where: { key($0) == key(value) }) { queryNames.append(value) }
+            }
+            identities[id] = ArtistIdentity(id: id, names: names, queryNames: Array(queryNames.prefix(2)))
+        }
+        return identities.values.sorted { $0.id.uuidString < $1.id.uuidString }
+    }
+
+    static func artistAlbumURL(for track: NotchMusicIdentity) -> URL? {
+        let album = catalogAlbum(track.album).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !album.isEmpty, album.utf8.count <= 256 else { return nil }
+        var url = URLComponents(string: "https://musicbrainz.org/ws/2/release-group/")!
+        url.queryItems = [URLQueryItem(name: "query", value: quotedQuery(album)),
+                          URLQueryItem(name: "fmt", value: "json"), URLQueryItem(name: "limit", value: "5")]
+        return url.url
+    }
+
+    /// An ambiguous short artist name needs an independently matching album
+    /// credited to exactly one of its identities. Never choose by API order.
+    static func artistIdentity(_ data: Data, for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> ArtistIdentity? {
+        guard data.count <= maximumBytes,
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let count = object["count"] as? Int, count <= 5,
+              let groups = object["release-groups"] as? [[String: Any]], groups.count <= 5 else { return nil }
+        var identities: [UUID: ArtistIdentity] = [:]
+        for group in groups {
+            guard let title = group["title"] as? String, key(title) == key(catalogAlbum(track.album)),
+                  let credits = group["artist-credit"] as? [[String: Any]], credits.count == 1,
+                  let artist = credits[0]["artist"] as? [String: Any],
+                  let rawID = artist["id"] as? String, let id = UUID(uuidString: rawID) else { continue }
+            let nested = try? JSONSerialization.data(withJSONObject: ["count": 1, "artists": [artist]])
+            if let identity = candidates.first(where: { $0.id == id })
+                ?? nested.flatMap({ artistIdentities($0, for: track).first }) {
+                identities[id] = identity
+            }
+        }
+        guard identities.count == 1 else { return nil }
+        return identities.values.first
+    }
+
+    static func aliasSearchURLs(for track: NotchMusicIdentity, identity: ArtistIdentity) -> [URL] {
+        identity.queryNames.compactMap { name in
+            var url = URLComponents(string: "https://lrclib.net/api/search")!
+            url.queryItems = [URLQueryItem(name: "track_name", value: track.title),
+                              URLQueryItem(name: "artist_name", value: name)]
+            return url.url
+        }
     }
 }

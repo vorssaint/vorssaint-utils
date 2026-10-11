@@ -1369,6 +1369,9 @@ def main():
           + "final class Service {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
           + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
+          + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
+          + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
           + declaration(lyrics, "    func update(playback:")
@@ -1384,9 +1387,13 @@ def main():
           + "final class LookupService {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
           + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
+          + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
+          + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    func retry()")
           + declaration(lyrics, "    func hide()")
           + declaration(lyrics, "    func stop()")
           + declaration(lyrics, "    private func cancel()")
@@ -1394,6 +1401,10 @@ def main():
           + declaration(lyrics, "    private func acceptsResult(")
           + declaration(lyrics, "    private func finish(")
           + declaration(lyrics, "    private func search(")
+          + declaration(lyrics, "    private func resolveArtist(")
+          + declaration(lyrics, "    private func requestArtistMetadata(")
+          + declaration(lyrics, "    private func cacheArtist(")
+          + declaration(lyrics, "    private func searchArtist(")
           + "}\n}\n")
 
     music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"

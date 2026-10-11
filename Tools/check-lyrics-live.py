@@ -4,11 +4,12 @@
 
 """Exercise production lyrics lookup/downloader against LRCLIB, without app windows.
 
-Sends 20 fixture tracks' title, artist, album and duration to
-lrclib.net. Prints metadata/status only, never lyrics. Requires Swift on macOS.
+Sends selected fixture tracks' title, artist, album and duration to lrclib.net.
+Artist names and albums may also be checked with musicbrainz.org. Prints metadata/status only, never lyrics. Requires Swift on macOS.
 """
 
 from pathlib import Path
+import argparse
 import importlib.util
 import subprocess
 import sys
@@ -54,14 +55,15 @@ MAIN = """import Foundation
 let rows = try JSONSerialization.jsonObject(with: Data(contentsOf:
     URL(fileURLWithPath: CommandLine.arguments[1]))) as! [[String: Any]]
 var failures = 0
-// Include all seven desktop reproductions plus thirteen seeded library samples.
-for row in Array(rows.suffix(7)) + Array(rows.prefix(13)) {
+let probe = Probe()
+// Run the selected metadata samples sequentially using one shared cache and rate limiter.
+for row in rows {
     let song = row["track"] as! [String: Any]
     let track = NotchMusicIdentity(NotchPlayback(
         track: Track(title: song["title"] as? String, artist: song["artist"] as? String,
                      album: song["album"] as? String), duration: song["duration"] as! Double))
-    let probe = Probe(); probe.start(track)
-    let deadline = Date().addingTimeInterval(30)
+    probe.start(track)
+    let deadline = Date().addingTimeInterval(150)
     while probe.state == .loading && Date() < deadline {
         _ = RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1))
     }
@@ -77,10 +79,16 @@ exit(failures == 0 ? 0 : 1)
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--all", action="store_true", help="check all 146 corpus samples instead of the default 20")
+    parser.add_argument("--title", action="append", help="Replay only these exact fixture titles (repeatable)")
+    options = parser.parse_args()
     service_path = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
     bodies = "".join(sourcegen.declaration(service_path, prefix) for prefix in [
         "    private func load(", "    private func acceptsResult(",
         "    private func finish(", "    private func search(",
+        "    private func resolveArtist(", "    private func requestArtistMetadata(",
+        "    private func cacheArtist(", "    private func searchArtist(",
     ])
     downloader = (ROOT / service_path).read_text().split("private final class NotchLyricsDownload:", 1)[1]
     probe = """import Foundation
@@ -92,7 +100,11 @@ final class Probe {
     var session: URLSession?
     var generation = UUID()
     var visible = true
-    func start(_ track: NotchMusicIdentity) { memory.select(track); load(track) }
+    var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?
+    var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]
+    var aliasWork: DispatchWorkItem?
+    var lastAliasRequest: TimeInterval = 0
+    func start(_ track: NotchMusicIdentity) { aliasWork?.cancel(); session?.invalidateAndCancel(); generation = UUID(); memory.select(track); load(track) }
 """ + bodies + "}\nprivate final class NotchLyricsDownload:" + downloader
     with tempfile.TemporaryDirectory(prefix="vorssaint-lyrics-live-") as folder:
         directory = Path(folder)
@@ -103,7 +115,20 @@ final class Probe {
                         str(ROOT / "Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift"),
                         str(directory / "Probe.swift"), str(directory / "main.swift"),
                         "-o", str(executable)], check=True)
-        return subprocess.run([str(executable), str(ROOT / "Tests/Fixtures/NotchLyricsCorpus.json")]).returncode
+        import json
+        rows = []
+        for filename in ["NotchLyricsCorpus.json", "NotchLyricsMultilingualCorpus.json"]:
+            rows.extend(json.loads((ROOT / "Tests/Fixtures" / filename).read_text()))
+        if options.title:
+            rows = [row for row in rows if row["track"]["title"] in options.title]
+            if not rows:
+                parser.error("No fixture matches the requested titles")
+        elif not options.all:
+            rows = rows[:87][-7:] + rows[:13]
+        fixture = directory / "corpus.json"
+        fixture.write_text(json.dumps(rows, ensure_ascii=False))
+        command = [str(executable), str(fixture)]
+        return subprocess.run(command).returncode
 
 
 if __name__ == "__main__":

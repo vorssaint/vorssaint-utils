@@ -258,7 +258,54 @@ enum NotchMusicExtrasTests {
                      "missing durations and empty lyric records cannot become fallback matches")
     }
 
+    private static func artistIdentity(_ suite: TestSuite) {
+        let track = NotchMusicIdentity(NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: "Fictional Song", artist: "架空乐队", album: "Fictional Album",
+                                           artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+            isPlaying: true, elapsed: 0, duration: 180, rate: 1, sampledAt: .now, canSeek: false))
+        let id = UUID(), otherID = UUID()
+        func encode(_ object: Any) -> Data { try! JSONSerialization.data(withJSONObject: object) }
+        let artist: [String: Any] = ["id": id.uuidString, "name": "架空乐队", "score": 100,
+            "aliases": [["name": "Fictional Artist", "locale": "en", "primary": true]]]
+        let reply: [String: Any] = ["count": 1, "artists": [artist]]
+        let identities = NotchLyricsSupport.artistIdentities(encode(reply), for: track)
+        suite.expect(identities.count == 1 && identities[0].names.contains("Fictional Artist"),
+                     "generic identity verification accepts an exact name with a different-script alias")
+        let urls = identities.flatMap { NotchLyricsSupport.aliasSearchURLs(for: track, identity: $0) }
+        suite.expect(urls.count == 1 && urls[0].host == "lrclib.net"
+                     && NotchLyricsSupport.artistIdentityURL(for: track)?.host == "musicbrainz.org",
+                     "artist metadata and alias queries stay bounded on disclosed providers")
+        let record: [String: Any] = ["trackName": track.title, "artistName": "Fictional Artist",
+            "albumName": track.album, "duration": 180, "syncedLyrics": "[00:01]Synthetic verse"]
+        suite.expect(NotchLyricsSupport.searchCandidates(encode([record]), for: track).isEmpty
+                     && NotchLyricsSupport.searchCandidates(encode([record]), for: track,
+                                 verifiedArtistAliases: identities[0].names).count == 1,
+                     "different artist names require verified identity rather than title and duration alone")
+        var wrong = record; wrong["duration"] = 183
+        suite.expect(NotchLyricsSupport.searchCandidates(encode([wrong]), for: track,
+                                 verifiedArtistAliases: identities[0].names).isEmpty,
+                     "verified aliases never bypass the recording-length check")
+        var unrelated = artist; unrelated["name"] = "Unrelated artist"; unrelated["aliases"] = []
+        suite.expect(NotchLyricsSupport.artistIdentities(encode(["count": 1, "artists": [unrelated]]), for: track).isEmpty,
+                     "a perfect metadata search score does not prove artist identity")
+        var duplicate = artist; duplicate["id"] = otherID.uuidString
+        let ambiguous = NotchLyricsSupport.artistIdentities(encode(["count": 2, "artists": [artist, duplicate]]), for: track)
+        let group: [String: Any] = ["title": track.album, "artist-credit": [["artist": ["id": id.uuidString]]]]
+        suite.expect(ambiguous.count == 2
+                     && NotchLyricsSupport.artistIdentity(encode(["count": 1, "release-groups": [group]]),
+                                        for: track, candidates: ambiguous)?.id == id,
+                     "an ambiguous name needs independent exact album credit evidence")
+        var otherGroup = group; otherGroup["artist-credit"] = [["artist": ["id": otherID.uuidString]]]
+        suite.expect(NotchLyricsSupport.artistIdentity(encode(["count": 2, "release-groups": [group, otherGroup]]),
+                                        for: track, candidates: ambiguous) == nil,
+                     "conflicting album identities cannot be resolved by response order")
+        suite.expect(NotchLyricsSupport.artistIdentities(encode(["count": 6, "artists": [artist]]), for: track).isEmpty
+                     && NotchLyricsSupport.artistIdentities(Data(repeating: 32, count: NotchLyricsSupport.maximumBytes + 1), for: track).isEmpty,
+                     "truncated broad identity searches and oversized metadata are refused")
+    }
+
     static func run(_ suite: TestSuite) {
+        artistIdentity(suite)
         preferredPlayer(suite)
         preferredPlayerLoading(suite)
         lyricScheduleContracts(suite)

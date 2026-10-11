@@ -17,6 +17,10 @@ final class NotchLyricsService: ObservableObject {
     private var generation = UUID()
     private var visible = false
     private var online = false
+    private var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?
+    private var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]
+    private var aliasWork: DispatchWorkItem?
+    private var lastAliasRequest: TimeInterval = 0
     private var importPanel: NSOpenPanel?
     var isImporting: Bool { importPanel != nil }
 
@@ -30,7 +34,7 @@ final class NotchLyricsService: ObservableObject {
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }
         cancel()
-        if changedTrack { memory.select(next) }
+        if changedTrack { memory.select(next); settledAttempt = nil }
         self.visible = wanted
         self.online = online
         guard wanted, let track else { state = lyrics == nil ? .idle : .ready; return }
@@ -48,6 +52,7 @@ final class NotchLyricsService: ObservableObject {
         let wasVisible = visible
         cancel()
         memory.select(next)
+        settledAttempt = nil
         visible = false
         state = .idle
         if let playback { update(playback: playback, visible: wasVisible) }
@@ -56,6 +61,11 @@ final class NotchLyricsService: ObservableObject {
     func retry() {
         guard visible, NotchLyricsSupport.onlineEnabled(), let track else { return }
         cancel()
+        settledAttempt = nil
+        let key = NotchLyricsSupport.artistCacheKey(for: track)
+        if let cached = artistCache[key], cached.failed || cached.identity == nil {
+            artistCache.removeValue(forKey: key)
+        }
         load(track)
     }
 
@@ -65,7 +75,11 @@ final class NotchLyricsService: ObservableObject {
     func hide() {
         cancel()
         visible = false
-        if !NotchLyricsSupport.isEnabled() { memory.clear() }
+        if !NotchLyricsSupport.isEnabled() {
+            memory.clear()
+            settledAttempt = nil
+            artistCache.removeAll()
+        }
         state = lyrics == nil ? .idle : .ready
     }
 
@@ -74,11 +88,15 @@ final class NotchLyricsService: ObservableObject {
         visible = false
         online = false
         memory.clear()
+        settledAttempt = nil
+        artistCache.removeAll()
         state = .idle
     }
 
     private func cancel() {
         generation = UUID()
+        aliasWork?.cancel()
+        aliasWork = nil
         session?.invalidateAndCancel()
         session = nil
         importPanel?.cancel(nil)
@@ -86,6 +104,11 @@ final class NotchLyricsService: ObservableObject {
     }
 
     private func load(_ track: NotchMusicIdentity) {
+        if let attempt = settledAttempt, attempt.track == track, attempt.expires > Date() {
+            state = attempt.failed ? .failed : .unavailable
+            return
+        }
+        settledAttempt = nil
         guard let url = NotchLyricsSupport.lookupURL(for: track) else { state = .unavailable; return }
         state = .loading
         let requested = generation
@@ -111,20 +134,28 @@ final class NotchLyricsService: ObservableObject {
 
     private func finish(_ lyrics: NotchLyrics?, for track: NotchMusicIdentity, failed: Bool) {
         guard memory.replace(lyrics, for: track) else { return }
+        settledAttempt = lyrics == nil ? (track, failed, Date().addingTimeInterval(failed ? 15 : 60)) : nil
         state = lyrics != nil ? .ready : failed ? .failed : .unavailable
     }
 
-    /// Sequential, bounded fallback on the same disclosed host. Each callback
+    /// Sequential, bounded catalog fallback. Each callback
     /// rechecks visibility, consent and song identity before issuing another request.
     private func search(_ track: NotchMusicIdentity, urls: [URL], candidates: [NotchLyricsSupport.Candidate],
-                        failed: Bool, generation requested: UUID) {
+                        failed: Bool, generation requested: UUID,
+                        verifiedArtistAliases: [String] = [], mayResolveAliases: Bool = true) {
         guard acceptsResult(for: track, generation: requested) else { return }
         guard let url = urls.first else {
+            if candidates.isEmpty && !failed && mayResolveAliases {
+                resolveArtist(track, generation: requested)
+                return
+            }
             finish(NotchLyricsSupport.bestLyrics(in: candidates), for: track, failed: failed)
             return
         }
         session = NotchLyricsDownload.load(url, maximumBytes: NotchLyricsSupport.maximumSearchBytes) { [weak self] result in
-            let found = result.data.map { NotchLyricsSupport.searchCandidates($0, for: track) } ?? []
+            let found = result.data.map { NotchLyricsSupport.searchCandidates($0, for: track,
+                                                        verifiedArtistAliases: verifiedArtistAliases) } ?? []
+            let knownRecording = result.data.map { NotchLyricsSupport.containsCatalogRecording($0, for: track) } ?? false
             DispatchQueue.main.async {
                 guard let self, self.acceptsResult(for: track, generation: requested) else { return }
                 self.session = nil
@@ -133,10 +164,91 @@ final class NotchLyricsService: ObservableObject {
                     self.finish(NotchLyricsSupport.bestLyrics(in: accumulated), for: track, failed: true)
                 } else {
                     self.search(track, urls: Array(urls.dropFirst()), candidates: accumulated,
-                                failed: failed || result.failed, generation: requested)
+                                failed: failed || result.failed, generation: requested,
+                                verifiedArtistAliases: verifiedArtistAliases,
+                                mayResolveAliases: mayResolveAliases && !knownRecording)
                 }
             }
         }
+    }
+
+    /// Alias verification is a last resort, not a request on every track. Only
+    /// exact metadata identity membership is accepted, never a search score.
+    private func resolveArtist(_ track: NotchMusicIdentity, generation requested: UUID) {
+        let key = NotchLyricsSupport.artistCacheKey(for: track)
+        if let cached = artistCache[key], cached.expires > Date() {
+            searchArtist(track, identity: cached.identity, failed: cached.failed, generation: requested)
+            return
+        }
+        guard let url = NotchLyricsSupport.artistIdentityURL(for: track) else {
+            finish(nil, for: track, failed: false)
+            return
+        }
+        requestArtistMetadata(url, track: track, generation: requested) { [weak self] result in
+            guard let self else { return }
+            guard let data = result.data else {
+                self.cacheArtist(nil, for: track, failed: true, generation: requested)
+                return
+            }
+            let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+            let broad = (object?["count"] as? Int ?? 0) > 5
+            let artists = NotchLyricsSupport.artistIdentities(data, for: track, allowTruncated: broad)
+            if artists.count == 1 && !broad {
+                self.cacheArtist(artists.first, for: track, failed: false, generation: requested)
+            } else if !artists.isEmpty, let albumURL = NotchLyricsSupport.artistAlbumURL(for: track) {
+                self.requestArtistMetadata(albumURL, track: track, generation: requested) { [weak self] reply in
+                    guard let self else { return }
+                    let identity = reply.data.flatMap {
+                        NotchLyricsSupport.artistIdentity($0, for: track, candidates: artists)
+                    }
+                    self.cacheArtist(identity, for: track, failed: reply.data == nil, generation: requested)
+                }
+            } else {
+                self.cacheArtist(nil, for: track, failed: false, generation: requested)
+            }
+        }
+    }
+
+    /// MusicBrainz requires at most one request per second. A cancelled or
+    /// superseded delayed request never leaves this process.
+    private func requestArtistMetadata(_ url: URL, track: NotchMusicIdentity, generation requested: UUID,
+                                       completion: @escaping (NotchLyricsDownloadResult) -> Void) {
+        let delay = max(0, 1.05 - (ProcessInfo.processInfo.systemUptime - lastAliasRequest))
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.acceptsResult(for: track, generation: requested) else { return }
+            self.aliasWork = nil
+            self.lastAliasRequest = ProcessInfo.processInfo.systemUptime
+            self.session = NotchLyricsDownload.load(url) { [weak self] result in
+                DispatchQueue.main.async {
+                    guard let self, self.acceptsResult(for: track, generation: requested) else { return }
+                    self.session = nil
+                    completion(result)
+                }
+            }
+        }
+        aliasWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    private func cacheArtist(_ identity: NotchLyricsSupport.ArtistIdentity?, for track: NotchMusicIdentity,
+                             failed: Bool, generation requested: UUID) {
+        guard acceptsResult(for: track, generation: requested) else { return }
+        artistCache = artistCache.filter { $0.value.expires > Date() }
+        if artistCache.count >= 32, let oldest = artistCache.min(by: { $0.value.expires < $1.value.expires })?.key {
+            artistCache.removeValue(forKey: oldest)
+        }
+        artistCache[NotchLyricsSupport.artistCacheKey(for: track)] =
+            (identity, failed, Date().addingTimeInterval(failed ? 15 : identity == nil ? 600 : 3600))
+        searchArtist(track, identity: identity, failed: failed, generation: requested)
+    }
+
+    private func searchArtist(_ track: NotchMusicIdentity, identity: NotchLyricsSupport.ArtistIdentity?,
+                              failed: Bool, generation requested: UUID) {
+        guard acceptsResult(for: track, generation: requested) else { return }
+        guard let identity else { finish(nil, for: track, failed: failed); return }
+        search(track, urls: NotchLyricsSupport.aliasSearchURLs(for: track, identity: identity),
+               candidates: [], failed: false, generation: requested,
+               verifiedArtistAliases: identity.names, mayResolveAliases: false)
     }
 
     func importLyrics() {
@@ -212,7 +324,7 @@ final class NotchLyricsService: ObservableObject {
 }
 
 /// An ephemeral request, bounded while bytes arrive. Redirects are refused
-/// so track metadata can only reach the host disclosed by the opt-in control.
+/// so track metadata can only reach the hosts disclosed by the opt-in control.
 private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
     private var data = Data()
     private var accepted = false
@@ -232,7 +344,8 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
         configuration.urlCredentialStorage = nil
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
-        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint", "Accept": "application/json"]
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Developer"
+        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint/\(version) (https://github.com/vorssaint/vorssaint-utils)", "Accept": "application/json"]
         let delegate = NotchLyricsDownload(maximumBytes: maximumBytes, completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         session.dataTask(with: url).resume()

@@ -18,11 +18,19 @@ enum NotchLyricsContract {
         static let maximumBytes = ProductionLyricsParser.maximumBytes
         static let maximumSearchBytes = ProductionLyricsParser.maximumSearchBytes
         typealias Candidate = ProductionLyricsParser.Candidate
+        typealias ArtistIdentity = ProductionLyricsParser.ArtistIdentity
+        static func artistCacheKey(for track: NotchMusicIdentity) -> String { ProductionLyricsParser.artistCacheKey(for: track) }
+        static func artistIdentityURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.artistIdentityURL(for: track) }
+        static func artistIdentities(_ data: Data, for track: NotchMusicIdentity, allowTruncated: Bool = false) -> [ArtistIdentity] { ProductionLyricsParser.artistIdentities(data, for: track, allowTruncated: allowTruncated) }
+        static func artistAlbumURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.artistAlbumURL(for: track) }
+        static func artistIdentity(_ data: Data, for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> ArtistIdentity? { ProductionLyricsParser.artistIdentity(data, for: track, candidates: candidates) }
+        static func aliasSearchURLs(for track: NotchMusicIdentity, identity: ArtistIdentity) -> [URL] { ProductionLyricsParser.aliasSearchURLs(for: track, identity: identity) }
         static func lookupURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.lookupURL(for: track) }
         static func searchURLs(for track: NotchMusicIdentity) -> [URL] { ProductionLyricsParser.searchURLs(for: track) }
         static func decode(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decode(data, for: track) }
         static func decodeCatalogMatch(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decodeCatalogMatch(data, for: track) }
-        static func searchCandidates(_ data: Data, for track: NotchMusicIdentity) -> [Candidate] { ProductionLyricsParser.searchCandidates(data, for: track) }
+        static func searchCandidates(_ data: Data, for track: NotchMusicIdentity, verifiedArtistAliases: [String] = []) -> [Candidate] { ProductionLyricsParser.searchCandidates(data, for: track, verifiedArtistAliases: verifiedArtistAliases) }
+        static func containsCatalogRecording(_ data: Data, for track: NotchMusicIdentity) -> Bool { ProductionLyricsParser.containsCatalogRecording(data, for: track) }
         static func bestLyrics(in candidates: [Candidate]) -> NotchLyrics? { ProductionLyricsParser.bestLyrics(in: candidates) }
 
         static func parse(_ source: String, duration: Double) -> [NotchLyricLine] {
@@ -96,6 +104,7 @@ enum NotchLyricsContract {
         final class Queue {
             var jobs: [() -> Void] = []
             func async(execute action: @escaping () -> Void) { jobs.append(action) }
+            func asyncAfter(deadline: DispatchTime, execute work: DispatchWorkItem) { jobs.append { work.perform() } }
             func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
         }
     }
@@ -789,6 +798,38 @@ enum NotchMusicHardeningTests {
         Context.DispatchQueue.main.drain()
         suite.expect(failed.state == .failed && Context.NotchLyricsDownload.requests.count == 1,
                      "transport failures do not trigger broad searches")
+        failed.hide()
+        failed.update(playback: playback, visible: true)
+        suite.expect(failed.state == .failed && Context.NotchLyricsDownload.requests.count == 1,
+                     "reopening a recent network failure sends no extra request")
+        failed.retry()
+        suite.expect(failed.state == .loading && Context.NotchLyricsDownload.requests.count == 2,
+                     "explicit Retry bypasses the short failure cache")
+        Context.NotchLyricsDownload.requests[1].completion(.failed)
+        Context.DispatchQueue.main.drain()
+        failed.settledAttempt?.expires = Date.distantPast
+        failed.hide()
+        failed.update(playback: playback, visible: true)
+        suite.expect(failed.state == .loading && Context.NotchLyricsDownload.requests.count == 3,
+                     "expired attempts allow a fresh lookup without changing the track")
+        let missing = start()
+        Context.NotchLyricsDownload.requests[0].completion(.missing)
+        Context.DispatchQueue.main.drain()
+        var requestIndex = 1
+        while missing.state == .loading && requestIndex < Context.NotchLyricsDownload.requests.count {
+            Context.NotchLyricsDownload.requests[requestIndex].completion(.payload(emptyReply))
+            Context.DispatchQueue.main.drain()
+            requestIndex += 1
+        }
+        let attempted = Context.NotchLyricsDownload.requests.count
+        missing.hide()
+        missing.update(playback: playback, visible: true)
+        suite.expect(missing.state == .unavailable && Context.NotchLyricsDownload.requests.count == attempted,
+                     "a recent unavailable recording reuses its result when reopened")
+        missing.playbackChanged(nil)
+        missing.update(playback: playback, visible: true)
+        suite.expect(missing.state == .loading && Context.NotchLyricsDownload.requests.count == attempted + 1,
+                     "a playback identity change clears the attempt cache")
         let unavailable = start()
         Context.NotchLyricsDownload.requests[0].completion(.serviceUnavailable)
         Context.DispatchQueue.main.drain()
@@ -821,6 +862,90 @@ enum NotchMusicHardeningTests {
         Context.DispatchQueue.main.drain()
         suite.expect(mismatch.state == .loading && Context.NotchLyricsDownload.requests.count == 2,
                      "an unusable successful exact response receives the same fallback as a 404")
+        func reachMetadata(_ service: Context.LookupService) -> Context.NotchLyricsDownload.Request? {
+            var cursor = 0
+            while service.state == .loading && cursor < Context.NotchLyricsDownload.requests.count {
+                let request = Context.NotchLyricsDownload.requests[cursor]
+                if request.url.host == "musicbrainz.org" { return request }
+                request.completion(request.url.path == "/api/get" ? .missing : .payload(emptyReply))
+                Context.DispatchQueue.main.drain()
+                cursor += 1
+            }
+            return nil
+        }
+        let artistReply = try! JSONSerialization.data(withJSONObject: ["count": 1, "artists": [[
+            "id": UUID().uuidString, "name": "Alternate Artist", "aliases": [["name": "Градусы"]]
+        ]]])
+        var aliasRecord = record; aliasRecord["artistName"] = "Alternate Artist"
+        let aliasReply = try! JSONSerialization.data(withJSONObject: [aliasRecord])
+        let verified = start()
+        let metadata = reachMetadata(verified)
+        suite.expect(metadata?.url.host == "musicbrainz.org",
+                     "generic alias verification occurs only after empty catalog searches")
+        metadata?.completion(.payload(artistReply))
+        Context.DispatchQueue.main.drain()
+        let aliasRequest = Context.NotchLyricsDownload.requests.last!
+        suite.expect(aliasRequest.url.host == "lrclib.net" && aliasRequest.url.absoluteString.contains("Alternate"),
+                     "verified identity provides a bounded catalog query without artist-specific lists")
+        aliasRequest.completion(.payload(aliasReply))
+        Context.DispatchQueue.main.drain()
+        suite.expect(verified.state == .ready && Context.NotchLyricsDownload.requests.count <= 8,
+                     "the real lookup recovers a generic artist alias within the total request budget")
+        let requestsBeforeReopen = Context.NotchLyricsDownload.requests.count
+        verified.hide(); verified.update(playback: playback, visible: true)
+        suite.expect(Context.NotchLyricsDownload.requests.count == requestsBeforeReopen,
+                     "reopening resolved lyrics never repeats catalog or identity requests")
+        let secondPlayback = NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: "Second Song", artist: "группа Градусы", album: "Градусы",
+                                           artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+            isPlaying: true, elapsed: 0, duration: 219, rate: 1, sampledAt: .now, canSeek: false)
+        verified.playbackChanged(secondPlayback)
+        var cachedCursor = requestsBeforeReopen
+        while verified.state == .loading && cachedCursor < Context.NotchLyricsDownload.requests.count {
+            let request = Context.NotchLyricsDownload.requests[cachedCursor]
+            if request.url.absoluteString.contains("Alternate") {
+                var secondRecord = aliasRecord; secondRecord["trackName"] = "Second Song"
+                request.completion(.payload(try! JSONSerialization.data(withJSONObject: [secondRecord])))
+            } else {
+                request.completion(request.url.path == "/api/get" ? .missing : .payload(emptyReply))
+            }
+            Context.DispatchQueue.main.drain()
+            cachedCursor += 1
+        }
+        suite.expect(verified.state == .ready
+                     && Context.NotchLyricsDownload.requests.filter { $0.url.host == "musicbrainz.org" }.count == 1,
+                     "another song from the same artist and album reuses verified metadata without extra identity requests")
+        verified.stop()
+        suite.expect(verified.artistCache.isEmpty, "stopping lyrics clears its bounded metadata cache")
+        let wrongLength = start()
+        var longRecord = record; longRecord["artistName"] = "Градусы"; longRecord["duration"] = 223
+        let wrongReply = try! JSONSerialization.data(withJSONObject: [longRecord])
+        var wrongCursor = 0
+        while wrongLength.state == .loading && wrongCursor < Context.NotchLyricsDownload.requests.count {
+            let request = Context.NotchLyricsDownload.requests[wrongCursor]
+            request.completion(request.url.path == "/api/get" ? .missing : .payload(wrongReply))
+            Context.DispatchQueue.main.drain()
+            wrongCursor += 1
+        }
+        suite.expect(wrongLength.state == .unavailable
+                     && Context.NotchLyricsDownload.requests.allSatisfy { $0.url.host == "lrclib.net" },
+                     "a known artist and title with the wrong duration never triggers unnecessary identity verification")
+        for mode in 0..<3 {
+            let cancelledAlias = start()
+            let pending = reachMetadata(cancelledAlias)
+            switch mode {
+            case 0: cancelledAlias.hide()
+            case 1: cancelledAlias.playbackChanged(nil)
+            default: Context.Preferences.online = false
+            }
+            let count = Context.NotchLyricsDownload.requests.count
+            pending?.completion(.payload(artistReply))
+            Context.DispatchQueue.main.drain()
+            suite.expect(cancelledAlias.lyrics == nil && Context.NotchLyricsDownload.requests.count == count,
+                         "late identity replies cannot launch catalog queries after hiding, track changes or lost consent")
+            Context.Preferences.online = true
+        }
+
     }
 
     private static func lyricPicker(_ suite: TestSuite) {
