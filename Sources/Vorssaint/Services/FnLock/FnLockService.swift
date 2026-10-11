@@ -43,6 +43,14 @@ final class FnLockService: ObservableObject {
     @Published private(set) var recentTranslations: [FnLockTranslationRecord] = []
     /// How many translations the key test keeps.
     private static let translationLogLimit = 12
+    /// Where the reverse direction's synthetic media events go. Posted at
+    /// the session tap point they never act: the system's own media
+    /// handling takes them in above that point, which is why the volume
+    /// roller posts the fine steps it wants acted on at the HID point. The
+    /// session taps still see a HID post on its way down, so the posted
+    /// marker keeps the Fn-Lock and the volume features from handling it
+    /// twice.
+    private static let systemMediaTap = CGEventTapLocation.cghidEventTap
 
     /// Guards everything the tap thread reads: the engagement, the sampled
     /// system checkbox, the pending releases and the dedup window. Written
@@ -203,7 +211,7 @@ final class FnLockService: ObservableObject {
         }
         for nxKey in mediaUps {
             FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false)?
-                .post(tap: .cgSessionEventTap)
+                .post(tap: Self.systemMediaTap)
         }
         // Post the releases of in-place rewrites so the app that received
         // the target keycode also gets its up.
@@ -277,7 +285,7 @@ final class FnLockService: ObservableObject {
                stateLock.withLock({ pendingMediaUps.remove(nxKey) }) != nil {
                 recordTranslation(source: .keyCode(keyCode), target: .nxKey(nxKey), isKeyDown: false)
                 FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false, flags: event.flags)?
-                    .post(tap: .cgSessionEventTap)
+                    .post(tap: Self.systemMediaTap)
                 return nil
             }
         }
@@ -314,15 +322,15 @@ final class FnLockService: ObservableObject {
             let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
             FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: true,
                                        flags: event.flags, isRepeat: isRepeat)?
-                .post(tap: .cgSessionEventTap)
+                .post(tap: Self.systemMediaTap)
             return nil
         case .postMediaUp(let nxKey):
             let owned = stateLock.withLock { pendingMediaUps.remove(nxKey) != nil }
             guard owned else { return Unmanaged.passUnretained(event) }
             recordTranslation(source: .keyCode(keyCode), target: .nxKey(nxKey), isKeyDown: false)
             FnLockKeyEvents.mediaEvent(nxKey: nxKey, isKeyDown: false,
-                                       flags: event.flags)?
-                .post(tap: .cgSessionEventTap)
+                                        flags: event.flags)?
+                .post(tap: Self.systemMediaTap)
             return nil
         case .consume:
             return nil
