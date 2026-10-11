@@ -139,6 +139,13 @@ struct NotchAgentRestingChoices: DynamicProperty {
                                                  session: session, weekly: weekly,
                                                  focus: NotchAgentLimitFocus(rawValue: focus) ?? .mostUsed, now: now)
     }
+
+    /// The agent whose mark stands in while none reports a limit: the first
+    /// seen, unless it is left out at rest.
+    func fallbackProvider(_ snapshot: AgentUsageSnapshot) -> AgentProvider? {
+        let left = NotchAgentSupport.parseRestingHidden(hidden)
+        return AgentProvider.allCases.first { snapshot.seen.contains($0) && !left.contains($0) }
+    }
 }
 
 /// Where a piece of the resting AI meters draws: a wing beside the camera,
@@ -250,7 +257,7 @@ private struct NotchAgentRestingContent: View {
     /// No account reports a limit: the first agent's mark and today's API
     /// value, as before the meters.
     @ViewBuilder private func fallback(_ snapshot: AgentUsageSnapshot) -> some View {
-        if let provider = AgentProvider.allCases.first(where: snapshot.seen.contains) {
+        if let provider = choices.fallbackProvider(snapshot) {
             let mark = NotchAgentMark(provider: provider, size: 10)
             let cost = Text(AgentFormat.cost(snapshot.usage(.today).total.cost))
                 .font(.system(size: 9, weight: .medium))
