@@ -173,6 +173,8 @@ final class CommandBarService: ObservableObject {
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
+    /// The opening whose answers are waiting on the coalesced rebuild.
+    private var pendingAnswerRefresh: UUID?
     @Published private(set) var appsLoading = false
     private var pendingAppShortcut = CommandBarRowShortcuts.PendingAppLaunch()
     private var windowsLoading = false
@@ -1294,6 +1296,26 @@ final class CommandBarService: ObservableObject {
         reloadPreferenceCaches()
         indexEntries()
         refreshResults()
+    }
+
+    /// Storage, battery, memory and Wi-Fi answer within a few milliseconds
+    /// of each other right after the bar opens, and each used to rebuild the
+    /// whole catalog and rank it again on its own. One rebuild covers them all.
+    private func scheduleAnswerRefresh(for id: UUID) {
+        // The latest opening wins: a reopen inside the window must not be
+        // dropped because a rebuild was already queued for the one before.
+        let alreadyQueued = pendingAnswerRefresh != nil
+        pendingAnswerRefresh = id
+        guard !alreadyQueued else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            guard let self, let id = self.pendingAnswerRefresh else { return }
+            self.pendingAnswerRefresh = nil
+            guard self.presentationLifecycle.acceptsSharedCacheCompletion(
+                startedBy: id, currentID: self.presentationID,
+                isVisible: self.isVisible) else { return }
+            self.rebuildCatalog()
+            self.refreshResults()
+        }
     }
 
     private func rebuildCatalog(index: Bool = true) {
@@ -2905,14 +2927,20 @@ final class CommandBarService: ObservableObject {
                 guard let self else { return }
                 self.appsLoading = false
                 guard AppFeature.commandBar.isAvailable else { return }
+                // Each open rescans the disk, and the answer is nearly always
+                // the list the bar is already showing. Rebuilding and ranking
+                // it again lands half a second in, mid-typing, for nothing.
+                let unchanged = apps == self.cachedApps
+                    && uninstallable == self.uninstallableAppIDs
                 self.cachedApps = apps
                 self.uninstallableAppIDs = uninstallable
-                self.rebuildRunningEntries()
+                if !unchanged { self.rebuildRunningEntries() }
                 if let key = self.pendingAppShortcut.take(in: self.rowShortcuts,
                                                           isAvailable: AppFeature.commandBar.isAvailable) {
                     self.runRow(withStableKey: key, refreshAppsIfMissing: false)
                 }
-                guard self.presentationLifecycle.acceptsSharedCacheCompletion(
+                guard !unchanged,
+                      self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) else { return }
                 self.refreshResults()
@@ -3214,8 +3242,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3245,8 +3272,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3264,8 +3290,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3283,8 +3308,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
