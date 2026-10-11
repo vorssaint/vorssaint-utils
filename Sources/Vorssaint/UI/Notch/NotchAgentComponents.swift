@@ -511,37 +511,53 @@ struct NotchAgentRestingGauge: View {
     }
 }
 
-/// The number beside a resting meter, stacked over "left" or "used". Each
-/// line is centred on its ink, so "1" and "%" do not pull it off the axis.
+/// The number beside a resting meter: with its "%" over "left" or "used"
+/// where the wing has room, or the bare number, centred on the gauge, where
+/// it shares the wing with one. Each line is centred on its ink, so "1" and
+/// "%" do not pull it off the axis.
 struct NotchAgentRestingAmount: View {
     let window: AgentLimitWindow
     let used: Bool
-    let word: String
+    /// "left" or "used" under the number; nil for the bare number.
+    let word: String?
     /// The number's size; the sign and the word follow it.
-    var size: CGFloat = 8
-    var width: CGFloat = 17.5
+    var size: CGFloat = 12
+    var width: CGFloat = 31
 
     var body: some View {
         let fraction = used ? window.usedFraction : window.remainingFraction
         let digits = String(Int((fraction * 100).rounded()))
         let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
-        let wordSize = size * 0.8125
-        ZStack {
-            (Text(digits).font(.system(size: size, weight: .semibold, design: .rounded)).monospacedDigit()
-                + Text("%").font(.system(size: size * 0.7, weight: .semibold, design: .rounded)))
-                .foregroundStyle(status == .normal ? Color.white.opacity(0.92) : agentStatusTint(status))
+        let tint = status == .normal ? Color.white.opacity(0.92) : agentStatusTint(status)
+        let face = Font.system(size: size, weight: .semibold, design: .rounded)
+        if let word {
+            let wordSize = size * 0.625
+            ZStack {
+                (Text(digits).font(face).monospacedDigit()
+                    + Text("%").font(.system(size: size * 0.7, weight: .semibold, design: .rounded)))
+                    .foregroundStyle(tint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .offset(x: NotchAgentRestingInk.offset(number: digits, size: size, percent: true), y: -size * 0.3)
+                Text(word)
+                    .font(.system(size: wordSize, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .offset(x: NotchAgentRestingInk.offset(word: word, size: wordSize), y: size * 0.48)
+            }
+            .frame(width: width)
+            .accessibilityHidden(true)
+        } else {
+            // Level with the gauge, whose block sits half a point high.
+            Text(digits).font(face).monospacedDigit()
+                .foregroundStyle(tint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .offset(x: NotchAgentRestingInk.offset(number: digits, size: size), y: -size * 0.38)
-            Text(word)
-                .font(.system(size: wordSize, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.55))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .offset(x: NotchAgentRestingInk.offset(word: word, size: wordSize), y: size * 0.55)
+                .minimumScaleFactor(0.75)
+                .offset(x: NotchAgentRestingInk.offset(number: digits, size: size, percent: false), y: -0.5)
+                .frame(width: width)
+                .accessibilityHidden(true)
         }
-        .frame(width: width)
-        .accessibilityHidden(true)
     }
 }
 
@@ -550,9 +566,9 @@ struct NotchAgentRestingAmount: View {
 enum NotchAgentRestingInk {
     private static var offsets: [String: CGFloat] = [:]
 
-    static func offset(number digits: String, size: CGFloat) -> CGFloat {
-        cached("n\(size) \(digits)") {
-            [(digits, font(size, .semibold, monospacedDigits: true)), ("%", font(size * 0.7, .semibold))]
+    static func offset(number digits: String, size: CGFloat, percent: Bool) -> CGFloat {
+        cached("n\(size)\(percent) \(digits)") {
+            [(digits, font(size, .semibold, monospacedDigits: true))] + (percent ? [("%", font(size * 0.7, .semibold))] : [])
         }
     }
 
