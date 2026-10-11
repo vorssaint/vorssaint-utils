@@ -1,12 +1,14 @@
 {
   "schema": 1,
-  "updated": "2026-10-02",
+  "updated": "2026-10-09",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://platform.claude.com/docs/en/models/overview",
     "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
+    "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
     "https://platform.claude.com/docs/en/about-claude/model-deprecations",
     "https://platform.claude.com/docs/en/build-with-claude/claude-in-amazon-bedrock",
+    "https://platform.claude.com/docs/en/build-with-claude/claude-on-amazon-bedrock-legacy",
     "https://platform.claude.com/docs/en/build-with-claude/claude-on-vertex-ai",
     "https://claude.com/pricing",
     "https://www.anthropic.com/glasswing",
@@ -15,21 +17,26 @@
     "https://developers.openai.com/api/docs/models/all",
     "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
     "https://developers.openai.com/api/docs/models/gpt-5.6-sol",
+    "https://developers.openai.com/api/docs/models/gpt-5.6-cyber",
     "https://developers.openai.com/api/docs/models/o3",
     "https://developers.openai.com/api/docs/models/gpt-4-turbo-preview",
     "https://developers.openai.com/api/docs/deprecations",
     "https://developers.openai.com/codex/models",
+    "https://learn.chatgpt.com/docs/models",
     "https://learn.chatgpt.com/docs/pricing"
   ],
   "notes": [
     "gpt-5.6, gpt-5.6-sol and gpt-daybreak-blue-latest carry a promotional price announced through at least 2026-11-21. Check them again after that date.",
     "gpt-daybreak-blue-latest and gpt-daybreak-red-latest are aliases of gpt-5.6-sol and gpt-5.6-cyber; follow them when they move.",
     "claude-sonnet-4-5 and claude-sonnet-4 now have a 200K window. Their long-context premium only prices older history.",
-    "o3 keeps its previous rates pending clarification. The pricing table lists 2/0.5/8 and its model page lists 1/0.25/4 for input/cache reads/output.",
+    "o3 keeps its Standard rates of 2/0.5/8 for input/cache reads/output, matching the pricing table and the first table on its model page. A second, unlabeled model-page table lists 1/0.25/4; verify its meaning before changing Standard rates.",
     "gpt-5.6-cyber and gpt-daybreak-red-latest keep their existing long-context premium pending clarification. The model page describes it, but the pricing table leaves long-context rates unpublished.",
     "Pro has no monthly comparison because plan_type pro does not distinguish the published 100, 200 and 500 USD subscriptions.",
-    "Astra Ultrafast costs 6x Standard and requires app support for a separate speed tier. Schema 1 only represents Standard and Fast.",
-    "gpt-5.3-codex-spark has no published API price and remains unpriced. gpt-oss models have no OpenAI token price and are excluded."
+    "Business has no monthly comparison because plan_type business does not distinguish annual billing at 20 USD per seat per month from monthly billing at 25 USD per seat per month.",
+    "gpt-6-astra and gpt-6.1-sol Ultrafast cost 6x Standard and require app support for a separate speed tier. Schema 1 only represents Standard and Fast.",
+    "gpt-5.3-codex-spark has no published API price. Its existing gpt-5.3-codex family fallback (1.75/0.175/14 for input/cache reads/output) is not verified; schema 1 cannot exclude one ID from a family. gpt-oss models have no OpenAI token price and are excluded.",
+    "gpt-5.4-cyber retired on 2026-10-01 and is still within the 91-day history window, but no token price is published in the reviewed official pages. It remains unpriced.",
+    "gpt-4-1106-preview appears with conflicting shutdown dates of 2026-03-26 and 2026-10-23, and has no model-specific price in the reviewed official pages. Its existing gpt-4 family fallback (30/30/60 for input/cache reads/output) is not verified; schema 1 cannot exclude one ID from a family."
   ],
   "claude": {
     "webSearch": 0.01,
@@ -48,7 +55,7 @@
       { "id": "claude-opus-4-5", "input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 6.25, "cacheWriteLong": 10 },
       { "id": "claude-opus-4-1", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75, "cacheWriteLong": 30 },
       { "id": "claude-opus-4", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75, "cacheWriteLong": 30 },
-      { "id": "claude-sonnet-5-5", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWriteLong": 4 },
+      { "id": "claude-sonnet-5-5", "input": 2, "output": 10, "cacheRead": 0.1, "cacheWrite": 2.5, "cacheWriteLong": 4 },
       { "id": "claude-sonnet-5", "input": 2, "output": 10, "cacheRead": 0.2, "cacheWrite": 2.5, "cacheWriteLong": 4 },
       { "id": "claude-sonnet-4-6", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6 },
       { "id": "claude-sonnet-4-5", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6,
@@ -57,6 +64,8 @@
         "longContext": { "above": 200000, "inputMultiplier": 2, "outputMultiplier": 1.5 } },
       { "id": "claude-3-7-sonnet", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6 },
       { "id": "claude-3-5-sonnet", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWriteLong": 6 },
+      { "id": "claude-haiku-5-5", "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125, "cacheWriteLong": 0.2,
+        "longContext": { "above": 100000, "inputMultiplier": 5, "outputMultiplier": 5 } },
       { "id": "claude-haiku-4-5", "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25, "cacheWriteLong": 2 },
       { "id": "claude-3-5-haiku", "input": 0.8, "output": 4, "cacheRead": 0.08, "cacheWrite": 1, "cacheWriteLong": 1.6 },
       { "id": "claude-3-opus", "input": 15, "output": 75, "cacheRead": 1.5, "cacheWrite": 18.75, "cacheWriteLong": 30 },
@@ -163,8 +172,13 @@
       { "id": "babbage-002", "input": 0.4, "output": 0.4, "cacheRead": 0.4 }
     ],
     "plans": [
+      { "match": "free", "name": "Free", "monthly": 0 },
+      { "match": "go", "name": "Go", "monthly": 8 },
       { "match": "plus", "name": "Plus", "monthly": 20 },
-      { "match": "pro", "name": "Pro" }
+      { "match": "pro", "name": "Pro" },
+      { "match": "business", "name": "Business" },
+      { "match": "enterprise", "name": "Enterprise" },
+      { "match": "edu", "name": "Edu" }
     ]
   }
 }
