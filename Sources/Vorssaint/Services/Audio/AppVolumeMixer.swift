@@ -128,6 +128,9 @@ final class AppVolumeMixer: ObservableObject {
     }
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
+    /// Delayed attempts to select a headset that just connected. It can show
+    /// up before it will accept becoming the default output.
+    private var connectedOutputSwitchWork: [DispatchWorkItem] = []
     /// Device priority needs the output/default substrate without per-app
     /// process discovery. A feature transition restarts the listener set when
     /// this mode changes, so priority-only operation never scans processes.
@@ -300,6 +303,8 @@ final class AppVolumeMixer: ObservableObject {
         if !apps.isEmpty { apps = [] }
         if !hiddenApps.isEmpty { hiddenApps = [] }
         if !outputDevices.isEmpty { outputDevices = [] }
+        connectedOutputSwitchWork.forEach { $0.cancel() }
+        connectedOutputSwitchWork.removeAll()
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
         if systemOutputVolume != nil { systemOutputVolume = nil }
@@ -781,13 +786,15 @@ final class AppVolumeMixer: ObservableObject {
     /// Priority changes only the normal system default. Unlike the manual
     /// universal picker, this must not erase explicit per-app routes or
     /// block the main thread while a device is being reconfigured.
-    func setPriorityOutputDeviceUID(_ uid: String) {
+    func setPriorityOutputDeviceUID(_ uid: String, reportsError: Bool = true) {
         guard let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid),
               let device = outputDevices.first(where: {
                   $0.uid == sanitized && $0.canBeDefaultOutput
               }) else {
-            outputSwitchError = L10n.shared.s.mixerOutputUnavailable
-            refreshApps()
+            if reportsError {
+                outputSwitchError = L10n.shared.s.mixerOutputUnavailable
+                refreshApps()
+            }
             return
         }
 
@@ -799,7 +806,7 @@ final class AppVolumeMixer: ObservableObject {
                 guard let self, self.listenerInstalled else { return }
                 if status == noErr {
                     if self.outputSwitchError != nil { self.outputSwitchError = nil }
-                } else {
+                } else if reportsError {
                     let message = "OSStatus \(status)"
                     if self.outputSwitchError != message { self.outputSwitchError = message }
                 }
@@ -810,6 +817,48 @@ final class AppVolumeMixer: ObservableObject {
                 self.refreshApps()
             }
         }
+    }
+
+    /// Selects the chosen output once, when that device appears. A manual
+    /// change made after it appears is left alone, including one made before
+    /// the delayed attempt runs.
+    private func noteConnectedOutput(previousUIDs: Set<String>,
+                                     nextUIDs: Set<String>,
+                                     defaultUID: String?) {
+        let defaults = UserDefaults.standard
+        let preferred = Defaults.sanitizedAppOutputDeviceUID(
+            defaults.string(forKey: DefaultsKey.mixerSwitchToOutputOnConnectUID))
+        guard MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: defaults.bool(forKey: DefaultsKey.mixerSwitchToOutputOnConnect),
+            preferredUID: preferred,
+            hasBaseline: true,
+            previousUIDs: previousUIDs,
+            currentUIDs: nextUIDs,
+            currentDefaultUID: defaultUID) != nil else { return }
+        scheduleConnectedOutputSelection(defaultUID: defaultUID)
+    }
+
+    private func scheduleConnectedOutputSelection(defaultUID: String?) {
+        connectedOutputSwitchWork.forEach { $0.cancel() }
+        // The first delay lets a headset finish connecting. The second covers
+        // one that appears before it can become the default output.
+        connectedOutputSwitchWork = [0.6, 1.8].map { delay in
+            let work = DispatchWorkItem { [weak self] in
+                self?.selectConnectedOutputIfStillNeeded(baselineDefaultUID: defaultUID)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            return work
+        }
+    }
+
+    private func selectConnectedOutputIfStillNeeded(baselineDefaultUID: String?) {
+        guard listenerInstalled, currentOutputDeviceUID == baselineDefaultUID else { return }
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: DefaultsKey.mixerSwitchToOutputOnConnect),
+              let uid = Defaults.sanitizedAppOutputDeviceUID(
+                defaults.string(forKey: DefaultsKey.mixerSwitchToOutputOnConnectUID)),
+              outputDevices.contains(where: { $0.uid == uid && $0.canBeDefaultOutput }) else { return }
+        setPriorityOutputDeviceUID(uid, reportsError: false)
     }
 
     @discardableResult
@@ -1234,7 +1283,9 @@ final class AppVolumeMixer: ObservableObject {
            outputSwitchError != nil {
             outputSwitchError = nil
         }
-        let audioEnvironmentChanged = currentOutputDeviceUID != nil
+        let hadOutputBaseline = currentOutputDeviceUID != nil
+        let previousOutputUIDs = Set(outputDevices.map(\.uid))
+        let audioEnvironmentChanged = hadOutputBaseline
             && (snapshot.defaultUID != currentOutputDeviceUID || snapshot.outputDevices != outputDevices)
         if audioEnvironmentChanged {
             // Builds aimed at the previous audio environment can no longer be
@@ -1263,6 +1314,11 @@ final class AppVolumeMixer: ObservableObject {
         }
         if snapshot.outputDevices != outputDevices {
             outputDevices = snapshot.outputDevices
+        }
+        if hadOutputBaseline {
+            noteConnectedOutput(previousUIDs: previousOutputUIDs,
+                                nextUIDs: Set(snapshot.outputDevices.map(\.uid)),
+                                defaultUID: snapshot.defaultUID)
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)

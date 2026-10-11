@@ -68,26 +68,90 @@ enum MixerFeatureTests {
         percentWindow.orderOut(nil)
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect volume never drops below the audible floor")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect protection lowers the speakers, it never silences them")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
+               "headphone disconnect volume never drops below silence")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0) == 0,
+               "headphone disconnect volume can silence the speakers")
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(105) == 100,
                "headphone disconnect volume clamps high values")
+        suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerSwitchToOutputOnConnect] as? Bool) == false
+               && (Defaults.registeredDefaults[DefaultsKey.mixerSwitchToOutputOnConnectUID] as? String) == "",
+               "switching to a headset on connect is opt-in")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: true, preferredUID: "airpods", hasBaseline: true,
+            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
+            currentDefaultUID: "speakers") == "airpods",
+               "a chosen headset is selected when it connects")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: false, preferredUID: "airpods", hasBaseline: true,
+            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
+            currentDefaultUID: "speakers") == nil,
+               "headset selection on connect stays off until chosen")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: true, preferredUID: "airpods", hasBaseline: false,
+            previousUIDs: [], currentUIDs: ["speakers", "airpods"],
+            currentDefaultUID: "speakers") == nil,
+               "opening the app does not move the output to a headset already connected")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: true, preferredUID: "airpods", hasBaseline: true,
+            previousUIDs: ["speakers", "airpods"], currentUIDs: ["speakers", "airpods"],
+            currentDefaultUID: "speakers") == nil,
+               "a headset that was already connected is not taken back from a manual choice")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: true, preferredUID: "airpods", hasBaseline: true,
+            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
+            currentDefaultUID: "airpods") == nil,
+               "a headset macOS already selected needs no second switch")
+        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
+            enabled: true, preferredUID: "airpods", hasBaseline: true,
+            previousUIDs: ["speakers"], currentUIDs: ["speakers"],
+            currentDefaultUID: "speakers") == nil,
+               "a missing headset is not selected")
+        suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed] as? Bool) == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectVolumePercent),
+               "silence becomes a saved choice only after the one-time migration, and both travel in a backup")
+        suite.expect(!SettingsBackupSupport.valueLooksRight(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed, "true"),
+               "an imported silence marker must be a boolean")
         let headphonesSuite = "vorss.tests.mixer.headphones"
         if let silentHeadphoneVolume = UserDefaults(suiteName: headphonesSuite) {
+            let volumeKey = DefaultsKey.mixerHeadphonesDisconnectVolumePercent
+            let markerKey = DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
-            silentHeadphoneVolume.set(0, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
-                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
                    "a stored volume of zero from the first release of the option migrates to the default")
-            silentHeadphoneVolume.set(60, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(60, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) == 60,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 60,
                    "a volume the user chose is never migrated")
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0,
+                   "silence chosen after that migration is kept")
+            let kept = SettingsBackupSupport.sanitizedSettings(from: SettingsBackupSupport.payload(
+                appVersion: "3.4.1") { silentHeadphoneVolume.object(forKey: $0) }) ?? [:]
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            for (key, value) in kept { silentHeadphoneVolume.set(value, forKey: key) }
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
+                   "restoring a backup keeps a chosen silence instead of rewriting it")
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+                   "an old backup with the accidental zero is still rewritten once")
+            silentHeadphoneVolume.removeObject(forKey: markerKey)
+            silentHeadphoneVolume.set(Defaults.legacyMixerHeadphonesDisconnectVolumeFloor, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.legacyMixerHeadphonesDisconnectVolumeFloor,
+                   "the old floor of 10 percent was a real choice and stays where it was set")
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
         }
         suite.expect(Defaults.sanitizedAppOutputDeviceUID(" BuiltInSpeakerDevice ") == "BuiltInSpeakerDevice",

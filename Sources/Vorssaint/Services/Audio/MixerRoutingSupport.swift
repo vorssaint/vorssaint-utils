@@ -828,6 +828,22 @@ enum MixerRoutingSupport {
         return true
     }
 
+    /// The output to select because a chosen device just connected. Already
+    /// connected devices stay put, so a manual change to the speakers is not
+    /// taken back while the headset remains on. The first device list is a
+    /// baseline: opening the app must not move the output.
+    static func outputUIDToSelectOnConnect(enabled: Bool,
+                                           preferredUID: String?,
+                                           hasBaseline: Bool,
+                                           previousUIDs: Set<String>,
+                                           currentUIDs: Set<String>,
+                                           currentDefaultUID: String?) -> String? {
+        guard enabled, hasBaseline, let preferredUID, !preferredUID.isEmpty else { return nil }
+        guard currentUIDs.contains(preferredUID), !previousUIDs.contains(preferredUID) else { return nil }
+        guard preferredUID != currentDefaultUID else { return nil }
+        return preferredUID
+    }
+
     /// The first observed set establishes a baseline. Afterwards only an
     /// eligible UID entering or leaving is a priority event; changing the
     /// system default merely changes device metadata and must not count.

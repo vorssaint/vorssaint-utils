@@ -2031,7 +2031,7 @@ enum SwitcherModelFeatureTests {
                "headphone disconnect volume lowering is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
                == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect protection starts at an audible volume, never at silence")
+               "headphone disconnect protection starts at an audible volume until silence is chosen")
         suite.expect(Defaults.defaultMixerHeadphonesDisconnectVolumePercent
                >= Defaults.minimumMixerHeadphonesDisconnectVolumePercent
                && Defaults.defaultMixerHeadphonesDisconnectVolumePercent < 100,

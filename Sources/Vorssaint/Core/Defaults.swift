@@ -150,6 +150,10 @@ enum DefaultsKey {
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
+    static let mixerHeadphonesDisconnectSilenceAllowed = "mixerHeadphonesDisconnectSilenceAllowed" // one-time: volumes below 10% were rewritten before silence became a choice
+    static let mixerSwitchToOutputOnConnect = "mixerSwitchToOutputOnConnect"
+    static let mixerSwitchToOutputOnConnectUID = "mixerSwitchToOutputOnConnectUID" // output selected when that device connects
+    static let mixerSwitchToOutputOnConnectName = "mixerSwitchToOutputOnConnectName" // last name of that output, shown while it is away
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
@@ -1277,6 +1281,10 @@ enum Defaults {
         DefaultsKey.mixerAppArrangement: "",
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
+        DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed: false,
+        DefaultsKey.mixerSwitchToOutputOnConnect: false,
+        DefaultsKey.mixerSwitchToOutputOnConnectUID: "",
+        DefaultsKey.mixerSwitchToOutputOnConnectName: "",
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
@@ -2611,24 +2619,30 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
-    /// The volume the speakers are set to when headphones disconnect. It is a
-    /// protection against a sudden blast, not a mute, so it never goes low
-    /// enough to leave the sound inaudible.
-    static let minimumMixerHeadphonesDisconnectVolumePercent = 10
+    /// The volume the speakers are set to when headphones disconnect. Zero
+    /// silences the speakers. The default stays audible, so turning the option
+    /// on does not mute them until that level is chosen.
+    static let minimumMixerHeadphonesDisconnectVolumePercent = 0
     static let defaultMixerHeadphonesDisconnectVolumePercent = 25
+    /// The stepper used to stop here. Anything stored below it was the first
+    /// release writing 0 for an untouched control, which silenced the speakers.
+    static let legacyMixerHeadphonesDisconnectVolumeFloor = 10
 
     static func sanitizedMixerHeadphonesDisconnectVolumePercent(_ percent: Int) -> Int {
         min(max(percent, minimumMixerHeadphonesDisconnectVolumePercent), 100)
     }
 
-    /// The option shipped with a stored value of 0, so ticking the box without
-    /// touching the stepper silenced the speakers on the next disconnect. A
-    /// value below the floor becomes the sane default.
+    /// Rewrites that accidental silence once. After the marker is saved, 0 is
+    /// a choice and is left alone, including when a backup of that choice is
+    /// restored.
     static func migrateSilentHeadphonesDisconnectVolume(in defaults: UserDefaults) {
-        guard let stored = defaults.object(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) as? Int,
-              stored < minimumMixerHeadphonesDisconnectVolumePercent else { return }
-        defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
-                     forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+        guard !defaults.bool(forKey: DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed) else { return }
+        if let stored = defaults.object(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) as? Int,
+           stored < legacyMixerHeadphonesDisconnectVolumeFloor {
+            defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
+                         forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+        }
+        defaults.set(true, forKey: DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
     }
 
     static func sanitizedAppOutputDeviceUID(_ value: Any?) -> String? {
