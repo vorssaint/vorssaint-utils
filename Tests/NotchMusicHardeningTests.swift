@@ -4,7 +4,7 @@
 import Foundation
 import UniformTypeIdentifiers
 
-private typealias ProductionLyricsParser = NotchLyricsSupport
+typealias ProductionLyricsParser = NotchLyricsSupport
 
 /// Production lifecycle bodies are extracted by generate_sources.py. Only the
 /// session, chooser, preference source and network entry point are test doubles.
@@ -16,11 +16,35 @@ enum NotchLyricsContract {
         static func isEnabled() -> Bool { enabled }
         static func onlineEnabled() -> Bool { enabled && online }
         static let maximumBytes = ProductionLyricsParser.maximumBytes
+        static let maximumSearchBytes = ProductionLyricsParser.maximumSearchBytes
+        typealias Candidate = ProductionLyricsParser.Candidate
+        static func lookupURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.lookupURL(for: track) }
+        static func searchURLs(for track: NotchMusicIdentity) -> [URL] { ProductionLyricsParser.searchURLs(for: track) }
+        static func decode(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decode(data, for: track) }
+        static func decodeCatalogMatch(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decodeCatalogMatch(data, for: track) }
+        static func searchCandidates(_ data: Data, for track: NotchMusicIdentity) -> [Candidate] { ProductionLyricsParser.searchCandidates(data, for: track) }
+        static func bestLyrics(in candidates: [Candidate]) -> NotchLyrics? { ProductionLyricsParser.bestLyrics(in: candidates) }
+
         static func parse(_ source: String, duration: Double) -> [NotchLyricLine] {
             ProductionLyricsParser.parse(source, duration: duration)
         }
     }
     typealias NotchLyricsSupport = Preferences
+    enum NotchLyricsDownload {
+        struct Request {
+            let url: URL
+            let maximumBytes: Int
+            let session: Session
+            let completion: (NotchLyricsDownloadResult) -> Void
+        }
+        static var requests: [Request] = []
+        static func load(_ url: URL, maximumBytes: Int = Preferences.maximumBytes,
+                         completion: @escaping (NotchLyricsDownloadResult) -> Void) -> Session {
+            let session = Session()
+            requests.append(Request(url: url, maximumBytes: maximumBytes, session: session, completion: completion))
+            return session
+        }
+    }
     final class Session {
         var cancelled = false
         func invalidateAndCancel() { cancelled = true }
@@ -163,6 +187,7 @@ enum NotchMusicHardeningTests {
         NotchPlaybackRoutingTests.run(suite)
         lyricExpansion(suite)
         lyricLifecycle(suite)
+        lyricLookup(suite)
         lyricPicker(suite)
         queueSelection(suite)
         queueHold(suite)
@@ -713,6 +738,89 @@ enum NotchMusicHardeningTests {
         NotchLyricsContract.Preferences.enabled = false
         service.hide()
         suite.expect(service.lyrics == nil && service.track == nil, "feature removal clears the cache even when it arrives through the hide path")
+    }
+
+    private static func lyricLookup(_ suite: TestSuite) {
+        typealias Context = NotchLyricsContract
+        Context.resetPresentation()
+        Context.Preferences.enabled = true
+        Context.Preferences.online = true
+        defer {
+            Context.Preferences.online = false
+            Context.NotchLyricsDownload.requests = []
+            Context.resetPresentation()
+        }
+        let playback = NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: "Режиссёр", artist: "группа Градусы", album: "Градусы",
+                                           artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+            isPlaying: true, elapsed: 0, duration: 219, rate: 1, sampledAt: .now, canSeek: false)
+        let record: [String: Any] = ["trackName": "Режиссёр", "artistName": "Градусы",
+                                     "albumName": "Самые модные хиты", "duration": 219.0,
+                                     "syncedLyrics": "[00:01]Fixture", "plainLyrics": "Fixture"]
+        let searchReply = try! JSONSerialization.data(withJSONObject: [record])
+        let emptyReply = Data("[]".utf8)
+        func start() -> Context.LookupService {
+            Context.NotchLyricsDownload.requests = []
+            let service = Context.LookupService()
+            service.update(playback: playback, visible: true)
+            return service
+        }
+        let recovered = start()
+        suite.expect(Context.NotchLyricsDownload.requests.count == 1
+                     && Context.NotchLyricsDownload.requests[0].url.path == "/api/get",
+                     "the production lookup starts with one exact request")
+        Context.NotchLyricsDownload.requests[0].completion(.missing) // 404
+        Context.DispatchQueue.main.drain()
+        var index = 1
+        while recovered.state == .loading && index < Context.NotchLyricsDownload.requests.count {
+            let request = Context.NotchLyricsDownload.requests[index]
+            suite.expect(request.url.path == "/api/search" && request.url.host == "lrclib.net"
+                         && request.maximumBytes == NotchLyricsSupport.maximumSearchBytes,
+                         "fallback requests use the bounded search envelope on the same host")
+            request.completion(.payload(index == 2 ? searchReply : emptyReply))
+            Context.DispatchQueue.main.drain()
+            index += 1
+        }
+        suite.expect(recovered.state == .ready && recovered.lyrics?.plain == "Fixture"
+                     && Context.NotchLyricsDownload.requests.count <= 4,
+                     "the real sequential fallback recovers lyrics within four requests")
+        let failed = start()
+        Context.NotchLyricsDownload.requests[0].completion(.failed)
+        Context.DispatchQueue.main.drain()
+        suite.expect(failed.state == .failed && Context.NotchLyricsDownload.requests.count == 1,
+                     "transport failures do not trigger broad searches")
+        let unavailable = start()
+        Context.NotchLyricsDownload.requests[0].completion(.serviceUnavailable)
+        Context.DispatchQueue.main.drain()
+        suite.expect(unavailable.state == .loading && Context.NotchLyricsDownload.requests.count == 2,
+                     "HTTP server failures may recover through a working search endpoint")
+        Context.NotchLyricsDownload.requests[1].completion(.failed) // network error or rate limit
+        Context.DispatchQueue.main.drain()
+        suite.expect(unavailable.state == .failed && Context.NotchLyricsDownload.requests.count == 2,
+                     "network errors and rate limits stop the fallback chain")
+        for mode in 0..<4 {
+            let cancelled = start()
+            Context.NotchLyricsDownload.requests[0].completion(.missing)
+            Context.DispatchQueue.main.drain()
+            let pending = Context.NotchLyricsDownload.requests[1]
+            switch mode {
+            case 0: cancelled.hide()
+            case 1: cancelled.stop()
+            case 2: Context.Preferences.online = false
+            default: cancelled.playbackChanged(nil)
+            }
+            pending.completion(.payload(searchReply))
+            Context.DispatchQueue.main.drain()
+            suite.expect(cancelled.lyrics == nil && Context.NotchLyricsDownload.requests.count == 2,
+                         "late fallback results cannot publish or continue after hiding, shutdown, lost consent or song changes")
+            Context.Preferences.online = true
+        }
+        let mismatch = start()
+        // A 200 response with mismatching album metadata still enters fallback.
+        Context.NotchLyricsDownload.requests[0].completion(.payload(try! JSONSerialization.data(withJSONObject: record)))
+        Context.DispatchQueue.main.drain()
+        suite.expect(mismatch.state == .loading && Context.NotchLyricsDownload.requests.count == 2,
+                     "an unusable successful exact response receives the same fallback as a 404")
     }
 
     private static func lyricPicker(_ suite: TestSuite) {

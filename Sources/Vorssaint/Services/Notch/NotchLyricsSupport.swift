@@ -101,6 +101,17 @@ struct NotchLyricsMemory {
     mutating func clear() { self = Self() }
 }
 
+/// A server-side lookup failure may still have working search results. Network
+/// failures and client/rate-limit responses must not fan out into more requests.
+enum NotchLyricsDownloadResult {
+    case payload(Data), missing, serviceUnavailable, failed
+    var data: Data? { if case let .payload(data) = self { return data }; return nil }
+    var failed: Bool {
+        switch self { case .failed, .serviceUnavailable: return true; default: return false }
+    }
+    var canSearch: Bool { if case .failed = self { return false }; return true }
+}
+
 enum NotchLyricsSupport {
     static let maximumBytes = 128 * 1024
     static let maximumLines = 2000
@@ -117,7 +128,7 @@ enum NotchLyricsSupport {
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {
         let album = catalogAlbum(track.album)
-        guard [track.title, track.artist].allSatisfy({ !$0.isEmpty && $0.utf8.count <= 1024 }),
+        guard [track.title, track.artist].allSatisfy({ !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0.utf8.count <= 1024 }),
               album.isEmpty || album.utf8.count <= 1024,
               track.duration.isFinite, (1...3600).contains(track.duration) else { return nil }
         var url = URLComponents(string: "https://lrclib.net/api/get")!
@@ -147,6 +158,139 @@ enum NotchLyricsSupport {
         guard instrumental || !plain.isEmpty || !parsed.isEmpty else { return nil }
         return NotchLyrics(lines: instrumental ? [] : parsed, plain: instrumental ? "" : plain,
                            instrumental: instrumental)
+    }
+
+    /// /get can return canonical punctuation and credit separators even for an
+    /// exact query. Accept those cosmetic differences without relaxing its album
+    /// or recording-length constraints.
+    static func decodeCatalogMatch(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? {
+        guard data.count <= maximumBytes,
+              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let title = object["trackName"] as? String,
+              let artist = object["artistName"] as? String,
+              let album = object["albumName"] as? String,
+              !key(track.title).isEmpty, key(title) == key(track.title),
+              !key(track.artist).isEmpty, creditsMatch(artist, track.artist),
+              track.album.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || key(catalogAlbum(album)) == key(catalogAlbum(track.album)) else { return nil }
+        object["trackName"] = track.title
+        object["artistName"] = track.artist
+        object["albumName"] = track.album
+        guard let canonical = try? JSONSerialization.data(withJSONObject: object) else { return nil }
+        return decode(canonical, for: track)
+    }
+
+    // Search replies contain up to twenty complete lyric records, rather than
+    // the single record returned by /get. Bound both the envelope and each entry.
+    static let maximumSearchBytes = 1024 * 1024
+
+    struct Candidate {
+        let lyrics: NotchLyrics
+        let score: Int
+        let distance: Double
+    }
+
+    /// Keep the player's exact credits first. Fallbacks name the primary artist
+    /// and normalize punctuation/Latin accents and Russian е/ё for catalog search.
+    /// Never remove recording qualifiers (live, remix, acoustic, etc.).
+    static func searchURLs(for track: NotchMusicIdentity) -> [URL] {
+        guard lookupURL(for: track) != nil else { return [] }
+        let primary = artistNames(track.artist).first ?? track.artist
+        let variants = [(track.title, track.artist), (track.title, primary),
+                        (searchText(track.title), searchText(primary))]
+        var urls: [URL] = []
+        for (title, artist) in variants {
+            guard !title.isEmpty, !artist.isEmpty else { continue }
+            var url = URLComponents(string: "https://lrclib.net/api/search")!
+            url.queryItems = [URLQueryItem(name: "track_name", value: title),
+                              URLQueryItem(name: "artist_name", value: artist)]
+            if let value = url.url, !urls.contains(value) { urls.append(value) }
+        }
+        return urls
+    }
+
+    static func searchCandidates(_ data: Data, for track: NotchMusicIdentity, durationTolerance: Double = 2) -> [Candidate] {
+        guard data.count <= maximumSearchBytes,
+              let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]],
+              objects.count <= 20 else { return [] }
+        return objects.compactMap { object in
+            guard let title = object["trackName"] as? String,
+                  let artist = object["artistName"] as? String,
+                  let album = object["albumName"] as? String,
+                  key(title) == key(track.title), !key(title).isEmpty,
+                  let primary = artistNames(track.artist).first,
+                  (key(artist) == key(track.artist) || artistNames(artist).contains(where: { key($0) == key(primary) })),
+                  recordingKinds(album) == recordingKinds(track.album),
+                  let duration = object["duration"] as? Double, duration.isFinite,
+                  abs(duration - track.duration) <= durationTolerance,
+                  let encoded = try? JSONSerialization.data(withJSONObject: object),
+                  encoded.count <= maximumBytes else { return nil }
+            // Reuse the bounded parser and payload validation only after recording
+            // matching. The strict /get decoder remains unchanged.
+            let plain = (object["plainLyrics"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let instrumental = object["instrumental"] as? Bool == true
+            let lines = parse(object["syncedLyrics"] as? String ?? "", duration: track.duration)
+            guard instrumental || !plain.isEmpty || !lines.isEmpty else { return nil }
+            let lyrics = NotchLyrics(lines: instrumental ? [] : lines, plain: instrumental ? "" : plain,
+                                     instrumental: instrumental)
+            let score = (key(catalogAlbum(album)) == key(catalogAlbum(track.album)) ? 8 : 0)
+                + (equal(title, track.title) ? 2 : 0)
+                + (creditsMatch(artist, track.artist) ? 4 : 0)
+                + (!lines.isEmpty && !instrumental ? 1 : 0)
+            return Candidate(lyrics: lyrics, score: score, distance: abs(duration - track.duration))
+        }
+    }
+
+    /// Prefer matching releases, exact title spelling and complete credits, then
+    /// the closest duration. A tied recording with different lyrics is ambiguous; never trust API result order.
+    static func bestLyrics(in candidates: [Candidate]) -> NotchLyrics? {
+        let ranked = candidates.sorted {
+            $0.score == $1.score ? $0.distance < $1.distance : $0.score > $1.score
+        }
+        guard let best = ranked.first else { return nil }
+        guard !ranked.dropFirst().contains(where: {
+            $0.score == best.score && abs($0.distance - best.distance) < 0.25 && $0.lyrics != best.lyrics
+        }) else { return nil }
+        return best.lyrics
+    }
+
+    private static func folded(_ text: String) -> String {
+        // Fold Latin accents without turning Cyrillic й into и.
+        let latin = text.precomposedStringWithCanonicalMapping.map { character -> String in
+            let value = String(character)
+            return character.unicodeScalars.allSatisfy { $0.value < 0x0250 }
+                ? value.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+                : value.lowercased()
+        }.joined()
+        return latin.replacingOccurrences(of: "ё", with: "е")
+    }
+
+    private static func searchText(_ text: String) -> String {
+        folded(text).components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .filter { !$0.isEmpty }.joined(separator: " ")
+    }
+
+    private static func key(_ text: String) -> String {
+        searchText(text).replacingOccurrences(of: " ", with: "")
+    }
+
+    private static func artistNames(_ text: String) -> [String] {
+        let separated = text.replacingOccurrences(
+            of: #"[,;，、]|\s+[/&•]\s+|\s+(?:feat\.?|ft\.?|featuring)\s+"#,
+            with: "\n", options: [.regularExpression, .caseInsensitive])
+        return separated.components(separatedBy: "\n").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: #"^группа\s+"#, with: "", options: [.regularExpression, .caseInsensitive])
+        }.filter { !$0.isEmpty }
+    }
+
+    private static func creditsMatch(_ first: String, _ second: String) -> Bool {
+        key(first) == key(second) || Set(artistNames(first).map(key)) == Set(artistNames(second).map(key))
+    }
+
+    private static func recordingKinds(_ album: String) -> Set<String> {
+        let words = Set(searchText(album).components(separatedBy: " "))
+        return Set(["live", "concert", "концерт", "концертная", "remix", "remixes", "ремикс",
+                    "acoustic", "акустика", "instrumental", "karaoke"].filter { words.contains($0) })
     }
 
     /// Apple Music names singles and EPs "Title - Single" and "Title - EP",

@@ -174,10 +174,96 @@ enum NotchMusicExtrasTests {
                "resuming or seeking back schedules the next verse from the new playback position")
     }
 
+    private static func lyricSearchContracts(_ suite: TestSuite) {
+        func identity(_ title: String, _ artist: String, _ album: String, _ duration: Double) -> NotchMusicIdentity {
+            NotchMusicIdentity(NotchPlayback(
+                track: RadialNowPlayingSnapshot(title: title, artist: artist, album: album, artworkData: nil,
+                                               appBundleIdentifier: nil, appPID: nil),
+                isPlaying: true, elapsed: 0, duration: duration, rate: 1, sampledAt: .now, canSeek: false))
+        }
+        func record(_ title: String, _ artist: String, _ album: String, _ duration: Double,
+                    _ words: String = "Fixture verse") -> [String: Any] {
+            ["trackName": title, "artistName": artist, "albumName": album, "duration": duration,
+             "syncedLyrics": "[00:01]" + words, "plainLyrics": words, "instrumental": false]
+        }
+        func candidates(_ records: [[String: Any]], _ track: NotchMusicIdentity) -> [NotchLyricsSupport.Candidate] {
+            NotchLyricsSupport.searchCandidates(try! JSONSerialization.data(withJSONObject: records), for: track)
+        }
+        // Metadata reproduced from the desktop and seeded corpus; lyric text is synthetic.
+        let fixtures: [(NotchMusicIdentity, [String: Any])] = [
+            (identity("Режиссёр", "группа Градусы", "Градусы", 219),
+             record("Режиссер", "Градусы", "Самые модные хиты", 219)),
+            (identity("Чужое горе", "Порнофильмы, Котляров Владимир Андреевич", "Это пройдёт", 205),
+             record("Чужое горе", "Порнофильмы", "Это пройдёт", 205)),
+            (identity("Not A Lullaby", "The Weepies, Deb Talan, Steve Tannen", "Be My Thrill", 158),
+             record("Not a Lullaby", "The Weepies", "Be My Thrill", 158)),
+            (identity("Jai Ho! (You Are My Destiny)", "A. R. Rahman, The Pussycat Dolls, Nicole Scherzinger",
+                      "Jai Ho! (You Are My Destiny)", 222),
+             record("Jai Ho! (You Are My Destiny)", "A. R. Rahman & The Pussycat Dolls feat. Nicole Scherzinger",
+                    "Jai Ho! (You Are My Destiny)", 222)),
+            (identity("Солдат", "5'nizza, Serhii Babkin, Andrii Zaporozhets", "Пятница", 191),
+             record("Солдат", "5nizza", "Compilation", 190)),
+            (identity("Secrets", "Tiësto, KSHMR, Vassy", "Secrets", 268),
+             record("Secrets", "Tiesto / KSHMR", "Secrets", 268))
+        ]
+        for (track, reply) in fixtures {
+            suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([reply], track))?.lines.count == 1,
+                         "fallback recovers observed artist, punctuation, album and е/ё variants: " + track.title)
+            let urls = NotchLyricsSupport.searchURLs(for: track)
+            suite.expect(!urls.isEmpty && urls.count <= 3 && Set(urls).count == urls.count
+                         && urls.allSatisfy { $0.host == "lrclib.net" && $0.path == "/api/search" },
+                         "fallback queries stay bounded, deduplicated and on the consented host")
+        }
+        let track = identity("Example Song", "Main Artist, Guest Artist", "Studio Album", 180)
+        let preferred = record("Example Song", "Main Artist", "Studio Album", 180)
+        let compilation = record("Example Song", "Main Artist", "Compilation", 180, "Other verse")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([compilation, preferred], track))?.plain == "Fixture verse",
+                     "album agreement ranks above a compilation without depending on provider order")
+        for wrong in [record("Example Song (Live)", "Main Artist", "Studio Album", 180),
+                      record("Example Song (Remix)", "Main Artist", "Studio Album", 180),
+                      record("Example Song", "Guest Artist", "Studio Album", 180),
+                      record("Example Song", "Unrelated Artist", "Studio Album", 180),
+                      record("Example Song", "Main Artist", "Live at the Theatre", 180),
+                      record("Example Song", "Main Artist", "Studio Album", 183)] {
+            suite.expect(candidates([wrong], track).isEmpty,
+                         "search never substitutes a different title, version, primary artist or recording length")
+        }
+        let conflict = record("Example Song", "Main Artist", "Studio Album", 180, "Conflicting verse")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, conflict], track)) == nil
+                     && NotchLyricsSupport.bestLyrics(in: candidates([conflict, preferred], track)) == nil,
+                     "equally ranked conflicting lyrics remain unavailable in either response order")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, preferred], track)) != nil,
+                     "the same lyric returned by multiple queries is not an ambiguity")
+        let collaboration = identity("Jai Ho!", "A. R. Rahman, The Pussycat Dolls, Nicole Scherzinger", "Single", 222)
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([
+            record("Jai Ho!", "A. R. Rahman", "Single", 222, "Incomplete credits"),
+            record("Jai Ho!", "A.R. Rahman & The Pussycat Dolls feat. Nicole Scherzinger", "Single", 222)
+        ], collaboration))?.plain == "Fixture verse", "complete artist credits rank above primary-only credits")
+        let cyrillic = identity("Мой", "Artist", "Album", 180)
+        suite.expect(candidates([record("Мои", "Artist", "Album", 180)], cyrillic).isEmpty,
+                     "Latin accent normalization does not collapse Cyrillic й into и")
+        suite.expect(candidates(Array(repeating: preferred, count: 21), track).isEmpty
+                     && NotchLyricsSupport.searchCandidates(Data(repeating: 32, count: NotchLyricsSupport.maximumSearchBytes + 1), for: track).isEmpty,
+                     "search envelopes have byte and result-count limits")
+        var oversized = preferred
+        oversized["plainLyrics"] = String(repeating: "x", count: NotchLyricsSupport.maximumBytes + 1)
+        suite.expect(candidates([oversized], track).isEmpty,
+                     "each lyric inside a larger search reply retains the original per-record bound")
+        var missingDuration = preferred
+        missingDuration["duration"] = NSNull()
+        var emptyLyrics = preferred
+        emptyLyrics["plainLyrics"] = ""
+        emptyLyrics["syncedLyrics"] = ""
+        suite.expect(candidates([missingDuration, emptyLyrics], track).isEmpty,
+                     "missing durations and empty lyric records cannot become fallback matches")
+    }
+
     static func run(_ suite: TestSuite) {
         preferredPlayer(suite)
         preferredPlayerLoading(suite)
         lyricScheduleContracts(suite)
+        lyricSearchContracts(suite)
+        NotchLyricsCorpusTests.run(suite)
         NotchMusicHardeningTests.run(suite)
         let track = RadialNowPlayingSnapshot(title: "A & B + C", artist: "Artist / Example", album: "Studio Recording",
                                             artworkData: nil, appBundleIdentifier: "org.example.player", appPID: 42)

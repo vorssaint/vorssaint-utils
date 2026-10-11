@@ -1380,6 +1380,22 @@ def main():
           + declaration(lyrics, "    private func canReturnToLyrics(")
           + "}\n}\n")
 
+    write("NotchLyricsLookup.swift", "import Foundation\n\nextension NotchLyricsContract {\n"
+          + "final class LookupService {\nvar memory = NotchLyricsMemory()\n"
+          + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
+          + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var session: Session?\nvar importPanel: Panel?\n"
+          + declaration(lyrics, "    func update(playback:")
+          + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    func hide()")
+          + declaration(lyrics, "    func stop()")
+          + declaration(lyrics, "    private func cancel()")
+          + declaration(lyrics, "    private func load(")
+          + declaration(lyrics, "    private func acceptsResult(")
+          + declaration(lyrics, "    private func finish(")
+          + declaration(lyrics, "    private func search(")
+          + "}\n}\n")
+
     music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"
     write("NotchMusicControls.swift", "import AppKit\n\nextension NotchMusicCommandContract {\n"
           + "final class Service {\ntypealias Command = NotchPlaybackCommand\n"

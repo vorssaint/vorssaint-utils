@@ -89,14 +89,52 @@ final class NotchLyricsService: ObservableObject {
         guard let url = NotchLyricsSupport.lookupURL(for: track) else { state = .unavailable; return }
         state = .loading
         let requested = generation
-        session = NotchLyricsDownload.load(url) { [weak self] data, failed in
-            let lyrics = data.flatMap { NotchLyricsSupport.decode($0, for: track) }
+        session = NotchLyricsDownload.load(url) { [weak self] result in
+            let lyrics = result.data.flatMap { NotchLyricsSupport.decode($0, for: track)
+                ?? NotchLyricsSupport.decodeCatalogMatch($0, for: track) }
             DispatchQueue.main.async {
-                guard let self, self.visible, self.generation == requested, self.track == track,
-                      NotchLyricsSupport.onlineEnabled() else { return }
+                guard let self, self.acceptsResult(for: track, generation: requested) else { return }
                 self.session = nil
-                guard self.memory.replace(lyrics, for: track) else { return }
-                self.state = lyrics != nil ? .ready : failed ? .failed : .unavailable
+                if let lyrics { self.finish(lyrics, for: track, failed: false) }
+                else if !result.canSearch { self.finish(nil, for: track, failed: true) }
+                else {
+                    self.search(track, urls: NotchLyricsSupport.searchURLs(for: track),
+                                candidates: [], failed: result.failed, generation: requested)
+                }
+            }
+        }
+    }
+
+    private func acceptsResult(for track: NotchMusicIdentity, generation requested: UUID) -> Bool {
+        visible && generation == requested && self.track == track && NotchLyricsSupport.onlineEnabled()
+    }
+
+    private func finish(_ lyrics: NotchLyrics?, for track: NotchMusicIdentity, failed: Bool) {
+        guard memory.replace(lyrics, for: track) else { return }
+        state = lyrics != nil ? .ready : failed ? .failed : .unavailable
+    }
+
+    /// Sequential, bounded fallback on the same disclosed host. Each callback
+    /// rechecks visibility, consent and song identity before issuing another request.
+    private func search(_ track: NotchMusicIdentity, urls: [URL], candidates: [NotchLyricsSupport.Candidate],
+                        failed: Bool, generation requested: UUID) {
+        guard acceptsResult(for: track, generation: requested) else { return }
+        guard let url = urls.first else {
+            finish(NotchLyricsSupport.bestLyrics(in: candidates), for: track, failed: failed)
+            return
+        }
+        session = NotchLyricsDownload.load(url, maximumBytes: NotchLyricsSupport.maximumSearchBytes) { [weak self] result in
+            let found = result.data.map { NotchLyricsSupport.searchCandidates($0, for: track) } ?? []
+            DispatchQueue.main.async {
+                guard let self, self.acceptsResult(for: track, generation: requested) else { return }
+                self.session = nil
+                let accumulated = candidates + found
+                if !result.canSearch {
+                    self.finish(NotchLyricsSupport.bestLyrics(in: accumulated), for: track, failed: true)
+                } else {
+                    self.search(track, urls: Array(urls.dropFirst()), candidates: accumulated,
+                                failed: failed || result.failed, generation: requested)
+                }
             }
         }
     }
@@ -173,16 +211,20 @@ final class NotchLyricsService: ObservableObject {
     }
 }
 
-/// A single ephemeral request, bounded while bytes arrive. Redirects are refused
+/// An ephemeral request, bounded while bytes arrive. Redirects are refused
 /// so track metadata can only reach the host disclosed by the opt-in control.
 private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
     private var data = Data()
     private var accepted = false
-    private var missing = false
-    private let completion: (Data?, Bool) -> Void
-    private init(completion: @escaping (Data?, Bool) -> Void) { self.completion = completion }
+    private var status: Int?
+    private let completion: (NotchLyricsDownloadResult) -> Void
+    private let maximumBytes: Int
+    private init(maximumBytes: Int, completion: @escaping (NotchLyricsDownloadResult) -> Void) {
+        self.maximumBytes = maximumBytes
+        self.completion = completion
+    }
 
-    static func load(_ url: URL, completion: @escaping (Data?, Bool) -> Void) -> URLSession {
+    static func load(_ url: URL, maximumBytes: Int = NotchLyricsSupport.maximumBytes, completion: @escaping (NotchLyricsDownloadResult) -> Void) -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.timeoutIntervalForRequest = 10
         configuration.timeoutIntervalForResource = 15
@@ -191,7 +233,7 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
         configuration.httpCookieStorage = nil
         configuration.httpShouldSetCookies = false
         configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint", "Accept": "application/json"]
-        let delegate = NotchLyricsDownload(completion: completion)
+        let delegate = NotchLyricsDownload(maximumBytes: maximumBytes, completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
         session.dataTask(with: url).resume()
         session.finishTasksAndInvalidate()
@@ -200,14 +242,13 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
                     completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
-        let status = (response as? HTTPURLResponse)?.statusCode
-        missing = status == 404
-        accepted = status == 200 && response.expectedContentLength <= NotchLyricsSupport.maximumBytes
+        status = (response as? HTTPURLResponse)?.statusCode
+        accepted = status == 200 && response.expectedContentLength <= maximumBytes
         completionHandler(accepted ? .allow : .cancel)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
-        guard accepted, chunk.count <= NotchLyricsSupport.maximumBytes - data.count else {
+        guard accepted, chunk.count <= maximumBytes - data.count else {
             accepted = false
             dataTask.cancel()
             return
@@ -221,6 +262,9 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        completion(error == nil && accepted ? data : nil, !missing && (error != nil || !accepted))
+        if error == nil && accepted { completion(.payload(data)) }
+        else if status == 404 { completion(.missing) }
+        else if let status, (500...599).contains(status) { completion(.serviceUnavailable) }
+        else { completion(.failed) }
     }
 }
