@@ -289,9 +289,10 @@ struct NotchAgentRestingAccessibility: ViewModifier {
     }
 
     func body(content: Content) -> some View {
-        if active {
+        let meters = active ? choices.meters(usage.snapshot, now: Date()) : []
+        // Empty wings, with nothing seen at all, say nothing either.
+        if active, !meters.isEmpty || choices.fallbackProvider(usage.snapshot) != nil {
             let text = FeatureStrings.notchAgents(l10n.language)
-            let meters = choices.meters(usage.snapshot, now: Date())
             content
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(meters.isEmpty ? text.restingTitle : text.restingLabel(choices.layout))
