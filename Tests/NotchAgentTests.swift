@@ -3076,9 +3076,9 @@ enum NotchAgentTests {
         let opencode = limits(.opencode, [window(.session, 60)])
         let all = snapshot([.claude: claude, .codex: codex, .opencode: opencode])
         func meters(_ snapshot: AgentUsageSnapshot, hidden: Set<AgentProvider> = [], session: Bool = true,
-                    weekly: Bool = true) -> [NotchAgentRestingMeter] {
+                    weekly: Bool = true, focus: NotchAgentLimitFocus = .mostUsed) -> [NotchAgentRestingMeter] {
             NotchAgentSupport.restingMeters(snapshot, providers: AgentProvider.allCases, hidden: hidden,
-                                            session: session, weekly: weekly, now: now)
+                                            session: session, weekly: weekly, focus: focus, now: now)
         }
         let shown = meters(all)
         suite.expect(shown.map(\.provider) == [.claude, .codex, .opencode],
@@ -3099,6 +3099,44 @@ enum NotchAgentTests {
         suite.expect(neither.count == 3 && neither.allSatisfy { $0.session == nil && $0.weekly == nil }
                         && neither.map(\.amount.usedPercent) == [79, 40, 60],
                      "with both windows off, the number follows each account's most used plan-wide window")
+
+        // Claude's session is the tighter window and Codex's week is, so the
+        // most used numbers mix kinds until "Limit to show" picks one.
+        let mixed = snapshot([.claude: limits(.claude, [window(.session, 70), window(.weekly, 20)]),
+                              .codex: limits(.codex, [window(.session, 10), window(.weekly, 50)])])
+        func amounts(_ shown: [NotchAgentRestingMeter]) -> [String] {
+            shown.map { "\($0.amount.kind.rawValue) \(Int($0.amount.usedPercent))" }
+        }
+        suite.expect(amounts(meters(mixed)) == ["session 70", "weekly 50"],
+                     "Most used keeps each account's tighter window: \(amounts(meters(mixed)))")
+        suite.expect(amounts(meters(mixed, focus: .weekly)) == ["weekly 20", "weekly 50"],
+                     "Weekly gives every number the week, even where the session is tighter: "
+                        + "\(amounts(meters(mixed, focus: .weekly)))")
+        suite.expect(amounts(meters(mixed, focus: .session)) == ["session 70", "session 10"],
+                     "Session gives every number the session: \(amounts(meters(mixed, focus: .session)))")
+        suite.expect(meters(mixed, focus: .weekly).map(\.session) == meters(mixed).map(\.session)
+                        && meters(mixed, focus: .session).map(\.weekly) == meters(mixed).map(\.weekly),
+                     "the focus changes only the number, never what the ring and bar fill")
+        suite.expect(amounts(meters(mixed, weekly: false, focus: .weekly)) == ["session 70", "session 10"]
+                        && amounts(meters(mixed, session: false, focus: .session)) == ["weekly 20", "weekly 50"],
+                     "a focused window switched off at rest leaves the number on the tighter window shown")
+        let weekOnly = snapshot([.claude: limits(.claude, [window(.session, 70), window(.weekly, 20)]),
+                                 .opencode: limits(.opencode, [window(.weekly, 45), window(.session, 99, scope: "Opus")])])
+        suite.expect(amounts(meters(weekOnly, focus: .session)) == ["session 70", "weekly 45"],
+                     "an account reporting no plan-wide window of the focused kind keeps its tighter one: "
+                        + "\(amounts(meters(weekOnly, focus: .session)))")
+        suite.expect(amounts(meters(mixed, session: false, weekly: false, focus: .weekly)) == ["session 70", "weekly 50"],
+                     "with both windows off, the number still follows each account's most used window")
+        func rotation(_ focus: NotchAgentLimitFocus) -> [AgentProvider] {
+            NotchAgentSupport.restingSequence(mixed, layout: .cycle, providers: AgentProvider.allCases, hidden: [],
+                                              session: true, weekly: true, focus: focus, now: now).map(\.provider)
+        }
+        suite.expect(rotation(.mostUsed) == [.claude, .codex] && rotation(.session) == [.claude, .codex]
+                        && rotation(.weekly) == [.codex, .claude],
+                     "Rotate leads with the tightest number the focus shows")
+        let split = NotchAgentSupport.restingSequence(mixed, layout: .split, providers: AgentProvider.allCases, hidden: [],
+                                                      session: true, weekly: true, focus: .weekly, now: now)
+        suite.expect(amounts(split) == ["weekly 20", "weekly 50"], "One per side's numbers follow the focus together")
 
         func sequence(_ layout: NotchAgentRestingLayout, hidden: Set<AgentProvider> = []) -> [AgentProvider] {
             NotchAgentSupport.restingSequence(all, layout: layout, providers: AgentProvider.allCases, hidden: hidden,
@@ -3143,6 +3181,12 @@ enum NotchAgentTests {
         let speech = NotchAgentSupport.restingSpeech(Array(simulated.prefix(2)), used: false, text: text, locale: locale)
         suite.expect(speech == "Claude: Session: 70% left, Week: 14% left, low; Codex: Session: 100% left, Week: 0% left, almost out",
                      "VoiceOver reads every window shown, with a word once one runs low: \(speech)")
+        for (language, _) in LocalizationTests.languages {
+            let strings = FeatureStrings.notchAgents(language)
+            suite.expect(strings.restingFocusCaption.contains(strings.limitFocus)
+                            && strings.restingFocusCaption.contains(strings.restingSingle),
+                         "\(language.rawValue): the At rest caption names its own “Limit to show” and Single")
+        }
     }
 
     private static func agentDefaults(_ suite: TestSuite) {

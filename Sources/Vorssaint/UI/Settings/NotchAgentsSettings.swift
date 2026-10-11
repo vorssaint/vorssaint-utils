@@ -199,10 +199,9 @@ struct NotchAgentsSettingsControls: View {
             Capsule().fill(tint).frame(width: 12, height: 2.5)
         }
         .disabled(layout == .single)
-        if layout == .single {
-            Text(text.restingSingleCaption).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
+        Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
             Text(text.restingSplitCaption).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
