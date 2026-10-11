@@ -549,13 +549,15 @@ struct NotchAgentRestingAmount: View {
             .frame(width: width)
             .accessibilityHidden(true)
         } else {
-            // Level with the gauge, whose block sits half a point high.
+            // Level with the gauge, whose block sits half a point high. The
+            // slot gives way to a taller strip's wider shoulder, and "100",
+            // 24 points in even digits, shrinks to fit 16.
             Text(digits).font(face).monospacedDigit()
                 .foregroundStyle(tint)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.6)
                 .offset(x: NotchAgentRestingInk.offset(number: digits, size: size, percent: false), y: -0.5)
-                .frame(width: width)
+                .frame(maxWidth: width)
                 .accessibilityHidden(true)
         }
     }
