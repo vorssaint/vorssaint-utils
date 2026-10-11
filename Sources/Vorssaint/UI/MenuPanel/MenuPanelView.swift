@@ -1817,7 +1817,7 @@ struct QuickControlsSection: View {
                            needsAttention: superKeyEnabled && !permissions.accessibility,
                            permissionButtonTitle: l10n.s.permissionRequest,
                            permissionAction: accessibilityPermissionAction(superKeyEnabled),
-                           accessoryTitle: superKeyEnabled ? superKeyStrings.manageButton : nil,
+                           accessoryTitle: modifierCaption,
                            accessoryAction: {
                                SettingsRouter.shared.page = .superKey
                                appDelegate()?.openSettingsWindow()
