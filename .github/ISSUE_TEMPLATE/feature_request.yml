@@ -24,6 +24,15 @@ body:
       required: true
 
   - type: textarea
+    id: demand
+    attributes:
+      label: Demand for the feature
+      description: Show demand for the feature. This helps us prioritize.
+      placeholder: Link to discussion 1, link to discusion 2, ...
+    validations:
+      required: false
+
+  - type: textarea
     id: solution
     attributes:
       label: Proposed Solution
