@@ -512,14 +512,16 @@ struct NotchAgentRestingGauge: View {
 }
 
 /// The number beside a resting meter: with its "%" over "left" or "used"
-/// where the wing has room, or the bare number, centred on the gauge, where
-/// it shares the wing with one. Each line is centred on its ink, so "1" and
-/// "%" do not pull it off the axis.
+/// where the wing has room, each line centred on its ink so "1" and "%" do
+/// not pull it off the axis, or the bare number set against the gauge it
+/// shares the wing with.
 struct NotchAgentRestingAmount: View {
     let window: AgentLimitWindow
     let used: Bool
     /// "left" or "used" under the number; nil for the bare number.
     let word: String?
+    /// The side the bare number's gauge is on.
+    var gauge: HorizontalEdge = .leading
     /// The number's size; the sign and the word follow it.
     var size: CGFloat = 12
     var width: CGFloat = 31
@@ -549,50 +551,69 @@ struct NotchAgentRestingAmount: View {
             .frame(width: width)
             .accessibilityHidden(true)
         } else {
-            // Level with the gauge, whose block sits half a point high. The
-            // slot gives way to a taller strip's wider shoulder, and "100",
-            // 24 points in even digits, shrinks to fit 16.
+            // Level with the gauge, whose block sits half a point high, and
+            // as far from its ring whatever the digits: the ink, not the
+            // advance, starts a gap past the stroke. The slot gives way to a
+            // taller strip's wider shoulder, and "100", 24 points in even
+            // digits, shrinks to fit 16.
+            let bearings = NotchAgentRestingInk.bearings(number: digits, size: size)
+            let clearance = NotchAgentRestingGauge.lineWidth / 2
             Text(digits).font(face).monospacedDigit()
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .offset(x: NotchAgentRestingInk.offset(number: digits, size: size, percent: false), y: -0.5)
-                .frame(maxWidth: width)
+                .offset(x: gauge == .trailing ? bearings.trailing - clearance : clearance - bearings.leading, y: -0.5)
+                .frame(maxWidth: width, alignment: gauge == .trailing ? .trailing : .leading)
                 .accessibilityHidden(true)
         }
     }
 }
 
-/// How far a line moves so the middle of its ink, not of its advance, lies
-/// on the axis. Measured once per string and size; there are few of either.
+/// Where a line's ink lies within its advance, so it can sit on the axis or
+/// against a gauge by its glyphs. Measured once per string and size; there
+/// are few of either.
 enum NotchAgentRestingInk {
-    private static var offsets: [String: CGFloat] = [:]
+    /// The blank before and after a line's glyphs.
+    private static var bearings: [String: (leading: CGFloat, trailing: CGFloat)] = [:]
 
+    /// How far a line moves so the middle of its ink, not of its advance,
+    /// lies on the axis.
     static func offset(number digits: String, size: CGFloat, percent: Bool) -> CGFloat {
+        let blank = numberBearings(digits, size: size, percent: percent)
+        return (blank.trailing - blank.leading) / 2
+    }
+
+    static func offset(word: String, size: CGFloat) -> CGFloat {
+        let blank = cached("w\(size) \(word)") { [(word, font(size, .medium))] }
+        return (blank.trailing - blank.leading) / 2
+    }
+
+    /// The blank either side of a bare number's digits.
+    static func bearings(number digits: String, size: CGFloat) -> (leading: CGFloat, trailing: CGFloat) {
+        numberBearings(digits, size: size, percent: false)
+    }
+
+    private static func numberBearings(_ digits: String, size: CGFloat, percent: Bool) -> (leading: CGFloat, trailing: CGFloat) {
         cached("n\(size)\(percent) \(digits)") {
             [(digits, font(size, .semibold, monospacedDigits: true))] + (percent ? [("%", font(size * 0.7, .semibold))] : [])
         }
     }
 
-    static func offset(word: String, size: CGFloat) -> CGFloat {
-        cached("w\(size) \(word)") { [(word, font(size, .medium))] }
+    private static func cached(_ key: String, _ parts: () -> [(String, NSFont)]) -> (leading: CGFloat, trailing: CGFloat) {
+        if let blank = bearings[key] { return blank }
+        let blank = measure(parts())
+        bearings[key] = blank
+        return blank
     }
 
-    private static func cached(_ key: String, _ parts: () -> [(String, NSFont)]) -> CGFloat {
-        if let offset = offsets[key] { return offset }
-        let offset = measure(parts())
-        offsets[key] = offset
-        return offset
-    }
-
-    static func measure(_ parts: [(String, NSFont)]) -> CGFloat {
+    static func measure(_ parts: [(String, NSFont)]) -> (leading: CGFloat, trailing: CGFloat) {
         let text = NSMutableAttributedString()
         for (string, font) in parts { text.append(NSAttributedString(string: string, attributes: [.font: font])) }
         let line = CTLineCreateWithAttributedString(text)
         let advance = CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
         let ink = CTLineGetBoundsWithOptions(line, .useGlyphPathBounds)
-        guard advance > 0, !ink.isNull, ink.width > 0 else { return 0 }
-        return advance / 2 - ink.midX
+        guard advance > 0, !ink.isNull, ink.width > 0 else { return (0, 0) }
+        return (ink.minX, advance - ink.maxX)
     }
 
     static func font(_ size: CGFloat, _ weight: NSFont.Weight, monospacedDigits: Bool = false) -> NSFont {

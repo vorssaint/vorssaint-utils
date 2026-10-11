@@ -234,7 +234,7 @@ private struct NotchAgentRestingContent: View {
         case .leading:
             HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.besideRing, worded: false) }
         case .trailing:
-            HStack(spacing: Self.gap) { amount(second, width: Self.besideRing, worded: false); gauge(second) }
+            HStack(spacing: Self.gap) { amount(second, width: Self.besideRing, worded: false, gauge: .trailing); gauge(second) }
         case .row:
             HStack(spacing: NotchCapsuleLayout.groupSpacing) {
                 HStack(spacing: Self.gap) { gauge(first); amount(first, width: Self.alone, worded: true) }
@@ -247,11 +247,12 @@ private struct NotchAgentRestingContent: View {
         NotchAgentRestingGauge(meter: meter, used: choices.used)
     }
 
-    private func amount(_ meter: NotchAgentRestingMeter, width: CGFloat, worded: Bool) -> some View {
+    private func amount(_ meter: NotchAgentRestingMeter, width: CGFloat, worded: Bool,
+                        gauge: HorizontalEdge = .leading) -> some View {
         let text = FeatureStrings.notchAgents(l10n.language)
         return NotchAgentRestingAmount(window: meter.amount, used: choices.used,
                                        word: worded ? (choices.used ? text.restingWordUsed : text.restingWordLeft) : nil,
-                                       size: 12, width: width)
+                                       gauge: gauge, size: 12, width: width)
     }
 
     /// No account reports a limit: the first agent's mark and today's API
