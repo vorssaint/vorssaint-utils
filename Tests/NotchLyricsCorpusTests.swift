@@ -11,8 +11,9 @@ enum NotchLyricsCorpusTests {
             .appendingPathComponent("Fixtures/NotchLyricsCorpus.json")
         do {
             let cohorts: [(URL, Int, Int, Int, Int)] = [
-                (url, 87, 60, 81, 81),
-                (url.deletingLastPathComponent().appendingPathComponent("NotchLyricsMultilingualCorpus.json"), 59, 32, 52, 53),
+                (url, 87, 60, 85, 85),
+                (url.deletingLastPathComponent().appendingPathComponent("NotchLyricsLessMainstreamCorpus.json"), 50, 25, 39, 39),
+                (url.deletingLastPathComponent().appendingPathComponent("NotchLyricsMultilingualCorpus.json"), 59, 32, 55, 56),
             ]
             for (fixture, expectedCount, expectedBefore, expectedAfter, expectedWider) in cohorts {
                 let rows = try JSONSerialization.jsonObject(with: Data(contentsOf: fixture)) as! [[String: Any]]
@@ -36,6 +37,11 @@ enum NotchLyricsCorpusTests {
                         candidates += NotchLyricsSupport.searchCandidates(data, for: track)
                         widerCandidates += NotchLyricsSupport.searchCandidates(data, for: track, durationTolerance: 5)
                     }
+                    for search in row["discoverySearches"] as? [[String: Any]] ?? [] {
+                        let data = try JSONSerialization.data(withJSONObject: search["response"]!)
+                        candidates += NotchLyricsSupport.searchCandidates(data, for: track)
+                        widerCandidates += NotchLyricsSupport.searchCandidates(data, for: track, durationTolerance: 5)
+                    }
                     var aliasCandidates: [NotchLyricsSupport.Candidate] = []
                     var aliasWider: [NotchLyricsSupport.Candidate] = []
                     if let metadata = row["artistMetadata"] {
@@ -43,7 +49,9 @@ enum NotchLyricsCorpusTests {
                         let artists = NotchLyricsSupport.artistIdentities(try JSONSerialization.data(withJSONObject: metadata),
                                                            for: track, allowTruncated: broad)
                         var identity = artists.count == 1 && !broad ? artists.first : nil
-                        if (artists.count > 1 || broad), let album = row["albumMetadata"] {
+                        if artists.count == 1 && artists[0].queryNames.isEmpty, let recording = row["recordingMetadata"] {
+                            identity = NotchLyricsSupport.recordingArtistIdentity(try JSONSerialization.data(withJSONObject: recording), for: track, candidates: artists)
+                        } else if (artists.count > 1 || broad), let album = row["albumMetadata"] {
                             identity = NotchLyricsSupport.artistIdentity(try JSONSerialization.data(withJSONObject: album),
                                                                         for: track, candidates: artists)
                         }
@@ -68,6 +76,8 @@ enum NotchLyricsCorpusTests {
                                  && (recovered != nil) == (row["expectedAfter"] as? Bool)
                                  && (recoveredWider != nil) == (row["expectedAfterFive"] as? Bool),
                                  "captured corpus retains its reviewed match decision: " + track.title)
+                    suite.expect((row["expectedPrevious"] as? Bool) != true || recovered != nil,
+                                 "previously resolved corpus records remain available: " + track.title)
                     suite.expect(exact == nil || recovered == exact, "exact matches retain their original lyrics")
                     if expectedCount == 87 && index >= 80 {
                         suite.expect(recovered != nil, "all seven desktop samples have a matching fallback or exact record")

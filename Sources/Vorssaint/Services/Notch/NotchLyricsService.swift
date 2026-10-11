@@ -142,11 +142,23 @@ final class NotchLyricsService: ObservableObject {
     /// rechecks visibility, consent and song identity before issuing another request.
     private func search(_ track: NotchMusicIdentity, urls: [URL], candidates: [NotchLyricsSupport.Candidate],
                         failed: Bool, generation requested: UUID,
-                        verifiedArtistAliases: [String] = [], mayResolveAliases: Bool = true) {
+                        verifiedArtistAliases: [String] = [], mayResolveAliases: Bool = true, mayDiscover: Bool = true) {
         guard acceptsResult(for: track, generation: requested) else { return }
         guard let url = urls.first else {
+            if candidates.isEmpty && !failed && mayDiscover && NotchLyricsSupport.prefersDiscovery(for: track) {
+                search(track, urls: NotchLyricsSupport.discoveryURLs(for: track), candidates: [], failed: false,
+                       generation: requested, verifiedArtistAliases: verifiedArtistAliases,
+                       mayResolveAliases: mayResolveAliases, mayDiscover: false)
+                return
+            }
             if candidates.isEmpty && !failed && mayResolveAliases {
                 resolveArtist(track, generation: requested)
+                return
+            }
+            if candidates.isEmpty && !failed && mayDiscover {
+                search(track, urls: NotchLyricsSupport.discoveryURLs(for: track), candidates: [], failed: false,
+                       generation: requested, verifiedArtistAliases: verifiedArtistAliases,
+                       mayResolveAliases: false, mayDiscover: false)
                 return
             }
             finish(NotchLyricsSupport.bestLyrics(in: candidates), for: track, failed: failed)
@@ -166,7 +178,7 @@ final class NotchLyricsService: ObservableObject {
                     self.search(track, urls: Array(urls.dropFirst()), candidates: accumulated,
                                 failed: failed || result.failed, generation: requested,
                                 verifiedArtistAliases: verifiedArtistAliases,
-                                mayResolveAliases: mayResolveAliases && !knownRecording)
+                                mayResolveAliases: mayResolveAliases && !knownRecording, mayDiscover: mayDiscover && !knownRecording)
                 }
             }
         }
@@ -193,7 +205,16 @@ final class NotchLyricsService: ObservableObject {
             let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
             let broad = (object?["count"] as? Int ?? 0) > 5
             let artists = NotchLyricsSupport.artistIdentities(data, for: track, allowTruncated: broad)
-            if artists.count == 1 && !broad {
+            if artists.count == 1 && artists[0].queryNames.isEmpty,
+               let recordingURL = NotchLyricsSupport.artistRecordingURL(for: track, candidates: artists) {
+                self.requestArtistMetadata(recordingURL, track: track, generation: requested) { [weak self] reply in
+                    guard let self else { return }
+                    let identity = reply.data.flatMap {
+                        NotchLyricsSupport.recordingArtistIdentity($0, for: track, candidates: artists)
+                    }
+                    self.cacheArtist(identity, for: track, failed: reply.data == nil, generation: requested)
+                }
+            } else if artists.count == 1 && !broad {
                 self.cacheArtist(artists.first, for: track, failed: false, generation: requested)
             } else if !artists.isEmpty, let albumURL = NotchLyricsSupport.artistAlbumURL(for: track) {
                 self.requestArtistMetadata(albumURL, track: track, generation: requested) { [weak self] reply in
@@ -245,10 +266,17 @@ final class NotchLyricsService: ObservableObject {
     private func searchArtist(_ track: NotchMusicIdentity, identity: NotchLyricsSupport.ArtistIdentity?,
                               failed: Bool, generation requested: UUID) {
         guard acceptsResult(for: track, generation: requested) else { return }
-        guard let identity else { finish(nil, for: track, failed: failed); return }
+        guard let identity else {
+            if !failed && !NotchLyricsSupport.prefersDiscovery(for: track) {
+                search(track, urls: NotchLyricsSupport.discoveryURLs(for: track), candidates: [], failed: false,
+                       generation: requested, mayResolveAliases: false, mayDiscover: false)
+            } else { finish(nil, for: track, failed: failed) }
+            return
+        }
         search(track, urls: NotchLyricsSupport.aliasSearchURLs(for: track, identity: identity),
                candidates: [], failed: false, generation: requested,
-               verifiedArtistAliases: identity.names, mayResolveAliases: false)
+               verifiedArtistAliases: identity.names, mayResolveAliases: false,
+               mayDiscover: !NotchLyricsSupport.prefersDiscovery(for: track))
     }
 
     func importLyrics() {

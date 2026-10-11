@@ -22,10 +22,14 @@ enum NotchLyricsContract {
         static func artistCacheKey(for track: NotchMusicIdentity) -> String { ProductionLyricsParser.artistCacheKey(for: track) }
         static func artistIdentityURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.artistIdentityURL(for: track) }
         static func artistIdentities(_ data: Data, for track: NotchMusicIdentity, allowTruncated: Bool = false) -> [ArtistIdentity] { ProductionLyricsParser.artistIdentities(data, for: track, allowTruncated: allowTruncated) }
+        static func artistRecordingURL(for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> URL? { ProductionLyricsParser.artistRecordingURL(for: track, candidates: candidates) }
+        static func recordingArtistIdentity(_ data: Data, for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> ArtistIdentity? { ProductionLyricsParser.recordingArtistIdentity(data, for: track, candidates: candidates) }
         static func artistAlbumURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.artistAlbumURL(for: track) }
         static func artistIdentity(_ data: Data, for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> ArtistIdentity? { ProductionLyricsParser.artistIdentity(data, for: track, candidates: candidates) }
         static func aliasSearchURLs(for track: NotchMusicIdentity, identity: ArtistIdentity) -> [URL] { ProductionLyricsParser.aliasSearchURLs(for: track, identity: identity) }
         static func lookupURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.lookupURL(for: track) }
+        static func prefersDiscovery(for track: NotchMusicIdentity) -> Bool { ProductionLyricsParser.prefersDiscovery(for: track) }
+        static func discoveryURLs(for track: NotchMusicIdentity) -> [URL] { ProductionLyricsParser.discoveryURLs(for: track) }
         static func searchURLs(for track: NotchMusicIdentity) -> [URL] { ProductionLyricsParser.searchURLs(for: track) }
         static func decode(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decode(data, for: track) }
         static func decodeCatalogMatch(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decodeCatalogMatch(data, for: track) }
@@ -768,10 +772,10 @@ enum NotchMusicHardeningTests {
                                      "syncedLyrics": "[00:01]Fixture", "plainLyrics": "Fixture"]
         let searchReply = try! JSONSerialization.data(withJSONObject: [record])
         let emptyReply = Data("[]".utf8)
-        func start() -> Context.LookupService {
+        func start(_ source: NotchPlayback = playback) -> Context.LookupService {
             Context.NotchLyricsDownload.requests = []
             let service = Context.LookupService()
-            service.update(playback: playback, visible: true)
+            service.update(playback: source, visible: true)
             return service
         }
         let recovered = start()
@@ -830,6 +834,22 @@ enum NotchMusicHardeningTests {
         missing.update(playback: playback, visible: true)
         suite.expect(missing.state == .loading && Context.NotchLyricsDownload.requests.count == attempted + 1,
                      "a playback identity change clears the attempt cache")
+        let featuredPlayback = NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: "Fictional Song (feat. Guest)", artist: "Main Artist",
+                                           album: "Album", artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+            isPlaying: true, elapsed: 0, duration: 180, rate: 1, sampledAt: .now, canSeek: false)
+        let healthyMissing = start(featuredPlayback)
+        var healthyCursor = 0
+        while healthyMissing.state == .loading && healthyCursor < Context.NotchLyricsDownload.requests.count {
+            let request = Context.NotchLyricsDownload.requests[healthyCursor]
+            let response = request.url.host == "musicbrainz.org"
+                ? Data(#"{"count":0,"artists":[]}"#.utf8) : emptyReply
+            request.completion(request.url.path == "/api/get" ? .missing : .payload(response))
+            Context.DispatchQueue.main.drain()
+            healthyCursor += 1
+        }
+        suite.expect(healthyMissing.state == .unavailable && Context.NotchLyricsDownload.requests.count <= 6,
+                     "healthy empty discovery and alias results are unavailable, not a provider failure")
         let unavailable = start()
         Context.NotchLyricsDownload.requests[0].completion(.serviceUnavailable)
         Context.DispatchQueue.main.drain()

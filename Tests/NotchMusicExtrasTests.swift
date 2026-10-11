@@ -229,11 +229,38 @@ enum NotchMusicExtrasTests {
                          "search never substitutes a different title, version, primary artist or recording length")
         }
         let conflict = record("Example Song", "Main Artist", "Studio Album", 180, "Conflicting verse")
-        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, conflict], track)) == nil
-                     && NotchLyricsSupport.bestLyrics(in: candidates([conflict, preferred], track)) == nil,
-                     "equally ranked conflicting lyrics remain unavailable in either response order")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, conflict], track))
+                     == NotchLyricsSupport.bestLyrics(in: candidates([conflict, preferred], track)),
+                     "equally ranked conflicting lyrics resolve consistently in either response order")
         suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, preferred], track)) != nil,
                      "the same lyric returned by multiple queries is not an ambiguity")
+        var identifiedFirst = preferred; identifiedFirst["id"] = 20
+        var identifiedSecond = conflict; identifiedSecond["id"] = 10
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([identifiedFirst, identifiedSecond], track))?.plain == "Conflicting verse",
+                     "stable catalog ID breaks otherwise equal candidate ties")
+        let studio = identity("Example Song", "Main Artist", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song (Original Mix)", "Main Artist", "Studio Album", 180)], studio).isEmpty,
+                     "original mix is compatible with the unqualified studio title")
+        suite.expect(candidates([record("Example Song (feat. Unknown Guest)", "Main Artist", "Studio Album", 180)], studio).isEmpty,
+                     "unmentioned featured performers cannot be silently substituted")
+        let extended = identity("Example Song (feat. Guest Person) (Extended Mix)", "Main Artist, Guest Person", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song (featuring Guest) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
+                     && candidates([record("Example Song (featuring Other) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
+                     && candidates([record("Example Song (featuring Guest)", "Main Artist", "Studio Album", 180)], extended).isEmpty,
+                     "featured credits normalize separately while preserving extended-version identity")
+        var badTiming = record("Example Song", "Main Artist", "Studio Album", 180)
+        badTiming["syncedLyrics"] = "[00:01]Synthetic verse\n[04:00]Synthetic ending"
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([badTiming], studio))?.lines.isEmpty == true,
+                     "out-of-recording timestamps fall back to available plain text instead of a truncated timeline")
+        let precise = NotchLyricsSupport.searchURLs(for: extended)
+        suite.expect(precise.contains { url in
+            URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains {
+                $0.name == "track_name" && $0.value == "example song feat guest person extended mix"
+            } == true
+        }, "normalized precise title search survives the addition of broader discovery")
+        let discovery = NotchLyricsSupport.discoveryURLs(for: extended)
+        suite.expect(discovery.count == 1 && discovery[0].host == "lrclib.net",
+                     "broader title discovery remains bounded to the existing lyric provider")
         let collaboration = identity("Jai Ho!", "A. R. Rahman, The Pussycat Dolls, Nicole Scherzinger", "Single", 222)
         suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([
             record("Jai Ho!", "A. R. Rahman", "Single", 222, "Incomplete credits"),
@@ -289,6 +316,22 @@ enum NotchMusicExtrasTests {
         suite.expect(NotchLyricsSupport.artistIdentities(encode(["count": 1, "artists": [unrelated]]), for: track).isEmpty,
                      "a perfect metadata search score does not prove artist identity")
         var duplicate = artist; duplicate["id"] = otherID.uuidString
+        let sameSource = NotchLyricsSupport.ArtistIdentity(id: id, names: ["架空乐队"], queryNames: [])
+        let recordingProof: [String: Any] = ["count": 7, "recordings": [[
+            "title": "Fictional Song", "length": 180000,
+            "artist-credit": [["name": "Earlier Artist Name", "artist": ["id": id.uuidString]]]
+        ]]]
+        let verifiedCredit = NotchLyricsSupport.recordingArtistIdentity(encode(recordingProof), for: track, candidates: [sameSource])
+        suite.expect(verifiedCredit?.names.contains("Earlier Artist Name") == true,
+                     "exact title and duration tie a historical recording credit to the known artist ID")
+        var wrongProof = recordingProof
+        wrongProof["recordings"] = [["title": "Different Song", "length": 180000,
+                                     "artist-credit": [["name": "Earlier Artist Name", "artist": ["id": id.uuidString]]]]]
+        suite.expect(NotchLyricsSupport.recordingArtistIdentity(encode(wrongProof), for: track, candidates: [sameSource]) == nil,
+                     "a historical credit needs independent song agreement, not merely an artist search score")
+        suite.expect(NotchLyricsSupport.artistRecordingURL(for: track, candidates: [sameSource])?.host == "musicbrainz.org"
+                     && NotchLyricsSupport.artistRecordingURL(for: track, candidates: [sameSource, sameSource]) == nil,
+                     "recording-credit lookup is bounded to one exact source artist ID")
         let ambiguous = NotchLyricsSupport.artistIdentities(encode(["count": 2, "artists": [artist, duplicate]]), for: track)
         let group: [String: Any] = ["title": track.album, "artist-credit": [["artist": ["id": id.uuidString]]]]
         suite.expect(ambiguous.count == 2

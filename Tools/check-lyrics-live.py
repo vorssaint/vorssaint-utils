@@ -5,7 +5,7 @@
 """Exercise production lyrics lookup/downloader against LRCLIB, without app windows.
 
 Sends selected fixture tracks' title, artist, album and duration to lrclib.net.
-Artist names and albums may also be checked with musicbrainz.org. Prints metadata/status only, never lyrics. Requires Swift on macOS.
+Song titles, artist names and albums may also be checked with musicbrainz.org. Prints metadata/status only, never lyrics. Requires Swift on macOS.
 """
 
 from pathlib import Path
@@ -55,6 +55,7 @@ MAIN = """import Foundation
 let rows = try JSONSerialization.jsonObject(with: Data(contentsOf:
     URL(fileURLWithPath: CommandLine.arguments[1]))) as! [[String: Any]]
 var failures = 0
+let reportMetrics = CommandLine.arguments.contains("--metrics")
 let probe = Probe()
 // Run the selected metadata samples sequentially using one shared cache and rate limiter.
 for row in rows {
@@ -62,6 +63,7 @@ for row in rows {
     let track = NotchMusicIdentity(NotchPlayback(
         track: Track(title: song["title"] as? String, artist: song["artist"] as? String,
                      album: song["album"] as? String), duration: song["duration"] as! Double))
+    let requestStart = probeRequests.count
     probe.start(track)
     let deadline = Date().addingTimeInterval(150)
     while probe.state == .loading && Date() < deadline {
@@ -72,6 +74,11 @@ for row in rows {
     let ok = expected ? matched : probe.state == .unavailable
     let kind = matched ? ((probe.memory.lyrics?.lines.isEmpty ?? true) ? "plain" : "synced") : "\\(probe.state)"
     print(track.title + ": " + kind + (ok ? " (PASS)" : " (CHANGED/FAILED)"))
+    if reportMetrics {
+        let requests = Array(probeRequests.dropFirst(requestStart))
+        let metadata = requests.filter { $0.host == "musicbrainz.org" }.count
+        print("  requests=\\(requests.count) metadata=\\(metadata)")
+    }
     if !ok { failures += 1 }
 }
 exit(failures == 0 ? 0 : 1)
@@ -80,7 +87,8 @@ exit(failures == 0 ? 0 : 1)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--all", action="store_true", help="check all 146 corpus samples instead of the default 20")
+    parser.add_argument("--all", action="store_true", help="check all corpus samples instead of the default 20")
+    parser.add_argument("--metrics", action="store_true", help="print per-track request counts without lyrics")
     parser.add_argument("--title", action="append", help="Replay only these exact fixture titles (repeatable)")
     options = parser.parse_args()
     service_path = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
@@ -91,7 +99,9 @@ def main():
         "    private func cacheArtist(", "    private func searchArtist(",
     ])
     downloader = (ROOT / service_path).read_text().split("private final class NotchLyricsDownload:", 1)[1]
+    downloader = downloader.replace("        let configuration = URLSessionConfiguration.ephemeral", "        probeRequests.append(url)\n        let configuration = URLSessionConfiguration.ephemeral", 1)
     probe = """import Foundation
+var probeRequests: [URL] = []
 final class Probe {
     enum State { case idle, consent, loading, unavailable, failed, ready }
     var state: State = .idle
@@ -117,7 +127,7 @@ final class Probe {
                         "-o", str(executable)], check=True)
         import json
         rows = []
-        for filename in ["NotchLyricsCorpus.json", "NotchLyricsMultilingualCorpus.json"]:
+        for filename in ["NotchLyricsCorpus.json", "NotchLyricsMultilingualCorpus.json", "NotchLyricsLessMainstreamCorpus.json"]:
             rows.extend(json.loads((ROOT / "Tests/Fixtures" / filename).read_text()))
         if options.title:
             rows = [row for row in rows if row["track"]["title"] in options.title]
@@ -128,6 +138,8 @@ final class Probe {
         fixture = directory / "corpus.json"
         fixture.write_text(json.dumps(rows, ensure_ascii=False))
         command = [str(executable), str(fixture)]
+        if options.metrics:
+            command.append("--metrics")
         return subprocess.run(command).returncode
 
 
