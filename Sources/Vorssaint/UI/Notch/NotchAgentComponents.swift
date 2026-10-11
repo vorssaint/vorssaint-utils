@@ -474,6 +474,8 @@ struct NotchAgentRestingGauge: View {
     static let lineWidth: CGFloat = 1.6
     static let barHeight: CGFloat = 2
     static let barGap: CGFloat = 1.8
+    /// How far the ring's middle sits above the wing's.
+    static let ringRise: CGFloat = 2.4
     static let track = Color.white.opacity(0.18)
 
     var body: some View {
@@ -497,8 +499,8 @@ struct NotchAgentRestingGauge: View {
             }
             .frame(width: Self.ring, height: Self.barHeight)
         }
-        // The ring's middle sits 2.4 points above the wing's, the bar below.
-        .offset(y: -2.4 + (Self.barGap + Self.barHeight) / 2)
+        // The ring's middle sits above the wing's, the bar below.
+        .offset(y: -Self.ringRise + (Self.barGap + Self.barHeight) / 2)
         .accessibilityHidden(true)
     }
 
@@ -551,18 +553,21 @@ struct NotchAgentRestingAmount: View {
             .frame(width: width)
             .accessibilityHidden(true)
         } else {
-            // Level with the gauge, whose block sits half a point high, and
-            // as far from its ring whatever the digits: the ink, not the
-            // advance, starts a gap past the stroke. The slot gives way to a
-            // taller strip's wider shoulder, and "100", 24 points in even
-            // digits, shrinks to fit 16.
+            // Level with the ring, not with the ring and bar together: an
+            // unfilled bar reads as empty space, and the number would hang
+            // below the ring. Digits' ink sits 0.3 points under their line's
+            // middle. As far from its ring whatever the digits: the ink, not
+            // the advance, starts a gap past the stroke. The slot gives way
+            // to a taller strip's wider shoulder, and "100", 24 points in
+            // even digits, shrinks to fit 16.
             let bearings = NotchAgentRestingInk.bearings(number: digits, size: size)
             let clearance = NotchAgentRestingGauge.lineWidth / 2
             Text(digits).font(face).monospacedDigit()
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .offset(x: gauge == .trailing ? bearings.trailing - clearance : clearance - bearings.leading, y: -0.5)
+                .offset(x: gauge == .trailing ? bearings.trailing - clearance : clearance - bearings.leading,
+                        y: 0.3 - NotchAgentRestingGauge.ringRise)
                 .frame(maxWidth: width, alignment: gauge == .trailing ? .trailing : .leading)
                 .accessibilityHidden(true)
         }
