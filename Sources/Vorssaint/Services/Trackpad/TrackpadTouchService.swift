@@ -44,6 +44,9 @@ final class TrackpadTouchService: ObservableObject {
     /// written on the main thread.
     private let subscriptionLock = NSLock()
     private var subscriptions: [Reader: Subscription] = [:]
+    /// The same subscriptions as a list, rebuilt only when one changes, so
+    /// delivering a frame copies a reference instead of allocating.
+    private var readers: [Subscription] = []
     /// Main thread only from here on.
     private var isListening = false
     /// Retains the MTDeviceRefs while listening; the framework hands out
@@ -64,6 +67,7 @@ final class TrackpadTouchService: ObservableObject {
                    handler: @escaping (TrackpadTouchFrame) -> Void) {
         subscriptionLock.withLock {
             subscriptions[reader] = Subscription(wantsGeometry: wantsGeometry, handler: handler)
+            readers = Array(subscriptions.values)
         }
         guard !isListening else { return }
         isListening = true
@@ -80,6 +84,7 @@ final class TrackpadTouchService: ObservableObject {
     func unsubscribe(_ reader: Reader) {
         let empty = subscriptionLock.withLock { () -> Bool in
             subscriptions[reader] = nil
+            readers = Array(subscriptions.values)
             return subscriptions.isEmpty
         }
         if empty, isListening { stop() }
@@ -197,7 +202,7 @@ final class TrackpadTouchService: ObservableObject {
     // MARK: - Contact frames (multitouch callback thread)
 
     fileprivate func deliver(count: Int, touches: UnsafeMutableRawPointer?) {
-        let readers = subscriptionLock.withLock { Array(subscriptions.values) }
+        let readers = subscriptionLock.withLock { self.readers }
         guard !readers.isEmpty else { return }
         // Touch records are read only for a reader that needs positions, so a
         // middle click on its own costs what it always did per frame.

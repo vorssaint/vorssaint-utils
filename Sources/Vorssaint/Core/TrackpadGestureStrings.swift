@@ -85,7 +85,7 @@ extension TrackpadGestureStrings {
         spaceRight: "Next Space",
         missionControl: "Mission Control",
         appExpose: "App Exposé",
-        ownedByMiddleClick: "This tap is the middle click's tap. Change it under Trackpad middle click.",
+        ownedByMiddleClick: "This tap is the middle click’s tap. Change it under Trackpad middle click.",
         ownedByRadialMenu: "This tap opens the radial menu. Change it in the radial menu settings.",
         claimedMoreGestures: "macOS also uses this gesture. To use it here, turn it off in System Settings, Trackpad, More Gestures.",
         claimedLookUp: "macOS looks things up with this tap. To use it here, turn off Look up with three fingers in System Settings, Trackpad, Point & Click.",

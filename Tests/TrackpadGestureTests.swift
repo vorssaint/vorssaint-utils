@@ -137,32 +137,32 @@ enum TrackpadGestureTests {
 
         // Staggered landing versus a finger joining a moving gesture.
         var staggered = TrackpadGestureRecognizer()
-        let still = Geometry(x: 0.5, y: 0.5, spread: 0.2)
-        _ = staggered.feed(count: 3, geometry: still, now: 0)
-        _ = staggered.feed(count: 3, geometry: still, now: 0.02)
-        _ = staggered.feed(count: 4, geometry: still, now: 0.04)
-        _ = staggered.feed(count: 4, geometry: still, now: 0.15)
+        let stillPose = Geometry(x: 0.5, y: 0.5, spread: 0.2)
+        _ = staggered.feed(count: 3, geometry: stillPose, now: 0)
+        _ = staggered.feed(count: 3, geometry: stillPose, now: 0.02)
+        _ = staggered.feed(count: 4, geometry: stillPose, now: 0.04)
+        _ = staggered.feed(count: 4, geometry: stillPose, now: 0.15)
         suite.expect(staggered.feed(count: 0, geometry: nil, now: 0.2).flatMap(TrackpadGestureSupport.judge)?.key == "tap-4",
                      "a fourth finger landing while the hand is still makes a four-finger tap")
         var joined = TrackpadGestureRecognizer()
-        _ = joined.feed(count: 3, geometry: still, now: 0)
+        _ = joined.feed(count: 3, geometry: stillPose, now: 0)
         _ = joined.feed(count: 3, geometry: Geometry(x: 0.7, y: 0.5, spread: 0.2), now: 0.1)
         _ = joined.feed(count: 4, geometry: Geometry(x: 0.75, y: 0.5, spread: 0.2), now: 0.15)
         _ = joined.feed(count: 4, geometry: Geometry(x: 0.9, y: 0.5, spread: 0.2), now: 0.25)
         suite.expect(joined.feed(count: 0, geometry: nil, now: 0.3).flatMap(TrackpadGestureSupport.judge) == nil,
                      "a finger joining a swipe in motion makes the touch ambiguous")
         var pointing = TrackpadGestureRecognizer()
-        _ = pointing.feed(count: 1, geometry: still, now: 0)
+        _ = pointing.feed(count: 1, geometry: stillPose, now: 0)
         _ = pointing.feed(count: 1, geometry: Geometry(x: 0.8, y: 0.2, spread: 0), now: 0.1)
-        _ = pointing.feed(count: 3, geometry: still, now: 0.2)
-        _ = pointing.feed(count: 3, geometry: still, now: 0.3)
+        _ = pointing.feed(count: 3, geometry: stillPose, now: 0.2)
+        _ = pointing.feed(count: 3, geometry: stillPose, now: 0.3)
         suite.expect(pointing.feed(count: 0, geometry: nil, now: 0.35).flatMap(TrackpadGestureSupport.judge)?.key == "tap-3",
                      "pointing with one finger before the tap does not cancel it, as for the middle-click tap")
         var empty = TrackpadGestureRecognizer()
         suite.expect(empty.feed(count: 0, geometry: nil, now: 1) == nil && !empty.isTracking,
                      "an empty frame with nothing tracked reports nothing")
         var reused = TrackpadGestureRecognizer()
-        _ = reused.feed(count: 4, geometry: still, now: 0)
+        _ = reused.feed(count: 4, geometry: stillPose, now: 0)
         _ = reused.feed(count: 0, geometry: nil, now: 0.1)
         suite.expect(!reused.isTracking, "each lift starts the next touch from scratch")
 

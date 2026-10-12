@@ -47,12 +47,13 @@ struct TrackpadGesturesSection: View {
                     }
             }
             if enabled {
+                let current = mappings
                 VStack(alignment: .leading, spacing: 16) {
                     if touch.touchDeviceMissing {
                         caption(l10n.s.middleClickNoTrackpad, color: .orange)
                     }
                     ForEach([3, 4, 5], id: \.self) { fingers in
-                        fingerGroup(fingers)
+                        fingerGroup(fingers, mappings: current)
                     }
                 }
                 .padding(.leading, settingsRowTextInset)
@@ -72,7 +73,7 @@ struct TrackpadGesturesSection: View {
 
     // MARK: - Rows
 
-    private func fingerGroup(_ fingers: Int) -> some View {
+    private func fingerGroup(_ fingers: Int, mappings: [TrackpadGesture: TriggerAction]) -> some View {
         let gestures = TrackpadGesture.all.filter { $0.fingers == fingers }
         // Three-finger drag takes the whole group; saying so once beats
         // repeating it under every row.
@@ -84,13 +85,13 @@ struct TrackpadGesturesSection: View {
                 caption(text.claimedThreeFingerDrag, color: .orange)
             }
             ForEach(gestures, id: \.key) { gesture in
-                gestureRow(gesture, groupNoteShown: dragTakesAll)
+                gestureRow(gesture, action: mappings[gesture], groupNoteShown: dragTakesAll)
             }
         }
     }
 
-    private func gestureRow(_ gesture: TrackpadGesture, groupNoteShown: Bool) -> some View {
-        let action = mappings[gesture]
+    private func gestureRow(_ gesture: TrackpadGesture, action: TriggerAction?,
+                            groupNoteShown: Bool) -> some View {
         let owner = gesture.kind == .tap ? service.reservations[gesture.fingers] : nil
         let note = rowNote(gesture, action: action, owner: owner, groupNoteShown: groupNoteShown)
         return VStack(alignment: .leading, spacing: 3) {
