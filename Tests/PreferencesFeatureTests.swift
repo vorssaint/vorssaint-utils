@@ -22,6 +22,10 @@ enum PreferencesFeatureTests {
                "app is an allowed memory metric")
         suite.expect(Defaults.sanitizedMonitorMemoryMetric("bogus") == "used",
                "unknown memory metric values fall back to used")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.trackpadGesturesEnabled)
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.trackpadGestureMappings)
+                        && SettingsBackupSupport.exportKeys().contains(DefaultsKey.trackpadGestureExceptions),
+                     "the trackpad gestures' switch, mappings and excluded apps travel with a settings backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.monitorMemoryMetric),
                "monitor memory metric is included in settings backups")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSaveFolder),
