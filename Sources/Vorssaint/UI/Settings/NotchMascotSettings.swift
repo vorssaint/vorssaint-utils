@@ -21,6 +21,11 @@ struct NotchMascotSettings: View {
     @AppStorage(DefaultsKey.notchMascotStyle) private var style = NotchMascotStyle.minimal.rawValue
     @AppStorage(DefaultsKey.notchMascotShape) private var shape = NotchMascotShape.ball.rawValue
     @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotPalette.pearl.rawValue
+    @AppStorage(DefaultsKey.notchMascotCharacter) private var character = ""
+    @ObservedObject private var companions = NotchCompanionLibrary.shared
+    @ObservedObject private var generator = NotchCompanionGenerator.shared
+    @State private var addProblem: String?
+    @State private var showsGenerator = false
     @AppStorage(DefaultsKey.notchMascotSide) private var side = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchMascotVisitFrequency) private var frequency = NotchMascotVisitFrequency.normal.rawValue
     @AppStorage(DefaultsKey.notchCommandBar) private var commandBar = true
@@ -29,11 +34,13 @@ struct NotchMascotSettings: View {
 
     private var text: NotchMascotStrings { FeatureStrings.notchMascot(l10n.language) }
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
+    private var companionText: NotchCompanionStrings { FeatureStrings.notchCompanion(l10n.language) }
 
     private var look: NotchMascotLook {
         NotchMascotLook(style: NotchMascotStyle(rawValue: style) ?? .minimal,
                         shape: NotchMascotShape(rawValue: shape) ?? .ball,
-                        palette: NotchMascotPalette(rawValue: palette) ?? .pearl)
+                        palette: NotchMascotPalette(rawValue: palette) ?? .pearl,
+                        character: character)
     }
 
     private var restingSide: NotchMascotSide { NotchMascotSide(rawValue: side) ?? .left }
@@ -116,18 +123,33 @@ struct NotchMascotSettings: View {
             SettingsRow(symbol: "paintpalette", title: text.style) { EmptyView() }
             HStack(spacing: 10) {
                 ForEach(NotchMascotStyle.allCases) { item in
-                    NotchMascotChoiceTile(title: text.style(item), selected: look.style == item) {
+                    NotchMascotChoiceTile(title: item == .character ? companionText.character : text.style(item),
+                                          selected: look.style == item) {
                         style = item.rawValue
+                        if item == .character { chooseFirstCharacter() }
                     } preview: {
-                        NotchMascotView(look: NotchMascotLook(style: item, shape: look.shape, palette: look.palette),
-                                        size: 30, idles: false)
-                            .frame(width: 30, height: 30)
-                            .frame(width: 64, height: 42)
-                            .background(Color.black, in: Capsule())
+                        Group {
+                            if item == .character, firstCharacter == nil {
+                                Image(systemName: "figure.wave")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.white.opacity(0.85))
+                            } else {
+                                NotchMascotView(look: NotchMascotLook(style: item, shape: look.shape, palette: look.palette,
+                                                                      character: firstCharacter ?? ""),
+                                                size: 30, idles: false)
+                                    .frame(width: 30, height: 30)
+                            }
+                        }
+                        .frame(width: 64, height: 42)
+                        .background(Color.black, in: Capsule())
                     }
                 }
             }
             .padding(.leading, settingsRowTextInset)
+            if look.style == .character {
+                characters
+                    .transition(.opacity)
+            }
             if look.style == .minimal {
                 SettingsRow(symbol: "circle.square", title: text.shape) {
                     Text(text.shape(look.shape)).foregroundStyle(.secondary)
@@ -136,12 +158,142 @@ struct NotchMascotSettings: View {
                 shapes
                     .transition(.opacity)
             }
-            SettingsRow(symbol: "swatchpalette", title: text.color) {
-                Text(text.palette(look.palette)).foregroundStyle(.secondary)
+            if look.style != .character {
+                SettingsRow(symbol: "swatchpalette", title: text.color) {
+                    Text(text.palette(look.palette)).foregroundStyle(.secondary)
+                }
+                swatches
             }
-            swatches
         }
         .animation(animation, value: look.style)
+    }
+
+    /// The pack chosen, or the first that can be used.
+    private var firstCharacter: String? {
+        let usable = companions.entries.filter { $0.pack != nil }
+        return usable.first { $0.id == character }?.id ?? usable.first?.id
+    }
+
+    private func chooseFirstCharacter() {
+        companions.rescan()
+        if let first = firstCharacter, first != character { character = first }
+    }
+
+    /// The packs to choose from, and where they come from.
+    private var characters: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(symbol: "figure.wave", title: companionText.character, caption: companionText.characterHint) {
+                EmptyView()
+            }
+            if companions.entries.isEmpty {
+                Text(companionText.empty).font(.callout).foregroundStyle(.secondary)
+                    .padding(.leading, settingsRowTextInset)
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], alignment: .leading, spacing: 10) {
+                    ForEach(companions.entries) { entry in
+                        NotchCompanionTile(entry: entry, selected: entry.id == character, text: companionText) {
+                            character = entry.id
+                        }
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+            }
+            generation
+                .padding(.leading, settingsRowTextInset)
+            HStack(spacing: 8) {
+                Button { showsGenerator = true } label: {
+                    Label(companionText.generate, systemImage: "wand.and.stars")
+                }
+                .disabled(generator.isRunning)
+                Button(companionText.add) { addCharacter() }
+                Button(companionText.openFolder) {
+                    if let folder = companions.ensureFolder() { NSWorkspace.shared.open(folder) }
+                }
+                Button(companionText.reload) { companions.rescan() }
+                if let addProblem {
+                    Text(addProblem).font(.caption).foregroundStyle(.red).lineLimit(2)
+                }
+            }
+            .padding(.leading, settingsRowTextInset)
+        }
+        .onAppear {
+            companions.rescan()
+            if !generator.lookedForCodex { generator.locateCodex() }
+        }
+        .sheet(isPresented: $showsGenerator) {
+            NotchCompanionGenerateSheet(text: companionText, generator: generator, isPresented: $showsGenerator)
+        }
+        .animation(animation, value: generator.phase)
+    }
+
+    /// A character being drawn, or how the last one went.
+    @ViewBuilder private var generation: some View {
+        switch generator.phase {
+        case .idle:
+            EmptyView()
+        case .running(let progress):
+            HStack(alignment: .top, spacing: 10) {
+                ProgressView(value: Double(min(progress.images, progress.expectedImages)),
+                             total: Double(progress.expectedImages))
+                    .progressViewStyle(.circular)
+                    .controlSize(.small)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(String(format: companionText.drawing, progress.subject)).font(.callout.weight(.medium))
+                    Text(String(format: companionText.images, min(progress.images, progress.expectedImages),
+                                progress.expectedImages))
+                        .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                    if !progress.status.isEmpty {
+                        Text(progress.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 8)
+                Button(companionText.cancel) { generator.cancel() }
+            }
+            .padding(10)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .transition(.opacity)
+        case .finished(_, let name):
+            resultRow(symbol: "checkmark.circle.fill", tint: .green, title: String(format: companionText.generated, name),
+                      detail: nil)
+        case .failed(let message):
+            resultRow(symbol: "exclamationmark.triangle.fill", tint: .orange, title: companionText.generateFailed,
+                      detail: message.isEmpty ? nil : message)
+        }
+    }
+
+    private func resultRow(symbol: String, tint: Color, title: String, detail: String?) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: symbol).foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout.weight(.medium))
+                if let detail {
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(4).textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            Button { generator.dismiss() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(companionText.cancel)
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .transition(.opacity)
+    }
+
+    private func addCharacter() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            character = try companions.importPack(from: url)
+            addProblem = nil
+        } catch {
+            addProblem = "\(companionText.addFailed): \(error)"
+        }
     }
 
     private var shapes: some View {
@@ -721,6 +873,114 @@ private struct NotchMascotMomentChip: View {
 
 /// A choice drawn as what it gives, with its name under it, like the size
 /// and shape choices on the Dynamic Island page.
+/// Who to draw and how; Codex does the drawing.
+private struct NotchCompanionGenerateSheet: View {
+    let text: NotchCompanionStrings
+    @ObservedObject var generator: NotchCompanionGenerator
+    @Binding var isPresented: Bool
+    @State private var subject = ""
+    @State private var style = NotchCompanionGenerator.Style.illustration
+
+    private var canStart: Bool {
+        !subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && generator.codex != nil && !generator.isRunning
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label(text.generateTitle, systemImage: "wand.and.stars").font(.title3.bold())
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.subject).font(.callout.weight(.medium))
+                TextField(text.subjectPlaceholder, text: $subject)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(start)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.look).font(.callout.weight(.medium))
+                Picker(text.look, selection: $style) {
+                    ForEach(NotchCompanionGenerator.Style.allCases) { Text(text.style($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+            Text(text.generateHint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if generator.lookedForCodex, generator.codex == nil {
+                Label(text.needsCodex, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+            }
+            HStack {
+                Spacer()
+                Button(text.cancel) { isPresented = false }
+                    .keyboardShortcut(.cancelAction)
+                Button(text.start, action: start)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canStart)
+            }
+        }
+        .padding(20)
+        .frame(width: 440)
+        .onAppear { if generator.codex == nil { generator.locateCodex() } }
+    }
+
+    private func start() {
+        guard canStart else { return }
+        generator.start(subject: subject, style: style)
+        isPresented = false
+    }
+}
+
+/// A character pack to choose, its face at rest on the island's black, or
+/// why it can't be used.
+private struct NotchCompanionTile: View {
+    let entry: NotchCompanionEntry
+    let selected: Bool
+    let text: NotchCompanionStrings
+    let action: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let usable = entry.pack != nil
+        Button(action: action) {
+            VStack(spacing: 6) {
+                Group {
+                    if usable {
+                        NotchMascotView(look: NotchMascotLook(style: .character, shape: .ball, palette: .pearl,
+                                                              character: entry.id),
+                                        size: 36, idles: true)
+                            .frame(width: 36, height: 36)
+                    } else {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.yellow)
+                    }
+                }
+                .frame(width: 72, height: 48)
+                .background(Color.black, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                Text(entry.name).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                if !usable {
+                    Text(text.unusable).font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(8)
+            .foregroundStyle(selected ? Color.accentColor : .primary)
+            .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!usable)
+        .help(entry.problem ?? entry.pack?.summary ?? entry.name)
+        .accessibilityLabel(entry.name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
+    }
+}
+
 private struct NotchMascotChoiceTile<Preview: View>: View {
     let title: String
     let selected: Bool
