@@ -61,6 +61,13 @@ enum SelfTest {
             warnings.append("symbolic hotkey table unavailable; shortcut conflicts fall back to the plist")
         }
 
+        // Middle click, its tap, the radial menu's tap and trackpad gestures
+        // all read contacts through this private framework; without it they
+        // stay off, which a Mac without the framework should not fail for.
+        if !TrackpadTouchService.isFrameworkAvailable {
+            warnings.append("MultitouchSupport unavailable; trackpad gestures and middle click stay off")
+        }
+
         // Per-app AirPlay drives private AVFoundation routing objects (the
         // default shared output context and the picker and renderer bindings).
         // When an update removes one, the mixer quietly stops offering AirPlay

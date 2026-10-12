@@ -3,20 +3,19 @@
 
 import AppKit
 import ApplicationServices
+import Combine
 import CoreGraphics
 import Foundation
-import IOKit
 
 /// Middle-click emulation for trackpads: a three-finger PHYSICAL click (four
 /// while macOS three-finger drag owns three fingers) becomes a middle click
 /// (mouse wheel click), and an opt-in tap mode fires
 /// it from a light three or four finger tap (issue #161). By default taps,
-/// swipes and resting fingers never click. Contact data comes from the
-/// MultitouchSupport private framework (the only source; every middle-click
-/// utility uses it), loaded via dlopen/dlsym so a macOS that changes it
-/// degrades to the feature simply staying off. Requires Accessibility for
-/// the event tap. The same tap recognizer also opens the radial menu from a
-/// four-finger tap, so the service runs for either feature.
+/// swipes and resting fingers never click. Finger counts come from
+/// `TrackpadTouchService`, the app's single reader of trackpad contacts.
+/// The opt-in tap is recognized by `TrackpadGestureService`, which owns every
+/// multi-finger tap and calls `postMiddleTap()` for the one reserved here.
+/// Requires Accessibility for the event tap.
 final class MiddleClickService: ObservableObject {
     static let shared = MiddleClickService()
 
@@ -28,6 +27,8 @@ final class MiddleClickService: ObservableObject {
     /// Middle click started but MultitouchSupport gave it no touch device, so
     /// no contact can ever arrive. A pause or session switch clears it.
     @Published private(set) var touchDeviceMissing = false
+    /// Mirrors the contact reader's warning while middle click runs.
+    private var touchDeviceMissingObserver: AnyCancellable?
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -39,14 +40,8 @@ final class MiddleClickService: ObservableObject {
     /// written on the main thread.
     private let dragLock = NSLock()
     private var dragGestureRefreshScheduled = false
-    /// Retains the MTDeviceRefs while listening; the framework hands out
-    /// CF objects owned by this array.
-    private var deviceList: CFArray?
-    private var observers: [Any] = []
-    private var hotplugPort: IONotificationPortRef?
-    private var hotplugIterators: [io_iterator_t] = []
-    /// Whether presses are turned into middle clicks. Off while the service
-    /// runs only for the radial menu's tap. Guarded by `tapStateLock`.
+    /// Whether presses are turned into middle clicks. Guarded by
+    /// `tapStateLock`.
     private var middleClickOn = false
     /// A physical primary or secondary press is currently being relayed as a
     /// middle button, so its drag and release must transform too.
@@ -75,24 +70,6 @@ final class MiddleClickService: ObservableObject {
     /// When the contact count last changed, for the press settle guard.
     private var fingerCountSince: TimeInterval = 0
 
-    // Tap-to-middle-click (issue #161), all under `stateLock`. A candidate
-    // starts when the chosen finger count lands, collects movement, and is
-    // judged when every finger lifts.
-    private var tapFingers = 0
-    private var radialMenuTapFingers = 0
-    /// The finger count the current candidate started with: the larger count
-    /// takes over when both taps are on and a fourth finger lands.
-    private var tapCandidateFingers = 0
-    private var tapDragConflict = false
-    private var tapStartUptime: TimeInterval?
-    private var tapStartPosition: (x: Float, y: Float)?
-    private var tapStartSpread: Float?
-    private var tapMaxMovement: Float = 0
-    private var tapMaxSpreadChange: Float = 0
-    private var tapExceededCount = false
-    private var tapSawButton = false
-    private var tapPositionUnavailable = false
-
     private init() {
         // Multitouch callbacks and the filter tap belong only to the login
         // session on screen. A switched-away process must own neither.
@@ -102,26 +79,16 @@ final class MiddleClickService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        // The tap recognizer reads the middle click's tap setting and its
+        // running state, so it follows every change made here.
+        defer { TrackpadGestureService.shared.syncWithPreferences() }
         let defaults = UserDefaults.standard
         let enabled = AppFeature.middleClick.isAvailable
             && defaults.bool(forKey: DefaultsKey.middleClickEnabled)
-        let tap = enabled ? Defaults.sanitizedMiddleClickTapFingers(
-            defaults.integer(forKey: DefaultsKey.middleClickTapFingers)) : 0
-        let radialMenuTap = MiddleClickSupport.radialMenuTapFingers(
-            radialMenuWantsTap: AppFeature.radialMenu.isAvailable
-                && defaults.bool(forKey: DefaultsKey.radialMenuEnabled)
-                && RadialMenuSupport.decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
-                                                    defaults: defaults).contains(where: \.trackpadTap),
-            middleClickTapFingers: tap)
         tapStateLock.withLock { middleClickOn = enabled }
-        stateLock.lock()
-        tapFingers = tap
-        radialMenuTapFingers = radialMenuTap
-        resetTapCandidateLocked()
-        stateLock.unlock()
         refreshDragGestureConflict()
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: enabled || radialMenuTap > 0,
+            featureWanted: enabled,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
@@ -142,9 +109,6 @@ final class MiddleClickService: ObservableObject {
         if systemDragGestureConflict != enabled {
             systemDragGestureConflict = enabled
         }
-        stateLock.lock()
-        tapDragConflict = enabled
-        stateLock.unlock()
     }
 
     /// Answers from the cache: reading a system preference and publishing the
@@ -184,7 +148,7 @@ final class MiddleClickService: ObservableObject {
 
     private func start() {
         guard tapStateLock.withLock({ tap }) == nil else { return }
-        guard Multitouch.available else {
+        guard TrackpadTouchService.isFrameworkAvailable else {
             touchDeviceMissing = true
             return
         }
@@ -217,8 +181,13 @@ final class MiddleClickService: ObservableObject {
         }
         CGEvent.tapEnable(tap: tap, enable: true)
 
-        startMultitouch()
-        installObservers()
+        let touch = TrackpadTouchService.shared
+        touch.subscribe(.middleClick, wantsGeometry: false) { [weak self] frame in
+            self?.contactFrame(fingerCount: frame.count)
+        }
+        touchDeviceMissingObserver = touch.$touchDeviceMissing.sink { [weak self] missing in
+            self?.touchDeviceMissing = missing
+        }
         isRunning = true
     }
 
@@ -238,8 +207,8 @@ final class MiddleClickService: ObservableObject {
         if let source {
             PointerTapRunLoop.remove(source, invalidating: port)
         }
-        stopMultitouch()
-        removeObservers()
+        touchDeviceMissingObserver = nil
+        TrackpadTouchService.shared.unsubscribe(.middleClick)
         tapStateLock.withLock {
             lastTransformEnd = nil
             suppressedButtonSequence = false
@@ -248,215 +217,28 @@ final class MiddleClickService: ObservableObject {
         fingerCount = 0
         lastFrameUptime = 0
         fingerCountSince = 0
-        resetTapCandidateLocked()
         stateLock.unlock()
         isRunning = false
         touchDeviceMissing = false
     }
 
-    /// Trackpads come and go across sleep and Bluetooth: drop every contact
-    /// registration and rebuild from the current device list.
-    private func restartMultitouch() {
-        guard tapStateLock.withLock({ tap }) != nil else { return }
-        stopMultitouch()
-        startMultitouch()
-    }
-
-    private func startMultitouch() {
-        guard deviceList == nil else { return }
-        guard let list = Multitouch.deviceList() else {
-            touchDeviceMissing = true
-            return
-        }
-        touchDeviceMissing = false
-        deviceList = list
-        for index in 0..<CFArrayGetCount(list) {
-            guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
-            Multitouch.register(UnsafeMutableRawPointer(mutating: device), middleClickContactCallback)
-            Multitouch.start(UnsafeMutableRawPointer(mutating: device))
-        }
-    }
-
-    private func stopMultitouch() {
-        guard let list = deviceList else { return }
-        for index in 0..<CFArrayGetCount(list) {
-            guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
-            Multitouch.stop(UnsafeMutableRawPointer(mutating: device))
-            Multitouch.register(UnsafeMutableRawPointer(mutating: device), nil)
-        }
-        deviceList = nil
-    }
-
-    private func installObservers() {
-        guard observers.isEmpty else { return }
-        let center = NSWorkspace.shared.notificationCenter
-        observers.append(center.addObserver(forName: NSWorkspace.didWakeNotification,
-                                            object: nil,
-                                            queue: .main) { [weak self] _ in
-            self?.restartMultitouch()
-        })
-        installHotplugObserver()
-    }
-
-    /// Rebuild on both arrivals and removals, so unplugging the last trackpad
-    /// releases its contacts and shows the same warning as starting without one.
-    /// If notification registration fails, the current trackpad still works.
-    private func installHotplugObserver() {
-        guard hotplugPort == nil else { return }
-        guard let port = IONotificationPortCreate(kIOMainPortDefault) else { return }
-        IONotificationPortSetDispatchQueue(port, DispatchQueue.main)
-        let context = Unmanaged.passUnretained(self).toOpaque()
-        var iterators: [io_iterator_t] = []
-        for notification in [kIOFirstMatchNotification, kIOTerminatedNotification] {
-            var iterator: io_iterator_t = 0
-            let result = IOServiceAddMatchingNotification(
-                port,
-                notification,
-                IOServiceMatching("AppleMultitouchDevice"),
-                { context, iterator in
-                    guard let context else { return }
-                    while case let entry = IOIteratorNext(iterator), entry != 0 {
-                        IOObjectRelease(entry)
-                    }
-                    let service = Unmanaged<MiddleClickService>.fromOpaque(context).takeUnretainedValue()
-                    service.restartMultitouch()
-                },
-                context,
-                &iterator
-            )
-            guard result == KERN_SUCCESS else {
-                if iterator != 0 { IOObjectRelease(iterator) }
-                for registered in iterators { IOObjectRelease(registered) }
-                IONotificationPortDestroy(port)
-                return
-            }
-            // Drain the existing devices or the notification never arms.
-            while case let entry = IOIteratorNext(iterator), entry != 0 {
-                IOObjectRelease(entry)
-            }
-            iterators.append(iterator)
-        }
-        hotplugPort = port
-        hotplugIterators = iterators
-    }
-
-    private func removeObservers() {
-        let center = NSWorkspace.shared.notificationCenter
-        for observer in observers {
-            center.removeObserver(observer)
-        }
-        observers = []
-        for iterator in hotplugIterators { IOObjectRelease(iterator) }
-        hotplugIterators.removeAll()
-        if let hotplugPort {
-            IONotificationPortDestroy(hotplugPort)
-            self.hotplugPort = nil
-        }
-    }
-
     // MARK: - Contact frames (multitouch callback thread)
 
-    fileprivate func contactFrame(fingerCount count: Int,
-                                  touches: UnsafeMutableRawPointer?) {
+    private func contactFrame(fingerCount count: Int) {
         let now = ProcessInfo.processInfo.systemUptime
-        var firedFingers: Int?
         stateLock.lock()
         if count != fingerCount { fingerCountSince = now }
         fingerCount = count
         lastFrameUptime = now
-        if tapFingers > 0 || radialMenuTapFingers > 0 {
-            // Touch geometry is read only while a tap option is on: with them
-            // off (the default) the per-frame cost stays what it always was.
-            let geometry = Multitouch.touchGeometry(touches: touches, count: count)
-            firedFingers = trackTapLocked(count: count, geometry: geometry, now: now)
-        }
-        let radialMenuFingers = radialMenuTapFingers
         stateLock.unlock()
-        if let firedFingers {
-            if firedFingers == radialMenuFingers {
-                DispatchQueue.main.async { RadialMenuService.shared.toggleFromTrackpad() }
-            } else {
-                postMiddleTap()
-            }
-        }
-    }
-
-    /// The tap candidate's life, under `stateLock`: born when the chosen
-    /// finger count lands, cancelled by extra fingers, movement (a swipe), a
-    /// physical click or unreadable positions, judged when the pad empties.
-    /// Returns the finger count of a finished touch that should fire.
-    private func trackTapLocked(count: Int,
-                                geometry: (center: (x: Float, y: Float), spread: Float)?,
-                                now: TimeInterval) -> Int? {
-        if count == 0 {
-            defer { resetTapCandidateLocked() }
-            guard let startedAt = tapStartUptime else { return nil }
-            let secondsSinceLastKeyDown = CGEventSource.secondsSinceLastEventType(
-                .combinedSessionState,
-                eventType: .keyDown
-            )
-            let fires = MiddleClickSupport.tapShouldFire(duration: now - startedAt,
-                                                         maxMovement: tapMaxMovement,
-                                                         maxSpreadChange: tapMaxSpreadChange,
-                                                         exceededFingerCount: tapExceededCount,
-                                                         buttonPressedDuring: tapSawButton,
-                                                         positionUnavailable: tapPositionUnavailable,
-                                                         systemDragGestureEnabled: tapDragConflict,
-                                                         tapFingers: tapCandidateFingers,
-                                                         secondsSinceLastKeyDown: secondsSinceLastKeyDown)
-            return fires ? tapCandidateFingers : nil
-        }
-        if count > max(tapFingers, radialMenuTapFingers) {
-            tapExceededCount = true
-            return nil
-        }
-        if count == tapFingers || count == radialMenuTapFingers {
-            if tapStartUptime == nil || count > tapCandidateFingers {
-                guard !tapExceededCount else { return nil }
-                tapCandidateFingers = count
-                tapStartUptime = now
-                tapStartPosition = geometry?.center
-                tapStartSpread = geometry?.spread
-                tapMaxMovement = 0
-                tapMaxSpreadChange = 0
-                tapSawButton = false
-                tapPositionUnavailable = geometry == nil
-            } else if count < tapCandidateFingers {
-                // A finger lifting from a larger tap leaves the candidate alone.
-            } else if let start = tapStartPosition, let geometry {
-                tapMaxMovement = max(tapMaxMovement,
-                                     max(abs(geometry.center.x - start.x),
-                                         abs(geometry.center.y - start.y)))
-                if let startSpread = tapStartSpread {
-                    tapMaxSpreadChange = max(tapMaxSpreadChange,
-                                             abs(geometry.spread - startSpread))
-                }
-            } else if geometry == nil {
-                tapPositionUnavailable = true
-            }
-        }
-        // Counts between 1 and tapFingers - 1 are fingers landing or lifting
-        // mid-touch; the candidate stays as it is until the pad empties.
-        return nil
-    }
-
-    private func resetTapCandidateLocked() {
-        tapCandidateFingers = 0
-        tapStartUptime = nil
-        tapStartPosition = nil
-        tapStartSpread = nil
-        tapMaxMovement = 0
-        tapMaxSpreadChange = 0
-        tapExceededCount = false
-        tapSawButton = false
-        tapPositionUnavailable = false
     }
 
     /// A judged tap becomes a full middle click at the current pointer. Runs
     /// on the main thread, away from the tap callback; also arms the bounce
     /// guard so a system-synthesized click right behind the tap is not
-    /// transformed into a second one.
-    private func postMiddleTap() {
+    /// transformed into a second one. Called by the tap recognizer for the
+    /// tap this feature reserves; does nothing while middle click is off.
+    func postMiddleTap() {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.tapStateLock.withLock({ self.tap }) != nil else { return }
             let position = CGEvent(source: nil)?.location ?? .zero
@@ -488,7 +270,6 @@ final class MiddleClickService: ObservableObject {
             releaseHeldMiddleButton()
             let enabled = AppFeature.middleClick.isAvailable
                 && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
-                || stateLock.withLock { radialMenuTapFingers > 0 }
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: enabled,
                 accessibilityGranted: AXIsProcessTrusted(),
@@ -518,9 +299,6 @@ final class MiddleClickService: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         switch type {
         case .leftMouseDown, .rightMouseDown:
-            stateLock.lock()
-            if tapStartUptime != nil { tapSawButton = true }
-            stateLock.unlock()
             tapStateLock.lock()
             guard middleClickOn else {
                 tapStateLock.unlock()
@@ -646,113 +424,5 @@ final class MiddleClickService: ObservableObject {
         event.type = type
         event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
         return event
-    }
-}
-
-// MARK: - MultitouchSupport bridge
-
-/// The raw contact callback: (device, touches, count, timestamp, frame).
-/// The finger count always feeds the press path; the touch records are read
-/// (two floats per touch, range-checked) only while the opt-in tap mode is
-/// on — see Multitouch.touchGeometry for the layout contract.
-private func middleClickContactCallback(_ device: UnsafeMutableRawPointer?,
-                                        _ touches: UnsafeMutableRawPointer?,
-                                        _ count: Int32,
-                                        _ timestamp: Double,
-                                        _ frame: Int32) -> Int32 {
-    MiddleClickService.shared.contactFrame(fingerCount: Int(count), touches: touches)
-    return 0
-}
-
-/// dlopen/dlsym bridge to MultitouchSupport. Everything is optional: a macOS
-/// build without the framework or its symbols makes `available` false and the
-/// feature stays off instead of crashing.
-private enum Multitouch {
-    typealias ContactCallback = @convention(c) (
-        UnsafeMutableRawPointer?, UnsafeMutableRawPointer?, Int32, Double, Int32
-    ) -> Int32
-    private typealias CreateListFn = @convention(c) () -> Unmanaged<CFArray>?
-    private typealias RegisterFn = @convention(c) (UnsafeMutableRawPointer, ContactCallback?) -> Void
-    private typealias StartFn = @convention(c) (UnsafeMutableRawPointer, Int32) -> Void
-    private typealias StopFn = @convention(c) (UnsafeMutableRawPointer) -> Void
-
-    private static let handle: UnsafeMutableRawPointer? = dlopen(
-        "/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport",
-        RTLD_NOW
-    )
-
-    private static let createListFn: CreateListFn? = symbol("MTDeviceCreateList")
-    private static let registerFn: RegisterFn? = symbol("MTRegisterContactFrameCallback")
-    private static let startFn: StartFn? = symbol("MTDeviceStart")
-    private static let stopFn: StopFn? = symbol("MTDeviceStop")
-
-    static var available: Bool {
-        createListFn != nil && registerFn != nil && startFn != nil && stopFn != nil
-    }
-
-    static func deviceList() -> CFArray? {
-        guard let createListFn else { return nil }
-        let list = createListFn()?.takeRetainedValue()
-        guard let list, CFArrayGetCount(list) > 0 else { return nil }
-        return list
-    }
-
-    static func register(_ device: UnsafeMutableRawPointer, _ callback: ContactCallback?) {
-        registerFn?(device, callback)
-    }
-
-    static func start(_ device: UnsafeMutableRawPointer) {
-        startFn?(device, 0)
-    }
-
-    static func stop(_ device: UnsafeMutableRawPointer) {
-        stopFn?(device)
-    }
-
-    /// The canonical touch record layout every multitouch utility relies on
-    /// (96-byte stride; normalized position floats at offsets 32/36),
-    /// unchanged for over a decade. Only those two floats are read, and any
-    /// value outside the pad's normalized range means the layout moved: the
-    /// frame reports no position and tap detection stands down for the touch
-    /// instead of misfiring.
-    private static let touchStride = 96
-    private static let touchPositionXOffset = 32
-    private static let touchPositionYOffset = 36
-
-    /// Centroid plus spread (mean distance of the touches from the centroid):
-    /// the spread is what separates a still tap from a pinch, whose centroid
-    /// barely moves.
-    static func touchGeometry(touches: UnsafeMutableRawPointer?,
-                              count: Int) -> (center: (x: Float, y: Float), spread: Float)? {
-        guard let touches, count > 0 else { return nil }
-        var sumX: Float = 0
-        var sumY: Float = 0
-        for index in 0..<count {
-            let base = touches.advanced(by: index * touchStride)
-            let x = base.loadUnaligned(fromByteOffset: touchPositionXOffset, as: Float.self)
-            let y = base.loadUnaligned(fromByteOffset: touchPositionYOffset, as: Float.self)
-            guard x.isFinite, y.isFinite,
-                  x >= -0.2, x <= 1.2, y >= -0.2, y <= 1.2 else { return nil }
-            sumX += x
-            sumY += y
-        }
-        let centerX = sumX / Float(count)
-        let centerY = sumY / Float(count)
-        var spread: Float = 0
-        for index in 0..<count {
-            let base = touches.advanced(by: index * touchStride)
-            let x = base.loadUnaligned(fromByteOffset: touchPositionXOffset, as: Float.self)
-            let y = base.loadUnaligned(fromByteOffset: touchPositionYOffset, as: Float.self)
-            let dx = x - centerX
-            let dy = y - centerY
-            spread += (dx * dx + dy * dy).squareRoot()
-        }
-        spread /= Float(count)
-        return ((centerX, centerY), spread)
-    }
-
-    private static func symbol<T>(_ name: String) -> T? {
-        guard let handle, let raw = dlsym(handle, name) else { return nil }
-        return unsafeBitCast(raw, to: T.self)
     }
 }

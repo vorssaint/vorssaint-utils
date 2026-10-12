@@ -792,7 +792,9 @@ private struct RadialItemDropDelegate: DropDelegate {
 
 // MARK: - Editor sheet
 
-private struct RadialItemEditor: View {
+/// Edits one action: a wheel slice here, and the action a trackpad gesture
+/// runs (without submenus) in the gesture settings.
+struct RadialItemEditor: View {
     let text: RadialMenuFeatureStrings
     @State var item: RadialMenuItem
     let isNew: Bool

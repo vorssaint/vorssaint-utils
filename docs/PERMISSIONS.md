@@ -6,7 +6,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, trackpad gestures, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
@@ -33,6 +33,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
 - **Middle click**, which turns a three finger press on the trackpad into a middle click.
+- **Trackpad gestures**, which run the action you mapped to a three, four or five finger tap, swipe or pinch. Touches are read on your Mac and never stored.
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
 - **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
 - **Quit on close**, which spots when an app's last window goes away.
