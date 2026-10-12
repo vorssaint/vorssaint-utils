@@ -780,6 +780,32 @@ func preview(_ args: Arguments) {
 
 // MARK: - install
 
+/// Copies a pack as the app adds one: links inside it become the files
+/// and folders they lead to, links out of it and back up it are skipped,
+/// so the installed copy reads on its own.
+func copyResolvingLinks(_ folder: URL, to destination: URL, root: String, ancestry: Set<String>, budget: inout Int) throws {
+    let manager = FileManager.default
+    try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+    for item in try manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
+        budget -= 1
+        guard budget >= 0 else { fail("the pack holds more than 5000 files") }
+        var real = item.standardizedFileURL
+        if (try? item.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true {
+            real = item.resolvingSymlinksInPath().standardizedFileURL
+            guard real.path.hasPrefix(root + "/") else { continue }
+        }
+        let target = destination.appendingPathComponent(item.lastPathComponent)
+        var isDirectory: ObjCBool = false
+        guard manager.fileExists(atPath: real.path, isDirectory: &isDirectory) else { continue }
+        if isDirectory.boolValue {
+            guard !ancestry.contains(real.path) else { continue }
+            try copyResolvingLinks(real, to: target, root: root, ancestry: ancestry.union([real.path]), budget: &budget)
+        } else {
+            try manager.copyItem(at: real, to: target)
+        }
+    }
+}
+
 func install(_ args: Arguments) {
     let pack = expand(args.require("pack"))
     var errors: [String] = [], warnings: [String] = []
@@ -804,7 +830,9 @@ func install(_ args: Arguments) {
     do {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true,
                                                 attributes: [.posixPermissions: 0o700])
-        try FileManager.default.copyItem(at: pack, to: destination)
+        var budget = 5000
+        let root = pack.resolvingSymlinksInPath().standardizedFileURL
+        try copyResolvingLinks(root, to: destination, root: root.path, ancestry: [root.path], budget: &budget)
     } catch {
         fail("cannot install: \(error.localizedDescription)")
     }

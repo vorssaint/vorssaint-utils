@@ -350,16 +350,27 @@ final class NotchCompanionLibrary: ObservableObject {
     /// behind, as the pack could not use it anyway.
     static func copy(_ source: URL, to destination: URL) throws {
         let root = source.resolvingSymlinksInPath().standardizedFileURL
-        try copyContents(of: root, to: destination, root: root.path, depth: 0)
+        var budget = maxCopiedItems
+        try copyContents(of: root, to: destination, root: root.path, ancestry: [root.path], budget: &budget)
     }
 
-    private static func copyContents(of folder: URL, to destination: URL, root: String, depth: Int) throws {
-        // Links that lead back up the pack would copy forever.
-        guard depth < 16 else { return }
+    /// More files and folders than any pack needs: past it a copy stops.
+    static let maxCopiedItems = 5000
+
+    struct CopyError: Error, CustomStringConvertible {
+        var description: String { "The folder holds more than \(NotchCompanionLibrary.maxCopiedItems) files." }
+    }
+
+    /// `ancestry` holds the real folders the walk is inside, so a link back
+    /// up to one of them is skipped instead of copied again and again.
+    private static func copyContents(of folder: URL, to destination: URL, root: String, ancestry: Set<String>,
+                                     budget: inout Int) throws {
         let manager = FileManager.default
         try manager.createDirectory(at: destination, withIntermediateDirectories: true)
         for item in try manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.isSymbolicLinkKey]) {
-            var real = item
+            budget -= 1
+            guard budget >= 0 else { throw CopyError() }
+            var real = item.standardizedFileURL
             if (try? item.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) == true {
                 real = item.resolvingSymlinksInPath().standardizedFileURL
                 guard real.path.hasPrefix(root + "/") else { continue }
@@ -368,7 +379,8 @@ final class NotchCompanionLibrary: ObservableObject {
             var isDirectory: ObjCBool = false
             guard manager.fileExists(atPath: real.path, isDirectory: &isDirectory) else { continue }
             if isDirectory.boolValue {
-                try copyContents(of: real, to: target, root: root, depth: depth + 1)
+                guard !ancestry.contains(real.path) else { continue }
+                try copyContents(of: real, to: target, root: root, ancestry: ancestry.union([real.path]), budget: &budget)
             } else {
                 try manager.copyItem(at: real, to: target)
             }

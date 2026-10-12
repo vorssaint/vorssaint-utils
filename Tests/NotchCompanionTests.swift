@@ -407,6 +407,18 @@ enum NotchCompanionTests {
                      && (try? manager.destinationOfSymbolicLink(atPath: throughAlias.appendingPathComponent("frames/linked.png").path)) == nil
                      && NotchCompanionLibrary.read(throughAlias)?.pack != nil,
                      "a pack reached through a link copies whole, linked folders and the links in them included")
+        // Links back up the pack are skipped, not copied over and over.
+        let assets = folder.appendingPathComponent("assets", isDirectory: true)
+        try? manager.createDirectory(at: assets, withIntermediateDirectories: true)
+        try? manager.createSymbolicLink(at: assets.appendingPathComponent("a"), withDestinationURL: assets)
+        try? manager.createSymbolicLink(at: assets.appendingPathComponent("b"), withDestinationURL: folder)
+        let cyclic = root.appendingPathComponent("Cyclic", isDirectory: true)
+        let started = Date()
+        let cyclicCopied = (try? NotchCompanionLibrary.copy(folder, to: cyclic)) != nil
+        let entries = manager.enumerator(atPath: cyclic.path)?.allObjects.count ?? 0
+        suite.expect(cyclicCopied && entries < 60 && Date().timeIntervalSince(started) < 2
+                     && NotchCompanionLibrary.read(cyclic)?.pack != nil,
+                     "links back up the pack are skipped, so a copy stays the size of the pack")
         if writeGIF(folder.appendingPathComponent("blink.gif"), frames: 2, delay: 0.5) {
             func timing(_ manifest: String) -> [TimeInterval]? {
                 guard case .success(let parsed) = NotchCompanionPack.parse(Data(manifest.utf8), id: "gif", listing: { _ in nil }),
