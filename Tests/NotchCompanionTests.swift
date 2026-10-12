@@ -353,6 +353,11 @@ enum NotchCompanionTests {
                      && sprites.timing.frames(.idle) == [0.2, 0.2, 0.2],
                      "every frame is read, at the animation's frame rate")
         suite.expect(abs(sprites.aspect - 40.0 / 60.0) < 0.02, "the canvas takes the first idle frame's shape")
+        suite.expect(NotchCompanionGenerator.missing(in: sprites, states: [.idle, .lookRight, .happy]).isEmpty == false
+                     && NotchCompanionGenerator.missing(in: sprites, states: [.idle, .lookRight]).isEmpty
+                     && Set(NotchCompanionGenerator.missing(in: sprites)) == Set(NotchCompanionGenerator.states)
+                        .subtracting([.idle, .lookRight, .happy]).union([.happy]),
+                     "a generated pack lacking a state asked for, or with a single frame of it, is incomplete")
         if let frame = sprites.image(NotchCompanionCel(state: .idle, frame: 0)) {
             let corner = pixel(frame, x: 1, y: 1)
             let face = pixel(frame, x: frame.width / 2, y: frame.height - 2)

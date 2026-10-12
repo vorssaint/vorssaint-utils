@@ -213,6 +213,12 @@ final class NotchCompanionGenerator: ObservableObject {
         return nil
     }
 
+    /// The states asked for that a generated pack lacks, or has too few
+    /// frames of to move.
+    static func missing(in sprites: NotchCompanionSprites, states: [NotchCompanionState] = states) -> [NotchCompanionState] {
+        states.filter { sprites.pack.clips[$0] == nil || sprites.frameCount($0) < 2 }
+    }
+
     // MARK: Running
 
     func start(subject: String, style: Style) {
@@ -362,9 +368,19 @@ final class NotchCompanionGenerator: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             let frames = Result { try NotchCompanionLibrary.load(made, from: pack) }
             DispatchQueue.main.async {
-                guard case .success = frames else {
-                    if case .failure(let error) = frames { self.phase = .failed("\(error)") }
+                switch frames {
+                case .failure(let error):
+                    self.phase = .failed("\(error)")
                     return
+                case .success(let sprites):
+                    // A pack added by hand may be as small as its author
+                    // likes; one asked of Codex has every face it was asked for.
+                    let missing = Self.missing(in: sprites)
+                    guard missing.isEmpty else {
+                        self.phase = .failed("Codex finished without these expressions: "
+                                             + missing.map(\.rawValue).joined(separator: ", ") + ".")
+                        return
+                    }
                 }
                 do {
                     let id = try NotchCompanionLibrary.shared.importPack(from: pack, named: slug)
