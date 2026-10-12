@@ -144,6 +144,9 @@ struct BrightnessSection: View {
                     .accessibilityLabel(display.name)
             }
             SoftwareDimmingButton(display: display, compact: true)
+            if display.isActive, let audio = display.audio {
+                volumeRow(display, audio: audio)
+            }
         }
     }
 
@@ -181,6 +184,39 @@ struct BrightnessSection: View {
         Binding(get: { display.brightness },
                 set: { service.setBrightness($0, for: display.id,
                                              showOSD: brightnessOSDEnabled) })
+    }
+
+    private func volumeRow(_ display: BrightnessDisplay,
+                           audio: BrightnessDisplay.Audio) -> some View {
+        HStack(spacing: 6) {
+            if let muted = audio.muted {
+                Button {
+                    service.setMuted(!muted, for: display.id)
+                } label: {
+                    Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(muted ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .frame(width: 16)
+                }
+                .buttonStyle(.plain)
+                .help(muted ? strings.unmute : strings.mute)
+                .accessibilityLabel(muted ? strings.unmute : strings.mute)
+            } else {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+            }
+            Slider(value: Binding(get: { audio.volume },
+                                  set: { service.setVolume($0, for: display.id) }),
+                   in: 0...1)
+                .controlSize(.small)
+                .accessibilityLabel("\(display.name) \(strings.volumeLabel)")
+            Text("\(Int((audio.volume * 100).rounded()))%")
+                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 30, alignment: .trailing)
+        }
     }
 }
 

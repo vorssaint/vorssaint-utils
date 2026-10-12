@@ -140,11 +140,13 @@ enum DisplayRestorationTests {
         var knownDisplayFingerprints: [UInt32: String] = [:]
         var displayControlFailure: BrightnessService.DisplayControlFailure?
         var pendingDisplayIDs = Set<UInt32>()
+        func forgetWriteOnlyRechecks() {}
         var displays: [BrightnessDisplay] = []
         var refreshes = 0
         var running = false
         var wakeObserversInstalled = false
         var wakeRebuild: DispatchWorkItem?
+        var ddcRetry: DispatchWorkItem?
         static let wakeSettleDelay: TimeInterval = 3
         static func lidClosed() -> Bool? { Hardware.lidRead?() ?? Hardware.lid }
         static func currentTopology() -> BrightnessSupport.DisplayTopology {

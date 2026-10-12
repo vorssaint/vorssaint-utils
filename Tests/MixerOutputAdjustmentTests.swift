@@ -324,5 +324,50 @@ enum MixerOutputAdjustmentContract {
         }
         suite.expect(completions == [false, false, false] && mixer.halQueue.jobs.isEmpty,
                      "nonfinite output requests never reach the driver")
+
+        // Monitor speakers take the request on the brightness queue; the HAL is never written.
+        let speakers = Mixer.BrightnessService.shared
+        func monitorMixer(muted: Bool?, volume: Double = 0.4) -> Mixer {
+            let mixer = make()
+            speakers.writes = []
+            mixer.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(displayID: 7, volume: volume, muted: muted)
+            return mixer
+        }
+        mixer = monitorMixer(muted: false)
+        var sliderDone: Bool?
+        mixer.requestOutputAdjustment(volume: 0.7) { sliderDone = $0 }
+        finish(mixer)
+        suite.expect(speakers.writes == ["volume 7 0.7"] && Hardware.writes.isEmpty && sliderDone == true,
+                     "a monitor's volume slider writes its own DDC level, never the output's HAL volume")
+        mixer = monitorMixer(muted: true)
+        mixer.requestOutputStep(level: { _ in 0.5 }, raises: true)
+        suite.expect(speakers.writes == ["volume 7 0.5"],
+                     "a raise hands the monitor its new level as a raise, so the mute rule can lift a mute")
+        mixer = monitorMixer(muted: true)
+        mixer.requestOutputStep(level: { _ in 0.3 })
+        suite.expect(speakers.writes == ["volume 7 0.3 lower"],
+                     "a lower step is handed over as a lower, which leaves a chosen mute in place")
+        mixer = monitorMixer(muted: false, volume: 0.0625)
+        mixer.requestOutputStep(level: { $0 - 0.0625 - 0.5 })
+        suite.expect(speakers.writes == ["volume 7 0.0 lower"],
+                     "a step past zero hands the monitor zero, not a negative level")
+        mixer = monitorMixer(muted: true)
+        mixer.requestOutputAdjustment(volume: 0.6)
+        suite.expect(speakers.writes == ["volume 7 0.6"],
+                     "a slider set is handed over as a raise, as a slider move lifts mute elsewhere")
+        mixer = monitorMixer(muted: nil)
+        var noMuteDone: Bool?
+        mixer.requestOutputMuteToggle { noMuteDone = $0 }
+        suite.expect(noMuteDone == false && speakers.writes.isEmpty,
+                     "a monitor without an MCCS mute control refuses the mute toggle")
+        mixer = monitorMixer(muted: false)
+        mixer.requestOutputMuteToggle()
+        suite.expect(speakers.writes == ["muted 7 true"], "a monitor's mute toggle writes MCCS mute on")
+        mixer = monitorMixer(muted: nil)
+        suite.expect(mixer.systemOutputVolume == 0.4 && mixer.systemOutputMuted == nil,
+                     "the presented level comes from the monitor while it carries the sound")
+        mixer.monitorOutput = nil
+        suite.expect(mixer.systemOutputVolume == 0.2 && mixer.systemOutputMuted == false,
+                     "the presented level returns to CoreAudio when the monitor stops carrying the sound")
     }
 }
