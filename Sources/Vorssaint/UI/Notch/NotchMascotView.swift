@@ -39,7 +39,10 @@ final class NotchMascotRig: NSObject {
     private(set) var mood = NotchMascotMood.idle
     /// Whether it blinks now and then and, after a long rest, grows sleepy.
     private(set) var idles = false
-    var reduceMotion = false
+    var reduceMotion = false {
+        // A character plays on, or holds still, as soon as it changes.
+        didSet { if reduceMotion != oldValue { showCharacterBase() } }
+    }
 
     private let hopper = CALayer()
     private let squasher = CALayer()

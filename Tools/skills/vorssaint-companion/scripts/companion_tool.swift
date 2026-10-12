@@ -564,9 +564,11 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
         return (json["name"] as? String ?? pack.lastPathComponent, [])
     }
     if animations["idle"] == nil { errors.append("there is no \"idle\" animation") }
+    // As the app reads it: inside the pack, symbolic links resolved.
+    let root = pack.resolvingSymlinksInPath().standardizedFileURL.path
     func url(_ path: String) -> URL? {
-        let resolved = pack.appendingPathComponent(path).standardizedFileURL
-        guard !path.hasPrefix("/"), resolved.path.hasPrefix(pack.standardizedFileURL.path + "/") else {
+        let resolved = pack.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
+        guard !path.hasPrefix("/"), !path.hasPrefix("~"), resolved.path.hasPrefix(root + "/") else {
             errors.append("\(path) is outside the pack's folder")
             return nil
         }
@@ -578,18 +580,33 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
         guard let spec = animations[name] as? [String: Any] else { errors.append("\"\(name)\" is not an object"); continue }
         var frames: [CGImage] = [], fileDelays: [Double]? = nil
         if let sheet = spec["sheet"] as? String {
-            guard let columns = spec["columns"] as? Int, columns > 0 else { errors.append("\"\(name)\" sheet needs columns"); continue }
+            // The app's bounds, checked before any arithmetic.
+            guard let columns = spec["columns"] as? Int, (1...256).contains(columns) else {
+                errors.append("\"\(name)\" sheet needs columns, 1...256"); continue
+            }
             let rows = spec["rows"] as? Int ?? 1
+            guard (1...256).contains(rows) else { errors.append("\"\(name)\" rows must be 1...256"); continue }
+            let start = spec["start"] as? Int ?? 0
+            let first: Int, available: Int
+            if let row = spec["row"] as? Int {
+                guard (0..<rows).contains(row), (0..<columns).contains(start) else {
+                    errors.append("\"\(name)\": row or start is outside the sheet"); continue
+                }
+                first = row * columns + start
+                available = columns - start
+            } else {
+                guard (0..<(columns * rows)).contains(start) else { errors.append("\"\(name)\": start is outside the sheet"); continue }
+                first = start
+                available = columns * rows - start
+            }
+            let count = spec["count"] as? Int ?? min(available, 120)
+            guard count > 0, count <= available else { errors.append("\"\(name)\": count does not fit the sheet"); continue }
             guard let file = url(sheet), FileManager.default.fileExists(atPath: file.path) else {
                 errors.append("\"\(name)\": \(sheet) is missing"); continue
             }
             let image = loadImage(file)
             let cellWidth = image.width / columns, cellHeight = image.height / rows
-            let start = (spec["row"] as? Int).map { $0 * columns } ?? 0
-            let first = start + (spec["start"] as? Int ?? 0)
-            let available = spec["row"] == nil ? columns * rows - first : columns - (spec["start"] as? Int ?? 0)
-            let count = spec["count"] as? Int ?? available
-            guard count > 0, count <= available else { errors.append("\"\(name)\": count does not fit the sheet"); continue }
+            guard cellWidth > 0, cellHeight > 0 else { errors.append("\"\(name)\": \(sheet) is smaller than its grid"); continue }
             frames = (first..<(first + count)).compactMap {
                 image.cropping(to: CGRect(x: ($0 % columns) * cellWidth, y: ($0 / columns) * cellHeight, width: cellWidth, height: cellHeight))
             }
@@ -622,7 +639,9 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
         if frames.count > 120 { errors.append("\"\(name)\" has \(frames.count) frames; at most 120 are read") }
         let fps = spec["fps"] as? Double ?? packFPS
         if !(1...60).contains(fps) { errors.append("\"\(name)\" fps must be 1...60") }
-        var delays = fileDelays ?? Array(repeating: 1 / fps, count: frames.count)
+        // An animated image keeps its own delays unless this animation sets its timing.
+        let ownDelays = spec["fps"] == nil && spec["durations"] == nil
+        var delays = (ownDelays ? fileDelays : nil) ?? Array(repeating: 1 / fps, count: frames.count)
         if let durations = spec["durations"] as? [Double] {
             if durations.count != 1, durations.count != frames.count {
                 errors.append("\"\(name)\": give one duration, or one per frame (\(frames.count))")
@@ -632,10 +651,22 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
                 delays = durations.count == 1 ? Array(repeating: durations[0] / 1000, count: frames.count) : durations.map { $0 / 1000 }
             }
         }
+        // Keyed as the app keys them, so previews show what the island will.
+        let keySpec = (spec["chromaKey"] ?? json["chromaKey"]) as? [String: Any]
+        if let keySpec {
+            if let color = keySpec["color"] as? String, let key = Key(color, tolerance: keySpec["tolerance"] as? Double ?? 0.16) {
+                frames = frames.map { frame in
+                    var pixels = Pixels(frame)
+                    key.apply(to: &pixels)
+                    return pixels.image
+                }
+            } else {
+                errors.append("\"\(name)\" chromaKey is not a #RRGGBB color")
+            }
+        }
         result.append(Animation(name: name, frames: frames, delays: delays))
     }
     // Quality checks against the contract.
-    let keyed = json["chromaKey"] != nil || animations.values.contains { ($0 as? [String: Any])?["chromaKey"] != nil }
     if let idle = result.first(where: { $0.name == "idle" })?.frames.first {
         if idle.width != idle.height { warnings.append("idle frames are \(idle.width)x\(idle.height); square frames centre best") }
         if max(idle.width, idle.height) < 256 { warnings.append("frames are \(idle.width)x\(idle.height); use 512 or more for a sharp face") }
@@ -643,8 +674,8 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
             if let first = animation.frames.first, first.width * idle.height != first.height * idle.width {
                 warnings.append("\"\(animation.name)\" frames have another shape than idle's and are fit into it")
             }
-            if !keyed, let first = animation.frames.first, !Pixels(first).cornersTransparent {
-                warnings.append("\"\(animation.name)\" frames have an opaque background and no chromaKey; it shows as a box unless it is black")
+            if let first = animation.frames.first, !Pixels(first).cornersTransparent {
+                warnings.append("\"\(animation.name)\" frames keep an opaque background; it shows as a box unless it is black, so make it transparent or set chromaKey")
             }
         }
     }
