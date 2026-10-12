@@ -177,9 +177,10 @@ enum TrackpadGestureSupport {
     // MARK: - Calibration
     //
     // The tap thresholds are the middle click's, which a real hand already
-    // tuned. The swipe and pinch thresholds are first estimates in normalized
-    // trackpad units (0...1 across the pad) and are meant to be adjusted on a
-    // real trackpad; they live together so tuning never means hunting.
+    // tuned. The swipe and pinch thresholds are in normalized trackpad units
+    // (0...1 across the pad) and come from about 140 touches measured on a
+    // MacBook Pro's built-in trackpad; they live together so tuning never
+    // means hunting.
 
     static let tapMaxDuration = MiddleClickSupport.tapMaxDuration
     static let tapMovementLimit = MiddleClickSupport.tapMovementLimit
@@ -187,12 +188,23 @@ enum TrackpadGestureSupport {
     static let keyboardIdle = MiddleClickSupport.tapKeyboardIdle
 
     /// How far the fingers' average position must travel along one axis for
-    /// the touch to count as a swipe.
-    static let swipeMovementThreshold: Float = 0.12
+    /// the touch to count as a swipe. Quick natural swipes measured 0.10 to
+    /// 0.29 (median 0.15); taps stay under 0.03.
+    static let swipeMovementThreshold: Float = 0.08
 
     /// How much the fingers' spread must change for the touch to count as a
-    /// pinch. A swipe keeps the spread roughly constant.
-    static let pinchSpreadThreshold: Float = 0.08
+    /// pinch. Pinches measured 0.056 to 0.165 (median 0.10); a tap's spread
+    /// stays under `tapSpreadChangeLimit`.
+    static let pinchSpreadThreshold: Float = 0.05
+
+    /// How much longer a swipe's travel must be than its change of spread.
+    /// A sliding hand closes or fans out a little (up to 0.38 of its travel,
+    /// measured) and a pinch drags the average position along (up to 0.9 of
+    /// its change of spread), so the two are told apart by which one
+    /// outweighs the other, not by either threshold alone: a swipe travels
+    /// at least this many times its spread change, a pinch changes its spread
+    /// by at least its travel, and a touch in between fires nothing.
+    static let swipeOverPinchDominance: Float = 2
 
     /// How much longer the main axis of a swipe must be than the other one.
     /// A diagonal stroke is ambiguous and fires nothing.
@@ -250,10 +262,9 @@ enum TrackpadGestureSupport {
         guard contact.duration <= maxGestureDuration else { return nil }
         let horizontal = abs(contact.deltaX)
         let vertical = abs(contact.deltaY)
-        let swiped = max(horizontal, vertical) >= swipeMovementThreshold
-        let pinched = abs(contact.spreadDelta) >= pinchSpreadThreshold
-        if swiped && pinched { return nil }
-        if swiped {
+        let travel = max(horizontal, vertical)
+        let spreadChange = abs(contact.spreadDelta)
+        if travel >= swipeMovementThreshold, travel >= spreadChange * swipeOverPinchDominance {
             if horizontal >= vertical * axisDominance {
                 return TrackpadGesture(kind: contact.deltaX > 0 ? .swipeRight : .swipeLeft,
                                        fingers: contact.fingers)
@@ -264,7 +275,7 @@ enum TrackpadGestureSupport {
             }
             return nil
         }
-        if pinched {
+        if spreadChange >= pinchSpreadThreshold, spreadChange >= travel {
             return TrackpadGesture(kind: contact.spreadDelta < 0 ? .pinchIn : .pinchOut,
                                    fingers: contact.fingers)
         }

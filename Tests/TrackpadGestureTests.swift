@@ -83,8 +83,21 @@ enum TrackpadGestureTests {
                      "fingers closing or spreading around a still center are a pinch")
         suite.expect(gesture(contact(fingers: 3, spreadChange: -0.12)) == nil,
                      "three fingers have no pinch")
-        suite.expect(gesture(contact(fingers: 4, dx: 0.3, spreadChange: 0.12)) == nil,
-                     "a touch that is both a swipe and a pinch is ambiguous and fires nothing")
+        suite.expect(gesture(contact(fingers: 4, dx: 0.15, spreadChange: 0.12)) == nil
+                        && gesture(contact(fingers: 4, dy: 0.176, spreadChange: 0.165)) == nil,
+                     "a touch that slides and spreads about as much is ambiguous and fires nothing")
+        // Values measured on a MacBook Pro's built-in trackpad.
+        suite.expect(gesture(contact(fingers: 3, dx: 0.202, spreadChange: -0.069)) == "swipe-right-3"
+                        && gesture(contact(fingers: 4, dx: -0.192, dy: -0.08, spreadChange: 0.027)) == "swipe-left-4",
+                     "a sliding hand that closes or fans out a little is still a swipe")
+        suite.expect(gesture(contact(fingers: 5, dy: -0.094, spreadChange: -0.133)) == "pinch-in-5"
+                        && gesture(contact(fingers: 4, dy: -0.104, spreadChange: -0.116)) == "pinch-in-4",
+                     "a pinch that drags the hand along is still a pinch")
+        suite.expect(gesture(contact(fingers: 3, dx: 0.1)) == "swipe-right-3"
+                        && gesture(contact(fingers: 4, spreadChange: 0.056)) == "pinch-out-4",
+                     "the shortest swipes and pinches a real hand made are recognized")
+        suite.expect(gesture(contact(fingers: 4, spreadChange: 0.045)) == nil,
+                     "a spread change between a tap's and a pinch's is neither")
         suite.expect(gesture(contact(fingers: 4, duration: 2.0, dx: 0.3)) == nil,
                      "fingers resting long before moving are not a gesture")
         suite.expect(gesture(contact(fingers: 4, unreadableAt: 5)) == nil,
