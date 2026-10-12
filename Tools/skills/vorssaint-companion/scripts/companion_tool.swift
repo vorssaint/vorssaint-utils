@@ -144,10 +144,26 @@ func loadImages(_ url: URL) -> [(image: CGImage, delay: Double?)] {
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return [] }
     return (0..<CGImageSourceGetCount(source)).compactMap { index in
         guard let image = CGImageSourceCreateImageAtIndex(source, index, nil) else { return nil }
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
-        let gif = properties?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
-        return (image, gif?[kCGImagePropertyGIFDelayTime] as? Double)
+        return (image, delay(source, index: index))
     }
+}
+
+/// An animated image's own delay for a frame, from whichever format it is,
+/// as the app reads it.
+func delay(_ source: CGImageSource, index: Int) -> Double? {
+    guard let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any] else { return nil }
+    let formats: [(CFString, CFString, CFString)] = [
+        (kCGImagePropertyGIFDictionary, kCGImagePropertyGIFUnclampedDelayTime, kCGImagePropertyGIFDelayTime),
+        (kCGImagePropertyPNGDictionary, kCGImagePropertyAPNGUnclampedDelayTime, kCGImagePropertyAPNGDelayTime),
+        (kCGImagePropertyWebPDictionary, kCGImagePropertyWebPUnclampedDelayTime, kCGImagePropertyWebPDelayTime),
+        (kCGImagePropertyHEICSDictionary, kCGImagePropertyHEICSUnclampedDelayTime, kCGImagePropertyHEICSDelayTime),
+    ]
+    for (dictionary, unclamped, clamped) in formats {
+        guard let values = properties[dictionary] as? [CFString: Any] else { continue }
+        let seconds = (values[unclamped] as? Double).flatMap { $0 > 0 ? $0 : nil } ?? (values[clamped] as? Double)
+        if let seconds, seconds > 0 { return max(0.02, seconds) }
+    }
+    return nil
 }
 
 func loadImage(_ url: URL) -> CGImage {

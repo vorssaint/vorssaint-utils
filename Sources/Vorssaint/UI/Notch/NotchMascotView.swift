@@ -71,8 +71,11 @@ final class NotchMascotRig: NSObject {
     /// companion stands in.
     private var drawsCharacter = false
     private var libraryObserver: NSObjectProtocol?
-    /// The stroll under way, so frames that finish reading during it play it too.
+    /// The stroll under way, and the moments shown over it by key, so frames
+    /// that finish reading, or another character's, play them too.
     private var characterVisit: (path: NotchMascotPath, start: CFTimeInterval, holdsEnd: Bool)?
+    private var characterFlashes: [String: (state: NotchCompanionState, duration: TimeInterval, begin: CFTimeInterval)] = [:]
+    private static let overlayKeys = ["visit", "turn", "flash", "flashAfter"]
     /// Its box's offset from the figure's own middle, in shares of its size.
     /// A character's face is centred in the box, whatever its frames hold;
     /// the drawn one standing in for a missing pack is centred as itself.
@@ -157,11 +160,15 @@ final class NotchMascotRig: NSObject {
         }
         root.contentsScale = scale
         let robot = look.style == .robot
+        let previous = sprites
         switch look.style == .character ? NotchCompanionLibrary.shared.sprites(for: look.character) : .unavailable {
         case .ready(let ready): sprites = ready; drawsCharacter = true
         case .loading: sprites = nil; drawsCharacter = true
         case .unavailable: sprites = nil; drawsCharacter = false
         }
+        // Frames of another character, or none yet, leave nothing of theirs on top.
+        let swapped = previous !== sprites
+        if swapped { Self.overlayKeys.forEach { sprite.removeAnimation(forKey: $0) } }
         let palette = look.palette
         fill.colors = [palette.light.cgColor, palette.shade.cgColor]
         fill.startPoint = CGPoint(x: 0.5, y: 0)
@@ -218,6 +225,7 @@ final class NotchMascotRig: NSObject {
         }
         apply(mood.expression, animated: false)
         showCharacterBase()
+        if swapped { restoreCharacterOverlays() }
     }
 
     /// Frames finished reading, or the packs were read again.
@@ -225,8 +233,18 @@ final class NotchMascotRig: NSObject {
         guard configured, look.style == .character else { return }
         configured = false
         configure(look: look, size: size, contentsScale: root.contentsScale)
+    }
+
+    /// Plays again, with the frames there are now, the stroll and moments
+    /// still under way.
+    private func restoreCharacterOverlays() {
+        let now = CACurrentMediaTime()
+        characterFlashes = characterFlashes.filter { $0.value.begin + $0.value.duration > now }
         if let visit = characterVisit, isVisiting || visit.holdsEnd {
             travelCharacter(visit.path, start: visit.start, holdsEnd: visit.holdsEnd)
+        }
+        for (key, flash) in characterFlashes.sorted(by: { $0.value.begin < $1.value.begin }) {
+            flashCharacter(flash.state, duration: flash.duration, beginTime: flash.begin, key: key)
         }
     }
 
@@ -270,7 +288,7 @@ final class NotchMascotRig: NSObject {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
-        let over = ["visit", "turn", "flash", "flashAfter"].compactMap { key in sprite.animation(forKey: key).map { (key, $0) } }
+        let over = Self.overlayKeys.compactMap { key in sprite.animation(forKey: key).map { (key, $0) } }
         over.forEach { sprite.removeAnimation(forKey: $0.0) }
         sprite.removeAnimation(forKey: "base")
         guard let sprites else { sprite.contents = nil; return }
@@ -295,7 +313,10 @@ final class NotchMascotRig: NSObject {
     /// from `beginTime`, or holds its first frame with Reduce Motion.
     private func flashCharacter(_ state: NotchCompanionState, duration: TimeInterval, beginTime: CFTimeInterval? = nil,
                                 key: String = "flash") {
-        guard drawsCharacter, let sprites, duration > 0 else { return }
+        guard drawsCharacter, duration > 0 else { return }
+        let begin = beginTime ?? CACurrentMediaTime()
+        characterFlashes[key] = (state, duration, begin)
+        guard let sprites else { return }
         var reel = NotchCompanionReels.play(state, for: duration, in: sprites.pack, timing: sprites.timing)
         if reduceMotion, let first = reel.cels.first {
             reel = NotchCompanionReel(cels: [first], starts: [0], duration: duration)
@@ -303,7 +324,7 @@ final class NotchMascotRig: NSObject {
         let images = sprites.images(reel)
         guard !images.isEmpty else { return }
         let flash = contentsAnimation(reel, images: images)
-        flash.beginTime = beginTime ?? CACurrentMediaTime()
+        flash.beginTime = begin
         sprite.add(flash, forKey: key)
     }
 
@@ -425,6 +446,7 @@ final class NotchMascotRig: NSObject {
         for layer in [root, hopper, squasher, tilter, attention, face, leftEye, rightEye, sprite] { layer.removeAllAnimations() }
         attention.transform = CATransform3DIdentity
         characterVisit = nil
+        characterFlashes = [:]
         self.mood = mood
         blinks = 0
         dozed = false
