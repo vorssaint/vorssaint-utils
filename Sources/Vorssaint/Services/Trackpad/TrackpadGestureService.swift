@@ -68,8 +68,12 @@ final class TrackpadGestureService: ObservableObject {
             ? TrackpadGestureMappingSupport.decode(defaults.data(forKey: DefaultsKey.trackpadGestureMappings))
             : [:]
         refreshSystemClaims()
+        // Cleaning Mode suspends recognition, and a sync asked for while it
+        // is up (the middle click asks after each of its own) must not bring
+        // it back under a hand wiping the trackpad.
+        let cleaning = AppFeature.cleaningMode.isAvailable && CleaningModeManager.shared.isActive
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: gesturesOn || !owners.isEmpty,
+            featureWanted: (gesturesOn || !owners.isEmpty) && !cleaning,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
