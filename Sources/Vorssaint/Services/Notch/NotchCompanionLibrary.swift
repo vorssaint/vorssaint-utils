@@ -70,7 +70,8 @@ final class NotchCompanionLibrary: ObservableObject {
     @Published private(set) var entries: [NotchCompanionEntry] = []
     private var sprites: [String: NotchCompanionSprites] = [:]
     private var loading: Set<String> = []
-    private var failures: [String: String] = [:]
+    /// Packs whose frames could not be read, and why, for Settings to say.
+    @Published private(set) var failures: [String: String] = [:]
     private var scanned = false
     private var generation = 0
     private let queue = DispatchQueue(label: "com.vorssaint.companion-frames", qos: .userInitiated)
@@ -139,11 +140,11 @@ final class NotchCompanionLibrary: ObservableObject {
     }
 
     /// A path from a manifest inside its pack's folder, nil for one that
-    /// leads out of it.
+    /// leads out of it, by `..` or through a symbolic link.
     static func resolve(_ path: String, in directory: URL) -> URL? {
         guard !path.hasPrefix("/"), !path.hasPrefix("~") else { return nil }
-        let root = directory.standardizedFileURL.path
-        let url = directory.appendingPathComponent(path).standardizedFileURL
+        let root = directory.resolvingSymlinksInPath().standardizedFileURL.path
+        let url = directory.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
         guard url.path == root || url.path.hasPrefix(root + "/") else { return nil }
         return url
     }
@@ -213,7 +214,7 @@ final class NotchCompanionLibrary: ObservableObject {
             if let given = clip.durations {
                 durations[state] = given.count == 1 ? Array(repeating: given[0], count: count)
                     : Array(given.prefix(count)) + Array(repeating: clip.frameDuration, count: max(0, count - given.count))
-            } else if let delays = read.delays, delays.count == count {
+            } else if clip.ownDelays, let delays = read.delays, delays.count == count {
                 durations[state] = delays
             } else {
                 durations[state] = Array(repeating: clip.frameDuration, count: count)

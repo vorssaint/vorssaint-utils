@@ -77,7 +77,8 @@ enum NotchCompanionTests {
            "dance": {"sheet": "all.png", "columns": 8, "rows": 3, "row": 2, "start": 1, "count": 4, "durations": [100]},
            "happy": {"frames": ["happy/b.jpg", "happy/a.jpg"], "durations": [100, 200], "loop": true,
                      "chromaKey": {"color": "FFFFFF", "tolerance": 0.3}},
-           "sleep": {"frames": "sleep.gif"}
+           "sleep": {"frames": "sleep.gif"},
+           "busy": {"frames": "busy.gif", "fps": 20}
          }}
         """, folders: ["idle": ["frame10.png", "frame2.png", "frame1.png", ".DS_Store", "notes.txt"]])
         guard case .success(let bean) = parsed else { suite.expect(false, "a full manifest parses: \(parsed)"); return }
@@ -95,7 +96,8 @@ enum NotchCompanionTests {
                      && bean.clips[.happy]?.durations == [0.1, 0.2] && bean.clips[.happy]?.loops == true
                      && bean.clips[.happy]?.chromaKey?.tolerance == 0.3,
                      "a list keeps its order, durations are milliseconds, and loop and key can be set per animation")
-        suite.expect(bean.clips[.sleep]?.source == .animated(file: "sleep.gif"),
+        suite.expect(bean.clips[.sleep]?.source == .animated(file: "sleep.gif") && bean.clips[.sleep]?.ownDelays == true
+                     && bean.clips[.busy]?.source == .animated(file: "busy.gif") && bean.clips[.busy]?.ownDelays == false,
                      "an image file that is not a folder plays as an animated image")
         suite.expect(bean.clips[.idle]?.chromaKey == NotchCompanionChromaKey(hex: "#00ff00")
                      && bean.clips[.idle]?.frameDuration == 1.0 / 8,
@@ -122,6 +124,18 @@ enum NotchCompanionTests {
                      == .unknownState("fly"), "an unknown animation is named, not silently skipped")
         suite.expect(problem(#"{"animations": {"idle": {"sheet": "s.png"}}}"#).map { "\($0)".contains("columns") } == true,
                      "a sheet needs its columns")
+        suite.expect(problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 9223372036854775807, "rows": 2, "count": 1}}}"#) != nil
+                     && problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 4, "start": -3}}}"#) != nil
+                     && problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 4, "rows": 2, "row": 1, "start": 9}}}"#) != nil
+                     && problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 100, "rows": 100, "count": 5000}}}"#)
+                        == .tooManyFrames("idle", 5000),
+                     "a grid too big, a start outside it or too many cells is refused before any cell is counted out")
+        if case .success(let big) = pack(#"{"animations": {"idle": {"sheet": "s.png", "columns": 256, "rows": 256}}}"#) {
+            suite.expect(big.clips[.idle]?.declaredFrameCount == NotchCompanionPack.maxFrames,
+                         "a large sheet without a count is read up to the frame limit")
+        } else {
+            suite.expect(false, "a large sheet without a count parses")
+        }
         suite.expect(problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 4, "count": 5}}}"#) != nil
                      && problem(#"{"animations": {"idle": {"sheet": "s.png", "columns": 4, "rows": 2, "row": 2}}}"#) != nil,
                      "frames past the sheet's end are refused")
@@ -260,6 +274,23 @@ enum NotchCompanionTests {
         return CGImageDestinationFinalize(destination)
     }
 
+    /// Writes an animated GIF of `frames` frames, each shown `delay` seconds.
+    private static func writeGIF(_ url: URL, frames: Int, delay: Double) -> Bool {
+        guard let context = CGContext(data: nil, width: 8, height: 8, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.gif.identifier as CFString, frames, nil)
+        else { return false }
+        for index in 0..<frames {
+            context.setFillColor(CGColor(red: CGFloat(index), green: 0, blue: 0, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            guard let image = context.makeImage() else { return false }
+            CGImageDestinationAddImage(destination, image,
+                                       [kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay]] as CFDictionary)
+        }
+        return CGImageDestinationFinalize(destination)
+    }
+
     private static func pixel(_ image: CGImage, x: Int, y: Int) -> (red: UInt8, alpha: UInt8) {
         var data = [UInt8](repeating: 0, count: 4)
         let context = CGContext(data: &data, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
@@ -299,6 +330,14 @@ enum NotchCompanionTests {
         suite.expect(found.count == 2 && found.contains { $0.id == "Bean" && $0.pack != nil }
                      && found.contains { $0.id == "Broken" && $0.pack == nil && $0.problem?.contains("idle") == true },
                      "packs are found by their manifest, and one that can't be used says why")
+        let outside = root.appendingPathComponent("outside.png")
+        written = written && writeFrame(outside, width: 8, height: 8)
+        try? FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("escape.png"), withDestinationURL: outside)
+        try? FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("inside.png"),
+                                                    withDestinationURL: idle.appendingPathComponent("1.png"))
+        suite.expect(NotchCompanionLibrary.resolve("escape.png", in: folder) == nil
+                     && NotchCompanionLibrary.resolve("inside.png", in: folder) != nil,
+                     "a symbolic link out of the pack is refused, and one within it is followed")
         suite.expect(NotchCompanionLibrary.resolve("../secret.png", in: folder) == nil
                      && NotchCompanionLibrary.resolve("/etc/hosts", in: folder) == nil
                      && NotchCompanionLibrary.resolve("idle/1.png", in: folder) != nil,
@@ -337,6 +376,21 @@ enum NotchCompanionTests {
                          "a frame of another shape is fit into the canvas's middle, so the face keeps its place")
         } else {
             suite.expect(false, "the wide frame is there")
+        }
+        if writeGIF(folder.appendingPathComponent("blink.gif"), frames: 2, delay: 0.5) {
+            func timing(_ manifest: String) -> [TimeInterval]? {
+                guard case .success(let parsed) = NotchCompanionPack.parse(Data(manifest.utf8), id: "gif", listing: { _ in nil }),
+                      let read = try? NotchCompanionLibrary.load(parsed, from: folder) else { return nil }
+                return read.timing.durations[.idle]
+            }
+            suite.expect(timing(#"{"animations": {"idle": {"frames": "blink.gif"}}}"#) == [0.5, 0.5]
+                         && timing(#"{"fps": 20, "animations": {"idle": {"frames": "blink.gif"}}}"#) == [0.5, 0.5],
+                         "an animated image keeps its own delays, whatever the pack's default frame rate")
+            suite.expect(timing(#"{"animations": {"idle": {"frames": "blink.gif", "fps": 20}}}"#) == [0.05, 0.05]
+                         && timing(#"{"animations": {"idle": {"frames": "blink.gif", "durations": [200]}}}"#) == [0.2, 0.2],
+                         "an animation's own frame rate or durations override the image's delays")
+        } else {
+            suite.expect(false, "the animated fixture is written")
         }
         if case .failure = Result(catching: { try NotchCompanionLibrary.load(
             NotchCompanionPack(id: "x", name: "x", summary: "", scale: 1,

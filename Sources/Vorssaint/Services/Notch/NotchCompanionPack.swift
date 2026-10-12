@@ -143,6 +143,8 @@ struct NotchCompanionClip: Equatable {
     var frameDuration: TimeInterval
     var loops: Bool
     var chromaKey: NotchCompanionChromaKey?
+    /// An animated image plays with the delays stored in it.
+    var ownDelays = true
 
     /// The frame count before the files are read, nil for an animated image.
     var declaredFrameCount: Int? {
@@ -171,6 +173,8 @@ struct NotchCompanionPack: Equatable {
     static let fpsRange: ClosedRange<Double> = 1...60
     static let scaleRange: ClosedRange<CGFloat> = 0.5...2
     static let maxFrames = 120
+    /// The most columns or rows a sheet may have.
+    static let maxGrid = 256
 
     /// The state that plays for `state`, and whether to mirror it.
     func resolve(_ state: NotchCompanionState) -> (state: NotchCompanionState, mirrored: Bool) {
@@ -279,23 +283,34 @@ struct NotchCompanionPack: Equatable {
             guard let state = NotchCompanionState(rawValue: name) else { return .failure(.unknownState(name)) }
             let source: NotchCompanionFrameSource
             if let sheet = animation.sheet {
-                guard let columns = animation.columns, columns > 0 else {
-                    return .failure(.badSheet(name, "\"columns\" is required and must be positive"))
+                // Bounded before any arithmetic, so no grid a manifest names
+                // can overflow or ask for more cells than are ever read.
+                guard let columns = animation.columns, (1...maxGrid).contains(columns) else {
+                    return .failure(.badSheet(name, "\"columns\" is required, 1...\(maxGrid)"))
                 }
                 let rows = animation.rows ?? 1
-                guard rows > 0 else { return .failure(.badSheet(name, "\"rows\" must be positive")) }
-                let first: Int
+                guard (1...maxGrid).contains(rows) else { return .failure(.badSheet(name, "\"rows\" must be 1...\(maxGrid)")) }
+                let start = animation.start ?? 0
+                let first: Int, available: Int
                 if let row = animation.row {
                     guard (0..<rows).contains(row) else { return .failure(.badSheet(name, "\"row\" is outside the sheet")) }
-                    first = row * columns + (animation.start ?? 0)
+                    guard (0..<columns).contains(start) else {
+                        return .failure(.badSheet(name, "\"start\" is outside the row"))
+                    }
+                    first = row * columns + start
+                    available = columns - start
                 } else {
-                    first = animation.start ?? 0
+                    guard (0..<(columns * rows)).contains(start) else {
+                        return .failure(.badSheet(name, "\"start\" is outside the sheet"))
+                    }
+                    first = start
+                    available = columns * rows - start
                 }
-                let available = animation.row == nil ? columns * rows - first : columns - (animation.start ?? 0)
-                let count = animation.count ?? available
-                guard first >= 0, count > 0, count <= available else {
+                let count = animation.count ?? min(available, maxFrames)
+                guard count > 0, count <= available else {
                     return .failure(.badSheet(name, "\"count\" and \"start\" must fit in the sheet"))
                 }
+                guard count <= maxFrames else { return .failure(.tooManyFrames(name, count)) }
                 source = .sheet(file: sheet, columns: columns, rows: rows, cells: Array(first..<(first + count)))
             } else {
                 switch animation.frames {
@@ -337,8 +352,11 @@ struct NotchCompanionPack: Equatable {
                 }
                 durations = given.map { $0 / 1000 }
             }
+            // An animated image keeps its own delays unless this animation
+            // sets its timing; the pack's frame rate is only a default.
             let clip = NotchCompanionClip(source: source, durations: durations, frameDuration: 1 / fps,
-                                          loops: animation.loop ?? state.loopsByDefault, chromaKey: clipKey)
+                                          loops: animation.loop ?? state.loopsByDefault, chromaKey: clipKey,
+                                          ownDelays: animation.fps == nil && durations == nil)
             if let count = clip.declaredFrameCount, count > maxFrames { return .failure(.tooManyFrames(name, count)) }
             clips[state] = clip
         }

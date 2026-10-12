@@ -191,7 +191,8 @@ struct NotchMascotSettings: View {
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], alignment: .leading, spacing: 10) {
                     ForEach(companions.entries) { entry in
-                        NotchCompanionTile(entry: entry, selected: entry.id == character, text: companionText) {
+                        NotchCompanionTile(entry: entry, problem: companions.failure(entry.id),
+                                           selected: entry.id == character, text: companionText) {
                             character = entry.id
                         }
                     }
@@ -933,13 +934,15 @@ private struct NotchCompanionGenerateSheet: View {
 /// why it can't be used.
 private struct NotchCompanionTile: View {
     let entry: NotchCompanionEntry
+    /// Why it can't be used: a manifest that can't be read, or frames that can't.
+    let problem: String?
     let selected: Bool
     let text: NotchCompanionStrings
     let action: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let usable = entry.pack != nil
+        let usable = entry.pack != nil && problem == nil
         Button(action: action) {
             VStack(spacing: 6) {
                 Group {
@@ -974,7 +977,7 @@ private struct NotchCompanionTile: View {
         }
         .buttonStyle(.plain)
         .disabled(!usable)
-        .help(entry.problem ?? entry.pack?.summary ?? entry.name)
+        .help(problem ?? entry.pack?.summary ?? entry.name)
         .accessibilityLabel(entry.name)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
