@@ -52,10 +52,28 @@ enum ScreenshotRenderer {
                                 annotationShadowsEnabled: Bool,
                                 skippingText editingID: UUID? = nil) {
         blurSources.eraseCache?.beginPass(image: blurSources.image, textRuns: blurSources.textRuns)
+        blurSources.imageLayerCache?.beginPass(base: blurSources.image, annotations: annotations)
+        var precedingImages: [ScreenshotSupport.Annotation] = []
         for annotation in annotations {
             switch annotation.tool {
             case .pixelate:
-                drawBlurArea(annotation, in: context, sources: blurSources, imageSize: imageSize)
+                if annotation.blurStyle != .erase {
+                    let images = annotation.blurTextOnly ? [] : precedingImages
+                    let cache = blurSources.imageLayerCache
+                    if let sources = cache?.sources(for: annotation, images: images, original: blurSources) {
+                        drawBlurArea(annotation, in: context, sources: sources, imageSize: imageSize)
+                    } else if images.isEmpty && annotation.renderReferenceSize == nil {
+                        drawBlurArea(annotation, in: context, sources: blurSources, imageSize: imageSize)
+                    } else {
+                        context.saveGState()
+                        context.setBlendMode(.copy)
+                        context.setFillColor(CGColor(gray: 0, alpha: 1))
+                        context.fill(annotation.rect.intersection(CGRect(origin: .zero, size: imageSize)))
+                        context.restoreGState()
+                    }
+                } else {
+                    drawBlurArea(annotation, in: context, sources: blurSources, imageSize: imageSize)
+                }
             case .redact:
                 context.setFillColor(color(annotation.color))
                 context.fill(annotation.rect)
@@ -95,7 +113,10 @@ enum ScreenshotRenderer {
             case .counter:
                 drawCounter(annotation, in: context, imageSize: imageSize, scale: scale,
                             shadowsEnabled: annotationShadowsEnabled)
-            case .select, .crop:
+            case .image:
+                ScreenshotImageLayerRendering.draw(annotation, in: context)
+                precedingImages.append(annotation)
+            case .select, .crop, .expandCanvas:
                 break
             }
         }
@@ -232,7 +253,7 @@ enum ScreenshotRenderer {
                                     imageSize: CGSize,
                                     scale: CGFloat,
                                     shadowsEnabled: Bool) {
-        let diameter = ScreenshotSupport.counterDiameter(for: imageSize, scale: 1)
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation.renderReferenceSize ?? imageSize, scale: 1)
         let rect = CGRect(x: annotation.rect.midX - diameter / 2,
                           y: annotation.rect.midY - diameter / 2,
                           width: diameter,
@@ -298,6 +319,7 @@ enum ScreenshotRenderer {
         var image: CGImage?
         var eraseCache: EraseCache?
         var textRuns: [CGRect]?
+        var imageLayerCache: ImageLayerCache?
 
         static let none = BlurSources()
     }
@@ -459,9 +481,10 @@ enum ScreenshotRenderer {
 
     /// A low-resolution mosaic with per-block color variation.
     static func pixelatedImage(from image: CGImage,
-                               level: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGImage? {
+                               level: Int = ScreenshotSupport.BlurStrength.defaultLevel,
+                               referenceSize: CGSize? = nil) -> CGImage? {
         let block = ScreenshotSupport.pixelBlockSize(
-            for: CGSize(width: image.width, height: image.height), level: level)
+            for: referenceSize ?? CGSize(width: image.width, height: image.height), level: level)
         let smallWidth = max(1, image.width / block)
         let smallHeight = max(1, image.height / block)
         guard let small = CGContext(data: nil,
@@ -484,9 +507,10 @@ enum ScreenshotRenderer {
     /// level keeps, and neighboring samples end up close enough that the
     /// stretch back to full size stays smooth.
     static func softBlurredImage(from image: CGImage,
-                                 level: Int = ScreenshotSupport.BlurStrength.defaultLevel) -> CGImage? {
+                                 level: Int = ScreenshotSupport.BlurStrength.defaultLevel,
+                                 referenceSize: CGSize? = nil) -> CGImage? {
         let block = ScreenshotSupport.pixelBlockSize(
-            for: CGSize(width: image.width, height: image.height), level: level)
+            for: referenceSize ?? CGSize(width: image.width, height: image.height), level: level)
         let step = max(1, block / 4)
         let smallWidth = max(1, image.width / step)
         let smallHeight = max(1, image.height / step)

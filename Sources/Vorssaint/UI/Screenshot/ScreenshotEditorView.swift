@@ -14,6 +14,7 @@ struct ScreenshotEditorView: View {
 
     @State private var editingText = ""
     @FocusState private var textFieldFocused: Bool
+    @State private var expansionDragZoom: CGFloat?
     @State private var dragInFlight = false
     @State private var drag = ScreenshotSupport.EditorDrag()
     @State private var dragCanvasArea: CGSize?
@@ -70,6 +71,12 @@ struct ScreenshotEditorView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.tool)
         .animation(.easeOut(duration: 0.16), value: model.annotationShadowsEnabled)
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: model.backdropStyle)
+        .onChange(of: model.tool) { old, new in
+            if old == .expandCanvas, new != .expandCanvas { expansionDragZoom = nil }
+        }
+        .onChange(of: model.expansionDraft) { _, draft in
+            if draft == nil, !model.expansionRejected { expansionDragZoom = nil }
+        }
         .onAppear { keyboard.start() }
         .onDisappear { keyboard.stop() }
         .sheet(item: $sharedRecord) { record in
@@ -153,12 +160,14 @@ struct ScreenshotEditorView: View {
     private static let canvasMargin: CGFloat = 14
 
     private func zoomFactor(available: CGSize) -> CGFloat {
+        if let expansionDragZoom { return expansionDragZoom }
         let zoom: CGFloat
         if let override = model.zoomOverride {
             zoom = override
         } else {
-            let width = max(available.width - Self.canvasMargin * 2, 80)
-            let height = max(available.height - Self.canvasMargin * 2, 80)
+            let margin: CGFloat = model.tool == .expandCanvas ? 64 : Self.canvasMargin
+            let width = max(available.width - margin * 2, 80)
+            let height = max(available.height - margin * 2, 80)
             let fit = min(width / max(contentPixelSize.width, 1),
                           height / max(contentPixelSize.height, 1))
             // Small captures grow to a practical editing size. This affects
@@ -207,6 +216,16 @@ struct ScreenshotEditorView: View {
         .onAppear {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
                 appeared = true
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            if model.tool == .expandCanvas {
+                let draft = model.expansionDraft ?? CGRect(origin: .zero, size: model.imageSize)
+                ScreenshotCanvasExpansionPreview(originalSize: model.imageSize,
+                                                 draft: draft, fill: model.expansionFill,
+                                                 zoom: zoom, scale: model.scale)
+                    .offset(x: (draft.minX + model.backdropPaddingPixels) * zoom,
+                            y: (draft.minY + model.backdropPaddingPixels) * zoom)
             }
         }
         .gesture(canvasGesture(zoom: zoom, available: available))
@@ -360,6 +379,8 @@ struct ScreenshotEditorView: View {
 
     private func drawImageUpright(_ cg: CGContext, in rect: CGRect, canvasHeight: CGFloat) {
         cg.saveGState()
+        cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
+        cg.fill(rect)
         cg.translateBy(x: 0, y: canvasHeight)
         cg.scaleBy(x: 1, y: -1)
         let flipped = CGRect(x: rect.minX,
@@ -377,6 +398,7 @@ struct ScreenshotEditorView: View {
             .onChanged { value in
                 let point = imagePoint(from: value.location, zoom: zoom)
                 if !dragInFlight {
+                    if model.tool == .expandCanvas { expansionDragZoom = zoom }
                     dragInFlight = true
                     drag.begin(at: value.startLocation)
                     dragCanvasArea = available
@@ -391,10 +413,12 @@ struct ScreenshotEditorView: View {
                 drag.update(to: value.location)
             }
             .onEnded { value in
+                defer { expansionDragZoom = nil }
                 dragInFlight = false
                 dragCanvasArea = nil
                 let point = imagePoint(from: value.location, zoom: zoom)
                 drag.update(to: value.location)
+                if model.tool == .expandCanvas { model.continueDrag(to: point) }
                 let isTap = drag.isTap(for: model.tool)
                 if isTap, model.tool == .text || model.tool == .sticker || model.tool == .counter,
                    !CGRect(origin: .zero, size: model.imageSize).contains(point) {
@@ -533,7 +557,7 @@ struct ScreenshotEditorView: View {
     }
 
     private func counterBox(_ annotation: ScreenshotSupport.Annotation) -> CGRect {
-        let diameter = ScreenshotSupport.counterDiameter(for: model.imageSize, scale: 1)
+        let diameter = ScreenshotSupport.counterDiameter(for: annotation.renderReferenceSize ?? model.imageSize, scale: 1)
         return CGRect(x: annotation.rect.midX - diameter / 2,
                       y: annotation.rect.midY - diameter / 2,
                       width: diameter,
@@ -892,8 +916,9 @@ struct ScreenshotEditorView: View {
                   let selected = model.annotations.first(where: { $0.id == selectedID })
             else { return false }
             return selected.tool != .sticker
+                && selected.tool != .image
                 && selected.tool != .pixelate
-        case .sticker, .pixelate, .crop:
+        case .sticker, .pixelate, .crop, .image, .expandCanvas:
             return false
         }
     }
@@ -990,10 +1015,43 @@ struct ScreenshotEditorView: View {
 
     @ViewBuilder
     private var contextualBar: some View {
-        if model.tool == .crop, model.cropDraft != nil {
+        if model.tool == .expandCanvas {
+            expansionControls
+        } else if model.tool == .crop, model.cropDraft != nil {
             cropBar
         } else {
             styleBar
+        }
+    }
+
+    @State private var expansionFillChoice = 0
+    @State private var expansionCustomColor = Color.white
+
+    private var expansionControls: some View {
+        HStack {
+            Picker(strings.colorLabel, selection: $expansionFillChoice) {
+                Text(strings.canvasFillWhite).tag(0)
+                Text(strings.canvasFillTransparent).tag(1)
+                Text(strings.canvasFillCustom).tag(2)
+            }
+            .onChange(of: expansionFillChoice) { _, _ in updateExpansionFill() }
+            if expansionFillChoice == 2 {
+                ColorPicker(strings.canvasFillCustom, selection: $expansionCustomColor, supportsOpacity: false)
+                    .onChange(of: expansionCustomColor) { _, _ in updateExpansionFill() }
+            }
+            let size = model.expansionDraft?.size ?? model.imageSize
+            Text("\(Int(size.width)) × \(Int(size.height)) px").monospacedDigit()
+        }
+    }
+
+    private func updateExpansionFill() {
+        switch expansionFillChoice {
+        case 1: model.expansionFill = .transparent
+        case 2:
+            let color = NSColor(expansionCustomColor).usingColorSpace(.sRGB) ?? .white
+            model.expansionFill = .color(red: Double(color.redComponent),
+                                        green: Double(color.greenComponent), blue: Double(color.blueComponent))
+        default: model.expansionFill = .white
         }
     }
 
@@ -1639,6 +1697,8 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return "aqi.medium"
         case .redact: return "rectangle.fill"
         case .crop: return "crop"
+        case .image: return "photo"
+        case .expandCanvas: return "arrow.up.left.and.arrow.down.right"
         }
     }
 
@@ -1657,6 +1717,8 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return strings.toolBlur
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
+        case .image: return strings.pastedImage
+        case .expandCanvas: return strings.toolExpandCanvas
         }
     }
 }
