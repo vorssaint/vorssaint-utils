@@ -391,6 +391,22 @@ enum NotchCompanionTests {
                      && manager.fileExists(atPath: copied.appendingPathComponent("idle/3.png").path)
                      && !manager.fileExists(atPath: copied.appendingPathComponent("escape.png").path),
                      "a copied pack keeps its own linked frames as files, and drops links out of it")
+        // A pack reached through a link, with a linked frames folder whose
+        // frames link back into the pack by absolute path, copies whole.
+        let real = folder.appendingPathComponent("real", isDirectory: true)
+        try? manager.createDirectory(at: real, withIntermediateDirectories: true)
+        try? manager.createSymbolicLink(at: real.appendingPathComponent("linked.png"),
+                                        withDestinationURL: idle.appendingPathComponent("1.png"))
+        try? manager.createSymbolicLink(at: folder.appendingPathComponent("frames"), withDestinationURL: real)
+        let alias = root.appendingPathComponent("Alias")
+        try? manager.createSymbolicLink(at: alias, withDestinationURL: folder)
+        let throughAlias = root.appendingPathComponent("ThroughAlias", isDirectory: true)
+        let aliasCopied = (try? NotchCompanionLibrary.copy(alias, to: throughAlias)) != nil
+        suite.expect(aliasCopied && manager.fileExists(atPath: throughAlias.appendingPathComponent("companion.json").path)
+                     && NotchCompanionLibrary.resolve("frames/linked.png", in: throughAlias) != nil
+                     && (try? manager.destinationOfSymbolicLink(atPath: throughAlias.appendingPathComponent("frames/linked.png").path)) == nil
+                     && NotchCompanionLibrary.read(throughAlias)?.pack != nil,
+                     "a pack reached through a link copies whole, linked folders and the links in them included")
         if writeGIF(folder.appendingPathComponent("blink.gif"), frames: 2, delay: 0.5) {
             func timing(_ manifest: String) -> [TimeInterval]? {
                 guard case .success(let parsed) = NotchCompanionPack.parse(Data(manifest.utf8), id: "gif", listing: { _ in nil }),
