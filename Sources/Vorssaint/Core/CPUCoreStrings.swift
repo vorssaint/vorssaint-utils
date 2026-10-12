@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW, .zhHK: return .zhTW
+        case .ar: return .ar
         }
     }
 }
@@ -187,5 +188,16 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "節能核心",
         apps: "正使用 CPU 的 App",
         perCore: "每個核心"
+    )
+
+    static let ar = CPUCoreFeatureStrings(
+        title: "أنوية المعالج المنطقية",
+        coreFormat: "النواة %d",
+        hint: "يمثّل كل شريط نواة منطقية واحدة. ويُظهر ارتفاع تعبئته نسبة الاستخدام، لا الأداء المتبقي.",
+        superCores: "الفائقة",
+        performanceCores: "الأداء",
+        efficiencyCores: "الكفاءة",
+        apps: "التطبيقات التي تستخدم المعالج",
+        perCore: "لكل نواة"
     )
 }
