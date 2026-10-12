@@ -44,6 +44,19 @@ enum TriggerActionRunner {
         }
     }
 
+    /// Why a saved action cannot run right now, read from the live app. It is
+    /// what Settings shows under a gesture, and why that gesture stays quiet
+    /// instead of failing out loud: macOS answers a missing application with
+    /// an alert of its own.
+    static func unavailability(_ action: TriggerAction) -> TriggerActionUnavailability? {
+        TrackpadGestureMappingSupport.unavailability(
+            action,
+            isFeatureAvailable: { $0.isAvailable },
+            boolFor: { UserDefaults.standard.bool(forKey: $0) },
+            fileExists: { FileManager.default.fileExists(atPath: $0) },
+            systemShortcutExists: { systemShortcut(for: $0) != nil })
+    }
+
     /// Spaces and overviews open the way the keyboard opens them: the window
     /// server refuses simulated touch gestures (issue #1012).
     static func run(_ navigation: SpaceNavigation, context: Context) {

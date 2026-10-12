@@ -153,7 +153,9 @@ final class TrackpadGestureService: ObservableObject {
         case .dropped:
             return
         case .mapping:
-            guard gesturesOn, let action = mappings[gesture] else { return }
+            // An action that cannot run stays quiet; Settings says why.
+            guard gesturesOn, let action = mappings[gesture],
+                  TriggerActionRunner.unavailability(action) == nil else { return }
             let pointer = CGEvent(source: nil)?.location ?? .zero
             // An app on the exception list keeps the gesture to itself.
             guard !MouseAppExceptions.shared.excludesActionTarget(.trackpadGestures, at: pointer) else { return }

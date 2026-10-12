@@ -132,7 +132,7 @@ struct TrackpadGesturesSection: View {
         case nil:
             break
         }
-        if let action, let problem = unavailability(action) {
+        if let action, let problem = TriggerActionRunner.unavailability(action) {
             switch problem {
             case .featureMissing:
                 return RowNote(text: text.unavailableFeature, warning: true, offersFeatures: true)
@@ -195,15 +195,6 @@ struct TrackpadGesturesSection: View {
         if let action, TrackpadGestureMappingSupport.needsAccessibility(action), !permissions.accessibility {
             permissions.requestAccessibility()
         }
-    }
-
-    private func unavailability(_ action: TriggerAction) -> TriggerActionUnavailability? {
-        TrackpadGestureMappingSupport.unavailability(
-            action,
-            isFeatureAvailable: { $0.isAvailable },
-            boolFor: { UserDefaults.standard.bool(forKey: $0) },
-            fileExists: { FileManager.default.fileExists(atPath: $0) },
-            systemShortcutExists: { TriggerActionRunner.systemShortcut(for: $0) != nil })
     }
 
     // MARK: - Text
