@@ -64,10 +64,10 @@ final class NotchDownloadService: ObservableObject {
 
     func syncWithPreferences() {
         guard NotchSupport.isEnabled(), AppFeature.notchDownloads.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.notchDownloadsEnabled),
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.notchDownloadsEnabled),
               NotchSupport.modules().contains(.downloads) else { stop(); return }
         guard folder == nil else { return }
-        guard let bookmark = UserDefaults.standard.data(forKey: DefaultsKey.notchDownloadsFolderBookmark) else {
+        guard let bookmark = SettingsUserDefaults.standard.data(forKey: DefaultsKey.notchDownloadsFolderBookmark) else {
             folderName = nil
             folderUnavailable = false
             return
@@ -106,8 +106,8 @@ final class NotchDownloadService: ObservableObject {
                     let data = try url.bookmarkData(options: .withSecurityScope,
                                                     includingResourceValuesForKeys: nil, relativeTo: nil)
                     self.stop()
-                    UserDefaults.standard.set(data, forKey: DefaultsKey.notchDownloadsFolderBookmark)
-                    UserDefaults.standard.set(true, forKey: DefaultsKey.notchDownloadsEnabled)
+                    SettingsUserDefaults.standard.set(data, forKey: DefaultsKey.notchDownloadsFolderBookmark)
+                    SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.notchDownloadsEnabled)
                     self.syncWithPreferences()
                     NotchService.shared.syncWithPreferences()
                 } catch { self.folderUnavailable = true }
@@ -156,8 +156,8 @@ final class NotchDownloadService: ObservableObject {
 
     func forgetFolder() {
         stop()
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.notchDownloadsFolderBookmark)
-        UserDefaults.standard.set(false, forKey: DefaultsKey.notchDownloadsEnabled)
+        SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.notchDownloadsFolderBookmark)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.notchDownloadsEnabled)
         folderName = nil
         folderUnavailable = false
     }

@@ -53,8 +53,8 @@ final class ScreenTextService: ObservableObject {
 
     private func recognize(_ image: CGImage) {
         let generation = recognitionGeneration
-        let detectQRCodes = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
-        let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
+        let detectQRCodes = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenOCRDetectQRCodes)
+        let removeLineBreaks = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
         let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let outcome = ScreenTextService.outcome(for: image,

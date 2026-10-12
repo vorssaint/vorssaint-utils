@@ -18,7 +18,7 @@ struct DiskExclusionsList: View {
     }
 
     init() {
-        _isExpanded = State(initialValue: !(UserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []).isEmpty)
+        _isExpanded = State(initialValue: !(SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []).isEmpty)
     }
 
     var body: some View {

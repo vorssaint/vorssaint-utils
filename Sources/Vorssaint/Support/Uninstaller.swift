@@ -26,7 +26,7 @@ enum Uninstaller {
         // brings the app forward through `NSApp`, which is still nil. Reporting
         // is all this path can do, and `Tools/uninstall.sh` reads the setting
         // back itself rather than trusting the line below.
-        if UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
+        if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) {
             // A probe that did not answer proves nothing. Only a reading
             // that came back, and came back off, clears the restore.
             let probe = Shell.run("/usr/bin/pmset", ["-g"])

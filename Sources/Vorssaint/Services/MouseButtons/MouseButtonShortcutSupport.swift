@@ -145,7 +145,7 @@ enum MouseButtonShortcutSupport {
     /// the radial menu; pure defaults reads, so asking never wakes the
     /// service.
     static func claimsButton(_ button: Int64) -> Bool {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard defaults.bool(forKey: AppFeature.mouseButtonShortcuts.availabilityKey),
               !RadialMenuSupport.claimsMouseButton(button) else { return false }
         // Runs inside a HID tap callback during side-button drags: look up

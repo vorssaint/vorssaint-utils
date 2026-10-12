@@ -202,7 +202,7 @@ enum SelfUninstall {
         // Unregister the login item (scoped to our bundle id). The stored
         // intent goes with it, or the startup repair would quietly register
         // the item again after the user asked for a clean detach.
-        UserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.launchAtLoginWanted)
         try? SMAppService.mainApp.unregister()
     }
 
@@ -217,7 +217,7 @@ enum SelfUninstall {
     /// anything has, which is why it may ask for the password the launch-time
     /// recovery would have asked for.
     private static func restoreSleepBeforeRemoval() -> Bool {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else { return true }
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else { return true }
         // The flag can outlive the setting, so a stale one must not put a
         // password dialog in front of someone uninstalling. Only a reading that
         // answered, and answered "off", is allowed to skip the rest: a probe
@@ -251,7 +251,7 @@ enum SelfUninstall {
 
     private static func removePreferences() {
         let id = bundleID
-        UserDefaults.standard.removePersistentDomain(forName: id)
+        SettingsUserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Preferences/\(id).plist")
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Saved Application State/\(id).savedState")

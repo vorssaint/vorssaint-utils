@@ -135,7 +135,7 @@ enum MenuBarPreset: String, CaseIterable {
     case readable, dense
 
     static var current: MenuBarPreset {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarPreset) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarPreset) ?? ""
         let preset = Defaults.sanitizedMenuBarPreset(raw)
         return MenuBarPreset(rawValue: preset) ?? .dense
     }
@@ -147,7 +147,7 @@ enum MemoryMenuBarStyle: String, CaseIterable {
     case dot, percent, both
 
     static var current: MemoryMenuBarStyle {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMemoryStyle) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarMemoryStyle) ?? ""
         let style = Defaults.sanitizedMenuBarMemoryStyle(raw)
         return MemoryMenuBarStyle(rawValue: style) ?? .percent
     }
@@ -161,7 +161,7 @@ enum MonitorMemoryMetric: String, CaseIterable {
     case used, app
 
     static var current: MonitorMemoryMetric {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.monitorMemoryMetric) ?? ""
         let metric = Defaults.sanitizedMonitorMemoryMetric(raw)
         return MonitorMemoryMetric(rawValue: metric) ?? .used
     }
@@ -185,7 +185,7 @@ enum MenuBarLabelStyle: String, CaseIterable {
     case compact, classic
 
     static var current: MenuBarLabelStyle {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarLabelStyle) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarLabelStyle) ?? ""
         let style = Defaults.sanitizedMenuBarLabelStyle(raw)
         return MenuBarLabelStyle(rawValue: style) ?? .compact
     }
@@ -345,7 +345,7 @@ enum MenuBarRenderer {
         let appearance = MenuBarMetricAppearance.current
         let usesBars = appearance == .bars
         let combineTemperatures = appearance.allowsCombinedTemperatures
-            && UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures)
         let enabled = Set(metrics)
         var renderedCPU = false
         var renderedGPU = false
@@ -1025,7 +1025,7 @@ enum MenuBarRenderer {
     }
 
     private static func networkBlockImage(down: String, up: String, style: MenuBarBlockStyle) -> NSImage {
-        let uploadFirst = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarNetworkUploadFirst)
+        let uploadFirst = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.menuBarNetworkUploadFirst)
         let cacheKey = "network|\(down)|\(up)|\(style)|\(uploadFirst)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
@@ -1237,13 +1237,13 @@ enum MenuBarRenderer {
     }
 
     private static func temperatureCompact(_ celsius: Double) -> String {
-        let unit = TemperatureUnit(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.temperatureUnit) ?? "")
+        let unit = TemperatureUnit(rawValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.temperatureUnit) ?? "")
             ?? .celsius
         return MetricFormat.temperatureCompact(celsius, unit: unit)
     }
 
     private static func temperatureLabel(_ component: String) -> String {
-        let unit = TemperatureUnit(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.temperatureUnit) ?? "")
+        let unit = TemperatureUnit(rawValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.temperatureUnit) ?? "")
             ?? .celsius
         return component + MetricFormat.temperatureUnitSuffix(unit)
     }

@@ -2981,7 +2981,7 @@ enum ScreenshotDefaultAction: String, CaseIterable {
 
     /// The persisted choice; an unknown raw value reads as `.none`.
     static var current: ScreenshotDefaultAction {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
         return ScreenshotDefaultAction(rawValue: raw) ?? .none
     }
 

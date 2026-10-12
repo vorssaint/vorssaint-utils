@@ -73,9 +73,9 @@ final class KillProcessService: ObservableObject {
     private var pendingRestartURL: URL?
 
     private init() {
-        sortBy = SortBy(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.killProcessSortBy) ?? "cpu") ?? .cpu
-        sortAscending = UserDefaults.standard.bool(forKey: DefaultsKey.killProcessSortAscending)
-        groupRelated = UserDefaults.standard.bool(forKey: DefaultsKey.killProcessGroupRelated)
+        sortBy = SortBy(rawValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.killProcessSortBy) ?? "cpu") ?? .cpu
+        sortAscending = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.killProcessSortAscending)
+        groupRelated = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.killProcessGroupRelated)
     }
 
     var sortedEntries: [KillProcessEntry] {
@@ -120,13 +120,13 @@ final class KillProcessService: ObservableObject {
             sortBy = value
             sortAscending = value == .name
         }
-        UserDefaults.standard.set(sortBy.rawValue, forKey: DefaultsKey.killProcessSortBy)
-        UserDefaults.standard.set(sortAscending, forKey: DefaultsKey.killProcessSortAscending)
+        SettingsUserDefaults.standard.set(sortBy.rawValue, forKey: DefaultsKey.killProcessSortBy)
+        SettingsUserDefaults.standard.set(sortAscending, forKey: DefaultsKey.killProcessSortAscending)
     }
 
     func setGroupRelated(_ value: Bool) {
         groupRelated = value
-        UserDefaults.standard.set(value, forKey: DefaultsKey.killProcessGroupRelated)
+        SettingsUserDefaults.standard.set(value, forKey: DefaultsKey.killProcessGroupRelated)
         refresh(force: true)
     }
 

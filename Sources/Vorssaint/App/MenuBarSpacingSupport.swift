@@ -11,7 +11,7 @@ enum MenuBarMetricSpacing: String, CaseIterable {
     case standard, compact
 
     static var current: MenuBarMetricSpacing {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricSpacing) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricSpacing) ?? ""
         return MenuBarMetricSpacing(rawValue: Defaults.sanitizedMenuBarMetricSpacing(raw)) ?? .standard
     }
 }
@@ -25,7 +25,7 @@ enum MenuBarMetricAppearance: String, CaseIterable {
     var allowsCombinedTemperatures: Bool { self == .values }
 
     static var current: MenuBarMetricAppearance {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricAppearance) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarMetricAppearance) ?? ""
         let appearance = Defaults.sanitizedMenuBarMetricAppearance(raw)
         return MenuBarMetricAppearance(rawValue: appearance) ?? .values
     }

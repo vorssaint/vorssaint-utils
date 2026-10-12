@@ -272,7 +272,7 @@ final class ShelfService: ObservableObject {
 
     private init() {
         automaticExclusions = Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.shelfAutomaticExclusions) ?? [])
+            SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.shelfAutomaticExclusions) ?? [])
         restoreItems()
     }
 
@@ -330,7 +330,7 @@ final class ShelfService: ObservableObject {
     func syncWithPreferences() {
         reloadAutomaticExclusions()
         if NotchSupport.routesShelf() { hide(); hideDocked(); retractEdgePeek() }
-        if AppFeature.shelf.isAvailable, UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
+        if AppFeature.shelf.isAvailable, SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) {
             syncHotkey()
             syncDragMonitor()
         } else {
@@ -348,21 +348,21 @@ final class ShelfService: ObservableObject {
         let updated = Defaults.sanitizedBundleIdentifierList(automaticExclusions + [bundleIdentifier])
         guard updated != automaticExclusions else { return }
         automaticExclusions = updated
-        UserDefaults.standard.set(updated, forKey: DefaultsKey.shelfAutomaticExclusions)
+        SettingsUserDefaults.standard.set(updated, forKey: DefaultsKey.shelfAutomaticExclusions)
     }
 
     func removeAutomaticExclusion(_ bundleIdentifier: String) {
         let updated = automaticExclusions.filter { $0 != bundleIdentifier }
         guard updated != automaticExclusions else { return }
         automaticExclusions = updated
-        UserDefaults.standard.set(updated, forKey: DefaultsKey.shelfAutomaticExclusions)
+        SettingsUserDefaults.standard.set(updated, forKey: DefaultsKey.shelfAutomaticExclusions)
     }
 
     private func reloadAutomaticExclusions() {
-        let stored = UserDefaults.standard.stringArray(forKey: DefaultsKey.shelfAutomaticExclusions) ?? []
+        let stored = SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.shelfAutomaticExclusions) ?? []
         let sanitized = Defaults.sanitizedBundleIdentifierList(stored)
         if stored != sanitized {
-            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.shelfAutomaticExclusions)
+            SettingsUserDefaults.standard.set(sanitized, forKey: DefaultsKey.shelfAutomaticExclusions)
         }
         if automaticExclusions != sanitized { automaticExclusions = sanitized }
     }
@@ -371,7 +371,7 @@ final class ShelfService: ObservableObject {
     /// open and the docked shelf); the monitor lives only while the shelf is on
     /// and at least one of them wants it.
     func syncDragMonitor() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let wanted = defaults.bool(forKey: DefaultsKey.shelfEnabled)
             && (defaults.bool(forKey: DefaultsKey.shelfShakeToOpen)
                 || defaults.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
@@ -384,8 +384,8 @@ final class ShelfService: ObservableObject {
     // MARK: - Triggers
 
     func syncHotkey() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfShortcutEnabled)
+        let wanted = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfShortcutEnabled)
         if wanted { registerHotkey() } else { unregisterHotkey() }
     }
 
@@ -473,7 +473,7 @@ final class ShelfService: ObservableObject {
                     self.startDockedWatchdog()
                     return
                 }
-                let defaults = UserDefaults.standard
+                let defaults = SettingsUserDefaults.standard
                 if defaults.bool(forKey: DefaultsKey.shelfShakeToOpen) {
                     self.handleDrag(event)
                 }
@@ -643,14 +643,14 @@ final class ShelfService: ObservableObject {
 
     private var dockedFeatureOn: Bool {
         !NotchSupport.routesShelf() && AppFeature.shelf.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfDropZoneEnabled)
     }
 
     private var edgeFeatureOn: Bool {
         !NotchSupport.routesShelf() && AppFeature.shelf.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEdgeDragEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEdgeDragEnabled)
     }
 
     /// A qualifying drag is in flight: keep the pill under the icon as a small,
@@ -821,7 +821,7 @@ final class ShelfService: ObservableObject {
     /// still-live drag.
     private func summonEdgePeek(_ match: ShelfEdgeMatch, mouse: CGPoint) {
         guard AppFeature.shelf.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
         edgePeekMatch = match
         edgeDwellMatch = nil
         edgeDwellStart = nil
@@ -980,7 +980,7 @@ final class ShelfService: ObservableObject {
         }
         let panel = ensureDockedPanel()
         if panel.contentViewController == nil {
-            let host = NSHostingController(rootView: DockedShelfView().environmentObject(self))
+            let host = NSHostingController(rootView: DockedShelfView().environmentObject(self).defaultAppStorage(SettingsUserDefaults.standard))
             host.sizingOptions = .preferredContentSize
             panel.contentViewController = host
         }
@@ -1377,7 +1377,7 @@ final class ShelfService: ObservableObject {
         endInteraction()
         guard !draggedIDs.isEmpty else { return }
 
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let removableIDs = ShelfInteractionSupport.removableAfterDrag(draggedIDs, protectedIDs: protectedIDs)
         if ShelfInteractionSupport.shouldRemoveAfterDrag(
             dropAccepted: dropAccepted,
@@ -1409,7 +1409,7 @@ final class ShelfService: ObservableObject {
         if context == .withinApplication { return .move }
         let protected = protectedIDs
         return ShelfInteractionSupport.offersMoveOutside(
-            removeAfterDrop: UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
+            removeAfterDrop: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
             dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains))
             ? [.copy, .move]
             : .copy
@@ -1453,7 +1453,7 @@ final class ShelfService: ObservableObject {
 
     func canAcceptPasteboard(_ pasteboard: NSPasteboard) -> Bool {
         AppFeature.shelf.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
             && pasteboardCanCreateItem(pasteboard)
     }
 
@@ -1468,7 +1468,7 @@ final class ShelfService: ObservableObject {
     /// while the sender can still fulfill legacy file promises.
     func acceptDrop(pasteboard: NSPasteboard) -> Bool {
         guard AppFeature.shelf.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
         let receivers = filePromiseReceivers(from: pasteboard)
         return receivers.isEmpty
             ? accept(pasteboard: pasteboard)
@@ -1483,7 +1483,7 @@ final class ShelfService: ObservableObject {
 
     func merge(draggingInfo: NSDraggingInfo, into targetID: UUID) -> Bool {
         guard AppFeature.shelf.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
         let pasteboard = draggingInfo.draggingPasteboard
         let receivers = filePromiseReceivers(from: pasteboard)
         let accepted = receivers.isEmpty
@@ -1529,7 +1529,7 @@ final class ShelfService: ObservableObject {
                 return
             }
             guard AppFeature.shelf.isAvailable,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else {
+                  SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else {
                 ShelfFilePromiseTransfer.discard(result.urls, in: store)
                 self.discardOwnedPayloads(in: additions)
                 return
@@ -1637,7 +1637,7 @@ final class ShelfService: ObservableObject {
     /// can take it back, as a discarded capture does.
     func shelveGeneratedFile(_ data: Data, named name: String) -> UUID? {
         guard AppFeature.shelf.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled),
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled),
               ShelfPersistenceSupport.canAdd(existingLeaves: itemCount, newLeaves: 1) else { return nil }
         let store = Self.storeDirectory ?? tempDir
         guard let url = ShelfPersistenceSupport.writeGeneratedFile(data, named: name, in: store) else {
@@ -2268,7 +2268,7 @@ final class ShelfService: ObservableObject {
         let persisted = items.map { Self.persistedItem(from: $0, pinnedIDs: pinned) }
         Self.persistQueue.async {
             guard let data = try? JSONEncoder().encode(persisted) else { return }
-            UserDefaults.standard.set(data, forKey: DefaultsKey.shelfItems)
+            SettingsUserDefaults.standard.set(data, forKey: DefaultsKey.shelfItems)
         }
     }
 
@@ -2283,7 +2283,7 @@ final class ShelfService: ObservableObject {
     /// the blob it kept still points at.
     private func restoreItems() {
         let sweepCutoff = Date()
-        let data = UserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
+        let data = SettingsUserDefaults.standard.data(forKey: DefaultsKey.shelfItems)
         DispatchQueue.global(qos: .utility).async { [weak self] in
             guard let self else { return }
             // The disk work (decode, existence checks, unmounted-volume
@@ -2478,7 +2478,7 @@ final class ShelfService: ObservableObject {
     }
 
     private var shortcutMayAddFinderSelection: Bool {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         return AppFeature.shelf.isAvailable
             && defaults.bool(forKey: DefaultsKey.shelfEnabled)
             && defaults.bool(forKey: DefaultsKey.shelfShortcutEnabled)
@@ -2501,7 +2501,7 @@ final class ShelfService: ObservableObject {
     /// up and comes back when it closes.
     func summon() {
         guard AppFeature.shelf.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
         if NotchService.shared.openShelf() { return }
         let panel = ensurePanel()
         cancelAutoHide()
@@ -2524,7 +2524,7 @@ final class ShelfService: ObservableObject {
     /// Handles the floating panel's explicit close button. Automatic hiding,
     /// shortcut toggling and collapsing the docked shelf keep their contents.
     func close() {
-        if UserDefaults.standard.bool(forKey: DefaultsKey.shelfClearOnClose) {
+        if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.shelfClearOnClose) {
             clear()
         }
         hide()
@@ -2736,7 +2736,7 @@ final class ShelfService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: ShelfView().environmentObject(self))
+        let host = NSHostingController(rootView: ShelfView().environmentObject(self).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

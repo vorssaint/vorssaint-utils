@@ -45,7 +45,7 @@ final class TextSnippetService {
 
     func syncWithPreferences() {
         let enabled = AppFeature.textSnippets.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled)
         reloadSnippets()
         let hasWork = inputLock.withLock {
             !(immediateSnippets.isEmpty && delimiterSnippets.isEmpty)
@@ -81,7 +81,7 @@ final class TextSnippetService {
     /// which name wins when the stored one is not available.
     private static func preferredExpansionSound() -> AlertSound? {
         TextSnippetSupport.resolvedSoundName(
-            stored: UserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName))
+            stored: SettingsUserDefaults.standard.string(forKey: DefaultsKey.snippetSoundName))
             .flatMap { AlertSound(name: $0) }
     }
 
@@ -95,9 +95,9 @@ final class TextSnippetService {
     /// cannot answer that question differently.
     func syncExpansionSound(featureEnabled: Bool? = nil) {
         let featureOn = featureEnabled ?? (AppFeature.textSnippets.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled))
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled))
         let soundEnabled = featureOn
-            && UserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.snippetSoundEnabled)
         let sound = soundEnabled ? Self.preferredExpansionSound() : nil
         inputLock.withLock { expansionSound = sound }
     }
@@ -121,7 +121,7 @@ final class TextSnippetService {
     /// Reloads the stored snippets; called by the settings page after edits.
     private func reloadSnippets() {
         let all = TextSnippetSupport.decode(
-            UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
+            SettingsUserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
         inputLock.withLock {
             immediateSnippets = all.filter { $0.enabled && $0.expansion == .immediate }
             delimiterSnippets = all.filter { $0.enabled && $0.expansion == .afterDelimiter }

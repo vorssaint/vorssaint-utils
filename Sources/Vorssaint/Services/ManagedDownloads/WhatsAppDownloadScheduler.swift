@@ -21,7 +21,7 @@ final class WhatsAppDownloadScheduler: ObservableObject {
     private init() {}
 
     func syncWithPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         guard AppFeature.cleaner.isAvailable,
               WhatsAppDownloadSupport.isEnabled,
               defaults.bool(forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled),
@@ -68,12 +68,12 @@ final class WhatsAppDownloadScheduler: ObservableObject {
     private func scheduleNext() {
         guard AppFeature.cleaner.isAvailable,
               WhatsAppDownloadSupport.isEnabled,
-              UserDefaults.standard.bool(
+              SettingsUserDefaults.standard.bool(
                 forKey: DefaultsKey.whatsAppDownloadsAutomaticEnabled),
-              UserDefaults.standard.bool(
+              SettingsUserDefaults.standard.bool(
                 forKey: DefaultsKey.whatsAppDownloadsAccessConfirmed) else { return }
         let now = Date()
-        let lastStamp = UserDefaults.standard.double(
+        let lastStamp = SettingsUserDefaults.standard.double(
             forKey: DefaultsKey.whatsAppDownloadsLastAutoRun)
         let lastRun = lastStamp > 0 ? Date(timeIntervalSince1970: lastStamp) : nil
         let fireDate: Date
@@ -145,9 +145,9 @@ final class WhatsAppDownloadScheduler: ObservableObject {
 
     private func finishRun(moved: Int, bytes: Int64, failed: Int, notify: Bool = true) {
         runObserver = nil
-        UserDefaults.standard.set(Date().timeIntervalSince1970,
+        SettingsUserDefaults.standard.set(Date().timeIntervalSince1970,
                                   forKey: DefaultsKey.whatsAppDownloadsLastAutoRun)
-        if notify, UserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsNotify) {
+        if notify, SettingsUserDefaults.standard.bool(forKey: DefaultsKey.whatsAppDownloadsNotify) {
             let strings = FeatureStrings.whatsAppDownloads(L10n.shared.language)
             let body = String(format: strings.notificationFormat, moved,
                               ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file), failed)

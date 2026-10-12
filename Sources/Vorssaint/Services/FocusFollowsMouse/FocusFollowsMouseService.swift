@@ -24,7 +24,7 @@ final class FocusFollowsMouseService {
 
     func syncWithPreferences() {
         let wanted = AppFeature.focusFollowsMouse.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseEnabled)
         if SessionActivitySupport.tapShouldRun(
             featureWanted: wanted,
             accessibilityGranted: AXIsProcessTrusted(),
@@ -90,8 +90,8 @@ final class FocusFollowsMouseService {
         // Raising always waits for the pointer to stop, so windows passed on
         // the way are not reshuffled. Without a raise, the user may instead
         // have the delay count time over a window while the pointer moves.
-        let waitsForStop = UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise)
-            || UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseWaitForStop)
+        let waitsForStop = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise)
+            || SettingsUserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseWaitForStop)
         state.recordMovement(to: point, at: ProcessInfo.processInfo.systemUptime,
                              windowID: waitsForStop ? nil : Self.receivingWindow(at: point))
         startEvaluationTimerIfNeeded()
@@ -199,7 +199,7 @@ final class FocusFollowsMouseService {
                     self.finishEvaluation(evaluation, succeeded: false)
                     return
                 }
-                guard UserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise) else {
+                guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.focusFollowsMouseRaise) else {
                     let activation = WindowActivator.supersedePendingActivations(for: target.processID)
                     SpaceWindowBridge.focusWithoutRaise(
                         target.windowID, ownerPID: target.processID,
@@ -301,7 +301,7 @@ final class FocusFollowsMouseService {
 
     private static func savedDelay() -> Int {
         FocusFollowsMouseSupport.sanitizedDelay(
-            UserDefaults.standard.integer(forKey: DefaultsKey.focusFollowsMouseDelay))
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.focusFollowsMouseDelay))
     }
 
     private struct Target {

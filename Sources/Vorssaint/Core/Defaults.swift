@@ -1039,7 +1039,7 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
 
     static var current: KeepAwakeIconTint {
         Defaults.sanitizedKeepAwakeIconTint(
-            UserDefaults.standard.string(forKey: DefaultsKey.keepAwakeIconTint)
+            SettingsUserDefaults.standard.string(forKey: DefaultsKey.keepAwakeIconTint)
         )
     }
 
@@ -1062,7 +1062,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
 
     static var current: KeepAwakeActiveIcon {
         Defaults.sanitizedKeepAwakeActiveIcon(
-            UserDefaults.standard.string(forKey: DefaultsKey.keepAwakeActiveIcon)
+            SettingsUserDefaults.standard.string(forKey: DefaultsKey.keepAwakeActiveIcon)
         )
     }
 
@@ -1115,11 +1115,11 @@ enum PreviewSizing {
     }
 
     static var scale: CGFloat {
-        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
+        scale(for: SettingsUserDefaults.standard.string(forKey: DefaultsKey.previewSize) ?? "normal")
     }
 
     static var switcherScale: CGFloat {
-        scale(for: UserDefaults.standard.string(forKey: DefaultsKey.switcherPreviewSize) ?? "normal")
+        scale(for: SettingsUserDefaults.standard.string(forKey: DefaultsKey.switcherPreviewSize) ?? "normal")
     }
 }
 
@@ -1936,7 +1936,7 @@ enum Defaults {
     ]
 
     static func register() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         migrateNotchAgentsOptIn(in: defaults)
         migrateExistingNotchDefaults(in: defaults)
         migrateLiquidGlassIsland(in: defaults)

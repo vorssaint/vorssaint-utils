@@ -50,7 +50,7 @@ final class ScreenshotShareService: ObservableObject {
     var endpoint: URL {
         ScreenshotSharingSupport.endpoint(
             bundleIdentifier: Bundle.main.bundleIdentifier,
-            developerOverride: UserDefaults.standard.string(
+            developerOverride: SettingsUserDefaults.standard.string(
                 forKey: DefaultsKey.screenshotSharingDeveloperEndpoint))
     }
 
@@ -76,7 +76,7 @@ final class ScreenshotShareService: ObservableObject {
     func createLink(pngData: Data,
                     duration: ScreenshotShareDuration) async throws -> ScreenshotShareRecord {
         guard AppFeature.screenshot.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
             throw ScreenshotShareError.unavailable
         }
         guard !pngData.isEmpty,

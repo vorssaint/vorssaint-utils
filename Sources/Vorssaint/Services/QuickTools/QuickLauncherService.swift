@@ -67,7 +67,7 @@ final class QuickLauncherService: ObservableObject {
     /// one under the pointer, and the rail kept scrolling by itself.
     @Published private(set) var keyboardIndex: Int?
     @Published private(set) var presentationID = UUID()
-    @Published private(set) var hiddenItemsRaw: String = UserDefaults.standard.string(
+    @Published private(set) var hiddenItemsRaw: String = SettingsUserDefaults.standard.string(
         forKey: DefaultsKey.quickLauncherHiddenItems) ?? ""
 
     private let hotkey = QuickToolHotkey(id: 14)
@@ -83,7 +83,7 @@ final class QuickLauncherService: ObservableObject {
 
     func syncWithPreferences() {
         let enabled = AppFeature.quickLauncher.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.quickLauncherShortcutEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.quickLauncherShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.quickLauncherShortcut,
                                             fallback: .quickLauncherDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -136,7 +136,7 @@ final class QuickLauncherService: ObservableObject {
             ids.remove(item.rawValue)
         }
         hiddenItemsRaw = QuickToolsSupport.serializeHiddenIDs(ids)
-        UserDefaults.standard.set(hiddenItemsRaw, forKey: DefaultsKey.quickLauncherHiddenItems)
+        SettingsUserDefaults.standard.set(hiddenItemsRaw, forKey: DefaultsKey.quickLauncherHiddenItems)
         clampSelection()
     }
 
@@ -357,7 +357,7 @@ final class QuickLauncherService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: QuickLauncherView())
+        let host = NSHostingController(rootView: QuickLauncherView().defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

@@ -442,7 +442,8 @@ private struct WindowLayoutActionRow: View {
         _rawValue = AppStorage(
             wrappedValue: action.defaultShortcut?.storageValue
                 ?? WindowLayoutAction.clearedShortcutStorageValue,
-            action.shortcutKey
+            action.shortcutKey,
+            store: SettingsUserDefaults.standard
         )
     }
 

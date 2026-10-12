@@ -40,7 +40,7 @@ final class KeepAwakeManager: ObservableObject {
     @Published var clamshellPreferred: Bool {
         didSet {
             guard clamshellPreferred != oldValue else { return }
-            UserDefaults.standard.set(clamshellPreferred, forKey: DefaultsKey.clamshellPreferred)
+            SettingsUserDefaults.standard.set(clamshellPreferred, forKey: DefaultsKey.clamshellPreferred)
             clamshellSetupFailed = false
             guard !isTerminating else { return }
             if clamshellPreferred {
@@ -62,7 +62,7 @@ final class KeepAwakeManager: ObservableObject {
     @Published var dimScreenOnLidClose: Bool {
         didSet {
             guard dimScreenOnLidClose != oldValue else { return }
-            UserDefaults.standard.set(dimScreenOnLidClose, forKey: DefaultsKey.dimScreenOnLidClose)
+            SettingsUserDefaults.standard.set(dimScreenOnLidClose, forKey: DefaultsKey.dimScreenOnLidClose)
             if !dimScreenOnLidClose { applyDimmingAction(LidDimmingSupport.restoring(saved: savedDisplayBrightness)) }
             syncLidDimmingObserver()
         }
@@ -111,8 +111,8 @@ final class KeepAwakeManager: ObservableObject {
     private var preferenceSyncScheduled = false
 
     private init() {
-        clamshellPreferred = UserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
-        dimScreenOnLidClose = UserDefaults.standard.bool(forKey: DefaultsKey.dimScreenOnLidClose)
+        clamshellPreferred = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.clamshellPreferred)
+        dimScreenOnLidClose = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.dimScreenOnLidClose)
         refreshPasswordlessStatus()
         // Every settings write announces itself, including the ones made from
         // inside this class, so a burst folds into a single reply on the next
@@ -159,7 +159,7 @@ final class KeepAwakeManager: ObservableObject {
         clamshellActive = false
         passwordlessClamshell = false
         let generation = clamshellOperationGeneration
-        let checksSleep = UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
+        let checksSleep = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
         DispatchQueue.global(qos: .utility).async {
             // A session can start while the removal waits for its password and
             // turn sleep off again through the rule. Only a reading that answered
@@ -174,7 +174,7 @@ final class KeepAwakeManager: ObservableObject {
             DispatchQueue.main.async {
                 guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
                 if checksSleep, sleepRestored {
-                    UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+                    SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
                 }
                 // A prior restore can still finish with an authorized off. Its
                 // reply rearms this session in order after that operation.
@@ -234,8 +234,8 @@ final class KeepAwakeManager: ObservableObject {
         sessionMinutes = isActive ? minutes : nil
         guard isActive else { return }
         // Every entry point records the pick, so each switch restarts the same session.
-        UserDefaults.standard.set(minutes, forKey: DefaultsKey.defaultDuration)
-        UserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
+        SettingsUserDefaults.standard.set(minutes, forKey: DefaultsKey.defaultDuration)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
     }
 
     func activate(until date: Date) {
@@ -245,15 +245,15 @@ final class KeepAwakeManager: ObservableObject {
         // An end time replaces any running preset, so no duration chip stays selected.
         sessionMinutes = nil
         guard isActive else { return }
-        UserDefaults.standard.set(true, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
-        UserDefaults.standard.set(date.timeIntervalSinceReferenceDate, forKey: DefaultsKey.keepAwakeUntilTime)
+        SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.keepAwakeSwitchUsesUntil)
+        SettingsUserDefaults.standard.set(date.timeIntervalSinceReferenceDate, forKey: DefaultsKey.keepAwakeUntilTime)
     }
 
     /// Restarts the last pick: the saved end time while it is still ahead,
     /// otherwise the saved duration. A passed end time never rolls to
     /// tomorrow here, which would silently start a session of almost a day.
     func startLastPick() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let end = Date(timeIntervalSinceReferenceDate: defaults.double(forKey: DefaultsKey.keepAwakeUntilTime))
         if defaults.bool(forKey: DefaultsKey.keepAwakeSwitchUsesUntil), end > Date() {
             activate(until: end)
@@ -270,7 +270,7 @@ final class KeepAwakeManager: ObservableObject {
         endTimer = nil
         syncScreenLockMonitoring()
         sessionPausedForScreenLock = screenLocked
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         if !sessionPausedForScreenLock { applyAssertions() }
         sessionTrigger = trigger
         if trigger == .manual {
@@ -292,10 +292,10 @@ final class KeepAwakeManager: ObservableObject {
 
     func activateOnLaunchIfNeeded() {
         guard AppFeature.keepAwake.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutoStart),
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutoStart),
               !isActive else { return }
         activate(minutes: Defaults.sanitizedDefaultDuration(
-            UserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.defaultDuration)))
     }
 
     func extend(minutes: Int) {
@@ -341,15 +341,15 @@ final class KeepAwakeManager: ObservableObject {
     private func syncAutomationMonitoring() {
         let available = AppFeature.keepAwake.isAvailable
         let selectedApps = Defaults.sanitizedBundleIdentifierList(
-            UserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
+            SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.keepAwakeRunningAppBundleIDs) ?? [])
         if runningAppBundleIDs != selectedApps { runningAppBundleIDs = selectedApps }
         syncScreenLockMonitoring()
         let observeScreens = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
         let observePower = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
         let observeRunningApps = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
             && !runningAppBundleIDs.isEmpty
 
         setScreenMonitoringEnabled(observeScreens)
@@ -360,7 +360,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func syncScreenLockMonitoring() {
         let enabled = AppFeature.keepAwake.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         let center = DistributedNotificationCenter.default()
 
         if enabled {
@@ -401,7 +401,7 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
         let shouldPause = screenLocked
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
         guard shouldPause != sessionPausedForScreenLock else { return }
 
         if shouldPause {
@@ -527,7 +527,7 @@ final class KeepAwakeManager: ObservableObject {
         }
 
         if screenLocked,
-           UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) {
+           SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) {
             if sessionTrigger == .automation { activeAutomationConditions = matches }
             return
         }
@@ -556,14 +556,14 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func automationRequiresAllConditions() -> Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutomationRequireAll)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAutomationRequireAll)
     }
 
     private func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
         KeepAwakeAutomationSupport.enabledConditions(
-            externalDisplayEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
-            powerEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
-            runningAppsEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
+            externalDisplayEnabled: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay),
+            powerEnabled: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower),
+            runningAppsEnabled: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps),
             hasSelectedApps: !runningAppBundleIDs.isEmpty
         )
     }
@@ -580,7 +580,7 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> {
-        let externalDisplayEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
+        let externalDisplayEnabled = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeExternalDisplay)
         let externalDisplayConnected: Bool
         if externalDisplayEnabled {
             if let current = Self.hasExternalDisplay() {
@@ -591,11 +591,11 @@ final class KeepAwakeManager: ObservableObject {
             externalDisplayConnected = false
         }
 
-        let powerEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
+        let powerEnabled = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeConnectedToPower)
         let connectedToPower = powerEnabled
             && (SystemInfo.batterySnapshot().map { !$0.isOnBattery } ?? false)
 
-        let runningAppsEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
+        let runningAppsEnabled = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRunningApps)
         let selectedAppsRunning: Bool
         if runningAppsEnabled, !runningAppBundleIDs.isEmpty {
             let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
@@ -630,7 +630,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func automaticSessionAllowedByBatteryProtection() -> Bool {
         let limit = Defaults.sanitizedBatteryLimit(
-            UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit)
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit)
         )
         guard limit > 0,
               let battery = SystemInfo.batterySnapshot(),
@@ -682,7 +682,7 @@ final class KeepAwakeManager: ObservableObject {
                 hasSystemAssertion = true
             }
         }
-        let allowDisplaySleep = UserDefaults.standard.bool(
+        let allowDisplaySleep = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.keepAwakeAllowDisplaySleep
         )
         if allowDisplaySleep, hasDisplayAssertion {
@@ -716,7 +716,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private var clamshellNeedsRestore: Bool {
         clamshellActive || clamshellEnablePending || clamshellRestorePending
-            || UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
+            || SettingsUserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag)
     }
 
     private func applyClamshellPreference() {
@@ -792,7 +792,7 @@ final class KeepAwakeManager: ObservableObject {
         clamshellEnablePending = true
         // Persist before submitting the write: quitting or crashing before
         // its reply must not leave an unrecorded system-wide sleep override.
-        UserDefaults.standard.set(true, forKey: DefaultsKey.sleepDisabledFlag)
+        SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.sleepDisabledFlag)
         Sudoers.pmsetDisableSleep(true) { ok in
             DispatchQueue.main.async {
                 guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
@@ -872,7 +872,7 @@ final class KeepAwakeManager: ObservableObject {
         // Keep the recovery marker on failure; never request sleep while the
         // system-wide override may still be set.
         guard ok else { return }
-        UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
+        SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag)
         if !isTerminating, isActive, clamshellPreferred, !sessionPausedForScreenLock {
             enableClamshell()
         } else {
@@ -940,7 +940,7 @@ final class KeepAwakeManager: ObservableObject {
     func recoverIfNeeded(completion: (() -> Void)? = nil) {
         guard !isTerminating else { return }
         recoverDimmedDisplayIfNeeded()
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else {
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.sleepDisabledFlag) else {
             finishRecovery(completion)
             return
         }
@@ -954,7 +954,7 @@ final class KeepAwakeManager: ObservableObject {
         let finish: (Bool) -> Void = { ok in
             guard !self.isTerminating, self.clamshellOperationGeneration == generation else { return }
             self.clamshellRestorePending = false
-            if ok { UserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag) }
+            if ok { SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.sleepDisabledFlag) }
             self.finishRecovery(completion)
             if ok, self.isActive, self.clamshellPreferred, !self.sessionPausedForScreenLock {
                 self.enableClamshell()
@@ -995,7 +995,7 @@ final class KeepAwakeManager: ObservableObject {
     /// sleep already recovers its own override the same way: the intent is
     /// written down before acting, and undone on the next launch.
     private func recoverDimmedDisplayIfNeeded() {
-        guard let saved = UserDefaults.standard.object(forKey: DefaultsKey.dimmedDisplaySavedBrightness) as? Double
+        guard let saved = SettingsUserDefaults.standard.object(forKey: DefaultsKey.dimmedDisplaySavedBrightness) as? Double
         else { return }
         // Set before attempting, not just on failure: if the write does not
         // report success until later, `syncLidDimmingObserver` still has to
@@ -1075,7 +1075,7 @@ final class KeepAwakeManager: ObservableObject {
         switch action {
         case .dim(let save):
             savedDisplayBrightness = save
-            UserDefaults.standard.set(save, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
+            SettingsUserDefaults.standard.set(save, forKey: DefaultsKey.dimmedDisplaySavedBrightness)
             LidDisplayDimmer.setBrightness(0)
             Self.log.log("lid closed: dimmed the built-in display, saved \(save)")
         case .restore(let value):
@@ -1104,7 +1104,7 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
         savedDisplayBrightness = nil
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.dimmedDisplaySavedBrightness)
+        SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.dimmedDisplaySavedBrightness)
         Self.log.log("restored the built-in display to \(value)")
         syncLidDimmingObserver()
     }
@@ -1135,7 +1135,7 @@ final class KeepAwakeManager: ObservableObject {
     /// The battery level while battery protection would end any session at
     /// once (on battery, at or below the limit); nil when a session can run.
     func batteryProtectionPercent() -> Int? {
-        let limit = Defaults.sanitizedBatteryLimit(UserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit))
+        let limit = Defaults.sanitizedBatteryLimit(SettingsUserDefaults.standard.integer(forKey: DefaultsKey.batteryLimit))
         guard limit > 0,
               let battery = SystemInfo.batterySnapshot(),
               battery.isOnBattery,
@@ -1148,14 +1148,14 @@ final class KeepAwakeManager: ObservableObject {
     private func syncMouseJiggleTimer() {
         guard isActive,
               !sessionPausedForScreenLock,
-              UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled)
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled)
         else {
             stopMouseJiggleTimer()
             return
         }
 
         let minutes = Defaults.sanitizedKeepAwakeMouseJiggleInterval(
-            UserDefaults.standard.integer(forKey: DefaultsKey.keepAwakeMouseJiggleInterval)
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.keepAwakeMouseJiggleInterval)
         )
         let interval = TimeInterval(minutes * 60)
         if mouseJiggleTimer?.timeInterval == interval { return }
@@ -1178,7 +1178,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func jiggleMousePointer() {
         guard isActive,
-              UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
               let original = Self.currentMouseLocation(),
               let target = Self.mouseJiggleTarget(from: original)
         else {

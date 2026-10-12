@@ -1177,9 +1177,9 @@ final class AppVolumeMixer: ObservableObject {
             lowered: LoweredOutputState(lastAutomaticLoweredOutputUID: lastAutomaticLoweredOutputUID,
                                         loweredOutput: loweredOutput),
             lowerOnHeadphonesDisconnect: AppFeature.mixer.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
+                && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect),
             lowerToPercent: Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(
-                UserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)),
+                SettingsUserDefaults.standard.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)),
             savedVolumes: savedVolumes(),
             savedOutputs: savedOutputDeviceUIDs(),
             sessionVolumes: sessionVolumes,
@@ -1194,10 +1194,10 @@ final class AppVolumeMixer: ObservableObject {
                         || engines[app.id]?.tappedObjects == app.audioObjects else { return nil }
                 return (app.id, app.audioObjects)
             }),
-            showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
+            showFinder: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
-                showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
+                showFinder: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder)),
             ownPid: ProcessInfo.processInfo.processIdentifier)
 
         halQueue.async { [weak self] in
@@ -1755,7 +1755,7 @@ final class AppVolumeMixer: ObservableObject {
     // MARK: - Persistence
 
     private func savedVolumes() -> [String: Double] {
-        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.appVolumes) ?? [:]
+        let raw = SettingsUserDefaults.standard.dictionary(forKey: DefaultsKey.appVolumes) ?? [:]
         var sanitized: [String: Double] = [:]
         for (id, value) in raw {
             let number: Double?
@@ -1773,7 +1773,7 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     private func savedOutputDeviceUIDs() -> [String: String] {
-        let raw = UserDefaults.standard.dictionary(forKey: DefaultsKey.appOutputDevices) ?? [:]
+        let raw = SettingsUserDefaults.standard.dictionary(forKey: DefaultsKey.appOutputDevices) ?? [:]
         return Defaults.sanitizedAppOutputDevices(raw)
     }
 
@@ -1786,7 +1786,7 @@ final class AppVolumeMixer: ObservableObject {
     func hideFromList(_ app: MixerApp) {
         guard let id = app.persistenceID else { return }
         if id == MixerRoutingSupport.finderBundleIdentifier {
-            UserDefaults.standard.set(false, forKey: DefaultsKey.mixerShowFinder)
+            SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.mixerShowFinder)
         } else {
             var hidden = savedHiddenApps()
             hidden[id] = app.name
@@ -1800,7 +1800,7 @@ final class AppVolumeMixer: ObservableObject {
     /// again on the next refresh.
     func showInList(id: String) {
         if id == MixerRoutingSupport.finderBundleIdentifier {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.mixerShowFinder)
+            SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.mixerShowFinder)
         } else {
             var hidden = savedHiddenApps()
             hidden.removeValue(forKey: id)
@@ -1812,14 +1812,14 @@ final class AppVolumeMixer: ObservableObject {
 
     private func savedHiddenApps() -> [String: String] {
         MixerRoutingSupport.sanitizedHiddenApps(
-            UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerHiddenApps) ?? [:])
+            SettingsUserDefaults.standard.dictionary(forKey: DefaultsKey.mixerHiddenApps) ?? [:])
     }
 
     private func persistHiddenApps(_ hidden: [String: String]) {
         if hidden.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.mixerHiddenApps)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.mixerHiddenApps)
         } else {
-            UserDefaults.standard.set(hidden, forKey: DefaultsKey.mixerHiddenApps)
+            SettingsUserDefaults.standard.set(hidden, forKey: DefaultsKey.mixerHiddenApps)
         }
     }
 
@@ -1827,7 +1827,7 @@ final class AppVolumeMixer: ObservableObject {
     /// while its toggle keeps it out, sorted the same way as the visible rows.
     private func publishHiddenApps() {
         var entries = savedHiddenApps().map { MixerHiddenApp(id: $0.key, name: $0.value) }
-        if !UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder) {
+        if !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder) {
             let finderID = MixerRoutingSupport.finderBundleIdentifier
             let name = NSRunningApplication.runningApplications(withBundleIdentifier: finderID)
                 .first?.localizedName ?? "Finder"
@@ -1882,7 +1882,7 @@ final class AppVolumeMixer: ObservableObject {
         } else {
             volumes[id] = volume
         }
-        UserDefaults.standard.set(volumes, forKey: DefaultsKey.appVolumes)
+        SettingsUserDefaults.standard.set(volumes, forKey: DefaultsKey.appVolumes)
     }
 
     private func persistOutputDeviceUID(_ uid: String?, for app: MixerApp) {
@@ -1900,14 +1900,14 @@ final class AppVolumeMixer: ObservableObject {
         } else {
             routes.removeValue(forKey: id)
         }
-        UserDefaults.standard.set(routes, forKey: DefaultsKey.appOutputDevices)
+        SettingsUserDefaults.standard.set(routes, forKey: DefaultsKey.appOutputDevices)
     }
 
     private func persistOutputDeviceUIDs(_ routes: [String: String]) {
         if routes.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.appOutputDevices)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.appOutputDevices)
         } else {
-            UserDefaults.standard.set(routes, forKey: DefaultsKey.appOutputDevices)
+            SettingsUserDefaults.standard.set(routes, forKey: DefaultsKey.appOutputDevices)
         }
     }
 

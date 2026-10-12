@@ -337,7 +337,7 @@ final class SystemMonitor: ObservableObject {
                 }
                 return
             }
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             let previousNeeds = menuPanelNeeds
             let neededGPUBefore = currentPlan(defaults: defaults).needGPUUsage
             menuPanelNeeds = needs
@@ -681,7 +681,7 @@ final class SystemMonitor: ObservableObject {
             DispatchQueue.main.async { [weak self] in self?.refresh(suppressImmediateGPU: suppressImmediateGPU) }
             return
         }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let plan = currentPlan(defaults: defaults)
         syncPeripheralBatterySampling()
         guard plan.any else {

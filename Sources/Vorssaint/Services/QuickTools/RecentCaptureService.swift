@@ -39,7 +39,7 @@ final class RecentCaptureService: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.recentCapturesShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.recentCapturesShortcut,
                                             fallback: .recentCapturesDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -109,7 +109,7 @@ final class RecentCaptureService: ObservableObject {
         panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         let host = NSHostingController(rootView: RecentCapturesWindowView(
-            onClose: { [weak self] in self?.hideHistoryWindow() }))
+            onClose: { [weak self] in self?.hideHistoryWindow() }).defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

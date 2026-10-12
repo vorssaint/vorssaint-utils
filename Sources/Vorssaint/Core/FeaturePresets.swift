@@ -100,15 +100,15 @@ extension AppFeature {
         case .switcher, .superKey, .textSnippets, .autoQuit:
             return .inputs
         case .windowLayout:
-            let edgeSnapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+            let edgeSnapRuns = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
                 && !WindowEdgeSnapZone.enabledZones(
-                    from: UserDefaults.standard.string(
+                    from: SettingsUserDefaults.standard.string(
                         forKey: DefaultsKey.windowEdgeSnapDisabledZones)
                 ).isEmpty
-            let pointerTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
+            let pointerTapRuns = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
                 || edgeSnapRuns
-            let modifierTapRuns = UserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
-                && UserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
+            let modifierTapRuns = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowDirectionalEnabled)
+                && SettingsUserDefaults.standard.string(forKey: DefaultsKey.windowDirectionalShortcut)
                     .flatMap(WindowDirectionalTrigger.init(storageValue:))
                     .map { if case .modifiers = $0 { return true }; return false } == true
             if modifierTapRuns { return .inputs }
@@ -117,7 +117,7 @@ extension AppFeature {
             // A side button or the trackpad tap on any wheel keeps an input
             // tap running; shortcut-only costs nothing at rest.
             return RadialMenuSupport.opensFromMouseOrTrackpad(
-                UserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
+                SettingsUserDefaults.standard.data(forKey: DefaultsKey.radialMenuProfiles))
                 ? .mouse : .idle
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
@@ -134,13 +134,13 @@ extension AppFeature {
              .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
         case .mixer:
-            return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            return SettingsUserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 ? .keyboard : .idle
         case .brightness:
             // Following the pointer, the overlay and a finer step answer the
             // brightness keys from a tap. Like Accessibility, the island's own
             // notices are counted under the island.
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
                 || BrightnessSupport.KeyStep.sanitized(
@@ -155,7 +155,7 @@ extension AppFeature {
         case .appUpdates:
             // The list is on demand; only a background schedule keeps a timer.
             return AppUpdatesSupport.CheckFrequency.sanitized(
-                UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
+                SettingsUserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
                 ? .idle : .periodic
         }
     }

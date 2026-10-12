@@ -108,7 +108,7 @@ final class FeatureRuntime: ObservableObject {
         var changed = false
         let firstIslandInstall = available && features.contains(.notch)
             && mayFlip(.notch, to: true)
-            && !UserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            && !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.notchInitialExtensionsInstalled)
         let requested = firstIslandInstall
             ? features + AppFeature.dynamicIslandInitialExtensions.filter { !features.contains($0) }
             : features
@@ -117,7 +117,7 @@ final class FeatureRuntime: ObservableObject {
             if available && enablingFirstInstalls {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
-            UserDefaults.standard.set(available, forKey: feature.availabilityKey)
+            SettingsUserDefaults.standard.set(available, forKey: feature.availabilityKey)
             if available {
                 loadedThisSession.insert(feature)
                 offerableThisSession.remove(feature)
@@ -126,7 +126,7 @@ final class FeatureRuntime: ObservableObject {
             changed = true
         }
         if firstIslandInstall && AppFeature.notch.isAvailable {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         if changed { finishAvailabilityChange() }
     }
@@ -144,7 +144,7 @@ final class FeatureRuntime: ObservableObject {
     /// losing any of their settings.
     func replaceAvailable(with selected: Set<AppFeature>, enabling keys: [String] = []) {
         for key in keys {
-            UserDefaults.standard.set(true, forKey: key)
+            SettingsUserDefaults.standard.set(true, forKey: key)
         }
         let savedValues = savedPreferences()
         for feature in AppFeature.allCases
@@ -153,7 +153,7 @@ final class FeatureRuntime: ObservableObject {
             if joins {
                 feature.enableOnFirstInstall(in: .standard, savedValues: savedValues)
             }
-            UserDefaults.standard.set(joins, forKey: feature.availabilityKey)
+            SettingsUserDefaults.standard.set(joins, forKey: feature.availabilityKey)
             if joins {
                 loadedThisSession.insert(feature)
                 offerableThisSession.remove(feature)
@@ -169,7 +169,7 @@ final class FeatureRuntime: ObservableObject {
             Self.bindings[feature]?()
         }
         if selected.contains(.notch) && AppFeature.notch.isAvailable {
-            UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
+            SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
         finishAvailabilityChange()
     }
@@ -180,7 +180,7 @@ final class FeatureRuntime: ObservableObject {
         let saved = savedPreferences()
         let kept = Self.keptFeatures()
         return AppFeature.neverSwitchedOn(isAvailable: \.isAvailable,
-                                          boolFor: UserDefaults.standard.bool(forKey:),
+                                          boolFor: SettingsUserDefaults.standard.bool(forKey:),
                                           isSaved: { saved[$0] != nil })
             .filter { offerableThisSession.contains($0) && !kept.contains($0) }
     }
@@ -189,12 +189,12 @@ final class FeatureRuntime: ObservableObject {
     /// never used is still offered, on its own merits.
     func keep(_ features: [AppFeature]) {
         let kept = Self.keptFeatures().union(features)
-        UserDefaults.standard.set(kept.map(\.rawValue).sorted().joined(separator: ","),
+        SettingsUserDefaults.standard.set(kept.map(\.rawValue).sorted().joined(separator: ","),
                                   forKey: DefaultsKey.featureHubKeptFeatures)
     }
 
     private static func keptFeatures() -> Set<AppFeature> {
-        Set((UserDefaults.standard.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
+        Set((SettingsUserDefaults.standard.string(forKey: DefaultsKey.featureHubKeptFeatures) ?? "")
             .split(separator: ",")
             .compactMap { AppFeature(rawValue: String($0)) })
     }
@@ -206,7 +206,7 @@ final class FeatureRuntime: ObservableObject {
 
     private func savedPreferences() -> [String: Any] {
         guard let domain = Bundle.main.bundleIdentifier else { return [:] }
-        return UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
+        return SettingsUserDefaults.standard.persistentDomain(forName: domain) ?? [:]
     }
 
     /// Launch path: replaces the old unconditional sync block. Only available
@@ -398,7 +398,7 @@ final class FeatureRuntime: ObservableObject {
         .monitorPower: { FeatureRuntime.syncMonitor() },
         .fanControl: {
             SystemMonitor.shared.planDidChange()
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             let needsRecovery = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
             let hasRegisteredHelper = !(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) ?? "").isEmpty
             if needsRecovery || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {

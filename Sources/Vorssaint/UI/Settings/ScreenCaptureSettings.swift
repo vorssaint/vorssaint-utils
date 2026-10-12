@@ -151,8 +151,11 @@ private struct ToolShortcutRows: View {
     init(tool: ScreenCaptureTool, keys: ScreenCaptureTool.DedicatedShortcut) {
         self.tool = tool
         self.keys = keys
-        _enabled = AppStorage(wrappedValue: false, keys.enabledKey)
-        _showsCaptureMenu = AppStorage(wrappedValue: true, tool.showCaptureMenuOnShortcutKey)
+        _enabled = AppStorage(
+            wrappedValue: false, keys.enabledKey)
+        _showsCaptureMenu = AppStorage(
+            wrappedValue: true, tool.showCaptureMenuOnShortcutKey,
+            store: SettingsUserDefaults.standard)
     }
 
     var body: some View {

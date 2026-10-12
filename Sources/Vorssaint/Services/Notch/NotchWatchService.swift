@@ -192,7 +192,7 @@ final class NotchWatchService: ObservableObject {
     func setCondition(_ condition: NotchWatchCondition) {
         guard condition != self.condition else { return }
         self.condition = condition
-        UserDefaults.standard.set(condition.rawValue, forKey: DefaultsKey.notchWatchCondition)
+        SettingsUserDefaults.standard.set(condition.rawValue, forKey: DefaultsKey.notchWatchCondition)
         resetTracker()
     }
 
@@ -347,7 +347,7 @@ final class NotchWatchService: ObservableObject {
         state = .finished(outcome)
         let strings = FeatureStrings.notchWatch(L10n.shared.language)
         let title = strings.outcome(outcome)
-        if UserDefaults.standard.bool(forKey: DefaultsKey.notchWatchSound) {
+        if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.notchWatchSound) {
             if let tone { tone.stop(); tone.play() } else { NSSound.beep() }
         }
         let notch = NotchService.shared

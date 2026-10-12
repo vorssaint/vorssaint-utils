@@ -117,7 +117,7 @@ enum WindowEnumerator {
                                          isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         listWindows(
             appRules: SwitcherAppRule.rules(
-                storedValue: UserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
+                storedValue: SettingsUserDefaults.standard.dictionary(forKey: DefaultsKey.switcherAppRules)),
             groupByApp: groupByApp,
             preservingGroupedWindows: preservingGroupedWindows,
             marksHiddenSpaces: true,
@@ -147,16 +147,16 @@ enum WindowEnumerator {
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         let windowlessApps = SwitcherWindowlessApps.mode(
-            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
-            takeOverSystemShortcuts: UserDefaults.standard.bool(
+            storedValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.switcherWindowlessApps),
+            takeOverSystemShortcuts: SettingsUserDefaults.standard.bool(
                 forKey: DefaultsKey.switcherTakeOverSystemShortcuts))
-        let currentSpaceOnly = UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
+        let currentSpaceOnly = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)
         let minimizedPlacement = WindowSwitchMinimizedPlacement(
-            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+            rawValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
         ) ?? .normal
-        let treatHiddenAppsLikeMinimized = UserDefaults.standard.bool(
+        let treatHiddenAppsLikeMinimized = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTreatHiddenAppsLikeMinimized)
-        let showFullscreenWindows = UserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
+        let showFullscreenWindows = SettingsUserDefaults.standard.object(forKey: DefaultsKey.switcherShowFullscreenWindows) as? Bool ?? true
         return listWindows(filterPID: nil,
                            maximumCount: maximumCount,
                            windowlessApps: windowlessApps,
@@ -179,13 +179,13 @@ enum WindowEnumerator {
     /// all-desktop list and never inherit either preview or switcher settings.
     static func listWindowsForDockPreview(for pid: pid_t, maximumCount: Int = 12) -> [SwitcherItem] {
         listWindows(for: pid, maximumCount: maximumCount,
-                    currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+                    currentSpaceOnly: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
                     marksHiddenSpaces: true)
     }
 
     /// A desktop can change after enumeration, including between pinned refreshes.
     static func dockPreviewMayActivate(_ item: SwitcherItem) -> Bool {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewCurrentSpaceOnly),
               let windowID = item.windowID else { return true }
         return !SpaceWindowBridge.isParkedOnHiddenSpace(windowID)
     }

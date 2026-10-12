@@ -66,7 +66,7 @@ final class MouseAppExceptions: ObservableObject {
     // MARK: - The lists
 
     func reload() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         for scope in MouseExceptionScope.allCases {
             let raw = defaults.stringArray(forKey: scope.defaultsKey) ?? []
             let sanitized = Defaults.sanitizedBundleIdentifierList(raw)
@@ -99,13 +99,13 @@ final class MouseAppExceptions: ObservableObject {
     func add(_ identity: String, to scope: MouseExceptionScope) {
         let updated = Defaults.sanitizedBundleIdentifierList(list(scope) + [identity])
         guard updated != list(scope) else { return }
-        UserDefaults.standard.set(updated, forKey: scope.defaultsKey)
+        SettingsUserDefaults.standard.set(updated, forKey: scope.defaultsKey)
         reload()
     }
 
     func remove(_ bundleID: String, from scope: MouseExceptionScope) {
         guard list(scope).contains(bundleID) else { return }
-        UserDefaults.standard.set(list(scope).filter { $0 != bundleID }, forKey: scope.defaultsKey)
+        SettingsUserDefaults.standard.set(list(scope).filter { $0 != bundleID }, forKey: scope.defaultsKey)
         reload()
     }
 

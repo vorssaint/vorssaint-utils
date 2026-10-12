@@ -9,7 +9,7 @@ Vorssaint is built to be local-first. Core features run on your Mac, and the app
 - **No automatic telemetry.** Vorssaint gathers no usage stats, crash reports or device identifiers. Feedback sends technical details only when you select them after seeing the complete list.
 - **No Vorssaint analytics or tracking.** There are no analytics kits, no ad networks and no third party tracking anywhere in the app.
 - **No data selling.** Vorssaint never sells personal information or shared screenshots and recordings.
-- **Your settings stay put.** Preferences and saved state live in the app's own local storage on your Mac and are never uploaded.
+- **Your settings stay put.** Preferences live in `~/.config/vorssaint/settings.plist` (or `$XDG_CONFIG_HOME/vorssaint/settings.plist` when set), where you can include them in your dotfiles Git repository. Existing settings migrate there on first launch; preferences are never uploaded.
 
 ## What it reads, and where that stays
 

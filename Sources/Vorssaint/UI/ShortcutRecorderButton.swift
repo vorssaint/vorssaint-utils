@@ -351,7 +351,10 @@ struct ShortcutPreferenceRow: View {
         self.reservesClearButtonSpace = reservesClearButtonSpace
         self.additionalConflict = additionalConflict
         self.onChange = onChange
-        _rawValue = AppStorage(wrappedValue: role.defaultShortcut.storageValue, role.storageKey)
+        _rawValue = AppStorage(
+            wrappedValue: role.defaultShortcut.storageValue,
+            role.storageKey,
+            store: SettingsUserDefaults.standard)
     }
 
     var body: some View {

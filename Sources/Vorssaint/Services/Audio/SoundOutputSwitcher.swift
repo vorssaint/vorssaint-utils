@@ -20,7 +20,7 @@ final class SoundOutputSwitcher: ObservableObject {
 
     func syncWithPreferences() {
         AppFeature.soundOutputSwitcher.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.soundOutputSwitcherEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.soundOutputSwitcherEnabled)
             ? registerHotkey()
             : unregisterHotkey()
     }
@@ -31,16 +31,16 @@ final class SoundOutputSwitcher: ObservableObject {
 
     func selectedDeviceUIDs() -> [String] {
         Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(
-            UserDefaults.standard.array(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs) ?? []
+            SettingsUserDefaults.standard.array(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs) ?? []
         )
     }
 
     func setSelectedDeviceUIDs(_ uids: [String]) {
         let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
         if sanitized.isEmpty {
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
         } else {
-            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
+            SettingsUserDefaults.standard.set(sanitized, forKey: DefaultsKey.soundOutputSwitcherDeviceUIDs)
         }
         lastSwitchFailed = false
     }

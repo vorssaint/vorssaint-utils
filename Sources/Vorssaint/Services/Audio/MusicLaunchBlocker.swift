@@ -42,7 +42,7 @@ final class MusicLaunchBlocker: ObservableObject {
     }
 
     private var isEnabled: Bool {
-        AppFeature.musicBlock.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockEnabled)
+        AppFeature.musicBlock.isAvailable && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.musicBlockEnabled)
     }
 
     private func start() {
@@ -101,7 +101,7 @@ final class MusicLaunchBlocker: ObservableObject {
         ) else { return }
         guard app.forceTerminate() || app.terminate() else { return }
         openReplacementIfConfigured(startingPlayback: lastMediaKeyCode == MusicLaunchSupport.playPauseKeyCode
-            && UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement))
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement))
     }
 
     /// Pointer buttons and ordinary keys can ask to open an app. Modifier
@@ -124,7 +124,7 @@ final class MusicLaunchBlocker: ObservableObject {
         guard now - lastReplacementLaunch > 1.0 else { return }
         lastReplacementLaunch = now
 
-        let path = UserDefaults.standard.string(forKey: DefaultsKey.musicBlockReplacementPath) ?? ""
+        let path = SettingsUserDefaults.standard.string(forKey: DefaultsKey.musicBlockReplacementPath) ?? ""
         guard !path.isEmpty else { return }
         let url = URL(fileURLWithPath: path)
         // The replacement must never be the app being blocked, or the two
@@ -135,7 +135,7 @@ final class MusicLaunchBlocker: ObservableObject {
         NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { app, _ in
             // Play/Pause asked for music, not just a window.
             guard startingPlayback, self.isEnabled,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement),
+                  SettingsUserDefaults.standard.bool(forKey: DefaultsKey.musicBlockPlayReplacement),
                   let app else { return }
             MusicReplacementPlayback.start(app)
         }

@@ -52,7 +52,7 @@ final class CameraPreviewService: ObservableObject {
     func syncWithPreferences() {
         let available = AppFeature.cameraPreview.isAvailable
         let enabled = available
-            && UserDefaults.standard.bool(forKey: DefaultsKey.cameraPreviewShortcutEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.cameraPreviewShortcutEnabled)
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.cameraPreviewShortcut,
                                             fallback: .cameraPreviewDefault)
         shortcutRegistrationFailed = !hotkey.sync(enabled: enabled, shortcut: shortcut,
@@ -372,7 +372,7 @@ final class CameraPreviewService: ObservableObject {
         panel.isOpaque = false
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CameraPreviewView())
+        let host = NSHostingController(rootView: CameraPreviewView().defaultAppStorage(SettingsUserDefaults.standard))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

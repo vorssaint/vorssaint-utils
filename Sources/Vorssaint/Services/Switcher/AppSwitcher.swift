@@ -50,7 +50,7 @@ final class AppSwitcher: ObservableObject {
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
             if sessionActive, simpleModeEnabled, !usesWindowRow {
-                resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
+                resizePanel(animated: !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
         }
     }
@@ -207,7 +207,7 @@ final class AppSwitcher: ObservableObject {
     private var tapIsWanted: Bool {
         SessionActivitySupport.tapShouldRun(
             featureWanted: AppFeature.switcher.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+                && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive)
     }
@@ -230,7 +230,7 @@ final class AppSwitcher: ObservableObject {
             installTap()
             // A live tap can pick up a shortcut change without rebuilding;
             // apply here so the native hotkeys follow immediately.
-            if !UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
+            if !SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
                 restoreNativeHotkeys()
             } else {
                 applyNativeHotkeySuppressionIfTapLive()
@@ -454,7 +454,7 @@ final class AppSwitcher: ObservableObject {
     /// installed, so a missing Accessibility grant never kills both switchers.
     private func applyNativeHotkeySuppression() {
         let (apps, windows) = routeLock.withLock { (routeShortcut, routeWindowShortcut) }
-        let takeOver = UserDefaults.standard.bool(
+        let takeOver = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
         SystemShortcutTakeover.setWanted(
             SwitcherSupport.nativeHotkeyIDs(
@@ -475,10 +475,10 @@ final class AppSwitcher: ObservableObject {
         // must not hold them either or the keys flip off and on.
         guard SessionActivitySupport.tapShouldRun(
                   featureWanted: AppFeature.switcher.isAvailable
-                      && UserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
+                      && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherEnabled),
                   accessibilityGranted: AXIsProcessTrusted(),
                   sessionIsActive: SessionActivity.shared.isActive),
-              UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts)
         else { return [] }
         return SwitcherSupport.nativeHotkeyIDs(
             takeOverSystemShortcuts: true,
@@ -890,7 +890,7 @@ final class AppSwitcher: ObservableObject {
             return routePendingSessionStart
         }) else { return }
         let allApps = requested.scope == .allApps
-        let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
+        let mergeWindowsByApp = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
         let groupByApp = allApps && mergeWindowsByApp
         let preservesGroupedWindows = SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
             allApps: allApps,
@@ -1665,7 +1665,7 @@ final class AppSwitcher: ObservableObject {
         }
         pendingShow = work
         let appearanceDelay = SwitcherSupport.appearanceDelay(
-            milliseconds: UserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
+            milliseconds: SettingsUserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
         DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
     }
 
@@ -1720,27 +1720,27 @@ final class AppSwitcher: ObservableObject {
     }
 
     private var iconRowModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherIconRowMode)
     }
 
     private var simpleModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherSimpleMode)
     }
 
     private var usesWindowRow: Bool {
         SwitcherSupport.usesWindowRow(
             simpleMode: simpleModeEnabled,
-            mergeWindowsByApp: UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
+            mergeWindowsByApp: SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs),
             sessionScope: sessionScope
         )
     }
 
     private var searchPinEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherSearchPinEnabled)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherSearchPinEnabled)
     }
 
     private var showsShortcutHints: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.switcherShowShortcutHints)
+        SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherShowShortcutHints)
     }
 
     private var usesIconRowLayout: Bool {
@@ -1756,7 +1756,7 @@ final class AppSwitcher: ObservableObject {
 
     private var screenPlacement: SwitcherScreenPlacement {
         SwitcherScreenPlacement.placement(
-            storedValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherScreenPlacement))
+            storedValue: SettingsUserDefaults.standard.string(forKey: DefaultsKey.switcherScreenPlacement))
     }
 
     /// The screen the panel is laid out on. Every choice falls back to the
@@ -1790,7 +1790,7 @@ final class AppSwitcher: ObservableObject {
 
     /// Freeze the pointer's display before the asynchronous window walk.
     private var currentDisplayScope: WindowEnumerator.DisplayScope? {
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
+        guard SettingsUserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentDisplayOnly) else {
             return nil
         }
         let screens = NSScreen.screens
@@ -1982,7 +1982,7 @@ final class AppSwitcher: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
-        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self))
+        panel.contentViewController = NSHostingController(rootView: SwitcherView().environmentObject(self).defaultAppStorage(SettingsUserDefaults.standard))
         self.panel = panel
         return panel
     }

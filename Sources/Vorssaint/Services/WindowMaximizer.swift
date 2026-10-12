@@ -31,7 +31,7 @@ final class WindowMaximizer: ObservableObject {
 
     func syncWithPreferences() {
         let wanted = AppFeature.windowMaximizer.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.windowMaximizeEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.windowMaximizeEnabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -160,7 +160,7 @@ final class WindowMaximizer: ObservableObject {
     /// The list is read here rather than cached: this only runs for a press on
     /// a green button, and a restored backup needs no reload to take effect.
     private func isExcluded(pid: pid_t) -> Bool {
-        let excluded = UserDefaults.standard.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? []
+        let excluded = SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.windowMaximizeExcludedApps) ?? []
         guard !excluded.isEmpty else { return false }
         return WindowMaximizerSupport.excludes(
             bundleIdentifier: NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,

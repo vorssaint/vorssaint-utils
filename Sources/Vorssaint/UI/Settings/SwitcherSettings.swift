@@ -318,7 +318,8 @@ struct WindowPreviewsCard: View {
     private let excludedAppsKey: String
 
     init(sizeKey: String, excludedAppsKey: String) {
-        _previewSize = AppStorage(wrappedValue: "normal", sizeKey)
+        _previewSize = AppStorage(
+            wrappedValue: "normal", sizeKey)
         self.excludedAppsKey = excludedAppsKey
     }
 

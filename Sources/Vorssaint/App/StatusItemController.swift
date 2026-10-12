@@ -278,7 +278,7 @@ final class StatusItemController {
     /// Keeps the background sampler in step with the menu bar settings: it runs
     /// continuously only while at least one metric is pinned to the menu bar.
     private func syncMonitorMode() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
         SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
@@ -307,7 +307,7 @@ final class StatusItemController {
 
     private var currentMicBadgeActive: Bool {
         MicMuteService.shared.isMuted
-            && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.micMuteMenuBarIndicator)
     }
 
     private var renderedMicBadgeActive: Bool {
@@ -353,7 +353,7 @@ final class StatusItemController {
     /// AFTER refresh() writes it — refresh() calls this at its end.
     private func updateIconAppearance() {
         guard let button = statusItem?.button else { return }
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let updateAvailable: Bool
         if case .available = UpdateService.shared.state {
             updateAvailable = true
@@ -455,7 +455,7 @@ final class StatusItemController {
         guard let button = statusItem?.button else { return }
         let manager = KeepAwakeManager.shared
         let strings = L10n.shared.s
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let snapshot = SystemMonitor.shared.snapshot
         let metrics = MenuBarMetric.enabled(in: defaults)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
@@ -644,7 +644,7 @@ final class StatusItemController {
     /// Settings preview draws the same split the bar does.
     static func metricStatusGroups(for metrics: [MenuBarMetric], strings: Strings) -> [MetricStatusGroup] {
         guard MenuBarMetricAppearance.current.allowsCombinedTemperatures,
-              UserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
+              SettingsUserDefaults.standard.bool(forKey: DefaultsKey.menuBarCombineTemperatures) else {
             return metrics.map {
                 MetricStatusGroup(id: $0.rawValue, metrics: [$0], focusMetric: $0, title: $0.title(strings))
             }
@@ -767,7 +767,7 @@ final class StatusItemController {
     /// Runs on every entries/isRunning change and on every settings sync, so
     /// toggling the option or the character limit takes effect immediately.
     private func syncClipboardPreviewItem() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         // Checked before ever touching ClipboardHistoryService.shared: merely
         // referencing it brings the whole service to life — its saved history
         // file and image folder included — and this runs on every settings
@@ -914,7 +914,7 @@ enum BlackHoleGlyph {
     /// The symbol named in the menu bar settings, empty for the mark.
     static var chosenSymbolName: String {
         Defaults.sanitizedMenuBarIconSymbol(
-            UserDefaults.standard.string(forKey: DefaultsKey.menuBarIconSymbol))
+            SettingsUserDefaults.standard.string(forKey: DefaultsKey.menuBarIconSymbol))
     }
 
     /// What every state starts from: the chosen symbol, or the bundled mark

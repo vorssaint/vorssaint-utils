@@ -116,7 +116,7 @@ final class SuperKeyService: ObservableObject {
     }
 
     func syncWithPreferences() {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let action = SuperKeySoloAction.sanitized(
             defaults.string(forKey: DefaultsKey.superKeySoloAction)
         )
@@ -384,7 +384,7 @@ final class SuperKeyService: ObservableObject {
     /// every path that ends without a live tap takes it out, so the source is
     /// never left as a key that does nothing.
     private func clearLeftoverMapping(synchronously: Bool = false) {
-        let mappingMayBeApplied = UserDefaults.standard.bool(
+        let mappingMayBeApplied = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.superKeyMappingApplied
         ) || stateLock.withLock { pendingMappingEnableCount > 0 }
         if mappingMayBeApplied {
@@ -441,7 +441,7 @@ final class SuperKeyService: ObservableObject {
                       })
                 else { return }
             }
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             let previousMarker = defaults.bool(forKey: DefaultsKey.superKeyMappingApplied)
             let ownedSource = previousMarker ? SuperKeySource.sanitized(
                 defaults.string(forKey: DefaultsKey.superKeyMappedSource)
@@ -523,16 +523,16 @@ final class SuperKeyService: ObservableObject {
             // Recovery is write-ahead only after every external-mapping check
             // passed. A crash after the command starts must leave the next
             // launch authorized to remove a possibly partial application.
-            UserDefaults.standard.set(true, forKey: DefaultsKey.superKeyMappingApplied)
-            UserDefaults.standard.set(source.rawValue, forKey: DefaultsKey.superKeyMappedSource)
+            SettingsUserDefaults.standard.set(true, forKey: DefaultsKey.superKeyMappingApplied)
+            SettingsUserDefaults.standard.set(source.rawValue, forKey: DefaultsKey.superKeyMappedSource)
         }
         defer {
             if startedGuard, !mappingConfirmed {
                 let cleared = mappingGuard?.stop() ?? false
                 mappingGuard = nil
                 if cleared {
-                    UserDefaults.standard.set(false, forKey: DefaultsKey.superKeyMappingApplied)
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.superKeyMappedSource)
+                    SettingsUserDefaults.standard.set(false, forKey: DefaultsKey.superKeyMappingApplied)
+                    SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.superKeyMappedSource)
                 }
             }
         }

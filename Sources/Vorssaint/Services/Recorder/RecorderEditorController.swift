@@ -90,7 +90,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         if let saved = try? Data(contentsOf: take.editURL) {
             document = RecorderEditDocument.decoded(saved)
         } else {
-            let defaults = UserDefaults.standard
+            let defaults = SettingsUserDefaults.standard
             document = RecorderEditDocument(
                 quality: RecorderSupport.sanitizedQuality(
                     defaults.string(forKey: DefaultsKey.recorderQuality)).rawValue,
@@ -539,7 +539,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     private func loadEditPresets() {
-        guard let data = UserDefaults.standard.data(forKey: DefaultsKey.recorderEditorPresets),
+        guard let data = SettingsUserDefaults.standard.data(forKey: DefaultsKey.recorderEditorPresets),
               let presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: data)
         else { return }
         editPresets = Array(presets.suffix(12))
@@ -547,7 +547,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     private func persistEditPresets(_ presets: [RecorderEditPreset]) -> Bool {
         guard let data = try? JSONEncoder().encode(presets) else { return false }
-        UserDefaults.standard.set(data, forKey: DefaultsKey.recorderEditorPresets)
+        SettingsUserDefaults.standard.set(data, forKey: DefaultsKey.recorderEditorPresets)
         let retainedPaths = Set(presets.flatMap { $0.images ?? [] }.map(\.path))
         let retiredImages = editPresets.flatMap { $0.images ?? [] }
             .filter { !retainedPaths.contains($0.path) }
@@ -1270,7 +1270,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
 
     func loadBackdropPresets() {
         backdropPresets = ScreenshotSupport.decodedBackdropPresets(
-            UserDefaults.standard.string(forKey: DefaultsKey.screenshotBackdropPresets))
+            SettingsUserDefaults.standard.string(forKey: DefaultsKey.screenshotBackdropPresets))
     }
 
     func saveCurrentBackdropAsPreset() {
@@ -1300,7 +1300,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     private func persistPresets() {
-        UserDefaults.standard.set(ScreenshotSupport.encodedBackdropPresets(backdropPresets),
+        SettingsUserDefaults.standard.set(ScreenshotSupport.encodedBackdropPresets(backdropPresets),
                                   forKey: DefaultsKey.screenshotBackdropPresets)
     }
 
@@ -1444,7 +1444,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     func show() {
         let content = RecorderEditorView(model: model, controller: self)
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.defaultAppStorage(SettingsUserDefaults.standard))
         let window = NSWindow(contentViewController: host)
         window.title = strings.editorTitle
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
@@ -1513,7 +1513,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         panel.allowsMultipleSelection = false
         panel.beginSheetModal(for: window) { response in
             guard response == .OK, let url = panel.url else { return }
-            UserDefaults.standard.set(url.path, forKey: DefaultsKey.recorderSaveFolder)
+            SettingsUserDefaults.standard.set(url.path, forKey: DefaultsKey.recorderSaveFolder)
         }
     }
 

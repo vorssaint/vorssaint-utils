@@ -35,7 +35,7 @@ final class FinderRenameService {
                                             fallback: .finderRenameDefault)
         routeLock.withLock { routeShortcut = shortcut }
         let enabled = AppFeature.finderRename.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.finderRenameEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.finderRenameEnabled)
         if SessionActivitySupport.tapShouldRun(featureWanted: enabled,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {

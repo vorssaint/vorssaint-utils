@@ -63,7 +63,7 @@ final class ClipboardHistoryService: ObservableObject {
     @Published private(set) var quickSelectionID: UUID?
     @Published private(set) var quickSelectionIsVisible = false
     @Published private(set) var quickWindowPresentationID = UUID()
-    @Published private(set) var quickPreviewPresented = UserDefaults.standard.bool(
+    @Published private(set) var quickPreviewPresented = SettingsUserDefaults.standard.bool(
         forKey: DefaultsKey.clipboardHistoryQuickPreview
     )
     /// Read again on every opening, so the window's frame and its content
@@ -112,7 +112,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func syncWithPreferences() {
         if AppFeature.clipboardHistory.isAvailable,
-           UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled) {
+           SettingsUserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled) {
             start()
             syncHotkey()
         } else {
@@ -682,7 +682,7 @@ final class ClipboardHistoryService: ObservableObject {
         // fresh baseline before capturing. Old completions cannot consume it.
         let baseline = captureState.needsBaseline
         let sinceChangeCount = lastChangeCount
-        let includeImagesFiles = UserDefaults.standard.bool(
+        let includeImagesFiles = SettingsUserDefaults.standard.bool(
             forKey: DefaultsKey.clipboardHistoryIncludeImagesFiles)
         // Taken before the read, which may answer only after the panel took
         // the keys: a copy made before it opened came from the app behind.
@@ -909,7 +909,7 @@ final class ClipboardHistoryService: ObservableObject {
     private func promote(_ raw: String, source: String?, keepsSource: Bool) {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
-        if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistorySkipSensitive),
+        if SettingsUserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistorySkipSensitive),
            looksSensitive(text) {
             return
         }
@@ -932,7 +932,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func trimToLimit() {
         let limit = Defaults.sanitizedClipboardHistoryLimit(
-            UserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
+            SettingsUserDefaults.standard.integer(forKey: DefaultsKey.clipboardHistoryLimit)
         )
         let trimmed = ClipboardHistoryEditing.retainedEntries(entries, recentLimit: limit)
         if trimmed != entries {
@@ -1013,7 +1013,7 @@ final class ClipboardHistoryService: ObservableObject {
         let fileData = Self.storeURL.flatMap { Self.storedHistoryData(at: $0) }
         var data = fileData
         if data == nil,
-           let legacy = UserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
+           let legacy = SettingsUserDefaults.standard.data(forKey: DefaultsKey.clipboardHistoryEntries) {
             data = legacy
             migrateLegacyBlob = Self.storeURL != nil
         }
@@ -1022,11 +1022,11 @@ final class ClipboardHistoryService: ObservableObject {
               let decoded = try? JSONDecoder().decode([ClipboardHistoryEntry].self, from: data)
         else { return }
         if fileData != nil,
-           UserDefaults.standard.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
+           SettingsUserDefaults.standard.object(forKey: DefaultsKey.clipboardHistoryEntries) != nil {
             // The file decoded and is the durable source. A legacy blob still
             // around (a kill inside the migration window, or a downgrade
             // round trip) would sit in the preferences plist forever.
-            UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+            SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
         }
         entries = decoded
         normalizeEntryOrder()
@@ -1088,7 +1088,7 @@ final class ClipboardHistoryService: ObservableObject {
                 }
             }
             guard let url = Self.storeURL else {
-                UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
+                SettingsUserDefaults.standard.set(data, forKey: DefaultsKey.clipboardHistoryEntries)
                 finishPersist()
                 return
             }
@@ -1098,7 +1098,7 @@ final class ClipboardHistoryService: ObservableObject {
             guard PrivateFileStore.write(data, to: url) else { return }
             finishPersist()
             if retireLegacyBlob {
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
+                SettingsUserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
                 DispatchQueue.main.async { self?.migrateLegacyBlob = false }
             }
         }
@@ -1119,8 +1119,8 @@ final class ClipboardHistoryService: ObservableObject {
     // MARK: - Shortcut
 
     func syncHotkey() {
-        let wanted = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
-            && UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryShortcutEnabled)
+        let wanted = SettingsUserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
+            && SettingsUserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryShortcutEnabled)
         wanted ? registerHotkey() : unregisterHotkey()
     }
 
@@ -1188,7 +1188,7 @@ final class ClipboardHistoryService: ObservableObject {
     func setQuickPreviewPresented(_ presented: Bool) {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
-        UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
+        SettingsUserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
         // The list window grows to make room for the preview. The shelf keeps
         // its frame and gives the preview part of the strip.
         guard quickLayout == .list, let panel, panel.isVisible else { return }
@@ -1318,7 +1318,7 @@ final class ClipboardHistoryService: ObservableObject {
                                                visibleFrame: { $0.screen?.visibleFrame ?? NSScreen.pointerVisibleFrame })
         panel.delegate = sizeLimit
         panelSizeLimit = sizeLimit
-        let host = NSHostingController(rootView: ClipboardQuickPanelView())
+        let host = NSHostingController(rootView: ClipboardQuickPanelView().defaultAppStorage(SettingsUserDefaults.standard))
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
@@ -1335,7 +1335,7 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read on every opening, so a layout picked in Settings applies the next
     /// time the window opens.
     private func refreshQuickLayout() {
-        let layout = ClipboardHistoryLayout.current(in: UserDefaults.standard)
+        let layout = ClipboardHistoryLayout.current(in: SettingsUserDefaults.standard)
         if quickLayout != layout { quickLayout = layout }
     }
 
@@ -1346,7 +1346,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private func preferredPanelSize(visibleFrame: NSRect) -> NSSize {
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         return ClipboardHistoryWindowSizing.contentSize(
             preview: quickPreviewPresented,
             savedWidth: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowWidth),
@@ -1360,8 +1360,8 @@ final class ClipboardHistoryService: ObservableObject {
                   from: panel.contentRect(forFrameRect: panel.frame).size,
                   preview: quickPreviewPresented)
         else { return }
-        UserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.clipboardHistoryWindowWidth)
-        UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
+        SettingsUserDefaults.standard.set(Double(size.width), forKey: DefaultsKey.clipboardHistoryWindowWidth)
+        SettingsUserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
     }
 
     /// Placed again on every open, so a changed display never strands it.

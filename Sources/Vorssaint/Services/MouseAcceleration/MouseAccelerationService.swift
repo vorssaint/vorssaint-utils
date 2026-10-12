@@ -10,7 +10,7 @@ import HIDEventSystem
 final class MouseAccelerationService {
     static let shared = MouseAccelerationService()
 
-    private let defaults = UserDefaults.standard
+    private let defaults = SettingsUserDefaults.standard
     private var client: IOHIDEventSystemClient?
     private var hidManager: IOHIDManager?
     private var reapplySchedule = MouseAccelerationReapplySchedule()

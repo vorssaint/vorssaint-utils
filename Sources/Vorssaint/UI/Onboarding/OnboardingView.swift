@@ -32,7 +32,7 @@ struct OnboardingView: View {
     init(mode: OnboardingMode = .full, onFinish: @escaping () -> Void) {
         self.mode = mode
         self.onFinish = onFinish
-        let defaults = UserDefaults.standard
+        let defaults = SettingsUserDefaults.standard
         let selectionWasApplied = defaults.bool(forKey: DefaultsKey.hasOnboarded)
             || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
         let features = selectionWasApplied

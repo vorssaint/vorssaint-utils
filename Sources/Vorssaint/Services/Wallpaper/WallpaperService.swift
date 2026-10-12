@@ -78,13 +78,13 @@ final class WallpaperService: ObservableObject {
 
     var applyAllDisplays: Bool {
         get {
-            if UserDefaults.standard.object(forKey: DefaultsKey.wallpaperApplyAllDisplays) == nil {
+            if SettingsUserDefaults.standard.object(forKey: DefaultsKey.wallpaperApplyAllDisplays) == nil {
                 return true
             }
-            return UserDefaults.standard.bool(forKey: DefaultsKey.wallpaperApplyAllDisplays)
+            return SettingsUserDefaults.standard.bool(forKey: DefaultsKey.wallpaperApplyAllDisplays)
         }
         set {
-            UserDefaults.standard.set(newValue, forKey: DefaultsKey.wallpaperApplyAllDisplays)
+            SettingsUserDefaults.standard.set(newValue, forKey: DefaultsKey.wallpaperApplyAllDisplays)
             objectWillChange.send()
         }
     }
@@ -120,7 +120,7 @@ final class WallpaperService: ObservableObject {
 
     func setFilter(_ filter: WallpaperSupport.Filter) {
         self.filter = filter
-        UserDefaults.standard.set(filter.rawValue, forKey: DefaultsKey.wallpaperFilter)
+        SettingsUserDefaults.standard.set(filter.rawValue, forKey: DefaultsKey.wallpaperFilter)
         preparePageThumbs(for: filter, around: 1)
     }
 
@@ -485,22 +485,22 @@ final class WallpaperService: ObservableObject {
     }
 
     private func loadBookmarks() {
-        ownBookmarks = UserDefaults.standard.array(forKey: DefaultsKey.wallpaperOwnBookmarks) as? [Data]
+        ownBookmarks = SettingsUserDefaults.standard.array(forKey: DefaultsKey.wallpaperOwnBookmarks) as? [Data]
             ?? []
     }
 
     private func persistBookmarks() {
-        UserDefaults.standard.set(ownBookmarks, forKey: DefaultsKey.wallpaperOwnBookmarks)
+        SettingsUserDefaults.standard.set(ownBookmarks, forKey: DefaultsKey.wallpaperOwnBookmarks)
     }
 
     private func loadExclusions() {
-        let list = UserDefaults.standard.array(forKey: DefaultsKey.wallpaperExcludedOwnPaths) as? [String]
+        let list = SettingsUserDefaults.standard.array(forKey: DefaultsKey.wallpaperExcludedOwnPaths) as? [String]
             ?? []
         excludedOwnPaths = Set(list)
     }
 
     private func persistExclusions() {
-        UserDefaults.standard.set(Array(excludedOwnPaths).sorted(),
+        SettingsUserDefaults.standard.set(Array(excludedOwnPaths).sorted(),
                                   forKey: DefaultsKey.wallpaperExcludedOwnPaths)
     }
 
@@ -551,7 +551,7 @@ final class WallpaperService: ObservableObject {
     }
 
     private func loadFilter() {
-        let raw = UserDefaults.standard.string(forKey: DefaultsKey.wallpaperFilter) ?? ""
+        let raw = SettingsUserDefaults.standard.string(forKey: DefaultsKey.wallpaperFilter) ?? ""
         filter = WallpaperSupport.Filter(rawValue: raw) ?? .all
     }
 

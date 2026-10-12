@@ -331,7 +331,7 @@ final class QuickTogglesService: ObservableObject {
         guard let urls = FileManager.default.mountedVolumeURLs(
             includingResourceValuesForKeys: Array(keys),
             options: [.skipHiddenVolumes]) else { return [] }
-        let excludedList = UserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []
+        let excludedList = SettingsUserDefaults.standard.stringArray(forKey: DefaultsKey.diskEjectExcludedVolumes) ?? []
         let excludedSet = Set(excludedList.map { $0.lowercased() })
         return urls.filter { url in
             guard let values = try? url.resourceValues(forKeys: keys) else { return false }

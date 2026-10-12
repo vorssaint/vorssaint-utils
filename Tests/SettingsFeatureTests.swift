@@ -613,5 +613,67 @@ enum SettingsFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
                "precise volume roller is opt-in")
 
+        let storageRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-settings-\(UUID().uuidString)", isDirectory: true)
+        let settingsFile = storageRoot.appendingPathComponent("dotfiles/vorssaint/settings.plist")
+        let legacyDomain = "com.vorssaint.tests.settings.\(UUID().uuidString)"
+        let legacyDefaults = UserDefaults(suiteName: legacyDomain)!
+        legacyDefaults.set(true, forKey: "migratedFlag")
+        legacyDefaults.set(["first", "second"], forKey: "migratedList")
+        let migratedDefaults = SettingsUserDefaults(
+            storageURL: settingsFile,
+            domainName: legacyDomain,
+            legacyDefaults: legacyDefaults,
+            containerURL: storageRoot)
+        suite.expect(migratedDefaults.bool(forKey: "migratedFlag")
+                && migratedDefaults.stringArray(forKey: "migratedList") == ["first", "second"]
+                && (legacyDefaults.persistentDomain(forName: legacyDomain) ?? [:]).isEmpty,
+               "legacy preferences migrate into the settings file and leave the old domain")
+        migratedDefaults.register(defaults: ["registeredFallback": true])
+        migratedDefaults.withBatchUpdates {
+            migratedDefaults.set("saved", forKey: "writtenValue")
+            migratedDefaults.removeObject(forKey: "migratedFlag")
+        }
+        let reopenedDefaults = SettingsUserDefaults(
+            storageURL: settingsFile,
+            domainName: legacyDomain,
+            legacyDefaults: legacyDefaults,
+            containerURL: storageRoot)
+        reopenedDefaults.register(defaults: ["registeredFallback": true])
+        suite.expect(reopenedDefaults.string(forKey: "writtenValue") == "saved"
+                && !reopenedDefaults.bool(forKey: "migratedFlag")
+                && reopenedDefaults.bool(forKey: "registeredFallback")
+                && reopenedDefaults.persistentDomain(forName: legacyDomain)?[
+                    "registeredFallback"] == nil,
+               "file-backed preferences persist changes while keeping registered defaults virtual")
+
+        let legacyFile = storageRoot.appendingPathComponent("Application Support/Settings/Preferences.plist")
+        let legacyFileValues: [String: Any] = ["oldFilePreference": "preserved"]
+        let legacyFileData = try? PropertyListSerialization.data(
+            fromPropertyList: legacyFileValues, format: .xml, options: 0)
+        try? FileManager.default.createDirectory(
+            at: legacyFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let legacyFileData {
+            try? legacyFileData.write(to: legacyFile)
+        }
+        let migratedFileDefaults = SettingsUserDefaults(
+            storageURL: storageRoot.appendingPathComponent("dotfiles-migration/settings.plist"),
+            domainName: nil,
+            legacyDefaults: legacyDefaults,
+            legacyStorageURL: legacyFile,
+            containerURL: storageRoot.appendingPathComponent("dotfiles-migration"))
+        suite.expect(migratedFileDefaults.string(forKey: "oldFilePreference") == "preserved"
+                && !FileManager.default.fileExists(atPath: legacyFile.path),
+               "previous Application Support settings migrate to the dotfiles config file")
+        let configHome = storageRoot.appendingPathComponent(".config", isDirectory: true)
+        suite.expect(SettingsUserDefaults.settingsDirectory(
+            configHome: configHome, bundleIdentifier: "com.vorssaint.utils")
+                == configHome.appendingPathComponent("vorssaint", isDirectory: true)
+                && SettingsUserDefaults.settingsDirectory(
+                    configHome: configHome, bundleIdentifier: "com.vorssaint.utils.dev")
+                    == configHome.appendingPathComponent("vorssaint-dev", isDirectory: true),
+               "stable and developer settings use separate dotfiles config folders")
+        try? FileManager.default.removeItem(at: storageRoot)
+
     }
 }
