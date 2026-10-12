@@ -5,7 +5,7 @@ import CoreGraphics
 import Foundation
 
 /// The run loop that serves the event taps standing in the path of ordinary
-/// clicks and wheel events.
+/// keys, clicks and wheel events.
 ///
 /// An active tap holds each event it asked for until its callback returns, so a
 /// tap served by the main run loop makes every click in every app wait for

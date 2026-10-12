@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// Gesture recognition, routing and system-gesture claims, fed with synthetic
@@ -118,15 +119,58 @@ enum TrackpadGestureTests {
             suite.expect(false, "a four-finger touch produces a contact")
         }
 
-        // Measured: a swipe 0.19 s after the previous one's Space shortcut read
-        // 0.19 s since the last key down with no key touched.
-        suite.expect(TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.19, sinceOwnKeyPost: 0.21) == .infinity
-                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: .infinity, sinceOwnKeyPost: .infinity) == .infinity,
-                     "the shortcut our own action just posted is not the user typing")
-        suite.expect(TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: 3) == 0.2
-                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: .infinity) == 0.2
-                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: 0.45) == 0.2,
-                     "a key pressed after our last post, or with no post at all, is still typing")
+        // MARK: Typing attribution (PR #3017)
+        let ownKey = CGEvent(keyboardEventSource: nil, virtualKey: 49, keyDown: true)!
+        ownKey.setIntegerValueField(.eventSourceUnixProcessID,
+                                   value: Int64(ProcessInfo.processInfo.processIdentifier))
+        let physicalKey = ownKey.copy()!
+        physicalKey.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
+        physicalKey.setIntegerValueField(.eventSourceUserData, value: 0)
+        var typing = TrackpadGestureSupport.TypingState()
+        typing.keyDown(isOwn: OwnKeyEvent.isPosted(ownKey), now: 10, counter: 1)
+        let ownOnlyAge = typing.secondsSinceTyping(now: 10.22, sinceLastKeyDown: 0.22,
+                                                  counter: 1, canObserveTyping: true)
+        if var swipe = contact(fingers: 4, dx: -0.3) {
+            swipe.secondsSinceLastKeyDown = ownOnlyAge
+            suite.expect(TrackpadGestureSupport.judge(swipe)?.key == "swipe-left-4",
+                         "an injected shortcut allows the next swipe without a keyboard pause")
+        }
+        typing.keyDown(isOwn: OwnKeyEvent.isPosted(physicalKey), now: 10.06, counter: 2)
+        let physicalAge = typing.secondsSinceTyping(now: 10.22, sinceLastKeyDown: 0.16,
+                                                   counter: 2, canObserveTyping: true)
+        for (fingers, movement) in [(3, Float(0)), (4, Float(0)), (4, Float(-0.3))] {
+            if var touch = contact(fingers: fingers, dx: movement) {
+                touch.secondsSinceLastKeyDown = physicalAge
+                suite.expect(TrackpadGestureSupport.judge(touch) == nil,
+                             "a physical key 60 ms after our shortcut blocks reserved taps and mapped gestures")
+            }
+        }
+        typing.keyDown(isOwn: OwnKeyEvent.isPosted(ownKey), now: 10.12, counter: 3)
+        suite.expect(typing.secondsSinceTyping(now: 10.22, sinceLastKeyDown: 0.1,
+                                               counter: 3, canObserveTyping: true) < TrackpadGestureSupport.keyboardIdle,
+                     "an own shortcut 60 ms after a physical key never erases the typing pause")
+        suite.expect(typing.secondsSinceTyping(now: 10.57, sinceLastKeyDown: 0.45,
+                                               counter: 3, canObserveTyping: true) >= TrackpadGestureSupport.keyboardIdle,
+                     "gestures resume after the physical key's idle window")
+        var missedTyping = TrackpadGestureSupport.TypingState()
+        missedTyping.keyDown(isOwn: true, now: 10, counter: 1)
+        suite.expect(missedTyping.secondsSinceTyping(now: 10.22, sinceLastKeyDown: 0.16,
+                                                     counter: 2, canObserveTyping: true) < TrackpadGestureSupport.keyboardIdle,
+                     "a system key not yet observed invalidates the older own shortcut")
+        var unavailableTyping = TrackpadGestureSupport.TypingState()
+        unavailableTyping.keyDown(isOwn: true, now: 10, counter: 1)
+        suite.expect(unavailableTyping.secondsSinceTyping(now: 10.22, sinceLastKeyDown: 0.16,
+                                                          counter: 1, canObserveTyping: false) < TrackpadGestureSupport.keyboardIdle,
+                     "an unavailable tap or Secure Input keeps the system typing guard")
+        unavailableTyping.keyDown(isOwn: true, now: 10.25, counter: 2)
+        suite.expect(unavailableTyping.secondsSinceTyping(now: 10.3, sinceLastKeyDown: 0.05,
+                                                          counter: 2, canObserveTyping: true) < TrackpadGestureSupport.keyboardIdle,
+                     "restored observation preserves recent typing from its fallback")
+        var resumedTyping = TrackpadGestureSupport.TypingState(now: 10.22, sinceLastKeyDown: 0.16)
+        resumedTyping.keyDown(isOwn: true, now: 10.25, counter: 1)
+        suite.expect(resumedTyping.secondsSinceTyping(now: 10.3, sinceLastKeyDown: 0.05,
+                                                      counter: 1, canObserveTyping: true) < TrackpadGestureSupport.keyboardIdle,
+                     "starting the service preserves typing that preceded its event tap")
 
         // MARK: Middle click tap (issue #161), now judged here
         func still(fingers: Int = 3, duration: TimeInterval = 0.15, movement: Float = 0.01,

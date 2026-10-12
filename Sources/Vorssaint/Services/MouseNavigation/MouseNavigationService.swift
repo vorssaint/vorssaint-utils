@@ -520,7 +520,6 @@ final class MouseNavigationService: ObservableObject {
         let flags: CGEventFlags = stroke.needsShift ? [.maskCommand, .maskShift] : .maskCommand
         down.flags = flags
         up.flags = flags
-        OwnKeyEvent.notePosted()
         down.post(tap: .cgSessionEventTap)
         up.post(tap: .cgSessionEventTap)
     }

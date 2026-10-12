@@ -213,17 +213,29 @@ enum TrackpadGestureSupport {
     /// A touch that lasts longer than this was resting fingers, not a gesture.
     static let maxGestureDuration: TimeInterval = 1.5
 
-    /// How far apart the system's record of a key down and our own note of
-    /// posting one can be and still be the same key.
-    static let ownKeyPostSlack: TimeInterval = 0.1
+    /// Own shortcuts never erase a physical press, even when the two arrive
+    /// together. A changed system counter falls back to treating an unseen
+    /// key as typing rather than trusting an older own event.
+    struct TypingState {
+        private var lastTypingUptime: TimeInterval
+        private var ownKeyDownCounter: UInt32?
 
-    /// Seconds since the user last typed. The system's record of the last
-    /// key down, hardware or session, also counts the shortcut a gesture's
-    /// action just posted; taken for typing, it drops every second swipe of
-    /// a quick series. A key down that coincides with our last post is ours.
-    static func secondsSinceTyping(sinceLastKeyDown: TimeInterval,
-                                   sinceOwnKeyPost: TimeInterval) -> TimeInterval {
-        abs(sinceLastKeyDown - sinceOwnKeyPost) <= ownKeyPostSlack ? .infinity : sinceLastKeyDown
+        init(now: TimeInterval = 0, sinceLastKeyDown: TimeInterval = .infinity) {
+            lastTypingUptime = now - sinceLastKeyDown
+        }
+
+        mutating func keyDown(isOwn: Bool, now: TimeInterval, counter: UInt32) {
+            ownKeyDownCounter = isOwn ? counter : nil
+            if !isOwn { lastTypingUptime = max(lastTypingUptime, now) }
+        }
+
+        mutating func secondsSinceTyping(now: TimeInterval, sinceLastKeyDown: TimeInterval,
+                                         counter: UInt32, canObserveTyping: Bool) -> TimeInterval {
+            if !canObserveTyping || ownKeyDownCounter != counter {
+                lastTypingUptime = max(lastTypingUptime, now - sinceLastKeyDown)
+            }
+            return max(0, now - lastTypingUptime)
+        }
     }
 
     // MARK: - Contacts

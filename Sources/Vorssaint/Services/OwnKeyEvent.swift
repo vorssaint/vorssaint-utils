@@ -3,7 +3,6 @@
 
 import CoreGraphics
 import Darwin
-import Foundation
 
 /// Recognises keyboard events this app posts itself, so a filter meant for
 /// physical typing can leave them alone.
@@ -23,21 +22,6 @@ enum OwnKeyEvent {
         sourceProcessID == ownProcessID
             || userData == quitProtectionMarker
             || userData == textSnippetMarker
-    }
-
-    /// When this app last posted a key down, for a reader that only has the
-    /// system's record of the last key down, which counts posted keys along
-    /// with typed ones. Written on the main thread, read on any.
-    private static let postLock = NSLock()
-    private static var lastPostUptime: TimeInterval = -.infinity
-
-    static func notePosted() {
-        let now = ProcessInfo.processInfo.systemUptime
-        postLock.withLock { lastPostUptime = now }
-    }
-
-    static var secondsSinceLastPost: TimeInterval {
-        ProcessInfo.processInfo.systemUptime - postLock.withLock { lastPostUptime }
     }
 
     static func isPosted(_ event: CGEvent) -> Bool {

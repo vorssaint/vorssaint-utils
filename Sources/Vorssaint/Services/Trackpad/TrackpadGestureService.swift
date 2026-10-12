@@ -3,6 +3,7 @@
 
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -25,11 +26,14 @@ final class TrackpadGestureService: ObservableObject {
     /// Taps another feature owns, by finger count.
     @Published private(set) var reservations: [Int: TrackpadTapOwner] = [:]
 
-    /// Guards the recognizer, fed on the multitouch thread.
+    /// Shared by the multitouch and pointer input threads.
     private let stateLock = NSLock()
     private var recognizer = TrackpadGestureRecognizer()
+    private var typing = TrackpadGestureSupport.TypingState()
+    private var typingTap: CFMachPort?
 
     // Main thread only from here on.
+    private var typingSource: CFRunLoopSource?
     private var gesturesOn = false
     private var mappings: [TrackpadGesture: TriggerAction] = [:]
     private var systemSettings = TrackpadSystemGestureSettings()
@@ -101,7 +105,14 @@ final class TrackpadGestureService: ObservableObject {
 
     private func start() {
         guard !isRunning else { return }
-        stateLock.withLock { recognizer = TrackpadGestureRecognizer() }
+        stateLock.withLock {
+            recognizer = TrackpadGestureRecognizer()
+            typing = TrackpadGestureSupport.TypingState(
+                now: ProcessInfo.processInfo.systemUptime,
+                sinceLastKeyDown: CGEventSource.secondsSinceLastEventType(.combinedSessionState,
+                                                                          eventType: .keyDown))
+        }
+        startTypingTap()
         TrackpadTouchService.shared.subscribe(.gestures, wantsGeometry: true) { [weak self] frame in
             self?.contactFrame(frame)
         }
@@ -111,8 +122,67 @@ final class TrackpadGestureService: ObservableObject {
     private func stop() {
         guard isRunning else { return }
         TrackpadTouchService.shared.unsubscribe(.gestures)
-        stateLock.withLock { recognizer = TrackpadGestureRecognizer() }
+        let port = stateLock.withLock { () -> CFMachPort? in
+            let port = typingTap
+            typingTap = nil
+            recognizer = TrackpadGestureRecognizer()
+            typing = TrackpadGestureSupport.TypingState()
+            return port
+        }
+        if let port { CGEvent.tapEnable(tap: port, enable: false) }
+        if let source = typingSource {
+            PointerTapRunLoop.remove(source, invalidating: port)
+            typingSource = nil
+        }
         isRunning = false
+    }
+
+    private func startTypingTap() {
+        // Use the existing Accessibility grant; every key passes through.
+        guard let port = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(1 << CGEventType.keyDown.rawValue),
+            callback: { _, type, event, userInfo in
+                guard let userInfo else { return Unmanaged.passUnretained(event) }
+                let service = Unmanaged<TrackpadGestureService>.fromOpaque(userInfo).takeUnretainedValue()
+                service.handleTyping(type: type, event: event)
+                return Unmanaged.passUnretained(event)
+            },
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else { return }
+        guard let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, port, 0) else {
+            CFMachPortInvalidate(port)
+            return
+        }
+        stateLock.withLock { typingTap = port }
+        typingSource = source
+        PointerTapRunLoop.add(source)
+        CGEvent.tapEnable(tap: port, enable: true)
+    }
+
+    private func handleTyping(type: CGEventType, event: CGEvent) {
+        stateLock.withLock {
+            guard let port = typingTap else { return }
+            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+                _ = typing.secondsSinceTyping(now: ProcessInfo.processInfo.systemUptime,
+                    sinceLastKeyDown: CGEventSource.secondsSinceLastEventType(.combinedSessionState,
+                                                                              eventType: .keyDown),
+                    counter: CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown),
+                    canObserveTyping: false)
+                if SessionActivity.shared.isActive, AXIsProcessTrusted() {
+                    CGEvent.tapEnable(tap: port, enable: true)
+                } else {
+                    DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+                }
+                return
+            }
+            guard type == .keyDown else { return }
+            typing.keyDown(isOwn: OwnKeyEvent.isPosted(event),
+                           now: ProcessInfo.processInfo.systemUptime,
+                           counter: CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown))
+        }
     }
 
     // MARK: - Contact frames (multitouch callback thread)
@@ -123,14 +193,17 @@ final class TrackpadGestureService: ObservableObject {
             recognizer.feed(count: frame.count, geometry: frame.geometry, now: now)
         }
         guard var contact = finished else { return }
-        // Typing and clicking are read from the system's own event record
-        // once the fingers lift, so no event tap is needed to notice them.
-        // That record also counts the shortcut the previous gesture's action
-        // posted, which is told apart from typing by when we posted it.
-        contact.secondsSinceLastKeyDown = TrackpadGestureSupport.secondsSinceTyping(
-            sinceLastKeyDown: CGEventSource.secondsSinceLastEventType(.combinedSessionState,
-                                                                      eventType: .keyDown),
-            sinceOwnKeyPost: OwnKeyEvent.secondsSinceLastPost)
+        contact.secondsSinceLastKeyDown = stateLock.withLock {
+            let counter = CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown)
+            let sinceKey = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
+            let latestCounter = CGEventSource.counterForEventType(.combinedSessionState, eventType: .keyDown)
+            // A key arriving between the two reads makes the sample stale.
+            return typing.secondsSinceTyping(now: now,
+                sinceLastKeyDown: counter == latestCounter ? sinceKey : 0,
+                counter: latestCounter,
+                canObserveTyping: typingTap.map { CGEvent.tapIsEnabled(tap: $0) } == true
+                    && counter == latestCounter && !IsSecureEventInputEnabled())
+        }
         let sinceClick = [CGEventType.leftMouseDown, .rightMouseDown, .otherMouseDown].map {
             CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0)
         }.min() ?? .infinity
