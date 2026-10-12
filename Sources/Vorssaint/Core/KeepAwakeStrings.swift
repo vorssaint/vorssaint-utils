@@ -492,3 +492,61 @@ extension KeepAwakeAutomationStrings {
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
     )
 }
+
+/// The session that lasts while AI agents work, as for a run left overnight.
+struct KeepAwakeAgentStrings {
+    let untilAgentsFinish: String
+    let waitingForAgents: String
+    let shutDownWhenDone: String
+    let allAgents: String
+    let following: String
+}
+
+extension FeatureStrings {
+    static func keepAwakeAgents(_ language: AppLanguage) -> KeepAwakeAgentStrings {
+        switch language {
+        case .enUS: return KeepAwakeAgentStrings(untilAgentsFinish: "Until AI finishes",
+            waitingForAgents: "Until AI agents finish", shutDownWhenDone: "Shut down when done",
+            allAgents: "All agents", following: "Following")
+        case .ptBR: return KeepAwakeAgentStrings(untilAgentsFinish: "Até a IA terminar",
+            waitingForAgents: "Até os agentes de IA terminarem", shutDownWhenDone: "Desligar ao terminar",
+            allAgents: "Todos os agentes", following: "Seguindo")
+        case .tr: return KeepAwakeAgentStrings(untilAgentsFinish: "Yapay zekâ bitene dek",
+            waitingForAgents: "Yapay zekâ ajanları bitene dek", shutDownWhenDone: "Bitince kapat",
+            allAgents: "Tüm ajanlar", following: "İzleniyor")
+        case .ru: return KeepAwakeAgentStrings(untilAgentsFinish: "Пока ИИ не закончит",
+            waitingForAgents: "Пока ИИ-агенты не закончат", shutDownWhenDone: "Выключить по завершении",
+            allAgents: "Все агенты", following: "Отслеживается")
+        case .es: return KeepAwakeAgentStrings(untilAgentsFinish: "Hasta que la IA acabe",
+            waitingForAgents: "Hasta que los agentes de IA terminen", shutDownWhenDone: "Apagar al terminar",
+            allAgents: "Todos los agentes", following: "Siguiendo")
+        case .sk: return KeepAwakeAgentStrings(untilAgentsFinish: "Kým AI neskončí",
+            waitingForAgents: "Kým AI agenti neskončia", shutDownWhenDone: "Po skončení vypnúť",
+            allAgents: "Všetci agenti", following: "Sleduje sa")
+        case .de: return KeepAwakeAgentStrings(untilAgentsFinish: "Bis die KI fertig ist",
+            waitingForAgents: "Bis die KI-Agenten fertig sind", shutDownWhenDone: "Danach ausschalten",
+            allAgents: "Alle Agenten", following: "Folgt")
+        case .fr: return KeepAwakeAgentStrings(untilAgentsFinish: "Jusqu’à la fin de l’IA",
+            waitingForAgents: "Jusqu’à la fin des agents IA", shutDownWhenDone: "Éteindre à la fin",
+            allAgents: "Tous les agents", following: "Suivi")
+        case .it: return KeepAwakeAgentStrings(untilAgentsFinish: "Fino a fine AI",
+            waitingForAgents: "Finché gli agenti AI non finiscono", shutDownWhenDone: "Spegni al termine",
+            allAgents: "Tutti gli agenti", following: "Segue")
+        case .ja: return KeepAwakeAgentStrings(untilAgentsFinish: "AI の完了まで",
+            waitingForAgents: "AI エージェントが終わるまで", shutDownWhenDone: "完了後にシステム終了",
+            allAgents: "すべてのエージェント", following: "追跡中")
+        case .ko: return KeepAwakeAgentStrings(untilAgentsFinish: "AI 완료까지",
+            waitingForAgents: "AI 에이전트가 끝날 때까지", shutDownWhenDone: "완료 후 시스템 종료",
+            allAgents: "모든 에이전트", following: "추적 중")
+        case .uk: return KeepAwakeAgentStrings(untilAgentsFinish: "Доки ШІ не завершить",
+            waitingForAgents: "Доки ШІ-агенти не завершать", shutDownWhenDone: "Вимкнути після завершення",
+            allAgents: "Усі агенти", following: "Відстежується")
+        case .zhHans: return KeepAwakeAgentStrings(untilAgentsFinish: "直到 AI 完成",
+            waitingForAgents: "直到 AI 代理完成", shutDownWhenDone: "完成后关机",
+            allAgents: "所有代理", following: "正在跟踪")
+        case .zhTW, .zhHK: return KeepAwakeAgentStrings(untilAgentsFinish: "直到 AI 完成",
+            waitingForAgents: "直到 AI 代理完成", shutDownWhenDone: "完成後關機",
+            allAgents: "所有代理", following: "正在追蹤")
+        }
+    }
+}

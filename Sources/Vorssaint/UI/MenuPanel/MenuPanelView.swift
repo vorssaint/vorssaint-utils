@@ -2680,6 +2680,8 @@ struct KeepAwakeCard: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
+    /// The live tasks the agents chip can follow.
+    @ObservedObject private var agents = AgentUsageService.shared
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -2691,6 +2693,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.keepAwakeShutDownAfterAgents) private var shutDownAfterAgents = false
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
     /// The last started end time, which the popover opens on.
@@ -2764,6 +2767,11 @@ struct KeepAwakeCard: View {
                             untilChip
                         }
                     }
+                }
+
+                // Needs the island's AI section, which is what reads the agents.
+                if NotchAgentSupport.isEnabled() {
+                    agentsRow
                 }
 
                 // Shown in both states so starting or stopping never changes
@@ -2987,6 +2995,10 @@ struct KeepAwakeCard: View {
             if awake.isActive {
                 if awake.sessionTrigger == .automation {
                     Text(automationStrings.activeStatus(for: awake.activeAutomationConditions))
+                } else if awake.waitsForAgents, let task = awake.followedAgent {
+                    Text("\(agentStrings.following): \(Self.agentTaskName(task))")
+                } else if awake.waitsForAgents {
+                    Text(agentStrings.waitingForAgents)
                 } else if let end = awake.endDate {
                     TimelineView(.periodic(from: .now, by: 1)) { _ in
                         Text("\(l10n.s.keepAwakeEndsIn) \(Self.remainingText(until: end))")
@@ -3032,6 +3044,58 @@ struct KeepAwakeCard: View {
         .buttonStyle(KeepAwakeChipStyle(isSelected: selected))
         .accessibilityLabel(DurationPicker.title(for: minutes, l10n.s))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private var agentsRow: some View {
+        HStack(spacing: 6) {
+            Button {
+                if awake.waitsForAgents {
+                    awake.toggle()
+                } else {
+                    awake.activateUntilAgentsFinish()
+                }
+            } label: {
+                Label(agentStrings.untilAgentsFinish, systemImage: "sparkle")
+            }
+            .buttonStyle(KeepAwakeChipStyle(isSelected: awake.waitsForAgents))
+            .fixedSize()
+            // Pick the one task to wait for, heaviest first.
+            if !awake.waitsForAgents {
+                let live = agents.snapshot.live.sorted { $0.tokens.total > $1.tokens.total }
+                Menu {
+                    Button(agentStrings.allAgents) { awake.activateUntilAgentsFinish() }
+                    if !live.isEmpty { Divider() }
+                    ForEach(live) { task in
+                        Button("\(Self.agentTaskName(task)) · \(AgentFormat.clock(Date().timeIntervalSince(task.started)))"
+                               + " · \(AgentFormat.tokens(task.tokens.total))") {
+                            awake.activateUntilAgentsFinish(following: task)
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel(agentStrings.following)
+            }
+            Spacer(minLength: 6)
+            Text(agentStrings.shutDownWhenDone)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Toggle(agentStrings.shutDownWhenDone, isOn: $shutDownAfterAgents)
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .labelsHidden()
+                .onChange(of: shutDownAfterAgents) { _, on in
+                    if on { KeepAwakeManager.askForShutDownPermission() }
+                }
+        }
+    }
+
+    static func agentTaskName(_ task: AgentLiveSession) -> String {
+        task.project.isEmpty ? task.provider.displayName : "\(task.provider.displayName) · \(task.project)"
     }
 
     private var untilChip: some View {
@@ -3097,6 +3161,10 @@ struct KeepAwakeCard: View {
 
     private var automationStrings: KeepAwakeAutomationStrings {
         FeatureStrings.keepAwakeAutomation(l10n.language)
+    }
+
+    private var agentStrings: KeepAwakeAgentStrings {
+        FeatureStrings.keepAwakeAgents(l10n.language)
     }
 
     private var displaySleepStrings: KeepAwakeDisplaySleepStrings {

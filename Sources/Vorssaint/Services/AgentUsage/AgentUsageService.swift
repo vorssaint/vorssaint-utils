@@ -126,7 +126,8 @@ final class AgentUsageService: ObservableObject {
     /// the Mac locked, and keeps what was read: reading every log again on the
     /// way back costs far more than the pause saves.
     func pause() {
-        guard running, !paused else { return }
+        // A session waiting for agents reads on with the display asleep or locked.
+        guard running, !paused, !KeepAwakeManager.shared.waitsForAgents else { return }
         paused = true
         timer?.invalidate()
         timer = nil
