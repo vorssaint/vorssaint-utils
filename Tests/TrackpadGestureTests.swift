@@ -222,9 +222,11 @@ enum TrackpadGestureTests {
                      "unwritten preferences are read as macOS defaults, which use swipes and pinches")
         suite.expect(claim("swipe-down-3", unwritten) == nil && claim("tap-3", unwritten) == nil,
                      "App Exposé and Look Up by tap are off by default")
-        suite.expect(claim("tap-4", unwritten) == nil && claim("tap-5", unwritten) == nil
-                        && claim("swipe-right-5", unwritten) == nil,
-                     "four and five finger taps and five-finger swipes are always free")
+        suite.expect(claim("tap-4", unwritten) == nil && claim("tap-5", unwritten) == nil,
+                     "four and five finger taps are always free")
+        suite.expect(claim("swipe-right-5", unwritten) == .moreGestures && claim("swipe-up-5", unwritten) == .moreGestures
+                        && claim("swipe-down-5", unwritten) == nil,
+                     "macOS answers its four-finger swipes with five fingers as well")
         let fourFingerSpaces = TrackpadSystemGestureSettings(
             threeFingerHorizontalSwipe: 0, fourFingerHorizontalSwipe: 2,
             threeFingerVerticalSwipe: 0, fourFingerVerticalSwipe: 2,
@@ -232,8 +234,15 @@ enum TrackpadGestureTests {
             missionControlGesture: true, appExposeGesture: true)
         suite.expect(claim("swipe-left-3", fourFingerSpaces) == nil && claim("swipe-right-4", fourFingerSpaces) == .moreGestures,
                      "moving Spaces to four fingers frees three-finger swipes")
-        suite.expect(claim("swipe-down-4", fourFingerSpaces) == .moreGestures,
+        suite.expect(claim("swipe-down-4", fourFingerSpaces) == .moreGestures
+                        && claim("swipe-down-5", fourFingerSpaces) == .moreGestures,
                      "App Exposé switched on claims the downward swipe")
+        let noFourFingerSwipes = TrackpadSystemGestureSettings(
+            threeFingerHorizontalSwipe: 2, fourFingerHorizontalSwipe: 0,
+            threeFingerVerticalSwipe: 2, fourFingerVerticalSwipe: 0)
+        suite.expect(claim("swipe-left-5", noFourFingerSwipes) == nil && claim("swipe-up-5", noFourFingerSwipes) == nil
+                        && claim("swipe-left-3", noFourFingerSwipes) == .moreGestures,
+                     "five-finger swipes are free once the four-finger ones are off")
         suite.expect(claim("pinch-in-4", fourFingerSpaces) == nil && claim("pinch-out-5", fourFingerSpaces) == nil,
                      "pinches switched off are free")
         suite.expect(claim("tap-3", fourFingerSpaces) == .lookUp, "Look Up by three-finger tap claims that tap")

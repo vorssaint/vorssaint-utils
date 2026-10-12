@@ -330,7 +330,8 @@ enum TrackpadGestureSupport {
     /// The gestures macOS acts on as well, and where each can be freed. A
     /// preference that was never written is read as its macOS default: swipes,
     /// pinches and Mission Control on, App Exposé, Look Up by tap and
-    /// three-finger drag off.
+    /// three-finger drag off. macOS has no five-finger swipe setting: it
+    /// answers its four-finger swipes with five fingers as well.
     static func systemClaims(_ settings: TrackpadSystemGestureSettings) -> [TrackpadGesture: TrackpadSystemClaim] {
         var claims: [TrackpadGesture: TrackpadSystemClaim] = [:]
         func claim(_ kind: TrackpadGestureKind, _ fingers: Int, _ value: Int?, when enabled: Bool = true) {
@@ -345,6 +346,7 @@ enum TrackpadGestureSupport {
         for (fingers, horizontal, vertical) in [
             (3, settings.threeFingerHorizontalSwipe, settings.threeFingerVerticalSwipe),
             (4, settings.fourFingerHorizontalSwipe, settings.fourFingerVerticalSwipe),
+            (5, settings.fourFingerHorizontalSwipe, settings.fourFingerVerticalSwipe),
         ] {
             claim(.swipeLeft, fingers, horizontal)
             claim(.swipeRight, fingers, horizontal)
