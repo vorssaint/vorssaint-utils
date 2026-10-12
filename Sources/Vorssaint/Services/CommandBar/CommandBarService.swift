@@ -180,7 +180,17 @@ final class CommandBarService: ObservableObject {
     private var windowsLoading = false
     private var windowsLoadedAt: Date?
     private var menuEntries: [CommandBarEntry] = [] { didSet { foldedSections[.menus] = nil } }
-    private var emojiEntries: [CommandBarEntry] = [] { didSet { foldedSections[.emoji] = nil } }
+    private var emojiEntries: [CommandBarEntry] = [] {
+        didSet {
+            foldedSections[.emoji] = nil
+            emojiBaseFold = nil
+        }
+    }
+    /// The emoji rows' folded text without aliases. Unlike every other
+    /// folded copy it survives the panel closing: it is the same fixed list
+    /// for everyone, nothing typed or seen, and refolding it was most of the
+    /// first index on every opening.
+    private var emojiBaseFold: [(title: String, keywords: String)]?
     /// The Mac's own Settings panes, scanned once per launch. The language
     /// they were built in comes with them, because the words they answer to
     /// are translated and a change of language has to reread them.
@@ -1391,11 +1401,25 @@ final class CommandBarService: ObservableObject {
         foldedSections = [:]
     }
 
+    private static func baseFold(_ entry: CommandBarEntry) -> (title: String, keywords: String) {
+        (CommandBarSearch.normalized(entry.matchTitle ?? entry.title),
+         CommandBarSearch.normalized(entry.keywords))
+    }
+
     private func indexEntries() {
         // Folding a thousand titles on every keystroke is the one thing that
         // could make typing feel heavy. It happens here instead, once per list
         // per rebuild: a list nobody assigned again keeps the copy it has.
         let names = aliasCache
+        if foldedSections[.emoji] == nil {
+            let base = emojiBaseFold ?? emojiEntries.map(Self.baseFold)
+            emojiBaseFold = base
+            foldedSections[.emoji] = zip(emojiEntries, base).map { entry, folded in
+                let alias = names[entry.stableKey]
+                    .map { " " + CommandBarSearch.normalized($0) } ?? ""
+                return (folded.title, folded.keywords + alias)
+            }
+        }
         for section in PoolSection.allCases where foldedSections[section] == nil {
             foldedSections[section] = entries(in: section).map { entry in
                 // A name the person gave is searchable text like any other, so
