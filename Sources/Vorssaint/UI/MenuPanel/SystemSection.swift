@@ -208,7 +208,7 @@ struct SystemSection: View {
                 .font(.system(size: 11, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-            Image(systemName: "chevron.right")
+            Image(systemName: "chevron.forward")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
                 .opacity(isInteractive ? 1 : 0.35)
@@ -392,10 +392,10 @@ struct SystemSection: View {
                         toggleCPUApps()
                     } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "chevron.right")
+                            Image(systemName: "chevron.forward")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0))
+                                .disclosureRotation(open: cpuAppsExpanded)
                             subsectionLabel(FeatureStrings.cpuCores(l10n.language).apps)
                             Spacer(minLength: 0)
                         }
