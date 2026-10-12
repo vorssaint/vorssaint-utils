@@ -868,6 +868,7 @@ enum DefaultsKey {
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
+    static let notchAgentsSounds = "notchAgentsSounds" // a sound for questions, permissions and finished tasks
     static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
     static let notchAgentsLimitAlert = "notchAgentsLimitAlert"
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
@@ -1448,6 +1449,7 @@ enum Defaults {
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
+        DefaultsKey.notchAgentsSounds: false,
         DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
         DefaultsKey.notchAgentsLimitAlert: true,
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,

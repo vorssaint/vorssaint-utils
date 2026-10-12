@@ -19,6 +19,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
+    @AppStorage(DefaultsKey.notchAgentsSounds) private var sounds = false
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
@@ -113,6 +114,7 @@ struct NotchAgentsSettingsControls: View {
                 }
                 .padding(.leading, settingsRowTextInset)
             }
+            switchRow("speaker.wave.2", FeatureStrings.agentAlerts(l10n.language).sounds, isOn: $sounds)
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)
             if limitAlert {
                 SettingsMenuRow(symbol: "gauge.with.dots.needle.67percent", title: text.limitAt, selection: $limitThreshold) {

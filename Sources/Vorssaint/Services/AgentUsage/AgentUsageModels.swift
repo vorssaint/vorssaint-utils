@@ -150,9 +150,16 @@ struct AgentLiveSession: Equatable, Identifiable {
     var cost: Double
 }
 
+/// What an agent waits for you to give it.
+enum AgentInputKind: String {
+    case question, permission
+}
+
 /// Something worth a moment in the closed island.
 enum AgentUsageEvent: Equatable {
     case finished(provider: AgentProvider, duration: TimeInterval, cost: Double, tokens: Int, project: String)
+    /// Announced by the agent itself, through `NotchAgentSupport.inputNotification`.
+    case needsInput(provider: AgentProvider, kind: AgentInputKind)
     case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
     case budgetReached(spent: Double, budget: Double)
