@@ -14,7 +14,7 @@ import Foundation
 /// primary control when no enable choice was saved before.
 enum AppFeature: String, CaseIterable {
     // Windows and Dock
-    case switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
+    case dockIndicator, dockLock, switcher, dockPreview, dockClick, windowMaximizer, windowLayout, autoQuit, spacesOrder
     // Mouse and keyboard
     case scrollInverter, scrollHorizontal, focusFollowsMouse, smoothScroll, linearScroll, mouseAcceleration, mouseNavigation, mouseButtonShortcuts, middleClick,
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
@@ -101,7 +101,7 @@ extension AppFeature {
 
     var group: FeatureGroup {
         switch self {
-        case .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
+        case .dockIndicator, .dockLock, .switcher, .dockPreview, .dockClick, .windowMaximizer, .windowLayout, .autoQuit, .spacesOrder:
             return .windowsDock
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
@@ -130,6 +130,8 @@ extension AppFeature {
     var symbolName: String {
         switch self {
         case .switcher: return "rectangle.on.rectangle"
+        case .dockIndicator: return "underline"
+        case .dockLock: return "dock.rectangle"
         case .dockPreview: return "dock.rectangle"
         case .dockClick: return "dock.arrow.down.rectangle"
         case .windowMaximizer: return "arrow.up.left.and.arrow.down.right"
@@ -233,6 +235,8 @@ extension AppFeature {
     var enabledKeys: [String] {
         switch self {
         case .switcher: return [DefaultsKey.switcherEnabled]
+        case .dockIndicator: return [DockOption.indicatorEnabled.key]
+        case .dockLock: return [DockOption.lockEnabled.key]
         case .dockPreview: return [DefaultsKey.dockPreviewEnabled]
         case .dockClick: return [DefaultsKey.dockClickMinimize,
                                  DefaultsKey.dockClickHide,
@@ -351,7 +355,7 @@ extension AppFeature {
             return []
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
-             .dockClick, .windowMaximizer, .windowLayout,
+             .dockIndicator, .dockLock, .dockClick, .windowMaximizer, .windowLayout,
              .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
@@ -363,7 +367,7 @@ extension AppFeature {
         // (dark mode included) works without a permission.
         case .quickToggles: return [.automationFinder]
         case .switcher: return [.accessibility, .screenRecording]
-        case .dockPreview: return [.accessibility, .screenRecording]
+        case .dockPreview: return [.accessibility, .screenRecording, .filesAndFolders, .calendar, .automationPlayback]
         case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
         // The sound of the Mac is read through an audio grant of its own.
@@ -483,7 +487,7 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
+        case .dockIndicator, .dockLock, .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
              .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
             return false
         }
@@ -510,6 +514,14 @@ extension AppFeature {
             switch (feature, permission) {
             case (.notch, .automationPlayback):
                 return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
+            case (.dockPreview, .screenRecording):
+                return !boolFor(DockOption.compact.key)
+            case (.dockPreview, .filesAndFolders):
+                return boolFor(DockOption.folders.key)
+            case (.dockPreview, .calendar):
+                return boolFor(DockOption.calendarWidget.key)
+            case (.dockPreview, .automationPlayback):
+                return boolFor(DockOption.mediaWidget.key)
             case (.switcher, .screenRecording):
                 return !boolFor(DefaultsKey.switcherSimpleMode)
             case (.notchWatch, .screenRecording):

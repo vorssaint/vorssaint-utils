@@ -50,9 +50,12 @@ enum NotchDestinationContract {
     enum BrightnessService { static var shared = Brightness() }
     final class LockScreen {
         var syncs: [NotchSessionState] = []
+        var musicHandoffs: [Bool] = []
         var sounds: [Bool] = []
         var onSync: (() -> Void)?
-        func sync(_ session: NotchSessionState) { syncs.append(session); onSync?() }
+        func sync(_ session: NotchSessionState, keepsMusicForHandoff: Bool = false) {
+            syncs.append(session); musicHandoffs.append(keepsMusicForHandoff); onSync?()
+        }
         func playSound(locking: Bool) { sounds.append(locking) }
     }
     enum NotchLockScreenService { static var shared = LockScreen() }
@@ -621,6 +624,8 @@ enum NotchDestinationContract {
                                "sync after 1 teardowns, 1 returns"]
                      && lockScreen.syncs.count == 3 && lockScreen.syncs.dropFirst().allSatisfy { !$0.locked && $0.canPresent },
                      "on unlock the lock screen starts leaving before the island returns and stops nothing it takes back")
+        suite.expect(lockScreen.musicHandoffs == [false, true, false],
+                     "only the early unlock keeps the lock-screen music lease; the post-island sync releases it")
         suite.expect(lockScreen.sounds == [true, false], "locking and unlocking at the Mac each play their padlock")
         service.updateSession { $0.displaysSleeping = true }
         service.updateSession { $0.locked = true }

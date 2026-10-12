@@ -253,6 +253,15 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
+        Sources/Vorssaint/Services/DockPreview/DockProcessIdentity.swift
+        Sources/Vorssaint/Services/DockPreview/DockFolderSupport.swift
+        Sources/Vorssaint/Services/DockPreview/DockScriptSupport.swift
+        Sources/Vorssaint/Services/DockPreview/PreviewShakeSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMusicConsumers.swift
+        Sources/Vorssaint/Services/Switcher/TrackpadSwipeSupport.swift
+        Sources/Vorssaint/Services/DockPreview/DockLockSupport.swift
+        Sources/Vorssaint/Services/DockPreview/DockEnhancementSupport.swift
+        Sources/Vorssaint/Core/DockEnhancementStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
@@ -563,6 +572,7 @@ if (( TEST )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
         ./Tests/UninstallSpacesTests.sh || test_status=1
         ./Tests/DeveloperInstallIsolationTests.sh || test_status=1
+        python3 ./Tests/DockScriptingDictionaryTests.py || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status
@@ -658,6 +668,7 @@ cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+cp Resources/Vorssaint.sdef "$STAGE/Contents/Resources/"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"

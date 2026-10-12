@@ -5,7 +5,7 @@ import SwiftUI
 
 struct NotchLyricsView: View {
     let playback: NotchPlayback
-    @ObservedObject private var service = NotchLyricsService.shared
+    @ObservedObject var service = NotchLyricsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchLyricsOnline) private var online = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

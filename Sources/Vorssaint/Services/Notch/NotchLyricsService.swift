@@ -24,13 +24,24 @@ final class NotchLyricsService: ObservableObject {
     private var importPanel: NSOpenPanel?
     var isImporting: Bool { importPanel != nil }
 
-    private init() {}
+    private let dockOwned: Bool
+    weak var dockPresentationWindow: NSWindow?
+    init(dockOwned: Bool = false) { self.dockOwned = dockOwned }
+    private var enabled: Bool {
+        if dockOwned {
+            return AppFeature.dockPreview.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewEnabled)
+                && DockOption.mediaWidget.bool && DockOption.widgetLyrics.bool
+        }
+        return NotchLyricsSupport.isEnabled()
+    }
+    private var onlineEnabled: Bool { enabled && UserDefaults.standard.bool(forKey: DefaultsKey.notchLyricsOnline) }
+
 
     func update(playback: NotchPlayback?, visible: Bool) {
-        guard NotchLyricsSupport.isEnabled() else { stop(); return }
+        guard enabled else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         let wanted = visible && next != nil
-        let online = NotchLyricsSupport.onlineEnabled()
+        let online = onlineEnabled
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }
         cancel()
@@ -46,7 +57,7 @@ final class NotchLyricsService: ObservableObject {
     /// Called for actual adapter metadata, including an explicit empty snapshot.
     /// A hidden view supplies no such evidence and must not discard an import.
     func playbackChanged(_ playback: NotchPlayback?) {
-        guard NotchLyricsSupport.isEnabled() else { stop(); return }
+        guard enabled else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         guard next != track else { return }
         let wasVisible = visible
@@ -59,7 +70,7 @@ final class NotchLyricsService: ObservableObject {
     }
 
     func retry() {
-        guard visible, NotchLyricsSupport.onlineEnabled(), let track else { return }
+        guard visible, onlineEnabled, let track else { return }
         cancel()
         settledAttempt = nil
         let key = NotchLyricsSupport.artistCacheKey(for: track)
@@ -75,7 +86,7 @@ final class NotchLyricsService: ObservableObject {
     func hide() {
         cancel()
         visible = false
-        if !NotchLyricsSupport.isEnabled() {
+        if !enabled {
             memory.clear()
             settledAttempt = nil
             artistCache.removeAll()
@@ -129,7 +140,7 @@ final class NotchLyricsService: ObservableObject {
     }
 
     private func acceptsResult(for track: NotchMusicIdentity, generation requested: UUID) -> Bool {
-        visible && generation == requested && self.track == track && NotchLyricsSupport.onlineEnabled()
+        visible && generation == requested && self.track == track && onlineEnabled
     }
 
     private func finish(_ lyrics: NotchLyrics?, for track: NotchMusicIdentity, failed: Bool) {
@@ -280,8 +291,8 @@ final class NotchLyricsService: ObservableObject {
     }
 
     func importLyrics() {
-        guard visible, NotchLyricsSupport.isEnabled(), let track, importPanel == nil,
-              let parent = NotchService.shared.presentationWindow,
+        guard visible, enabled, let track, importPanel == nil,
+              let parent = dockOwned ? dockPresentationWindow : NotchService.shared.presentationWindow,
               canReturnToLyrics(parent, track: track) else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [UTType(filenameExtension: "lrc") ?? .plainText, .plainText]
@@ -307,7 +318,8 @@ final class NotchLyricsService: ObservableObject {
                 DispatchQueue.main.async { [weak self, weak parent] in
                     guard let self, let parent, self.generation == returnGeneration,
                           self.importPanel == nil, self.canReturnToLyrics(parent, track: track) else { return }
-                    NotchService.shared.open(.music, feedback: false)
+                    if self.dockOwned { parent.orderFrontRegardless() }
+                    else { NotchService.shared.open(.music, feedback: false) }
                 }
             }
             guard response == .OK, let url = selectedURL else { return }
@@ -328,7 +340,7 @@ final class NotchLyricsService: ObservableObject {
                 let imported = lines
                 DispatchQueue.main.async {
                     guard self.generation == importedGeneration, self.track == track, self.visible,
-                          NotchLyricsSupport.isEnabled() else { return }
+                          self.enabled else { return }
                     guard self.memory.replace(imported.isEmpty ? nil : NotchLyrics(lines: imported, plain: "", instrumental: false),
                                               for: track) else { return }
                     self.state = imported.isEmpty ? .failed : .ready
@@ -343,9 +355,10 @@ final class NotchLyricsService: ObservableObject {
     }
 
     private func canReturnToLyrics(_ window: NSWindow, track expected: NotchMusicIdentity) -> Bool {
+        guard visible, track == expected, enabled, window.isVisible else { return false }
+        if dockOwned { return dockPresentationWindow === window }
         let notch = NotchService.shared
-        return visible && track == expected && NotchLyricsSupport.isEnabled()
-            && notch.acceptsUserInteraction && notch.presentationWindow === window && window.isVisible
+        return notch.acceptsUserInteraction && notch.presentationWindow === window
             && notch.expanded && notch.selected == .music && !notch.showingAppPanel
             && notch.selectedMetric == nil && notch.captureControls == nil
     }

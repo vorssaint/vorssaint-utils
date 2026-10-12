@@ -21,4 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。如果你把截图保存在这里，清理功能还会查找被遗忘的截图。";
 "NSNetworkVolumesUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。如果你把截图保存在这里，清理功能还会查找被遗忘的截图。";
 "NSRemovableVolumesUsageDescription" = "Vorssaint 将确认的 WhatsApp 下载整理到你明确选择的目标文件夹中。如果你把截图保存在这里，清理功能还会查找被遗忘的截图。";
-"NSCalendarsFullAccessUsageDescription" = "在屏幕顶部显示即将到来的日程。日历事件仅保留在这台 Mac 上。";
+"NSCalendarsFullAccessUsageDescription" = "在 Dynamic Island 和程序坞中显示即将到来的日程。日历事件保留在此 Mac 上。";

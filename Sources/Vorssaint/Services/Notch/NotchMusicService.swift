@@ -98,11 +98,14 @@ final class NotchMusicService: ObservableObject {
         return [script.path, library.path]
     }
 
-    func start() {
+    private var consumers = NotchMusicConsumers()
+
+    func start(consumer: NotchMusicConsumer = .island) {
+        consumers.acquire(consumer)
         let includeOtherPlayers = UserDefaults.standard.bool(forKey: DefaultsKey.notchIncludeOtherPlayers)
         if wantsPlayback {
             guard self.includeOtherPlayers != includeOtherPlayers else { return }
-            stop()
+            resetPlayback()
         }
         self.includeOtherPlayers = includeOtherPlayers
         wantsPlayback = true
@@ -270,7 +273,7 @@ final class NotchMusicService: ObservableObject {
         selectedSourcePID = reading.selectedPID
         awaitingPlayback = false
         updateAutomation(for: reading.playback)
-        NotchLyricsService.shared.playbackChanged(reading.playback)
+        if NotchLyricsSupport.isEnabled() { NotchLyricsService.shared.playbackChanged(reading.playback) }
         updateQueue()
     }
 
@@ -333,7 +336,12 @@ final class NotchMusicService: ObservableObject {
                                      blue: Double(pixel[2]) / 255)
     }
 
-    func stop() {
+    func stop(consumer: NotchMusicConsumer = .island) {
+        guard consumers.release(consumer) else { return }
+        resetPlayback()
+    }
+
+    private func resetPlayback() {
         wantsPlayback = false
         awaitingPlayback = false
         restartWork?.cancel()
@@ -355,7 +363,7 @@ final class NotchMusicService: ObservableObject {
         cancelAutomationAction()
         commandWriter.stop()
         queueVisible = false
-        NotchLyricsService.shared.hide()
+        if AppFeature.notchLyrics.isAvailable { NotchLyricsService.shared.hide() }
         queueRequest = nil
         queueReply = nil
         upcoming = nil
@@ -405,7 +413,7 @@ final class NotchMusicService: ObservableObject {
         artworkTint = nil
         awaitingPlayback = true
         updateAutomation(for: nil)
-        NotchLyricsService.shared.playbackChanged(nil)
+        if NotchLyricsSupport.isEnabled() { NotchLyricsService.shared.playbackChanged(nil) }
     }
 
     func setQueueVisible(_ visible: Bool) {

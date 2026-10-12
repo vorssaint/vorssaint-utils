@@ -506,7 +506,7 @@ final class WindowPreviewProvider {
         }
     }
 
-    private static func captureIsPaused(excludedAppsKey: String) -> Bool {
+    static func captureIsPaused(excludedAppsKey: String) -> Bool {
         let excluded = Defaults.sanitizedBundleIdentifierList(
             UserDefaults.standard.stringArray(forKey: excludedAppsKey) ?? [])
         return SwitcherSupport.shouldPausePreviewCapture(

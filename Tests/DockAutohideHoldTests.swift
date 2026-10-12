@@ -29,6 +29,9 @@ enum DockAutohideHoldTests {
         static var mayActivate = true
         static func dockPreviewMayActivate(_ item: Int) -> Bool { mayActivate }
     }
+    enum WindowEnhancementActions {
+        static func movePointer(after item: Int) {}
+    }
     enum WindowActivator {
         static func activate(_ item: Int, handoffSourcePID: Int32? = nil) {
             activationEvents.append("activate")
@@ -40,6 +43,7 @@ enum DockAutohideHoldTests {
         typealias DockPreviewFrameRestoration = FrameRestoration
         typealias WindowEnumerator = DockAutohideHoldTests.WindowEnumerator
         typealias WindowActivator = DockAutohideHoldTests.WindowActivator
+        typealias WindowEnhancementActions = DockAutohideHoldTests.WindowEnhancementActions
         let dockAutohideHold: DockAutohideHold
         var dockFrameRestoration: FrameRestoration?
         var dockFrameRestorationGeneration = 0

@@ -36,6 +36,8 @@ enum DockPreviewPositionTests {
         var isVisible: Bool { panel?.isVisible == true }
         var isPinned = false
         var isDraggingWindow = false
+        var externalSession = false
+        typealias DockPreviewLayout = DockPreviewSupport
         var hasEnteredPanel = false
         var activePanelFrame: CGRect?
         var activeCorridor: HoverCorridor?

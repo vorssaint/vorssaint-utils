@@ -28,6 +28,7 @@ private struct SwitcherPendingSessionStart {
     let reversed: Bool
     var additionalNavigation = 0
     var commitWhenReady = false
+    var external = false
 }
 
 /// The window switcher: a global event tap takes over the configured shortcut,
@@ -40,6 +41,7 @@ private struct SwitcherPendingSessionStart {
 /// user is.
 final class AppSwitcher: ObservableObject {
     static let shared = AppSwitcher()
+    private let livePreviews = LiveWindowPreviews()
 
     @Published private(set) var windows: [SwitcherItem] = []
     @Published private(set) var previews: [CGWindowID: CGImage] = [:]
@@ -214,6 +216,9 @@ final class AppSwitcher: ObservableObject {
 
     /// Applies the persisted preference; safe to call repeatedly.
     func syncWithPreferences() {
+        if !DockOption.switcherLivePreviews.bool || !capturesPreviews || !Permissions.shared.screenRecording {
+            livePreviews.stop()
+        }
         let shortcut = GlobalShortcut.saved(for: DefaultsKey.switcherShortcut,
                                             fallback: .switcherDefault)
         let windowShortcut = GlobalShortcut.saved(for: DefaultsKey.switcherWindowShortcut,
@@ -760,7 +765,10 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func handleKeyDown(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        var keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        if DockOption.vimNavigation.bool, searchQuery.isEmpty, !isSearchPinned {
+            switch keyCode { case 4: keyCode = KeyCode.leftArrow; case 38: keyCode = KeyCode.downArrow; case 40: keyCode = KeyCode.upArrow; case 37: keyCode = KeyCode.rightArrow; default: break }
+        }
         let flags = event.flags
 
         // Initial presses are claimed directly on the tap thread and queued
@@ -831,6 +839,10 @@ final class AppSwitcher: ObservableObject {
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:
             moveSelection(by: -grid.columns)
+        case _ where keyCode == Int64(DockOption.minimizeKey.int) && searchQuery.isEmpty && !isSearchPinned:
+            if event.getIntegerValueField(.keyboardEventAutorepeat) == 0, windows.indices.contains(selectedIndex) {
+                _ = WindowEnhancementActions.perform(.minimize, on: windows[selectedIndex])
+            }
         case KeyCode.delete:
             removeLastSearchCharacter()
         case KeyCode.escape:
@@ -867,6 +879,33 @@ final class AppSwitcher: ObservableObject {
     /// Runs only after the tap callback has returned. Window enumeration may
     /// wait on bounded AX calls, while modifier-up turns the pending result
     /// into a no-panel commit without waiting for this work to finish.
+    /// A gesture or script opens a latched session; modifier release must not
+    /// race asynchronous enumeration. A lift before enumeration commits when ready.
+    func openExternalSession() -> Bool {
+        guard tapIsWanted else { return false }
+        if sessionActive { return true }
+        let generation = routeLock.withLock { () -> UInt64 in
+            sessionStartGeneration &+= 1
+            routePendingSessionStart = SwitcherPendingSessionStart(generation: sessionStartGeneration,
+                shortcut: routeShortcut, scope: .allApps, reversed: false, external: true)
+            return sessionStartGeneration
+        }
+        beginPendingSession(generation: generation)
+        return true
+    }
+    func cycleExternalSession(by delta: Int) {
+        if sessionActive { advanceSelection(by: delta) }
+        else { routeLock.withLock { routePendingSessionStart?.additionalNavigation += delta } }
+    }
+    func commitExternalSession() {
+        if sessionActive { commitSession() }
+        else { routeLock.withLock { routePendingSessionStart?.commitWhenReady = true } }
+    }
+    func cancelExternalSession() {
+        routeLock.withLock { routePendingSessionStart = nil }
+        endSession()
+    }
+
     private func beginPendingSession(generation: UInt64) {
         guard routeLock.withLock({
             SwitcherSupport.isCurrentSessionStart(
@@ -979,10 +1018,6 @@ final class AppSwitcher: ObservableObject {
                 pendingGeneration: routePendingSessionStart?.generation
             )
         }) else { return }
-        guard !windows.isEmpty else {
-            discardPendingSessionStart(generation: generation)
-            return
-        }
         // The foreground window is what a session is measured against, and it
         // does not always exist: an app left with no windows, or with all of
         // them minimized or on another Space, still owns the keyboard. The
@@ -992,13 +1027,17 @@ final class AppSwitcher: ObservableObject {
         let source = SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
                                                        focusedWindowID: focusedSourceWindowID,
                                                        items: sourceItems)
+        let list = DockWindowOrdering.sessionItems(windows, currentID: source?.id)
+        guard !list.isEmpty else {
+            discardPendingSessionStart(generation: generation)
+            return
+        }
         // Keep the original source for activation, but start at the first
         // entry if display filtering removes the foreground window.
         let listedSource = source.flatMap { item in
-            windows.contains { $0.id == item.id } ? item : nil
+            list.contains { $0.id == item.id } ? item : nil
         }
 
-        let list = SwitcherSupport.orderedForSession(windows, currentID: listedSource?.id)
         guard let pending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard SwitcherSupport.isCurrentSessionStart(
                 generation: generation,
@@ -1012,7 +1051,7 @@ final class AppSwitcher: ObservableObject {
         sessionItems = list
         totalWindowCount = list.count
         searchQuery = ""
-        isSearchPinned = false
+        isSearchPinned = pending.external
         SwitcherAppIconCache.beginSession()
         self.windows = list
         // Optional.map: a session that starts with no source clears the
@@ -1075,6 +1114,11 @@ final class AppSwitcher: ObservableObject {
                       self.sessionActive,
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
                 self.enqueuePreviewUpdate(windowID: windowID, image: image)
+            }
+        }
+        if !pending.commitWhenReady, capturesPreviews, DockOption.switcherLivePreviews.bool {
+            livePreviews.start(list, excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps) { [weak self] id, image in
+                guard let self, self.sessionActive else { return }; self.enqueuePreviewUpdate(windowID: id, image: image)
             }
         }
         if !pending.commitWhenReady {
@@ -1243,7 +1287,7 @@ final class AppSwitcher: ObservableObject {
         let records = sessionItems.map { item in
             SwitcherSearchRecord(id: item.id, title: item.title, appName: item.appName)
         }
-        let visibleIDs = Set(SwitcherSupport.filteredSearchIDs(records: records, query: searchQuery))
+        let visibleIDs = Set(records.filter { DockEnhancementSupport.fuzzyMatches(searchQuery, in: $0.title + " " + $0.appName, tolerance: DockOption.searchFuzziness.int) }.map(\.id))
         windows = sessionItems.filter { visibleIDs.contains($0.id) }
         selectedIndex = SwitcherSupport.searchSelectionIndex(itemIDs: windows.map(\.id),
                                                              preferredID: preferredItemID,
@@ -1576,6 +1620,7 @@ final class AppSwitcher: ObservableObject {
                                      handoffSourcePID: handoffSourcePID,
                                      sourceWindowID: source?.isFullscreen == true ? nil : source?.windowID,
                                      sourceWindowOwnerPID: source?.windowOwnerPID)
+            WindowEnhancementActions.movePointer(after: selection)
         }
     }
 
@@ -1591,6 +1636,7 @@ final class AppSwitcher: ObservableObject {
     }
 
     private func endSession() {
+        livePreviews.stop()
         stopObservingTermination()
         cancelLetterConfirmation()
         SwitcherAppIconCache.endSession()

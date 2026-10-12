@@ -97,6 +97,8 @@ private struct DockPreviewPanelContent: View {
 
     @ObservedObject private var l10n = L10n.shared
     @State private var draggingWindowID: CGWindowID?
+    @State private var shake = PreviewShakeDetector()
+    @State private var shakeSpent = false
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var quitAppOnClose = false
@@ -113,9 +115,12 @@ private struct DockPreviewPanelContent: View {
                 if DockPreviewSupport.showsPanelHeader(isPinned: isPinned) {
                     panelHeader(proxy: proxy)
                 }
-                ScrollView(stacksVertically ? .vertical : .horizontal, showsIndicators: false) {
+                ScrollView(compact || stacksVertically ? .vertical : .horizontal, showsIndicators: false) {
                     cardRun {
                         ForEach(windows) { window in
+                            if compact {
+                                compactRow(window)
+                            } else {
                             DockPreviewCard(
                                 window: window,
                                 preview: window.previewWindowID.flatMap { previews[$0] },
@@ -129,16 +134,35 @@ private struct DockPreviewPanelContent: View {
                                 onClose: {
                                     onCloseWindow(window)
                                 },
-                                onMiddleClick: { onMiddleClick(window) },
-                                onToggleMinimized: {
-                                    onToggleMinimized(window)
-                                }
+                                onMiddleClick: { middleClick(window) },
+                                onToggleMinimized: { onToggleMinimized(window) },
+                                onCloseAll: { for item in windows { onMiddleClick(item) } },
+                                onMinimizeAll: minimizeAllWindows
+
                             )
+                            .background {
+                                if DockOption.gestures.bool {
+                                    PreviewSwipeReader(enabled: true, orientation: orientation) { action in
+                                        if action == .minimize { onToggleMinimized(window) }
+                                        else { _ = WindowEnhancementActions.perform(action, on: window) }
+                                    }
+                                }
+                            }
                             .id(window.id)
                             .gesture(
                                 DragGesture(minimumDistance: DockPreviewSupport.dragLiftDistance,
                                             coordinateSpace: .global)
-                                    .onChanged { _ in
+                                    .onChanged { value in
+                                        if shakeSpent { return }
+                                        if DockOption.shakeAction.string == "minimizeOthers",
+                                           shake.sample(value.location, at: ProcessInfo.processInfo.systemUptime) {
+                                            shakeSpent = true
+                                            if !isPinned { DockPreviewService.shared.cancelWindowDrag() }
+                                            for other in windows where other.windowID != window.windowID && !other.isMinimized {
+                                                _ = WindowEnhancementActions.perform(.minimize, on: other)
+                                            }
+                                            return
+                                        }
                                         if draggingWindowID == nil {
                                             draggingWindowID = window.windowID
                                             onBeginDrag(window)
@@ -147,6 +171,8 @@ private struct DockPreviewPanelContent: View {
                                         onUpdateDrag()
                                     }
                                     .onEnded { _ in
+                                        shake = .init()
+                                        if shakeSpent { shakeSpent = false; draggingWindowID = nil; return }
                                         guard draggingWindowID == window.windowID else { return }
                                         draggingWindowID = nil
                                         onEndDrag(window)
@@ -158,6 +184,7 @@ private struct DockPreviewPanelContent: View {
                                 } else {
                                     onEndPreview(window)
                                 }
+                            }
                             }
                         }
                     }
@@ -171,19 +198,22 @@ private struct DockPreviewPanelContent: View {
                 .scrollDisabled(showsEveryWindow)
             }
         }
-        .frame(width: stacksVertically ? DockPreviewSupport.cardWidth
-                   + DockPreviewSupport.panelPadding * 2 : nil,
-               height: stacksVertically ? nil : cardRunHeight)
-        .background(HUDBackdrop(cornerRadius: 18,
+        .frame(width: !compact && stacksVertically ? CGFloat(lanes) * DockPreviewSupport.cardWidth
+                   + CGFloat(lanes - 1) * DockPreviewLayout.spacing + DockPreviewSupport.panelPadding * 2 : nil,
+               height: compact || stacksVertically ? nil : cardRunHeight)
+        .background(HUDBackdrop(cornerRadius: DockPreviewLayout.radius,
                                 opacity: DockPreviewSupport.sanitizedBackgroundOpacity(backgroundOpacity)))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DockPreviewLayout.radius, style: .continuous))
         // The hairline keeps its full strength as the material fades: it is what
         // still draws the panel's shape once the frost stops doing it.
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: DockPreviewLayout.radius, style: .continuous)
                 .strokeBorder(minimalPreviews ? Color.clear : Color.white.opacity(0.12), lineWidth: 1)
         )
     }
+
+    private var compact: Bool { DockPreviewLayout.compact(windows.count) }
+    private var lanes: Int { DockPreviewLayout.lanes(windows.count, orientation: orientation, isPinned: isPinned) }
 
     private var stacksVertically: Bool {
         DockPreviewSupport.stacksVertically(orientation: orientation, isPinned: isPinned)
@@ -206,17 +236,51 @@ private struct DockPreviewPanelContent: View {
     }
 
     private var cardRunHeight: CGFloat {
-        DockPreviewSupport.cardHeight + DockPreviewSupport.panelPadding * 2
+        CGFloat(lanes) * DockPreviewSupport.cardHeight + CGFloat(lanes - 1) * DockPreviewLayout.spacing + DockPreviewSupport.panelPadding * 2
             + (showsHeader ? DockPreviewSupport.panelHeaderHeight : 0)
     }
 
     @ViewBuilder
     private func cardRun<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        if stacksVertically {
-            VStack(spacing: DockPreviewSupport.cardSpacing) { content() }
+        if compact {
+            VStack(spacing: 0) { content() }
+        } else if stacksVertically {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(DockPreviewSupport.cardWidth), spacing: DockPreviewLayout.spacing), count: lanes), spacing: DockPreviewLayout.spacing) { content() }
         } else {
-            HStack(spacing: DockPreviewSupport.cardSpacing) { content() }
+            LazyHGrid(rows: Array(repeating: GridItem(.fixed(DockPreviewSupport.cardHeight), spacing: DockPreviewLayout.spacing), count: lanes), spacing: DockPreviewLayout.spacing) { content() }
         }
+    }
+
+    private func middleClick(_ item: SwitcherItem) {
+        if DockOption.middleClickAction.string == "close" { onMiddleClick(item) }
+        else if let action = WindowEnhancementAction(rawValue: DockOption.middleClickAction.string) { _ = WindowEnhancementActions.perform(action, on: item) }
+    }
+
+    private func minimizeAllWindows() {
+        for item in windows where !item.isMinimized { onToggleMinimized(item) }
+    }
+
+    private func compactRow(_ item: SwitcherItem) -> some View {
+        HStack(spacing: 8) {
+            if let icon = item.appIcon { Image(nsImage: icon).resizable().frame(width: 20, height: 20) }
+            Text(item.displayTitle).lineLimit(1).truncationMode(.middle)
+            Spacer(minLength: 0)
+            if item.isMinimized { Image(systemName: "minus.rectangle") }
+            if let space = DockPreviewLayout.spaceLabel(item) { Text(space).font(.caption.monospacedDigit()) }
+            Button { onToggleMinimized(item) } label: { Image(systemName: "minus") }.help(l10n.s.dockPreviewMinimizeWindow)
+            Button { onCloseWindow(item) } label: { Image(systemName: "xmark") }.help(closeActionTitle)
+        }
+        .buttonStyle(.plain).font(.system(size: 12)).padding(.horizontal, 8).frame(width: 396, height: 36)
+        .background(selectedWindowID == item.windowID ? Color.accentColor.opacity(0.2) : Color.clear)
+        .contentShape(Rectangle()).onTapGesture { onCommit(item) }
+        .onHover { $0 ? onPreview(item) : onEndPreview(item) }
+        .overlay { DockPreviewMiddleClick(onClose: { middleClick(item) }) }
+        .contextMenu {
+            Button(l10n.s.dockPreviewPinPanel, action: onTogglePinned)
+            Button(DockEnhancementStrings.text(.minimizeAll), action: minimizeAllWindows)
+            Button(DockEnhancementStrings.text(.closeAll)) { for window in windows { onMiddleClick(window) } }
+        }
+        .id(item.id)
     }
 
     private func panelHeader(proxy: ScrollViewProxy) -> some View {
@@ -387,6 +451,8 @@ private struct DockPreviewCard: View {
     let onClose: () -> Void
     let onMiddleClick: () -> Void
     let onToggleMinimized: () -> Void
+    let onCloseAll: () -> Void
+    let onMinimizeAll: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
@@ -400,7 +466,7 @@ private struct DockPreviewCard: View {
     }
 
     private var hasStatusBadges: Bool {
-        window.isMinimized || window.isFullscreen || window.isOnHiddenSpace
+        window.isMinimized || window.isFullscreen || window.isOnHiddenSpace || DockOption.spaceNumbers.bool
     }
 
     private var showsAppBadge: Bool {
@@ -409,6 +475,7 @@ private struct DockPreviewCard: View {
 
     var body: some View {
         VStack(spacing: DockPreviewSupport.cardTitleSpacing) {
+            if !minimalPreviews && DockOption.controlsPosition.string == "top" { titleBand }
             ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(minimalPreviews ? Color.clear : Color.white.opacity(0.06))
@@ -468,7 +535,7 @@ private struct DockPreviewCard: View {
             .frame(width: DockPreviewSupport.cardThumbnailWidth,
                    height: DockPreviewSupport.cardThumbnailHeight)
 
-            if !minimalPreviews { titleBand }
+            if !minimalPreviews && DockOption.controlsPosition.string != "top" { titleBand }
         }
         .padding(DockPreviewSupport.cardPadding)
         .frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
@@ -507,6 +574,12 @@ private struct DockPreviewCard: View {
 
     @ViewBuilder
     private var cardContextMenu: some View {
+        Button(DockEnhancementStrings.text(.closeAll), action: onCloseAll)
+        Button(DockEnhancementStrings.text(.minimizeAll), action: onMinimizeAll)
+        Button(DockEnhancementStrings.text(.fullscreen)) { _ = WindowEnhancementActions.perform(.fullscreen, on: window) }
+        Button(DockEnhancementStrings.text(.quit)) { _ = WindowEnhancementActions.perform(.quit, on: window) }
+        Button(DockEnhancementStrings.text(.maximize)) { _ = WindowEnhancementActions.perform(.maximize, on: window) }
+        Button(DockEnhancementStrings.text(.center)) { _ = WindowEnhancementActions.perform(.center, on: window) }
         Button {
             onCommit()
         } label: {
@@ -549,7 +622,7 @@ private struct DockPreviewCard: View {
                 // only thing telling them apart.
                 ScrollingTitle(text: window.displayTitle,
                                weight: isSelected ? .semibold : .regular,
-                               width: DockPreviewSupport.cardTitleTextWidth,
+                               width: max(70, DockPreviewSupport.cardTitleTextWidth - 32),
                                alignment: .leading,
                                scrolls: isHovering)
                     .foregroundStyle(.primary)
@@ -565,6 +638,8 @@ private struct DockPreviewCard: View {
             HStack(spacing: 4) {
                 closeButton
                 minimizeButton
+                Button { _ = WindowEnhancementActions.perform(.fullscreen, on: window) } label: { Image(systemName: "arrow.up.left.and.arrow.down.right").font(.system(size: 9)) }.buttonStyle(.plain).help(DockEnhancementStrings.text(.fullscreen))
+                Button { _ = WindowEnhancementActions.perform(.quit, on: window) } label: { Image(systemName: "power").font(.system(size: 9)) }.buttonStyle(.plain).help(DockEnhancementStrings.text(.quit))
             }
         }
         .frame(width: DockPreviewSupport.cardThumbnailWidth,
@@ -574,6 +649,7 @@ private struct DockPreviewCard: View {
 
     @ViewBuilder
     private var statusBadges: some View {
+        if let space = DockPreviewLayout.spaceLabel(window) { Text(space).font(.caption.monospacedDigit()) }
         if window.isMinimized {
             statusBadge(systemName: "minus.rectangle")
         }

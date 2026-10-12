@@ -21,4 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organizza i download WhatsApp confermati in una cartella di destinazione scelta esplicitamente da te. La Pulizia cerca anche gli screenshot dimenticati se li salvi qui.";
-"NSCalendarsFullAccessUsageDescription" = "Mostra i tuoi prossimi appuntamenti nella parte superiore dello schermo. Gli eventi del calendario restano su questo Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Mostra i prossimi appuntamenti nella Dynamic Island e nel Dock. Gli eventi restano su questo Mac.";

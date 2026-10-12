@@ -68,6 +68,7 @@ enum NotchLyricsContract {
         var attached = false
         var focused = false
         var focusReturns = 0
+        func orderFrontRegardless() { focused = true; focusReturns += 1 }
     }
     typealias NSWindow = Window
     enum NSApplication { enum ModalResponse { case OK, cancel } }
@@ -1003,6 +1004,31 @@ enum NotchMusicHardeningTests {
                 suite.expect(service.lyrics?.lines.first?.text == "Selected verse" && service.visible,
                        "the real bounded import and parser retain the chosen lyrics for the unchanged song")
             }
+            Context.resetPresentation()
+            let dockLyrics = Context.Service()
+            let dockParent = Context.Window()
+            dockLyrics.dockOwned = true
+            dockLyrics.dockPresentationWindow = dockParent
+            Context.NotchService.shared.presentationWindow = nil
+            Context.NotchService.shared.expanded = false
+            dockLyrics.update(playback: playback("dock-song"), visible: true)
+            dockLyrics.importLyrics()
+            suite.expect(dockLyrics.importPanel != nil, "Dock lyrics import does not require an island presentation")
+            dockLyrics.importPanel?.url = file
+            dockLyrics.importPanel?.finish(.OK)
+            Context.DispatchQueue.worker.drain()
+            Context.DispatchQueue.main.drain()
+            suite.expect(dockLyrics.lyrics?.lines.first?.text == "Selected verse" && dockParent.focusReturns == 1,
+                         "Dock imports return to their own visible panel and retain the selected song")
+            dockLyrics.importLyrics()
+            let abandonedPicker = dockLyrics.importPanel
+            dockParent.isVisible = false
+            abandonedPicker?.url = file
+            abandonedPicker?.finish(.OK)
+            Context.DispatchQueue.worker.drain()
+            Context.DispatchQueue.main.drain()
+            suite.expect(dockParent.focusReturns == 1, "a closed Dock panel rejects late import focus return")
+
             for interruption in 0..<6 {
                 Context.resetPresentation()
                 let service = Context.Service()

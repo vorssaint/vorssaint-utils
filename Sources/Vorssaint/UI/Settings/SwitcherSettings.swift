@@ -54,6 +54,7 @@ struct SwitcherSettings: View {
                 if AppFeature.switcher.isAvailable {
                     switcherCard
                         .settingsSectionAnchor(.switcher, cornerRadius: 16)
+                    SwitcherEnhancementsSettings().disabled(!switcherEnabled)
                     switcherOptionsCard
                         .disabled(!switcherEnabled)
                 }

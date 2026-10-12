@@ -21,4 +21,4 @@
 "NSDocumentsFolderUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали. Очищення також шукає забуті знімки екрана, якщо ви зберігаєте їх сюди.";
 "NSNetworkVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали. Очищення також шукає забуті знімки екрана, якщо ви зберігаєте їх сюди.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint упорядковує підтверджені завантаження WhatsApp у папці призначення, яку ви явно вибрали. Очищення також шукає забуті знімки екрана, якщо ви зберігаєте їх сюди.";
-"NSCalendarsFullAccessUsageDescription" = "Показує ваші майбутні події у верхній частині екрана. Події календаря залишаються на цьому Mac.";
+"NSCalendarsFullAccessUsageDescription" = "Показує майбутні зустрічі в Dynamic Island і Dock. Події календаря залишаються на цьому Mac.";

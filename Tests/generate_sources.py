@@ -459,7 +459,38 @@ def main():
                         "    private func syncRowHotkeys(", "    func hasStoredApplicationState(",
                         "    func removeApplicationState("])
           + "}\n}\n")
+    review_dock = "Sources/Vorssaint/Services/DockPreview/"
+    write("DockReviewRegression.swift", "import AppKit\nimport ApplicationServices\n"
+          + "extension DockReviewRegressionTests.DockAccessibility {\n"
+          + declaration(review_dock + "DockAccessibility.swift", "    static func application(for item: Item, apps:") + "}\n"
+          + "extension DockReviewRegressionTests.InputGuard {\n"
+          + declaration(review_dock + "DockInputService.swift", "    private func valid(").replace("private func", "func", 1) + "}\n"
+          + "extension DockReviewRegressionTests.Ordering {\n"
+          + declaration(review_dock + "DockWindowOrdering.swift", "    static func ordered(")
+          + declaration(review_dock + "DockWindowOrdering.swift", "    static func sessionItems(") + "}\n"
+          + "extension DockReviewRegressionTests.MinimizePanel {\n"
+          + declaration("Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift", "    private func minimizeAllWindows()").replace("private func", "func", 1) + "}\n"
+          + "extension DockReviewRegressionTests.Surface {\n"
+          + declaration(review_dock + "DockPreviewService.swift", "    private func stopSessionWork()").replace("private func", "func", 1)
+          + declaration(review_dock + "DockPreviewService.swift", "    private func beginSession(").replace("private func", "func", 1)
+          + declaration(review_dock + "DockPreviewService.swift", "    func show(for app:")
+          + declaration(review_dock + "DockPreviewService.swift", "    func closePreviewPanel()", scope="final class DockPreviewService:")
+          + declaration(review_dock + "DockPreviewService.swift", "    private func finishClosing(", scope="final class DockPreviewService:").replace("private func", "func", 1)
+          + declaration(review_dock + "DockPreviewService.swift", "    private func applyClosedWindowRemoval(").replace("private func", "func", 1) + "}\n"
+          + "extension DockReviewRegressionTests.LockSurface {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Notch/NotchLockScreenService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    func sync(", "    func close()", "    private func startSources(",
+                        "    private func releaseSources(", "    private func hide("]) + "}\n"
+          + "extension DockReviewRegressionTests.Runtime {\n"
+          + declaration(review_dock + "DockAdditionsRuntime.swift", "    private func run(").replace("private func", "func", 1)
+          + declaration(review_dock + "DockAdditionsRuntime.swift", "    func stop()") + "}\n"
+          + "extension DockReviewRegressionTests.WidgetSync {\n"
+          + declaration(review_dock + "DockWidgetService.swift", "    func syncWithPreferences()")
+          + declaration(review_dock + "DockWidgetService.swift", "    func stop()") + "}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"
+    write("WindowEnhancementAction.swift", "import Foundation\n" + declaration(
+        "Sources/Vorssaint/Services/DockPreview/WindowEnhancementActions.swift", "enum WindowEnhancementAction:"))
     write("DockPreviewScroll.swift", "import AppKit\nimport SwiftUI\n"
           + "extension DockPreviewScrollTests {\n"
           + declaration("Sources/Vorssaint/UI/Switcher/DockPreviewPanelView.swift",
@@ -490,7 +521,7 @@ def main():
     write("PreviewCapturePause.swift", "import Foundation\n"
           + "extension SwitcherModelFeatureTests.PreviewProvider {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
-                        "    private static func captureIsPaused(").replace("private static", "static", 1)
+                        "    static func captureIsPaused(").replace("private static", "static", 1)
           + "}\n")
     write("DockAutohideInput.swift", "import CoreGraphics\nimport Foundation\nextension DockAutohideHoldTests.Service {\n"
           + "".join(declaration(dock, prefix, scope="final class DockPreviewService:")
@@ -1383,7 +1414,9 @@ def main():
           + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
           + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
+          + "var dockOwned = false\nweak var dockPresentationWindow: NSWindow?\n"
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
+          + "var enabled: Bool { NotchLyricsSupport.isEnabled() }\nvar onlineEnabled: Bool { NotchLyricsSupport.onlineEnabled() }\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func hide()")
@@ -1401,6 +1434,7 @@ def main():
           + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
           + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\n"
+          + "var enabled: Bool { NotchLyricsSupport.isEnabled() }\nvar onlineEnabled: Bool { NotchLyricsSupport.onlineEnabled() }\n"
           + declaration(lyrics, "    func update(playback:")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func retry()")
@@ -1440,8 +1474,10 @@ def main():
           + "var launchedAt: TimeInterval?\nvar uptime: TimeInterval = 0\nvar trackChange = NotchTrackChange()\n"
           + "func launch() { guard wantsPlayback, process == nil else { return }; launches += 1; process = Process(); input = Pipe(); commandWriter.start(); launchedAt = uptime; restoreSource() }\n"
           + "func disconnect() { endPlaybackGap(); generation = UUID(); commandWriter.stop(); process = nil; input = nil; playback = nil }\n"
-          + declaration(music, "    func start()")
-          + declaration(music, "    func stop()")
+          + "var consumers = NotchMusicConsumers()\n"
+          + declaration(music, "    func start(consumer:")
+          + declaration(music, "    func stop(consumer:")
+          + declaration(music, "    private func resetPlayback()")
           + declaration(music, "    private func connectionEnded()").replace("private func", "func", 1)
             .replace("ProcessInfo.processInfo.systemUptime", "uptime")
           + declaration(music, "    private func restoreSource()").replace("private func", "func", 1)

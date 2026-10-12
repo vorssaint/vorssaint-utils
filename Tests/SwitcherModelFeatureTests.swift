@@ -1343,8 +1343,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(displayFilterBody.contains("NSScreen.withMouse?.displayID")
                && displayFilterBody.contains("?? -1"),
                "display filtering follows the cursor and leaves no target when the display disappears")
-        suite.expect(switcherCode.contains("guard !windows.isEmpty else {\n            discardPendingSessionStart(generation: generation)"),
-               "an empty display discards the pending session before opening a panel or committing a window")
+        suite.expect(switcherCode.contains("guard !list.isEmpty else {\n            discardPendingSessionStart(generation: generation)"),
+               "an empty or fully filtered display discards the pending session before opening a panel or committing a window")
         let otherScreenRepresentative = SwitcherSupport.groupWindowsByApp([onLeftDisplay, onRightDisplay])
         suite.expect(SwitcherSupport.itemsOnDisplay(otherScreenRepresentative,
                                                displayBounds: bothDisplays, targetIndex: 1).isEmpty,

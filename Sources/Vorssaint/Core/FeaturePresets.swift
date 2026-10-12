@@ -91,8 +91,9 @@ extension AppFeature {
         switch self {
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
-             .dockPreview, .dockClick, .shelf:
+             .dockClick, .dockLock, .shelf:
             return .mouse
+        case .dockPreview: return DockOption.nativeCmdTab.bool ? .inputs : .mouse
         case .keyboardDebounce, .finderCutPaste, .finderRename, .quitWindowProtection, .musicBlock:
             return .keyboard
         // The switcher's tap also takes clicks and scrolls, and the Super key
@@ -124,7 +125,7 @@ extension AppFeature {
         case .notchWatch: return .idle
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
-        case .notchMascot: return .periodic
+        case .notchMascot, .dockIndicator: return .periodic
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and
         // limits current while the section is on.

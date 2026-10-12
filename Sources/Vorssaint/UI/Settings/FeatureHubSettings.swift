@@ -993,6 +993,8 @@ extension AppFeature {
     func hubTitle(_ s: Strings, hub: FeatureHubStrings) -> String {
         switch self {
         case .switcher: return s.switcherSection
+        case .dockIndicator: return DockEnhancementStrings.text(.indicator)
+        case .dockLock: return DockEnhancementStrings.text(.dockLock)
         case .dockPreview: return s.dockPreviewName
         case .dockClick: return hub.titleDockClick
         case .windowMaximizer: return s.windowMaximizeName
@@ -1077,6 +1079,8 @@ extension AppFeature {
     func hubDescription(_ hub: FeatureHubStrings) -> String {
         switch self {
         case .switcher: return hub.descSwitcher
+        case .dockIndicator: return DockEnhancementStrings.text(.indicatorDescription)
+        case .dockLock: return DockEnhancementStrings.text(.lockDescription)
         case .dockPreview: return hub.descDockPreview
         case .dockClick: return hub.descDockClick
         case .windowMaximizer: return hub.descWindowMaximizer

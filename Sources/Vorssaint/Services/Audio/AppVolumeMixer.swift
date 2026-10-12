@@ -2182,6 +2182,11 @@ final class AppVolumeMixer: ObservableObject {
     /// scalar. Static on purpose so callers (the command bar) never spin the
     /// mixer up; false when the device exposes no software volume control.
     @discardableResult
+    static func systemOutputVolumeSnapshot() -> Double? {
+        guard let device = defaultOutputDeviceID(), let value = outputVolume(for: device) else { return nil }
+        return Double(value)
+    }
+
     static func setSystemOutputVolume(_ volume: Double) -> Bool {
         guard let device = defaultOutputDeviceID() else { return false }
         let clamped = Float32(min(max(volume, 0), 1))

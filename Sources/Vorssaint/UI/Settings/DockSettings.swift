@@ -48,6 +48,7 @@ struct DockSettings: View {
                     dockClickCard
                         .settingsSectionAnchor(.dockClick, cornerRadius: 16)
                 }
+                DockEnhancementsSettings()
                 if AppFeature.spacesOrder.isAvailable {
                     spacesOrderCard
                         .settingsSectionAnchor(.spacesOrder, cornerRadius: 16)
@@ -61,7 +62,7 @@ struct DockSettings: View {
                         PermissionRow(kind: .accessibility)
                     }
                 }
-                if dockPreviewEngaged, !permissions.screenRecording {
+                if dockPreviewEngaged, !permissions.screenRecording, !DockOption.compact.bool {
                     SettingsCard {
                         PermissionRow(kind: .screenRecording)
                     }
@@ -205,7 +206,7 @@ struct DockSettings: View {
     private var dockPreviewCaption: String {
         guard dockPreviewEnabled else { return l10n.s.dockPreviewEnableCaption }
         if !permissions.accessibility { return "\(l10n.s.permissionRequired): \(l10n.s.permissionAccessibility)" }
-        if !permissions.screenRecording { return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)" }
+        if !permissions.screenRecording { return DockEnhancementStrings.text(.compact) }
         switch dockPreview.blockedReason {
         case .dockUnavailable: return l10n.s.dockPreviewDockUnavailable
         default:

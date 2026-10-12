@@ -12,6 +12,8 @@ enum DockPreviewScrollTests {
         var windowID: CGWindowID? { id }
         var previewWindowID: CGWindowID? { nil }
         var appIcon: NSImage? { nil }
+        var displayTitle: String { "Test" }
+        var isMinimized: Bool { false }
     }
 
     final class Model: ObservableObject {
@@ -53,6 +55,8 @@ enum DockPreviewScrollTests {
         let onClose: () -> Void
         let onMiddleClick: () -> Void
         let onToggleMinimized: () -> Void
+        let onCloseAll: () -> Void
+        let onMinimizeAll: () -> Void
         var body: some View {
             Color.clear.frame(width: DockPreviewSupport.cardWidth, height: DockPreviewSupport.cardHeight)
         }
@@ -71,11 +75,37 @@ enum DockPreviewScrollTests {
         var s: L10n { self }
         let panelQuit = "Quit"
         let dockPreviewCloseWindow = "Close window"
+        let dockPreviewMinimizeWindow = "Minimize window"
+        let dockPreviewPinPanel = "Pin panel"
         let dockPreviewUnpinPanel = "Unpin"
         let dockPreviewClosePanel = "Close panel"
         let dockPreviewPinned = "Pinned"
         let dockPreviewPreviousWindow = "Previous window"
         let dockPreviewNextWindow = "Next window"
+    }
+    enum DockPreviewLayout {
+        static var radius: CGFloat { 18 }
+        static var spacing: CGFloat { DockPreviewSupport.cardSpacing }
+        static func compact(_ count: Int) -> Bool { false }
+        static func lanes(_ count: Int, orientation: DockPreviewOrientation, isPinned: Bool) -> Int { 1 }
+        static func spaceLabel(_ item: SwitcherItem) -> String? { nil }
+    }
+    enum WindowEnhancementActions {
+        static func perform(_ action: WindowEnhancementAction, on item: SwitcherItem) -> Bool { false }
+    }
+    enum DockPreviewService {
+        static let shared = Service()
+        final class Service { func cancelWindowDrag() {} }
+    }
+    struct PreviewSwipeReader: View {
+        let enabled: Bool
+        let orientation: DockPreviewOrientation
+        let action: (WindowEnhancementAction) -> Void
+        var body: some View { Color.clear }
+    }
+    struct DockPreviewMiddleClick: View {
+        let onClose: () -> Void
+        var body: some View { Color.clear }
     }
     static var buttonActions: [String: () -> Void] = [:]
     struct Button<Label: View>: View {
@@ -84,6 +114,9 @@ enum DockPreviewScrollTests {
         init(action: @escaping () -> Void, @ViewBuilder label: () -> Label) {
             self.action = action
             self.label = label()
+        }
+        init(_ title: String, action: @escaping () -> Void) where Label == Text {
+            self.action = action; self.label = Text(title)
         }
         var body: some View { label }
         func help(_ title: String) -> Self {

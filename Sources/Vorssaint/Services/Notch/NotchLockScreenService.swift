@@ -39,7 +39,7 @@ final class NotchLockScreenService {
 
     var isShowing: Bool { space != nil }
 
-    func sync(_ session: NotchSessionState) {
+    func sync(_ session: NotchSessionState, keepsMusicForHandoff: Bool = false) {
         let locking = session.locked && !wasLocked
         wasLocked = session.locked
         if !session.locked { model.playedWhileLocked = false }
@@ -50,7 +50,8 @@ final class NotchLockScreenService {
         } else {
             // Unlocked, the island owns the sources again; otherwise nothing
             // shows them until the lock screen returns.
-            hide(unlocking: !session.locked && session.canPresent, stopsSources: !session.canPresent)
+            hide(unlocking: !session.locked && session.canPresent, stopsSources: !session.canPresent,
+                 keepsMusic: keepsMusicForHandoff && session.canPresent)
         }
     }
 
@@ -161,13 +162,16 @@ final class NotchLockScreenService {
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
                 guard let self, self.space != nil, Self.frames() != self.shownFrames else { return }
-                self.hide(unlocking: false, stopsSources: false)
+                self.hide(unlocking: false, stopsSources: false, keepsMusic: true)
                 self.show(closingPadlock: false)
+                if self.scene.isEmpty || !self.model.gates.music {
+                    self.releaseSources(stopsSources: false, keepsMusic: false)
+                }
             }
     }
 
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
-        if gates.music { NotchMusicService.shared.start() }
+        if gates.music { NotchMusicService.shared.start(consumer: .lockScreen) }
         if gates.downloads { NotchDownloadService.shared.syncWithPreferences() }
         // An event chosen from its menu counts down with the countdown for every event off.
         if gates.countdown || gates.timeLeft || !NotchCalendarSupport.chosenCountdowns().isEmpty {
@@ -176,13 +180,21 @@ final class NotchLockScreenService {
         if gates.agents { AgentUsageService.shared.syncWithPreferences() }
     }
 
-    private func hide(unlocking: Bool, stopsSources: Bool) {
+    private func releaseSources(stopsSources: Bool, keepsMusic: Bool) {
+        // The scene can already be gone: its consumer survives the first
+        // unlock sync until the island has acquired its own playback demand.
+        if !keepsMusic {
+            NotchMusicService.shared.stop(consumer: .lockScreen)
+        }
         if stopsSources, !scene.isEmpty {
-            NotchMusicService.shared.stop()
             NotchDownloadService.shared.stop()
             NotchCalendarService.shared.stop()
             AgentUsageService.shared.pause()
         }
+    }
+
+    private func hide(unlocking: Bool, stopsSources: Bool, keepsMusic: Bool = false) {
+        releaseSources(stopsSources: stopsSources, keepsMusic: keepsMusic)
         playbackSubscription = nil
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil

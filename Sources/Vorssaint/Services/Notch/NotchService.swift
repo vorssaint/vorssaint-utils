@@ -3480,7 +3480,7 @@ final class NotchService: ObservableObject {
         // The lock screen starts leaving before the island comes back, since
         // rebuilding the island holds the main thread for a moment. It stops
         // none of the sources an island that returns takes back.
-        if wasLocked, !session.locked { NotchLockScreenService.shared.sync(session) }
+        if wasLocked, !session.locked { NotchLockScreenService.shared.sync(session, keepsMusicForHandoff: true) }
         if couldPresent != session.canPresent {
             if session.canPresent {
                 syncWithPreferences()

@@ -6,7 +6,7 @@ import Combine
 import EventKit
 
 /// EventKit objects stay on one actor; only immutable display values reach UI.
-private actor NotchCalendarReader {
+actor NotchCalendarReader {
     private lazy var store = EKEventStore()
 
     func read(interval: DateInterval, excluded: Set<String>) -> [NotchCalendarEvent] {

@@ -6,13 +6,13 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview and its input gestures, Dock indicators and display locking, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
-| Calendars | Yes | Upcoming appointments in the notch |
-| Files and Folders | Yes | Monitoring downloads in a folder you choose |
+| Calendars | Yes | Upcoming appointments in the notch or Dock calendar widget |
+| Files and Folders | Yes | Monitoring downloads and browsing protected Dock folders |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
@@ -29,7 +29,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Scroll direction inverter**, which flips the mouse wheel.
 - **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
-- **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
+- **Dock Preview**, which reads Dock items and windows, including compact title lists, optional gestures, scroll actions, quick quit and window scripting. The independent active-app indicator and display lock also use Accessibility.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
 - **Middle click**, which turns a three finger press on the trackpad into a middle click.
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
@@ -47,11 +47,11 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
 
-**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+**What uses it.** The window switcher and Dock Preview for thumbnail images (compact titles can be read through Accessibility), screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
 
 The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
-**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+**If you say no.** The switcher falls back to app icons. Dock Preview uses a compact title list. Screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
 **Optional.** Yes.
 

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (C) 2026 Vorssaint -->
+<dictionary title="Vorssaint Window API">
+  <suite name="Window API" code="VSSD" description="Opt-in local control of Dock previews, windows and the window switcher.">
+    <command name="window command" code="VSSDwind" description="Execute a documented window command; return a JSON result. Requires Dock previews, AppleScript API and Accessibility.">
+      <cocoa class="DockWindowCommand"/>
+      <direct-parameter type="text" description="Command name (windows, apps, activeWindow, window, showPreview, hidePreviews, showSwitcher, cycleSwitcher, commitSwitcher, focus, close, minimize, maximize, restore, fullscreen, center, hide, quit, move or previewImage)."/>
+      <parameter name="with parameters" code="json" type="text" optional="yes" description="JSON object with id, pid, delta or x/y/width/height as documented."><cocoa key="parameters"/></parameter>
+      <result type="text" description="JSON object; mutating actions return accepted, not an assertion about the app's final state."/>
+    </command>
+  </suite>
+</dictionary>

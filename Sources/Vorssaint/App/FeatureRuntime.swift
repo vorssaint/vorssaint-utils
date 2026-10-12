@@ -240,8 +240,11 @@ final class FeatureRuntime: ObservableObject {
         .switcher: {
             WindowUseTracker.shared.syncWithFeatures()
             AppSwitcher.shared.syncWithPreferences()
+            DockAdditionsRuntime.shared.sync()
         },
-        .dockPreview: { DockPreviewService.shared.syncWithPreferences() },
+        .dockIndicator: { DockAdditionsRuntime.shared.sync() },
+        .dockLock: { DockAdditionsRuntime.shared.sync() },
+        .dockPreview: { DockPreviewService.shared.syncWithPreferences(); DockAdditionsRuntime.shared.sync() },
         .dockClick: { DockClickService.shared.syncWithPreferences() },
         .windowMaximizer: { WindowMaximizer.shared.syncWithPreferences() },
         .windowLayout: {

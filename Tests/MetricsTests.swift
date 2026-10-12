@@ -166,6 +166,7 @@ struct MetricsTests {
             }),
             ("force-quit", { ProcessForceQuitTests.run(suite) }),
             ("launcher", { QuickLauncherContract.run(suite) }),
+            ("dock-enhancements", { DockEnhancementTests.run(suite); DockReviewRegressionTests.run(suite) }),
             ("dock-autohide", {
                 DockPreviewPositionTests.run(suite)
                 DockPreviewScrollTests.run(suite)

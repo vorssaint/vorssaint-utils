@@ -282,6 +282,7 @@ extension AppFeature {
     var settingsDestination: FeatureSettingsDestination {
         switch self {
         case .switcher: return FeatureSettingsDestination(.switcher, sectionAnchor: .switcher)
+        case .dockIndicator, .dockLock: return FeatureSettingsDestination(.dock)
         case .dockPreview: return FeatureSettingsDestination(.dock, sectionAnchor: .dock)
         case .dockClick: return FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
         case .spacesOrder: return FeatureSettingsDestination(.dock, sectionAnchor: .spacesOrder)
@@ -402,7 +403,7 @@ enum FeatureVisibilitySupport {
         case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher]
-        case .dock: return [.dockPreview, .dockClick, .spacesOrder]
+        case .dock: return [.dockIndicator, .dockLock, .dockPreview, .dockClick, .spacesOrder]
         case .windowLayout: return [.windowLayout, .windowMaximizer]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]
