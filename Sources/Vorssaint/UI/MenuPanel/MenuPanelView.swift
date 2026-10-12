@@ -2680,8 +2680,6 @@ struct KeepAwakeCard: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var permissions = Permissions.shared
-    /// The live tasks the agents chip can follow.
-    @ObservedObject private var agents = AgentUsageService.shared
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration: Int = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -3061,16 +3059,8 @@ struct KeepAwakeCard: View {
             .fixedSize()
             // Pick the one task to wait for, heaviest first.
             if !awake.waitsForAgents {
-                let live = agents.snapshot.live.sorted { $0.tokens.total > $1.tokens.total }
                 Menu {
-                    Button(agentStrings.allAgents) { awake.activateUntilAgentsFinish() }
-                    if !live.isEmpty { Divider() }
-                    ForEach(live) { task in
-                        Button("\(Self.agentTaskName(task)) · \(AgentFormat.clock(Date().timeIntervalSince(task.started)))"
-                               + " · \(AgentFormat.tokens(task.tokens.total))") {
-                            awake.activateUntilAgentsFinish(following: task)
-                        }
-                    }
+                    KeepAwakeAgentChoices()
                 } label: {
                     Image(systemName: "chevron.down")
                 }
@@ -3275,6 +3265,26 @@ enum DurationPicker {
 }
 
 /// Capsule chip used for the Keep awake presets and extensions.
+/// "All agents" and the live tasks to wait for, heaviest first, for the
+/// panel's agents menu and the island's Keep Awake tile.
+struct KeepAwakeAgentChoices: View {
+    @ObservedObject private var agents = AgentUsageService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let strings = FeatureStrings.keepAwakeAgents(l10n.language)
+        let live = agents.snapshot.live.sorted { $0.tokens.total > $1.tokens.total }
+        Button(strings.allAgents) { KeepAwakeManager.shared.activateUntilAgentsFinish() }
+        if !live.isEmpty { Divider() }
+        ForEach(live) { task in
+            Button("\(KeepAwakeCard.agentTaskName(task)) · \(AgentFormat.clock(Date().timeIntervalSince(task.started)))"
+                   + " · \(AgentFormat.tokens(task.tokens.total))") {
+                KeepAwakeManager.shared.activateUntilAgentsFinish(following: task)
+            }
+        }
+    }
+}
+
 struct KeepAwakeChipStyle: ButtonStyle {
     var isSelected = false
 
