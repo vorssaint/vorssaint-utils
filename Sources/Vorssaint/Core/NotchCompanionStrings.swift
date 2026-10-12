@@ -35,6 +35,8 @@ struct NotchCompanionStrings {
     let needsCodex: String
     let generateFailed: String
     let generated: String
+    /// Codex is there, but Swift is not.
+    let needsTools: String
 
     func style(_ style: NotchCompanionGenerator.Style) -> String {
         switch style {
@@ -71,7 +73,8 @@ extension FeatureStrings {
             images: "%d of %d images",
             needsCodex: "Generating needs the Codex command line, signed in.",
             generateFailed: "Couldn’t generate the character",
-            generated: "%@ is ready.")
+            generated: "%@ is ready.",
+            needsTools: "Generating also needs Apple’s Command Line Tools. Install them with “xcode-select --install” in Terminal.")
         case .ptBR: return NotchCompanionStrings(
             character: "Personagem",
             characterHint: "Um rosto animado só seu: uma pasta com um companion.json e seus quadros, na pasta Companions.",
@@ -94,7 +97,8 @@ extension FeatureStrings {
             images: "%d de %d imagens",
             needsCodex: "Para gerar, é preciso a linha de comando do Codex com login feito.",
             generateFailed: "Não foi possível gerar o personagem",
-            generated: "%@ está pronto.")
+            generated: "%@ está pronto.",
+            needsTools: "Gerar também requer as Command Line Tools da Apple. Instale-as com “xcode-select --install” no Terminal.")
         case .tr: return NotchCompanionStrings(
             character: "Karakter",
             characterHint: "Size ait hareketli bir yüz: Companions klasöründe companion.json ve kareleri bulunan bir klasör.",
@@ -117,7 +121,8 @@ extension FeatureStrings {
             images: "%d / %d görsel",
             needsCodex: "Oluşturmak için oturum açılmış Codex komut satırı gerekir.",
             generateFailed: "Karakter oluşturulamadı",
-            generated: "%@ hazır.")
+            generated: "%@ hazır.",
+            needsTools: "Oluşturmak için Apple Command Line Tools da gerekir. Terminal’de “xcode-select --install” ile yükleyin.")
         case .ru: return NotchCompanionStrings(
             character: "Персонаж",
             characterHint: "Ваше собственное анимированное лицо: папка с companion.json и кадрами в папке Companions.",
@@ -140,7 +145,8 @@ extension FeatureStrings {
             images: "%d из %d изображений",
             needsCodex: "Для создания нужна командная строка Codex с выполненным входом.",
             generateFailed: "Не удалось создать персонажа",
-            generated: "Готово: %@.")
+            generated: "Готово: %@.",
+            needsTools: "Для создания также нужны Apple Command Line Tools. Установите их командой «xcode-select --install» в Терминале.")
         case .es: return NotchCompanionStrings(
             character: "Personaje",
             characterHint: "Una cara animada propia: una carpeta con un companion.json y sus fotogramas, en la carpeta Companions.",
@@ -163,7 +169,8 @@ extension FeatureStrings {
             images: "%d de %d imágenes",
             needsCodex: "Para generar hace falta la línea de comandos de Codex con la sesión iniciada.",
             generateFailed: "No se pudo generar el personaje",
-            generated: "%@ está listo.")
+            generated: "%@ está listo.",
+            needsTools: "Para generar también se necesitan las Command Line Tools de Apple. Instálalas con «xcode-select --install» en Terminal.")
         case .sk: return NotchCompanionStrings(
             character: "Postavička",
             characterHint: "Vlastná animovaná tvár: priečinok so súborom companion.json a jeho snímkami v priečinku Companions.",
@@ -186,7 +193,8 @@ extension FeatureStrings {
             images: "%d z %d obrázkov",
             needsCodex: "Na vytváranie je potrebný príkazový riadok Codex s prihlásením.",
             generateFailed: "Postavičku sa nepodarilo vytvoriť",
-            generated: "Hotovo: %@.")
+            generated: "Hotovo: %@.",
+            needsTools: "Na vytváranie sú potrebné aj Apple Command Line Tools. Nainštalujte ich príkazom „xcode-select --install“ v Termináli.")
         case .de: return NotchCompanionStrings(
             character: "Figur",
             characterHint: "Ein eigenes animiertes Gesicht: ein Ordner mit einer companion.json und ihren Bildern im Ordner „Companions“.",
@@ -209,7 +217,8 @@ extension FeatureStrings {
             images: "%d von %d Bildern",
             needsCodex: "Zum Erstellen wird die angemeldete Codex-Befehlszeile benötigt.",
             generateFailed: "Die Figur konnte nicht erstellt werden",
-            generated: "%@ ist fertig.")
+            generated: "%@ ist fertig.",
+            needsTools: "Zum Erstellen werden auch Apples Command Line Tools benötigt. Installiere sie mit „xcode-select --install“ im Terminal.")
         case .fr: return NotchCompanionStrings(
             character: "Personnage",
             characterHint: "Un visage animé bien à vous : un dossier avec un companion.json et ses images, dans le dossier Companions.",
@@ -232,7 +241,8 @@ extension FeatureStrings {
             images: "%d images sur %d",
             needsCodex: "Pour générer, il faut la ligne de commande Codex, connectée.",
             generateFailed: "Impossible de générer le personnage",
-            generated: "%@ est prêt.")
+            generated: "%@ est prêt.",
+            needsTools: "La génération nécessite aussi les Command Line Tools d’Apple. Installez-les avec « xcode-select --install » dans Terminal.")
         case .it: return NotchCompanionStrings(
             character: "Personaggio",
             characterHint: "Un volto animato tutto tuo: una cartella con un companion.json e i suoi fotogrammi, nella cartella Companions.",
@@ -255,7 +265,8 @@ extension FeatureStrings {
             images: "%d di %d immagini",
             needsCodex: "Per generare serve la riga di comando di Codex con accesso effettuato.",
             generateFailed: "Impossibile generare il personaggio",
-            generated: "%@ è pronto.")
+            generated: "%@ è pronto.",
+            needsTools: "Per generare servono anche i Command Line Tools di Apple. Installali con «xcode-select --install» nel Terminale.")
         case .ja: return NotchCompanionStrings(
             character: "キャラクター",
             characterHint: "自分だけのアニメーションする顔：Companions フォルダ内の、companion.json とフレーム画像を含むフォルダです。",
@@ -278,7 +289,8 @@ extension FeatureStrings {
             images: "%d / %d 枚",
             needsCodex: "生成するには、サインイン済みの Codex コマンドラインが必要です。",
             generateFailed: "キャラクターを生成できませんでした",
-            generated: "%@ の準備ができました。")
+            generated: "%@ の準備ができました。",
+            needsTools: "生成には Apple の Command Line Tools も必要です。ターミナルで「xcode-select --install」を実行してインストールしてください。")
         case .ko: return NotchCompanionStrings(
             character: "캐릭터",
             characterHint: "나만의 움직이는 얼굴: Companions 폴더 안에 companion.json과 프레임이 담긴 폴더입니다.",
@@ -301,7 +313,8 @@ extension FeatureStrings {
             images: "%d / %d 이미지",
             needsCodex: "생성하려면 로그인된 Codex 명령줄이 필요합니다.",
             generateFailed: "캐릭터를 생성할 수 없습니다",
-            generated: "%@ 준비 완료.")
+            generated: "%@ 준비 완료.",
+            needsTools: "생성하려면 Apple Command Line Tools도 필요합니다. 터미널에서 “xcode-select --install”로 설치하세요.")
         case .uk: return NotchCompanionStrings(
             character: "Персонаж",
             characterHint: "Ваше власне анімоване обличчя: тека з companion.json і кадрами в теці Companions.",
@@ -324,7 +337,8 @@ extension FeatureStrings {
             images: "%d з %d зображень",
             needsCodex: "Для створення потрібен командний рядок Codex із виконаним входом.",
             generateFailed: "Не вдалося створити персонажа",
-            generated: "Готово: %@.")
+            generated: "Готово: %@.",
+            needsTools: "Для створення також потрібні Apple Command Line Tools. Установіть їх командою «xcode-select --install» у Терміналі.")
         case .zhHans: return NotchCompanionStrings(
             character: "角色",
             characterHint: "属于你的动画面孔：Companions 文件夹中包含 companion.json 及其帧图像的文件夹。",
@@ -347,7 +361,8 @@ extension FeatureStrings {
             images: "%d / %d 张图像",
             needsCodex: "生成需要已登录的 Codex 命令行。",
             generateFailed: "无法生成角色",
-            generated: "%@ 已就绪。")
+            generated: "%@ 已就绪。",
+            needsTools: "生成还需要 Apple 的 Command Line Tools。请在“终端”中运行“xcode-select --install”进行安装。")
         case .zhTW: return NotchCompanionStrings(
             character: "角色",
             characterHint: "屬於你的動畫臉孔：Companions 檔案夾中含有 companion.json 及其影格的檔案夾。",
@@ -370,7 +385,8 @@ extension FeatureStrings {
             images: "%d / %d 張影像",
             needsCodex: "生成需要已登入的 Codex 命令列。",
             generateFailed: "無法生成角色",
-            generated: "%@ 已準備就緒。")
+            generated: "%@ 已準備就緒。",
+            needsTools: "生成還需要 Apple 的 Command Line Tools。請在「終端機」中執行「xcode-select --install」來安裝。")
         case .zhHK: return NotchCompanionStrings(
             character: "角色",
             characterHint: "屬於你嘅動畫面孔：Companions 資料夾入面含有 companion.json 同埋影格嘅資料夾。",
@@ -393,7 +409,8 @@ extension FeatureStrings {
             images: "%d / %d 張影像",
             needsCodex: "生成需要已登入嘅 Codex 命令列。",
             generateFailed: "無法生成角色",
-            generated: "%@ 準備好喇。")
+            generated: "%@ 準備好喇。",
+            needsTools: "生成仲需要 Apple 嘅 Command Line Tools。請喺「終端機」執行「xcode-select --install」嚟安裝。")
         }
     }
 }

@@ -883,7 +883,8 @@ private struct NotchCompanionGenerateSheet: View {
     @State private var style = NotchCompanionGenerator.Style.illustration
 
     private var canStart: Bool {
-        !subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && generator.codex != nil && !generator.isRunning
+        !subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && generator.codex != nil && generator.hasSwift
+            && !generator.isRunning
     }
 
     var body: some View {
@@ -905,9 +906,10 @@ private struct NotchCompanionGenerateSheet: View {
             }
             Text(text.generateHint).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if generator.lookedForCodex, generator.codex == nil {
-                Label(text.needsCodex, systemImage: "exclamationmark.triangle.fill")
+            if generator.lookedForCodex, generator.codex == nil || !generator.hasSwift {
+                Label(generator.codex == nil ? text.needsCodex : text.needsTools, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             HStack {
                 Spacer()
@@ -920,7 +922,7 @@ private struct NotchCompanionGenerateSheet: View {
         }
         .padding(20)
         .frame(width: 440)
-        .onAppear { if generator.codex == nil { generator.locateCodex() } }
+        .onAppear { if generator.codex == nil || !generator.hasSwift { generator.locateCodex() } }
     }
 
     private func start() {

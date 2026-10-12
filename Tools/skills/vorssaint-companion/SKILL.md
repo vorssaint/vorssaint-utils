@@ -65,12 +65,20 @@ its built-in `image_gen` path unless the user asks for the CLI.
 Keep a short visible checklist: *Designing the face → Drawing expressions →
 Assembling the pack → Installing*.
 
+Work from one folder for the whole run. First build the helper there
+(it needs Apple's Command Line Tools, `xcode-select --install`). A sandbox
+may not let Swift write its usual module cache, so keep that cache here too:
+
 ```bash
-SKILL_DIR="${CODEX_HOME:-$HOME/.codex}/skills/vorssaint-companion"
-# A sandbox may not let Swift write its usual module cache: keep it here.
-TOOL="env CLANG_MODULE_CACHE_PATH=$PWD/.swift-cache swift $SKILL_DIR/scripts/companion_tool.swift"
-RUN="$PWD/companion-runs/<slug>"
+CLANG_MODULE_CACHE_PATH="$PWD/.swift-cache" swiftc -O \
+  "${CODEX_HOME:-$HOME/.codex}/skills/vorssaint-companion/scripts/companion_tool.swift" \
+  -o ./companion-tool
 ```
+
+Then call it as `./companion-tool <command>`. Every shell command starts
+fresh, so don't rely on variables from an earlier command, and always quote
+paths: the run folder may contain spaces (`Application Support`). The
+examples below use `run` for the run folder, relative to the working folder.
 
 When Vorssaint started the run itself, its prompt names the run folder and
 asks you to stop before installing: the app installs the pack.
@@ -82,7 +90,7 @@ style that fits, such as "polished 2D digital illustration, soft cel shading",
 "soft 3D render like an animated film" or "painterly watercolor".
 
 ```bash
-$TOOL prepare --name "Mochi" --out "$RUN" \
+./companion-tool prepare --name "Mochi" --out ./run \
   --concept "a round cream cat with big amber eyes and a tiny pink nose" \
   --style "polished 2D digital illustration, soft cel shading, gentle highlights" \
   --frames 8 --state-frames idle=12,dance=12
@@ -103,15 +111,15 @@ Generate `prompts/base.txt` with `$imagegen` (it may be prompt-only, or use
 the user's reference images labeled as references). Look at the result: one
 centred face, nothing cropped, clean background, not pixel art, appealing at
 small size. Iterate until it is right. Copy the chosen original to
-`$RUN/base.png`. This is the canonical identity for every sheet.
+`./run/base.png`. This is the canonical identity for every sheet.
 
 ### 3. Generate one sheet per state
 
 For each state in `run.json`, call `$imagegen` with:
 
 - the prompt in `prompts/<state>.txt`, verbatim
-- `$RUN/base.png`, labeled as the identity reference
-- `$RUN/guides/<state>.png`, labeled as the layout guide only
+- `./run/base.png`, labeled as the identity reference
+- `./run/guides/<state>.png`, labeled as the layout guide only
 
 Use the image size the prompt names. You may delegate states to subagents in
 parallel. Each subagent returns only the chosen image path and a one-line
@@ -130,11 +138,11 @@ Regenerate only the sheet that fails.
 ### 4. Cut, assemble, check
 
 ```bash
-$TOOL slice --run "$RUN" --state idle --sheet /path/to/generated/idle.png
+./companion-tool slice --run ./run --state idle --sheet "/path/to/generated/idle.png"
 # … repeat per state …
-$TOOL manifest --run "$RUN"
-$TOOL validate --pack "$RUN/pack"
-$TOOL preview  --pack "$RUN/pack"     # writes $RUN/qa/
+./companion-tool manifest --run ./run
+./companion-tool validate --pack ./run/pack
+./companion-tool preview  --pack ./run/pack     # writes ./run/qa/
 ```
 
 - `slice` cuts the grid, makes the background transparent, aligns the
@@ -153,8 +161,8 @@ $TOOL preview  --pack "$RUN/pack"     # writes $RUN/qa/
 ### 5. Install
 
 ```bash
-$TOOL install --pack "$RUN/pack"            # Vorssaint
-$TOOL install --pack "$RUN/pack" --dev      # Vorssaint Developer build
+./companion-tool install --pack ./run/pack          # Vorssaint
+./companion-tool install --pack ./run/pack --dev    # Vorssaint Developer build
 ```
 
 `--replace` overwrites a pack with the same id. Then, in Vorssaint, go to

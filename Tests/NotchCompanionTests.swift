@@ -421,7 +421,7 @@ enum NotchCompanionTests {
             let all = [text.character, text.characterHint, text.empty, text.add, text.openFolder, text.reload,
                        text.unusable, text.addFailed, text.generate, text.generateTitle, text.subject,
                        text.subjectPlaceholder, text.look, text.generateHint, text.start, text.cancel,
-                       text.needsCodex, text.generateFailed] + NotchCompanionGenerator.Style.allCases.map(text.style)
+                       text.needsCodex, text.needsTools, text.generateFailed] + NotchCompanionGenerator.Style.allCases.map(text.style)
             suite.expect(all.allSatisfy { !$0.isEmpty } && text.characterHint.contains("companion.json")
                          && text.drawing.components(separatedBy: "%@").count == 2
                          && text.generated.components(separatedBy: "%@").count == 2

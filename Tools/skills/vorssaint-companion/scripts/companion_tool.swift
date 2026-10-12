@@ -625,7 +625,8 @@ func readPack(_ pack: URL, errors: inout [String], warnings: inout [String]) -> 
                 let files = ((try? FileManager.default.contentsOfDirectory(atPath: target.path)) ?? [])
                     .filter { extensions.contains(($0 as NSString).pathExtension.lowercased()) && !$0.hasPrefix(".") }
                     .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
-                frames = files.compactMap { loadImages(target.appendingPathComponent($0)).first?.image }
+                // Each frame is checked as the app checks it, links included.
+                frames = files.compactMap { file in url((path as NSString).appendingPathComponent(file)).flatMap { loadImages($0).first?.image } }
                 if frames.count != files.count { errors.append("\"\(name)\": some frames in \(path) can't be read") }
             } else {
                 let read = loadImages(target)
@@ -777,6 +778,10 @@ func install(_ args: Arguments) {
         .appendingPathComponent("Library/Application Support/\(bundle)/Companions", isDirectory: true)
     let destination = folder.appendingPathComponent(slug(name), isDirectory: true)
     if FileManager.default.fileExists(atPath: destination.path) {
+        guard destination.resolvingSymlinksInPath().standardizedFileURL.path
+                != pack.resolvingSymlinksInPath().standardizedFileURL.path else {
+            fail("\(pack.path) is already the installed pack; nothing to do")
+        }
         guard args.flags.contains("replace") else { fail("\(destination.path) exists; pass --replace to overwrite it") }
         try? FileManager.default.removeItem(at: destination)
     }

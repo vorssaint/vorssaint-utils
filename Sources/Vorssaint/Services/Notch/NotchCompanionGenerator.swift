@@ -47,6 +47,9 @@ final class NotchCompanionGenerator: ObservableObject {
     /// The Codex command line, once found; nil while looking or without one.
     @Published private(set) var codex: URL?
     @Published private(set) var lookedForCodex = false
+    /// Whether Apple's Command Line Tools are there: the skill builds its
+    /// helper with Swift, which macOS has only with them.
+    @Published private(set) var hasSwift = false
 
     private var process: Process?
     private var run: URL?
@@ -107,27 +110,43 @@ final class NotchCompanionGenerator: ObservableObject {
             if found == nil, let path = Self.shellLookup(), manager.isExecutableFile(atPath: path) {
                 found = URL(fileURLWithPath: path)
             }
+            let swift = Self.swiftAvailable()
             DispatchQueue.main.async {
                 self.codex = found
+                self.hasSwift = swift
                 self.lookedForCodex = true
             }
         }
     }
 
-    private static func shellLookup() -> String? {
-        let shell = Process()
-        shell.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        shell.arguments = ["-lc", "command -v codex"]
+    /// Asks `xcode-select` where the developer tools are, which never offers
+    /// to install them as `swift` or `xcrun` would, and looks for the
+    /// compiler there.
+    static func swiftAvailable() -> Bool {
+        guard let folder = run("/usr/bin/xcode-select", ["-p"]), folder.hasPrefix("/") else { return false }
+        return ["\(folder)/usr/bin/swiftc", "\(folder)/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"]
+            .contains { FileManager.default.isExecutableFile(atPath: $0) }
+    }
+
+    /// The first line `tool` prints, nil when it fails or takes too long.
+    private static func run(_ tool: String, _ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tool)
+        process.arguments = arguments
         let output = Pipe()
-        shell.standardOutput = output
-        shell.standardError = FileHandle.nullDevice
-        guard (try? shell.run()) != nil else { return nil }
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
         let deadline = Date().addingTimeInterval(5)
-        while shell.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
-        if shell.isRunning { shell.terminate(); return nil }
-        let path = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return path.hasPrefix("/") ? path : nil
+        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
+        if process.isRunning { process.terminate(); return nil }
+        guard process.terminationStatus == 0 else { return nil }
+        return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+            .split(separator: "\n").first.map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    private static func shellLookup() -> String? {
+        run("/bin/zsh", ["-lc", "command -v codex"])
     }
 
     /// Copies the skill the app carries into Codex's skills, replacing an
@@ -201,7 +220,7 @@ final class NotchCompanionGenerator: ObservableObject {
 
     func start(subject: String, style: Style) {
         let subject = subject.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !subject.isEmpty, !isRunning, let codex else { return }
+        guard !subject.isEmpty, !isRunning, hasSwift, let codex else { return }
         guard let skill = Bundle.main.resourceURL?.appendingPathComponent("CompanionSkill", isDirectory: true),
               FileManager.default.fileExists(atPath: skill.appendingPathComponent("SKILL.md").path) else {
             phase = .failed("This build has no companion skill to give Codex.")
