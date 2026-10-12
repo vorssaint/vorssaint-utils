@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Combine
 import Foundation
 
@@ -93,26 +94,26 @@ final class NotchCompanionGenerator: ObservableObject {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
     }
 
-    /// Where the Codex command line is usually installed. An app opened from
-    /// the Finder has none of the shell's PATH, so these are tried first and
-    /// a login shell is asked only when none of them is there.
-    static func candidates(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
-        ["\(home.path)/.local/bin/codex", "/opt/homebrew/bin/codex", "/usr/local/bin/codex",
-         "\(home.path)/.npm-global/bin/codex", "\(home.path)/.bun/bin/codex", "\(home.path)/.volta/bin/codex",
-         "/Applications/Codex.app/Contents/Resources/codex"].map { URL(fileURLWithPath: $0) }
-    }
+    /// The login shell's PATH, once Codex had to be looked for along it.
+    private var searchPath: String?
 
-    /// Looks for the Codex command line off the main thread.
+    /// Looks for Codex off the main thread, as the AI Agents page does:
+    /// inside the desktop app, where its installers put it, and along the
+    /// login shell's PATH, since an app opened from the Finder has none.
     func locateCodex() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let manager = FileManager.default
-            var found = Self.candidates().first { manager.isExecutableFile(atPath: $0.path) }
-            if found == nil, let path = Self.shellLookup(), manager.isExecutableFile(atPath: path) {
-                found = URL(fileURLWithPath: path)
+            let apps = AgentCodexServer.appIdentifiers.flatMap { NSWorkspace.shared.urlsForApplications(withBundleIdentifier: $0) }
+            let home = FileManager.default.homeDirectoryForCurrentUser
+            var path: String?
+            var found = AgentCodexServer.executable(apps: apps, home: home)
+            if found == nil {
+                path = Self.run("/bin/zsh", ["-lc", "printf '%s' \"$PATH\""])
+                found = AgentCodexServer.executable(apps: apps, home: home, searchPath: path)
             }
             let swift = Self.swiftAvailable()
             DispatchQueue.main.async {
                 self.codex = found
+                self.searchPath = path
                 self.hasSwift = swift
                 self.lookedForCodex = true
             }
@@ -143,10 +144,6 @@ final class NotchCompanionGenerator: ObservableObject {
         guard process.terminationStatus == 0 else { return nil }
         return String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
             .split(separator: "\n").first.map { $0.trimmingCharacters(in: .whitespaces) }
-    }
-
-    private static func shellLookup() -> String? {
-        run("/bin/zsh", ["-lc", "command -v codex"])
     }
 
     /// Copies the skill the app carries into Codex's skills, replacing an
@@ -244,15 +241,17 @@ final class NotchCompanionGenerator: ObservableObject {
         process.arguments = ["exec", "--json", "--skip-git-repo-check", "--sandbox", "workspace-write",
                              "--cd", run.path, "--output-last-message", run.appendingPathComponent("last-message.txt").path, "-"]
         process.currentDirectoryURL = run
-        var environment = ProcessInfo.processInfo.environment
-        let path = environment["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
-        environment["PATH"] = ([codex.deletingLastPathComponent().path, "/opt/homebrew/bin", "/usr/local/bin"] + [path])
-            .joined(separator: ":")
-        process.environment = environment
+        process.environment = AgentCodexServer.environment(for: codex, searchPath: searchPath)
         let input = Pipe(), output = Pipe(), errors = Pipe()
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors
+        // Codex quitting as it starts fails the prompt's write rather than
+        // ending the app with SIGPIPE.
+        guard fcntl(input.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1) != -1 else {
+            phase = .failed("Codex can't be started.")
+            return
+        }
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             DispatchQueue.main.async { self?.read(data) }
@@ -288,7 +287,8 @@ final class NotchCompanionGenerator: ObservableObject {
         self.process = process
         imagesFolder = nil
         imageCount = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in self?.countImages() }
-        input.fileHandleForWriting.write(Data(Self.prompt(subject: subject, style: style).utf8))
+        // A failed write ends the run, which reports what Codex said.
+        try? input.fileHandleForWriting.write(contentsOf: Data(Self.prompt(subject: subject, style: style).utf8))
         try? input.fileHandleForWriting.close()
     }
 
@@ -357,13 +357,24 @@ final class NotchCompanionGenerator: ObservableObject {
         }
         let slug = (try? Data(contentsOf: run.appendingPathComponent("run/run.json")))
             .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["slug"] as? String
-        do {
-            let id = try NotchCompanionLibrary.shared.importPack(from: pack, named: slug)
-            UserDefaults.standard.set(NotchMascotStyle.character.rawValue, forKey: DefaultsKey.notchMascotStyle)
-            UserDefaults.standard.set(id, forKey: DefaultsKey.notchMascotCharacter)
-            phase = .finished(id: id, name: made.name)
-        } catch {
-            phase = .failed("\(error)")
+        // Every frame is read before the pack is added: a manifest Codex
+        // left over missing or broken images is a failed run, not a character.
+        DispatchQueue.global(qos: .userInitiated).async {
+            let frames = Result { try NotchCompanionLibrary.load(made, from: pack) }
+            DispatchQueue.main.async {
+                guard case .success = frames else {
+                    if case .failure(let error) = frames { self.phase = .failed("\(error)") }
+                    return
+                }
+                do {
+                    let id = try NotchCompanionLibrary.shared.importPack(from: pack, named: slug)
+                    UserDefaults.standard.set(NotchMascotStyle.character.rawValue, forKey: DefaultsKey.notchMascotStyle)
+                    UserDefaults.standard.set(id, forKey: DefaultsKey.notchMascotCharacter)
+                    self.phase = .finished(id: id, name: made.name)
+                } catch {
+                    self.phase = .failed("\(error)")
+                }
+            }
         }
     }
 }

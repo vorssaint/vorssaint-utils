@@ -59,9 +59,6 @@ enum NotchCompanionTests {
         let updated = try? NotchCompanionGenerator.installSkill(from: bundled, into: codex)
         suite.expect(updated.flatMap { try? String(contentsOf: $0.appendingPathComponent("SKILL.md"), encoding: .utf8) } == "v3",
                      "a newer app replaces an older skill")
-        suite.expect(NotchCompanionGenerator.candidates(home: URL(fileURLWithPath: "/Users/x")).first?.path == "/Users/x/.local/bin/codex"
-                     && NotchCompanionGenerator.candidates().contains { $0.path == "/opt/homebrew/bin/codex" },
-                     "Codex is looked for where its installers put it, without the shell's PATH")
     }
 
     private static func pack(_ json: String, folders: [String: [String]] = [:]) -> Result<NotchCompanionPack, NotchCompanionPack.Problem> {
