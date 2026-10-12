@@ -31,6 +31,7 @@ struct TrackpadGesturesSection: View {
 
     private var text: TrackpadGestureStrings { FeatureStrings.trackpadGestures(l10n.language) }
     private var radialText: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
+    private var goText: SettingsNavigationStrings { .localized(l10n.language) }
     private var mappings: [TrackpadGesture: TriggerAction] {
         TrackpadGestureMappingSupport.decode(mappingsData)
     }
@@ -149,6 +150,16 @@ struct TrackpadGesturesSection: View {
         let accessibilityName = kindTitle(gesture.kind) + ", " + text.actionLabel
         return Menu {
             Button(text.noAction) { store(nil, for: gesture) }
+            Section {
+                ForEach(MouseNavigationDirection.allCases, id: \.self) { direction in
+                    Button {
+                        store(.backForward(direction), for: gesture)
+                    } label: {
+                        Label(backForwardTitle(direction),
+                              systemImage: direction == .back ? "chevron.left" : "chevron.right")
+                    }
+                }
+            }
             Section(text.navigationSection) {
                 ForEach(SpaceNavigation.allCases) { navigation in
                     Button {
@@ -233,10 +244,16 @@ struct TrackpadGesturesSection: View {
         }
     }
 
+    /// The names the Settings Go menu already carries in every language.
+    private func backForwardTitle(_ direction: MouseNavigationDirection) -> String {
+        direction == .back ? goText.back : goText.forward
+    }
+
     private func actionTitle(_ action: TriggerAction?) -> String {
         switch action {
         case nil: return text.noAction
         case .navigation(let navigation)?: return navigationTitle(navigation)
+        case .backForward(let direction)?: return backForwardTitle(direction)
         case .item(let item)?: return item.displayName(radialText)
         }
     }

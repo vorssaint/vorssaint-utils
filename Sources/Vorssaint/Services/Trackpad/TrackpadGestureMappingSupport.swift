@@ -21,22 +21,27 @@ enum SpaceNavigation: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// What a gesture runs: any action a radial-menu slice can hold, or a Space
-/// navigation. Submenus have no meaning outside the wheel and are refused.
+/// What a gesture runs: any action a radial-menu slice can hold, a Space
+/// navigation, or Back and Forward in the app in front. Submenus have no
+/// meaning outside the wheel and are refused.
 enum TriggerAction: Equatable {
     case item(RadialMenuItem)
     case navigation(SpaceNavigation)
+    case backForward(MouseNavigationDirection)
 }
 
 extension TriggerAction: Codable {
     private enum CodingKeys: String, CodingKey {
-        case item, navigation
+        case item, navigation, backForward
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if let navigation = try container.decodeIfPresent(SpaceNavigation.self, forKey: .navigation) {
             self = .navigation(navigation)
+        } else if let direction = try container.decodeIfPresent(MouseNavigationDirection.self,
+                                                                forKey: .backForward) {
+            self = .backForward(direction)
         } else {
             self = .item(try container.decode(RadialMenuItem.self, forKey: .item))
         }
@@ -47,6 +52,7 @@ extension TriggerAction: Codable {
         switch self {
         case .item(let item): try container.encode(item, forKey: .item)
         case .navigation(let navigation): try container.encode(navigation, forKey: .navigation)
+        case .backForward(let direction): try container.encode(direction, forKey: .backForward)
         }
     }
 }
@@ -70,7 +76,7 @@ enum TrackpadGestureMappingSupport {
     /// normalized exactly as for a wheel slice.
     static func sanitized(_ action: TriggerAction) -> TriggerAction? {
         switch action {
-        case .navigation:
+        case .navigation, .backForward:
             return action
         case .item(let item):
             guard item.kind != .submenu,
@@ -106,10 +112,11 @@ enum TrackpadGestureMappingSupport {
     }
 
     /// Whether the action needs Accessibility to run: posting keys, moving
-    /// windows and replaying Space shortcuts all do.
+    /// windows, replaying Space shortcuts and pressing an app's Back or
+    /// Forward all do.
     static func needsAccessibility(_ action: TriggerAction) -> Bool {
         switch action {
-        case .navigation: return true
+        case .navigation, .backForward: return true
         case .item(let item): return RadialMenuSupport.needsAccessibility([item])
         }
     }
@@ -122,6 +129,8 @@ enum TrackpadGestureMappingSupport {
         switch action {
         case .navigation(let navigation):
             return systemShortcutExists(navigation) ? nil : .systemShortcutOff
+        case .backForward:
+            return nil
         case .item(let item):
             switch item.kind {
             case .tool:

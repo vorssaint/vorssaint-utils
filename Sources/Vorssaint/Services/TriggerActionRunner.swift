@@ -21,6 +21,9 @@ enum TriggerActionRunner {
         switch action {
         case .item(let item): run(item, context: context)
         case .navigation(let navigation): run(navigation, context: context)
+        case .backForward(let direction):
+            guard context.ensureAccessibility() else { return }
+            MouseNavigationService.shared.navigate(direction)
         }
     }
 

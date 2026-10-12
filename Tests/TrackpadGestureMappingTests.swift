@@ -16,6 +16,8 @@ enum TrackpadGestureMappingTests {
             swipeUp4: .navigation(.missionControl),
             tap5: .item(shortcut),
             pinchIn5: .item(tool),
+            TrackpadGesture(kind: .swipeLeft, fingers: 3)!: .backForward(.back),
+            TrackpadGesture(kind: .swipeRight, fingers: 3)!: .backForward(.forward),
         ]
         let decoded = TrackpadGestureMappingSupport.decode(TrackpadGestureMappingSupport.encode(mappings))
         suite.expect(decoded == mappings, "mappings survive a save and a reload")
@@ -39,18 +41,24 @@ enum TrackpadGestureMappingTests {
          "tap-2":{"navigation":"spaceLeft"},
          "wave-4":{"navigation":"spaceLeft"},
          "swipe-up-4":{"navigation":"teleport"},
+         "swipe-down-4":{"backForward":"sideways"},
+         "swipe-down-5":{"backForward":"forward"},
          "pinch-in-5":{"item":{"kind":"unknownKind","payload":"x"}},
          "swipe-left-3":{"item":{"kind":"tool","payload":"\(RadialMenuTool.shelf.rawValue)"}}}
         """
         let lenient = TrackpadGestureMappingSupport.decode(Data(json.utf8))
-        suite.expect(lenient.count == 2
+        suite.expect(lenient.count == 3
                         && lenient[tap5] == .navigation(.spaceRight)
+                        && lenient[TrackpadGesture(kind: .swipeDown, fingers: 5)!] == .backForward(.forward)
                         && lenient[TrackpadGesture(kind: .swipeLeft, fingers: 3)!] != nil,
                      "unknown gestures, kinds and navigations are dropped without losing the rest")
         suite.expect(TrackpadGestureMappingSupport.decode(nil).isEmpty
                         && TrackpadGestureMappingSupport.decode(Data("not json".utf8)).isEmpty,
                      "a missing or corrupt blob reads as no mappings")
 
+        suite.expect(TrackpadGestureMappingSupport.sanitized(.backForward(.back)) == .backForward(.back)
+                        && TrackpadGestureMappingSupport.needsAccessibility(.backForward(.back)),
+                     "Back and Forward are kept as they are and press the app's command, which needs Accessibility")
         suite.expect(TrackpadGestureMappingSupport.needsAccessibility(.navigation(.spaceLeft))
                         && TrackpadGestureMappingSupport.needsAccessibility(.item(shortcut))
                         && !TrackpadGestureMappingSupport.needsAccessibility(.item(RadialMenuItem(kind: .url, payload: "https://example.com"))),
@@ -71,6 +79,18 @@ enum TrackpadGestureMappingTests {
                      "a tool whose feature is uninstalled reports which feature to install")
         suite.expect(unavailability(.navigation(.missionControl), shortcuts: []) == .systemShortcutOff,
                      "a navigation whose system shortcut is off says so")
+        suite.expect(unavailability(.backForward(.forward), available: [], shortcuts: []) == nil,
+                     "Back and Forward depend on no other feature and no system shortcut")
+        suite.expect(MouseNavigationSupport.sendsSideButton(miss: .absent, pointerOverApp: true, buttonClaimed: false)
+                        && MouseNavigationSupport.buttonNumber(for: .back) == MouseNavigationSupport.backButtonNumber
+                        && MouseNavigationSupport.buttonNumber(for: .forward) == MouseNavigationSupport.forwardButtonNumber,
+                     "an app with neither command in its menus gets the side button a mouse would send")
+        suite.expect(!MouseNavigationSupport.sendsSideButton(miss: .disabled, pointerOverApp: true, buttonClaimed: false)
+                        && !MouseNavigationSupport.sendsSideButton(miss: .unanswered, pointerOverApp: true, buttonClaimed: false),
+                     "a command that is switched off, or menus that did not answer, send no button")
+        suite.expect(!MouseNavigationSupport.sendsSideButton(miss: .absent, pointerOverApp: false, buttonClaimed: false)
+                        && !MouseNavigationSupport.sendsSideButton(miss: .absent, pointerOverApp: true, buttonClaimed: true),
+                     "the button is held back from another app's window and from a feature that owns it")
         let app = RadialMenuItem(kind: .app, payload: "/Applications/Example.app")
         suite.expect(unavailability(.item(app)) == .targetMissing
                         && unavailability(.item(app), files: ["/Applications/Example.app"]) == nil,
