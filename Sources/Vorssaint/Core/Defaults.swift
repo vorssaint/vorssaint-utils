@@ -903,6 +903,7 @@ enum DefaultsKey {
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
     static let notchQuickAccessThird = "notchQuickAccessThird"
     static let notchVolume = "notchVolume"
+    static let notchInputSource = "notchInputSource"
     static let notchMicrophone = "notchMicrophone"
     static let notchBrightness = "notchBrightness"
     static let notchBattery = "notchBattery"
@@ -1486,6 +1487,7 @@ enum Defaults {
         DefaultsKey.notchModuleOrder: "",
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
+        DefaultsKey.notchInputSource: true,
         DefaultsKey.notchMicrophone: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,

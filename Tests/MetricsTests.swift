@@ -89,6 +89,7 @@ struct MetricsTests {
                 RecorderExportRenderingTests.run(suite)
             }),
             ("command-bar", { CommandBarFeatureTests.run(suite) }),
+            ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
                 NotchCompactTests.run(suite)
@@ -204,7 +205,9 @@ struct MetricsTests {
             groups.forEach { print($0.0) }
             exit(0)
         }
-        for (name, body) in groups where selected.isEmpty || selected.contains(name) {
+        // notch-music is a focused subset already executed by notch. Running it
+        // twice in an unfiltered pass also repeats stateful adapter fixtures.
+        for (name, body) in groups where (selected.isEmpty && name != "notch-music") || selected.contains(name) {
             suite.run(name, body)
         }
         suite.finish()

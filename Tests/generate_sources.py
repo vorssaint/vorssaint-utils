@@ -293,6 +293,16 @@ def main():
                         "    func restoreBorrowedInputSource(",
                         "    var hasBorrowedInputSource:"])
           + "}\n}\n")
+    write("NotchInputSource.swift", "import Foundation\n"
+          + "extension CommandBarInputSourceContract {\nfinal class Island {\n"
+          + "static var shared = Island()\ntypealias InputSourceSelection = Sources\n"
+          + "var inputSourceID: String?\nvar ownInputSourceID: String?\n"
+          + "var presented: [NotchNotice] = []\n"
+          + "func show(_ notice: NotchNotice) { presented.append(notice) }\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", prefix)
+                    .replace("    private ", "    ", 1) for prefix in [
+                        "    func noteOwnInputSourceSwitch(", "    private func inputSourceChanged("])
+          + "}\n}\n")
     write("CommandBarKillProcessOrder.swift", "import Foundation\n"
           + "extension CommandBarKillProcessOrderContract {\nfinal class Service: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
@@ -1369,6 +1379,9 @@ def main():
           + "final class Service {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
           + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
+          + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
+          + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
           + declaration(lyrics, "    func update(playback:")
@@ -1378,6 +1391,30 @@ def main():
           + declaration(lyrics, "    private func cancel()")
           + declaration(lyrics, "    func importLyrics()")
           + declaration(lyrics, "    private func canReturnToLyrics(")
+          + "}\n}\n")
+
+    write("NotchLyricsLookup.swift", "import Foundation\n\nextension NotchLyricsContract {\n"
+          + "final class LookupService {\nvar memory = NotchLyricsMemory()\n"
+          + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
+          + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
+          + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
+          + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
+          + "var session: Session?\nvar importPanel: Panel?\n"
+          + declaration(lyrics, "    func update(playback:")
+          + declaration(lyrics, "    func playbackChanged(")
+          + declaration(lyrics, "    func retry()")
+          + declaration(lyrics, "    func hide()")
+          + declaration(lyrics, "    func stop()")
+          + declaration(lyrics, "    private func cancel()")
+          + declaration(lyrics, "    private func load(")
+          + declaration(lyrics, "    private func acceptsResult(")
+          + declaration(lyrics, "    private func finish(")
+          + declaration(lyrics, "    private func search(")
+          + declaration(lyrics, "    private func resolveArtist(")
+          + declaration(lyrics, "    private func requestArtistMetadata(")
+          + declaration(lyrics, "    private func cacheArtist(")
+          + declaration(lyrics, "    private func searchArtist(")
           + "}\n}\n")
 
     music = "Sources/Vorssaint/Services/Notch/NotchMusicService.swift"

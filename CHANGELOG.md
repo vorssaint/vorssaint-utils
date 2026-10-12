@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+Dynamic Island finds lyrics across more catalog variations, shows the active audio output in volume feedback and announces keyboard layout changes. Mouse navigation handles quick direction changes and apps with their own side-button controls, and Command Bar counts leap-day dates correctly.
+
+### Added
+- Dynamic Island can show the keyboard input source when it changes. Command Bar's temporary layout switches stay quiet. Settings → Dynamic Island → Activity → Indicators.
+
+### Fixed
+- Lyrics lookup handles differences in titles, albums and artist credits, using bounded searches and verified artist aliases while rejecting incompatible recordings and unknown collaborators.
+- Volume feedback uses the selected headphones or AirPods icon, including when muted or at zero volume.
+- Mouse navigation handles quick changes between Back and Forward when the app's menu state has not caught up.
+- Apps without Back or Forward menu commands receive side clicks again, provided the click still belongs to the same foreground app.
+- Command Bar resolves February 29 without a year to the next valid occurrence and rejects impossible dates such as April 31.
+
+### Contributors
+Thanks to @eioz, @JeanBaeez, @oskarsss, @unfilet and @ywu73.
+
 ## [3.4.1] - 2026-10-08
 
 ### Summary
