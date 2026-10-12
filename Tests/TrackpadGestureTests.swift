@@ -118,6 +118,16 @@ enum TrackpadGestureTests {
             suite.expect(false, "a four-finger touch produces a contact")
         }
 
+        // Measured: a swipe 0.19 s after the previous one's Space shortcut read
+        // 0.19 s since the last key down with no key touched.
+        suite.expect(TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.19, sinceOwnKeyPost: 0.21) == .infinity
+                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: .infinity, sinceOwnKeyPost: .infinity) == .infinity,
+                     "the shortcut our own action just posted is not the user typing")
+        suite.expect(TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: 3) == 0.2
+                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: .infinity) == 0.2
+                        && TrackpadGestureSupport.secondsSinceTyping(sinceLastKeyDown: 0.2, sinceOwnKeyPost: 0.45) == 0.2,
+                     "a key pressed after our last post, or with no post at all, is still typing")
+
         // MARK: Middle click tap (issue #161), now judged here
         func still(fingers: Int = 3, duration: TimeInterval = 0.15, movement: Float = 0.01,
                    spread: Float = 0.01, keyDown: TimeInterval = .infinity,

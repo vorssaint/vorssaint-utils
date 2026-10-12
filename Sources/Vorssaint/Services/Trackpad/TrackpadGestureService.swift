@@ -121,8 +121,12 @@ final class TrackpadGestureService: ObservableObject {
         guard var contact = finished else { return }
         // Typing and clicking are read from the system's own event record
         // once the fingers lift, so no event tap is needed to notice them.
-        contact.secondsSinceLastKeyDown = CGEventSource.secondsSinceLastEventType(
-            .combinedSessionState, eventType: .keyDown)
+        // That record also counts the shortcut the previous gesture's action
+        // posted, which is told apart from typing by when we posted it.
+        contact.secondsSinceLastKeyDown = TrackpadGestureSupport.secondsSinceTyping(
+            sinceLastKeyDown: CGEventSource.secondsSinceLastEventType(.combinedSessionState,
+                                                                      eventType: .keyDown),
+            sinceOwnKeyPost: OwnKeyEvent.secondsSinceLastPost)
         let sinceClick = [CGEventType.leftMouseDown, .rightMouseDown, .otherMouseDown].map {
             CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0)
         }.min() ?? .infinity
@@ -155,7 +159,8 @@ final class TrackpadGestureService: ObservableObject {
             guard !MouseAppExceptions.shared.excludesActionTarget(.trackpadGestures, at: pointer) else { return }
             TriggerActionRunner.run(action, context: TriggerActionRunner.Context(
                 anchor: NSEvent.mouseLocation,
-                ensureAccessibility: { [weak self] in self?.ensureAccessibilityPermission() ?? false }))
+                ensureAccessibility: { [weak self] in self?.ensureAccessibilityPermission() ?? false },
+                waitsForModifierRelease: false))
         }
     }
 

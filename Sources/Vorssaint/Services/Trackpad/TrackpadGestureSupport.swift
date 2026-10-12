@@ -213,6 +213,19 @@ enum TrackpadGestureSupport {
     /// A touch that lasts longer than this was resting fingers, not a gesture.
     static let maxGestureDuration: TimeInterval = 1.5
 
+    /// How far apart the system's record of a key down and our own note of
+    /// posting one can be and still be the same key.
+    static let ownKeyPostSlack: TimeInterval = 0.1
+
+    /// Seconds since the user last typed. The system's record of the last
+    /// key down, hardware or session, also counts the shortcut a gesture's
+    /// action just posted; taken for typing, it drops every second swipe of
+    /// a quick series. A key down that coincides with our last post is ours.
+    static func secondsSinceTyping(sinceLastKeyDown: TimeInterval,
+                                   sinceOwnKeyPost: TimeInterval) -> TimeInterval {
+        abs(sinceLastKeyDown - sinceOwnKeyPost) <= ownKeyPostSlack ? .infinity : sinceLastKeyDown
+    }
+
     // MARK: - Contacts
 
     /// Average position and spread of the touching fingers, in normalized

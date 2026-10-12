@@ -15,6 +15,12 @@ enum TriggerActionRunner {
         /// Answers whether Accessibility is granted, asking for it in context
         /// when it is not. Actions that post keys or move windows need it.
         var ensureAccessibility: () -> Bool
+        /// Whether a keyboard chord may still be held when the action runs,
+        /// as with a wheel summoned by a shortcut. A trackpad gesture involves
+        /// no keys, and waiting there holds every quick second gesture back:
+        /// the shortcut the first one posted stays on the session's modifier
+        /// record for a second or more.
+        var waitsForModifierRelease = true
     }
 
     static func run(_ action: TriggerAction, context: Context) {
@@ -46,6 +52,7 @@ enum TriggerActionRunner {
             return
         }
         postWhenModifiersReleased(attempt: 0, context: context) {
+            OwnKeyEvent.notePosted()
             SpaceWindowBridge.pressSpaceShortcut(shortcut)
         }
     }
@@ -158,8 +165,10 @@ enum TriggerActionRunner {
     static func postWhenModifiersReleased(attempt: Int, context: Context,
                                           then post: @escaping () -> Void) {
         guard context.ensureAccessibility() else { return }
-        let held = CGEventSource.flagsState(.combinedSessionState)
-            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+        let held = context.waitsForModifierRelease
+            ? CGEventSource.flagsState(.combinedSessionState)
+                .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
+            : []
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: post)
             return
@@ -179,6 +188,7 @@ enum TriggerActionRunner {
         // key is recognised beyond the app in front as well (issue #401).
         keyDown.flags = shortcut.syntheticEventFlags
         keyUp.flags = shortcut.syntheticEventFlags
+        OwnKeyEvent.notePosted()
         keyDown.post(tap: .cghidEventTap)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             keyUp.post(tap: .cghidEventTap)
