@@ -57,6 +57,9 @@ final class NotchCompanionGenerator: ObservableObject {
     private var pending = Data()
     private var errorTail = Data()
     private var cancelled = false
+    /// Counts runs, so the check of one that was stopped can't add its pack
+    /// in the middle of the next.
+    private var runNumber = 0
     private var terminationObserver: NSObjectProtocol?
     /// Codex saves each image it draws in a folder named for the run's
     /// thread, and says nothing of them in its events. Redrawn sheets land
@@ -282,6 +285,7 @@ final class NotchCompanionGenerator: ObservableObject {
         pending = Data()
         errorTail = Data()
         cancelled = false
+        runNumber += 1
         self.run = run
         phase = .running(Progress(subject: subject, status: "", images: 0, expectedImages: Self.states.count + 1))
         do {
@@ -298,10 +302,12 @@ final class NotchCompanionGenerator: ObservableObject {
         try? input.fileHandleForWriting.close()
     }
 
+    /// Stops a run: Codex while it draws, or the pack it left while its
+    /// frames are still being checked, which is then not added.
     func cancel() {
-        guard let process, process.isRunning else { return }
+        guard isRunning else { return }
         cancelled = true
-        process.terminate()
+        if let process, process.isRunning { process.terminate() } else { phase = .idle }
     }
 
     /// Back to choosing, once a result has been seen.
@@ -365,9 +371,14 @@ final class NotchCompanionGenerator: ObservableObject {
             .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }?["slug"] as? String
         // Every frame is read before the pack is added: a manifest Codex
         // left over missing or broken images is a failed run, not a character.
+        let number = runNumber
         DispatchQueue.global(qos: .userInitiated).async {
             let frames = Result { try NotchCompanionLibrary.load(made, from: pack) }
             DispatchQueue.main.async {
+                guard !self.cancelled, number == self.runNumber else {
+                    try? FileManager.default.removeItem(at: run)
+                    return
+                }
                 switch frames {
                 case .failure(let error):
                     self.phase = .failed("\(error)")

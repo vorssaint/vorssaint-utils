@@ -75,6 +75,8 @@ final class NotchMascotRig: NSObject {
     /// that finish reading, or another character's, play them too.
     private var characterVisit: (path: NotchMascotPath, start: CFTimeInterval, holdsEnd: Bool)?
     private var characterFlashes: [String: (state: NotchCompanionState, duration: TimeInterval, begin: CFTimeInterval)] = [:]
+    /// A face it turns to and keeps, set ahead as for a drop landing.
+    private var characterTurn: (state: NotchCompanionState, time: CFTimeInterval)?
     private static let overlayKeys = ["visit", "turn", "flash", "flashAfter"]
     /// Its box's offset from the figure's own middle, in shares of its size.
     /// A character's face is centred in the box, whatever its frames hold;
@@ -243,6 +245,7 @@ final class NotchMascotRig: NSObject {
         if let visit = characterVisit, isVisiting || visit.holdsEnd {
             travelCharacter(visit.path, start: visit.start, holdsEnd: visit.holdsEnd)
         }
+        if let turn = characterTurn { turnCharacter(to: turn.state, at: turn.time) }
         for (key, flash) in characterFlashes.sorted(by: { $0.value.begin < $1.value.begin }) {
             flashCharacter(flash.state, duration: flash.duration, beginTime: flash.begin, key: key)
         }
@@ -284,10 +287,15 @@ final class NotchMascotRig: NSObject {
     /// once and held, while it idles in sight, and its still frame otherwise.
     /// A stroll or a reaction under way stays over it.
     private func showCharacterBase() {
-        guard drawsCharacter else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         defer { CATransaction.commit() }
+        // Another style shows: the hidden sprite neither plays nor keeps frames.
+        guard drawsCharacter else {
+            sprite.removeAllAnimations()
+            sprite.contents = nil
+            return
+        }
         let over = Self.overlayKeys.compactMap { key in sprite.animation(forKey: key).map { (key, $0) } }
         over.forEach { sprite.removeAnimation(forKey: $0.0) }
         sprite.removeAnimation(forKey: "base")
@@ -430,18 +438,24 @@ final class NotchMascotRig: NSObject {
             move.isRemovedOnCompletion = false
             layer.add(move, forKey: "turn")
         }
-        if drawsCharacter, let sprites {
-            let reel = NotchCompanionReels.cycle(of: mood.companionState, in: sprites.pack, timing: sprites.timing)
-            let images = sprites.images(reel)
-            guard !images.isEmpty, reel.duration > 0 else { return }
-            let still = sprites.image(NotchCompanionReels.still(of: mood.companionState, in: sprites.pack,
-                                                                timing: sprites.timing))
-            let frames = contentsAnimation(reel, images: reduceMotion ? [still ?? images[0]] : images)
-            if reduceMotion { frames.keyTimes = [0, 1] }
-            frames.beginTime = time
-            frames.repeatCount = .infinity
-            sprite.add(frames, forKey: "turn")
-        }
+        turnCharacter(to: mood.companionState, at: time)
+    }
+
+    /// The character turns to `state` at `time` and keeps it, as `turn` does;
+    /// frames still reading take it up once they arrive.
+    private func turnCharacter(to state: NotchCompanionState, at time: CFTimeInterval) {
+        guard drawsCharacter else { return }
+        characterTurn = (state, time)
+        guard let sprites else { return }
+        let reel = NotchCompanionReels.cycle(of: state, in: sprites.pack, timing: sprites.timing)
+        let images = sprites.images(reel)
+        guard !images.isEmpty, reel.duration > 0 else { return }
+        let still = sprites.image(NotchCompanionReels.still(of: state, in: sprites.pack, timing: sprites.timing))
+        let frames = contentsAnimation(reel, images: reduceMotion ? [still ?? images[0]] : images)
+        if reduceMotion { frames.keyTimes = [0, 1] }
+        frames.beginTime = time
+        frames.repeatCount = .infinity
+        sprite.add(frames, forKey: "turn")
     }
 
     /// Back to its own face at rest, with every motion taken off.
@@ -451,6 +465,7 @@ final class NotchMascotRig: NSObject {
         attention.transform = CATransform3DIdentity
         characterVisit = nil
         characterFlashes = [:]
+        characterTurn = nil
         self.mood = mood
         blinks = 0
         dozed = false
