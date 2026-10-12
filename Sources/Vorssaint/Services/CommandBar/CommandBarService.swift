@@ -1318,9 +1318,27 @@ final class CommandBarService: ObservableObject {
         }
     }
 
+    private struct EmojiInputs: Equatable {
+        let language: AppLanguage
+        let skinTone: String
+        let accessibility: Bool
+    }
+    private var builtEmojiInputs: EmojiInputs?
+
     private func rebuildCatalog(index: Bool = true) {
         catalog = CommandBarCatalog.build(automationDenied: finderAutomationDenied)
-        emojiEntries = CommandBarCatalog.emojiEntries(bar: FeatureStrings.commandBar(L10n.shared.language))
+        // The emoji rows are most of the pool and depend on nothing the
+        // catalog's other rebuild triggers touch, so they are kept until one
+        // of their own inputs moves. Assigning them again would also drop
+        // their folded copy and refold every one.
+        let emojiInputs = EmojiInputs(
+            language: L10n.shared.language,
+            skinTone: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "",
+            accessibility: Permissions.shared.accessibility)
+        if emojiEntries.isEmpty || emojiInputs != builtEmojiInputs {
+            emojiEntries = CommandBarCatalog.emojiEntries(bar: FeatureStrings.commandBar(L10n.shared.language))
+            builtEmojiInputs = emojiInputs
+        }
         builtLanguage = L10n.shared.language
         if index { indexEntries() }
     }
