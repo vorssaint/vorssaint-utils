@@ -1122,6 +1122,8 @@ extension FeatureStrings {
             activationTime: "زمن التفعيل",
             activationTimeHint: "أبقِ المؤشر فوق الجزيرة هذه المدة لفتحها.",
             activationTimeFormat: "%.2f ث",
+            closeTime: "مهلة الإغلاق",
+            closeTimeHint: "المدة التي تنتظرها الجزيرة بعد أن يغادرها المؤشر قبل أن تُغلق.",
             enableFeatureFormat: "فعّل “%@” من الميزات.",
             enableSettingFormat: "فعّل “%@” من إعداداته.",
             showPageFormat: "أظهر “%@” في تبويب المحتوى.",

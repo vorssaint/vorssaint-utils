@@ -3303,7 +3303,6 @@ extension ClipboardFeatureStrings {
         moveUp: "تحريك لأعلى",
         moveDown: "تحريك لأسفل",
         noResults: "لا توجد نتائج",
-        newestFirst: "الأحدث أولًا",
         active: "يحفظ النصوص الجديدة",
         includeImagesFiles: "حفظ الصور والملفات المنسوخة أيضًا",
         includeImagesFilesCaption: "تنضم الصور إلى السجل وتُحفظ الملفات كروابط إلى مواقعها. ثبّتها والصقها كأي عنصر نصي.",
@@ -3327,7 +3326,10 @@ extension ClipboardFeatureStrings {
         menuBarPreviewLength: "طول المعاينة",
         menuBarPreviewLengthSuffix: "حرفًا",
         clearRecentConfirmFormat: "مسح غير المثبّت (%d)؟",
-        clearRecentConfirmMessage: "تبقى العناصر المثبّتة، وكذلك كل ما يُنسخ بعد هذا. ولا يمكن التراجع عن ذلك.")
+        clearRecentConfirmMessage: "تبقى العناصر المثبّتة، وكذلك كل ما يُنسخ بعد هذا. ولا يمكن التراجع عن ذلك.",
+        historyLayout: "تخطيط السجل",
+        historyLayoutCards: "بطاقات",
+        historyLayoutList: "قائمة")
 }
 
 extension WindowLayoutFeatureStrings {
@@ -3494,10 +3496,13 @@ extension WindowLayoutFeatureStrings {
         fullScreen: "ملء الشاشة",
         previousDisplay: "الشاشة السابقة",
         edgeSnapEnable: "محاذاة النوافذ عند حواف الشاشة",
-        edgeSnapCaption: "فعّل هذا، واختر المناطق المظلّلة أدناه، ثم اسحب شريط عنوان نافذة إلى إحداها وأفلته.",
+        edgeSnapCaption: "فعّل هذا واسحب شريط عنوان نافذة إلى منطقة مظلّلة أدناه. وانقر منطقة لتختار أين تذهب النافذة.",
         edgeSnapSystemConflict: "يستخدم macOS الحواف نفسها. أوقف تجانب النوافذ في “سطح المكتب وشريط الأيقونات” ليتولى Vorssaint المهمة.",
         edgeSnapOpenSystemSettings: "فتح “سطح المكتب وشريط الأيقونات”",
         edgeSnapWaitingForSystem: "مفعّل في Vorssaint. وسيبدأ العمل حالما يتوقف تجانب macOS.",
+        edgeSnapUseCorner: "استخدام هذه الزاوية",
+        edgeSnapUseEdge: "استخدام هذه الحافة",
+        edgeSnapAreasOnEdge: "المناطق على هذه الحافة",
         marginMaximize: "تكبير مع هامش",
         marginPerEdge: "الهامش لكل حافة",
         gapsSection: "الفواصل",

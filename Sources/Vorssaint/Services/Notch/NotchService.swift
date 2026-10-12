@@ -932,15 +932,13 @@ final class NotchService: ObservableObject {
     /// the trailing side is the camera's left and the island reaches the
     /// other way.
     var surfaceShift: CGFloat {
-        let shift = readingOrderShift
+        func towardTrailing() -> CGFloat {
+            guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
+            if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
+            return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
+        }
+        let shift = towardTrailing()
         return L10n.shared.language.isRightToLeft ? -shift : shift
-    }
-
-    /// `surfaceShift` toward the trailing side.
-    private var readingOrderShift: CGFloat {
-        guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
-        if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
-        return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
     }
 
     /// The open island around the Command Bar: the bar's width within the
