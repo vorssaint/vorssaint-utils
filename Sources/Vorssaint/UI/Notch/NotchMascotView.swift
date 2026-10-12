@@ -281,7 +281,7 @@ final class NotchMascotRig: NSObject {
     }
 
     /// The character's animation for the face it keeps: round and round, or
-    /// once and held, while it idles in sight, and its first frame otherwise.
+    /// once and held, while it idles in sight, and its still frame otherwise.
     /// A stroll or a reaction under way stays over it.
     private func showCharacterBase() {
         guard drawsCharacter else { return }
@@ -294,7 +294,8 @@ final class NotchMascotRig: NSObject {
         guard let sprites else { sprite.contents = nil; return }
         let reel = NotchCompanionReels.cycle(of: mood.companionState, in: sprites.pack, timing: sprites.timing)
         let images = sprites.images(reel)
-        sprite.contents = images.first
+        sprite.contents = sprites.image(NotchCompanionReels.still(of: mood.companionState, in: sprites.pack,
+                                                                  timing: sprites.timing))
         if images.count > 1, idles, !reduceMotion, reel.duration > 0 {
             let base = contentsAnimation(reel, images: images)
             base.beginTime = CACurrentMediaTime()
@@ -310,7 +311,7 @@ final class NotchMascotRig: NSObject {
     }
 
     /// The character acts out `state` for `duration` over what it shows,
-    /// from `beginTime`, or holds its first frame with Reduce Motion.
+    /// from `beginTime`, or holds its still frame with Reduce Motion.
     private func flashCharacter(_ state: NotchCompanionState, duration: TimeInterval, beginTime: CFTimeInterval? = nil,
                                 key: String = "flash") {
         guard drawsCharacter, duration > 0 else { return }
@@ -318,8 +319,9 @@ final class NotchMascotRig: NSObject {
         characterFlashes[key] = (state, duration, begin)
         guard let sprites else { return }
         var reel = NotchCompanionReels.play(state, for: duration, in: sprites.pack, timing: sprites.timing)
-        if reduceMotion, let first = reel.cels.first {
-            reel = NotchCompanionReel(cels: [first], starts: [0], duration: duration)
+        if reduceMotion {
+            reel = NotchCompanionReel(cels: [NotchCompanionReels.still(of: state, in: sprites.pack, timing: sprites.timing)],
+                                      starts: [0], duration: duration)
         }
         let images = sprites.images(reel)
         guard !images.isEmpty else { return }
@@ -432,7 +434,9 @@ final class NotchMascotRig: NSObject {
             let reel = NotchCompanionReels.cycle(of: mood.companionState, in: sprites.pack, timing: sprites.timing)
             let images = sprites.images(reel)
             guard !images.isEmpty, reel.duration > 0 else { return }
-            let frames = contentsAnimation(reel, images: reduceMotion ? [images[0]] : images)
+            let still = sprites.image(NotchCompanionReels.still(of: mood.companionState, in: sprites.pack,
+                                                                timing: sprites.timing))
+            let frames = contentsAnimation(reel, images: reduceMotion ? [still ?? images[0]] : images)
             if reduceMotion { frames.keyTimes = [0, 1] }
             frames.beginTime = time
             frames.repeatCount = .infinity

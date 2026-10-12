@@ -198,6 +198,11 @@ enum NotchCompanionTests {
         let dance = NotchCompanionReels.play(.dance, for: 0.45, in: looker, timing: timing)
         suite.expect(dance.cels.allSatisfy { $0.state == .happy } && dance.cels.count == 2,
                      "a missing animation plays its stand-in")
+        suite.expect(NotchCompanionReels.still(of: .idle, in: looker, timing: timing).frame == 0
+                     && NotchCompanionReels.still(of: .happy, in: looker, timing: timing).frame == 1
+                     && NotchCompanionReels.still(of: .lookLeft, in: looker, timing: timing)
+                        == NotchCompanionCel(state: .lookRight, frame: 0, mirrored: true),
+                     "held still, a loop shows its rest and a moment the expression it ends on")
         let looking = NotchCompanionReels.play(.lookRight, for: 0.45, in: looker, timing: timing)
         suite.expect(looking.cels.map(\.frame) == [0, 1, 2, 0, 1], "a loop goes round for as long as it plays")
 
@@ -374,6 +379,18 @@ enum NotchCompanionTests {
         } else {
             suite.expect(false, "the wide frame is there")
         }
+        // A pack whose links lead to its own files, by absolute path, still
+        // reads once copied elsewhere; one leading out of it is left behind.
+        try? FileManager.default.createSymbolicLink(at: folder.appendingPathComponent("absolute.png"),
+                                                    withDestinationURL: idle.appendingPathComponent("2.png"))
+        let copied = root.appendingPathComponent("Copied", isDirectory: true)
+        let copiedOK = (try? NotchCompanionLibrary.copy(folder, to: copied)) != nil
+        let manager = FileManager.default
+        suite.expect(copiedOK && NotchCompanionLibrary.resolve("absolute.png", in: copied) != nil
+                     && (try? manager.destinationOfSymbolicLink(atPath: copied.appendingPathComponent("absolute.png").path)) == nil
+                     && manager.fileExists(atPath: copied.appendingPathComponent("idle/3.png").path)
+                     && !manager.fileExists(atPath: copied.appendingPathComponent("escape.png").path),
+                     "a copied pack keeps its own linked frames as files, and drops links out of it")
         if writeGIF(folder.appendingPathComponent("blink.gif"), frames: 2, delay: 0.5) {
             func timing(_ manifest: String) -> [TimeInterval]? {
                 guard case .success(let parsed) = NotchCompanionPack.parse(Data(manifest.utf8), id: "gif", listing: { _ in nil }),

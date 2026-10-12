@@ -344,6 +344,33 @@ final class NotchCompanionLibrary: ObservableObject {
         }
     }
 
+    /// Copies a pack folder with its links turned into the files they lead
+    /// to, as a copied link would otherwise still lead to the original
+    /// folder, outside the copy. A link out of the pack is left behind, as
+    /// the pack could not use it anyway.
+    static func copy(_ source: URL, to destination: URL) throws {
+        let manager = FileManager.default
+        let root = source.resolvingSymlinksInPath().standardizedFileURL.path
+        try manager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let keys: [URLResourceKey] = [.isSymbolicLinkKey, .isDirectoryKey]
+        guard let items = manager.enumerator(at: source, includingPropertiesForKeys: keys) else { return }
+        let base = source.standardizedFileURL.path
+        for case let item as URL in items {
+            let relative = String(item.standardizedFileURL.path.dropFirst(base.count + 1))
+            let target = destination.appendingPathComponent(relative)
+            let values = try item.resourceValues(forKeys: Set(keys))
+            if values.isSymbolicLink == true {
+                let resolved = item.resolvingSymlinksInPath().standardizedFileURL
+                guard resolved.path.hasPrefix(root + "/") else { continue }
+                try manager.copyItem(at: resolved, to: target)
+            } else if values.isDirectory == true {
+                try manager.createDirectory(at: target, withIntermediateDirectories: true)
+            } else {
+                try manager.copyItem(at: item, to: target)
+            }
+        }
+    }
+
     /// Creates the Companions folder, and returns it.
     @discardableResult
     func ensureFolder() -> URL? {
@@ -363,7 +390,7 @@ final class NotchCompanionLibrary: ObservableObject {
             number += 1
         }
         do {
-            try FileManager.default.copyItem(at: source, to: folder.appendingPathComponent(name, isDirectory: true))
+            try Self.copy(source, to: folder.appendingPathComponent(name, isDirectory: true))
         } catch {
             throw ImportError.copyFailed(error.localizedDescription)
         }

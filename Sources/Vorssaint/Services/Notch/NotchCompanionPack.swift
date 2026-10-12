@@ -442,6 +442,17 @@ enum NotchCompanionReels {
         return reel
     }
 
+    /// The one frame that stands for `state` when it can't play, with Reduce
+    /// Motion or out of sight: a loop's first, which is its rest, and a
+    /// moment's last, which holds the expression it builds to.
+    static func still(of state: NotchCompanionState, in pack: NotchCompanionPack,
+                      timing: NotchCompanionTiming) -> NotchCompanionCel {
+        let resolved = pack.resolve(state)
+        let loops = timing.loops[resolved.state] ?? resolved.state.loopsByDefault
+        return NotchCompanionCel(state: resolved.state, frame: loops ? 0 : timing.frames(resolved.state).count - 1,
+                                 mirrored: resolved.mirrored)
+    }
+
     /// `state` played for `duration`: round and round when it loops, or once
     /// and held on its last frame.
     static func play(_ state: NotchCompanionState, for duration: TimeInterval, in pack: NotchCompanionPack,
