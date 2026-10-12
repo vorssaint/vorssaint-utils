@@ -76,6 +76,13 @@ def main():
                                    "    private func setLaunchAtLogin("])
           + "}\n")
     cleaner_view = "Sources/Vorssaint/UI/Cleaner/CleanerView.swift"
+    feature_hub = "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift"
+    write("FeatureHubLayout.swift", "import SwiftUI\nextension FeatureHubLayoutTests.Page {\n"
+          + "".join(declaration(feature_hub, prefix).replace("    private var", "    var", 1)
+                    for prefix in ["    private var content:", "    private var restartCard:"])
+          + "}\nextension FeatureHubLayoutTests {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/SettingsCard.swift", "struct SettingsCard<")
+          + "}\n")
     write("CleanerLayout.swift", "import SwiftUI\nextension CleanerLayoutTests.Results {\n"
           + "".join(declaration(cleaner_view, prefix).replace("    private ", "    @ViewBuilder\n    ", 1)
                     for prefix in ["    private var resultsState:", "    private var resultsGroups:",
