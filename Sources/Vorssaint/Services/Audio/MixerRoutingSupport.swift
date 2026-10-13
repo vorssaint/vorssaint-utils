@@ -176,6 +176,18 @@ enum MixerRoutingSupport {
         abs(volume - 1) < 0.005
     }
 
+    /// The gain an app's slider position is played at.
+    ///
+    /// Loudness is heard on a logarithmic scale, so a slider used as the gain
+    /// itself keeps nearly all of its audible range in the bottom fifth: 50%
+    /// was only 6 dB down and hardly sounded quieter. Squaring the position
+    /// puts 50% at -12 dB and 25% at -24 dB, with silence still at 0 and an
+    /// untouched level at 100%. The boost range stays linear, so 200% is the
+    /// same +6 dB it always was.
+    static func gain(forVolume volume: Double) -> Float {
+        Float(volume < 1 ? volume * volume : volume)
+    }
+
     /// The most a tap is ever turned back up: four channel pairs, the widest
     /// loss anyone has measured. Past it the correction would be a guess, and
     /// a guess that is too large plays the app louder than it ever was.

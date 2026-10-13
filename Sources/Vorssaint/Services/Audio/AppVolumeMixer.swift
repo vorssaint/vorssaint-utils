@@ -979,7 +979,7 @@ final class AppVolumeMixer: ObservableObject {
         if let engine = engines[app.id],
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID {
-            engine.gain = Float(app.volume)
+            engine.gain = MixerRoutingSupport.gain(forVolume: app.volume)
             return
         }
         // A tap needs a volume, per-app output or universal output request.
@@ -1014,7 +1014,7 @@ final class AppVolumeMixer: ObservableObject {
                 }
                 let engine = AirPlayGainEngine(appID: app.id,
                                                objects: app.audioObjects,
-                                               gain: Float(app.volume),
+                                               gain: MixerRoutingSupport.gain(forVolume: app.volume),
                                                clockDeviceUID: clockUID)
                 if engine == nil {
                     AirPlayRouteManager.shared.stopIfIdle()
@@ -1032,7 +1032,7 @@ final class AppVolumeMixer: ObservableObject {
 
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
-                                       gain: Float(app.volume),
+                                       gain: MixerRoutingSupport.gain(forVolume: app.volume),
                                        outputDeviceUID: targetOutputDeviceUID)
             DispatchQueue.main.async {
                 guard let self else {
@@ -1110,7 +1110,7 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = Float(latestApp.volume)
+        engine.gain = MixerRoutingSupport.gain(forVolume: latestApp.volume)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
         // The fresh engine starts its render count over.

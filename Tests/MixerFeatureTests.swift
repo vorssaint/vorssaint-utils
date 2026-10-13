@@ -27,6 +27,11 @@ enum MixerFeatureTests {
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         suite.expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0)), 0, "a muted app stays silent")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0.5)), 0.25,
+                    "half the slider is a clearly quieter app, not a 6 dB trim")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
                                                        maximumPercent: 200) ?? -1,
                     0.4,
