@@ -13,7 +13,12 @@ enum NotchLevelStyle {
 struct NotchControlsView: View {
     @ObservedObject var service: NotchService
     let size: CGSize
+    /// Home draws this page with smart cards: the player and the levels
+    /// each keep a second face, the agents and the calendar, a swipe away.
+    var smartStacks = false
     @ObservedObject private var l10n = L10n.shared
+    /// Home's levels card gains a files face while the shelf holds something.
+    @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
 
     var body: some View {
@@ -59,14 +64,24 @@ struct NotchControlsView: View {
     private func cardRow(levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
         HStack(spacing: NotchLayout.rowSpacing) {
             if music {
-                NotchMusicControlsView(notch: service, height: height)
-                if levels.count > 1 {
-                    levelRows(levels, height: height)
-                        .padding(.horizontal, 12)
-                        .frame(width: 160, height: height)
-                        .modifier(NotchControlSurface(cornerRadius: 18))
-                } else if let single = levels.first {
-                    level(single, style: .card, showsDevice: height >= 88).frame(width: 160, height: height)
+                NotchSmartStack(faces: leftFaces, height: height) { face in
+                    if face == .agents {
+                        NotchHomeAgentsFace(service: service)
+                    } else {
+                        NotchMusicControlsView(notch: service, height: height)
+                    }
+                }
+                if !levels.isEmpty {
+                    NotchSmartStack(faces: rightFaces, height: height) { face in
+                        if face == .calendar {
+                            NotchHomeCalendarFace(service: service)
+                        } else if face == .files {
+                            NotchHomeFilesFace(service: service)
+                        } else {
+                            levelCard(levels, height: height)
+                        }
+                    }
+                    .frame(width: 160)
                 }
             } else {
                 let details = NotchLayout.levelCardsShowDetails(levels, height: height)
@@ -76,6 +91,34 @@ struct NotchControlsView: View {
             }
         }
         .frame(height: height)
+    }
+
+    /// Two or three levels fold into one slim card; a single one keeps its full card.
+    @ViewBuilder private func levelCard(_ levels: [NotchControlItem], height: CGFloat) -> some View {
+        if levels.count > 1 {
+            levelRows(levels, height: height)
+                .padding(.horizontal, 12)
+                .frame(width: 160, height: height)
+                .modifier(NotchControlSurface(cornerRadius: 18))
+        } else if let single = levels.first {
+            level(single, style: .card, showsDevice: height >= 88).frame(width: 160, height: height)
+        }
+    }
+
+    /// Controls keeps one face per card; Home adds the agents and the
+    /// calendar, putting first whichever matters now.
+    private var leftFaces: [NotchHomeSupport.Face] {
+        guard smartStacks else { return [.music] }
+        return NotchHomeSupport.leftFaces(agents: service.modules.contains(.agents),
+                                          musicPlaying: NotchMusicService.shared.playback?.isPlaying == true,
+                                          agentsWorking: !AgentUsageService.shared.snapshot.live.isEmpty)
+    }
+
+    private var rightFaces: [NotchHomeSupport.Face] {
+        guard smartStacks else { return [.levels] }
+        return NotchHomeSupport.rightFaces(calendar: service.modules.contains(.calendar),
+                                           eventSoon: NotchCalendarService.shared.countdown != nil,
+                                           files: service.modules.contains(.files) && !ShelfService.shared.items.isEmpty)
     }
 
     /// Three rows need the card's full height; a shortened card scrolls

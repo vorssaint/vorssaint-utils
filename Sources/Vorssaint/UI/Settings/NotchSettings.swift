@@ -85,6 +85,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCapsuleFitDrop) private var capsuleFitDrop = 0.0
     @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = true
     @AppStorage(DefaultsKey.notchTranslucentBackground) private var translucentBackground = false
+    @AppStorage(DefaultsKey.notchHomeEnabled) private var homeEnabled = false
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var liquidGlass = false
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
@@ -114,7 +115,7 @@ struct NotchSettings: View {
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
-         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
+         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(homeEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
@@ -385,7 +386,8 @@ struct NotchSettings: View {
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
         switch module {
-        case .controls:
+        // Home draws the Controls page, so both share its choices.
+        case .home, .controls:
             let primary = [NotchControlItem.music, .volume, .brightness, .keyboardLight]
             HStack(spacing: 10) {
                 ForEach(primary) { item in
@@ -803,7 +805,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .home, .controls, .music, .captures, .system: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf
@@ -986,11 +988,12 @@ struct NotchSettings: View {
 
     private func moduleBinding(_ module: NotchModule) -> Binding<Bool> {
         Binding {
-            (module != .timer || timerEnabled) && (module != .camera || cameraEnabled)
+            (module != .home || homeEnabled) && (module != .timer || timerEnabled) && (module != .camera || cameraEnabled)
                 && (module != .calendar || calendarEnabled) && (module != .notifications || notificationsEnabled)
                 && (module != .agents || agentsEnabled) && (module != .watch || watchEnabled)
                 && !hidden.split(separator: ",").contains(Substring(module.rawValue))
         } set: { shown in
+            if module == .home { homeEnabled = shown }
             if module == .timer { timerEnabled = shown }
             if module == .camera { cameraEnabled = shown }
             if module == .calendar { calendarEnabled = shown }
