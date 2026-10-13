@@ -61,8 +61,8 @@ struct FeatureHubSettings: View {
             LazyVStack(alignment: .leading, spacing: 20) {
                 // Keep one header child in the lazy stack. Inserting or
                 // removing the restart notice as an offscreen lazy child
-                // invalidates its visible range on macOS 15: the page jumps
-                // or goes blank until the next scroll event.
+                // invalidates its visible range: the page jumps or goes
+                // blank until the next scroll event.
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(hub.pageTitle).font(.title2.bold())
@@ -83,8 +83,12 @@ struct FeatureHubSettings: View {
                     }
                 }
                 if tab == .features {
-                    summaryCard
-                    neverUsedCard
+                    // The never-used offer comes and goes with installs too,
+                    // so it shares one stable child with the summary.
+                    VStack(alignment: .leading, spacing: 20) {
+                        summaryCard
+                        neverUsedCard
+                    }
                     dynamicIslandCard
                     presetsCard
                     ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in

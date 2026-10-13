@@ -10,6 +10,7 @@ enum FeatureHubLayoutTests {
     final class FeatureRuntime: ObservableObject {
         static let shared = FeatureRuntime()
         @Published var needsRestartToUnload = false
+        @Published var offersNeverUsed = false
         func apply(_ preset: FeaturePreset) {}
         func relaunchApp() {}
     }
@@ -26,7 +27,9 @@ enum FeatureHubLayoutTests {
         var body: some View { content }
         func presetName(_ preset: FeaturePreset) -> String { "Preset" }
         var summaryCard: some View { Text("Installed features").frame(height: 90) }
-        var neverUsedCard: some View { EmptyView() }
+        @ViewBuilder var neverUsedCard: some View {
+            if features.offersNeverUsed { Text("Never used").frame(height: 120) }
+        }
         var dynamicIslandCard: some View {
             Text("Dynamic Island").frame(height: 900).id(FeatureGroup.dynamicIsland)
         }
@@ -61,6 +64,7 @@ enum FeatureHubLayoutTests {
         _ = NSApplication.shared
         let runtime = FeatureRuntime.shared
         runtime.needsRestartToUnload = false
+        runtime.offersNeverUsed = true
         let host = NSHostingView(rootView: Page())
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 848),
                               styleMask: [.borderless], backing: .buffered, defer: false)
@@ -69,6 +73,7 @@ enum FeatureHubLayoutTests {
         defer {
             window.close()
             runtime.needsRestartToUnload = false
+            runtime.offersNeverUsed = false
         }
         func settle() {
             let deadline = Date().addingTimeInterval(0.3)
@@ -109,6 +114,21 @@ enum FeatureHubLayoutTests {
                          "Fan Control stays visible when the offscreen restart notice is \(restart ? "added" : "removed")")
             suite.expect(current.map { abs($0.midY - initial.midY) < 2 } == true,
                          "changing the restart notice preserves the visible row's position: \(String(describing: current)) vs \(initial)")
+        }
+        // Uninstalling the last of three never-used features takes that offer
+        // away above the viewport too, along with the restart notice or while
+        // an earlier uninstall already shows it.
+        for (offers, restart) in [(false, true), (true, false), (false, true), (true, true), (false, true)] {
+            withAnimation(.easeOut(duration: 0.22)) {
+                runtime.offersNeverUsed = offers
+                runtime.needsRestartToUnload = restart
+            }
+            settle()
+            let current = rowFrame()
+            suite.expect(current.map { host.bounds.contains($0) } == true,
+                         "Fan Control stays visible when the offscreen never-used offer is \(offers ? "added" : "removed")")
+            suite.expect(current.map { abs($0.midY - initial.midY) < 2 } == true,
+                         "changing the never-used offer preserves the visible row's position: \(String(describing: current)) vs \(initial)")
         }
     }
 
