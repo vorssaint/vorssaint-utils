@@ -5,8 +5,10 @@ import Darwin
 import Foundation
 
 /// What one log line says, reduced to the few facts the island keeps. Only
-/// usage counters, model names, times and folder names leave a line; prompts,
-/// replies and tool output are never decoded into anything that is stored.
+/// usage counters, model names, times and folder names leave a line, besides
+/// the identifiers of Claude's shell commands still running, held in memory
+/// only; prompts, replies and tool output are never decoded into anything
+/// that is stored.
 enum AgentLogEntry: Equatable {
     /// `key` identifies the response across duplicate lines and files.
     case usage(key: String, record: AgentUsageRecord, billable: AgentBillable)
@@ -50,6 +52,9 @@ struct AgentLogState: Equatable {
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
     var openCodeSessions: [String: OpenCodeSessionState] = [:]
+    /// Claude's shell commands still waiting for their result, by tool call.
+    /// They run on the Mac, so the turn goes on without the network.
+    var runningCommands: Set<String> = []
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
@@ -136,7 +141,25 @@ enum AgentLogParser {
         }
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
-        if state.turnOpen { return [.turnActive(nil)] }
+        if state.turnOpen {
+            if !state.runningCommands.isEmpty, let json = object(line), json["type"] as? String == "user",
+               json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true {
+                let content = (json["message"] as? [String: Any])?["content"]
+                let results = (content as? [[String: Any]] ?? []).filter { $0["type"] as? String == "tool_result" }
+                if !results.isEmpty {
+                    // A result can quote other commands or contain a log.
+                    // Only its own call identifier completes that command.
+                    for result in results {
+                        if let id = result["tool_use_id"] as? String { state.runningCommands.remove(id) }
+                    }
+                } else {
+                    // A prompt inside an open turn, as when a session killed
+                    // in the middle of a command resumes, leaves it behind.
+                    state.runningCommands = []
+                }
+            }
+            return [.turnActive(nil)]
+        }
         // A subagent's prompts and tool output never open a turn, and its
         // tool output can be large: no need to decode it to know that.
         if contains(line, #""isSidechain":true"#) { return [] }
@@ -144,6 +167,7 @@ enum AgentLogParser {
               json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true else { return [] }
         adopt(json, into: &state)
         state.turnOpen = true
+        state.runningCommands = []
         return [.turnBegan(timestamp(json["timestamp"]) ?? now)]
     }
 
@@ -186,8 +210,13 @@ enum AgentLogParser {
             if state.turnOpen { entries.append(.turnEnded(date, completed: !failed, duration: nil)) }
             state.turnOpen = false
         default:
-            if !state.turnOpen { entries.append(.turnBegan(date)) }
-            else { entries.append(.turnActive(date)) }
+            for block in message["content"] as? [[String: Any]] ?? []
+            where block["type"] as? String == "tool_use" && block["name"] as? String == "Bash" {
+                if let id = block["id"] as? String { state.runningCommands.insert(id) }
+            }
+            // Ahead of the usage, so a reply that opens the turn again, as
+            // after an offline end, counts toward it.
+            entries.insert(state.turnOpen ? .turnActive(date) : .turnBegan(date), at: 0)
             state.turnOpen = true
         }
         return entries

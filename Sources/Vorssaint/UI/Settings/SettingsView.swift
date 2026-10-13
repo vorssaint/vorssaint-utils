@@ -62,6 +62,7 @@ struct SettingsView: View {
     @State private var navigationFromSidebar = false
     /// The row just picked in the sidebar, until the router has taken it.
     @State private var sidebarPick: SettingsSidebarItem.ID?
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @FocusState private var sidebarSearchFocused: Bool
 
     private struct SearchResultsSnapshot: Equatable {
@@ -143,7 +144,7 @@ struct SettingsView: View {
                     isAvailable: { features.isAvailable($0) }))
         }()
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar(searchResults: searchResults)
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
@@ -164,6 +165,19 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
+            // SwiftUI adds its sidebar button only to windows it creates, and
+            // this one is AppKit's. Without it, a sidebar dragged shut could
+            // only be dragged back from a one-point strip at the window's
+            // edge, and a full-screen window could only peek at it.
+            ToolbarItem(placement: .navigation) {
+                let strings = SettingsNavigationStrings.localized(l10n.language)
+                let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
+                Button(action: toggleSidebar) {
+                    Label(title, systemImage: "sidebar.left")
+                }
+                .keyboardShortcut("s", modifiers: [.control, .command])
+                .help(title)
+            }
             ToolbarItemGroup(placement: .navigation) {
                 let strings = SettingsNavigationStrings.localized(l10n.language)
                 Button {
@@ -236,6 +250,18 @@ struct SettingsView: View {
 
     private var hasSearchQuery: Bool {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// A sidebar dragged shut reports `.detailOnly` here as well.
+    private var sidebarShown: Bool { columnVisibility != .detailOnly }
+
+    private func toggleSidebar() {
+        let next: NavigationSplitViewVisibility = sidebarShown ? .detailOnly : .all
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            columnVisibility = next
+        } else {
+            withAnimation { columnVisibility = next }
+        }
     }
 
     @ViewBuilder

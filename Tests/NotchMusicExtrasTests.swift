@@ -4,6 +4,127 @@
 import Foundation
 
 enum NotchMusicExtrasTests {
+    private static func preferredPlayer(_ suite: TestSuite) {
+        typealias Player = NotchPreferredPlayer
+        let spotify = "com.spotify.client", music = "com.apple.Music", other = "org.example.Player"
+        func resolve(_ choice: String, last: String? = nil, installed: Set<String>) -> String? {
+            Player.resolve(choice: choice, lastPlayed: last, isInstalled: installed.contains)
+        }
+        suite.expect(resolve(other, last: spotify, installed: [other, spotify, music]) == other,
+                     "a player chosen in Settings is the one that opens, whatever played last")
+        suite.expect(resolve(Player.automatic, last: music, installed: [spotify, music]) == music,
+                     "automatic opens the music app that played last")
+        suite.expect(resolve(Player.automatic, installed: [spotify, music]) == spotify
+                     && resolve(Player.automatic, installed: [music]) == music,
+                     "with nothing played yet, automatic prefers Spotify and then Apple Music")
+        suite.expect(resolve(other, installed: [music]) == music && resolve(Player.automatic, last: other, installed: [spotify]) == spotify,
+                     "a chosen or last player that is no longer installed gives way to the automatic order")
+        suite.expect(resolve(Player.automatic, last: spotify, installed: []) == nil && resolve(other, installed: []) == nil,
+                     "with no music app installed nothing is offered to open")
+        let domain = "com.vorssaint.tests.notch-preferred-player"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        suite.expect(Player.choice(in: defaults) == Player.automatic, "the choice starts as automatic")
+        defaults.set(spotify, forKey: DefaultsKey.notchPreferredPlayer)
+        suite.expect(Player.choice(in: defaults) == spotify, "the choice is the stored bundle identifier")
+        defaults.set(String(repeating: "x", count: 300), forKey: DefaultsKey.notchPreferredPlayer)
+        suite.expect(Player.choice(in: defaults) == Player.automatic, "an implausible stored value is treated as automatic")
+
+        let saved = Player.lastPlayed
+        defer { Player.lastPlayed = saved }
+        Player.lastPlayed = nil
+        let active = NotchPlaybackSource(pid: 10, bundleIdentifier: music, isMusicApp: true, isPlaying: true, hasTrack: true)
+        let paused = NotchPlaybackSource(pid: 20, bundleIdentifier: spotify, isMusicApp: true, isPlaying: false, hasTrack: true)
+        func playback(_ source: NotchPlaybackSource?) -> NotchPlayback? {
+            source.map {
+                let track = RadialNowPlayingSnapshot(title: "Song", artist: nil, album: nil, artworkData: nil,
+                                                     appBundleIdentifier: $0.bundleIdentifier, appPID: $0.pid)
+                return NotchPlayback(track: track, isPlaying: $0.isPlaying, elapsed: 0, duration: 180,
+                                     rate: $0.isPlaying ? 1 : 0, sampledAt: Date(), canSeek: false)
+            }
+        }
+        let selected = NotchPlaybackSource.preferred(in: [active, paused], previousPID: nil, systemPID: active.pid)
+        Player.remember(playback(selected), in: [active, paused])
+        suite.expect(selected == active && Player.lastPlayed == music, "the active player becomes the last music app that played")
+        let fallback = NotchPlaybackSource.preferred(in: [paused], previousPID: active.pid, systemPID: paused.pid)
+        Player.remember(playback(fallback), in: [paused])
+        suite.expect(fallback == paused && Player.lastPlayed == music,
+                     "a paused fallback after the playing app exits cannot replace the last app that played")
+        let empty = NotchPlaybackSource.preferred(in: [], previousPID: paused.pid, systemPID: nil)
+        Player.remember(playback(empty), in: [])
+        suite.expect(resolve(Player.automatic, last: Player.lastPlayed, installed: [music, spotify]) == music,
+                     "automatic still opens the last active player after all playback sources disappear")
+        let video = NotchPlaybackSource(pid: 30, bundleIdentifier: "org.example.Video", isMusicApp: false, isPlaying: true, hasTrack: true)
+        Player.remember(playback(video), in: [video])
+        suite.expect(Player.lastPlayed == music, "a playing video does not replace the remembered music app")
+        let custom = NotchPlaybackSource(pid: 40, bundleIdentifier: other, isMusicApp: true, isPlaying: true, hasTrack: true)
+        Player.remember(playback(custom), in: [custom])
+        suite.expect(Player.lastPlayed == other, "an active custom app classified as music is remembered")
+
+        let installed: [Player.Choice] = [(spotify, "Spotify"), (music, "Music")]
+        suite.expect(Player.choices(in: installed, including: Player.automatic).map(\.bundleID) == [spotify, music]
+                     && Player.choices(in: installed, including: music).map(\.bundleID) == [spotify, music],
+                     "automatic adds no empty choice and an installed choice is not duplicated")
+        suite.expect(Player.choices(in: [], including: other).map(\.bundleID) == [other]
+                     && Player.choices(in: installed, including: other).map(\.bundleID) == [spotify, music, other],
+                     "the current choice stays listed before loading and when absent from the installed snapshot")
+    }
+
+    private final class ScanSignal: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = false
+        func signal() { lock.withLock { value = true } }
+        var isSignalled: Bool { lock.withLock { value } }
+    }
+
+    private static func preferredPlayerLoading(_ suite: TestSuite) {
+        typealias Player = NotchPreferredPlayer
+        var finished = false
+        Task { @MainActor in
+            let loaded = await Player.loadInstalled {
+                [("org.example.Music", Thread.isMainThread ? "main" : "background")]
+            }
+            suite.expect(loaded?.first?.name == "background", "the installed music app scan runs off the main thread")
+
+            let started = ScanSignal(), release = DispatchSemaphore(value: 0)
+            let old = Task {
+                await Player.loadInstalled {
+                    started.signal()
+                    _ = release.wait(timeout: .now() + 5)
+                    return [("org.example.Old", "Old")]
+                }
+            }
+            let deadline = Date().addingTimeInterval(2)
+            var didStart = false
+            while !didStart, Date() < deadline {
+                didStart = started.isSignalled
+                if !didStart { try? await Task.sleep(nanoseconds: 1_000_000) }
+            }
+            old.cancel()
+            let current = await Player.loadInstalled { [("org.example.New", "New")] }
+            release.signal()
+            let stale = await old.value
+            suite.expect(didStart && stale == nil && current?.first?.bundleID == "org.example.New",
+                         "a cancelled screen load discards its late result while a reopened screen can load new choices")
+
+            let scanned = ScanSignal()
+            let cancelled = Task {
+                withUnsafeCurrentTask { $0?.cancel() }
+                return await Player.loadInstalled { scanned.signal(); return [] }
+            }
+            let result = await cancelled.value
+            suite.expect(result == nil && !scanned.isSignalled,
+                         "a task cancelled before loading does not start an app scan")
+            finished = true
+        }
+        let deadline = Date().addingTimeInterval(10)
+        while !finished, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+        }
+        suite.expect(finished, "preferred player loading contracts finish")
+    }
+
     private static func lyricScheduleContracts(_ suite: TestSuite) {
         let track = RadialNowPlayingSnapshot(title: "Timed verses", artist: nil, album: nil,
                                             artworkData: nil, appBundleIdentifier: nil, appPID: nil)
@@ -53,8 +174,204 @@ enum NotchMusicExtrasTests {
                "resuming or seeking back schedules the next verse from the new playback position")
     }
 
+    private static func lyricSearchContracts(_ suite: TestSuite) {
+        func identity(_ title: String, _ artist: String, _ album: String, _ duration: Double) -> NotchMusicIdentity {
+            NotchMusicIdentity(NotchPlayback(
+                track: RadialNowPlayingSnapshot(title: title, artist: artist, album: album, artworkData: nil,
+                                               appBundleIdentifier: nil, appPID: nil),
+                isPlaying: true, elapsed: 0, duration: duration, rate: 1, sampledAt: .now, canSeek: false))
+        }
+        func record(_ title: String, _ artist: String, _ album: String, _ duration: Double,
+                    _ words: String = "Fixture verse") -> [String: Any] {
+            ["trackName": title, "artistName": artist, "albumName": album, "duration": duration,
+             "syncedLyrics": "[00:01]" + words, "plainLyrics": words, "instrumental": false]
+        }
+        func candidates(_ records: [[String: Any]], _ track: NotchMusicIdentity) -> [NotchLyricsSupport.Candidate] {
+            NotchLyricsSupport.searchCandidates(try! JSONSerialization.data(withJSONObject: records), for: track)
+        }
+        // Metadata reproduced from the desktop and seeded corpus; lyric text is synthetic.
+        let fixtures: [(NotchMusicIdentity, [String: Any])] = [
+            (identity("Режиссёр", "группа Градусы", "Градусы", 219),
+             record("Режиссер", "Градусы", "Самые модные хиты", 219)),
+            (identity("Чужое горе", "Порнофильмы, Котляров Владимир Андреевич", "Это пройдёт", 205),
+             record("Чужое горе", "Порнофильмы", "Это пройдёт", 205)),
+            (identity("Not A Lullaby", "The Weepies, Deb Talan, Steve Tannen", "Be My Thrill", 158),
+             record("Not a Lullaby", "The Weepies", "Be My Thrill", 158)),
+            (identity("Jai Ho! (You Are My Destiny)", "A. R. Rahman, The Pussycat Dolls, Nicole Scherzinger",
+                      "Jai Ho! (You Are My Destiny)", 222),
+             record("Jai Ho! (You Are My Destiny)", "A. R. Rahman & The Pussycat Dolls feat. Nicole Scherzinger",
+                    "Jai Ho! (You Are My Destiny)", 222)),
+            (identity("Солдат", "5'nizza, Serhii Babkin, Andrii Zaporozhets", "Пятница", 191),
+             record("Солдат", "5nizza", "Compilation", 190)),
+            (identity("Secrets", "Tiësto, KSHMR, Vassy", "Secrets", 268),
+             record("Secrets", "Tiesto / KSHMR", "Secrets", 268))
+        ]
+        for (track, reply) in fixtures {
+            suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([reply], track))?.lines.count == 1,
+                         "fallback recovers observed artist, punctuation, album and е/ё variants: " + track.title)
+            let urls = NotchLyricsSupport.searchURLs(for: track)
+            suite.expect(!urls.isEmpty && urls.count <= 3 && Set(urls).count == urls.count
+                         && urls.allSatisfy { $0.host == "lrclib.net" && $0.path == "/api/search" },
+                         "fallback queries stay bounded, deduplicated and on the consented host")
+        }
+        let track = identity("Example Song", "Main Artist, Guest Artist", "Studio Album", 180)
+        let preferred = record("Example Song", "Main Artist", "Studio Album", 180)
+        let compilation = record("Example Song", "Main Artist", "Compilation", 180, "Other verse")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([compilation, preferred], track))?.plain == "Fixture verse",
+                     "album agreement ranks above a compilation without depending on provider order")
+        for wrong in [record("Example Song (Live)", "Main Artist", "Studio Album", 180),
+                      record("Example Song (Remix)", "Main Artist", "Studio Album", 180),
+                      record("Example Song", "Guest Artist", "Studio Album", 180),
+                      record("Example Song", "Unrelated Artist", "Studio Album", 180),
+                      record("Example Song", "Main Artist", "Live at the Theatre", 180),
+                      record("Example Song", "Main Artist", "Studio Album", 183)] {
+            suite.expect(candidates([wrong], track).isEmpty,
+                         "search never substitutes a different title, version, primary artist or recording length")
+        }
+        let conflict = record("Example Song", "Main Artist", "Studio Album", 180, "Conflicting verse")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, conflict], track))
+                     == NotchLyricsSupport.bestLyrics(in: candidates([conflict, preferred], track)),
+                     "equally ranked conflicting lyrics resolve consistently in either response order")
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([preferred, preferred], track)) != nil,
+                     "the same lyric returned by multiple queries is not an ambiguity")
+        var identifiedFirst = preferred; identifiedFirst["id"] = 20
+        var identifiedSecond = conflict; identifiedSecond["id"] = 10
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([identifiedFirst, identifiedSecond], track))?.plain == "Conflicting verse",
+                     "stable catalog ID breaks otherwise equal candidate ties")
+        let studio = identity("Example Song", "Main Artist", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song (Original Mix)", "Main Artist", "Studio Album", 180)], studio).isEmpty,
+                     "original mix is compatible with the unqualified studio title")
+        suite.expect(candidates([record("Example Song (feat. Unknown Guest)", "Main Artist", "Studio Album", 180)], studio).isEmpty,
+                     "unmentioned featured performers cannot be silently substituted")
+        for artist in ["Other Artist, Main Artist", "Main Artist, Unknown Guest"] {
+            suite.expect(candidates([record("Example Song", artist, "Studio Album", 180)], studio).isEmpty,
+                         "artist credits cannot introduce an unknown lead or guest")
+            suite.expect(!NotchLyricsSupport.containsCatalogRecording(
+                try! JSONSerialization.data(withJSONObject: [record("Example Song", artist, "Studio Album", 180)]), for: studio),
+                         "conflicting artist credits cannot stop verified alias lookup")
+        }
+        suite.expect(!candidates([record("Example Song", "Guest Artist & Main Artist", "Studio Album", 180)], track).isEmpty,
+                     "known collaboration credits may be reordered")
+        let titleGuest = identity("Example Song (feat. Guest Artist)", "Main Artist", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song", "Main Artist, Guest Artist", "Studio Album", 180)], titleGuest).isEmpty,
+                     "known featured credits may move from the title into the artist field")
+        let extended = identity("Example Song (feat. Guest Person) (Extended Mix)", "Main Artist, Guest Person", "Studio Album", 180)
+        suite.expect(!candidates([record("Example Song (featuring Guest) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
+                     && candidates([record("Example Song (featuring Other) (Extended Mix)", "Main Artist", "Studio Album", 180)], extended).isEmpty
+                     && candidates([record("Example Song (featuring Guest)", "Main Artist", "Studio Album", 180)], extended).isEmpty,
+                     "featured credits normalize separately while preserving extended-version identity")
+        var badTiming = record("Example Song", "Main Artist", "Studio Album", 180)
+        badTiming["syncedLyrics"] = "[00:01]Synthetic verse\n[04:00]Synthetic ending"
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([badTiming], studio))?.lines.isEmpty == true,
+                     "out-of-recording timestamps fall back to available plain text instead of a truncated timeline")
+        let precise = NotchLyricsSupport.searchURLs(for: extended)
+        suite.expect(precise.contains { url in
+            URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.contains {
+                $0.name == "track_name" && $0.value == "example song feat guest person extended mix"
+            } == true
+        }, "normalized precise title search survives the addition of broader discovery")
+        let discovery = NotchLyricsSupport.discoveryURLs(for: extended)
+        suite.expect(discovery.count == 1 && discovery[0].host == "lrclib.net",
+                     "broader title discovery remains bounded to the existing lyric provider")
+        let collaboration = identity("Jai Ho!", "A. R. Rahman, The Pussycat Dolls, Nicole Scherzinger", "Single", 222)
+        suite.expect(NotchLyricsSupport.bestLyrics(in: candidates([
+            record("Jai Ho!", "A. R. Rahman", "Single", 222, "Incomplete credits"),
+            record("Jai Ho!", "A.R. Rahman & The Pussycat Dolls feat. Nicole Scherzinger", "Single", 222)
+        ], collaboration))?.plain == "Fixture verse", "complete artist credits rank above primary-only credits")
+        let cyrillic = identity("Мой", "Artist", "Album", 180)
+        suite.expect(candidates([record("Мои", "Artist", "Album", 180)], cyrillic).isEmpty,
+                     "Latin accent normalization does not collapse Cyrillic й into и")
+        suite.expect(candidates(Array(repeating: preferred, count: 21), track).isEmpty
+                     && NotchLyricsSupport.searchCandidates(Data(repeating: 32, count: NotchLyricsSupport.maximumSearchBytes + 1), for: track).isEmpty,
+                     "search envelopes have byte and result-count limits")
+        var oversized = preferred
+        oversized["plainLyrics"] = String(repeating: "x", count: NotchLyricsSupport.maximumBytes + 1)
+        suite.expect(candidates([oversized], track).isEmpty,
+                     "each lyric inside a larger search reply retains the original per-record bound")
+        var missingDuration = preferred
+        missingDuration["duration"] = NSNull()
+        var emptyLyrics = preferred
+        emptyLyrics["plainLyrics"] = ""
+        emptyLyrics["syncedLyrics"] = ""
+        suite.expect(candidates([missingDuration, emptyLyrics], track).isEmpty,
+                     "missing durations and empty lyric records cannot become fallback matches")
+    }
+
+    private static func artistIdentity(_ suite: TestSuite) {
+        let track = NotchMusicIdentity(NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: "Fictional Song", artist: "架空乐队", album: "Fictional Album",
+                                           artworkData: nil, appBundleIdentifier: nil, appPID: nil),
+            isPlaying: true, elapsed: 0, duration: 180, rate: 1, sampledAt: .now, canSeek: false))
+        let id = UUID(), otherID = UUID()
+        func encode(_ object: Any) -> Data { try! JSONSerialization.data(withJSONObject: object) }
+        let artist: [String: Any] = ["id": id.uuidString, "name": "架空乐队", "score": 100,
+            "aliases": [["name": "Fictional Artist", "locale": "en", "primary": true]]]
+        let reply: [String: Any] = ["count": 1, "artists": [artist]]
+        let identities = NotchLyricsSupport.artistIdentities(encode(reply), for: track)
+        suite.expect(identities.count == 1 && identities[0].names.contains("Fictional Artist"),
+                     "generic identity verification accepts an exact name with a different-script alias")
+        let urls = identities.flatMap { NotchLyricsSupport.aliasSearchURLs(for: track, identity: $0) }
+        suite.expect(urls.count == 1 && urls[0].host == "lrclib.net"
+                     && NotchLyricsSupport.artistIdentityURL(for: track)?.host == "musicbrainz.org",
+                     "artist metadata and alias queries stay bounded on disclosed providers")
+        let record: [String: Any] = ["trackName": track.title, "artistName": "Fictional Artist",
+            "albumName": track.album, "duration": 180, "syncedLyrics": "[00:01]Synthetic verse"]
+        suite.expect(NotchLyricsSupport.searchCandidates(encode([record]), for: track).isEmpty
+                     && NotchLyricsSupport.searchCandidates(encode([record]), for: track,
+                                 verifiedArtistAliases: identities[0].names).count == 1,
+                     "different artist names require verified identity rather than title and duration alone")
+        for credit in ["Other Artist, Fictional Artist", "Fictional Artist, Unknown Guest"] {
+            var conflicting = record; conflicting["artistName"] = credit
+            suite.expect(NotchLyricsSupport.searchCandidates(encode([conflicting]), for: track,
+                                     verifiedArtistAliases: identities[0].names).isEmpty,
+                         "a verified artist alias does not authorize unrelated collaborators")
+        }
+        var wrong = record; wrong["duration"] = 183
+        suite.expect(NotchLyricsSupport.searchCandidates(encode([wrong]), for: track,
+                                 verifiedArtistAliases: identities[0].names).isEmpty,
+                     "verified aliases never bypass the recording-length check")
+        var unrelated = artist; unrelated["name"] = "Unrelated artist"; unrelated["aliases"] = []
+        suite.expect(NotchLyricsSupport.artistIdentities(encode(["count": 1, "artists": [unrelated]]), for: track).isEmpty,
+                     "a perfect metadata search score does not prove artist identity")
+        var duplicate = artist; duplicate["id"] = otherID.uuidString
+        let sameSource = NotchLyricsSupport.ArtistIdentity(id: id, names: ["架空乐队"], queryNames: [])
+        let recordingProof: [String: Any] = ["count": 7, "recordings": [[
+            "title": "Fictional Song", "length": 180000,
+            "artist-credit": [["name": "Earlier Artist Name", "artist": ["id": id.uuidString]]]
+        ]]]
+        let verifiedCredit = NotchLyricsSupport.recordingArtistIdentity(encode(recordingProof), for: track, candidates: [sameSource])
+        suite.expect(verifiedCredit?.names.contains("Earlier Artist Name") == true,
+                     "exact title and duration tie a historical recording credit to the known artist ID")
+        var wrongProof = recordingProof
+        wrongProof["recordings"] = [["title": "Different Song", "length": 180000,
+                                     "artist-credit": [["name": "Earlier Artist Name", "artist": ["id": id.uuidString]]]]]
+        suite.expect(NotchLyricsSupport.recordingArtistIdentity(encode(wrongProof), for: track, candidates: [sameSource]) == nil,
+                     "a historical credit needs independent song agreement, not merely an artist search score")
+        suite.expect(NotchLyricsSupport.artistRecordingURL(for: track, candidates: [sameSource])?.host == "musicbrainz.org"
+                     && NotchLyricsSupport.artistRecordingURL(for: track, candidates: [sameSource, sameSource]) == nil,
+                     "recording-credit lookup is bounded to one exact source artist ID")
+        let ambiguous = NotchLyricsSupport.artistIdentities(encode(["count": 2, "artists": [artist, duplicate]]), for: track)
+        let group: [String: Any] = ["title": track.album, "artist-credit": [["artist": ["id": id.uuidString]]]]
+        suite.expect(ambiguous.count == 2
+                     && NotchLyricsSupport.artistIdentity(encode(["count": 1, "release-groups": [group]]),
+                                        for: track, candidates: ambiguous)?.id == id,
+                     "an ambiguous name needs independent exact album credit evidence")
+        var otherGroup = group; otherGroup["artist-credit"] = [["artist": ["id": otherID.uuidString]]]
+        suite.expect(NotchLyricsSupport.artistIdentity(encode(["count": 2, "release-groups": [group, otherGroup]]),
+                                        for: track, candidates: ambiguous) == nil,
+                     "conflicting album identities cannot be resolved by response order")
+        suite.expect(NotchLyricsSupport.artistIdentities(encode(["count": 6, "artists": [artist]]), for: track).isEmpty
+                     && NotchLyricsSupport.artistIdentities(Data(repeating: 32, count: NotchLyricsSupport.maximumBytes + 1), for: track).isEmpty,
+                     "truncated broad identity searches and oversized metadata are refused")
+    }
+
     static func run(_ suite: TestSuite) {
+        artistIdentity(suite)
+        preferredPlayer(suite)
+        preferredPlayerLoading(suite)
         lyricScheduleContracts(suite)
+        lyricSearchContracts(suite)
+        NotchLyricsCorpusTests.run(suite)
         NotchMusicHardeningTests.run(suite)
         let track = RadialNowPlayingSnapshot(title: "A & B + C", artist: "Artist / Example", album: "Studio Recording",
                                             artworkData: nil, appBundleIdentifier: "org.example.player", appPID: 42)
@@ -326,7 +643,7 @@ enum NotchMusicExtrasTests {
                "music feature choices and online consent are accounted for by settings backup")
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchMusicExtras(language)).children.compactMap { $0.value as? String }
-            suite.expect(strings.count == 38 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+            suite.expect(strings.count == 42 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
                    "music extras have complete user-facing strings in \(language.rawValue)")
         }
     }

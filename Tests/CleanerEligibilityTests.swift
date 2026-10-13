@@ -225,7 +225,7 @@ enum CleanerEligibilityTests {
                              "a previously listed localized directory \(name) cannot be removed")
             }
 
-            for id in ["com.vendor.editor", "com.vendor.localized.editor", "com.vendor.localized"] {
+            for id in ["com.vendor.editor", "com.vendor.localized.editor", "com.vendor.localized", "io.app"] {
                 let preference = root.appendingPathComponent(id + ".plist")
                 try Data().write(to: preference)
                 suite.expect(owner(preference) == id,

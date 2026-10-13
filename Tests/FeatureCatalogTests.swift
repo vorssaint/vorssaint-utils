@@ -608,6 +608,36 @@ enum FeatureCatalogTests {
             suite.expect(false, "linear scrolling availability suite can be created")
         }
 
+        let watchSuiteName = "com.vorssaint.tests.notch-watch-availability.\(UUID().uuidString)"
+        if let watchDefaults = UserDefaults(suiteName: watchSuiteName) {
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) == nil,
+                   "Watch keeps its installed default where the island was never left out")
+            watchDefaults.set(true, forKey: AppFeature.notch.availabilityKey)
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) == nil,
+                   "an installed island keeps Watch among its extensions")
+            // A first-run setup saved every feature it knew, Watch not yet among them.
+            for feature in AppFeature.features(in: .dynamicIsland) where feature != .notchWatch {
+                watchDefaults.set(false, forKey: feature.availabilityKey)
+            }
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            let isAvailable: (AppFeature) -> Bool = { feature in
+                watchDefaults.object(forKey: feature.availabilityKey) as? Bool
+                    ?? (AppFeature.availabilityDefaults[feature.availabilityKey] as? Bool ?? false)
+            }
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) as? Bool == false
+                    && !FeatureVisibilitySupport.isPageVisible(.notch, isAvailable: isAvailable),
+                   "a setup that left the island out keeps Watch and the Dynamic Island page out after updating")
+            watchDefaults.set(true, forKey: AppFeature.notchWatch.availabilityKey)
+            Defaults.migrateNotchWatchAvailability(in: watchDefaults)
+            suite.expect(watchDefaults.object(forKey: AppFeature.notchWatch.availabilityKey) as? Bool == true,
+                   "a Watch install chosen later is never undone by the migration")
+            watchDefaults.removePersistentDomain(forName: watchSuiteName)
+        } else {
+            suite.expect(false, "Watch availability suite can be created")
+        }
+
         // The Features page offers installed switches that were never turned
         // on. Only switches nothing else leans on qualify, and only while
         // they are off and were never saved.
@@ -665,9 +695,9 @@ enum FeatureCatalogTests {
                 == Array(AppFeature.features(in: .dynamicIsland).dropFirst()),
                "the Dynamic Island's extensions are every other feature of its section")
         suite.expect(AppFeature.notch.initialInstallGroup
-                        == AppFeature.features(in: .dynamicIsland).filter { $0 != .notchMascot }
+                        == AppFeature.features(in: .dynamicIsland).filter { $0 != .notchMascot && $0 != .notchAgents }
                      && AppFeature.mixer.initialInstallGroup == [.mixer],
-                     "choosing the island for the first time includes its extensions without changing other features")
+                     "choosing the island keeps Agents and the companion as separate installs")
         suite.expect(AppFeature.dynamicIslandExtensions.contains(.notchMascot)
                         && !AppFeature.notch.initialInstallGroup.contains(.notchMascot)
                         && AppFeature.notchMascot.permissions.isEmpty

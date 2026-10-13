@@ -238,6 +238,7 @@ final class CommandBarService: ObservableObject {
     /// rows. The second cache keeps already-keyed prefixes for this opening.
     private var queryHabitStore = CommandBarQueryHabitStoreCache()
     private var preparedHabitQuery = CommandBarQueryHabits.PreparationCache()
+    private let habitKey = CommandBarLearning.installationKey()
     /// The system only shows its Accessibility prompt once; after that a
     /// refusal is a beep, the pattern the other quick tools follow.
     private var promptedForAccessibility = false
@@ -246,7 +247,7 @@ final class CommandBarService: ObservableObject {
     private var restartURL: URL?
 
     private init() {
-        CommandBarLearning.discardLegacyQueryHabits()
+        queryHabitStore.reload(UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
@@ -464,9 +465,24 @@ final class CommandBarService: ObservableObject {
             focusField(in: panel)
             // Still unseen: what is typed while the drop falls lands in the field.
             CommandBarDroplet.shared.drop(from: island, into: panel.frame, look: NotchMascotSupport.look()) {
-                [weak self, weak panel] in
+                [weak self, weak panel] fade in
                 guard let self, let panel, self.presentation == .droplet, panel.isVisible else { return }
+                // Landed, the bar takes the drop's place as is. Typed into
+                // before that, it shows at once over the drop and fades in
+                // through Core Animation, which a busy main thread cannot hold
+                // back the way it holds a window's own alpha steps.
                 panel.alphaValue = 1
+                // Seen now, it takes the keyboard again as the window bar does
+                // once it shows, in case anything took it while the drop fell.
+                panel.makeKey()
+                self.focusField(in: panel)
+                guard fade > 0, let layer = panel.contentView?.layer else { return }
+                let appear = CABasicAnimation(keyPath: "opacity")
+                appear.fromValue = 0
+                appear.toValue = 1
+                appear.duration = fade
+                appear.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                layer.add(appear, forKey: "appear")
             }
             return
         }
@@ -639,6 +655,8 @@ final class CommandBarService: ObservableObject {
             // a no-op — while a missed record strands the typist on the
             // borrowed layout.
             guard InputSourceSelection.select(sourceID: target) else { return }
+            // Borrowed, not chosen: the island keeps its layout notice quiet.
+            NotchService.shared.noteOwnInputSourceSwitch(to: target)
             self.suspendedInputSourceID = currentID
         }
         if Thread.isMainThread {
@@ -671,6 +689,7 @@ final class CommandBarService: ObservableObject {
     func restoreBorrowedInputSource() {
         guard let sourceID = suspendedInputSourceID,
               InputSourceSelection.select(sourceID: sourceID) else { return }
+        NotchService.shared.noteOwnInputSourceSwitch(to: sourceID)
         suspendedInputSourceID = nil
     }
 
@@ -741,7 +760,7 @@ final class CommandBarService: ObservableObject {
         let takeOverKey = CommandBarRowShortcuts.takeOverKey(for: entry.stableKey)
         guard let shortcut else {
             SystemShortcutTakeover.setTakeOver(takeOverKey, false)
-            storeRowShortcut(nil, for: entry)
+            storeRowShortcut(nil, forKey: entry.stableKey)
             return nil
         }
         if let message = rowShortcutIssue(shortcut, for: entry) { return message }
@@ -751,7 +770,7 @@ final class CommandBarService: ObservableObject {
         case .save(let clearTakeOver):
             if clearTakeOver { SystemShortcutTakeover.setTakeOver(takeOverKey, false) }
         }
-        storeRowShortcut(shortcut, for: entry)
+        storeRowShortcut(shortcut, forKey: entry.stableKey)
         return nil
     }
 
@@ -770,7 +789,7 @@ final class CommandBarService: ObservableObject {
         guard AppFeature.commandBar.isAvailable else { return nil }
         if let message = rowShortcutIssue(shortcut, for: entry) { return message }
         SystemShortcutTakeover.setTakeOver(CommandBarRowShortcuts.takeOverKey(for: entry.stableKey), true)
-        storeRowShortcut(shortcut, for: entry)
+        storeRowShortcut(shortcut, forKey: entry.stableKey)
         return nil
     }
 
@@ -782,8 +801,8 @@ final class CommandBarService: ObservableObject {
             isTakenOver: SystemShortcutTakeover.isTakenOver)
     }
 
-    private func storeRowShortcut(_ shortcut: GlobalShortcut?, for entry: CommandBarEntry) {
-        let next = CommandBarRowShortcuts.setting(shortcut, for: entry.stableKey, in: rowShortcuts)
+    private func storeRowShortcut(_ shortcut: GlobalShortcut?, forKey key: String) {
+        let next = CommandBarRowShortcuts.setting(shortcut, for: key, in: rowShortcuts)
         UserDefaults.standard.set(CommandBarRowShortcuts.encode(next),
                                   forKey: DefaultsKey.commandBarRowShortcuts)
         syncRowHotkeys()
@@ -799,7 +818,7 @@ final class CommandBarService: ObservableObject {
         case .invalid: return strings.shortcutInvalid
         case .occupied(let owner):
             return String(format: strings.shortcutConflictFormat,
-                          entryTitle(forStableKey: owner) ?? text.rowShortcutsTitle)
+                          entryTitle(forStableKey: owner) ?? text.namedTitle)
         case .full: return String(format: text.rowShortcutsLimitFormat, CommandBarRowShortcuts.limit)
         case nil: break
         }
@@ -872,6 +891,22 @@ final class CommandBarService: ObservableObject {
         // shortcut, it is an accident with a name.
         guard !entry.needsPrompt, !entry.keepsBarOpen else {
             show(promptingFor: key)
+            return
+        }
+        // An app already in front hides on its own combination, so one key
+        // brings it forward and puts it away. With the bar open, the key
+        // opens the app instead: the panel never takes focus, so the app
+        // underneath is still active. A hide the app refuses falls through to
+        // opening it, as before. Launcher-style apps can misreport isActive,
+        // so the workspace's frontmost app is the tiebreaker, as for the Dock.
+        if !isVisible, let app = installedApp(for: entry), let running = runningApplication(for: app),
+           CommandBarRowShortcuts.hidesAppInFront(
+               isFrontmost: running.isActive
+                   || NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier,
+               isHidden: running.isHidden,
+               ownsFrontWindow: WindowServerSupport.frontWindowOwner(
+                   in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier),
+           running.hide() {
             return
         }
         if isVisible { hide() }
@@ -1182,10 +1217,14 @@ final class CommandBarService: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Settings reads titles through here while SwiftUI draws the page, and a
+    /// publish from inside a view update is undefined behavior. So this fills
+    /// the lookup maps without assigning `appEntries`. The rows the last scan
+    /// built already name the same apps, and the next opening rebuilds them.
     private func ensureCatalogIndexed() {
         if entriesByStableKey.isEmpty {
             rebuildCatalog()
-            rebuildRunningEntries()
+            rebuildRunningEntries(apps: false)
         }
     }
 
@@ -1235,6 +1274,8 @@ final class CommandBarService: ObservableObject {
         UserDefaults.standard.set(CommandBarUsage.encode(usage), forKey: DefaultsKey.commandBarUsage)
         queryMemory.forget(id: entry.id)
         queryHabitStore.remove(resultID: entry.id)
+        UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+                                  forKey: DefaultsKey.commandBarQueryHabits)
         refreshAfterPreferenceChange()
     }
 
@@ -1342,16 +1383,18 @@ final class CommandBarService: ObservableObject {
 
     /// The rows that depend on what is running right now. Cheap enough to
     /// redo on every open, which is the only way the live dot tells the truth.
-    private func rebuildRunningEntries(index: Bool = true) {
+    private func rebuildRunningEntries(index: Bool = true, apps: Bool = true) {
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         let running = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
         quitEntries = CommandBarCatalog.quitEntries(running, bar: bar)
-        let bundleIDs = Set(running.compactMap(\.bundleIdentifier))
-        let paths = Set(running.compactMap { $0.bundleURL?.standardizedFileURL.path })
-        appEntries = CommandBarCatalog.appEntries(cachedApps,
-                                                  runningBundleIDs: bundleIDs,
-                                                  runningPaths: paths,
-                                                  bar: bar)
+        if apps {
+            let bundleIDs = Set(running.compactMap(\.bundleIdentifier))
+            let paths = Set(running.compactMap { $0.bundleURL?.standardizedFileURL.path })
+            appEntries = CommandBarCatalog.appEntries(cachedApps,
+                                                      runningBundleIDs: bundleIDs,
+                                                      runningPaths: paths,
+                                                      bar: bar)
+        }
         uninstallEntries = CommandBarCatalog.uninstallEntries(cachedApps,
                                                               uninstallable: uninstallableAppIDs,
                                                               bar: bar)
@@ -1643,7 +1686,7 @@ final class CommandBarService: ObservableObject {
                 : categoryContent(category, bar: bar)
             let now = Date().timeIntervalSince1970
             let habitQuery = pool.contains(where: \.countsUsage)
-                ? CommandBarQueryHabits.prepare(trimmed, cache: &preparedHabitQuery)
+                ? CommandBarQueryHabits.prepare(trimmed, key: habitKey, cache: &preparedHabitQuery)
                 : nil
             let candidates = pool.enumerated().map { index, entry in
                 let folded = normalizedByID[entry.id]
@@ -1674,7 +1717,7 @@ final class CommandBarService: ObservableObject {
             let pool = categoryContent(.emoji, bar: bar)
             guard !emojiQuery.isEmpty else { return Array(pool.prefix(40)) }
             let habitQuery = CommandBarQueryHabits.prepare(
-                emojiQuery, cache: &preparedHabitQuery)
+                emojiQuery, key: habitKey, cache: &preparedHabitQuery)
             let now = Date().timeIntervalSince1970
             let candidates = pool.enumerated().map { index, entry in
                 let folded = normalizedByID[entry.id]
@@ -1820,7 +1863,7 @@ final class CommandBarService: ObservableObject {
         // and folding is four allocations a time.
         let foldedQuery = CommandBarSearch.normalized(effectiveQuery)
         let habitQuery = CommandBarQueryHabits.prepare(
-            effectiveQuery, cache: &preparedHabitQuery)
+            effectiveQuery, key: habitKey, cache: &preparedHabitQuery)
         let candidates = pool.enumerated().map { index, entry in
             let folded = normalizedByID[entry.id]
             // A name the person gave outranks every title in the catalog:
@@ -2353,6 +2396,79 @@ final class CommandBarService: ObservableObject {
         refreshResults()
     }
 
+    /// Only shared preferences need a scan for another installed copy.
+    /// This reads stored values because Settings may have changed them while
+    /// the bar was closed, or while the feature was switched off.
+    func hasStoredApplicationState(bundleID: String) -> Bool {
+        let keys = CommandBarRowShortcuts.applicationStableKeys(bundleIDs: [bundleID], paths: [])
+        return !keys.isDisjoint(with: rowShortcuts.keys)
+            || !keys.isDisjoint(with: storedAliases.keys)
+            || !keys.isDisjoint(with: storedPins)
+            || !keys.isDisjoint(with: storedHiddenKeys)
+    }
+
+    /// A removed path loses its own state; the bundle-wide choices stay until
+    /// the last copy the bar can list is gone.
+    func removeApplicationState(bundleIDs: Set<String>, urls: [URL], remainingBundleIDs: Set<String>) {
+        let paths = Set(urls.map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+                        + urls.map(\.path))
+        let targetKeys = CommandBarRowShortcuts.applicationStableKeys(
+            bundleIDs: bundleIDs.subtracting(remainingBundleIDs), paths: paths)
+        guard !targetKeys.isEmpty else { return }
+
+        let currentShortcuts = rowShortcuts
+        let nextShortcuts = CommandBarRowShortcuts.removing(keys: targetKeys, in: currentShortcuts)
+        if nextShortcuts.count != currentShortcuts.count {
+            UserDefaults.standard.set(CommandBarRowShortcuts.encode(nextShortcuts),
+                                      forKey: DefaultsKey.commandBarRowShortcuts)
+            for key in currentShortcuts.keys where targetKeys.contains(key) {
+                SystemShortcutTakeover.setTakeOver(CommandBarRowShortcuts.takeOverKey(for: key), false)
+            }
+            syncRowHotkeys()
+        }
+
+        let currentAliases = storedAliases
+        let nextAliases = CommandBarPreferences.removingAliases(for: targetKeys, in: currentAliases)
+        if nextAliases.count != currentAliases.count {
+            UserDefaults.standard.set(CommandBarPreferences.encodeAliases(nextAliases),
+                                      forKey: DefaultsKey.commandBarAliases)
+        }
+
+        let currentPins = storedPins
+        let nextPins = CommandBarPreferences.removingPins(for: targetKeys, in: currentPins)
+        if nextPins.count != currentPins.count {
+            UserDefaults.standard.set(CommandBarPreferences.encodePins(nextPins),
+                                      forKey: DefaultsKey.commandBarPins)
+        }
+
+        let currentHidden = storedHiddenKeys
+        let nextHidden = CommandBarPreferences.removingHidden(for: targetKeys, in: currentHidden)
+        if nextHidden.count != currentHidden.count {
+            UserDefaults.standard.set(CommandBarPreferences.encodeHidden(nextHidden),
+                                      forKey: DefaultsKey.commandBarHidden)
+        }
+
+        var usage = CommandBarUsage.decode(
+            UserDefaults.standard.string(forKey: DefaultsKey.commandBarUsage))
+        let oldUsageCount = usage.count
+        for key in targetKeys { usage.removeValue(forKey: key) }
+        for path in paths { usage.removeValue(forKey: "app.\(path)") }
+        if usage.count != oldUsageCount {
+            UserDefaults.standard.set(CommandBarUsage.encode(usage),
+                                      forKey: DefaultsKey.commandBarUsage)
+        }
+
+        cachedApps.removeAll { app in
+            urls.contains(where: { $0.standardizedFileURL == app.url.standardizedFileURL })
+        }
+        uninstallSelectionEntries.removeAll { entry in
+            guard let entryURL = entry.uninstallAppURL else { return false }
+            return urls.contains(where: { $0.standardizedFileURL == entryURL.standardizedFileURL })
+        }
+        rebuildRunningEntries()
+        refreshAfterPreferenceChange()
+    }
+
     func openActions() {
         guard canOpenActions, let entry = selectedEntry else { return }
         savedQuery = query
@@ -2656,13 +2772,15 @@ final class CommandBarService: ObservableObject {
             UserDefaults.standard.set(CommandBarUsage.encode(next), forKey: DefaultsKey.commandBarUsage)
             usageCache = next
         }
-        if entry.countsUsage, !learningQuery.isEmpty {
+        if entry.countsUsage, isVisible, !learningQuery.isEmpty {
             let prepared = CommandBarQueryHabits.prepare(
-                learningQuery, cache: &preparedHabitQuery)
+                learningQuery, key: habitKey, cache: &preparedHabitQuery)
             if !prepared.isEmpty {
                 queryHabitStore.record(preparedQuery: prepared,
                                        resultID: entry.id,
                                        now: now)
+                UserDefaults.standard.set(CommandBarQueryHabits.encode(queryHabitStore.store),
+                                          forKey: DefaultsKey.commandBarQueryHabits)
             }
         }
     }
@@ -2844,7 +2962,10 @@ final class CommandBarService: ObservableObject {
         return true
     }
 
-    private static func spotlightApplicationPaths() -> [String] {
+    /// Apps Spotlight finds in the home folder, which the bar lists beside the
+    /// application folders. The uninstaller asks for the same paths, so a copy
+    /// the bar still lists keeps its shortcut.
+    static func spotlightApplicationPaths() -> [String] {
         let result = Shell.run(
             "/usr/bin/mdfind",
             ["-onlyin", NSHomeDirectory(),
@@ -3278,6 +3399,9 @@ final class CommandBarService: ObservableObject {
         removeMonitors()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             guard let self, let panel, event.window === panel else { return event }
+            // A key while the drop still falls shows the bar at once, before
+            // the field and its search take the key. Escape closes it instead.
+            if self.presentation == .droplet, event.keyCode != 53 { CommandBarDroplet.shared.hurry() }
 
             // While a language is composing a character (Japanese, Korean,
             // Chinese, and dead keys for accents) Return confirms the

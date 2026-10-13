@@ -198,6 +198,11 @@ struct CommandBarView: View {
         }
         .onChange(of: service.presentationID) { _, _ in focusSearch() }
         .onChange(of: service.mode) { _, _ in focusSearch() }
+        // Typing as the drop still falls hurries it, so the bar shows what
+        // is being typed right away.
+        .onChange(of: service.query) { _, query in
+            if !query.isEmpty, service.presentation == .droplet { CommandBarDroplet.shared.hurry() }
+        }
     }
 
     /// Only the copy on screen asks for the keyboard: a hidden copy taking it

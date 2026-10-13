@@ -45,7 +45,44 @@ struct CommandBarDropletMotion: Equatable {
     static let rootDepth: CGFloat = 6
     /// The field's corners, as the bar draws them.
     static let fieldRadius: CGFloat = 22
+    /// Typed into as it falls, the bar fades in at once over this long, and
+    /// what is left of the fall plays under it within the same time.
+    static let hurriedReveal: TimeInterval = 0.12
+    /// Closed as it falls, the drop rises back the way it came within this long.
+    static let rewindLength: TimeInterval = 0.2
     private static let rate: Double = 120
+
+    /// The frame on screen `elapsed` seconds into the motion.
+    func frameIndex(at elapsed: TimeInterval) -> Int {
+        guard duration > 0 else { return 0 }
+        return keyTimes.lastIndex { $0 <= elapsed / duration } ?? 0
+    }
+
+    /// What is left from frame `index` on, within `limit` seconds and never
+    /// slower than as written.
+    func remainder(from index: Int, within limit: TimeInterval) -> CommandBarDropletMotion {
+        guard !frames.isEmpty, frames.count == keyTimes.count else { return CommandBarDropletMotion() }
+        let start = min(max(0, index), frames.count - 1)
+        let from = keyTimes[start], span = 1 - from
+        var rest = CommandBarDropletMotion()
+        rest.frames = Array(frames[start...])
+        rest.keyTimes = keyTimes[start...].map { span > 0 ? ($0 - from) / span : 0 }
+        rest.duration = rest.frames.count > 1 ? min(limit, duration * span) : 0
+        return rest
+    }
+
+    /// The way back from frame `index` to the first, within `limit` seconds
+    /// and never slower than it came.
+    func rewound(from index: Int, within limit: TimeInterval) -> CommandBarDropletMotion {
+        guard !frames.isEmpty, frames.count == keyTimes.count else { return CommandBarDropletMotion() }
+        let end = min(max(0, index), frames.count - 1)
+        let span = keyTimes[end]
+        var back = CommandBarDropletMotion()
+        back.frames = Array(frames[...end].reversed())
+        back.keyTimes = keyTimes[...end].reversed().map { span > 0 ? (span - $0) / span : 0 }
+        back.duration = back.frames.count > 1 ? min(limit, duration * span) : 0
+        return back
+    }
 
     /// From the island's lower edge at `edge`, centred on `centerX`, into
     /// the bar's `field`, with the companion's place at `icon`.

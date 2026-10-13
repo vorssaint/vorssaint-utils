@@ -151,6 +151,7 @@ struct MetricDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     let kind: MetricDetailKind
     @State private var processRows: [ProcessUsage] = []
     @State private var processRowsLoading = false
@@ -261,7 +262,9 @@ struct MetricDetailView: View {
         let down = monitor.snapshot.netDownHistory
         let up = monitor.snapshot.netUpHistory
         if down.count >= 2 || up.count >= 2 {
-            let peak = MetricFormat.graphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1), unitStep: 1024)
+            let inBits = speedUnit == .bits
+            let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
+                                                        inBits: inBits)
             ZStack {
                 Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: up,
@@ -270,7 +273,7 @@ struct MetricDetailView: View {
                           fillOpacity: 0.08)
             }
             .frame(height: 38)
-            .graphCeilingLabel(MetricFormat.bytesPerSec(peak))
+            .graphCeilingLabel(MetricFormat.networkRate(peak, inBits: inBits))
         }
     }
 
@@ -398,9 +401,9 @@ struct MetricDetailView: View {
         case .network:
             return [
                 row(l10n.s.networkDownload,
-                    snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
+                    snapshot.netDownBytesPerSec.map { MetricFormat.networkRate($0) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkUpload,
-                    snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
+                    snapshot.netUpBytesPerSec.map { MetricFormat.networkRate($0) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkThisSession, sessionNetworkText(snapshot)),
             ]
         case .disk:
@@ -494,7 +497,7 @@ struct MetricDetailView: View {
             guard let used = memoryValue, let total = snapshot.memoryTotal, total > 0 else { return "-" }
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
-            return snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-"
+            return snapshot.netDownBytesPerSec.map { MetricFormat.networkRateCompact($0) } ?? "-"
         case .disk:
             return primaryDisk(from: snapshot.disk).map { MetricFormat.percent($0.usedFraction) } ?? "-"
         case .battery:
@@ -526,7 +529,7 @@ struct MetricDetailView: View {
             guard let used = memoryValue, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:
-            return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
+            return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map { MetricFormat.networkRateCompact($0) } ?? "-")"
         case .disk:
             guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
             return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
@@ -719,7 +722,7 @@ struct MetricDetailView: View {
         case .network:
             let down = row.networkDownBytesPerSec ?? 0
             let up = row.networkUpBytesPerSec ?? 0
-            return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+            return "↓\(MetricFormat.networkRateCompact(down)) ↑\(MetricFormat.networkRateCompact(up))"
         default:
             return String(format: "%.1f%%", locale: MetricFormat.locale, row.value)
         }

@@ -19,6 +19,7 @@ enum NotchMascotTests {
         crossContracts(suite)
         arriveContracts(suite)
         lingerContracts(suite)
+        hidingContracts(suite)
         previewContracts(suite)
         countdownContracts(suite)
         activityTrackContracts(suite)
@@ -27,6 +28,34 @@ enum NotchMascotTests {
         commandBarContracts(suite)
         dropletContracts(suite)
         calendarContracts(suite)
+        centeringContracts(suite)
+    }
+
+    /// Placed by its box, a minimal body sat below the middle it was given,
+    /// a capsule's included: the box keeps room above it for the robot's
+    /// antenna. Every look now meets the line it is centred on.
+    private static func centeringContracts(_ suite: TestSuite) {
+        for style in NotchMascotStyle.allCases {
+            for shape in NotchMascotShape.allCases {
+                let look = NotchMascotLook(style: style, shape: shape, palette: .pearl)
+                for size: CGFloat in [10, 16, 18, 20] {
+                    let middle: CGFloat = 15
+                    let boxTop = middle - NotchMascotGeometry.figureOffset(look) * size - size / 2
+                    let figure: CGRect
+                    if style == .robot {
+                        let parts = NotchMascotGeometry.robot(size: size)
+                        figure = [parts.ears, parts.antenna, parts.bulb]
+                            .reduce(parts.head.boundingBoxOfPath) { $0.union($1.boundingBoxOfPath) }
+                    } else {
+                        figure = NotchMascotGeometry.body(shape, size: size).boundingBoxOfPath
+                    }
+                    suite.expect(abs(boxTop + figure.midY - middle) < 0.001,
+                                 "a \(style.rawValue) \(shape.rawValue) companion of \(size) points is centred on its line")
+                }
+            }
+        }
+        suite.expect(NotchMascotGeometry.figureOffset(.standard) > 0.03,
+                     "a minimal ball sits low in its box, which the placement makes up for")
     }
 
     private static func calendarContracts(_ suite: TestSuite) {
@@ -130,7 +159,8 @@ enum NotchMascotTests {
         let keys = [DefaultsKey.notchMascotEnabled, DefaultsKey.notchMascotVisits, DefaultsKey.notchMascotReactions,
                     DefaultsKey.notchMascotStyle,
                     DefaultsKey.notchMascotShape, DefaultsKey.notchMascotPalette, DefaultsKey.notchCommandBar,
-                    DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency]
+                    DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency,
+                    DefaultsKey.notchMascotHidesWhenIdle]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil && $0.hasPrefix("notch") }
                      && SettingsBackupSupport.exportKeys().isSuperset(of: keys),
                      "every companion preference travels in a settings backup with the island's")
@@ -368,6 +398,66 @@ enum NotchMascotTests {
                              "in a capsule it walks out past the far end")
             }
         }
+    }
+
+    /// Hiding when idle: chosen, it goes into the island a quiet while after
+    /// it last did anything, with a yawn where it rests, and still comes out
+    /// to visit and to react.
+    private static func hidingContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-mascot-hiding"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        defaults.set(true, forKey: AppFeature.notch.availabilityKey)
+        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
+        defaults.removeObject(forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        let hidingDefault = [DefaultsKey.notchMascotHidesWhenIdle: Defaults.registeredDefaults[DefaultsKey.notchMascotHidesWhenIdle]!]
+        defaults.register(defaults: hidingDefault)
+        suite.expect(NotchMascotSupport.hidesWhenIdle(in: defaults),
+                     "the companion hides when idle by default")
+        defaults.set(false, forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        defaults.register(defaults: hidingDefault)
+        suite.expect(!NotchMascotSupport.hidesWhenIdle(in: defaults),
+                     "a saved choice to stay visible survives registration of the enabled default")
+        defaults.set(true, forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        suite.expect(NotchMascotSupport.hidesWhenIdle(in: defaults) && NotchMascotSupport.visits(in: defaults)
+                     && NotchMascotSupport.reacts(in: defaults),
+                     "hiding when idle, it still visits and reacts")
+        defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
+        suite.expect(!NotchMascotSupport.hidesWhenIdle(in: defaults), "switched off, it has nothing to hide from")
+
+        let away = NotchMascotSupport.hideAway
+        suite.expect(away.endsOutOfSight && away.reaction == .yawn && NotchMascotMotion.duration(of: away) < 2.5,
+                     "it goes into the island with a yawn, out of sight within a couple of seconds")
+        let left = NotchMascotSupport.track(stripWidth: 268, stripHeight: 32, wing: 44, cameraWidth: 180,
+                                            floats: false, bodyHeight: 32)
+        let right = NotchMascotSupport.track(stripWidth: 268, stripHeight: 32, wing: 44, cameraWidth: 180,
+                                             floats: false, bodyHeight: 32, side: .right)
+        let capsule = NotchMascotSupport.track(stripWidth: 76, stripHeight: 24, wing: 0, cameraWidth: 0,
+                                               floats: true, bodyHeight: 20)
+        for (name, track) in [("left wing", left), ("right wing", right), ("capsule", capsule)] {
+            let path = NotchMascotMotion.path(for: away, on: track)
+            suite.expect(abs((path.x.first ?? 0) - track.rest) < 0.01 && (path.lift.first ?? 1) == 0,
+                         "hiding from a \(name), it yawns where it rests, so nothing jumps as it starts")
+            if let hidden = track.hidden {
+                let end = path.x.last ?? 0
+                suite.expect(end - track.size / 2 >= hidden.lowerBound && end + track.size / 2 <= hidden.upperBound,
+                             "hiding from a \(name), it ends behind the camera before the wings fold")
+            } else {
+                suite.expect((path.x.last ?? 0) >= track.width + track.size / 2,
+                             "hiding from a capsule, it walks out past the far end before the capsule shrinks")
+            }
+        }
+        // Late at night its eyes grow heavy after its fewest blinks, each
+        // at least the shortest wait apart.
+        let doze = Double(NotchMascotSupport.blinksBeforeSleep(hour: 23))
+            * NotchMascotSupport.blinkInterval(lowPower: false).lowerBound
+        suite.expect(NotchMascotSupport.hideDelay < doze && NotchMascotSupport.hideRetry < NotchMascotSupport.hideDelay,
+                     "it hides before it could doze off where it rests, even late at night")
     }
 
     private static func lingerContracts(_ suite: TestSuite) {
@@ -716,6 +806,30 @@ enum NotchMascotTests {
                      "the neck lets go once and draws back into the island")
         suite.expect(drop.frames[pinched...].allSatisfy { $0.neckEnd - edge < 1 || $0.neckTip > 0.2 },
                      "what is left of the neck ends round, never in a point")
+        // Typed into as it falls, the rest of the fall plays under the bar
+        // within a moment. Closed as it falls, it rises back the way it came,
+        // ending inside the island.
+        let midway = drop.frameIndex(at: drop.landing / 2)
+        let rest = drop.remainder(from: midway, within: CommandBarDropletMotion.hurriedReveal)
+        func steady(_ motion: CommandBarDropletMotion) -> Bool {
+            motion.frames.count == motion.keyTimes.count && motion.keyTimes.first == 0 && motion.keyTimes.last == 1
+                && zip(motion.keyTimes, motion.keyTimes.dropFirst()).allSatisfy { $0 < $1 }
+        }
+        suite.expect(midway > 0 && midway < drop.frames.count - 1 && steady(rest)
+                     && rest.frames.first == drop.frames[midway] && rest.frames.last == drop.frames.last
+                     && rest.duration > 0 && rest.duration <= CommandBarDropletMotion.hurriedReveal
+                     && CommandBarDropletMotion.hurriedReveal >= 0.08 && CommandBarDropletMotion.hurriedReveal <= 0.15,
+                     "typing as the drop falls finishes the fall into the field within a quick motion")
+        let rise = drop.rewound(from: midway, within: CommandBarDropletMotion.rewindLength)
+        suite.expect(steady(rise) && rise.frames.first == drop.frames[midway] && rise.frames.last == drop.frames[0]
+                     && rise.duration > 0 && rise.duration <= CommandBarDropletMotion.rewindLength
+                     && rise.duration <= drop.landing / 2 + 0.001,
+                     "a drop closed as it falls rises back the way it came, never slower than it fell")
+        suite.expect(drop.rewound(from: 0, within: 0.2).duration == 0
+                     && drop.remainder(from: drop.frames.count - 1, within: 0.12).duration == 0
+                     && drop.frameIndex(at: -1) == 0 && drop.frameIndex(at: drop.duration + 1) == drop.frames.count - 1
+                     && CommandBarDropletMotion().rewound(from: 3, within: 0.2).frames.isEmpty,
+                     "a drop closed or typed into at either end has nothing left to play")
 
         let bar = CGRect(x: field.minX, y: field.minY, width: field.width, height: 380)
         let back = CommandBarDropletMotion.retract(edge: edge, centerX: centerX, bar: bar, field: field, icon: icon)

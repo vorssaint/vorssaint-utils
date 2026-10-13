@@ -76,7 +76,7 @@ enum UpdateIntroFlowTests {
             DispatchQueue.main.drain()
             suite.expect(DispatchQueue.main.jobs.isEmpty, "intro transitions settle without a loop")
         }
-        for version in ["3.4.0", "3.4.1", "3.4.2"] {
+        for version in ["3.4.1", "3.4.2"] {
             for previous in [nil, "3.3.2", "3.4.0-beta.1"] as [String?] {
                 let host = reset(version)
                 UserDefaults.standard.set(previous, forKey: DefaultsKey.updateHighlightsSeenVersion)
@@ -98,6 +98,20 @@ enum UpdateIntroFlowTests {
                 }
             }
         }
+        // Someone who finished both intros in 3.4.0 gets only the support
+        // page again on 3.4.1, once.
+        let seenIn340 = reset("3.4.1")
+        UserDefaults.standard.set(UpdateHighlightsInfo.releaseVersion, forKey: DefaultsKey.updateHighlightsSeenVersion)
+        UserDefaults.standard.set("3.4.0-support", forKey: DefaultsKey.supportUpdateIntroVersion)
+        seenIn340.presentUpdateIntros()
+        suite.expect(seenIn340.shown == ["support"], "3.4.0 users who saw everything see the support page again in 3.4.1")
+        seenIn340.supportIntroCanClose = true
+        close(seenIn340.supportIntroWindow, in: seenIn340)
+        AppInfo.version = "3.4.2"
+        let afterSupport = Host()
+        afterSupport.presentUpdateIntros()
+        suite.expect(afterSupport.shown == ["finished"], "the 3.4.1 support page does not repeat in later patches")
+
         let beta = reset("3.4.0-beta.7")
         beta.markOnboardingComplete()
         suite.expect(UserDefaults.standard.string(forKey: DefaultsKey.supportUpdateIntroVersion) == nil,
@@ -121,24 +135,24 @@ enum UpdateIntroFlowTests {
                              "manual review never consumes automatic launch markers")
             }
         }
-        for version in ["3.4.0", "3.4.1", "3.4.2"] {
+        for version in ["3.4.1", "3.4.2"] {
             let clean = reset(version)
             clean.markOnboardingComplete()
             AppInfo.version = "3.4.10"
             clean.presentUpdateIntros()
             suite.expect(clean.shown == ["finished"], "fresh stable onboarding does not repeat introductions after a hotfix")
         }
-        let partial = reset("3.4.0")
+        let partial = reset("3.4.1")
         partial.presentUpdateIntros()
         close(partial.updateHighlightsWindow, in: partial)
         partial.isTerminating = true
         close(partial.supportIntroWindow, in: partial)
-        AppInfo.version = "3.4.1"
+        AppInfo.version = "3.4.2"
         let resumed = Host()
         resumed.presentUpdateIntros()
         suite.expect(resumed.shown == ["support"], "a hotfix resumes only the unfinished support page")
         close(resumed.supportIntroWindow, in: resumed)
-        AppInfo.version = "3.4.2"
+        AppInfo.version = "3.4.10"
         let completed = Host()
         completed.presentUpdateIntros()
         suite.expect(completed.shown == ["finished"], "finishing the remaining page prevents later repeats")

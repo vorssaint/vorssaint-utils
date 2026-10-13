@@ -238,26 +238,33 @@ enum NotchNativeQueue {
             if covers, let cover = cover(of: item) { row["artworkBase64"] = cover.base64EncodedString() }
             rows.append(row)
         }
-        let canPlay = target.allowsDirectCommands && target.itemIdentifier != nil && supportsPlayItem(target: target)
+        // A player that publishes only its playing song still answers with
+        // that one song. Without a queue it can play from, nothing after it
+        // means it shares no queue, not that its queue is empty. A command
+        // list that did not arrive in time proves neither.
+        let playsFromQueue = supportsPlayItem(target: target)
+        guard items.count > 1 || playsFromQueue != false else { return nil }
+        let canPlay = target.allowsDirectCommands && target.itemIdentifier != nil && playsFromQueue == true
         guard currentIdentity(target: target) == before, NotchNativePlayback.target?.pid == target.pid else { return nil }
         return Snapshot(target: target, identity: before, items: rows, canPlay: canPlay,
                         currentCover: covers ? cover(of: items[0]) : nil)
     }
 
-    private static func supportsPlayItem(target: NotchNativePlayback.Target) -> Bool {
+    /// Nil when the player's commands could not be read in time.
+    private static func supportsPlayItem(target: NotchNativePlayback.Target) -> Bool? {
         typealias ID = @convention(c) (AnyObject) -> Int32
         typealias Enabled = @convention(c) (AnyObject) -> Bool
         guard let id = function(handle, "MRMediaRemoteCommandInfoGetCommand", as: ID.self),
-              let enabled = function(handle, "MRMediaRemoteCommandInfoGetEnabled", as: Enabled.self) else { return false }
+              let enabled = function(handle, "MRMediaRemoteCommandInfoGetEnabled", as: Enabled.self) else { return nil }
         let group = DispatchGroup()
         let lock = NSLock()
-        var supported = false
+        var supported: Bool?
         group.enter()
         NotchNativePlayback.supportedCommands(target, queue: callbacks) { commands in
-            let value = commands?.contains(where: { id($0 as AnyObject) == 131 && enabled($0 as AnyObject) }) == true
+            let value = commands?.contains(where: { id($0 as AnyObject) == 131 && enabled($0 as AnyObject) })
             lock.lock(); supported = value; lock.unlock(); group.leave()
         }
-        guard group.wait(timeout: .now() + 0.3) == .success else { return false }
+        guard group.wait(timeout: .now() + 0.3) == .success else { return nil }
         lock.lock()
         defer { lock.unlock() }
         return supported

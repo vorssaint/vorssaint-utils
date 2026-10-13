@@ -65,7 +65,9 @@ enum CleanerSupport {
         if lowered == "com.apple" || lowered.hasPrefix("vorss.") {
             return true
         }
-        return sharedInfrastructurePrefixes.contains { lowered.hasPrefix($0) }
+        // A domain ends at a dot: com.segment covers com.segment.analytics,
+        // not the unrelated com.segmentfault.
+        return sharedInfrastructurePrefixes.contains { lowered == $0 || lowered.hasPrefix($0 + ".") }
     }
 
     /// Whether a Library entry name is shaped like a reverse DNS bundle
@@ -104,13 +106,16 @@ enum CleanerSupport {
     /// Returns nil when the name does not clearly belong to one bundle.
     static func bundleIDCandidate(fromEntryName rawName: String) -> String? {
         var name = rawName
-        for suffix in [".plist", ".savedState", ".binarycookies", ".prefPane",
-                       ".qlgenerator", ".mdimporter", ".service", ".appex",
-                       ".plugin", ".webplugin", ".saver", ".colorPicker",
-                       ".wdgt", ".app", ".framework", ".component", ".vst",
-                       ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
-                       ".safariextz", ".mailbundle"] where
-            name.lowercased().hasSuffix(suffix.lowercased()) {
+        // An entry has one extension. Removing every match in turn also took
+        // an identifier's last component when it is spelled like one, so
+        // com.vendor.Service.plist was credited to com.vendor.
+        let lowered = name.lowercased()
+        if let suffix = [".plist", ".savedState", ".binarycookies", ".prefPane",
+                         ".qlgenerator", ".mdimporter", ".service", ".appex",
+                         ".plugin", ".webplugin", ".saver", ".colorPicker",
+                         ".wdgt", ".app", ".framework", ".component", ".vst",
+                         ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
+                         ".safariextz", ".mailbundle"].first(where: { lowered.hasSuffix($0.lowercased()) }) {
             name.removeLast(suffix.count)
         }
         name = strippingTrailingUUIDComponent(name)
@@ -121,16 +126,20 @@ enum CleanerSupport {
         if parts.count >= 3, isTeamIdentifier(String(parts[0])) {
             name = parts.dropFirst().joined(separator: ".")
         }
-        // A UUID still in the remainder (update stamps, mid-name hosts)
-        // makes the owner unattributable.
-        guard !containsUUIDComponent(name) else { return nil }
-        guard looksLikeBundleID(name),
-              name.split(separator: ".").allSatisfy({ part in
-                  part.unicodeScalars.contains {
-                      ($0 >= "a" && $0 <= "z") || ($0 >= "A" && $0 <= "Z")
-                  }
-              }) else { return nil }
-        return name
+        return isAttributableBundleID(name) ? name : nil
+    }
+
+    /// An owner an entry can be credited to: dotted, every component naming
+    /// something, and no UUID left in it (update stamps, mid-name hosts).
+    /// Checked again before removal on the owner itself, which may end in a
+    /// word an entry name would carry as its extension, as io.app does.
+    static func isAttributableBundleID(_ name: String) -> Bool {
+        !containsUUIDComponent(name) && looksLikeBundleID(name)
+            && name.split(separator: ".").allSatisfy { part in
+                part.unicodeScalars.contains {
+                    ($0 >= "a" && $0 <= "z") || ($0 >= "A" && $0 <= "Z")
+                }
+            }
     }
 
     static func isDirectChild(_ url: URL, of root: URL) -> Bool {
@@ -229,13 +238,16 @@ enum CleanerSupport {
     /// The executables a launchd property list points at, in the order they
     /// should be checked. A plist whose every referenced executable is gone
     /// is an orphan: the app that installed it no longer exists.
+    /// A bare command such as `sh` runs from launchd's search path, which
+    /// this app cannot see from its own folder; it says nothing about an app
+    /// being gone, so only absolute paths count.
     static func executablePaths(inLaunchPlist plist: [String: Any]) -> [String] {
         var paths: [String] = []
-        if let program = plist["Program"] as? String, !program.isEmpty {
+        if let program = plist["Program"] as? String, program.hasPrefix("/") {
             paths.append(program)
         }
         if let arguments = plist["ProgramArguments"] as? [Any],
-           let first = arguments.first as? String, !first.isEmpty {
+           let first = arguments.first as? String, first.hasPrefix("/") {
             paths.append(first)
         }
         // BundleProgram is relative to the bundle the plist ships in; when it

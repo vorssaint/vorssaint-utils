@@ -202,6 +202,57 @@ enum ShelfFeatureTests {
         ShelfFilePromiseTests.run(suite)
         ShelfDropRoutingTests.run(suite)
 
+        // MARK: Shelf and the screenshot editor (#2812)
+
+        do {
+            let fm = FileManager.default
+            let root = fm.temporaryDirectory.appendingPathComponent("vorss-generated-tests-\(UUID())")
+            defer { try? fm.removeItem(at: root) }
+            let store = root.appendingPathComponent("store")
+            let data = Data("edited capture".utf8)
+            let name = "Screenshot 2026-10-07 at 21.47.24.png"
+            let first = ShelfPersistenceSupport.writeGeneratedFile(data, named: name, in: store, container: root)
+            let second = ShelfPersistenceSupport.writeGeneratedFile(data, named: name, in: store, container: root)
+            suite.expect(first?.lastPathComponent == name && second?.lastPathComponent == name
+                    && first != second && first.flatMap { try? Data(contentsOf: $0) } == data,
+                   "a generated file keeps its name, and another with the same name gets its own folder")
+            if let first {
+                let folder = first.deletingLastPathComponent()
+                let fileMode = (try? fm.attributesOfItem(atPath: first.path))?[.posixPermissions] as? Int
+                let folderMode = (try? fm.attributesOfItem(atPath: folder.path))?[.posixPermissions] as? Int
+                suite.expect(folder.deletingLastPathComponent().standardizedFileURL.path == store.standardizedFileURL.path
+                        && UUID(uuidString: folder.lastPathComponent) != nil
+                        && fileMode == 0o600 && folderMode == 0o700,
+                       "a generated file is owner-only, in a private folder right inside the store")
+                suite.expect(ShelfPersistenceSupport.containsKeptFile(under: folder.path, keptPaths: [first.path]),
+                       "the startup sweep keeps a generated file's folder while its item is on the shelf")
+                ShelfFilePromiseTransfer.discard([first], in: store)
+                suite.expect(!fm.fileExists(atPath: folder.path),
+                       "discarding a generated file takes its folder with it")
+            }
+            for unsafe in ["", ".", "..", "../outside.png", "nested/name.png"] {
+                suite.expect(ShelfPersistenceSupport.writeGeneratedFile(data, named: unsafe, in: store,
+                                                                        container: root) == nil,
+                       "a generated file named \(unsafe.debugDescription) is refused")
+            }
+            let unwritableName = String(repeating: "x", count: 300) + ".png"
+            suite.expect(ShelfPersistenceSupport.writeGeneratedFile(data, named: unwritableName, in: store,
+                                                                    container: root) == nil,
+                   "a file-system write failure refuses the generated file")
+            let storeEntries = (try? fm.contentsOfDirectory(atPath: store.path)) ?? []
+            suite.expect(storeEntries.count == 1,
+                   "refused names and failed writes leave no folder behind, found \(storeEntries.count) entries")
+        }
+        let shotURL = URL(fileURLWithPath: "/tmp/shot.png")
+        suite.expect(ShelfInteractionSupport.editableImage(in: [shotURL]) == shotURL
+                && ShelfInteractionSupport.editableImage(in: [URL(fileURLWithPath: "/tmp/PHOTO.JPG")]) != nil,
+               "a single image on the shelf can open in the screenshot editor")
+        suite.expect(ShelfInteractionSupport.editableImage(in: [shotURL, URL(fileURLWithPath: "/tmp/b.png")]) == nil
+                && ShelfInteractionSupport.editableImage(in: []) == nil
+                && ShelfInteractionSupport.editableImage(in: [URL(fileURLWithPath: "/tmp/notes.txt")]) == nil
+                && ShelfInteractionSupport.editableImage(in: [URL(fileURLWithPath: "/tmp/clip.mov")]) == nil,
+               "the editor is offered for exactly one image, never for several items or other files")
+
         // MARK: Shelf reveal
 
         let revealChildA = UUID()

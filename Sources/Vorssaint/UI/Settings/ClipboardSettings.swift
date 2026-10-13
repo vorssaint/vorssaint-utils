@@ -9,12 +9,14 @@ struct ClipboardSettings: View {
     @ObservedObject private var history = ClipboardHistoryService.shared
     @ObservedObject private var pastePlain = PastePlainService.shared
     @ObservedObject private var permissions = Permissions.shared
+    @State private var clearingIDs: [UUID: Date]?
     @AppStorage(DefaultsKey.pastePlainEnabled) private var pastePlainEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var limit = 50
     @AppStorage(DefaultsKey.clipboardHistorySkipSensitive) private var skipSensitive = true
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
+    @AppStorage(DefaultsKey.clipboardHistoryLayout) private var historyLayout = ClipboardHistoryLayout.list
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
@@ -180,6 +182,13 @@ struct ClipboardSettings: View {
             Text(text.shortcutCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // Not disabled with capture off: the window still opens on the
+            // saved items, like the button below.
+            Picker(text.historyLayout, selection: $historyLayout) {
+                Text(text.historyLayoutList).tag(ClipboardHistoryLayout.list)
+                Text(text.historyLayoutCards).tag(ClipboardHistoryLayout.cards)
+            }
+            .pickerStyle(.segmented)
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
             } label: {
@@ -279,9 +288,10 @@ struct ClipboardSettings: View {
                         .foregroundStyle(.secondary)
                     Spacer()
                     Button(text.clearRecent) {
-                        history.clearRecent()
+                        clearingIDs = history.recentEntriesSnapshot
                     }
                     .disabled(history.recentEntries.isEmpty)
+                    .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
                 }
             }
     }

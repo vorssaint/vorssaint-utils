@@ -123,6 +123,9 @@ final class BrightnessService: ObservableObject {
     private var keyTap: CFMachPort?
     private var keyTapSource: CFRunLoopSource?
     private var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
+    /// Directions whose media-key down was actually consumed. Modifier
+    /// eligibility alone cannot pair events across route or visibility changes.
+    private var swallowedMediaKeys = Set<Bool>()
     /// Second tap for keyboards that send brightness as an ordinary key
     /// press instead of a media key. Every keystroke in the session passes
     /// through it, so it runs on its own thread: the window server waits for
@@ -728,6 +731,17 @@ final class BrightnessService: ObservableObject {
     /// Second half of `toggleDisplay`, on the main thread: the display
     /// reconfiguration and the bookkeeping that follows it.
     private func commitDisplayToggle(_ display: BrightnessDisplay, enabled: Bool) {
+        if !enabled {
+            // Another monitor can disconnect after the worker's check but
+            // before this main-thread transaction. Never turn off the last
+            // drawable display using that earlier snapshot.
+            let topology = Self.currentTopology()
+            let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
+            guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable, target: display.id) else {
+                finishDisplayToggle(id: display.id, enabled: enabled, failure: .lastActive)
+                return
+            }
+        }
         if enabled, discardReplacedDisplay(display.id) {
             finishDisplayToggle(id: display.id, enabled: enabled, failure: .failed)
             refresh(force: true)
@@ -1213,6 +1227,7 @@ final class BrightnessService: ObservableObject {
         keyTapSource = nil
         keyTap = nil
         keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
+        swallowedMediaKeys.removeAll()
     }
 
     // MARK: - Brightness keys on other keyboards
@@ -1373,20 +1388,30 @@ final class BrightnessService: ObservableObject {
             return consumed ? nil : Unmanaged.passUnretained(event)
         }
 
+        let isRepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        let consumed = keyThreadLock.withLock {
+            if !isRepeat { swallowedKeyCodes.remove(keyCode) }
+            return swallowedKeyCodes.contains(keyCode)
+        }
+        // Never take over a native held key after the pointer, routes or
+        // island visibility changes. Its release still belongs to macOS.
+        if isRepeat, !consumed { return Unmanaged.passUnretained(event) }
         let (adjusts, keyStep) = keyThreadLock.withLock { (functionKeysAdjustBrightness, functionKeyStep) }
         let modifiers = event.flags.intersection([.maskCommand, .maskControl,
                                                   .maskAlternate, .maskShift])
         guard let press = BrightnessSupport.brightnessFunctionKeyEvent(
             keyCode: keyCode,
             isKeyDown: true,
-            isRepeat: event.getIntegerValueField(.keyboardEventAutorepeat) != 0,
+            isRepeat: isRepeat,
             hasModifiers: !modifiers.isEmpty,
             functionKeysAdjustBrightness: adjusts)
-        else { return Unmanaged.passUnretained(event) }
+        else { return consumed ? nil : Unmanaged.passUnretained(event) }
         // A press the system performs itself still takes a finer step, as
         // the system's own quarter steps. Modified presses never got here.
         func leaveToSystem() -> Unmanaged<CGEvent>? {
-            guard let count = keyStep.systemQuarterSteps else { return Unmanaged.passUnretained(event) }
+            guard let count = keyStep.systemQuarterSteps else {
+                return consumed ? nil : Unmanaged.passUnretained(event)
+            }
             keyThreadLock.withLock { _ = swallowedKeyCodes.insert(keyCode) }
             let increase = press.delta > 0
             DispatchQueue.main.async { Self.postSystemQuarterSteps(increase: increase, count: count) }
@@ -1595,11 +1620,19 @@ final class BrightnessService: ObservableObject {
         guard running, let press = BrightnessSupport.brightnessKeyEvent(subtype: Int(nsEvent.subtype.rawValue),
                                                                data1: nsEvent.data1)
         else { return Unmanaged.passUnretained(event) }
-        guard case .app(let ownedDelta) = keyOwnership.owner(
+        let owner = keyOwnership.owner(
             of: press,
             option: event.flags.contains(.maskAlternate),
             shift: event.flags.contains(.maskShift),
             commandOrControl: !event.flags.isDisjoint(with: [.maskCommand, .maskControl]))
+        let increases = press.delta > 0
+        guard press.isKeyDown else {
+            return swallowedMediaKeys.remove(increases) != nil ? nil : Unmanaged.passUnretained(event)
+        }
+        if !press.isRepeat { swallowedMediaKeys.remove(increases) }
+        let consumed = swallowedMediaKeys.contains(increases)
+        if press.isRepeat, !consumed { return Unmanaged.passUnretained(event) }
+        guard case .app(let ownedDelta) = owner
         else { return Unmanaged.passUnretained(event) }
 
         let defaults = UserDefaults.standard
@@ -1614,8 +1647,9 @@ final class BrightnessService: ObservableObject {
                 for: keyStep, command: event.flags.contains(.maskCommand),
                 control: event.flags.contains(.maskControl),
                 option: event.flags.contains(.maskAlternate))
-            else { return Unmanaged.passUnretained(event) }
-            if press.isKeyDown { Self.postSystemQuarterSteps(increase: press.delta > 0, count: count) }
+            else { return consumed ? nil : Unmanaged.passUnretained(event) }
+            swallowedMediaKeys.insert(increases)
+            Self.postSystemQuarterSteps(increase: increases, count: count)
             return nil
         }
         // This tap runs on the main thread, so every press asks the island
@@ -1665,7 +1699,8 @@ final class BrightnessService: ObservableObject {
                 // handling and animation unless the overlay replaces it.
                 return leaveToSystem()
             }
-            if press.isKeyDown, let current = currentSystemBrightness(
+            swallowedMediaKeys.insert(increases)
+            if let current = currentSystemBrightness(
                 for: displayID,
                 fallback: displays.first(where: { $0.id == displayID })?.brightness
             ) {
@@ -1679,9 +1714,8 @@ final class BrightnessService: ObservableObject {
         guard followsPointer else {
             return leaveToSystem()
         }
-        if press.isKeyDown {
-            step(displayID, method: route.method, delta: delta, showOSD: showsOverlay)
-        }
+        swallowedMediaKeys.insert(increases)
+        step(displayID, method: route.method, delta: delta, showOSD: showsOverlay)
         return nil
     }
 

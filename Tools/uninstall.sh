@@ -124,9 +124,11 @@ sleep 0.5
 # deleting the app below cannot reach it. Only the binary can drop it, and the
 # check after the loop settles what its absence or failure left behind.
 detached=1
+ran_app=0
 for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
     if [[ -x "$candidate" ]]; then
         echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
+        ran_app=1
         if "$candidate" --uninstall; then detached=0; fi
         break
     fi
@@ -163,7 +165,10 @@ if ! spaces_snapshot="$(spaces_read_domain "$BUNDLE")" \
     exit 1
 fi
 spaces_before_removal="$(spaces_removal_state "$spaces_owed" "$spaces_journal")"
-if [[ -n "$spaces_before_removal" ]]; then
+# Keeping the app only helps while it is still here to try again. An app
+# already trashed by hand cannot restore anything, so the removal goes on and
+# the warnings below say how to put rearranging back.
+if [[ -n "$spaces_before_removal" ]] && (( ran_app )); then
     case "$spaces_before_removal" in
         stuck) print -u2 "Space rearranging has not been restored." ;;
         unloaded) print -u2 "The Dock has not loaded the restored Space arrangement yet." ;;

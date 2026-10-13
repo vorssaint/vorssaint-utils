@@ -13,12 +13,27 @@ struct PanelClipboardView: View {
     /// Counts copies, so the list also follows an entry copied again while
     /// it still carries the tick.
     @State private var copyCount = 0
+    @State private var clearingIDs: [UUID: Date]?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.notchPresentation) private var inNotch
 
     var onClose: () -> Void
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
+    }
+
+    /// The alert would hang from the island as a sheet; there it asks on its own.
+    private func confirmClearAboveIsland(_ ids: [UUID: Date]) {
+        let text = text
+        DispatchQueue.main.async {
+            guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
+                                             message: text.clearRecentConfirmMessage,
+                                             action: text.clearRecent, destructive: true,
+                                             cancel: text.cancel) else { return }
+            history.clearRecent(ids)
+            copiedID = nil
+        }
     }
 
     private var filteredEntries: [ClipboardHistoryEntry] {
@@ -82,8 +97,8 @@ struct PanelClipboardView: View {
                     .font(.system(size: 11))
                     .disabled(history.entries.isEmpty)
                 Button {
-                    history.clearRecent()
-                    copiedID = nil
+                    let ids = history.recentEntriesSnapshot
+                    if inNotch { confirmClearAboveIsland(ids) } else { clearingIDs = ids }
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 11, weight: .semibold))
@@ -93,6 +108,7 @@ struct PanelClipboardView: View {
                 .controlSize(.mini)
                 .help(text.clearRecent)
                 .disabled(history.recentEntries.isEmpty)
+                .modifier(ClipboardClearRecentConfirmation(entryIDs: $clearingIDs))
                 Button {
                     history.showHistoryWindow()
                 } label: {

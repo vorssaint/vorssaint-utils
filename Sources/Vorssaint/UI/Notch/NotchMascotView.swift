@@ -1102,7 +1102,9 @@ final class NotchMascotHostView: NSView {
     func configure(look: NotchMascotLook, size: CGFloat, mood: NotchMascotMood, idles: Bool,
                    reduceMotion: Bool, animated: Bool) {
         mascot.reduceMotion = reduceMotion
+        let shift = figureShift
         mascot.configure(look: look, size: size, contentsScale: backingScale)
+        if figureShift != shift { applyPlacement() }
         if mood != requestedMood {
             requestedMood = mood
             mascot.setMood(mood, animated: animated && window != nil)
@@ -1142,8 +1144,13 @@ final class NotchMascotHostView: NSView {
         applyPlacement()
     }
 
+    /// Its box's offset from the figure's own middle, so that what a caller
+    /// centres, at rest or on a visit, is the body that shows.
+    private var figureShift: CGFloat { NotchMascotGeometry.figureOffset(mascot.look) * mascot.size }
+
     private func applyPlacement() {
-        let center = placement.center ?? CGPoint(x: bounds.midX, y: bounds.midY)
+        let placed = placement.center ?? CGPoint(x: bounds.midX, y: bounds.midY)
+        let center = CGPoint(x: placed.x, y: placed.y - figureShift)
         let visible = placement.visible
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -1173,6 +1180,9 @@ final class NotchMascotHostView: NSView {
     /// being how high a hop may take it there.
     func playVisit(_ visit: NotchMascotVisit?, path: @autoclosure () -> NotchMascotPath, baseline: CGFloat,
                    stand: CGPoint, lift: CGFloat) {
+        let shift = figureShift
+        let baseline = baseline - shift
+        let stand = CGPoint(x: stand.x, y: stand.y - shift)
         guard let visit else {
             // Ended early while it stands in its place, as when what it
             // reacted over went away: it stays there rather than leave.
@@ -1300,12 +1310,18 @@ struct NotchMascotTrackView: NSViewRepresentable {
 struct NotchMascotActivityVisit: ViewModifier {
     @ObservedObject var service: NotchService
     let track: NotchMascotTrack?
+    /// The island's own strip, the only one that names its song.
+    var ownStrip = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         // A lap or a homecoming ends where it rests, which an activity's
         // strip has no place for, so only what ends out of sight comes over it.
-        let visit = track == nil ? nil : service.mascotVisit.flatMap { $0.kind.endsOutOfSight ? $0 : nil }
+        // A countdown is watched from beside a camera; a capsule copy has
+        // none, and stepping its timer aside there would only blank it.
+        let visit = track == nil ? nil : service.mascotVisit.flatMap {
+            $0.kind.endsOutOfSight && !($0.kind.watchesTimer && track?.hidden == nil) ? $0 : nil
+        }
         // Reacting or watching a countdown beside a camera, it covers only
         // the wing it stands in, as the black of the closed island, and the
         // other side stays in view. A capsule has no wings, so what it shows
@@ -1315,17 +1331,24 @@ struct NotchMascotActivityVisit: ViewModifier {
         let stepsAside = visit != nil && service.mascotStepsAside && !ownWing
         // A countdown is watched from the camera's left whatever the side.
         let rightWing = track?.mirrored == true && visit?.kind.watchesTimer == false
+        // Beside a strip naming its song, the black starts where the words
+        // end, which the cover's inset leaves less room before than spacing.
+        let clearance = ownStrip && !rightWing && service.namedMusicWings != nil
+            ? max(0, NotchMusicStripLayout.coverInset(service.compactActivityGeometry) - NotchMusicStripLayout.spacing) : 0
         content
             .opacity(stepsAside ? 0 : 1)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: stepsAside)
-            .overlay(alignment: .topLeading) {
+            .overlay(alignment: .top) {
                 // Handed back with the strip, halfway home, so what it covered
-                // returns as it goes behind the camera.
+                // returns as it goes behind the camera. Laid out on the
+                // companion's own track, which stays on the camera however far
+                // a strip reaches to one side.
                 if ownWing, service.mascotStepsAside, let track, let hidden {
                     Color.black
-                        .frame(width: rightWing ? track.width - hidden.upperBound : hidden.lowerBound,
+                        .frame(width: rightWing ? track.width - hidden.upperBound : max(0, hidden.lowerBound - clearance),
                                height: track.height)
-                        .offset(x: rightWing ? hidden.upperBound : 0)
+                        .offset(x: rightWing ? hidden.upperBound : clearance)
+                        .frame(width: track.width, alignment: .leading)
                         .transition(.opacity)
                 }
             }

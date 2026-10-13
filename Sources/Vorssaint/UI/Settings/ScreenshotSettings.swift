@@ -24,6 +24,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotFileNumberNext) private var nextNumber = 1
     @AppStorage(DefaultsKey.screenshotIncludePointer) private var includePointer = false
     @AppStorage(DefaultsKey.screenshotShowLastRegion) private var showLastRegion = true
+    @AppStorage(DefaultsKey.screenshotHighlightWindows) private var highlightWindows = true
     @AppStorage(DefaultsKey.screenshotLoupeStartsOn) private var loupeStartsOn = false
     @AppStorage(DefaultsKey.screenshotLoupeRememberZoom) private var rememberLoupeZoom = false
     @AppStorage(DefaultsKey.screenshotLoupeDefaultZoom) private var loupeDefaultZoom = 1.0
@@ -36,6 +37,9 @@ struct ScreenshotCaptureSettings: View {
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
+    @AppStorage(DefaultsKey.screenshotAddToShelf) private var addToShelf = false
+    @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
+    @AppStorage(AppFeature.shelf.availabilityKey) private var shelfAvailable = false
     @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotPreviewEnabled) private var previewEnabled = true
@@ -139,6 +143,10 @@ struct ScreenshotCaptureSettings: View {
                 .pickerStyle(.segmented)
                 Toggle(strings.pointerToggle, isOn: $includePointer)
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
+                Toggle(strings.highlightWindowsToggle, isOn: $highlightWindows)
+                Text(strings.highlightWindowsCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 DisclosureGroup {
                     Toggle(strings.loupeStartsOnToggle, isOn: $loupeStartsOn)
                     Toggle(strings.loupeRememberZoomToggle, isOn: $rememberLoupeZoom)
@@ -171,6 +179,11 @@ struct ScreenshotCaptureSettings: View {
             Section {
                 Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(strings.addToShelfToggle, isOn: addToShelfBinding)
+                    .disabled(!shelfIsOn)
+                Text(strings.addToShelfCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 folderRow
@@ -264,6 +277,20 @@ struct ScreenshotCaptureSettings: View {
 
     private var defaultAction: ScreenshotDefaultAction {
         ScreenshotDefaultAction(rawValue: defaultActionRaw) ?? .none
+    }
+
+    private var shelfIsOn: Bool {
+        shelfEnabled && shelfAvailable
+    }
+
+    /// Reads off while the shelf is off, since no capture reaches it then.
+    /// The choice itself is kept for when the shelf comes back.
+    private var addToShelfBinding: Binding<Bool> {
+        Binding {
+            addToShelf && shelfIsOn
+        } set: { isOn in
+            addToShelf = isOn
+        }
     }
 
     private var defaultActionRow: some View {

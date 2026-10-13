@@ -26,7 +26,8 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .captures: return "camera.viewfinder"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
-        case .tools: return "square.grid.2x2"
+        // The quick panel's own mark; the grid belongs to the sections button.
+        case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
@@ -77,7 +78,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
-                    .monitorDisk, .monitorPower, .fanControl].contains { (feature: AppFeature) in
+                    .monitorDisk, .monitorPower, .fanControl, .connectedDevices].contains { (feature: AppFeature) in
                 feature.isAvailable(in: defaults)
             }
         }
@@ -160,9 +161,11 @@ struct NotchCameraFit: Equatable {
 /// A capsule sized and placed by hand. By itself it takes the height of the
 /// menu bar around it; a fit makes it wider or narrower at rest, taller or
 /// shorter from its top edge, and lowers it from the top of the display.
+/// Width and height reach as far each way, so an untouched slider rests in
+/// the middle, as the camera fit's do.
 struct NotchCapsuleFit: Equatable {
-    static let widthRange = -40.0...80.0
-    static let heightRange = -4.0...12.0
+    static let widthRange = -40.0...40.0
+    static let heightRange = -4.0...4.0
     static let dropRange = 0.0...20.0
     static let zero = NotchCapsuleFit(width: 0, height: 0, drop: 0)
 
@@ -428,6 +431,15 @@ enum NotchLayout {
         max(40, height - 24) + 12 + 132 + 24
     }
 
+    /// Level cards keep their title and device row only where every card in
+    /// the row has one and the titles fit: a card alone, or volume beside
+    /// brightness. The keyboard light has no device to choose, so beside it,
+    /// and three across, every card folds to its readout and they line up.
+    static func levelCardsShowDetails(_ levels: [NotchControlItem], height: CGFloat) -> Bool {
+        guard height >= 88 else { return false }
+        return levels.count == 1 || (levels.count == 2 && !levels.contains(.keyboardLight))
+    }
+
     /// The home page: one row of cards (playback and levels) over a rail of
     /// shortcuts. A tight budget shortens the cards before it drops a row.
     static func controls(hasCards: Bool, shortcutCount: Int, width: CGFloat, height: CGFloat) -> NotchControlsLayout {
@@ -475,6 +487,23 @@ enum NotchLayout {
     static func musicPlayerHeight(layout: NotchSize, height: CGFloat) -> CGFloat {
         min(layout == .spacious ? 148 : 120, max(88, height - musicControlsRowHeight - rowSpacing))
     }
+
+    /// How the music page divides its height between the player and an open
+    /// extra, lyrics or the queue. The island grows to hold both, so the
+    /// player keeps the height it had at rest, however far the island has
+    /// grown; measuring it again from the growing page made it shrink by the
+    /// gap and flicker. Where the island cannot grow enough, as at a custom
+    /// size, the player yields to the extra below a legible height.
+    static func musicSplit(height: CGFloat, controlsRow: CGFloat, extras: CGFloat, resting: CGFloat,
+                           keepsPlayer: Bool, extraOpen: Bool = true) -> (player: CGFloat, extra: CGFloat, showsPlayer: Bool) {
+        let page = max(0, height - controlsRow)
+        guard extraOpen else { return (page, 0, true) }
+        if keepsPlayer {
+            return (resting, min(extras, max(0, page - resting - rowSpacing)), true)
+        }
+        let extra = min(extras, page)
+        return (max(0, page - extra - rowSpacing), extra, page - extra - rowSpacing >= 88)
+    }
 }
 
 struct NotchControlsLayout: Equatable {
@@ -492,6 +521,11 @@ enum NotchIdleContent: String, CaseIterable {
     case none, battery, music, agents
 }
 
+/// How urgently the charge is shown: amber for the early warning, red when low.
+enum BatteryWarning: Equatable {
+    case none, early, low
+}
+
 /// Resizing can send hover exits and entries without any pointer movement.
 struct NotchHoverState {
     private(set) var suppressed = false
@@ -504,13 +538,97 @@ struct NotchHoverState {
 }
 
 enum NotchHoverEmphasis {
-    static func size(from resting: CGSize, geometry: NotchGeometry) -> CGSize {
+    /// `reach` is how much further than half the width one side goes, as a
+    /// strip naming its song does on its cover's side.
+    static func size(from resting: CGSize, geometry: NotchGeometry, reach: CGFloat = 0) -> CGSize {
         // Keep the pulse inside the measured free menu-bar space on each side.
-        let occupiedWing = max(0, (resting.width - geometry.cameraWidth) / 2)
+        let occupiedWing = max(0, (resting.width - geometry.cameraWidth) / 2) + reach
         let freeSide = max(0, (geometry.compactSideRoom ?? 0) - occupiedWing)
         let growth = min(10, freeSide)
         // A capsule stretches along the bar and stays inside it.
         return CGSize(width: resting.width + growth * 2, height: resting.height + (geometry.floats ? 0 : 5))
+    }
+}
+
+/// What the pointer rests on in the closed music strip: the cover names the
+/// song, and the bars become its play or pause button.
+enum NotchMusicStripPart: Equatable {
+    case cover, bars
+}
+
+/// The closed music strip beside a camera. Named, its left side grows from
+/// the island's curved end with the title and the artist, and the cover keeps
+/// its place beside the camera, as do the bars on the other side.
+enum NotchMusicStripLayout {
+    static let titleFont = NSFont.systemFont(ofSize: 11, weight: .semibold)
+    static let artistFont = NSFont.systemFont(ofSize: 9, weight: .medium)
+    /// From the island's curved end to the words, as a banner keeps it.
+    static let endInset = NotchNotificationBannerLayout.inset
+    /// Between the words and the cover.
+    static let spacing: CGFloat = 8
+    /// The widest a named side grows, as a notice's. A longer title ends in an ellipsis.
+    static let maximumWing: CGFloat = 240
+    /// How long the pointer rests on the cover before the strip names the song,
+    /// so a pass on the way to the menus leaves it alone.
+    static let namingDelay: TimeInterval = 0.3
+
+    /// A simulated camera keeps a little air beside its drawn cutout.
+    static func innerInset(_ geometry: NotchGeometry) -> CGFloat { geometry.isNotched ? 0 : 8 }
+
+    /// A short wing gives clearance back before the cover turns into a chip.
+    static func coverInset(_ geometry: NotchGeometry) -> CGFloat {
+        max(0, min(geometry.compactMusicArtworkInset, geometry.compactActivityWingWidth
+                   - min(geometry.compactMusicArtworkSide, 20) - innerInset(geometry)))
+    }
+
+    static func coverSide(_ geometry: NotchGeometry) -> CGFloat {
+        max(0, min(geometry.compactMusicArtworkSide,
+                   geometry.compactActivityWingWidth - coverInset(geometry) - innerInset(geometry)))
+    }
+
+    /// A simulated camera has room for the track even when its wings disappear.
+    static func fillsCameraGap(_ geometry: NotchGeometry) -> Bool {
+        !geometry.isNotched && geometry.compactActivityCameraGap >= 56
+    }
+
+    static func showsArtist(_ geometry: NotchGeometry) -> Bool { geometry.compactActivityContentHeight >= 28 }
+
+    private static var measuredWords: (title: String, artist: String?, width: CGFloat)?
+
+    /// The wider of the title and the artist below it, measured once per song.
+    static func wordsWidth(title: String, artist: String?) -> CGFloat {
+        if let measured = measuredWords, measured.title == title, measured.artist == artist { return measured.width }
+        func width(_ text: String, _ font: NSFont) -> CGFloat {
+            // The widest side is reached long before this much text.
+            (String(text.prefix(120)) as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+        }
+        let width = max(width(title, titleFont), artist.map { width($0, artistFont) } ?? 0) + NotchCapsuleLayout.air
+        measuredWords = (title, artist, width)
+        return width
+    }
+
+    /// The left side while the strip names its song: the words from the curved
+    /// end, then the cover as far from the camera as it rests at the end of
+    /// its own wing. Never narrower than that wing.
+    static func namedWing(title: String, artist: String?, geometry: NotchGeometry) -> CGFloat {
+        let wing = geometry.compactActivityWingWidth
+        let shown = showsArtist(geometry) ? artist : nil
+        let named = endInset + wordsWidth(title: title, artist: shown) + spacing + wing - coverInset(geometry)
+        return max(wing, min(maximumWing, named.rounded(.up)))
+    }
+
+    /// The strip's sides while it names its song, short of the display's edge
+    /// and of the menus, which leave the island `room` beside the camera.
+    /// Nil when the strip has no wings, already shows the song between them,
+    /// or the song has no title to name.
+    static func namedWings(title: String?, artist: String?, geometry: NotchGeometry,
+                           room: CGFloat) -> NotchNoticeWings? {
+        let wing = geometry.compactActivityWingWidth
+        guard wing > 0, !fillsCameraGap(geometry), let title, !title.isEmpty else { return nil }
+        let artist = artist?.trimmingCharacters(in: .whitespaces)
+        let named = namedWing(title: title, artist: artist?.isEmpty == false ? artist : nil, geometry: geometry)
+        let leading = min(named, geometry.noticeWingWidth(preferred: named), max(0, room).rounded(.down))
+        return leading > wing ? NotchNoticeWings(leading: leading, trailing: wing) : nil
     }
 }
 
@@ -969,14 +1087,24 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
-    static let defaultHidden = "microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
+
+    /// A level draws as a slider in the card row; everything else is a tile.
+    var isLevel: Bool { self == .volume || self == .brightness || self == .keyboardLight }
+
+    /// Whether this Mac has a keyboard light. Only the brightness service can
+    /// ask the hardware, so launch points this at it before anything reads
+    /// the controls. Without it, a level restored from a Mac that has one
+    /// would sit in the island as a dead card that Settings cannot hide.
+    static var keyboardLightIsSupported: () -> Bool = { true }
 
     var symbol: String {
         switch self {
         case .volume: return "speaker.wave.2.fill"
         case .brightness: return "sun.max.fill"
+        case .keyboardLight: return "light.max"
         case .keepAwake: return "cup.and.saucer"
         case .microphone: return "mic.fill"
         case .screenshot: return "camera.viewfinder"
@@ -996,7 +1124,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
     var setupRequirement: NotchControlSetupRequirement {
         switch self {
         case .volume: return .feature(.mixer)
-        case .brightness: return .feature(.brightness)
+        case .brightness, .keyboardLight: return .feature(.brightness)
         case .keepAwake: return .feature(.keepAwake)
         case .microphone: return .feature(.micMute)
         case .screenshot: return .feature(.screenshot)
@@ -1017,6 +1145,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.mixer)
         case .brightness: return AppFeature.brightness.isAvailable(in: defaults)
+        case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults) && Self.keyboardLightIsSupported()
         case .keepAwake: return AppFeature.keepAwake.isAvailable(in: defaults)
         case .microphone: return AppFeature.micMute.isAvailable(in: defaults)
         case .screenshot: return AppFeature.screenshot.isAvailable(in: defaults)
@@ -1064,7 +1193,7 @@ enum NotchQuickAction: Hashable, Identifiable {
 
     static var optionalActions: [Self] {
         [.explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
-            + NotchControlItem.allCases.filter { $0 != .volume && $0 != .brightness }.map(Self.control)
+            + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
     }
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
@@ -1160,13 +1289,37 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     static func current(in defaults: UserDefaults = .standard) -> Self {
         var configuration = stored(in: defaults)
-        configuration.buttons.removeAll { $0.action?.isAvailable(in: defaults) != true }
+        configuration.buttons = configuration.shown(in: defaults)
         return configuration
+    }
+
+    /// The buttons the island shows. One whose section or feature is off
+    /// keeps its place, so it comes back there once that is on again.
+    func shown(in defaults: UserDefaults = .standard) -> [NotchQuickButton] {
+        buttons.filter { $0.action?.isAvailable(in: defaults) == true }
+    }
+
+    /// Whether a side has a free place. A hidden button still holds its own.
+    func hasRoom(on side: NotchQuickAccessSide) -> Bool {
+        buttons.filter { $0.side == side }.count < Self.maximumPerSide
+    }
+
+    /// Swaps a button with its neighbour on the same side. False when it is
+    /// already at that end, so there is nothing to save.
+    @discardableResult
+    mutating func reorder(_ id: UUID, by offset: Int) -> Bool {
+        guard let from = buttons.firstIndex(where: { $0.id == id }) else { return false }
+        let side = buttons[from].side
+        let items = buttons.filter { $0.side == side }
+        guard let index = items.firstIndex(where: { $0.id == id }), items.indices.contains(index + offset),
+              let to = buttons.firstIndex(where: { $0.id == items[index + offset].id }) else { return false }
+        buttons.swapAt(from, to)
+        return true
     }
 
     mutating func move(_ id: UUID, to side: NotchQuickAccessSide, before target: UUID? = nil) {
         guard let index = buttons.firstIndex(where: { $0.id == id }),
-              buttons[index].side == side || buttons.filter({ $0.side == side }).count < Self.maximumPerSide else { return }
+              buttons[index].side == side || hasRoom(on: side) else { return }
         var item = buttons.remove(at: index)
         item.side = side
         let destination = target.flatMap { target in buttons.firstIndex(where: { $0.id == target && $0.side == side }) }
@@ -1249,7 +1402,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
 
     var preferenceKey: String {
         switch self {
@@ -1262,6 +1415,7 @@ enum NotchEvent: String, CaseIterable {
         case .agents: return DefaultsKey.notchAgentsEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
+        case .inputSource: return DefaultsKey.notchInputSource
         case .volume: return DefaultsKey.notchVolume
         case .brightness: return DefaultsKey.notchBrightness
         case .battery: return DefaultsKey.notchBattery
@@ -1272,7 +1426,7 @@ enum NotchEvent: String, CaseIterable {
 
     var priority: Int {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone: return 3
+        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
         case .capture, .timer, .watch: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
@@ -1281,7 +1435,7 @@ enum NotchEvent: String, CaseIterable {
 
     var duration: TimeInterval {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone: return 1.6
+        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 1.6
         case .systemNotification, .track: return 3
         case .timer, .download, .watch: return 6
         case .agents: return 5
@@ -1317,6 +1471,19 @@ enum NotchSupport {
 
     static func sanitizedHoverDelay(_ value: TimeInterval) -> TimeInterval {
         value.isFinite ? min(hoverDelayRange.upperBound, max(hoverDelayRange.lowerBound, value)) : defaultHoverDelay
+    }
+
+    /// How long an island opened by hover waits after the pointer leaves.
+    static let defaultCloseDelay = NotchQuickAccessLayout.hoverExitDelay
+    static let closeDelayRange = 0.10...2.0
+
+    static func sanitizedCloseDelay(_ value: TimeInterval) -> TimeInterval {
+        value.isFinite ? min(closeDelayRange.upperBound, max(closeDelayRange.lowerBound, value)) : defaultCloseDelay
+    }
+
+    /// An unset value keeps the old pause rather than reading as zero.
+    static func closeDelay(in defaults: UserDefaults = .standard) -> TimeInterval {
+        sanitizedCloseDelay(defaults.object(forKey: DefaultsKey.notchCloseDelay) as? Double ?? defaultCloseDelay)
     }
 
     static func moduleShortcut(_ characters: String, modules: [NotchModule]) -> NotchModule? {
@@ -1458,6 +1625,58 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
+    static let defaultLowBatteryThreshold = 10
+    /// Both level sliders share this scale so their knobs line up; red stops
+    /// one short of the top so amber always has room above it.
+    static let batteryLevelScale = 1...100
+    static let lowBatteryThresholdRange = 1...99
+    static let defaultEarlyBatteryThreshold = 20
+    static let earlyBatteryThresholdRange = 2...100
+
+    static func sanitizedLowBatteryThreshold(_ value: Int) -> Int {
+        min(lowBatteryThresholdRange.upperBound, max(lowBatteryThresholdRange.lowerBound, value))
+    }
+
+    static func sanitizedEarlyBatteryThreshold(_ value: Int) -> Int {
+        min(earlyBatteryThresholdRange.upperBound, max(earlyBatteryThresholdRange.lowerBound, value))
+    }
+
+    /// The amber level, kept at least one point above the red one so the
+    /// early warning always comes first.
+    static func earlyBatteryThreshold(_ value: Int, above red: Int) -> Int {
+        max(sanitizedEarlyBatteryThreshold(value), sanitizedLowBatteryThreshold(red) + 1)
+    }
+
+    /// The charge turns red at or below the chosen level once the person asks
+    /// for it, and amber a little earlier when they want a first warning.
+    /// Neither shows while the Mac is plugged in.
+    static func batteryWarning(percent: Int?, externalConnected: Bool, tint: Bool, threshold: Int,
+                               early: Bool = false, earlyThreshold: Int = defaultEarlyBatteryThreshold) -> BatteryWarning {
+        guard tint, !externalConnected, let percent else { return .none }
+        if percent <= sanitizedLowBatteryThreshold(threshold) { return .low }
+        if early, percent <= sanitizedEarlyBatteryThreshold(earlyThreshold) { return .early }
+        return .none
+    }
+
+    static func batteryWarning(percent: Int?, externalConnected: Bool,
+                               in defaults: UserDefaults = .standard) -> BatteryWarning {
+        batteryWarning(percent: percent, externalConnected: externalConnected,
+                       tint: defaults.bool(forKey: DefaultsKey.notchLowBatteryTint),
+                       threshold: defaults.object(forKey: DefaultsKey.notchLowBatteryThreshold) as? Int
+                           ?? defaultLowBatteryThreshold,
+                       early: defaults.bool(forKey: DefaultsKey.notchLowBatteryEarly),
+                       earlyThreshold: defaults.object(forKey: DefaultsKey.notchLowBatteryEarlyThreshold) as? Int
+                           ?? defaultEarlyBatteryThreshold)
+    }
+
+    /// The menu bar's battery reading follows the same warning unless the
+    /// person keeps it to the island.
+    static func menuBarBatteryWarning(percent: Int?, externalConnected: Bool,
+                                      in defaults: UserDefaults = .standard) -> BatteryWarning {
+        guard defaults.object(forKey: DefaultsKey.notchLowBatteryMenuBar) as? Bool ?? true else { return .none }
+        return batteryWarning(percent: percent, externalConnected: externalConnected, in: defaults)
+    }
+
     /// The closed island stays out of sight until the pointer reaches it, and
     /// shows no notices while it waits.
     static func hidesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
@@ -1466,10 +1685,19 @@ enum NotchSupport {
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = NotchIdleContent(rawValue: defaults.string(forKey: DefaultsKey.notchIdleContent) ?? "") ?? .none
-        if choice == .battery, !AppFeature.monitorPower.isAvailable(in: defaults) { return .none }
-        if choice == .music, !modules(in: defaults).contains(.music) { return .none }
-        if choice == .agents, !NotchAgentSupport.isEnabled(in: defaults) { return .none }
-        return choice
+        return canRest(with: choice, in: defaults) ? choice : .none
+    }
+
+    /// Whether the closed island can rest with this content now. A choice it
+    /// cannot show waits, still chosen, until its section or feature is back.
+    /// The island's own switch stands apart, since it rules out every choice.
+    static func canRest(with content: NotchIdleContent, in defaults: UserDefaults = .standard) -> Bool {
+        switch content {
+        case .none: return true
+        case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
+        case .music: return modules(in: defaults).contains(.music)
+        case .agents: return NotchAgentSupport.sectionShows(in: defaults)
+        }
     }
 
     static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {
@@ -1497,6 +1725,7 @@ enum NotchSupport {
             + (hasBattery && AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
             + (AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
             + (fans > 0 && AppFeature.fanControl.isAvailable(in: defaults) ? 1 : 0)
+            + (AppFeature.connectedDevices.isAvailable(in: defaults) ? 1 : 0)
     }
 
     /// Direct openings are dismissed explicitly, never by the pointer's
@@ -1539,6 +1768,8 @@ enum NotchSupport {
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)
         case .track: return modules(in: defaults).contains(.music)
+        // A layout notice needs no feature of its own, only its own toggle.
+        case .inputSource: return true
         }
     }
 
@@ -1592,6 +1823,47 @@ enum NotchSupport {
     static func volumeLevel(current: Double, direction: Int, fine: Bool) -> Double {
         guard current.isFinite else { return 0 }
         return min(1, max(0, current + Double(direction.signum()) / (fine ? 64 : 16)))
+    }
+
+    /// The steps a volume key takes, as `volumeLevel` above gives them: a
+    /// full step on its own, a quarter of one with the fine modifiers.
+    static let fullVolumeKeyStep = 1.0 / 16
+    static let finestVolumeKeyStep = 1.0 / 64
+
+    /// How long an output that has just moved its own level is assumed to
+    /// still be moving it. Measured from AirPods Pro adapting to the room:
+    /// each ramp walks the level a hundredth at a time and closes with a
+    /// coarser correction about 1.7 s after its last fine step, so a window
+    /// slightly wider than that keeps one ramp together.
+    static let volumeRideWindow: TimeInterval = 2
+
+    /// What an observed change of the system output level means.
+    enum VolumeChangeOrigin: Equatable {
+        /// Something a person did: the island confirms it.
+        case announces
+        /// The output riding its own level, which is state to keep rather
+        /// than news to show.
+        case rides
+    }
+
+    /// Reads an observed level change. An output that adapts to its
+    /// surroundings moves the level in steps finer than a key press makes,
+    /// and keeps moving it for as long as the room is noisy, so those steps
+    /// ride quietly. A full key step always announces itself, however busy
+    /// the output is, and so does a level pressed against either end, where a
+    /// press moves it by less than a step or not at all. In between, a step
+    /// belongs to a ramp already under way if it lands inside its window.
+    static func volumeChangeOrigin(from previous: Double, to next: Double,
+                                   sinceRide: TimeInterval) -> VolumeChangeOrigin {
+        guard previous.isFinite, next.isFinite else { return .announces }
+        if next <= 0 || next >= 1 { return .announces }
+        let delta = abs(next - previous)
+        // An output that keeps its level in hundredths lands a key step a
+        // little short of its nominal size, so a full step is recognized
+        // with half of the finest one to spare.
+        if delta + finestVolumeKeyStep / 2 >= fullVolumeKeyStep { return .announces }
+        if delta + 1e-9 < finestVolumeKeyStep { return .rides }
+        return sinceRide < volumeRideWindow ? .rides : .announces
     }
 
     /// A laptop with its lid closed has no built-in screen to show on, so the
@@ -1671,6 +1943,8 @@ struct NotchGeometry: Equatable {
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
     let cameraWidth: CGFloat
+    /// The island's camera region, including optional menu-bar coverage,
+    /// manual fit and outline clearance, rather than just the hardware inset.
     let cameraHeight: CGFloat
     let isNotched: Bool
     let layout: NotchSize
@@ -1701,7 +1975,7 @@ struct NotchGeometry: Equatable {
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
          cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
-         outline: Bool = false) {
+         hideMenuBarGap: Bool = true, outline: Bool = false, barEdge: CGFloat = 0) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -1719,8 +1993,15 @@ struct NotchGeometry: Equatable {
         let capsuleFit = gap == nil ? NotchCapsuleFit.zero : capsuleFit
         floatingDrop = capsuleFit.drop
         capsuleWidthFit = capsuleFit.width
-        let stripHeight = gap.map { max(barHeight + capsuleFit.height, $0 * 2 + 12) } ?? barHeight
-        let profileHeight = gap.map { stripHeight - ($0 - NotchLayout.capsuleMargin) * 2 } ?? barHeight
+        // The bar ends in a hairline, `barEdge` thick, that reads as its edge:
+        // the capsule's margin below is measured from it, as the one above is
+        // from the top of the display, so the capsule shows centred in the
+        // bar. Its width keeps following the whole bar.
+        let edge = barEdge.isFinite ? min(max(0, barEdge), 1) : 0
+        let fullStrip = gap.map { max(barHeight + capsuleFit.height, $0 * 2 + 12) }
+        let stripHeight = gap.map { max(barHeight - edge + capsuleFit.height, $0 * 2 + 12) } ?? barHeight
+        let profileHeight = gap.flatMap { gap in fullStrip.map { $0 - (gap - NotchLayout.capsuleMargin) * 2 } }
+            ?? barHeight
         // A capsule's camera is only the room it keeps, on whole points.
         let simulated = 180 * profileHeight / 32
         // A simulated cutout sits on the menu bar, where its outline already shows.
@@ -1729,7 +2010,14 @@ struct NotchGeometry: Equatable {
         self.cameraWidth = min(isNotched ? max(0, cameraWidth + fit.width + room * 2)
                                : gap == nil ? simulated : (simulated + capsuleFit.width).rounded(),
                                screen.width * 0.7)
-        cameraHeight = isNotched ? min(max(0, safeAreaTop + fit.height + room), 64) : stripHeight
+        if isNotched {
+            // The menu bar can extend slightly below the camera's safe area.
+            // Optionally cover its full height before applying a manual fit.
+            let baseHeight = hideMenuBarGap ? max(safeAreaTop, barHeight) : safeAreaTop
+            cameraHeight = min(max(0, baseHeight + fit.height + room), 64)
+        } else {
+            cameraHeight = stripHeight
+        }
         self.menuBarHeight = max(cameraHeight, barHeight)
         self.compactSideRoom = compactSideRoom
     }
@@ -1766,9 +2054,7 @@ struct NotchGeometry: Equatable {
         max(headerTopInset + headerRowHeight / 2,
             menuBarHeight + 6 + NotchQuickAccessLayout.diameter / 2)
     }
-    /// One row beside the camera. It extends the cutout, whose height a
-    /// physical camera sets and a simulated one shares with the bar: a bar
-    /// even a point taller would leave a dark line under the notch.
+    /// One row beside the camera, including menu-bar coverage when enabled.
     var stripHeight: CGFloat { cameraHeight }
     /// What a strip shows inside: all of it, or the capsule within its margins.
     var stripBodyHeight: CGFloat { max(0, stripHeight - (floatingGap ?? 0) * 2) }
@@ -1802,8 +2088,8 @@ struct NotchGeometry: Equatable {
         let capsule = max(NotchLayout.capsuleRestingAspect * stripBodyHeight + capsuleWidthFit, stripBodyHeight * 2)
         return CGSize(width: min(cameraWidth, (capsule + shoulders).rounded()), height: cameraHeight)
     }
-    /// Full screen and the Lock Screen draw no outline, so their black cutout
-    /// keeps to the camera instead of showing the outline's room below it.
+    /// Full screen and the Lock Screen remove outline clearance while keeping
+    /// the chosen menu-bar coverage and manual fit.
     var bareCutout: CGSize {
         let resting = restingSize(showsContent: false)
         return CGSize(width: max(0, resting.width - outlineRoom * 2), height: max(0, resting.height - outlineRoom))
@@ -2052,6 +2338,9 @@ struct NotchGeometry: Equatable {
     /// Lyrics and the queue open below the player; custom heights keep them
     /// within the chosen limit and the page swaps the player out instead.
     var musicExtrasHeight: CGFloat { layout == .custom ? min(216, contentBudget) : 216 }
+    /// The player's height at rest. The island keeps this room for it, and
+    /// the page holds it there while lyrics or the queue grow the island.
+    var musicPlayerHeight: CGFloat { NotchLayout.musicPlayerHeight(layout: layout, height: contentBudget) }
 
     func systemRows(cards: Int) -> Int {
         NotchLayout.systemRowRanges(count: cards, width: contentWidth - NotchLayout.systemHoverInset(width: contentWidth) * 2).count
@@ -2107,7 +2396,7 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(budget, home.height == 0 ? NotchLayout.emptyHeight : home.height)
             case .music:
                 let controlsRow = musicHasControlsRow ? NotchLayout.musicControlsRowHeight + NotchLayout.rowSpacing : 0
-                let player = musicHasContent ? NotchLayout.musicPlayerHeight(layout: layout, height: budget) : NotchLayout.musicIdleHeight
+                let player = musicHasContent ? musicPlayerHeight : NotchLayout.musicIdleHeight
                 contentHeight = min(budget, player + controlsRow) + max(0, musicExtraHeight)
             case .system:
                 let cards = max(0, systemCards)
@@ -2408,40 +2697,6 @@ enum NotchMenuBarLayout {
             if rect.minX >= camera.maxX { right = min(right, rect.minX - 8) }
         }
         return max(0, min(camera.minX - left, right - camera.maxX))
-    }
-}
-
-/// The dimming over the island's Liquid Glass, top to bottom. The glass is
-/// clear, not blurred, so wherever the black thins a window's text behind it
-/// reads through the island's own. The page and its cards stay over black,
-/// and only the margin below the page opens into the glass lip.
-enum NotchGlassLip {
-    /// The margin below the page, which holds no content.
-    static let depth = NotchLayout.bottomInset
-    /// How much of the glass the lip lets through at its lowest edge.
-    static let transparency = 0.45
-    static let increasedContrastTransparency = 0.10
-
-    static func opacity(atDepth depth: CGFloat, height: CGFloat,
-                        openness: Double, increasedContrast: Bool) -> Double {
-        let lipTop = height - Self.depth
-        guard depth > lipTop else { return 1 }
-        let ramp = Double(min(1, (depth - lipTop) / Self.depth))
-        let eased = ramp * ramp * (3 - 2 * ramp)
-        return 1 - min(1, max(0, openness))
-            * (increasedContrast ? increasedContrastTransparency : transparency) * eased
-    }
-
-    /// Gradient stops over an island `height` points tall, top to bottom.
-    static func stops(height: CGFloat, openness: Double,
-                      increasedContrast: Bool) -> [(location: Double, opacity: Double)] {
-        guard height > 0 else { return [(0, 1), (1, 1)] }
-        let lipTop = max(0, height - Self.depth)
-        let depths = [0, lipTop] + (1...8).map { lipTop + (height - lipTop) * CGFloat($0) / 8 }
-        return depths.map {
-            (Double($0 / height), opacity(atDepth: $0, height: height,
-                                          openness: openness, increasedContrast: increasedContrast))
-        }
     }
 }
 

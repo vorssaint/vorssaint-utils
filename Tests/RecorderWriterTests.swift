@@ -15,6 +15,8 @@ enum RecorderWriterTests {
                 try await check(suite, changingMicrophone: true)
                 try await check(suite, delayedVideo: true, changingMicrophone: true)
                 try await check(suite, changingMicrophone: true, microphoneChannels: 4)
+                try await check(suite, changingMicrophone: true, microphoneChannels: 1,
+                                microphoneFormat: .pcmFormatInt16)
                 try await check(suite, changingSystemAudio: true)
             }
             catch { suite.expect(false, "recorder writer fixture failed: \(error)") }
@@ -46,7 +48,8 @@ enum RecorderWriterTests {
                               delayedVideo: Bool = false, capturesAudio: Bool = true,
                               changingMicrophone: Bool = false,
                               microphoneChannels: AVAudioChannelCount = 2,
-                               changingSystemAudio: Bool = false) async throws {
+                              microphoneFormat: AVAudioCommonFormat = .pcmFormatFloat32,
+                              changingSystemAudio: Bool = false) async throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("recorder-sync-\(UUID()).mov")
         defer { try? FileManager.default.removeItem(at: url) }
         let pause = RecorderPauseClock()
@@ -63,7 +66,7 @@ enum RecorderWriterTests {
         // Video and system audio must retain their earlier timestamps.
         let firstAudio = RecorderSampleTimingTests.audio(count: 480, time: origin + time(0.1))
         let firstMicrophone = changingMicrophone
-            ? audioSample(firstAudio, interleaved: false, channels: microphoneChannels)
+            ? audioSample(firstAudio, interleaved: false, channels: microphoneChannels, format: microphoneFormat)
             : firstAudio
         try await feed(firstMicrophone, kind: .microphone, to: writer, required: capturesAudio)
         for index in 0..<100 {
@@ -96,7 +99,7 @@ enum RecorderWriterTests {
             try await feed(systemAudio, kind: .systemAudio, to: writer, required: capturesAudio)
             if index > 10 {
                 let captured = changingMicrophone
-                    ? audioSample(audio, interleaved: index >= 50, channels: microphoneChannels)
+                    ? audioSample(audio, interleaved: index >= 50, channels: microphoneChannels, format: microphoneFormat)
                     : audio
                 // Exercise the additional clock-conversion pass the microphone uses.
                 let microphone = RecorderSampleTiming.retimed(captured, to: source + time(400))!
@@ -219,12 +222,13 @@ enum RecorderWriterTests {
     /// production writer must keep both representations in the same movie.
     private static func audioSample(_ sample: CMSampleBuffer,
                                     interleaved: Bool,
-                                    channels: AVAudioChannelCount) -> CMSampleBuffer {
+                                    channels: AVAudioChannelCount,
+                                    format: AVAudioCommonFormat = .pcmFormatFloat32) -> CMSampleBuffer {
         let count = AVAudioFrameCount(CMSampleBufferGetNumSamples(sample))
         var source = [Int16](repeating: 0, count: Int(count) * 2)
         precondition(CMBlockBufferCopyDataBytes(CMSampleBufferGetDataBuffer(sample)!, atOffset: 0,
             dataLength: source.count * 2, destination: &source) == noErr)
-        let deviceFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000,
+        let deviceFormat = AVAudioFormat(commonFormat: format, sampleRate: 48_000,
             interleaved: interleaved, channelLayout: AVAudioChannelLayout(
                 layoutTag: kAudioChannelLayoutTag_DiscreteInOrder | channels)!)
         let device = AVAudioPCMBuffer(pcmFormat: deviceFormat, frameCapacity: count)!
@@ -233,7 +237,12 @@ enum RecorderWriterTests {
             for channel in 0..<Int(channels) {
                 let buffer = interleaved ? 0 : channel
                 let index = interleaved ? frame * Int(channels) + channel : frame
-                device.floatChannelData![buffer][index] = Float(source[frame * 2 + channel % 2]) / 32_768
+                let value = source[frame * 2 + channel % 2]
+                if format == .pcmFormatInt16 {
+                    device.int16ChannelData![buffer][index] = value
+                } else {
+                    device.floatChannelData![buffer][index] = Float(value) / 32_768
+                }
             }
         }
         // A multichannel device need not provide speaker labels.

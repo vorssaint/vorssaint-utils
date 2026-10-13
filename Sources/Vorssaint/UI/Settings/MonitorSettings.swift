@@ -21,6 +21,7 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.monitorInterval) private var interval = 2
     @AppStorage(DefaultsKey.monitorGraphScale) private var graphScale = true
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.monitorMemoryMetric) private var memoryMetric = "used"
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
 
@@ -165,6 +166,18 @@ struct MonitorSettings: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
                 .fixedSize()
+            }
+            if AppFeature.monitorNetwork.isAvailable {
+                let title = FeatureStrings.monitorLayout(l10n.language).networkSpeedUnit
+                SettingsRow(symbol: "network", title: title) {
+                    Picker(title, selection: $networkSpeedUnit) {
+                        Text("MB/s").tag(NetworkSpeedUnit.bytes)
+                        Text("Mbps").tag(NetworkSpeedUnit.bits)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                }
             }
             if AppFeature.monitorMemory.isAvailable {
                 SettingsRow(symbol: "memorychip", title: l10n.s.monitorMemoryMetricLabel) {

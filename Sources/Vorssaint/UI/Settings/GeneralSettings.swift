@@ -14,6 +14,7 @@ struct GeneralSettings: View {
     @State private var loginRegistration: LaunchAtLoginSupport.Registration =
         UserDefaults.standard.bool(forKey: DefaultsKey.launchAtLoginWanted) ? .enabled : .off
     @State private var loginError: String?
+    @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
 
@@ -47,12 +48,18 @@ struct GeneralSettings: View {
         SettingsCard {
             SettingsRow(symbol: "laptopcomputer", title: l10n.s.launchAtLogin,
                         caption: text.launchAtLoginCaption) {
-                Toggle(l10n.s.launchAtLogin, isOn: Binding(
-                    get: { loginRegistration == .enabled },
-                    set: { setLaunchAtLogin($0) }
-                ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
+                HStack {
+                    if loginPending { ProgressView().controlSize(.small) }
+                    // Waiting on approval it is still registered, so it reads on and
+                    // switching it off unregisters it, which also clears the note.
+                    Toggle(l10n.s.launchAtLogin, isOn: Binding(
+                        get: { loginRegistration != .off },
+                        set: { setLaunchAtLogin($0) }
+                    ))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(loginPending)
+                }
             }
             if loginRegistration == .needsApproval {
                 Text(l10n.s.launchAtLoginNeedsApproval)
@@ -149,31 +156,36 @@ struct GeneralSettings: View {
         }
     }
 
+    // Reads come with every visit and activation, so they update the switch
+    // quietly; only a change makes it wait. A read that replaces a change's
+    // answer runs after that change, so it frees the switch too.
     private func refreshLaunchAtLogin() {
         let requestID = UUID()
         loginRefreshID = requestID
-        DispatchQueue.global(qos: .userInitiated).async {
-            let registration = LaunchAtLogin.registration
-            DispatchQueue.main.async {
-                guard loginRefreshID == requestID else { return }
-                loginRegistration = registration
-                loginError = nil
-            }
+        LaunchAtLogin.refresh { registration in
+            guard loginRefreshID == requestID else { return }
+            loginRegistration = registration
+            loginError = nil
+            loginPending = false
         }
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {
-        loginRefreshID = UUID()
-        do {
-            try LaunchAtLogin.setEnabled(enabled)
-            loginError = nil
-        } catch {
-            loginError = error.localizedDescription
+        let requestID = UUID()
+        loginRefreshID = requestID
+        // Hold the switch where the user put it while the system answers,
+        // instead of letting it spring back until the change lands.
+        loginRegistration = enabled ? .enabled : .off
+        loginError = nil
+        loginPending = true
+        LaunchAtLogin.setEnabled(enabled) { registration, error in
+            guard loginRefreshID == requestID else { return }
+            loginRegistration = registration
+            // Approval guidance follows current system status, including on a
+            // fresh page, instead of retaining an error from a previous attempt.
+            loginError = registration == .needsApproval ? nil : error?.localizedDescription
+            loginPending = false
         }
-        loginRegistration = LaunchAtLogin.registration
-        // Approval guidance follows current system status, including on a
-        // fresh page, instead of retaining an error from a previous attempt.
-        if loginRegistration == .needsApproval { loginError = nil }
     }
 
 }

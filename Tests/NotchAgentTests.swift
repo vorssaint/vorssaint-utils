@@ -16,6 +16,7 @@ enum NotchAgentTests {
         pricing(suite)
         claudeParsing(suite)
         claudeTurns(suite)
+        offlineTurns(suite)
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
@@ -27,12 +28,14 @@ enum NotchAgentTests {
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
+        AgentUsagePollingTests.run(suite)
         AgentUsageArchiveTests.run(suite)
         AgentUsageArchiveSettleTests.run(suite)
         AgentUsageArchiveSaveTests.run(suite)
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
         preferences(suite)
+        agentDefaults(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
@@ -70,6 +73,22 @@ enum NotchAgentTests {
         suite.expectClose(opus.cost ?? -1, 0.132, "Opus 5.5 bills input, both cache writes, cache reads and output",
                           tol: 0.000001)
         suite.expectClose(opus.savings, 100_000 * (4 - 0.2) / 1_000_000, "cache reads save the input price they avoid")
+        // Sonnet 5.5 cache reads cost $0.10/MTok: https://platform.claude.com/docs/en/models/sonnet-5-5/overview
+        let sonnet = AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1000, cacheRead: 100_000, output: 2000)),
+                                      model: "claude-sonnet-5-5")
+        suite.expectClose(sonnet.cost ?? -1, 0.032, "Sonnet 5.5 bills cache reads at five percent of input")
+        suite.expectClose(sonnet.savings, 0.19, "Sonnet 5.5 cache savings use its reduced read rate")
+        // Haiku 5.5 counts every prompt token and charges 5x past 100K: https://platform.claude.com/docs/en/about-claude/pricing
+        var haiku = AgentBillable(tokens: AgentTokens(input: 1000, cacheWrite: 4000, cacheRead: 95_000, output: 2000))
+        haiku.longCacheWrite = 3000
+        suite.expectClose(AgentPricing.cost(haiku, model: "anthropic.claude-haiku-5-5").cost ?? -1,
+                          0.002775, "Haiku 5.5 keeps base rates at exactly 100K prompt tokens", tol: 0.00000001)
+        haiku.tokens.input += 1
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0138755, "Haiku 5.5 charges five times every token rate above 100K", tol: 0.00000001)
+        haiku.isAggregate = true
+        suite.expectClose(AgentPricing.cost(haiku, model: "claude-haiku-5-5").cost ?? -1,
+                          0.0027751, "Haiku 5.5 session totals do not imply a long individual prompt", tol: 0.00000001)
         suite.expect(AgentPricing.price(for: "claude-opus-5-5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5.5")?.input == 4
                         && AgentPricing.price(for: "claude-opus-5")?.input == 5,
@@ -155,6 +174,9 @@ enum NotchAgentTests {
                         // Pro has multiple monthly prices: https://learn.chatgpt.com/docs/pricing
                         && AgentPlans.codex(planType: "pro") == AgentPlan(name: "Pro", monthlyPrice: nil)
                         && AgentPlans.codex(planType: "business") == AgentPlan(name: "Business", monthlyPrice: nil)
+                        // Free and Go monthly prices: https://learn.chatgpt.com/docs/pricing
+                        && AgentPlans.codex(planType: "free") == AgentPlan(name: "Free", monthlyPrice: 0)
+                        && AgentPlans.codex(planType: "go") == AgentPlan(name: "Go", monthlyPrice: 8)
                         && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
                         == AgentPlan(name: "Ultra", monthlyPrice: nil),
                      "plans are recognized, and an unknown one keeps its name without a price")
@@ -276,6 +298,113 @@ enum NotchAgentTests {
                     file: "a", provider: .claude, tracksTurns: false, modified: now)
         suite.expect(store.records.count == 1 && store.records.first?.tokens.output == 400,
                      "dropping old history keeps later lookups consistent")
+    }
+
+    private static func offlineTurns(_ suite: TestSuite) {
+        let now = AgentTimestamp.parse("2026-09-21T23:45:00.000Z")!
+        let drop = AgentTimestamp.parse("2026-09-21T23:43:00.000Z")!
+        let grace = AgentUsageStore.offlineGrace
+        var state = AgentLogState()
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        func feed(_ data: Data) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseClaude(data, state: &state, now: now), file: "main", provider: .claude,
+                        tracksTurns: true, modified: now, now: now)
+        }
+        var codexState = AgentLogState()
+        func codex(_ json: String) -> [AgentUsageEvent] {
+            store.apply(AgentLogParser.parseCodex(line(json), state: &codexState, now: now), file: "rollout",
+                        provider: .codex, tracksTurns: true, modified: now, now: now)
+        }
+        func finished(_ events: [AgentUsageEvent], _ wanted: AgentProvider) -> Bool {
+            events.contains { if case .finished(let provider, _, _, _, _) = $0 { provider == wanted } else { false } }
+        }
+        _ = feed(claudeUser())
+        _ = feed(claudeAssistant(stop: "tool_use"))
+        _ = codex(#"{"timestamp":"2026-09-21T23:41:00.000Z","type":"event_msg","payload":{"type":"task_started"}}"#)
+        _ = store.apply([.turnBegan(now)], file: "events", provider: .copilot, tracksTurns: true, modified: now, now: now)
+        _ = store.apply([.turnBegan(now)], file: "db#s1", provider: .opencode, tracksTurns: true, modified: now, now: now)
+        suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace - 1) && store.live.count == 4,
+                     "a short drop, as when the Mac changes networks, ends no turn")
+        suite.expect(store.closeOfflineTurns(since: drop, lasting: grace)
+                        && Set(store.live.map(\.provider)) == [.codex, .copilot, .opencode],
+                     "a Claude turn ends once the Mac stays offline, and other agents' turns are left alone")
+        suite.expect(finished(codex(#"{"timestamp":"2026-09-21T23:44:50.000Z","type":"event_msg","payload":{"type":"task_complete","duration_ms":230000}}"#), .codex),
+                     "a Codex task that goes on through a long drop still reports its finish")
+        suite.expect(feed(claudeAssistant(id: "msg_2", request: "req_2", stop: "tool_use", time: "2026-09-21T23:44:00.000Z")).isEmpty
+                        && store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:00.000Z"),
+                     "a retry that gets through opens a turn of its own")
+        let retried = store.live.first { $0.provider == .claude }
+        suite.expect(retried?.tokens.total == AgentTokens(input: 2, cacheWrite: 17_218, cacheRead: 43_134, output: 225).total
+                        && (retried?.cost ?? 0) > 0,
+                     "the reply that gets through counts toward the turn it opens")
+        suite.expect(!store.closeOfflineTurns(since: drop, lasting: grace + 60) && store.live.contains { $0.provider == .claude },
+                     "a turn whose model replied since the drop, as a model on the Mac does, keeps working offline")
+        store.closeIdleTurns(now: now, after: 0)
+        store.closeOfflineTurns(since: AgentTimestamp.parse("2026-09-21T23:44:10.000Z")!, lasting: grace)
+        _ = feed(claudeAssistant(id: "msg_3", request: "req_3", stop: "tool_use", time: "2026-09-21T23:44:30.000Z"))
+        suite.expect(store.live.first { $0.provider == .claude }?.started == AgentTimestamp.parse("2026-09-21T23:44:30.000Z"),
+                     "a quiet turn ends offline too, so a later retry does not take it up again")
+
+        func call(_ tool: String, _ id: String) -> Data {
+            line(#"{"type":"assistant","timestamp":"2026-09-21T23:44:40.000Z","sessionId":"s1","message":{"id":"msg_\#(id)","model":"<synthetic>","stop_reason":"tool_use","content":[{"type":"tool_use","id":"\#(id)","name":"\#(tool)","input":{}}]}}"#)
+        }
+        func result(_ id: String) -> Data {
+            line(#"{"type":"user","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"\#(id)","content":"ok"}]}}"#)
+        }
+        // After the last reply, so only the command keeps the turn.
+        let late = AgentTimestamp.parse("2026-09-21T23:44:45.000Z")!
+        _ = feed(call("WebFetch", "toolu_web"))
+        _ = feed(call("Bash", "toolu_sh"))
+        suite.expect(state.runningCommands == ["toolu_sh"], "only a shell command counts as work on the Mac")
+        suite.expect(!store.closeOfflineTurns(since: late, lasting: grace, keeping: ["main"])
+                        && store.live.contains { $0.provider == .claude },
+                     "a turn waiting on a shell command keeps working offline")
+        _ = feed(result("toolu_web"))
+        suite.expect(state.runningCommands == ["toolu_sh"], "another tool's result leaves the command running")
+        _ = feed(line(#"{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_web","content":"The pending command is toolu_sh"}]}}"#))
+        suite.expect(state.runningCommands == ["toolu_sh"],
+                     "another tool's output quoting the shell call does not complete it")
+        _ = feed(line(#"{"type":"user","isSidechain":true,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_sh","content":"ok"}]}}"#))
+        suite.expect(state.runningCommands == ["toolu_sh"],
+                     "a subagent's tool result cannot complete the main turn's command")
+        _ = feed(line(#"{"type":"user","isMeta":true,"message":{"content":[{"type":"tool_result","tool_use_id":"toolu_sh","content":"ok"}]}}"#))
+        suite.expect(state.runningCommands == ["toolu_sh"],
+                     "a meta tool result cannot complete the main turn's command")
+        _ = feed(result("toolu_sh"))
+        suite.expect(state.runningCommands.isEmpty, "the command's result means the next step needs the network")
+        suite.expect(store.closeOfflineTurns(since: late, lasting: grace) && !store.live.contains { $0.provider == .claude },
+                     "once its command is done, a turn ends offline")
+        _ = feed(call("Bash", "toolu_left"))
+        _ = feed(line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#))
+        _ = feed(claudeUser(time: "2026-09-21T23:44:50.000Z"))
+        suite.expect(state.runningCommands.isEmpty, "a new prompt forgets a command the last turn left")
+
+        // A session killed in the middle of a command leaves its turn open
+        // in the log; resumed there, its next prompt reads as work going on.
+        var killed = AgentLogState()
+        for data in [claudeUser(), call("Bash", "toolu_killed"), claudeUser(meta: true),
+                     line(#"{"type":"user","isSidechain":true,"sessionId":"s1","message":{"role":"user","content":"Explore the repo"}}"#)] {
+            _ = AgentLogParser.parseClaude(data, state: &killed, now: now)
+        }
+        suite.expect(killed.runningCommands == ["toolu_killed"], "a meta line or a subagent's prompt leaves a command running")
+        _ = AgentLogParser.parseClaude(claudeUser("Go on", time: "2026-09-21T23:44:55.000Z"), state: &killed, now: now)
+        suite.expect(killed.turnOpen && killed.runningCommands.isEmpty,
+                     "a prompt typed into a turn left open forgets the command a killed session left")
+
+        let blip = AgentUsageStore()
+        blip.reportsTransitions = true
+        var blipState = AgentLogState()
+        func feedBlip(_ data: Data) -> [AgentUsageEvent] {
+            blip.apply(AgentLogParser.parseClaude(data, state: &blipState, now: now), file: "blip", provider: .claude,
+                       tracksTurns: true, modified: now, now: now)
+        }
+        _ = feedBlip(claudeUser())
+        _ = feedBlip(claudeAssistant(stop: "tool_use"))
+        blip.closeOfflineTurns(since: drop, lasting: grace - 1)
+        suite.expect(finished(feedBlip(claudeAssistant(id: "msg_9", request: "req_9", stop: "end_turn",
+                                                       time: "2026-09-21T23:44:55.000Z")), .claude),
+                     "a turn that reconnects after a short drop still reports its finish")
     }
 
     private static func claudeTurns(_ suite: TestSuite) {
@@ -2397,6 +2526,52 @@ enum NotchAgentTests {
 
     // MARK: Preferences and layout
 
+    private static func agentDefaults(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.agent-defaults.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        Defaults.migrateExistingNotchDefaults(in: defaults, domainName: domain)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        let fresh = defaults.persistentDomain(forName: domain) ?? [:]
+        suite.expect(fresh[DefaultsKey.notchAgentsEnabled] == nil
+                     && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                     && fresh[DefaultsKey.notchInitialExtensionsInstalled] == nil,
+                     "fresh profiles keep Agents off on later launches and still install the other island extensions")
+        AppFeature.notchAgents.enableOnFirstInstall(in: defaults, savedValues: fresh)
+        suite.expect(defaults.bool(forKey: DefaultsKey.notchAgentsEnabled),
+                     "explicitly installing Agents enables it on a fresh profile")
+
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        Defaults.migrateExistingNotchDefaults(in: defaults, domainName: domain)
+        suite.expect(defaults.persistentDomain(forName: domain)?[DefaultsKey.notchAgentsEnabled] as? Bool == false,
+                     "an older island profile keeps the off default supplied by its original migration")
+
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        suite.expect(defaults.persistentDomain(forName: domain)?[DefaultsKey.notchAgentsEnabled] as? Bool == true,
+                     "an existing profile keeps its formerly implicit on choice")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
+        Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchAgentsEnabled),
+                     "migration never turns Agents back on after a later opt-out")
+
+        for choice in [false, true] {
+            defaults.removePersistentDomain(forName: domain)
+            defaults.set(true, forKey: DefaultsKey.notchDefaultProfileInitialized)
+            defaults.set(choice, forKey: DefaultsKey.notchAgentsEnabled)
+            Defaults.migrateNotchAgentsOptIn(in: defaults, domainName: domain)
+            suite.expect(defaults.bool(forKey: DefaultsKey.notchAgentsEnabled) == choice,
+                         "migration preserves the explicit Agents choice \(choice)")
+        }
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsOptInMigrated),
+                     "the local migration marker never travels in settings backups")
+    }
+
     private static func preferences(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-agents"
         let defaults = UserDefaults(suiteName: domain)!
@@ -2405,7 +2580,7 @@ enum NotchAgentTests {
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        suite.expect(NotchAgentSupport.isEnabled(in: defaults), "installed AI agents start enabled in the island")
+        suite.expect(!NotchAgentSupport.isEnabled(in: defaults), "installing the island alone leaves AI agents off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.agents) && !NotchAgentSupport.isEnabled(in: defaults)
                         && !NotchSupport.routes(.agents, in: defaults),
@@ -2455,9 +2630,9 @@ enum NotchAgentTests {
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
-                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == true
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
-                     "every AI preference is registered and travels in backups, with the page on and prices kept current")
+                     "AI preferences travel in backups, with Agents opt-in and prices kept current when enabled")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")

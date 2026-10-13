@@ -20,11 +20,9 @@ enum LaunchAtLoginSettingsTests {
     }
 
     final class Queue {
-        enum QoS { case userInitiated }
         static let main = Queue()
         static let worker = Queue()
         var jobs: [() -> Void] = []
-        static func global(qos: QoS) -> Queue { worker }
         func async(execute action: @escaping () -> Void) { jobs.append(action) }
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
     }
@@ -39,18 +37,30 @@ enum LaunchAtLoginSettingsTests {
         static var result: LaunchAtLoginSupport.Registration = .off
         static var failure: Failure?
         static var writes: [Bool] = []
-        static func setEnabled(_ enabled: Bool) throws {
-            writes.append(enabled)
-            registration = result
-            if let failure { throw failure }
+        // Like the real service: one serial worker, answers published on main.
+        static func refresh(_ completion: @escaping (LaunchAtLoginSupport.Registration) -> Void) {
+            Queue.worker.async {
+                let current = registration
+                Queue.main.async { completion(current) }
+            }
+        }
+        static func setEnabled(_ enabled: Bool,
+                               completion: @escaping (LaunchAtLoginSupport.Registration, Error?) -> Void) {
+            Queue.worker.async {
+                writes.append(enabled)
+                registration = result
+                let current = registration
+                let error = failure
+                Queue.main.async { completion(current, error) }
+            }
         }
     }
 
     struct View {
-        typealias DispatchQueue = Queue
         typealias LaunchAtLogin = Service
         @State var loginRegistration: LaunchAtLoginSupport.Registration = .off
         @State var loginError: String?
+        @State var loginPending = false
         @State var loginRefreshID = UUID()
     }
 
@@ -61,13 +71,19 @@ enum LaunchAtLoginSettingsTests {
             Service.failure = nil; Service.writes = []
         }
         let view = View()
-        func refresh(to registration: LaunchAtLoginSupport.Registration) {
-            Service.registration = registration
-            view.refreshLaunchAtLogin()
+        func settle() {
             Queue.worker.drain()
             Queue.main.drain()
         }
+        func refresh(to registration: LaunchAtLoginSupport.Registration) {
+            Service.registration = registration
+            view.refreshLaunchAtLogin()
+            settle()
+        }
 
+        view.refreshLaunchAtLogin()
+        suite.expect(!view.loginPending,
+                     "a status read keeps the switch usable, so opening the page does not flash a spinner")
         refresh(to: .needsApproval)
         suite.expect(view.loginRegistration == .needsApproval,
                      "opening settings preserves pending approval instead of flattening it to off")
@@ -83,16 +99,24 @@ enum LaunchAtLoginSettingsTests {
 
         Service.result = .needsApproval
         Service.failure = .approval
+        view.loginError = "previous failure"
         view.setLaunchAtLogin(true)
-        suite.expect(view.loginRegistration == .needsApproval && view.loginError == nil,
+        suite.expect(view.loginPending && view.loginError == nil,
+                     "the switch waits for the system to answer a change, without the last attempt's error")
+        suite.expect(view.loginRegistration == .enabled,
+                     "the switch stays where the user put it instead of springing back while it waits")
+        settle()
+        suite.expect(view.loginRegistration == .needsApproval && view.loginError == nil && !view.loginPending,
                      "pending approval is shown from current status without a duplicate operation error")
         Service.failure = nil
         view.setLaunchAtLogin(true)
+        settle()
         suite.expect(view.loginRegistration == .needsApproval,
                      "a successful register call does not imply that macOS allowed the item")
         Service.result = .off
         Service.failure = .unavailable
         view.setLaunchAtLogin(true)
+        settle()
         suite.expect(view.loginRegistration == .off && view.loginError == Failure.unavailable.localizedDescription,
                      "an unrelated registration failure still has an actionable error")
 
@@ -102,9 +126,16 @@ enum LaunchAtLoginSettingsTests {
         Service.result = .off
         Service.failure = nil
         view.setLaunchAtLogin(false)
-        Queue.main.drain()
-        suite.expect(view.loginRegistration == .off && view.loginError == nil,
+        settle()
+        suite.expect(view.loginRegistration == .off && view.loginError == nil && !view.loginPending,
                      "a stale refresh cannot undo a later user disable")
+
+        Service.result = .enabled
+        view.setLaunchAtLogin(true)
+        view.refreshLaunchAtLogin() // An activation reads while the change is still queued.
+        settle()
+        suite.expect(view.loginRegistration == .enabled && !view.loginPending,
+                     "a read that replaces a change's answer reports the change and frees the switch")
 
         Service.registration = .needsApproval
         view.refreshLaunchAtLogin()
@@ -117,7 +148,7 @@ enum LaunchAtLoginSettingsTests {
         Queue.main.drain()
         suite.expect(view.loginRegistration == .enabled,
                      "an older approval snapshot cannot overwrite a newer refresh")
-        suite.expect(Service.writes == [true, true, true, false],
+        suite.expect(Service.writes == [true, true, true, false, true],
                      "only explicit toggle actions write to the system service")
     }
 }

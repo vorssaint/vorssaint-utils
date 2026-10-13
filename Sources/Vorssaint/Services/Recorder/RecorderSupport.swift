@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Accelerate
 import CoreGraphics
 import Foundation
 
@@ -319,6 +320,19 @@ enum RecorderSupport {
         if tapHeardSound { return true }
         if streamHeardSound { return false }
         return trusted
+    }
+
+    /// Turns the tap's interleaved samples back up by what its stereo mixdown
+    /// took from an output with more than two channels. Sound that fills every
+    /// channel of such an output, like a film in 5.1, can add up past full
+    /// scale once restored, so the mixer's limiter keeps it inside rather than
+    /// letting the file clip. Runs on the audio thread and allocates nothing.
+    static func restoreTapLevel(_ samples: UnsafeMutablePointer<Float>, count: Int, channels: Int,
+                                gain: Float, limiter: inout BoostLimiter, release: Float) {
+        guard count > 0, channels > 0 else { return }
+        var gain = gain
+        vDSP_vsmul(samples, 1, &gain, samples, 1, vDSP_Length(count))
+        limiter.process(samples, frames: count / channels, channels: channels, release: release)
     }
 
     // MARK: - Frame rate

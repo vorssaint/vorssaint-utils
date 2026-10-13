@@ -140,6 +140,9 @@ enum SettingsWindowTests {
             let strings = SettingsNavigationStrings.localized(language)
             expect(!strings.go.isEmpty && !strings.back.isEmpty && !strings.forward.isEmpty,
                    "Settings navigation menu is translated for \(language.rawValue)")
+            expect(!strings.showSidebar.isEmpty && !strings.hideSidebar.isEmpty
+                       && strings.showSidebar != strings.hideSidebar,
+                   "the sidebar button names both of its actions in \(language.rawValue)")
         }
     }
 }

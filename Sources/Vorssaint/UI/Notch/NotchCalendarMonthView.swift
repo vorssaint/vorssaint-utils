@@ -14,8 +14,9 @@ struct NotchCalendarMonthView: View {
     let today: () -> Void
     let open: () -> Void
     @Environment(\.locale) private var locale
+    @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var weekNumbers = false
     private let accent = Color(red: 1, green: 0.36, blue: 0.39)
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    private var columns: [GridItem] { NotchCalendarWeekNumber.columns(numbered: weekNumbers) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -31,6 +32,7 @@ struct NotchCalendarMonthView: View {
                 NotchIconButton(symbol: "chevron.right", title: text.nextMonth) { move(1) }
             }
             LazyVGrid(columns: columns, spacing: 4) {
+                if weekNumbers { Color.clear.frame(height: 18).accessibilityHidden(true) }
                 ForEach(0..<7, id: \.self) { column in
                     let index = (Calendar.current.firstWeekday - 1 + column) % 7
                     Text(weekdaySymbols[index])
@@ -40,6 +42,9 @@ struct NotchCalendarMonthView: View {
                         .accessibilityHidden(true)
                 }
                 ForEach(NotchCalendarSupport.monthDays(containing: month), id: \.self) { date in
+                    if weekNumbers, NotchCalendarSupport.startsWeek(date) {
+                        NotchCalendarWeekNumber(date: date, text: text, digit: 24, spacing: 2, height: 30)
+                    }
                     dayButton(date)
                 }
             }
@@ -75,7 +80,9 @@ struct NotchCalendarMonthView: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 2) {
-                Text(date, format: .dateTime.day())
+                // The number alone: a formatted day carries the language's suffix,
+                // as 28日 or 28일, which the circle cuts off.
+                Text(calendar.component(.day, from: date), format: .number)
                     .font(.system(size: 11, weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
                     .frame(width: 24, height: 24)
@@ -166,7 +173,7 @@ struct NotchCalendarWeekStrip: View {
                 Text(weekdaySymbols[calendar.component(.weekday, from: date) - 1])
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.45))
-                Text(date, format: .dateTime.day())
+                Text(calendar.component(.day, from: date), format: .number)
                     .font(.system(size: 12, weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white)
                     .frame(width: 26, height: 26)
@@ -210,8 +217,9 @@ struct NotchCalendarMonthGrid: View {
     let open: () -> Void
     let week: () -> Void
     @Environment(\.locale) private var locale
+    @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var weekNumbers = false
     private let accent = Color(red: 1, green: 0.36, blue: 0.39)
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    private var columns: [GridItem] { NotchCalendarWeekNumber.columns(numbered: weekNumbers) }
 
     private var rowHeight: CGFloat { NotchLayout.calendarMonthRowHeight(height: height) }
     private var circle: CGFloat { min(24, rowHeight - 3) }
@@ -230,6 +238,9 @@ struct NotchCalendarMonthGrid: View {
             }
             .frame(height: NotchLayout.calendarMonthHeaderHeight)
             LazyVGrid(columns: columns, spacing: 0) {
+                if weekNumbers {
+                    Color.clear.frame(height: NotchLayout.calendarMonthWeekdayHeight).accessibilityHidden(true)
+                }
                 ForEach(0..<7, id: \.self) { column in
                     let index = (Calendar.current.firstWeekday - 1 + column) % 7
                     Text(weekdaySymbols[index])
@@ -239,6 +250,9 @@ struct NotchCalendarMonthGrid: View {
                         .accessibilityHidden(true)
                 }
                 ForEach(NotchCalendarSupport.monthDays(containing: month), id: \.self) { date in
+                    if weekNumbers, NotchCalendarSupport.startsWeek(date) {
+                        NotchCalendarWeekNumber(date: date, text: text, digit: circle, spacing: 0, height: rowHeight)
+                    }
                     dayButton(date)
                 }
             }
@@ -264,7 +278,7 @@ struct NotchCalendarMonthGrid: View {
         }
         return Button { select(date) } label: {
             VStack(spacing: 0) {
-                Text(date, format: .dateTime.day())
+                Text(calendar.component(.day, from: date), format: .number)
                     .font(.system(size: min(11, circle * 0.62), weight: isToday || selected ? .bold : .medium))
                     .foregroundStyle(selected && !isToday ? .black : .white.opacity(isToday || inMonth ? 1 : 0.4))
                     .frame(width: circle, height: circle)
@@ -288,5 +302,35 @@ struct NotchCalendarMonthGrid: View {
         .accessibilityValue([isToday ? text.today : "", dayEvents.isEmpty ? "" : text.hasEvents]
             .filter { !$0.isEmpty }.joined(separator: ", "))
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+/// The number of the week a row of the month grid holds, in a narrow column
+/// ahead of its days. It is laid out like a day, above the room a day keeps
+/// for its event dots, so both sit on one line. No day's label names its
+/// week, so VoiceOver reads the number as a week ahead of the row's days.
+struct NotchCalendarWeekNumber: View {
+    static let width: CGFloat = 18
+    let date: Date
+    let text: NotchCalendarStrings
+    let digit: CGFloat
+    let spacing: CGFloat
+    let height: CGFloat
+
+    static func columns(numbered: Bool) -> [GridItem] {
+        (numbered ? [GridItem(.fixed(width), spacing: 0)] : [])
+            + Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    }
+
+    var body: some View {
+        VStack(spacing: spacing) {
+            Text(NotchCalendarSupport.weekNumber(of: date), format: .number)
+                .font(.system(size: 9, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.45))
+                .frame(height: digit)
+                .accessibilityLabel(NotchCalendarSupport.weekNumberLabel(of: date, text: text))
+            Color.clear.frame(height: 3)
+        }
+        .frame(width: Self.width, height: height)
     }
 }

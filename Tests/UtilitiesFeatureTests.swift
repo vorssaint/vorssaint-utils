@@ -1122,6 +1122,10 @@ enum UtilitiesFeatureTests {
             .components(separatedBy: "private func hotkeyPressed").first ?? ""
         suite.expect(!radialClaimedClick.isEmpty && !radialClaimedClick.contains("passUnretained"),
                "a claimed side button keeps both halves of its click whatever the full decode says")
+        suite.expect(RadialMenuSupport.sessionMoveMask.contains(.mouseMoved)
+                && RadialMenuSupport.sessionMoveMask.contains(.leftMouseDragged)
+                && RadialMenuSupport.sessionMoveMask.contains(.otherMouseDragged),
+               "radial menu highlighting follows plain moves and held left or extra mouse buttons")
 
         // The tap is the only thing that ends a button-held wheel, so handing
         // it back on resign has to end the session too; a wheel left open

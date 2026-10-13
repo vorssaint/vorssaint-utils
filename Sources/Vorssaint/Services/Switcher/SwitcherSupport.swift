@@ -691,6 +691,16 @@ enum SwitcherSupport {
         return localizedName.hasPrefix("wine")
     }
 
+    /// Wine forwards a press to a game that captures the mouse even when the
+    /// point is outside the window. A lone activation press can therefore
+    /// become a held game button. Match the loader even when its launcher
+    /// supplies a bundle identity; that identity only matters to enumeration.
+    static func usesActivationClick(executablePath: String?, localizedName: String?) -> Bool {
+        !isCompatibilityLayerApp(bundleIdentifier: nil,
+                                 executablePath: executablePath,
+                                 localizedName: localizedName)
+    }
+
     /// Some professional media apps expose their main surface as a floating
     /// or undescribed Accessibility window instead of a standard macOS window.
     /// Match bundle prefixes case-insensitively because releases vary between

@@ -591,12 +591,13 @@ final class RadialMenuService: ObservableObject {
             return event
         }) { eventMonitors.append(monitor) }
 
-        let moves: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
-        if let monitor = NSEvent.addLocalMonitorForEvents(matching: moves, handler: { [weak self] event in
+        if let monitor = NSEvent.addLocalMonitorForEvents(matching: RadialMenuSupport.sessionMoveMask,
+                                                          handler: { [weak self] event in
             self?.pointerMoved()
             return event
         }) { eventMonitors.append(monitor) }
-        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: moves, handler: { [weak self] _ in
+        if let monitor = NSEvent.addGlobalMonitorForEvents(matching: RadialMenuSupport.sessionMoveMask,
+                                                           handler: { [weak self] _ in
             self?.pointerMoved()
         }) { eventMonitors.append(monitor) }
 

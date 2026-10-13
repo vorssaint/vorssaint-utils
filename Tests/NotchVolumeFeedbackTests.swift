@@ -7,8 +7,18 @@ import Foundation
 /// Runs the production subscription and notice selection with real Combine
 /// delivery and a controlled audio source, without changing hardware volume.
 enum NotchVolumeFeedbackTests {
+    struct OutputDevice {
+        let uid: String
+        let name: String
+        let isHeadphones: Bool
+    }
+
     final class AppVolumeMixer {
         static var shared = AppVolumeMixer()
+        var outputDevices = [
+            OutputDevice(uid: "speakers", name: "MacBook Pro Speakers", isHeadphones: false),
+            OutputDevice(uid: "headphones", name: "Wireless Headphones", isHeadphones: true)
+        ]
         @Published var currentOutputDeviceUID: String? = "speakers"
         @Published var systemOutputVolume: Double? = 0.3
         @Published var systemOutputMuted: Bool? = false
@@ -27,6 +37,7 @@ enum NotchVolumeFeedbackTests {
         var volumeBaseline: Double?
         var muteBaseline: Bool?
         var ownVolumeAdjustmentUntil: TimeInterval = 0
+        var lastVolumeRide: TimeInterval = -.infinity
         var expanded = false
         var showsSystemFeedback = true
         var notice: NotchNotice?
@@ -52,6 +63,42 @@ enum NotchVolumeFeedbackTests {
             suite.expect(delivered, "queued volume publications settle within the test deadline")
         }
         defer { AppVolumeMixer.shared = AppVolumeMixer() }
+        let outputs: [(name: String, dataSource: String?, symbol: String)] = [
+            ("MacBook Pro Speakers", nil, "speaker.wave.2.fill"),
+            ("Built-in Output", "Headphones", "headphones"),
+            ("WH-1000XM5", "Headphones", "headphones"),
+            ("Alex's AirPods", nil, "airpods"),
+            ("Alex's AirPods Pro", nil, "airpodspro"),
+            ("Alex's AirPods Max", nil, "airpodsmax"),
+            ("JBL Flip 6", nil, "speaker.wave.2.fill")
+        ]
+        for output in outputs {
+            let mixer = AppVolumeMixer()
+            AppVolumeMixer.shared = mixer
+            mixer.outputDevices.append(OutputDevice(
+                uid: "selected", name: output.name,
+                isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
+                    name: output.name, uid: "selected", dataSourceName: output.dataSource)))
+            mixer.currentOutputDeviceUID = "selected"
+            let service = Service()
+            service.showCurrentVolume()
+            suite.expect(service.notice?.symbol == output.symbol,
+                         "volume keys identify the active output: \(output.name)")
+            service.showVolume(0.6)
+            suite.expect(service.notice?.symbol == output.symbol && service.notice?.level == 0.6,
+                         "explicit volume feedback identifies the active output: \(output.name)")
+            for muted in [false, true] {
+                service.showVolume(muted ? 0.6 : 0, muted: muted)
+                let silentSymbol = output.symbol == "speaker.wave.2.fill" ? "speaker.slash.fill" : output.symbol
+                suite.expect(service.notice?.symbol == silentSymbol && service.notice?.level == 0
+                             && service.notice?.detail == "0%",
+                             "silent output keeps its device identity and reports zero: \(output.name)")
+            }
+            mixer.currentOutputDeviceUID = "missing"
+            service.showCurrentVolume()
+            suite.expect(service.notice?.symbol == "speaker.wave.2.fill",
+                         "missing output metadata falls back without using another connected device")
+        }
         let connection = NotchNotice(event: .accessory, title: "Wireless Headphones",
                                      detail: "Connected", symbol: "headphones")
         for identityFirst in [false, true] {
@@ -71,6 +118,8 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.notice?.event == .volume && service.notice?.level == 0.8 && service.presented.count == 1,
                    "a real adjustment on the new output appears once with its final mute state")
+            suite.expect(service.notice?.symbol == "headphones",
+                   "observed volume feedback uses the new output after either publication order")
             service.presented.removeAll()
             service.notice = connection
             mixer.publish(device: "another-output", volume: 0.8, muted: false, identityFirst: identityFirst)
@@ -81,6 +130,8 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.notice?.event == .volume && service.notice?.level == 0,
                    "the first real mute change after an equal-volume switch is not swallowed")
+            suite.expect(service.notice?.symbol == "speaker.slash.fill",
+                   "switching away from headphones clears the previous device icon")
             service.presented.removeAll()
             service.notice = connection
             mixer.publish(device: nil, volume: nil, muted: nil)
@@ -166,5 +217,60 @@ enum NotchVolumeFeedbackTests {
         suite.expect(!service.showVolume(0.9) && service.notice?.level == 0.2,
                "an island that cannot show volume leaves the confirmation to the caller")
         service.subscriptions.removeAll()
+
+        // An output that adapts its own level, measured from AirPods Pro
+        // reacting to the room: a hundredth at a time, a ramp up and back
+        // down, steps 0.2 to 0.6 s apart, each ramp closing with a coarser
+        // correction about 1.7 s after its last fine step.
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.43, to: 0.44, sinceRide: .infinity) == .rides,
+               "a hundredth of the scale is finer than any volume key can press")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.47, to: 0.45, sinceRide: 0.5) == .rides,
+               "the coarser correction that closes a ramp belongs to the ramp")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.47, to: 0.45, sinceRide: 10) == .announces,
+               "the same two hundredths announce themselves when no ramp is under way")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.42, to: 0.42 + 1.0 / 16, sinceRide: 0.1) == .announces,
+               "a full key step reports however busy the output is")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.41, to: 0.47, sinceRide: 0.1) == .announces,
+               "a full key step rounded into hundredths by the output still reports")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.42, to: 0.42 + 1.0 / 64,
+                                                     sinceRide: .infinity) == .announces,
+               "the keyboard's fine step reports when the output is still")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: 0.005, to: 0, sinceRide: 0.1) == .announces
+               && NotchSupport.volumeChangeOrigin(from: 0.995, to: 1, sinceRide: 0.1) == .announces,
+               "a level pressed against either end reports however little it moved")
+        suite.expect(NotchSupport.volumeChangeOrigin(from: .nan, to: 0.5, sinceRide: 0) == .announces,
+               "an unreadable previous level leaves the change to the caller's judgement")
+
+        let adaptive = AppVolumeMixer()
+        AppVolumeMixer.shared = adaptive
+        let island = Service()
+        island.bindVolumeEvents()
+        drain()
+        // The level the person left it at, which reports as it always did.
+        adaptive.systemOutputVolume = 0.43
+        drain()
+        suite.expect(island.presented.count == 1, "the level a person sets still reports before any ramp")
+        island.presented.removeAll()
+        island.notice = nil
+        // The levels this Mac recorded over one ramp, including the two
+        // hundredths that turn it around.
+        for level in [0.44, 0.45, 0.46, 0.47, 0.45, 0.44, 0.43, 0.42] {
+            adaptive.systemOutputVolume = level
+            drain()
+        }
+        suite.expect(island.presented.isEmpty && island.notice == nil,
+               "a ramp the output drives itself never raises the volume indicator")
+        adaptive.systemOutputMuted = true
+        drain()
+        suite.expect(island.presented.count == 1 && island.notice?.level == 0,
+               "muting during such a ramp still reports")
+        island.presented.removeAll()
+        adaptive.systemOutputMuted = false
+        drain()
+        adaptive.systemOutputVolume = 0.42 + 1.0 / 16
+        drain()
+        suite.expect(island.presented.count == 2 && island.notice?.level == 0.42 + 1.0 / 16,
+               "a key press after the ramp reports from the level the ramp left behind")
+        island.subscriptions.removeAll()
     }
 }

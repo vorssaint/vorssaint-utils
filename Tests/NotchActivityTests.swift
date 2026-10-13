@@ -9,6 +9,7 @@ enum NotchActivityTests {
     static func run(_ suite: TestSuite) {
         timerContracts(suite)
         alertContracts(suite)
+        lowBatteryContracts(suite)
         pomodoroContracts(suite)
         stopwatchContracts(suite)
         modePickerContracts(suite)
@@ -95,6 +96,64 @@ enum NotchActivityTests {
                 }
             }
         }
+    }
+
+    private static func lowBatteryContracts(_ suite: TestSuite) {
+        let keys = [DefaultsKey.notchLowBatteryTint, DefaultsKey.notchLowBatteryThreshold, DefaultsKey.notchLowBatteryEarly,
+                    DefaultsKey.notchLowBatteryEarlyThreshold, DefaultsKey.notchLowBatteryMenuBar]
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLowBatteryTint] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.notchLowBatteryThreshold] as? Int == 10
+               && Defaults.registeredDefaults[DefaultsKey.notchLowBatteryEarly] as? Bool == false
+               && Defaults.registeredDefaults[DefaultsKey.notchLowBatteryEarlyThreshold] as? Int == 20
+               && Defaults.registeredDefaults[DefaultsKey.notchLowBatteryMenuBar] as? Bool == true
+               && SettingsBackupSupport.exportKeys().isSuperset(of: keys),
+               "the low battery warning starts off at 10%, amber at 20%, and travels with settings backups")
+        func warning(_ percent: Int?, plugged: Bool = false, tint: Bool = true, threshold: Int = 10,
+                     early: Bool = false, earlyThreshold: Int = 20) -> BatteryWarning {
+            NotchSupport.batteryWarning(percent: percent, externalConnected: plugged, tint: tint, threshold: threshold,
+                                        early: early, earlyThreshold: earlyThreshold)
+        }
+        suite.expect(warning(10) == .low && warning(3) == .low && warning(11) == .none,
+                     "the charge turns red at or below the chosen level")
+        suite.expect(warning(5, tint: false) == .none && warning(15, tint: false, early: true) == .none,
+                     "the charge keeps its color while the setting is off")
+        suite.expect(warning(5, plugged: true) == .none && warning(15, plugged: true, early: true) == .none,
+                     "a Mac on power never shows a warning")
+        suite.expect(warning(nil) == .none, "an unknown charge is never shown as low")
+        suite.expect(warning(25, threshold: 25) == .low && warning(26, threshold: 25) == .none, "the red level can be adjusted")
+        suite.expect(warning(1, threshold: 0) == .low && warning(2, threshold: 0) == .none
+                     && warning(99, threshold: 150) == .low && warning(100, threshold: 150) == .none,
+                     "a stored red level outside the offered range is clamped")
+        suite.expect(warning(20, early: true) == .early && warning(11, early: true) == .early
+                     && warning(10, early: true) == .low && warning(21, early: true) == .none,
+                     "the amber warning comes first and gives way to red")
+        suite.expect(warning(15) == .none, "the amber warning stays off until it is turned on")
+        suite.expect(warning(40, early: true, earlyThreshold: 40) == .early && warning(41, early: true, earlyThreshold: 40) == .none
+                     && warning(100, early: true, earlyThreshold: 150) == .early,
+                     "the amber level can be adjusted and is clamped")
+        suite.expect(NotchSupport.earlyBatteryThreshold(28, above: 26) == 28
+                     && NotchSupport.earlyBatteryThreshold(20, above: 26) == 27
+                     && NotchSupport.earlyBatteryThreshold(10, above: 5) == 10
+                     && NotchSupport.earlyBatteryThreshold(5, above: 99) == 100
+                     && NotchSupport.earlyBatteryThreshold(150, above: 10) == 100
+                     && NotchSupport.earlyBatteryThreshold(99, above: 150) == 100,
+                     "the amber level stays within its range and above the red level")
+        let domain = "com.vorssaint.tests.low-battery"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        suite.expect(NotchSupport.batteryWarning(percent: 5, externalConnected: false, in: defaults) == .none,
+                     "missing preferences show no warning")
+        defaults.set(true, forKey: DefaultsKey.notchLowBatteryTint)
+        defaults.set(true, forKey: DefaultsKey.notchLowBatteryEarly)
+        suite.expect(NotchSupport.batteryWarning(percent: 10, externalConnected: false, in: defaults) == .low
+                     && NotchSupport.batteryWarning(percent: 20, externalConnected: false, in: defaults) == .early
+                     && NotchSupport.menuBarBatteryWarning(percent: 10, externalConnected: false, in: defaults) == .low,
+                     "stored preferences use the default levels and reach the menu bar")
+        defaults.set(false, forKey: DefaultsKey.notchLowBatteryMenuBar)
+        suite.expect(NotchSupport.menuBarBatteryWarning(percent: 10, externalConnected: false, in: defaults) == .none
+                     && NotchSupport.batteryWarning(percent: 10, externalConnected: false, in: defaults) == .low,
+                     "the menu bar can keep its usual color while the island warns")
     }
 
     private static func alertContracts(_ suite: TestSuite) {
@@ -874,17 +933,17 @@ enum NotchActivityTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHideTimerCountdown] as? Bool == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchHideTimerCountdown),
                "timer countdown visibility keeps its existing default and travels in settings backups")
-        suite.expect(NotchTimerSupport.showsActivity(hasSession: true, in: defaults)
-               && !NotchTimerSupport.showsActivity(hasSession: false, in: defaults),
-               "only an active session contributes a visible timer activity by default")
+        var session = NotchTimerSession()
+        suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults),
+               "only an active session contributes a visible timer activity")
+        session.start(mode: .pomodoro, minutes: 25, now: 0)
+        suite.expect(NotchTimerSupport.showsActivity(session, in: defaults), "a running countdown shows by default")
         defaults.set(true, forKey: DefaultsKey.notchHideTimerCountdown)
-        suite.expect(!NotchTimerSupport.showsActivity(hasSession: true, in: defaults)
+        suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults)
                && NotchTimerSupport.isEnabled(in: defaults),
                "hiding the countdown leaves the timer enabled for session controls and completion")
-        var session = NotchTimerSession()
-        session.start(mode: .pomodoro, minutes: 25, now: 0)
         let visible = NotchSupport.compactActivities(
-            timer: NotchTimerSupport.showsActivity(hasSession: session.hasSession, in: defaults),
+            timer: NotchTimerSupport.showsActivity(session, in: defaults),
             downloads: false, agents: false, calendar: false, music: true)
         var selection = NotchActivitySelection()
         selection.select(.timer, available: [.timer, .music])
@@ -892,10 +951,19 @@ enum NotchActivityTests {
                "hiding a selected Pomodoro countdown lets music take the closed island")
         suite.expect(NotchNotificationSupport.isEnabled(in: defaults),
                "hiding the timer leaves notifications enabled")
+        session.pause(at: 60)
+        suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults), "a paused countdown stays hidden")
+        session.resume(at: 60)
         suite.expect(session.isRunning && session.finishIfDue(at: 25 * 60) && session.canStartNext,
                "a hidden Pomodoro still completes and offers its next phase")
+        suite.expect(NotchSupport.compactActivities(
+            timer: NotchTimerSupport.showsActivity(session, in: defaults),
+            downloads: false, agents: false, calendar: false, music: true) == [.timer, .music],
+               "a finished timer shows in the closed island while its countdown is hidden")
+        session.startNext(at: 25 * 60)
+        suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults), "the next phase counts down hidden again")
         defaults.set(false, forKey: DefaultsKey.notchHideTimerCountdown)
-        suite.expect(NotchTimerSupport.showsActivity(hasSession: session.hasSession, in: defaults),
+        suite.expect(NotchTimerSupport.showsActivity(session, in: defaults),
                "showing the countdown again restores the existing session's activity")
         let preferenceKeys = [DefaultsKey.notchTimerEnabled, DefaultsKey.notchCameraEnabled, DefaultsKey.notchAccessoriesEnabled]
         for key in preferenceKeys { defaults.set(false, forKey: key) }

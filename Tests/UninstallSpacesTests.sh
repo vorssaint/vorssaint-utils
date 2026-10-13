@@ -153,6 +153,7 @@ fi
 preflight="$(sed -n '/^if ! spaces_snapshot=/,/^echo "▸ Resetting permissions/{ /^echo "▸ Resetting permissions/d; p; }' Tools/uninstall.sh)"
 [[ -n "$preflight" ]] || exit 1
 BUNDLE=example
+ran_app=1
 recovery_xml='<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>spacesOrderRestore</key><string>on</string></dict></plist>'
 probe_status=1
 if (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
@@ -165,6 +166,14 @@ if (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
     print -u2 'a failed restore must keep its recovery rather than remove the app'
     failures=$((failures + 1))
 fi
+# An app trashed by hand never ran, so keeping its preferences fixes nothing:
+# the removal goes on and its warnings explain the manual restore.
+ran_app=0
+if ! (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
+    print -u2 'an app already removed by hand must not block the rest of the removal'
+    failures=$((failures + 1))
+fi
+ran_app=1
 recovery_xml='<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>spacesOrderRestore</key><string>off</string></dict></plist>'
 probe_status=1
 if ! (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then

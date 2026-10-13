@@ -51,6 +51,61 @@ enum WindowServerSupport {
         return CGRect(x: x, y: y, width: width, height: height)
     }
 
+    /// One window's rectangle, straight from the window server.
+    ///
+    /// The window server composites this window every frame, so it already
+    /// holds the answer. Asking the owning application the same question over
+    /// Accessibility means waiting on that application's main thread, which is
+    /// exactly the thread that is busy while the user drags something inside
+    /// it. Nothing on an input path should wait on another process.
+    static func frame(ofWindowID windowID: CGWindowID) -> CGRect? {
+        guard let infos = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
+                as? [[String: Any]] else { return nil }
+        return frame(ofWindowID: windowID, in: infos)
+    }
+
+    /// The scan itself, over a list the caller supplies. The window server can
+    /// answer for a window that has gone, so the identifier is matched rather
+    /// than trusting the first entry back.
+    static func frame(ofWindowID windowID: CGWindowID, in windows: [[String: Any]]) -> CGRect? {
+        for window in windows
+        where (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID {
+            return bounds(from: window)
+        }
+        return nil
+    }
+
+    /// The process that owns one window, straight from the window server.
+    static func ownerProcessID(ofWindowID windowID: CGWindowID) -> pid_t? {
+        guard let infos = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
+                as? [[String: Any]] else { return nil }
+        return ownerProcessID(ofWindowID: windowID, in: infos)
+    }
+
+    /// The scan itself, matching the identifier like the rectangle scan.
+    static func ownerProcessID(ofWindowID windowID: CGWindowID, in windows: [[String: Any]]) -> pid_t? {
+        for window in windows
+        where (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID {
+            return (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        }
+        return nil
+    }
+
+    /// The app that owns the normal window in front of all the others, the
+    /// one the person is looking at. Being the active app does not settle
+    /// it: a click on the desktop makes the file manager active while its
+    /// windows stay under another app's. A fully transparent window is in
+    /// front of nothing, so the scan looks past it.
+    static func frontWindowOwner(in windows: [[String: Any]]) -> pid_t? {
+        for window in windows {
+            guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0
+            else { continue }
+            return (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        }
+        return nil
+    }
+
     /// The frontmost window that answers for a click, with the edges compared
     /// by hand so that a point sitting exactly on the right or bottom edge is
     /// still inside, which `CGRect.contains` would drop. Every condition is

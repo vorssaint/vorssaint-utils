@@ -6,7 +6,7 @@ import Foundation
 typealias EmojiQueryHabits = CommandBarQueryHabits
 
 /// Catalog, action and learning bodies are extracted from production. Only
-/// permissions, panel visibility, typing and the session key are replaced;
+/// permissions, panel visibility, typing and the local key are replaced;
 /// no keyboard events are sent and preferences live in a disposable domain.
 enum CommandBarEmojiContract {
     enum UserDefaults { static var standard: Foundation.UserDefaults! }
@@ -39,8 +39,12 @@ enum CommandBarEmojiContract {
     enum CommandBarQueryHabits {
         typealias PreparationCache = EmojiQueryHabits.PreparationCache
         static let key = Data(repeating: 7, count: 32)
-        static func prepare(_ query: String, cache: inout PreparationCache) -> EmojiQueryHabits.PreparedQuery {
+        static func prepare(_ query: String, key: Data,
+                            cache: inout PreparationCache) -> EmojiQueryHabits.PreparedQuery {
             EmojiQueryHabits.prepare(query, key: key, cache: &cache)
+        }
+        static func encode(_ store: EmojiQueryHabits.Store) -> String? {
+            EmojiQueryHabits.encode(store)
         }
     }
     final class NotchService {
@@ -63,12 +67,16 @@ enum CommandBarEmojiContract {
         var queryMemory = CommandBarQueryMemory()
         var queryHabitStore = CommandBarQueryHabitStoreCache()
         var preparedHabitQuery = CommandBarQueryHabits.PreparationCache()
+        let habitKey = CommandBarQueryHabits.key
         var isVisible = true
         var usageCache: [String: CommandBarUse] = [:]
         var queryWhenRun = ""
         var selectionWhenRun = ""
         var selectedText = ""
         var farewell = NotchMascotMood.idle
+        init() {
+            queryHabitStore.reload(UserDefaults.standard.string(forKey: DefaultsKey.commandBarQueryHabits))
+        }
         func hide() { isVisible = false; query = ""; savedQuery = "" }
     }
 
@@ -133,10 +141,11 @@ enum CommandBarEmojiContract {
                     preparedQuery: EmojiQueryHabits.prepare("thumb", key: CommandBarQueryHabits.key),
                     store: service.queryHabitStore.store, now: Date().timeIntervalSince1970) > 0,
                              "a one-off tone learns searches in memory for the current session")
-                suite.expect(defaults.object(forKey: DefaultsKey.commandBarQueryHabits) == nil,
-                             "a one-off tone never persists query learning in preferences")
-                suite.expect(Service().queryHabitStore.store.isEmpty,
-                             "a new service starts without the previous session's query learning")
+                suite.expect(EmojiQueryHabits.boost(
+                    for: thumbID,
+                    preparedQuery: EmojiQueryHabits.prepare("thumb", key: CommandBarQueryHabits.key),
+                    store: Service().queryHabitStore.store, now: Date().timeIntervalSince1970) > 0,
+                             "a new service restores the chosen emoji's search priority")
                 suite.expect(!service.isVisible && Catalog.typed.last == action.title,
                              "the one-off action closes the bar and inserts the chosen tone")
                 suite.expect(defaults.string(forKey: DefaultsKey.commandBarEmojiSkinTone) == tone.rawValue
@@ -166,8 +175,14 @@ enum CommandBarEmojiContract {
         let shortcut = Service()
         shortcut.isVisible = false
         shortcut.query = ""
+        // An empty argument prompt can retain its completed query after close.
+        // Running a different row from its shortcut must not teach that query.
+        shortcut.queryBeforeCompletion = "vol"
+        let habitsBeforeShortcut = shortcut.queryHabitStore.store
         shortcut.finish(row, value: nil)
         suite.expect(shortcut.queryMemory == CommandBarQueryMemory()
+                     && shortcut.queryHabitStore.store == habitsBeforeShortcut
+                     && Service().queryHabitStore.store == habitsBeforeShortcut
                      && CommandBarUsage.decode(defaults.string(forKey: DefaultsKey.commandBarUsage))[thumbID]?.count == 2,
                      "a hidden shortcut counts usage without learning an unseen search")
         let argument = Service()

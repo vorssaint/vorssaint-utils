@@ -110,6 +110,20 @@ struct SettingsFeatureTargetRequest: Equatable {
     let feature: AppFeature
 }
 
+/// Whether the Settings window can be seen. Closing it keeps the window and
+/// its last page alive, so a page that animates on its own pauses on this
+/// instead of drawing for nobody until the app quits. Kept apart from the
+/// router so a covered or reopened window does not redraw every page.
+final class SettingsWindowVisibility: ObservableObject {
+    static let shared = SettingsWindowVisibility()
+    @Published private(set) var isVisible = false
+
+    func set(_ visible: Bool) {
+        guard isVisible != visible else { return }
+        isVisible = visible
+    }
+}
+
 /// Selects a Settings destination and publishes a fresh request identity even
 /// when callers ask for the same page and anchor repeatedly.
 final class SettingsRouter: ObservableObject {

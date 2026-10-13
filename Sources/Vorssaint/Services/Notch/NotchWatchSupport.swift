@@ -131,7 +131,7 @@ struct NotchWatchTracker {
             guard let target,
                   let value = NotchWatchSupport.number(in: reading, decimalSeparator: decimalSeparator,
                                                        groupsWithSpace: groupsWithSpace) else { return nil }
-            let shown = NotchWatchSupport.headline(from: reading)
+            let shown = NotchWatchSupport.headline(from: reading, groupsWithSpace: groupsWithSpace)
             guard let start else {
                 self.start = value
                 return value == target ? .reached(shown) : nil
@@ -175,14 +175,15 @@ enum NotchWatchSupport {
     /// The part of the text worth showing beside the camera: a percentage
     /// first, then a short first line as it is, then a clock or a number
     /// with its unit, and otherwise the first line cut short.
-    static func headline(from text: String) -> String {
+    static func headline(from text: String,
+                         groupsWithSpace: Bool = NotchWatchSupport.groupsWithSpace(.autoupdatingCurrent)) -> String {
         let lines = text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         guard let first = lines.first else { return "" }
         let joined = lines.joined(separator: " ")
-        if let percent = firstMatch(percentPattern, in: joined) {
-            return percent.replacingOccurrences(of: " ", with: "")
+        if let percent = firstMatch(percentPattern(groupsWithSpace: groupsWithSpace), in: text) {
+            return percent.components(separatedBy: .whitespaces).joined()
         }
         if first.count <= headlineLength { return first }
         if let clock = firstMatch(clockPattern, in: joined) { return clock }
@@ -213,9 +214,11 @@ enum NotchWatchSupport {
     /// `groupsWithSpace` also reads 10 000 as one number, as regions that
     /// group thousands with a space write it.
     static func number(in text: String, decimalSeparator: String = ".", groupsWithSpace: Bool = false) -> Double? {
-        let source = firstMatch(percentPattern, in: text) ?? text
+        if let percent = firstMatch(percentPattern(groupsWithSpace: groupsWithSpace), in: text) {
+            return parse(String(percent.dropLast()), decimalSeparator: decimalSeparator)
+        }
         let pattern = groupsWithSpace ? spacedNumberPattern + "|" + numberPattern : numberPattern
-        guard let raw = firstMatch(pattern, in: source) else { return nil }
+        guard let raw = firstMatch(pattern, in: text) else { return nil }
         return parse(raw, decimalSeparator: decimalSeparator)
     }
 
@@ -357,7 +360,13 @@ enum NotchWatchSupport {
         return (window.id, inside.offsetBy(dx: -window.bounds.minX, dy: -window.bounds.minY))
     }
 
-    private static let percentPattern = #"[-+]?\d{1,3}(?:[.,]\d+)?\s?%"#
+    // Keep the whole percentage and its sign: matching only the last group
+    // turns −1 250% into a positive 250%. Thousands spaced apart join only
+    // where the region writes them that way, as for any number, so "Step 2
+    // 100%" stays 100%. The % sign must share the number's line.
+    private static func percentPattern(groupsWithSpace: Bool) -> String {
+        "(?:" + (groupsWithSpace ? spacedNumberPattern + "|" : "") + numberPattern + #")[ \x{00A0}\x{202F}]?%"#
+    }
     private static let clockPattern = #"\b\d{1,2}:\d{2}(?::\d{2})?\b"#
     private static let amountPattern = #"[-+]?\d[\d.,]*(?:\s?[A-Za-z]{1,3}\b)?"#
     private static let numberPattern = #"[-+−]?\d[\d.,]*\d|[-+−]?\d"#

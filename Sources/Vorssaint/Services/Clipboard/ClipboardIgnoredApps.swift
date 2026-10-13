@@ -19,10 +19,8 @@ import Foundation
 /// So instead of one guess, every app that came to the front since the last
 /// look is kept, and the copy is left out when any of them is on the list. The
 /// window is under a second, and leaving out one copy too many is the harmless
-/// side of being wrong here.
-///
-/// Nothing is watched while the list is empty, which is the normal case: no
-/// notification is subscribed and every question is answered without work.
+/// side of being wrong here. The same window names the app a copy came from,
+/// but only when a single app held the front through it.
 final class ClipboardIgnoredApps: ObservableObject {
     static let shared = ClipboardIgnoredApps()
 
@@ -34,9 +32,14 @@ final class ClipboardIgnoredApps: ObservableObject {
     /// pasteboard. Seeded with whoever is in front when the window opens.
     private var candidates: Set<String> = []
     private var activationObserver: NSObjectProtocol?
-    /// True while the history itself is running; the observer only lives when
-    /// the history is on AND there is at least one app to look for.
+    /// True while the history itself is running, the only time the observer
+    /// lives.
     private var historyIsRunning = false
+    private let ownBundleID = Bundle.main.bundleIdentifier
+    /// Whether the history's own panel held the keys at the last check, so a
+    /// copy made in it is still known as one when the check its closing
+    /// makes could not run.
+    private var historyPanelWasKey = false
 
     private init() {
         reload()
@@ -53,7 +56,6 @@ final class ClipboardIgnoredApps: ObservableObject {
         }
         apps = sanitized
         lookup = Set(sanitized)
-        syncObserver()
     }
 
     func add(_ bundleID: String) {
@@ -72,20 +74,11 @@ final class ClipboardIgnoredApps: ObservableObject {
 
     // MARK: - Watching
 
-    /// Follows the history: the observer is only installed while the history
-    /// is running and there is something to look for.
+    /// Follows the history: the observer is only installed while it runs.
     func setHistoryRunning(_ running: Bool) {
         guard historyIsRunning != running else { return }
         historyIsRunning = running
-        syncObserver()
-    }
-
-    private var shouldWatch: Bool {
-        historyIsRunning && !lookup.isEmpty
-    }
-
-    private func syncObserver() {
-        if shouldWatch {
+        if running {
             guard activationObserver == nil else { return }
             candidates = Self.frontmostBundleID().map { [$0] } ?? []
             activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
@@ -102,20 +95,45 @@ final class ClipboardIgnoredApps: ObservableObject {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
             candidates = []
+            historyPanelWasKey = false
         }
     }
 
     // MARK: - The question the history asks
 
-    /// Whether a copy noticed right now could have come from a listed app, and
-    /// opens the next window. Called once per pasteboard check, on the main
-    /// thread, whether or not anything was actually copied, so the window
-    /// never stretches past the check it belongs to.
-    func excludedSourceSinceLastCheck() -> Bool {
-        guard shouldWatch else { return false }
-        let excluded = !candidates.isDisjoint(with: lookup)
+    /// Whether a copy noticed right now could have come from a listed app, the
+    /// app it came from when only one held the front, and opens the next
+    /// window. Called once per pasteboard check, on the main thread, whether
+    /// or not anything was actually copied, so the window never stretches
+    /// past the check it belongs to. With two apps in the window either could
+    /// have copied it, and naming none is better than naming the wrong one.
+    /// An app that names itself on the pasteboard is believed over the
+    /// guess, and is left out just the same when it is on the list.
+    /// Vorssaint's own writes, which never take the front, name no app at
+    /// all, and neither does a copy that came from another device. The
+    /// history's own panel never takes the front either: a copy made while
+    /// it held the keys is Vorssaint's own and comes back as
+    /// `fromHistoryPanel`. Closing the panel makes one last check of its own,
+    /// so the next copy belongs to the app the user went back to; only when
+    /// that check could not run does the first check after it still count
+    /// as the panel's.
+    func sourceSinceLastCheck(declared: String?, remote: Bool,
+                              historyPanelIsKey: Bool, historyPanelClosing: Bool)
+        -> (excluded: Bool, bundleID: String?, fromHistoryPanel: Bool) {
+        guard historyIsRunning else { return (false, nil, false) }
+        // An empty mark is the convention for a writer that does not know,
+        // and nothing longer than 255 bytes is a bundle identifier.
+        let trimmed = declared?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let mark = trimmed.isEmpty || trimmed.utf8.count > 255 ? nil : trimmed
+        let fromHistoryPanel = mark == nil && (historyPanelWasKey || historyPanelIsKey)
+        let guessed = candidates.count == 1 && !fromHistoryPanel ? candidates.first : nil
+        let named: String? = mark.map { $0 == ownBundleID ? nil : $0 } ?? guessed
+        let source = (excluded: !candidates.isDisjoint(with: lookup) || mark.map { lookup.contains($0) } == true,
+                      bundleID: remote ? nil : named,
+                      fromHistoryPanel: fromHistoryPanel)
         candidates = Self.frontmostBundleID().map { [$0] } ?? []
-        return excluded
+        historyPanelWasKey = historyPanelIsKey && !historyPanelClosing
+        return source
     }
 
     private static func frontmostBundleID() -> String? {

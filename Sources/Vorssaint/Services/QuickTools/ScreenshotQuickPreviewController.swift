@@ -302,7 +302,13 @@ final class ScreenshotQuickPreviewController {
         dismissWork = nil
         model.sharing = true
         share(duration) { [weak self] record in
-            guard let self, !self.closed else {
+            guard let self, !self.closed,
+                  AppFeature.screenshot.isAvailable,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
+                if let self, !self.closed {
+                    self.model.sharing = false
+                    self.scheduleAutoDismiss()
+                }
                 if let record {
                     Task { @MainActor in
                         try? await ScreenshotShareService.shared.delete(record)

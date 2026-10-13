@@ -176,6 +176,139 @@ enum MixerRoutingSupport {
         abs(volume - 1) < 0.005
     }
 
+    /// The most a tap is ever turned back up: four channel pairs, the widest
+    /// loss anyone has measured. Past it the correction would be a guess, and
+    /// a guess that is too large plays the app louder than it ever was.
+    static let maximumTapLevelCompensation: Double = 4
+
+    /// How much louder a tapped app has to be played to sound as it does
+    /// untouched.
+    ///
+    /// The stereo mixdown tap divides what it hears by the number of channel
+    /// pairs of the output an app plays to, a known system issue
+    /// (FB13479345). On an eight channel output, like a TV over HDMI or an
+    /// audio interface, the app reached the mixer at a quarter of its level,
+    /// so 95% sounded far quieter than 100% and even 200% stayed below it. A
+    /// stereo output loses nothing, and neither does an aggregate of stereo
+    /// devices, because each device inside it is divided on its own.
+    ///
+    /// `streamChannels` hold, for each output the app plays to right now,
+    /// the width of the stream carrying its stereo pair. Only that stream
+    /// counts, not every stream of the device. Nobody has measured a device
+    /// with several streams, and the narrower count is the safer guess. A
+    /// silent app plays nowhere and has nothing to correct. An app on several
+    /// outputs gets the smallest correction, since a larger one would lift
+    /// the others above their own level. An output that cannot be read (nil)
+    /// counts as stereo, so it can only lower the correction, never lift it.
+    static func tapLevelCompensation(streamChannels: [Int?]) -> Double {
+        guard let fewest = streamChannels.map({ $0 ?? 2 }).filter({ $0 > 0 }).min() else { return 1 }
+        return min(max(Double(fewest) / 2, 1), maximumTapLevelCompensation)
+    }
+
+    /// What a watch stores before it reads how wide the outputs of a tapped
+    /// app are, or nil to keep the correction it has.
+    ///
+    /// A move stores no correction first. A new output can be slow to answer
+    /// while it starts, and no correction is the level that is never too
+    /// loud. A silent app keeps its correction while the default output is
+    /// still among its last outputs, so it resumes there at the right level
+    /// from its first buffer. Otherwise it may resume somewhere else, and no
+    /// correction is the safe level again. `defaultOutputDevices` lists the
+    /// devices inside the default output when it is an aggregate, the way an
+    /// app's own outputs list them, and is empty when it cannot be read.
+    static func tapLevelBeforeReading(devices: Set<AudioObjectID>,
+                                      lastDevices: Set<AudioObjectID>,
+                                      defaultOutputDevices: Set<AudioObjectID>) -> Double? {
+        if devices.isEmpty {
+            guard !defaultOutputDevices.isEmpty,
+                  defaultOutputDevices.isSubset(of: lastDevices) else { return 1 }
+            return nil
+        }
+        return devices == lastDevices ? nil : 1
+    }
+
+    /// How long the mixer's own pass waits between two reads of a watch.
+    /// The pass only backs up the announced moves, and a slider drag runs it
+    /// on every step.
+    static let tapLevelBackstopInterval: Double = 1
+
+    static func tapLevelReadIsDue(immediately: Bool, sinceLastRead: Double) -> Bool {
+        immediately || sinceLastRead >= tapLevelBackstopInterval
+    }
+
+    /// How long a rising correction takes to cross its whole range. Long
+    /// enough that the level never jumps between two short buffers.
+    static let tapLevelRampDuration: Double = 0.03
+    /// How long a falling correction takes to cross it. Much shorter, since
+    /// until it lands the app plays louder than it should, but still long
+    /// enough not to step the level inside a waveform.
+    static let tapLevelDropDuration: Double = 0.005
+
+    /// The correction the audio thread applies in a cycle of `seconds`. It
+    /// eases at the same pace in time on every buffer size, quickly on the
+    /// way down and gently on the way up, so neither direction jumps the
+    /// level. A cycle longer than its ramp moves all the way. The first cycle
+    /// takes the value as it is. Each cycle takes the pace of the way it
+    /// moves now, with no memory of the last one. So when a move between two
+    /// outputs of the same width stores the provisional 1 of
+    /// `tapLevelBeforeReading` and the read puts the old value back, the
+    /// level dips only for the cycles the 1 lasted and then climbs back at
+    /// the gentle pace.
+    static func tapLevelRampStep(applied: Float?, target: Float, seconds: Double) -> Float {
+        guard let applied, applied > 0 else { return target }
+        let duration = target < applied ? tapLevelDropDuration : tapLevelRampDuration
+        let limit = Float(pow(maximumTapLevelCompensation, min(max(seconds, 0) / duration, 1)))
+        return min(max(target, applied / limit), applied * limit)
+    }
+
+    /// An output as an app's own outputs list it: the devices inside it for an
+    /// aggregate, down through any aggregate inside it, the device itself
+    /// otherwise. An aggregate none of whose devices can be found, or one
+    /// nested deeper than anyone builds, keeps its own ID, which no app
+    /// lists, so it can only drop a correction, never keep one.
+    static func outputDevices(of output: AudioObjectID,
+                              subDeviceUIDs: (AudioObjectID) -> [String],
+                              deviceForUID: (String) -> AudioObjectID?,
+                              depth: Int = 0) -> Set<AudioObjectID> {
+        let inside = subDeviceUIDs(output).compactMap(deviceForUID)
+        guard !inside.isEmpty, depth < 4 else { return [output] }
+        return inside.reduce(into: Set<AudioObjectID>()) { devices, device in
+            devices.formUnion(outputDevices(of: device, subDeviceUIDs: subDeviceUIDs,
+                                            deviceForUID: deviceForUID, depth: depth + 1))
+        }
+    }
+
+    /// The engines to read again at once when the audio environment changes:
+    /// those whose app still aims at the output they render to. The rest are
+    /// rebuilt for their new output and read their own, and a rebuild that
+    /// fails reads the engine it keeps.
+    static func enginesKeepingTheirOutput(engineOutputs: [String: String],
+                                          targets: [String: String]) -> Set<String> {
+        Set(engineOutputs.compactMap { id, output in targets[id] == output ? id : nil })
+    }
+
+    /// Which processes a level watch has to start and stop listening to so
+    /// it hears exactly `wanted`: only the difference, never one it already
+    /// hears.
+    static func listenerChanges<Object: Hashable>(listened: Set<Object>, wanted: Set<Object>)
+        -> (add: Set<Object>, remove: Set<Object>) {
+        (wanted.subtracting(listened), listened.subtracting(wanted))
+    }
+
+    /// Channels of the stream a stereo app plays into: the one holding the
+    /// output's preferred stereo pair, whose left channel counts from 1. A
+    /// pair outside every stream falls back to the first stream.
+    static func stereoStreamChannels(streamChannels: [Int], preferredLeftChannel: Int) -> Int? {
+        var firstChannel = 1
+        for channels in streamChannels where channels > 0 {
+            if preferredLeftChannel >= firstChannel, preferredLeftChannel < firstChannel + channels {
+                return channels
+            }
+            firstChannel += channels
+        }
+        return streamChannels.first { $0 > 0 }
+    }
+
     /// Inactive apps with a custom volume or output remain visible so hiding
     /// idle rows can never conceal a setting the user may want to undo.
     static func shouldShowApp(isPlaying: Bool,
@@ -332,28 +465,52 @@ enum MixerRoutingSupport {
                                volume: Double,
                                selectedOutputDeviceUID: String?,
                                targetOutputDeviceUID: String?,
-                               defaultOutputDeviceUID: String?) -> Bool {
+                               defaultOutputDeviceUID: String?,
+                               universalOutputRouteUID: String? = nil) -> Bool {
         guard hasAudioObjects else { return false }
         guard let targetOutputDeviceUID else { return false }
         if !isUnity(volume) { return true }
-        guard let selectedOutputDeviceUID else { return false }
-        guard let defaultOutputDeviceUID else { return true }
-        return selectedOutputDeviceUID != defaultOutputDeviceUID
-            && targetOutputDeviceUID != defaultOutputDeviceUID
+        if let selectedOutputDeviceUID {
+            // An explicit route still matters when it happens to be the
+            // system default: a Wine game may keep its old device open.
+            return selectedOutputDeviceUID == targetOutputDeviceUID
+        }
+        return universalOutputRouteUID == targetOutputDeviceUID
+            && targetOutputDeviceUID == defaultOutputDeviceUID
     }
 
     /// The last gate before a tap is built: a row is tapped only when the user
-    /// actually adjusted it, either to a volume other than 100% or to an output
-    /// other than the system default. An app that is merely listed is never
-    /// part of any tap, so the mixer can neither mute it nor re-render its
-    /// sound.
+    /// adjusted its volume, chose its output, or asked to move all audio to an
+    /// output that this process did not follow. Merely listing an app never
+    /// makes it part of a tap.
     static func rowMayBeTapped(savedVolume: Double?,
                                savedRouteUID: String?,
-                               defaultOutputDeviceUID: String?) -> Bool {
+                               defaultOutputDeviceUID: String?,
+                               universalOutputRouteUID: String? = nil) -> Bool {
         if let savedVolume, !isUnity(savedVolume) { return true }
-        guard let savedRouteUID else { return false }
-        guard let defaultOutputDeviceUID else { return true }
-        return savedRouteUID != defaultOutputDeviceUID
+        if savedRouteUID != nil { return true }
+        guard let universalOutputRouteUID else { return false }
+        return universalOutputRouteUID == defaultOutputDeviceUID
+    }
+
+    /// A universal output choice normally needs only the system default to
+    /// change. Processes that keep another device open need a tap as well.
+    /// Empty device lists mean silence or an unavailable read, not evidence
+    /// that a previously routed process now follows the default. Keep that
+    /// route until its same audio objects report where they play again.
+    static func requiresUniversalOutputRouting(requestedUID: String?,
+                                                defaultUID: String?,
+                                                selectedUID: String?,
+                                                audioObjects: [AudioObjectID],
+                                                previouslyRoutedObjects: [AudioObjectID]?,
+                                                processDevices: Set<AudioObjectID>,
+                                                defaultDevices: Set<AudioObjectID>) -> Bool {
+        guard let requestedUID, requestedUID == defaultUID,
+              selectedUID == nil, !audioObjects.isEmpty, !defaultDevices.isEmpty else { return false }
+        if processDevices.isEmpty {
+            return previouslyRoutedObjects == audioObjects
+        }
+        return !processDevices.isSubset(of: defaultDevices)
     }
 
     /// Identity of a row: the bundle id when the app has one, otherwise a
@@ -798,5 +955,63 @@ struct MixerAppArrangement: Codable, Equatable {
     private static func unique(_ ids: [String]) -> [String] {
         var seen = Set<String>()
         return ids.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+}
+
+/// The correction as one IO proc applies it, eased by
+/// `MixerRoutingSupport.tapLevelRampStep`. Touched only by that IO proc.
+/// Each cycle is timed by the host clock, so a device that changes its rate
+/// under a running engine keeps the same ramp.
+final class TapLevelRamp {
+    private var applied: Float?
+    private var lastHostTime: UInt64?
+
+    func next(toward target: Float, hostTime: UInt64) -> Float {
+        let elapsed = lastHostTime.map { hostTime > $0 ? hostTime - $0 : 0 } ?? 0
+        lastHostTime = hostTime
+        let value = MixerRoutingSupport.tapLevelRampStep(
+            applied: applied, target: target,
+            seconds: Double(AudioConvertHostTimeToNanos(elapsed)) / 1_000_000_000)
+        applied = value
+        return value
+    }
+}
+
+/// Names Core Audio listener registrations by number.
+///
+/// A listener registered with a plain callback gets its client pointer back
+/// on a HAL thread, and a callback can still be on its way when its owner
+/// goes away. The pointer is a number looked up here, never an address, so a
+/// late callback finds nothing rather than freed memory, and the owner is
+/// held weakly, so a registration the HAL never gives back keeps nothing
+/// alive. A listener block is no way out: handing one back for removal is
+/// reported done while it keeps firing (measured 2026-10-07).
+enum AudioListenerClients {
+    private struct Entry {
+        weak var owner: AnyObject?
+    }
+
+    private static let lock = NSLock()
+    private static var entries: [UInt: Entry] = [:]
+    private static var counter: UInt = 0
+
+    /// A client pointer no other registration holds. Never dereferenced.
+    static func reserve(for owner: AnyObject) -> UnsafeMutableRawPointer {
+        lock.withLock {
+            counter &+= 1
+            if counter == 0 { counter = 1 }
+            entries[counter] = Entry(owner: owner)
+            // A counter that never reaches zero always makes a usable value.
+            return UnsafeMutableRawPointer(bitPattern: counter).unsafelyUnwrapped
+        }
+    }
+
+    static func owner(of client: UnsafeMutableRawPointer?) -> AnyObject? {
+        guard let client else { return nil }
+        return lock.withLock { entries[UInt(bitPattern: client)]?.owner }
+    }
+
+    static func forget(_ client: UnsafeMutableRawPointer) {
+        lock.withLock { entries[UInt(bitPattern: client)] = nil }
     }
 }

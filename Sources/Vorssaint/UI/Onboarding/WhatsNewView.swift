@@ -184,7 +184,7 @@ struct UpdateSupportIntroView: View {
             }
             .padding(16)
         }
-        .frame(width: 560, height: 400)
+        .frame(width: 560, height: 420)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -236,6 +236,21 @@ private struct UpdateSupportContent: View {
             Text(donateThanksText)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            Button {
+                openURL(AppInfo.repositoryURL)
+            } label: {
+                Label(l10n.s.supportIntroStarHint, systemImage: "star")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: 440)
+            .padding(.top, 4)
+            .help(l10n.s.supportIntroStarButton)
+            .accessibilityLabel(l10n.s.supportIntroStarButton)
         }
     }
 }

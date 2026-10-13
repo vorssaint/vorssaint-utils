@@ -10,7 +10,8 @@ enum NotchMusicVisibilityTests {
     enum ReviewDefaults { static var current: UserDefaults! }
     final class NotchMusicService {
         static var shared = NotchMusicService()
-        struct Playback { var isPlaying: Bool }
+        struct Track { var appPID: Int32? = nil }
+        struct Playback { var isPlaying: Bool; var commandContext: NotchPlaybackContext? = nil; var track = Track() }
         var playback: Playback?
         var running = false
         func start() { running = true }
@@ -20,12 +21,14 @@ enum NotchMusicVisibilityTests {
     struct MonitorNeeds {
         var disk = false
         var fanSpeed = false
+        var connectedDevices = false
         static let none = Self()
     }
     struct Metric { let monitorNeeds = MonitorNeeds.none }
     final class SystemMonitor {
         static let shared = SystemMonitor()
-        func setNotchDetailNeeds(_ needs: MonitorNeeds) {}
+        var detailNeeds = MonitorNeeds.none
+        func setNotchDetailNeeds(_ needs: MonitorNeeds) { detailNeeds = needs }
         func setNotchVisible(_ visible: Bool) {}
     }
     final class CameraPreviewService {
@@ -119,6 +122,8 @@ enum NotchMusicVisibilityTests {
                                      safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 100)
         var expandedSize: CGSize { geometry.expanded }
         var capsuleSurfaceSize: CGSize? { nil }
+        var namedMusicWings: NotchNoticeWings?
+        var musicStripHeldSong: NotchPlaybackContext?
         var showsCopies = false
         var captureControlsLayout: NotchCaptureControlsLayout {
             NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
@@ -153,6 +158,30 @@ enum NotchMusicVisibilityTests {
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
+
+        let devices = Service()
+        devices.modules = [.system]
+        devices.selected = .system
+        defaults.set(false, forKey: DefaultsKey.menuBarConnectedDevices)
+        for installed in [true, false] {
+            defaults.set(installed, forKey: AppFeature.connectedDevices.availabilityKey)
+            for expanded in [true, false] {
+                for showingSections in [true, false] {
+                    devices.expanded = expanded
+                    devices.showingSections = showingSections
+                    devices.syncVisibleConsumers()
+                    suite.expect(SystemMonitor.shared.detailNeeds.connectedDevices == (installed && expanded && !showingSections),
+                                 "USB sampling follows the visible System page and installed feature, independently of its widget")
+                }
+            }
+        }
+        defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
+        devices.expanded = true
+        devices.showingSections = false
+        devices.syncVisibleConsumers()
+        devices.releaseMonitor()
+        suite.expect(!SystemMonitor.shared.detailNeeds.connectedDevices,
+                     "releasing the island stops its connected device sampling demand")
 
         let persistentCapture = Service()
         var persistentCloseCount = 0
@@ -376,6 +405,66 @@ enum NotchMusicVisibilityTests {
         suite.expect(service.compactGeometry(for: .calendar, companion: .music).compactActivityWingWidth == 66
                      && service.compactGeometry(for: .calendar).compactActivityWingWidth == 72,
                      "an event beside music takes the wings its pair needs, and alone keeps room for its title")
+
+        // The music strip naming its song reaches further on its cover's side
+        // only, and the camera keeps the gap between its sides.
+        let naming = Service()
+        naming.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
+                                        cameraWidth: 180, menuBarHeight: 32, compactSideRoom: 100)
+        naming.modules = NotchSupport.modules(in: defaults)
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
+        defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+        reader.playback = .init(isPlaying: true)
+        let plainStrip = naming.surfaceSize
+        let musicWing = naming.compactActivityGeometry.compactActivityWingWidth
+        suite.expect(naming.compactActivity == .music && musicWing > 0 && naming.surfaceShift == 0,
+                     "precondition: the music strip rests beside the camera with even wings")
+        naming.namedMusicWings = NotchNoticeWings(leading: musicWing + 120, trailing: musicWing)
+        suite.expect(naming.surfaceSize == CGSize(width: plainStrip.width + 120, height: plainStrip.height)
+                     && naming.surfaceShift == -60,
+                     "a strip naming its song grows only toward its cover, and its centre moves half as far")
+        naming.hoverEmphasized = true
+        suite.expect(naming.surfaceSize == NotchHoverEmphasis.size(
+                        from: CGSize(width: plainStrip.width + 120, height: plainStrip.height), geometry: naming.geometry,
+                        reach: 60)
+                     && naming.surfaceShift == -60,
+                     "the hover emphasis grows around the named strip without moving its centre")
+        // Four points short of the menus on the named side, the pulse grows by those four.
+        let room = naming.geometry.compactSideRoom!
+        naming.namedMusicWings = NotchNoticeWings(leading: room - 4, trailing: musicWing)
+        suite.expect(naming.surfaceSize.width == plainStrip.width + (room - 4 - musicWing) + 8,
+                     "its pulse stops at the menus on the named side, the side with the least room")
+        naming.namedMusicWings = NotchNoticeWings(leading: musicWing + 120, trailing: musicWing)
+        naming.notice = notice
+        suite.expect(naming.surfaceShift == naming.geometry.noticeShift(notice.wings(in: naming.geometry)),
+                     "a notice over the strip keeps its own sides")
+        naming.notice = nil
+        naming.expanded = true
+        suite.expect(naming.surfaceShift == 0, "the open island stays on the camera's centre")
+        naming.expanded = false
+        naming.hoverEmphasized = false
+        naming.namedMusicWings = nil
+        suite.expect(naming.surfaceSize == plainStrip && naming.surfaceShift == 0,
+                     "taking the name back restores the even strip on the camera's centre")
+        // A song paused from the strip's button stays while the pointer does.
+        let pausedSong = NotchPlaybackContext(pid: 42, revision: UUID())
+        reader.playback = .init(isPlaying: false, commandContext: pausedSong)
+        suite.expect(naming.compactActivity == nil, "a paused song leaves the closed island as before")
+        naming.musicStripHeldSong = pausedSong
+        suite.expect(naming.compactActivity == .music && naming.surfaceSize == plainStrip,
+                     "a song paused from the strip's button keeps its strip for the button to play it again")
+        reader.playback = .init(isPlaying: false, track: .init(appPID: 42))
+        suite.expect(naming.compactActivity == .music,
+                     "a reading from the held song's player without its name keeps the strip")
+        reader.playback = .init(isPlaying: false, commandContext: NotchPlaybackContext(pid: 43, revision: UUID()))
+        suite.expect(naming.compactActivity == nil,
+                     "another player's paused song, taking over as the held one's player quits, is not held")
+        reader.playback = .init(isPlaying: false, track: .init(appPID: 43))
+        suite.expect(naming.compactActivity == nil, "nor is a reading without a name from another player")
+        reader.playback = nil
+        suite.expect(naming.compactActivity == nil, "a player that quits takes its held song with it")
+        naming.musicStripHeldSong = nil
+        reader.playback = .init(isPlaying: true)
 
         // The companion takes the wings beside the camera only at rest.
         let resting = Service()

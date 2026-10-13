@@ -8,6 +8,7 @@ struct NotchSystemView: View {
     let select: (MetricDetailKind) -> Void
     @ObservedObject private var monitor = SystemMonitor.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private struct Card: Identifiable {
@@ -51,9 +52,11 @@ struct NotchSystemView: View {
                               wantsAttention: !power.externalConnected && (power.chargePercent ?? 100) <= 20))
         }
         if AppFeature.monitorNetwork.isAvailable {
+            // The observed unit, so a switch redraws the card at once, not on the next sample.
+            let inBits = networkSpeedUnit == .bits
             cards.append(Card(kind: .network, title: l10n.s.networkSection, symbol: "network",
-                              value: snapshot.netDownBytesPerSec.map { "↓ " + MetricFormat.bytesPerSec($0) },
-                              detail: snapshot.netUpBytesPerSec.map { "↑ " + MetricFormat.bytesPerSec($0) }))
+                              value: snapshot.netDownBytesPerSec.map { "↓ " + MetricFormat.networkRate($0, inBits: inBits) },
+                              detail: snapshot.netUpBytesPerSec.map { "↑ " + MetricFormat.networkRate($0, inBits: inBits) }))
         }
         if AppFeature.monitorDisk.isAvailable {
             let disk = snapshot.disk?.devices.first(where: { $0.mountPath == "/" })
@@ -74,6 +77,11 @@ struct NotchSystemView: View {
             let strings = FeatureStrings.fanControl(l10n.language)
             cards.append(Card(kind: .fan, title: strings.title, symbol: "fanblades",
                               value: snapshot.fanSpeeds.first.map { String(format: strings.rpmFormat, Int($0.rounded())) }))
+        }
+        if AppFeature.connectedDevices.isAvailable {
+            let strings = FeatureStrings.connectedDevices(l10n.language)
+            cards.append(Card(kind: .connectedDevices, title: strings.title, symbol: "cable.connector",
+                              value: "\(snapshot.connectedDevices.count)"))
         }
         return cards
     }

@@ -275,6 +275,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         guard !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
     }
 

@@ -42,6 +42,9 @@ enum DisplayRestorationTests {
         static var onSubscribe: (() -> Void)?
         static var lidRead: (() -> Bool?)?
         static var fingerprints: [UInt32: String] = [:]
+        static var online: Set<UInt32> = [1, 2]
+        static var active: Set<UInt32> = [1, 2]
+        static var virtual: Set<UInt32> = []
     }
     enum DefaultsKey {
         static let displaysSwitchedOff = "off"
@@ -144,6 +147,13 @@ enum DisplayRestorationTests {
         var wakeRebuild: DispatchWorkItem?
         static let wakeSettleDelay: TimeInterval = 3
         static func lidClosed() -> Bool? { Hardware.lidRead?() ?? Hardware.lid }
+        static func currentTopology() -> BrightnessSupport.DisplayTopology {
+            BrightnessSupport.DisplayTopology(online: Hardware.online, active: Hardware.active)
+        }
+        static func drawableDisplayIDs(online: Set<UInt32>, active: Set<UInt32>) -> Set<UInt32> {
+            BrightnessSupport.drawableDisplayIDs(onlineDisplayIDs: online, activeDisplayIDs: active,
+                                                 virtualDisplayIDs: Hardware.virtual)
+        }
         static func displayInfoDictionary(_ id: UInt32) -> NSDictionary? { nil }
         static func displayFingerprint(_ id: UInt32) -> String {
             Hardware.fingerprints[id] ?? "0:0:0"
@@ -175,9 +185,37 @@ enum DisplayRestorationTests {
             Hardware.onSubscribe = nil
             Hardware.lidRead = nil
             Hardware.fingerprints = [1: "1:1:1", 2: "2:2:2"]
+            Hardware.online = [1, 2]
+            Hardware.active = [1, 2]
+            Hardware.virtual = []
             return BrightnessService()
         }
         var service = make()
+        // The worker has approved two displays. The second one disappears
+        // while its transaction waits for the main thread.
+        service.pendingDisplayIDs = [2]
+        DispatchQueue.main.async { [weak service] in
+            service?.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+        }
+        Hardware.online = [2]
+        Hardware.active = [2]
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.transactions == 0 && service.displayControlFailure == .lastActive
+                     && service.pendingDisplayIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
+                     "a disconnect before main-thread commit refuses to turn off the last drawable display")
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        Hardware.virtual = [1]
+        service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+        suite.expect(Hardware.transactions == 0 && service.displayControlFailure == .lastActive,
+                     "a virtual replacement cannot satisfy transaction-time last-display protection")
+        Hardware.virtual = []
+        service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+        suite.expect(Hardware.transactions == 1 && service.displayControlFailure == nil
+                     && UserDefaults.standard.stored == [2],
+                     "a later explicit disable succeeds once another drawable monitor is present")
+
+        service = make()
         UserDefaults.standard.stored = [1]
         service.restoreDisplaysLeftOff()
         service.restoreDisplaysLeftOff()

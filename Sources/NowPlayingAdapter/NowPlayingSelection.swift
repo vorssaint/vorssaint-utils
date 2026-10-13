@@ -21,7 +21,7 @@ enum NotchNativePlayback {
 
         var isRunning: Bool {
             guard let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return false }
-            return app.bundleIdentifier == bundleIdentifier
+            return NotchNativePlayback.resolvedBundleIdentifier(for: app) == bundleIdentifier
         }
     }
 
@@ -208,7 +208,7 @@ enum NotchNativePlayback {
         lock.lock()
         if let selection {
             let app = NSRunningApplication(processIdentifier: selection.pid)
-            let ended = app == nil || app?.isTerminated == true || app?.bundleIdentifier != selection.bundleIdentifier
+            let ended = app == nil || app?.isTerminated == true || app.map { resolvedBundleIdentifier(for: $0) } != selection.bundleIdentifier
             let lostTrack = ready.contains { $0.1.selection == selection && !$0.1.hasTrack }
             if ready.contains(where: { $0.1.selection == selection && $0.1.hasTrack }) { releaseAt = nil }
             // A browser clears its track between videos. The choice outlasts
@@ -416,14 +416,23 @@ enum NotchNativePlayback {
         return symbol.assumingMemoryBound(to: NSString?.self).pointee as String?
     }
 
+    /// A Now Playing client can have a registered app bundle even when its
+    /// running process has no Launch Services bundle identifier. Resolve the
+    /// bundle identity for any such player, and reuse it for later checks.
+    private static func resolvedBundleIdentifier(for app: NSRunningApplication) -> String? {
+        let identifier = app.bundleIdentifier
+            ?? app.bundleURL.flatMap { Bundle(url: $0)?.bundleIdentifier }
+        return identifier.flatMap { NotchPlaybackCommand.validIdentifier($0) ? $0 : nil }
+    }
+
     private static func isMusicApp(_ app: NSRunningApplication, parentBundleIdentifier: String? = nil) -> Bool {
         let category = app.bundleURL.flatMap { Bundle(url: $0)?.object(forInfoDictionaryKey: "LSApplicationCategoryType") as? String }
-        return NotchPlaybackSource.isMusicApplication(bundleIdentifier: app.bundleIdentifier,
+        return NotchPlaybackSource.isMusicApplication(bundleIdentifier: resolvedBundleIdentifier(for: app),
                                                       parentBundleIdentifier: parentBundleIdentifier, category: category)
     }
 
     private static func makeTarget(_ app: NSRunningApplication) -> Target? {
-        guard !app.isTerminated, let identifier = app.bundleIdentifier,
+        guard !app.isTerminated, let identifier = resolvedBundleIdentifier(for: app),
               let pathClass = NSClassFromString("MRPlayerPath"),
               let clientClass = NSClassFromString("MRClient"),
               class_getClassMethod(pathClass, NSSelectorFromString("localPlayerPath")) != nil,

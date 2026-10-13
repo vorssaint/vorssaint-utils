@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Combine
+import CoreAudio
 import Foundation
 
 enum NotchAudioLevelTests {
@@ -47,6 +48,7 @@ enum NotchAudioLevelTests {
         silenceMemoryContracts(expect: expect)
         tapChangeContracts(expect: expect)
         NotchAudioLevelLifecycleContract.run(expect: expect)
+        NotchAudioRingContract.run(expect: expect)
     }
 
     /// What the player's audio processes moving asks of the tap. A browser
@@ -90,6 +92,37 @@ enum NotchAudioLevelTests {
         memory.giveUp(on: first)
         memory.rearm()
         expect(memory.reads(first), "pressing play again reads the same track once more")
+    }
+}
+
+/// The real ring receives memory-backed audio buffers, without a device or
+/// an audio thread. Its declaration is extracted on every test build.
+enum NotchAudioRingContract {
+    static func run(expect: (Bool, String) -> Void) {
+        let ring = NotchAudioRing(capacity: 2)
+        expect(!ring.hasHeard(gain: 1) && !ring.hasHeard(gain: 4),
+               "an empty ring is silent even with multichannel compensation")
+        var samples: [Float] = [0.0005, 0.0005]
+        samples.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 2,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(!ring.hasHeard(gain: 1), "quiet uncorrected samples stay below the sound threshold")
+        expect(ring.hasHeard(gain: 4), "corrected quiet samples prove the tap has sound")
+        let heardAfterDrop = ring.hasHeard(gain: 1)
+        expect(heardAfterDrop, "a correction drop cannot undo sound the ring already heard")
+        expect(!NotchAudioLevelSupport.fallsBack(heard: heardAfterDrop, elapsed: 9),
+               "a correction drop after the grace period does not abandon a proven audio reader")
+        samples = [0, 0]
+        samples.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 2,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(ring.hasHeard(gain: 1), "later silence does not revoke the ring's proof of sound")
+        expect(!NotchAudioRing(capacity: 2).hasHeard(gain: 4),
+               "a new ring still has to prove its own sound")
     }
 }
 

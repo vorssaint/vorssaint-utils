@@ -267,7 +267,7 @@ struct NotchScratchpadView: View {
             alert.addButton(withTitle: text.saveName)
             alert.addButton(withTitle: text.cancel)
             alert.window.initialFirstResponder = field
-            guard runAboveIsland(alert) == .alertFirstButtonReturn else { return }
+            guard NotchIslandAlert.run(alert, above: service.presentationWindow) == .alertFirstButtonReturn else { return }
             pad.renamePad(entry.id, to: field.stringValue)
         }
     }
@@ -282,33 +282,8 @@ struct NotchScratchpadView: View {
             alert.informativeText = String(format: text.deletePadMessageFormat, entry.name)
             alert.addButton(withTitle: text.closePad).hasDestructiveAction = true
             alert.addButton(withTitle: text.cancel)
-            guard runAboveIsland(alert) == .alertFirstButtonReturn else { return }
+            guard NotchIslandAlert.run(alert, above: service.presentationWindow) == .alertFirstButtonReturn else { return }
             _ = pad.closePad(entry.id)
         }
-    }
-
-    /// A SwiftUI alert hangs from the island as a sheet, which moves and
-    /// reskins the borderless surface. The question opens on its own, above
-    /// the island, which gets the keyboard back afterwards.
-    private func runAboveIsland(_ alert: NSAlert) -> NSApplication.ModalResponse {
-        let island = service.presentationWindow
-        var observers: [NSObjectProtocol] = []
-        if let island {
-            // The modal session puts the alert at the modal panel level, below
-            // the island, and puts it back there when it activates the app or
-            // makes the alert key. Raise it once running and after each of those.
-            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
-            let raise: (Notification) -> Void = { _ in alert.window.level = level }
-            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
-                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
-            }
-            DispatchQueue.main.async { alert.window.level = level }
-        }
-        NSApp.activate(ignoringOtherApps: true)
-        let response = alert.runModal()
-        observers.forEach(NotificationCenter.default.removeObserver)
-        // A closed island declines key status, so this only returns to an open one.
-        if let island, island.isVisible { island.makeKey() }
-        return response
     }
 }

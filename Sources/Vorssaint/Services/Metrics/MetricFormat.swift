@@ -255,6 +255,69 @@ enum MetricFormat {
         return "\(Int(value.rounded()))\(units[index])"
     }
 
+    /// Whether live network speeds show bits ("12 Mbps") or bytes ("1.5 MB/s").
+    /// Only an explicit choice of bits reads as bits, so someone who never
+    /// picked a unit keeps the bytes they always saw.
+    static var networkSpeedInBits: Bool {
+        UserDefaults.standard.string(forKey: DefaultsKey.networkSpeedUnit) == NetworkSpeedUnit.bits.rawValue
+    }
+
+    /// A network speed in the chosen unit. Used in the panel.
+    static func networkRate(_ bytesPerSecond: Double, inBits: Bool = networkSpeedInBits) -> String {
+        inBits ? bitsPerSec(bytesPerSecond) : bytesPerSec(bytesPerSecond)
+    }
+
+    /// A compact network speed in the chosen unit, for the menu bar and lists.
+    static func networkRateCompact(_ bytesPerSecond: Double, inBits: Bool = networkSpeedInBits) -> String {
+        inBits ? bitsPerSecCompact(bytesPerSecond) : bytesPerSecCompact(bytesPerSecond)
+    }
+
+    /// A network bit rate, e.g. "12 Mbps". Takes bytes per second and uses
+    /// decimal (1000) steps. Used in the panel.
+    static func bitsPerSec(_ bytesPerSecond: Double) -> String {
+        let units = ["bps", "Kbps", "Mbps", "Gbps", "Tbps", "Pbps"]
+        var value = bytesPerSecond.isFinite ? max(0, bytesPerSecond) * 8 : 0
+        var index = 0
+        // Promote on the number as printed, so 999.6 Kbps reads "1.0 Mbps"
+        // rather than "1000 Kbps", like the byte rates and the compact form.
+        // Under ten the decimal is kept and can never print as 1000.
+        while index < units.count - 1, value.rounded() >= 1000 {
+            value /= 1000
+            index += 1
+        }
+        if index == 0 {
+            return String(format: "%.0f %@", locale: Self.locale, value, units[index])
+        }
+        return value < 10 ? String(format: "%.1f %@", locale: Self.locale, value, units[index])
+            : String(format: "%.0f %@", locale: Self.locale, value, units[index])
+    }
+
+    /// A compact network bit rate for the menu bar, e.g. "9.6Mb", "320Kb",
+    /// "0b". Takes bytes per second and uses decimal (1000) steps, matching
+    /// how link speeds are quoted. Never wider than "999Kb".
+    static func bitsPerSecCompact(_ bytesPerSecond: Double) -> String {
+        let units = ["b", "Kb", "Mb", "Gb", "Tb", "Pb"]
+        var value = bytesPerSecond.isFinite ? max(0, bytesPerSecond) * 8 : 0
+        var index = 0
+        while index < units.count - 1 {
+            let shown = value < 10 && index > 0 ? (value * 10).rounded() / 10 : value.rounded()
+            guard shown >= 1000 else { break }
+            value /= 1000
+            index += 1
+        }
+        if index == 0 {
+            return "\(Int(value.rounded()))b"
+        }
+        if value < 10 {
+            let rounded = (value * 10).rounded() / 10
+            if rounded >= 10 {
+                return "\(Int(rounded.rounded()))\(units[index])"
+            }
+            return String(format: "%.1f%@", locale: Self.locale, rounded, units[index])
+        }
+        return "\(Int(value.rounded()))\(units[index])"
+    }
+
     // MARK: Watts & percentages
 
     /// The top of an auto-scaled graph: the peak rounded up to 1, 2 or 5 of a
@@ -268,6 +331,15 @@ enum MetricFormat {
             }
         }
         return peak
+    }
+
+    /// A network graph ceiling in bytes per second that lands on a round
+    /// number in the chosen unit, so `networkRate` labels it as "20 Kbps"
+    /// or "2.0 KB/s" rather than an awkward conversion of the other.
+    static func networkGraphCeiling(_ peakBytesPerSecond: Double,
+                                    inBits: Bool = networkSpeedInBits) -> Double {
+        guard inBits else { return graphCeiling(peakBytesPerSecond, unitStep: 1024) }
+        return graphCeiling(peakBytesPerSecond * 8, unitStep: 1000) / 8
     }
 
     /// Power, e.g. "8.5 W" / "23 W" (one decimal under 10, none above).
@@ -428,6 +500,13 @@ enum MetricFormat {
 enum TemperatureUnit: String {
     case celsius
     case fahrenheit
+}
+
+/// How live network speeds read: bytes ("1.5 MB/s"), the default, or bits
+/// ("12 Mbps"), the way connection speeds are usually quoted.
+enum NetworkSpeedUnit: String {
+    case bytes
+    case bits
 }
 
 /// Fixed-size ring of recent samples (oldest → newest) for the history graphs.

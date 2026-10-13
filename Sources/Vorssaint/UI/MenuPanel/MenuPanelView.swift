@@ -327,7 +327,13 @@ struct MenuPanelView: View {
         case .keepAwake: KeepAwakeCard(collapsible: collapsible)
         case .brightness: if showBrightness { BrightnessSection(collapsible: collapsible) }
         case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
-        case .system: if showSystem { SystemSection(collapsible: collapsible) }
+        case .system:
+            if showSystem {
+                SystemSection(collapsible: collapsible) {
+                    focusedSection = nil
+                    selectedMetric = .connectedDevices
+                }
+            }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }

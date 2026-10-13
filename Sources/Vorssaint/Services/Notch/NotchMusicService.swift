@@ -265,6 +265,7 @@ final class NotchMusicService: ObservableObject {
         updateArtwork(reading.artwork, tint: reading.tint, playback: reading.playback)
         playback = reading.playback
         sources = reading.sources
+        NotchPreferredPlayer.remember(reading.playback, in: reading.sources)
         sourceIsAutomatic = reading.automatic ?? true
         selectedSourcePID = reading.selectedPID
         awaitingPlayback = false

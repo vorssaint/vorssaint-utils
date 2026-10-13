@@ -18,11 +18,13 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorShowSystem) private var showSystem = true
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
+    @AppStorage(DefaultsKey.monitorSysCPUCores) private var sysCPUCores = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorPwrTemperature) private var pwrTemperature = true
     @AppStorage(DefaultsKey.monitorSysBattery) private var sysBattery = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
+    @AppStorage(DefaultsKey.monitorSysConnectedDevices) private var sysConnectedDevices = true
 
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorNetSpeed) private var netSpeed = true
@@ -120,7 +122,14 @@ struct MonitorPanelConfig: View {
             }
             if AppFeature.monitorCPU.isAvailable {
                 itemTile(l10n.s.cpuLabel, symbol: MenuBarMetric.cpu.symbolName, value: $sysCPU, available: available,
-                         options: AnyView(chartOption($graphCPU)), summary: chartSummary(graphCPU))
+                         options: AnyView(VStack(spacing: 10) {
+                             chartOption($graphCPU)
+                             MonitorTokenOption(symbol: "square.grid.3x2",
+                                                title: FeatureStrings.cpuCores(l10n.language).perCore,
+                                                isOn: $sysCPUCores)
+                         }),
+                         summary: summary([(l10n.s.monitorGraphsSection, graphCPU),
+                                           (FeatureStrings.cpuCores(l10n.language).perCore, sysCPUCores)]))
             }
             if AppFeature.monitorGPU.isAvailable {
                 itemTile(l10n.s.gpuLabel, symbol: MenuBarMetric.gpu.symbolName, value: $sysGPU, available: available,
@@ -131,6 +140,10 @@ struct MonitorPanelConfig: View {
                          options: AnyView(chartOption($graphMemory)), summary: chartSummary(graphMemory))
             }
             itemTile(l10n.s.monitorItemUptime, symbol: "clock", value: $sysUptime, available: available)
+            if AppFeature.connectedDevices.isAvailable {
+                itemTile(FeatureStrings.connectedDevices(l10n.language).title, symbol: "cable.connector",
+                         value: $sysConnectedDevices, available: available)
+            }
         case .network:
             itemTile(l10n.s.monitorItemNetSpeed, symbol: "speedometer", value: $netSpeed, available: available,
                      options: AnyView(chartOption($graphNetwork)), summary: chartSummary(graphNetwork))
@@ -203,6 +216,9 @@ struct MonitorPanelConfig: View {
                     Toggle(l10n.s.memorySection, isOn: $sysMemory)
                 }
                 Toggle(l10n.s.monitorItemUptime, isOn: $sysUptime)
+                if AppFeature.connectedDevices.isAvailable {
+                    Toggle(FeatureStrings.connectedDevices(l10n.language).title, isOn: $sysConnectedDevices)
+                }
             }
         }
         if AppFeature.monitorNetwork.isAvailable {

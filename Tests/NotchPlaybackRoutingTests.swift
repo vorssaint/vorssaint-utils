@@ -21,6 +21,7 @@ enum NotchPlaybackRoutingContract {
     struct NSRunningApplication {
         let bundleIdentifier: String?
         let processIdentifier: Int32
+        var bundleURL: URL?
         var isTerminated = false
         var localizedName: String? { bundleIdentifier }
         init(bundleIdentifier: String?, processIdentifier: Int32) {
@@ -170,6 +171,28 @@ enum NotchPlaybackRoutingTests {
         let firstClient = first?.path.perform(NSSelectorFromString("client"))?.takeUnretainedValue() as? NSObject
         suite.expect(firstClient?.value(forKey: "processIdentifier") as? Int == 101,
                "the first destination retains its process after another candidate is created")
+        let bundleURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".app")
+        defer { try? FileManager.default.removeItem(at: bundleURL) }
+        do {
+            let contents = bundleURL.appendingPathComponent("Contents")
+            try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+            let plist = try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": "org.example.player"],
+                                                           format: .xml, options: 0)
+            try plist.write(to: contents.appendingPathComponent("Info.plist"))
+            var player = Adapter.NSRunningApplication(bundleIdentifier: nil, processIdentifier: 303)
+            player.bundleURL = bundleURL
+            let target = Adapter.makeTarget(player)
+            suite.expect(target?.bundleIdentifier == "org.example.player" && target?.pid == 303,
+                         "a player without a process bundle identifier resolves its registered bundle identity without losing its exact process")
+            player = Adapter.NSRunningApplication(bundleIdentifier: "test.explicit", processIdentifier: 303)
+            player.bundleURL = bundleURL
+            suite.expect(Adapter.resolvedBundleIdentifier(for: player) == "test.explicit",
+                         "the running process identity takes precedence over the bundle fallback")
+            suite.expect(Adapter.makeTarget(Adapter.NSRunningApplication(bundleIdentifier: nil, processIdentifier: 404)) == nil,
+                         "a process without either identity cannot become a playback destination")
+        } catch {
+            suite.expect(false, "registered player bundle fixture can be created: \(error)")
+        }
         Adapter.available = true
         var title: String?
         Adapter.readInfo(music, artwork: true, queue: Adapter.callbacks) { info in
@@ -564,10 +587,10 @@ enum NotchPlaybackRoutingTests {
         Adapter.sourceMetadata[10]?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] = 0
         Adapter.systemPID = 20
         suite.expect(Adapter.select()?.pid == 10,
-                     "automatic playback keeps paused music instead of showing the active video by default")
+                     "music-only automatic playback keeps paused music instead of showing the active video")
         Adapter.includeOtherPlayers = true
         suite.expect(Adapter.select()?.requiresCurrentPlayer == true && Adapter.select()?.allowsDirectCommands == true,
-                     "opted-in video playback exposes native controls without Automation")
+                     "video playback with other players included exposes native controls without Automation")
         Adapter.includeOtherPlayers = false
         Adapter.systemPID = 10
         Adapter.choose(browser)
@@ -675,6 +698,6 @@ enum NotchPlaybackRoutingTests {
                      "a video discovered at the end of a crowded list stays out of music-only playback")
         Adapter.includeOtherPlayers = true
         suite.expect(Adapter.select()?.pid == 115,
-                     "opted-in playback still finds the system's current player at the end of the bound")
+                     "playback with other players included still finds the system's current player at the end of the bound")
     }
 }

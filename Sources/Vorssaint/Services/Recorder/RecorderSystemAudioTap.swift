@@ -58,9 +58,13 @@ enum RecorderAudioProbe {
 /// error, so the session keeps the stream's sound as the written source until
 /// this tap has heard sound over a whole recording.
 ///
-/// Every mutable field is touched only on `queue`, except `heard`, which is
-/// atomic, and `onSample`, which the caller sets once before `start`. That
-/// confinement is what makes the reference safe to hand across threads.
+/// The tap's stereo mixdown loses level on outputs with more than two
+/// channels, which `followProcesses` gives back.
+///
+/// Every mutable field is touched only on `queue`, except `heard` and
+/// `levelCompensation`, which are atomic, and `onSample`, which the caller
+/// sets once before `start`. That confinement is what makes the reference
+/// safe to hand across threads.
 final class RecorderSystemAudioTap: @unchecked Sendable {
     /// Called on the audio system's own thread, with the sound retimed onto
     /// the recording's clock. Set before `start`.
@@ -76,6 +80,7 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
 
     private let queue: DispatchQueue
     private let heard = RecorderAudioFlag()
+    private let ownProcess: AudioObjectID
     private let tapID: AudioObjectID
     private let tapUID: String
     private let tapChannels: Int
@@ -84,14 +89,23 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     private var ioProc: AudioDeviceIOProcID?
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
-    private var deviceListener: AudioObjectPropertyListenerBlock?
-    private var rateListener: AudioObjectPropertyListenerBlock?
+    /// Name the default output and sample rate listeners. See
+    /// `AudioListenerClients`.
+    private var deviceListenerClient: UnsafeMutableRawPointer?
+    private var rateListenerClient: UnsafeMutableRawPointer?
     private var stopped = false
+    /// What the mixdown took from the sound, given back to every sample.
+    private let levelCompensation = AtomicFloatBox(1)
+    private var levelWatch: LevelCompensationWatch?
 
     /// Destroying a device or a tap can park inside a broken audio path, so
     /// it never happens on a queue anything waits for. Serial, so the device
     /// that hosts a tap is always gone before the tap itself.
     private static let teardownQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.teardown",
+                                                     qos: .utility)
+    /// The global listener must not wait behind a device destruction that
+    /// can remain stuck for the rest of the session.
+    private static let listenerQueue = DispatchQueue(label: "com.vorssaint.recorder.systemaudio.listeners",
                                                      qos: .utility)
 
     /// The tap, or nothing when the audio system refuses one.
@@ -110,6 +124,7 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     private init?(queue: DispatchQueue) {
         self.queue = queue
         guard let ownProcess = Self.ownProcessObject() else { return nil }
+        self.ownProcess = ownProcess
         let description = CATapDescription(stereoGlobalTapButExcludeProcesses: [ownProcess])
         description.name = "Vorssaint Recorder"
         description.isPrivate = true
@@ -126,9 +141,14 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     }
 
     deinit {
-        let tapID = self.tapID
+        // A stopped tap's ID may already belong to another tap.
+        let tapID = stopped ? 0 : self.tapID
         let aggregateID = self.aggregateID
         let ioProc = self.ioProc
+        levelWatch?.stop()
+        Self.removeListener(deviceListenerClient, from: AudioObjectID(kAudioObjectSystemObject),
+                            kAudioHardwarePropertyDefaultOutputDevice)
+        Self.removeListener(rateListenerClient, from: aggregateID, kAudioDevicePropertyNominalSampleRate)
         Self.destroy(aggregateID: aggregateID, ioProc: ioProc, tapID: tapID)
     }
 
@@ -145,6 +165,9 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
             queue.async { [self] in
                 self.clock = clock
                 if !stopped {
+                    // Read before the first cycle, so the head of the file
+                    // already has its level.
+                    followProcesses()
                     buildPipeline()
                     watchDefaultOutputDevice()
                 }
@@ -156,13 +179,15 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     func stop() async {
         await withCheckedContinuation { continuation in
             queue.async { [self] in
+                // Cancelling startup stops the tap there and again when the
+                // session finishes. The HAL may already have reused its ID.
+                guard !stopped else { continuation.resume(); return }
                 stopped = true
-                if let deviceListener {
-                    var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
-                    AudioObjectRemovePropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                                           &address, queue, deviceListener)
-                    self.deviceListener = nil
-                }
+                Self.removeListener(deviceListenerClient, from: AudioObjectID(kAudioObjectSystemObject),
+                                    kAudioHardwarePropertyDefaultOutputDevice)
+                deviceListenerClient = nil
+                levelWatch?.stop()
+                levelWatch = nil
                 teardownPipeline()
                 Self.destroy(aggregateID: 0, ioProc: nil, tapID: tapID)
                 continuation.resume()
@@ -204,11 +229,14 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         let channels = tapChannels
         let heard = self.heard
         let onSample = self.onSample
+        let compensation = levelCompensation
+        let ramp = TapLevelRamp()
+        let limiter = LimiterState(release: BoostLimiter.release(sampleRate: sampleRate))
         let timescale = CMTimeScale(sampleRate.rounded())
         let hostClock = CMClockGetHostTimeClock()
         var ioProc: AudioDeviceIOProcID?
         let created = AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil) {
-            _, input, inputTime, output, _ in
+            now, input, inputTime, output, _ in
             // The device beneath the aggregate would otherwise play whatever
             // this memory last held.
             MixerRender.silence(UnsafeMutableAudioBufferListPointer(output))
@@ -226,6 +254,19 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
                   let sample = Self.sampleBuffer(from: buffer, format: format,
                                                  timescale: timescale, time: time)
             else { return }
+            // Eased as in the mixer, so a change never steps the level.
+            let gain = ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
+            if gain > 1 {
+                Self.withSamples(of: sample) { samples, count in
+                    RecorderSupport.restoreTapLevel(samples, count: count, channels: channels,
+                                                    gain: gain, limiter: &limiter.limiter,
+                                                    release: limiter.release)
+                }
+            } else {
+                // Peaks held from an earlier stretch must not turn down the
+                // next one, which starts from the sound it brings.
+                limiter.limiter = BoostLimiter()
+            }
             onSample(sample)
         }
         guard created == noErr, let ioProc,
@@ -243,19 +284,16 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     private func teardownPipeline() {
         let aggregateID = self.aggregateID
         let ioProc = self.ioProc
-        let rateListener = self.rateListener
+        let rateListenerClient = self.rateListenerClient
         self.aggregateID = 0
         self.ioProc = nil
-        self.rateListener = nil
+        self.rateListenerClient = nil
         hostDeviceUID = nil
         guard aggregateID != 0 else { return }
         if let ioProc {
             AudioDeviceStop(aggregateID, ioProc)
         }
-        if let rateListener {
-            var address = Self.address(kAudioDevicePropertyNominalSampleRate)
-            AudioObjectRemovePropertyListenerBlock(aggregateID, &address, queue, rateListener)
-        }
+        Self.removeListener(rateListenerClient, from: aggregateID, kAudioDevicePropertyNominalSampleRate)
         Self.destroy(aggregateID: aggregateID, ioProc: ioProc, tapID: 0)
     }
 
@@ -276,25 +314,84 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     }
 
     private func watchDefaultOutputDevice() {
-        guard deviceListener == nil else { return }
-        var address = Self.address(kAudioHardwarePropertyDefaultOutputDevice)
-        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.rebuildPipelineIfChanged()
-        }
-        if AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject),
-                                               &address, queue, listener) == noErr {
-            deviceListener = listener
-        }
+        guard deviceListenerClient == nil else { return }
+        deviceListenerClient = listen(to: AudioObjectID(kAudioObjectSystemObject),
+                                      kAudioHardwarePropertyDefaultOutputDevice)
     }
 
     private func watchSampleRate(of aggregateID: AudioObjectID) {
-        var address = Self.address(kAudioDevicePropertyNominalSampleRate)
-        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
-            self?.rebuildPipelineIfChanged()
+        rateListenerClient = listen(to: aggregateID, kAudioDevicePropertyNominalSampleRate)
+    }
+
+    /// Registers `pipelineDeviceChanged` for one property under a client
+    /// number, or nothing when the HAL refuses.
+    private func listen(to object: AudioObjectID,
+                        _ selector: AudioObjectPropertySelector) -> UnsafeMutableRawPointer? {
+        let client = AudioListenerClients.reserve(for: self)
+        var address = Self.address(selector)
+        guard AudioObjectAddPropertyListener(object, &address, Self.pipelineDeviceChanged,
+                                             client) == noErr else {
+            AudioListenerClients.forget(client)
+            return nil
         }
-        if AudioObjectAddPropertyListenerBlock(aggregateID, &address, queue, listener) == noErr {
-            rateListener = listener
+        return client
+    }
+
+    /// The default output and the aggregate's rate ask the same question: is
+    /// the tap still read through the device the sound plays on.
+    private static let pipelineDeviceChanged: AudioObjectPropertyListenerProc = { _, _, _, client in
+        guard let tap = AudioListenerClients.owner(of: client) as? RecorderSystemAudioTap else {
+            return noErr
         }
+        tap.queue.async { [weak tap] in tap?.rebuildPipelineIfChanged() }
+        return noErr
+    }
+
+    /// Forgets the client at once, so a callback on its way finds nothing,
+    /// and gives the global registration back independently of device
+    /// destruction. A rate listener still goes on the teardown queue ahead
+    /// of the aggregate it listens to.
+    private static func removeListener(_ client: UnsafeMutableRawPointer?, from object: AudioObjectID,
+                                       _ selector: AudioObjectPropertySelector) {
+        guard let client else { return }
+        AudioListenerClients.forget(client)
+        let removalQueue = object == AudioObjectID(kAudioObjectSystemObject)
+            ? listenerQueue
+            : teardownQueue
+        removalQueue.async {
+            var address = Self.address(selector)
+            AudioObjectRemovePropertyListener(object, &address, Self.pipelineDeviceChanged, client)
+        }
+    }
+
+    // MARK: - Level
+
+    /// Keeps the level the tap gives back right for where every other
+    /// process plays.
+    ///
+    /// The stereo mixdown divides what a process plays on an output with more
+    /// than two channels by that output's channel pairs, a known system issue
+    /// (FB13479345), so a recording made with a TV over HDMI or an audio
+    /// interface as the output came out at a half or a quarter of its level.
+    /// The mix holds every process wherever it plays (measured 2026-10-07:
+    /// two apps on two outputs, neither of them the default, both reached it
+    /// whole), so the correction is read from all of them, and the narrowest
+    /// output decides, as in the mixer: no process is ever recorded louder
+    /// than it plays. One gain cannot suit outputs of different widths at
+    /// once, so while an app holds a narrower output, the rest keeps the
+    /// level it had before this correction. The watch follows processes that
+    /// come or go, since a video started during the recording can play
+    /// through one the first read never saw.
+    private func followProcesses() {
+        guard !stopped, levelWatch == nil else { return }
+        let compensation = levelCompensation
+        let watch = LevelCompensationWatch.started(everyProcessExcept: [ownProcess]) {
+            compensation.value = $0
+        }
+        // Briefly, as the mixer's engines do, so the head of the file
+        // already has its level.
+        watch.waitForFirstRead()
+        levelWatch = watch
     }
 
     private static func destroy(aggregateID: AudioObjectID,
@@ -315,6 +412,31 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     }
 
     // MARK: - Samples
+
+    /// The limiter's memory, touched only on the audio thread.
+    private final class LimiterState {
+        var limiter = BoostLimiter()
+        let release: Float
+
+        init(release: Float) {
+            self.release = release
+        }
+    }
+
+    /// The samples a buffer just made holds, to change in place before anyone
+    /// else sees them.
+    private static func withSamples(of sampleBuffer: CMSampleBuffer,
+                                    _ body: (UnsafeMutablePointer<Float>, Int) -> Void) {
+        guard let block = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
+        var length = 0
+        var data: UnsafeMutablePointer<CChar>?
+        guard CMBlockBufferGetDataPointer(block, atOffset: 0, lengthAtOffsetOut: &length,
+                                          totalLengthOut: nil,
+                                          dataPointerOut: &data) == kCMBlockBufferNoErr,
+              let data else { return }
+        let count = length / MemoryLayout<Float>.size
+        data.withMemoryRebound(to: Float.self, capacity: count) { body($0, count) }
+    }
 
     private static func format(sampleRate: Double, channels: Int) -> CMAudioFormatDescription? {
         guard sampleRate > 0, channels > 0 else { return nil }

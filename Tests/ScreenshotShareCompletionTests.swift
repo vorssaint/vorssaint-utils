@@ -11,9 +11,83 @@ enum ScreenshotShareCompletionTests {
         var deletingShare = false
         var sharing = false
         var sharedRecord: ScreenshotShareRecord?
+        var exported = false
+        func exportImage() -> Export? { Export() }
+        func markExported() { exported = true }
+    }
+
+    struct Export {
+        let image = 1
+        let scale = 1.0
+    }
+
+    enum ScreenshotRenderer {
+        static var gate: RenderingGate?
+        static func pngData(from image: Int, scale: Double) -> Data? {
+            gate?.wait()
+            return Data([1])
+        }
+    }
+
+    final class RenderingGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var entered = false
+        let resume = DispatchSemaphore(value: 0)
+        var started: Bool { lock.withLock { entered } }
+        func wait() {
+            lock.withLock { entered = true }
+            _ = resume.wait(timeout: .now() + 5)
+        }
+    }
+
+    /// Scoped to the hosts, so the production defaults read never reaches
+    /// the person's own preferences.
+    enum SharingDefaults {
+        static let standard = SharingDefaultsState()
+    }
+
+    final class SharingDefaultsState {
+        var enabled = true
+        func bool(forKey: String) -> Bool { enabled }
+    }
+
+    class EditorState {
+        typealias UserDefaults = SharingDefaults
+        let model = Model()
+        let strings = ScreenshotFeatureStrings.enUS
+        var window: Int? = 1
+    }
+
+    enum ScreenshotShareError: Error {
+        case unavailable, invalidImage, invalidEndpoint, localStorage, invalidResponse, rejected
+    }
+
+    /// Runs the real service preflight and records the point at which it
+    /// would reach the network. The fake transport always fails locally.
+    @MainActor class CreationState {
+        typealias UserDefaults = SharingDefaults
+        final class Session {
+            var uploads = 0
+            func upload(for request: URLRequest, from data: Data) async throws -> (Data, URLResponse) {
+                uploads += 1
+                throw ScreenshotShareError.unavailable
+            }
+        }
+        let session = Session()
+        let endpoint = URL(string: "https://example.com")!
+        let decoder = JSONDecoder()
+        var removedRecordIDs = Set<String>()
+        var records: [ScreenshotShareRecord] = []
+        var writes = 0
+        func loadRecords() throws -> [ScreenshotShareRecord] { [] }
+        func saveRecords(_ records: [ScreenshotShareRecord]) throws { writes += 1 }
+        func normalizedRecords(_ records: [ScreenshotShareRecord]) -> [ScreenshotShareRecord] { records }
+        func deleteRemote(_ record: ScreenshotShareRecord) async throws {}
+        func scheduleExpiryRefresh() {}
     }
 
     class State {
+        typealias UserDefaults = SharingDefaults
         var systemSharing = false
         var pointerInside = false
         var onClose: () -> Void = {}
@@ -54,6 +128,10 @@ enum ScreenshotShareCompletionTests {
         var copies: [URL] = []
         var clipboard = "new capture"
         var copySucceeds = true
+        var uploadCompletion: CheckedContinuation<ScreenshotShareRecord, Error>?
+        func createLink(pngData: Data, duration: ScreenshotShareDuration) async throws -> ScreenshotShareRecord {
+            try await withCheckedThrowingContinuation { uploadCompletion = $0 }
+        }
         func copy(_ url: URL) -> Bool {
             copies.append(url)
             if copySucceeds { clipboard = url.absoluteString }
@@ -64,14 +142,17 @@ enum ScreenshotShareCompletionTests {
 
     enum AppFeature {
         case screenshot
-        var isAvailable: Bool { true }
+        static var available = true
+        var isAvailable: Bool { Self.available }
     }
 
     enum ScreenshotLastCaptureStore {
         static var stored: Int? = 1
+        static var isWithheld = false
         static func load() -> Int? { stored }
-        static func save(_ capture: Int) { stored = capture }
-        static func clear() { stored = nil }
+        static func save(_ capture: Int) { stored = capture; isWithheld = false }
+        static func clear() { stored = nil; isWithheld = false }
+        static func withhold() { isWithheld = true }
     }
 
     enum ScreenshotSelectionController {
@@ -108,6 +189,7 @@ enum ScreenshotShareCompletionTests {
         let strings = ScreenshotFeatureStrings.enUS
         var uploadingCaptureID: UUID?
         var latestCaptureID = UUID()
+        var latestCaptureToken = UUID()
         var latestCaptureWithheld = false
         var linkCopyRetry = ScreenshotLinkCopyRetry()
         var editors: [ScreenshotEditorController] = []
@@ -121,6 +203,7 @@ enum ScreenshotShareCompletionTests {
             defaults.set(true, forKey: DefaultsKey.screenshotUploadShortcutEnabled)
             defaults.set(true, forKey: DefaultsKey.screenshotSharingEnabled)
             ScreenshotLastCaptureStore.stored = 1
+            ScreenshotLastCaptureStore.isWithheld = false
         }
         deinit {
             UserDefaults(suiteName: defaultsName)?.removePersistentDomain(forName: defaultsName)
@@ -159,6 +242,8 @@ enum ScreenshotShareCompletionTests {
         let record = ScreenshotShareRecord(id: "test", endpoint: URL(string: "https://example.com")!,
                                           expiresAt: Date().addingTimeInterval(3_600), deleteToken: "test")
         let service = ScreenshotShareService.shared
+        AppFeature.available = true
+        SharingDefaults.standard.enabled = true
         service.revoked = []
         let open = Controller()
         open.performShare(.oneHour)
@@ -194,6 +279,96 @@ enum ScreenshotShareCompletionTests {
         for _ in 0..<20 { await Task.yield() }
         suite.expect(service.revoked == [record], "releasing the preview also revokes an undelivered link")
 
+        for scenario in ["links off", "feature off"] {
+            service.revoked = []
+            let preview = Controller()
+            preview.performShare(.oneHour)
+            if scenario == "links off" { SharingDefaults.standard.enabled = false }
+            if scenario == "feature off" { AppFeature.available = false }
+            preview.completion?(record)
+            for _ in 0..<20 { await Task.yield() }
+            suite.expect(service.revoked == [record] && preview.copies.isEmpty && !preview.model.sharing,
+                         "preview revokes an undelivered link after \(scenario)")
+            SharingDefaults.standard.enabled = true
+            AppFeature.available = true
+        }
+
+        for scenario in ["open", "closed", "links off", "feature off"] {
+            service.revoked = []
+            let editor = Editor()
+            var completed = false
+            var delivered: ScreenshotShareRecord?
+            editor.share(duration: .oneHour) { result in
+                completed = true
+                delivered = result
+            }
+            let uploadDeadline = Date().addingTimeInterval(2)
+            while service.uploadCompletion == nil && Date() < uploadDeadline { await Task.yield() }
+            suite.expect(service.uploadCompletion != nil, "editor starts its controlled upload")
+            if scenario == "closed" { editor.window = nil }
+            if scenario == "links off" { SharingDefaults.standard.enabled = false }
+            if scenario == "feature off" { AppFeature.available = false }
+            service.uploadCompletion?.resume(returning: record)
+            service.uploadCompletion = nil
+            let completionDeadline = Date().addingTimeInterval(2)
+            while !completed && Date() < completionDeadline { await Task.yield() }
+            suite.expect(completed, "editor handles its upload response after \(scenario)")
+            if scenario == "open" {
+                suite.expect(delivered == record && editor.model.exported && service.revoked.isEmpty,
+                             "an open editor delivers its requested export")
+            } else {
+                suite.expect(delivered == nil && !editor.model.exported && service.revoked == [record],
+                             "editor revokes its undelivered export after \(scenario)")
+            }
+            SharingDefaults.standard.enabled = true
+            AppFeature.available = true
+        }
+
+        for scenario in ["closed", "links off", "feature off"] {
+            let gate = RenderingGate()
+            ScreenshotRenderer.gate = gate
+            let editor = Editor()
+            var completed = false
+            var delivered: ScreenshotShareRecord?
+            editor.share(duration: .oneHour) { result in completed = true; delivered = result }
+            let renderDeadline = Date().addingTimeInterval(2)
+            while !gate.started && Date() < renderDeadline { await Task.yield() }
+            suite.expect(gate.started, "editor starts rendering before \(scenario)")
+            if scenario == "closed" { editor.window = nil }
+            if scenario == "links off" { SharingDefaults.standard.enabled = false }
+            if scenario == "feature off" { AppFeature.available = false }
+            gate.resume.signal()
+            let completionDeadline = Date().addingTimeInterval(2)
+            while !completed && service.uploadCompletion == nil && Date() < completionDeadline {
+                await Task.yield()
+            }
+            suite.expect(completed && delivered == nil && service.uploadCompletion == nil,
+                         "editor does not transmit when \(scenario) during PNG preparation")
+            // Settle the fake request on an unfixed candidate too, so the
+            // regression fails without leaking a checked continuation.
+            if let completion = service.uploadCompletion {
+                service.uploadCompletion = nil
+                completion.resume(throwing: ScreenshotShareError.unavailable)
+                for _ in 0..<20 { await Task.yield() }
+            }
+            ScreenshotRenderer.gate = nil
+            SharingDefaults.standard.enabled = true
+            AppFeature.available = true
+        }
+
+        for scenario in ["enabled", "links off", "feature off"] {
+            let gate = CreationGate()
+            SharingDefaults.standard.enabled = scenario != "links off"
+            AppFeature.available = scenario != "feature off"
+            let png = Data([137, 80, 78, 71, 13, 10, 26, 10])
+            _ = try? await gate.createLink(pngData: png, duration: .oneHour)
+            suite.expect(gate.session.uploads == (scenario == "enabled" ? 1 : 0)
+                         && gate.writes == (scenario == "enabled" ? 1 : 0),
+                         "service checks \(scenario) before persistence or any upload")
+        }
+        SharingDefaults.standard.enabled = true
+        AppFeature.available = true
+
         let failedCopy = Controller()
         failedCopy.copySucceeds = false
         failedCopy.performShare(.oneHour)
@@ -203,13 +378,15 @@ enum ScreenshotShareCompletionTests {
                      "clipboard failure retains the existing link and copy controls in the preview")
 
         for scenario in ["open", "closed", "released", "replaced", "standalone", "standalone replaced",
-                         "history opened", "owner released", "feature off", "links off"] {
+                         "history opened", "owner released", "feature off", "links off",
+                         "editor opened", "editor closed", "capture discarded"] {
             service.revoked = []
             service.copies = []
             service.clipboard = "new capture"
             var uploader: Uploader? = Uploader()
             var preview: ScreenshotQuickPreviewController? = ["standalone", "standalone replaced", "history opened",
-                                                                  "feature off", "links off"].contains(scenario)
+                                                                  "feature off", "links off", "editor opened",
+                                                                  "editor closed", "capture discarded"].contains(scenario)
                 ? nil : uploader!.showPreview()
             uploader!.uploadLastCapture()
             uploader!.uploadLastCapture()
@@ -226,6 +403,13 @@ enum ScreenshotShareCompletionTests {
                 _ = uploader!.showPreview()
             }
             if scenario == "history opened" { _ = uploader!.showPreview(capture: 2) }
+            if ["editor opened", "editor closed"].contains(scenario) {
+                uploader!.openEditor(with: 1)
+                if scenario == "editor closed" { uploader!.editorDidClose(uploader!.editors[0]) }
+            }
+            if scenario == "capture discarded" {
+                uploader!.discardLatestCapture(uploader!.latestCaptureToken)
+            }
             if scenario == "feature off" { uploader!.invalidateLatestCaptureUploads() }
             if scenario == "links off" {
                 uploader!.defaults.set(false, forKey: DefaultsKey.screenshotSharingEnabled)
@@ -371,11 +555,37 @@ enum ScreenshotShareCompletionTests {
                      "discarding an older capture or one reopened from history leaves the latest one shareable")
         let discardedLatest = Uploader()
         discardedLatest.beginLatestCapture(7)
-        discardedLatest.discardLatestCapture(discardedLatest.latestCaptureID)
+        discardedLatest.discardLatestCapture(discardedLatest.latestCaptureToken)
         NSSound.beeps = 0
         discardedLatest.uploadLastCapture()
         suite.expect(discardedLatest.uploads == 0 && NSSound.beeps == 1,
                      "a discarded latest capture is not published")
+        suite.expect(ScreenshotLastCaptureStore.isWithheld,
+                     "a discarded latest capture stays withheld in the store for the next launch")
+        // Turning the shortcut off renews the upload claim, not the capture's
+        // identity, so the preview's later Discard still holds it back.
+        let switchedOff = Uploader()
+        switchedOff.beginLatestCapture(12)
+        let shown = switchedOff.latestCaptureToken
+        switchedOff.invalidateLatestCaptureUploads()
+        switchedOff.discardLatestCapture(shown)
+        NSSound.beeps = 0
+        switchedOff.uploadLastCapture()
+        suite.expect(switchedOff.uploads == 0 && NSSound.beeps == 1,
+                     "a capture discarded after the shortcut was switched off is not published once it is back on")
+        // A relaunch starts with nothing in memory; what the store kept back
+        // is still not published, and a newer capture lifts it.
+        let relaunched = Uploader()
+        ScreenshotLastCaptureStore.stored = 13
+        ScreenshotLastCaptureStore.withhold()
+        NSSound.beeps = 0
+        relaunched.uploadLastCapture()
+        suite.expect(relaunched.uploads == 0 && NSSound.beeps == 1,
+                     "a capture withheld before a relaunch is not published after it")
+        relaunched.beginLatestCapture(14)
+        relaunched.uploadLastCapture()
+        suite.expect(relaunched.uploads == 1 && relaunched.uploadedCaptures == [14],
+                     "a capture taken after the relaunch uploads")
 
         // The capture is kept for whichever shortcut uses it, and only then.
         let retention = Uploader()

@@ -18,6 +18,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowDirectionalShortcut) private var directionalShortcutRaw = GlobalShortcut.windowDirectionalDefault.storageValue
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
+    @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -73,6 +74,7 @@ struct WindowLayoutSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                             zoneActionsStorage: $edgeSnapZoneActions,
                                              text: text,
                                              resetTitle: l10n.s.shortcutReset)
                         .disabled(!edgeSnapEnabled)

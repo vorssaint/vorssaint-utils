@@ -19,6 +19,7 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     @State private var draggingBlock: Block?
     @State private var appRows: [ProcessUsage] = []
     @State private var appRowsLoading = false
@@ -188,6 +189,7 @@ struct NetworkSection: View {
                                label: l10n.s.networkUpload,
                                value: monitor.snapshot.netUpBytesPerSec,
                                color: PanelMetricColor.green(for: colorScheme))
+                    speedUnitToggle
                 }
                 if showGraph, monitor.snapshot.netDownHistory.count >= 2 {
                     graph
@@ -196,13 +198,41 @@ struct NetworkSection: View {
         }
     }
 
+    private var speedInBits: Bool { speedUnit == .bits }
+
+    /// Flips every live network speed (panel, menu bar, island) between
+    /// bits and bytes per second. The label shows the unit in use. Its
+    /// symbol alone would not tell VoiceOver or a hover what it changes.
+    private var speedUnitToggle: some View {
+        let title = FeatureStrings.monitorLayout(l10n.language).networkSpeedUnit
+        let symbol = speedInBits ? "bit/s" : "B/s"
+        return Button {
+            speedUnit = speedInBits ? .bytes : .bits
+        } label: {
+            Text(symbol)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .frame(height: 22)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Color.primary.opacity(0.10))
+                )
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help("\(title) · \(speedInBits ? "bit/s → B/s" : "B/s → bit/s")")
+        .accessibilityLabel(title)
+        .accessibilityValue(symbol)
+    }
+
     private func rateColumn(icon: String, label: String, value: Double?, color: Color) -> some View {
         HStack(spacing: 7) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(color)
             VStack(alignment: .leading, spacing: 1) {
-                Text(value.map { MetricFormat.bytesPerSec($0) } ?? l10n.s.networkMeasuring)
+                Text(value.map { MetricFormat.networkRate($0, inBits: speedInBits) } ?? l10n.s.networkMeasuring)
                     .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .contentTransition(.numericText())
@@ -219,7 +249,8 @@ struct NetworkSection: View {
     private var graph: some View {
         let down = monitor.snapshot.netDownHistory
         let up = monitor.snapshot.netUpHistory
-        let peak = MetricFormat.graphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1), unitStep: 1024)
+        let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
+                                                    inBits: speedInBits)
         return ZStack {
             Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
             Sparkline(values: up,
@@ -228,7 +259,7 @@ struct NetworkSection: View {
                       fillOpacity: 0.08)
         }
         .frame(height: 30)
-        .graphCeilingLabel(MetricFormat.bytesPerSec(peak))
+        .graphCeilingLabel(MetricFormat.networkRate(peak, inBits: speedInBits))
     }
 
     @ViewBuilder
@@ -367,7 +398,7 @@ struct NetworkSection: View {
     private func networkValue(_ row: ProcessUsage) -> String {
         let down = row.networkDownBytesPerSec ?? 0
         let up = row.networkUpBytesPerSec ?? 0
-        return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+        return "↓\(MetricFormat.networkRateCompact(down, inBits: speedInBits)) ↑\(MetricFormat.networkRateCompact(up, inBits: speedInBits))"
     }
 }
 

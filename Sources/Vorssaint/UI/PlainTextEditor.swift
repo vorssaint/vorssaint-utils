@@ -179,17 +179,44 @@ struct PlainTextEditor: NSViewRepresentable {
         }
 
         private func moveLine(_ direction: PlainTextLineMover.Direction, in textView: NSTextView) -> Bool {
-            guard let result = PlainTextLineMover.moving(direction,
-                                                         in: textView.string,
-                                                         selection: textView.selectedRange())
+            let before = textView.selectedRange()
+            guard let result = PlainTextLineMover.moving(direction, in: textView.string, selection: before)
             else { return false }
-            let fullRange = NSRange(location: 0, length: (textView.string as NSString).length)
-            guard textView.shouldChangeText(in: fullRange, replacementString: result.text) else { return false }
-            textView.textStorage?.replaceCharacters(in: fullRange, with: result.text)
-            textView.didChangeText()
+            // Only the two neighbours trade places, in a span that keeps its
+            // length, so only that span is replaced: undo then restores two
+            // lines rather than the whole note.
+            let full = textView.string as NSString
+            let block = full.lineRange(for: before)
+            let span = direction == .up
+                ? NSUnionRange(full.lineRange(for: NSRange(location: block.location - 1, length: 0)), block)
+                : NSUnionRange(block, full.lineRange(for: NSRange(location: NSMaxRange(block), length: 0)))
+            let replacement = (result.text as NSString).substring(with: span)
+            if replacement != full.substring(with: span) {
+                guard textView.isEditable else { return false }
+                textView.breakUndoCoalescing()
+                // Undo leaves the caret at the end of what it restored;
+                // these put the selection back on both sides of the step.
+                // The first goes in before the text view's own undo, so it
+                // runs after it.
+                Self.keepSelection(before, whenUndoing: true, in: textView)
+                guard textView.shouldChangeText(in: span, replacementString: replacement) else { return false }
+                textView.textStorage?.replaceCharacters(in: span, with: replacement)
+                textView.didChangeText()
+                Self.keepSelection(result.selection, whenUndoing: false, in: textView)
+            }
             textView.setSelectedRange(result.selection)
             textView.scrollRangeToVisible(result.selection)
             return true
+        }
+
+        /// Selects `selection` when the step is undone (or redone), and
+        /// registers itself again each time so the pair survives any number
+        /// of round trips.
+        private static func keepSelection(_ selection: NSRange, whenUndoing: Bool, in textView: NSTextView) {
+            textView.undoManager?.registerUndo(withTarget: textView) { textView in
+                if textView.undoManager?.isUndoing == whenUndoing { textView.setSelectedRange(selection) }
+                keepSelection(selection, whenUndoing: whenUndoing, in: textView)
+            }
         }
 
         func textDidChange(_ notification: Notification) {

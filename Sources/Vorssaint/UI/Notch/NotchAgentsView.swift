@@ -299,7 +299,7 @@ private struct NotchAgentLimitsCard: View {
                             .font(.system(size: 9.5))
                             .foregroundStyle(.secondary)
                         if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
-                            Text("· \(AgentFormat.percent(rate)) \(text.cached(""))".trimmingCharacters(in: .whitespaces))
+                            Text("· " + text.cached(AgentFormat.percent(rate)))
                                 .font(.system(size: 9.5))
                                 .foregroundStyle(.tertiary)
                         }

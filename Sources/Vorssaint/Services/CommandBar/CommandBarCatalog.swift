@@ -388,6 +388,8 @@ enum CommandBarCatalog {
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            // Counted when the bar lists it: a copy made before confirming is kept.
+            let recentIDs = ClipboardHistoryService.shared.recentEntriesSnapshot
             entries.append(CommandBarEntry(
                 id: "action.clipboardClearRecent",
                 title: clipboard.clearRecent,
@@ -400,8 +402,8 @@ enum CommandBarCatalog {
                 icon: .symbol("trash"),
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
-                confirmationPrompt: clipboard.clearRecent,
-                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
+                confirmationPrompt: String(format: clipboard.clearRecentConfirmFormat, recentIDs.count),
+                run: { _ in ClipboardHistoryService.shared.clearRecent(recentIDs) }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
@@ -983,7 +985,7 @@ enum CommandBarCatalog {
                 id: "app.\(app.id)",
                 // Two copies of one app need two rows, so the row is keyed by
                 // where it lives; what the person named stays with the app.
-                stableKey: app.bundleID.map { "app.bundle.\($0)" } ?? "app.\(app.id)",
+                stableKey: CommandBarRowShortcuts.appKey(bundleID: app.bundleID, path: app.id),
                 title: app.name,
                 subtitle: bar.kindApp,
                 keywords: keywords,
@@ -1315,6 +1317,7 @@ enum CommandBarCatalog {
     private static func copyAnswer(_ value: String) {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
+            NSPasteboard.general.declareVorssaintSource()
             return NSPasteboard.general.setString(value, forType: .string)
         }, then: { copied in
             QuickToolHUD.show(icon: copied ? "doc.on.doc" : "exclamationmark.circle",

@@ -530,7 +530,6 @@ struct Strings {
     let urlCleanerManualTitle: String
     let urlCleanerInputPlaceholder: String
     let urlCleanerOutputPlaceholder: String
-    let urlCleanerCleanButton: String
     let urlCleanerPasteButton: String
     let urlCleanerCopyButton: String
     let urlCleanerClearButton: String
@@ -1094,6 +1093,8 @@ struct Strings {
     let supportIntroMessage: String
     let supportIntroStarButton: String
     let supportIntroStarMessage: String
+    /// A quiet line under the donation button inviting a GitHub star instead.
+    let supportIntroStarHint: String
     let supportIntroCoffeeButton: String
     let supportIntroLaterButton: String
     let supportIntroDoneButton: String
@@ -1251,6 +1252,7 @@ struct Strings {
     let urlCleanerRulesAddButton: String
     let urlCleanerRulesRemoveButton: String
     let urlCleanerRulesRemoveSiteButton: String
+    let urlCleanerRulesRestoreSiteButton: String
     let urlCleanerRemovedFormat: String            // + comma separated names
     let switcherSearchPin: String
     let switcherSearchPinCaption: String
@@ -1657,7 +1659,6 @@ extension Strings {
         urlCleanerManualTitle: "Limpar agora",
         urlCleanerInputPlaceholder: "Cole uma URL",
         urlCleanerOutputPlaceholder: "A URL limpa aparece aqui",
-        urlCleanerCleanButton: "Limpar",
         urlCleanerPasteButton: "Colar",
         urlCleanerCopyButton: "Copiar",
         urlCleanerClearButton: "Limpar campo",
@@ -2194,6 +2195,7 @@ extension Strings {
         supportIntroMessage: "Se você quiser apoiar financeiramente o desenvolvimento, o Buy Me a Coffee é o único lugar para fazer isso.",
         supportIntroStarButton: "Dar uma estrela no GitHub",
         supportIntroStarMessage: "Apoio financeiro nunca é esperado. Dar uma estrela no GitHub ajuda mais pessoas a encontrar o Vorssaint e faz uma diferença enorme no desenvolvimento.",
+        supportIntroStarHint: "Uma estrela no GitHub também ajuda mais pessoas a conhecer o Vorssaint e significa muito.",
         supportIntroCoffeeButton: "Apoiar no Buy Me a Coffee",
         supportIntroLaterButton: "Agora não",
         supportIntroDoneButton: "Concluir",
@@ -2345,6 +2347,7 @@ extension Strings {
         urlCleanerRulesAddButton: "Adicionar",
         urlCleanerRulesRemoveButton: "Excluir nome",
         urlCleanerRulesRemoveSiteButton: "Desativar todas as regras deste site",
+        urlCleanerRulesRestoreSiteButton: "Ativar todas as regras deste site",
         urlCleanerRemovedFormat: "Removidos %@",
         switcherSearchPin: "Fixar busca com S",
         switcherSearchPinCaption: "S inicia uma busca e fixa o alternador aberto, assim digitar não produz mais caracteres especiais quando o atalho usa ⌥, e uma busca que comece com Q ou W não fecha a janela nem encerra o app por engano.",
@@ -2752,7 +2755,6 @@ extension Strings {
         urlCleanerManualTitle: "Clean now",
         urlCleanerInputPlaceholder: "Paste a URL",
         urlCleanerOutputPlaceholder: "The clean URL appears here",
-        urlCleanerCleanButton: "Clean",
         urlCleanerPasteButton: "Paste",
         urlCleanerCopyButton: "Copy",
         urlCleanerClearButton: "Clear field",
@@ -3289,6 +3291,7 @@ extension Strings {
         supportIntroMessage: "If you would like to support development financially, Buy Me a Coffee is the one place to do it.",
         supportIntroStarButton: "Star Vorssaint on GitHub",
         supportIntroStarMessage: "Financial support is never expected. A star on GitHub helps more people discover Vorssaint and makes a real difference to its development.",
+        supportIntroStarHint: "A star on GitHub also helps more people find Vorssaint, and it means a lot.",
         supportIntroCoffeeButton: "Support on Buy Me a Coffee",
         supportIntroLaterButton: "Not now",
         supportIntroDoneButton: "Done",
@@ -3440,6 +3443,7 @@ extension Strings {
         urlCleanerRulesAddButton: "Add",
         urlCleanerRulesRemoveButton: "Delete name",
         urlCleanerRulesRemoveSiteButton: "Turn off every rule for this site",
+        urlCleanerRulesRestoreSiteButton: "Turn on every rule for this site",
         urlCleanerRemovedFormat: "Removed %@",
         switcherSearchPin: "Pin search with S",
         switcherSearchPinCaption: "S starts a search and pins the switcher open, so typing no longer produces special characters when your shortcut uses ⌥, and a search starting with Q or W no longer closes the window or quits the app by mistake.",

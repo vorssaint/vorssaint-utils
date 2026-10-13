@@ -345,6 +345,39 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(editor.string == "another pad" && editor.undoManager?.canUndo != true,
                      "switching documents while previewing cannot undo into the previous document")
+        // Option-Up trades two lines; undo and redo put the text and the
+        // selection back exactly, not the caret at the end of the note.
+        if let coordinator = editor.delegate as? PlainTextEditor.Coordinator {
+            editor.string = "one\ntwo\nthree\nfour"
+            editor.didChangeText()
+            settle(host)
+            editor.undoManager?.removeAllActions()
+            editor.setSelectedRange(NSRange(location: 5, length: 2))
+            let moved = coordinator.moveLine(.up, in: editor)
+            settle(host)
+            suite.expect(moved && editor.string == "two\none\nthree\nfour"
+                         && editor.selectedRange() == NSRange(location: 1, length: 2),
+                         "option-up moves the line with its selection")
+            editor.undoManager?.undo()
+            suite.expect(editor.string == "one\ntwo\nthree\nfour"
+                         && editor.selectedRange() == NSRange(location: 5, length: 2),
+                         "one undo after a line move restores the text and the selection")
+            editor.undoManager?.redo()
+            suite.expect(editor.string == "two\none\nthree\nfour"
+                         && editor.selectedRange() == NSRange(location: 1, length: 2),
+                         "redo moves the line again with the selection on it")
+            editor.string = "a\na\nb"
+            editor.didChangeText()
+            settle(host)
+            editor.undoManager?.removeAllActions()
+            editor.setSelectedRange(NSRange(location: 2, length: 0))
+            suite.expect(coordinator.moveLine(.up, in: editor) && editor.string == "a\na\nb"
+                         && editor.selectedRange() == NSRange(location: 0, length: 0)
+                         && editor.undoManager?.canUndo != true,
+                         "trading two identical lines only moves the caret and leaves no empty undo step")
+        } else {
+            suite.expect(false, "the scratchpad editor's coordinator is its delegate")
+        }
         window.contentView = nil
     }
     private static func focus(_ suite: TestSuite) {

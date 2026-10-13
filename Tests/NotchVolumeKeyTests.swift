@@ -6,6 +6,7 @@ import Foundation
 enum NotchVolumeKeyTests {
     static func run(_ suite: TestSuite) {
         NotchVolumeFeedbackTests.run(suite)
+        NotchVolumeRoutingTests.run(suite)
         var gate = NotchVolumeKeyGate()
         func press(_ key: Int32 = 0, state: Int = 0x0a, enabled: Bool = true, visible: Bool = true,
                    volume: Bool = true, mute: Bool = true, option: Bool = false,
