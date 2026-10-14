@@ -70,6 +70,8 @@ struct NotchStrings {
     let cameraFitHint: String
     let hideMenuBarGap: String
     let hideMenuBarGapHint: String
+    var blackMenuBar = "Black menu bar"
+    var blackMenuBarHint = "Paints the top of the desktop black so the menu bar turns black. Doesn't change your wallpaper."
     let withoutNotch: String
     let capsuleShape: String
     let notchShape: String
