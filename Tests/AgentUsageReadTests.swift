@@ -81,7 +81,7 @@ enum AgentUsageReadTests {
         func loadPrices() {}
         func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
-        func readClaudeApp(now: Date) {}
+        func readClaudeLimits(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}

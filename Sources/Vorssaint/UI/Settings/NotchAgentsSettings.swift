@@ -27,8 +27,9 @@ struct NotchAgentsSettingsControls: View {
     @State private var dragging: NotchAgentCard?
     @State private var roots: [AgentProvider: Bool] = [:]
     @State private var claudeApp: URL?
-    /// Read from the file while the section is off and the service is idle.
+    /// Read from the files while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
+    @State private var claudeCodeFileCheck: Date?
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
@@ -167,12 +168,19 @@ struct NotchAgentsSettingsControls: View {
     /// here when they are missing or old.
     @ViewBuilder private func claudeLimitsStatus(now: Date) -> some View {
         let checked = usage.claudeAppChecked ?? claudeAppFileCheck
+        let byCode = (usage.claudeCodeChecked ?? claudeCodeFileCheck).flatMap {
+            $0 <= now.addingTimeInterval(300) ? $0 : nil
+        }
+        // The newer of the two readings is the one shown.
+        let codeLatest = byCode.map { $0 >= checked ?? $0 } ?? false
+        let latest = codeLatest ? byCode : checked
         HStack(alignment: .top, spacing: 10) {
-            if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
+            if let latest, now.timeIntervalSince(latest) < AgentClaudeAppUsage.freshness {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text(text.claudeLimitsCurrent(relative(checked, now: now)))
+                Text(codeLatest ? text.claudeLimitsFromCode(relative(latest, now: now))
+                                : text.claudeLimitsCurrent(relative(latest, now: now)))
                 Spacer(minLength: 0)
-            } else if claudeApp == nil, checked == nil {
+            } else if claudeApp == nil, latest == nil {
                 Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
                 Text(text.claudeLimitsNoApp)
                 Spacer(minLength: 8)
@@ -180,14 +188,20 @@ struct NotchAgentsSettingsControls: View {
             } else {
                 Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
                 VStack(alignment: .leading, spacing: 4) {
-                    if let checked { Text(text.claudeLimitsStale(relative(checked, now: now))) }
-                    Text(text.claudeLimitsMenuBar)
+                    if let latest {
+                        Text(codeLatest ? text.claudeLimitsCodeStale(relative(latest, now: now))
+                                        : text.claudeLimitsStale(relative(latest, now: now)))
+                    }
+                    // The Claude app is what keeps them current between Claude Code sessions.
+                    if claudeApp != nil { Text(text.claudeLimitsMenuBar) }
                 }
                 Spacer(minLength: 8)
                 if let claudeApp {
                     Button(text.openClaude) {
                         NSWorkspace.shared.openApplication(at: claudeApp, configuration: NSWorkspace.OpenConfiguration())
                     }
+                } else if !codeLatest {
+                    Button(text.getClaude) { NSWorkspace.shared.open(AgentClaudeAppUsage.downloadURL) }
                 }
             }
         }
@@ -205,7 +219,11 @@ struct NotchAgentsSettingsControls: View {
         claudeApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: AgentClaudeAppUsage.bundleIdentifier)
         DispatchQueue.global(qos: .utility).async {
             let checked = AgentClaudeAppUsage.lastCheck()
-            DispatchQueue.main.async { claudeAppFileCheck = checked }
+            let byCode = AgentClaudeCodeUsage.lastCheck()
+            DispatchQueue.main.async {
+                claudeAppFileCheck = checked
+                claudeCodeFileCheck = byCode
+            }
         }
     }
 
