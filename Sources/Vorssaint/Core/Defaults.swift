@@ -763,6 +763,8 @@ enum DefaultsKey {
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
     static let pointerDisplayEnabled = "pointerDisplayEnabled"
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
+    static let pointerHideIdleEnabled = "pointerHideIdleEnabled"
+    static let pointerHideIdleSeconds = "pointerHideIdleSeconds"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas
