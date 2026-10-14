@@ -381,6 +381,16 @@ MUTATIONS = [
      "process.arguments = [\"-c\", \"features.plugins=false\", \"app-server\"]",
      "process.arguments = [\"app-server\"]",
      "a conversation starts Codex's server with its plugins off"),
+    ("an engine plays the slider without the loudness curve", "mixer",
+     "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+     "engine.gain = MixerRoutingSupport.gain(forVolume: latestApp.volume)",
+     "engine.gain = Float(latestApp.volume)",
+     "every engine plays an app's slider through the same loudness curve"),
+    ("saved app volumes are not moved onto the new curve", "mixer",
+     "Sources/Vorssaint/Core/Defaults.swift",
+     "positions[id] = MixerRoutingSupport.volume(forGain: sanitizedAppVolume(gain))",
+     "positions[id] = sanitizedAppVolume(gain)",
+     "an app saved below 100% plays exactly as loud after the update, converted once"),
 ]
 
 

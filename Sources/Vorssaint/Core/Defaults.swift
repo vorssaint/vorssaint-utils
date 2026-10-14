@@ -143,6 +143,7 @@ enum DefaultsKey {
     static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
+    static let appVolumesArePositions = "appVolumesArePositions" // appVolumes hold slider positions, not gains; travels with them so an older backup converts on restore
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
     static let mixerUniversalOutputDevice = "mixerUniversalOutputDevice" // retired: all-apps output saved by 3.4.1 betas
     static let mixerShowFinder = "mixerShowFinder"
@@ -1964,6 +1965,7 @@ enum Defaults {
         migrateRestoredScreenCaptureShortcuts(in: defaults)
         migrateOrphanedCaptureShortcut(in: defaults)
         migrateSilentHeadphonesDisconnectVolume(in: defaults)
+        migrateAppVolumesToPositions(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
@@ -2631,6 +2633,24 @@ enum Defaults {
               stored < minimumMixerHeadphonesDisconnectVolumePercent else { return }
         defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
                      forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+    }
+
+    /// App volumes were saved as the gain itself until the sliders followed
+    /// perceived loudness. Each saved level moves once to the slider position
+    /// that plays it exactly as loud as before, so the update changes where a
+    /// slider sits, never how an app sounds. The marker travels with the
+    /// volumes in a backup: restoring one written before the change clears
+    /// it, and the relaunch that follows converts that backup's levels too.
+    static func migrateAppVolumesToPositions(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.appVolumesArePositions) else { return }
+        defer { defaults.set(true, forKey: DefaultsKey.appVolumesArePositions) }
+        guard let saved = defaults.dictionary(forKey: DefaultsKey.appVolumes), !saved.isEmpty else { return }
+        var positions: [String: Double] = [:]
+        for (id, value) in saved {
+            guard let gain = (value as? NSNumber)?.doubleValue, gain.isFinite else { continue }
+            positions[id] = MixerRoutingSupport.volume(forGain: sanitizedAppVolume(gain))
+        }
+        defaults.set(positions, forKey: DefaultsKey.appVolumes)
     }
 
     static func sanitizedAppOutputDeviceUID(_ value: Any?) -> String? {

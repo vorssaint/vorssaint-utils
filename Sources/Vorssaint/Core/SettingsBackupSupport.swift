@@ -56,6 +56,7 @@ enum SettingsBackupSupport {
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
         DefaultsKey.appVolumes,
+        DefaultsKey.appVolumesArePositions,
         DefaultsKey.appOutputDevices,
         DefaultsKey.mixerHiddenApps,
         DefaultsKey.preferredInputDevice,

@@ -185,7 +185,22 @@ enum MixerRoutingSupport {
     /// untouched level at 100%. The boost range stays linear, so 200% is the
     /// same +6 dB it always was.
     static func gain(forVolume volume: Double) -> Float {
-        Float(volume < 1 ? volume * volume : volume)
+        // Squaring would turn a level below zero into a positive gain. Such a
+        // level is silence, and one that is not a number plays the app
+        // untouched, the same reading a saved volume gets.
+        guard volume.isFinite else { return 1 }
+        let level = max(volume, 0)
+        return Float(level < 1 ? level * level : level)
+    }
+
+    /// The slider position that plays `gain`, the inverse of the curve above.
+    /// Volumes saved before the sliders followed perceived loudness were the
+    /// gain itself, and move here once so the update never changes how loud
+    /// an app plays, only where its slider sits.
+    static func volume(forGain gain: Double) -> Double {
+        guard gain.isFinite else { return 1 }
+        let level = max(gain, 0)
+        return level < 1 ? level.squareRoot() : level
     }
 
     /// The most a tap is ever turned back up: four channel pairs, the widest
@@ -331,7 +346,7 @@ enum MixerRoutingSupport {
         return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
     }
 
-    /// Turns the text entered beside a mixer slider into its gain. The field
+    /// Turns the text entered beside a mixer slider into its level. The field
     /// accepts the same optional percent sign it displays, while the caller
     /// supplies the limit (100 for the system output, 200 for an app row).
     static func volumeFraction(fromPercentageText text: String,
