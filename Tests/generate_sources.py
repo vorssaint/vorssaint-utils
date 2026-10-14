@@ -47,6 +47,13 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("MenuBarOrganizerLifecycle.swift", "import AppKit\nimport Foundation\n"
+          + "extension MenuBarOrganizerLifecycleTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/App/MenuBarOrganizerService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func synchronizeVisibility(", "    private func completeRefresh(",
+                        "    private func clockHoverChanged("])
+          + "}\n}\n")
     write("SwitcherFullscreenScope.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
           + "extension SwitcherFullscreenScopeTests.Enumerator {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift", prefix)

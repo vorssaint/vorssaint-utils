@@ -429,7 +429,9 @@ final class StatusItemController {
     /// the bar, otherwise the item that was clicked. A menu set on an item
     /// that is out of the bar has nowhere on screen to open from.
     func menuHost(for button: NSStatusBarButton?) -> NSStatusItem {
-        guard !statusItem.isVisible, let button else { return statusItem }
+        // Anchor to the actual metric clicked, even when the main icon is
+        // registered as visible but lives in macOS's overflow area.
+        guard let button, button !== statusItem.button else { return statusItem }
         let others = [clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
         return others.first { $0.button === button } ?? statusItem
     }

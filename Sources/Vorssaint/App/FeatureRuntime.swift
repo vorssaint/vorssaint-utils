@@ -237,6 +237,15 @@ final class FeatureRuntime: ObservableObject {
     /// permission it depends on) changes. Most on-demand tools have no binding;
     /// Media only binds so uninstalling it can cancel work already in flight.
     private static let bindings: [AppFeature: () -> Void] = [
+        .menuBarOrganizer: {
+            let organizer = MenuBarOrganizerService.shared
+            organizer.onOpenSettings = {
+                SettingsRouter.shared.request(FeatureSettingsDestination(.general, sectionAnchor: .panelConfiguration))
+                (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+            }
+            organizer.syncWithPreferences()
+            (NSApp.delegate as? AppDelegate)?.installMainMenu()
+        },
         .switcher: {
             WindowUseTracker.shared.syncWithFeatures()
             AppSwitcher.shared.syncWithPreferences()

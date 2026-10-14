@@ -342,6 +342,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AppAppearance.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
         Sources/Vorssaint/Core/GeneralSettingsStrings.swift
+        Sources/Vorssaint/Core/MenuBarOrganizerStrings.swift
+        Sources/Vorssaint/App/MenuBarOrganizerVisibility.swift
+        Sources/Vorssaint/App/MenuBarItemSupport.swift
         Sources/Vorssaint/Core/SettingsPageStrings.swift
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
         Sources/Vorssaint/Core/CPUCoreStrings.swift

@@ -401,6 +401,8 @@ enum DefaultsKey {
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
     static let menuBarSeparateMetrics = "menuBarSeparateMetrics" // one status item per active metric
+    static let menuBarOrganizerEnabled = "menuBarOrganizerEnabled"
+    static let menuBarOrganizerSections = "menuBarOrganizerSections"
     static let menuBarNetworkUploadFirst = "menuBarNetworkUploadFirst" // network menu bar block shows upload above download
     static let menuBarLabelStyle = "menuBarLabelStyle"     // compact | classic
     static let menuBarMemoryStyle = "menuBarMemoryStyle"   // dot | percent | both
@@ -1622,6 +1624,8 @@ enum Defaults {
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
+        DefaultsKey.menuBarOrganizerEnabled: false,
+        DefaultsKey.menuBarOrganizerSections: [String: String](),
         DefaultsKey.menuBarNetworkUploadFirst: false,
         DefaultsKey.menuBarLabelStyle: "compact",
         DefaultsKey.menuBarMemoryStyle: "percent",
