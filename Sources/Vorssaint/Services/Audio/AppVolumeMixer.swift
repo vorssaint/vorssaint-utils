@@ -193,6 +193,11 @@ final class AppVolumeMixer: ObservableObject {
     private var queuedOutputSteps: [OutputStep] = []
     private var outputStepReadInFlight = false
     private var outputStepReadGeneration = 0
+    /// The level the last volume key asked for and the reading it stepped
+    /// from. An output with coarse steps rounds a step narrower than its own
+    /// back to that reading, and stepping from the reading again would hold
+    /// it there for good.
+    private var lastOutputStep: (device: AudioObjectID, lifetime: UUID, from: Double, to: Double)?
     private let outputControlLock = NSLock()
     private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
@@ -414,6 +419,7 @@ final class AppVolumeMixer: ObservableObject {
         // Superseded keys are handled: replaying them would adjust the new output.
         pending?.completion(true)
         outputStepReadInFlight = false
+        lastOutputStep = nil
         settleQueuedOutputSteps(handled: true)
     }
 
@@ -528,6 +534,8 @@ final class AppVolumeMixer: ObservableObject {
         // read for those keys may still finish later, so invalidate its value.
         outputStepReadGeneration &+= 1
         settleQueuedOutputSteps(handled: true)
+        // A key records its own step again right after this.
+        lastOutputStep = nil
         outputControlRefreshGeneration &+= 1
         let previous = pendingOutputAdjustment
         var adjustment = previous ?? OutputAdjustment(device: device,
@@ -555,8 +563,10 @@ final class AppVolumeMixer: ObservableObject {
     /// level without notifying, and stepping from the stale reading left the
     /// island at 21% while the speakers played at 2%. Keys pressed while that
     /// read runs queue behind it, and keys during this app's own write carry on
-    /// from the level already requested. `level` receives the audible level
-    /// (0 while muted) and returns the one to set.
+    /// from the level already requested. So does the key after a step the
+    /// output rounded back to where it was, as one with 3 dB steps does with a
+    /// sixteenth. `level` receives the audible level (0 while muted) and
+    /// returns the one to set.
     func requestOutputStep(level: @escaping (Double) -> Double,
                            completion: @escaping (Bool) -> Void = { _ in }) {
         enqueueOutputKey(OutputStep(level: level, completion: completion),
@@ -620,11 +630,12 @@ final class AppVolumeMixer: ObservableObject {
                 // the default output lacks leaves its keys to the system; the
                 // others still apply.
                 let superseded = self.outputStepReadGeneration != readGeneration
-                if !superseded, !self.hasCurrentOutputAdjustment {
+                let fresh = !superseded && !self.hasCurrentOutputAdjustment
+                if fresh {
                     if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
                     if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
                 }
-                self.applyQueuedOutputSteps()
+                self.applyQueuedOutputSteps(reading: fresh ? volume : nil)
             }
         }
     }
@@ -635,17 +646,30 @@ final class AppVolumeMixer: ObservableObject {
         for step in steps { step.completion(handled) }
     }
 
-    private func applyQueuedOutputSteps() {
+    /// `reading` is the output's own level, when these keys have just read it.
+    private func applyQueuedOutputSteps(reading: Double? = nil) {
         let steps = queuedOutputSteps
         queuedOutputSteps.removeAll()
+        var reading = reading
         for step in steps {
             if let level = step.level {
                 guard let volume = systemOutputVolume else {
                     step.completion(false)
                     continue
                 }
-                requestOutputAdjustment(volume: level(systemOutputMuted == true ? 0 : volume),
-                                        completion: step.completion)
+                // Still at the level the last key stepped from, the output
+                // rounded that step back: go on from the level it asked for.
+                let start = reading.flatMap { roundedBackStepLevel($0, continuing: level) } ?? volume
+                let from = reading ?? lastOutputStep?.from ?? volume
+                let target = level(systemOutputMuted == true ? 0 : start)
+                requestOutputAdjustment(volume: target) { [weak self] applied in
+                    // A step the output refused carries nothing over.
+                    if !applied, self?.lastOutputStep?.to == target { self?.lastOutputStep = nil }
+                    step.completion(applied)
+                }
+                rememberOutputStep(from: from, to: target)
+                // Keys after the first in a burst continue from this one.
+                reading = nil
             } else {
                 guard let muted = systemOutputMuted else {
                     step.completion(false)
@@ -654,6 +678,23 @@ final class AppVolumeMixer: ObservableObject {
                 requestOutputAdjustment(muted: !muted, completion: step.completion)
             }
         }
+    }
+
+    /// The level the last key asked for, while the current output still
+    /// reads the level that key stepped from and `level` keeps going the same
+    /// way. A key back the other way steps from the reading, which the output
+    /// never left.
+    private func roundedBackStepLevel(_ reading: Double, continuing level: (Double) -> Double) -> Double? {
+        guard let step = lastOutputStep, step.device == outputControlListenerDevice,
+              step.lifetime == outputControlLock.withLock({ outputControlLifetime }),
+              abs(reading - step.from) < 0.0001,
+              (level(step.to) - step.to) * (step.to - step.from) > 0 else { return nil }
+        return step.to
+    }
+
+    private func rememberOutputStep(from: Double, to: Double) {
+        guard let device = outputControlListenerDevice else { return }
+        lastOutputStep = (device, outputControlLock.withLock { outputControlLifetime }, from, to)
     }
 
     private func isCurrentOutputAdjustment(_ adjustment: OutputAdjustment) -> Bool {
@@ -666,6 +707,11 @@ final class AppVolumeMixer: ObservableObject {
 
     private func applyOutputControls(volume: Double?, muted: Bool?) {
         guard !hasCurrentOutputAdjustment else { return }
+        // Read at any other level than the one the last key stepped from, that
+        // step landed or the output has moved since, so nothing carries over.
+        if let step = lastOutputStep, volume.map({ abs($0 - step.from) >= 0.0001 }) ?? true {
+            lastOutputStep = nil
+        }
         if systemOutputVolume != volume { systemOutputVolume = volume }
         if systemOutputMuted != muted { systemOutputMuted = muted }
     }
@@ -708,6 +754,8 @@ final class AppVolumeMixer: ObservableObject {
             scheduleListenerRefresh()
             return false
         }
+        // A direct change starts the next key from its own level.
+        lastOutputStep = nil
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
         if clamped > 0, systemOutputMuted == true { systemOutputMuted = false }
         return true

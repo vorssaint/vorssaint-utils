@@ -506,13 +506,11 @@ enum RecorderFeatureTests {
 
         suite.expect(RecorderSupport.gifFrameCount(duration: 10, fps: 12) == 120,
                "a GIF holds one frame per tick of its own rate")
-        suite.expect(RecorderSupport.gifFitsBudget(duration: 10, fps: 12)
-                && !RecorderSupport.gifFitsBudget(duration: 120, fps: 12),
-               "a GIF long enough to eat the memory of the machine is refused before it starts")
-        suite.expect(Int(RecorderSupport.maximumGIFSeconds(fps: 12)) == 25,
-               "the refusal can say exactly how long a GIF may be at that rate")
-        suite.expect(RecorderSupport.gifDelay(fps: 10) == 0.1,
-               "the frame delay is the reciprocal of the rate")
+        suite.expect(RecorderSupport.gifFrameCount(duration: 120, fps: 12) == 1440,
+               "streaming GIFs retain all frames beyond the former duration cap")
+        suite.expect([Double.nan, .infinity, -1, 0, Double.greatestFiniteMagnitude].allSatisfy {
+            RecorderSupport.gifFrameCount(duration: $0, fps: 12) == 0
+        }, "invalid and unrepresentable GIF durations cannot overflow the frame count")
         let gifSize = RecorderSupport.gifOutputSize(source: CGSize(width: 2940, height: 1912),
                                                     size: .medium)
         suite.expect(max(gifSize.width, gifSize.height) <= RecorderSupport.GIFSize.medium.longEdge

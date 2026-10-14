@@ -722,9 +722,8 @@ enum RecorderSupport {
 
     // MARK: - GIF
 
-    /// A GIF holds every frame uncompressed while it is being written, so the
-    /// only real defence against a recording that eats the memory of the
-    /// machine is to keep the frame count and the picture small on purpose.
+    /// GIF frames are encoded a chunk at a time, so the picture size and the
+    /// chunk length bound the memory an export needs, whatever its length.
     enum GIFSize: String, CaseIterable {
         case small, medium, large
 
@@ -742,33 +741,16 @@ enum RecorderSupport {
     }
 
     static let gifFrameRates = [8, 12, 15]
-    static let maximumGIFFrames = 300
 
     static func sanitizedGIFFrameRate(_ raw: Int) -> Int {
         gifFrameRates.contains(raw) ? raw : 12
     }
 
     static func gifFrameCount(duration: Double, fps: Int) -> Int {
-        guard duration > 0, fps > 0 else { return 0 }
-        return max(1, Int((duration * Double(fps)).rounded(.down)))
-    }
-
-    /// Whether a clip fits inside the frame budget at the chosen rate, and
-    /// how long it would have to be to fit. Answering this before the person
-    /// commits is the difference between a clear limit and a hang.
-    static func gifFitsBudget(duration: Double, fps: Int) -> Bool {
-        gifFrameCount(duration: duration, fps: fps) <= maximumGIFFrames
-    }
-
-    static func maximumGIFSeconds(fps: Int) -> Double {
-        guard fps > 0 else { return 0 }
-        return Double(maximumGIFFrames) / Double(fps)
-    }
-
-    /// GIF delay below 100 ms is silently clamped by readers unless the
-    /// unclamped key is written too, so anything above 10 fps needs both.
-    static func gifDelay(fps: Int) -> Double {
-        1 / Double(max(1, fps))
+        guard duration.isFinite, duration > 0, fps > 0 else { return 0 }
+        let count = (duration * Double(fps)).rounded(.down)
+        guard count.isFinite, count < Double(Int.max) else { return 0 }
+        return max(1, Int(count))
     }
 
     static func gifOutputSize(source: CGSize, size: GIFSize) -> CGSize {

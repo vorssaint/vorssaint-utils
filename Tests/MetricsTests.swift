@@ -73,6 +73,8 @@ struct MetricsTests {
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
+                ScreenTextCompletionTests.run(suite)
+                ScreenshotOCRControlTests.run(suite)
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
@@ -83,6 +85,7 @@ struct MetricsTests {
                 ScreenCaptureToolPickerTests.run(suite)
             }),
             ("recorder", {
+                RecorderGIFWriterTests.run(suite)
                 RecorderFeatureTests.run(suite)
                 RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
@@ -115,6 +118,7 @@ struct MetricsTests {
                 NotchSettingsChoiceTests.run(suite)
                 MonitorTokenTests.run(suite)
             }),
+            ("feature-hub-layout", { FeatureHubLayoutTests.run(suite) }),
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
