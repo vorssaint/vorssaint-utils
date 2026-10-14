@@ -990,9 +990,11 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static var featuresToSilenceWhileRecording: [AppFeature] {
         var seen: Set<AppFeature> = []
         var features = allCases.compactMap { seen.insert($0.feature).inserted ? $0.feature : nil }
-        // Window layout keeps one shortcut per action instead of a role, so it
-        // is the one holder of global keys the list above cannot reach.
+        // Window layout keeps one shortcut per action instead of a role, and
+        // combo mode's trigger has no default, so neither is a role: both hold
+        // global keys the list above cannot reach.
         if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        if seen.insert(.comboMode).inserted { features.append(.comboMode) }
         return features
     }
 

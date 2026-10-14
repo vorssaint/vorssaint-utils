@@ -67,8 +67,12 @@ enum NotchMusicVisibilityTests {
         var showingAppPanel = false
         var showingSections = false
         var showingCommandBar = false
+        var showingCombo = false
+        var showsGuest: Bool { showingCommandBar || showingCombo }
+        func comboDidClose() {}
         var commandBarClosings = 0
         var commandBarSurfaceSize = CGSize(width: 616, height: 132)
+        var comboSurfaceSize = CGSize(width: 340, height: 120)
         var mascotVisible = false
         func mascotShows(on geometry: NotchGeometry) -> Bool {
             mascotVisible && (geometry.floats || geometry.restingWingWidth > 0)

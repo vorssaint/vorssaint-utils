@@ -721,7 +721,9 @@ private struct NotchMascotMomentChip: View {
 
 /// A choice drawn as what it gives, with its name under it, like the size
 /// and shape choices on the Dynamic Island page.
-private struct NotchMascotChoiceTile<Preview: View>: View {
+/// Shared with combo mode's "where it appears" choice, which shows its
+/// options the same way.
+struct NotchMascotChoiceTile<Preview: View>: View {
     let title: String
     let selected: Bool
     let action: () -> Void
@@ -755,7 +757,7 @@ private struct NotchMascotChoiceTile<Preview: View>: View {
 
 /// Black reads as the island's own color on a light page, and needs a faint
 /// edge to stand off a dark one.
-private extension Shape {
+extension Shape {
     func islandSample() -> some View {
         fill(.black).overlay(stroke(Color.primary.opacity(0.14), lineWidth: 0.5))
     }

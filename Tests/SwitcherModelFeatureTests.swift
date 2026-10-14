@@ -2071,6 +2071,10 @@ enum SwitcherModelFeatureTests {
                "shelf automatic exclusions start empty")
         suite.expect(registeredDefaults[DefaultsKey.mouseNavigationEnabled] as? Bool == false,
                "mouse side-button navigation is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.comboModeEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.comboModeTrigger] as? String == ComboTrigger.clearedStorageValue
+                && registeredDefaults[DefaultsKey.comboModeKeymap] == nil,
+               "combo mode is off with no trigger shortcut, and its keymap is never registered")
         suite.expect(registeredDefaults[DefaultsKey.mouseAccelerationDisabled] as? Bool == false
                 && registeredDefaults[DefaultsKey.panelControlMouseAcceleration] as? Bool == true,
                "mouse acceleration control is opt-in and visible in the panel when installed")

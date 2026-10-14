@@ -76,6 +76,7 @@ enum SettingsBackupSupport {
         DefaultsKey.panelPowerOrder,
         DefaultsKey.panelCollapsedSections,
         DefaultsKey.quickLauncherItemOrder,
+        DefaultsKey.comboModeKeymap,
         // Legacy island layouts stay restorable; absence selects the new layout.
         DefaultsKey.notchQuickAccessSide,
         DefaultsKey.notchQuickAccessSecond,
@@ -412,6 +413,11 @@ enum SettingsBackupSupport {
         switch key {
         case DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird:
             return value is String
+        case DefaultsKey.comboModeKeymap:
+            // Only a keymap this version can read is restored.
+            return ComboKeymap.decode(value as? Data) != nil
+        case DefaultsKey.comboModePresentation:
+            return (value as? String).flatMap(ComboPresentation.init(rawValue:)) != nil
         default: break
         }
         guard let expected = Defaults.registeredDefaults[key] else {

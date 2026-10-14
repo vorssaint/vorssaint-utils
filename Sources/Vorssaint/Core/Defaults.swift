@@ -629,6 +629,13 @@ enum DefaultsKey {
     static let quickLauncherShortcut = "quickLauncherShortcut"
     static let quickLauncherItemOrder = "quickLauncherItemOrder"
     static let quickLauncherHiddenItems = "quickLauncherHiddenItems"
+    static let comboModeEnabled = "comboModeEnabled"
+    /// Global shortcut that opens the combo overlay. "none" (the registered
+    /// default) means no shortcut: nothing is registered until one is recorded.
+    static let comboModeTrigger = "comboModeTrigger"
+    /// JSON-encoded `ComboKeymap`. Unregistered: absence means an empty keymap.
+    static let comboModeKeymap = "comboModeKeymap"
+    static let comboModePresentation = "comboModePresentation" // ComboPresentation.rawValue
     static let panelUtilityQuickLauncher = "panelUtilityQuickLauncher"
     static let panelUtilityColorPicker = "panelUtilityColorPicker"
     static let panelUtilityScreenOCR = "panelUtilityScreenOCR"
@@ -1797,6 +1804,9 @@ enum Defaults {
         DefaultsKey.quickLauncherShortcutEnabled: true,
         DefaultsKey.quickLauncherShortcut: GlobalShortcut.quickLauncherDefault.storageValue,
         DefaultsKey.quickLauncherHiddenItems: "",
+        DefaultsKey.comboModeEnabled: false,
+        DefaultsKey.comboModeTrigger: ComboTrigger.clearedStorageValue,
+        DefaultsKey.comboModePresentation: ComboPresentation.defaultValue.rawValue,
         DefaultsKey.panelUtilityQuickLauncher: true,
         DefaultsKey.panelUtilityColorPicker: true,
         DefaultsKey.panelUtilityScreenOCR: true,

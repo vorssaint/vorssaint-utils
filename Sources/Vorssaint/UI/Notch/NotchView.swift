@@ -96,6 +96,8 @@ struct NotchView: View {
         } else if service.expanded {
             if service.showingCommandBar {
                 commandBarPage
+            } else if service.showingCombo {
+                comboPage
             } else {
                 expanded
                     // The companion beside the camera watches the pointer go
@@ -288,6 +290,16 @@ struct NotchView: View {
         CommandBarView(presentation: .island)
             .fixedSize(horizontal: false, vertical: true)
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateCommandBarHeight($0) }
+            .padding(.top, service.geometry.safeContentTop)
+            .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+    }
+
+    /// Combo mode's keys in the open island, below the camera, with the
+    /// island as tall as they are.
+    private var comboPage: some View {
+        ComboModeIslandView()
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateComboHeight($0) }
             .padding(.top, service.geometry.safeContentTop)
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
     }

@@ -76,6 +76,9 @@ enum NotchKeyMonitorTests {
         var showingAppPanel = false
         var showingSections = false
         var showingCommandBar = false
+        var showingCombo = false
+        var showsGuest: Bool { showingCommandBar || showingCombo }
+        func comboDidClose() {}
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
         var headerTitleWidth: CGFloat = 0

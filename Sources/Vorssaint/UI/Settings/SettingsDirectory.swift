@@ -433,6 +433,13 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).kindMedia,
                                                  FeatureStrings.radialMenu(language).kindSubmenu,
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
+                SettingsDirectoryItem(page: .comboMode,
+                                      title: FeatureStrings.comboMode(language).title,
+                                      icon: "keyboard.badge.ellipsis",
+                                      keywords: [FeatureStrings.comboMode(language).keymapTitle,
+                                                 FeatureStrings.comboMode(language).triggerLabel,
+                                                 FeatureStrings.comboMode(language).openApplication,
+                                                 "leader key", "keymap", "launcher"]),
             ]),
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",

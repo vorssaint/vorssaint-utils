@@ -78,6 +78,9 @@ enum NotchDestinationContract {
         var showingAppPanel = false
         var showingSections = false
         var showingCommandBar = false
+        var showingCombo = false
+        var showsGuest: Bool { showingCommandBar || showingCombo }
+        func comboDidClose() {}
         var commandBarClosings = 0
         func commandBarDidClose() { commandBarClosings += 1 }
         func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }

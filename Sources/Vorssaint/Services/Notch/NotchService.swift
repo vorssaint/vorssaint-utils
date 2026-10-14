@@ -382,6 +382,12 @@ final class NotchService: ObservableObject {
     /// The Command Bar open inside the island, in place of its pages.
     @Published private(set) var showingCommandBar = false
     @Published private var commandBarHeight: CGFloat?
+    /// Combo mode's keys open inside the island, in place of its pages.
+    /// Its own unseen panel keeps the keyboard; the island only shows them.
+    @Published private(set) var showingCombo = false
+    @Published private var comboHeight: CGFloat?
+    /// Something another feature put in the open island in place of its pages.
+    private var showsGuest: Bool { showingCommandBar || showingCombo }
     private var musicTitleWork: DispatchWorkItem?
     private static let musicTitleDuration: TimeInterval = 4
     private var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
@@ -860,7 +866,7 @@ final class NotchService: ObservableObject {
         // The Command Bar keeps the island black, as its drop is: it changes
         // height with every keystroke, and the glass is drawn a frame behind
         // the shape, which showed rows outside it for that frame.
-        (expanded && !showingCommandBar) || peeking || dragPlaceholder || noticeExpanded
+        (expanded && !showsGuest) || peeking || dragPlaceholder || noticeExpanded
             || (captureControls != nil && !captureControlsCollapsed)
     }
 
@@ -881,7 +887,7 @@ final class NotchService: ObservableObject {
             }
             return captureControlsLayout.size
         }
-        if expanded { return showingCommandBar ? commandBarSurfaceSize : expandedSize }
+        if expanded { return showingCommandBar ? commandBarSurfaceSize : showingCombo ? comboSurfaceSize : expandedSize }
         if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }
         if let notice {
             guard noticeExpanded else { return geometry.noticeSize(wings: notice.wings(in: geometry)) }
@@ -1200,6 +1206,11 @@ final class NotchService: ObservableObject {
             showingCommandBar = false
             commandBarDidClose()
         }
+        comboHeight = nil
+        if showingCombo {
+            showingCombo = false
+            comboDidClose()
+        }
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
         pageLayers.removeAll()
@@ -1332,7 +1343,8 @@ final class NotchService: ObservableObject {
         }
         let metric = metric.flatMap { metricIsAvailable($0) ? $0 : nil }
         let closesCommandBar = showingCommandBar
-        let changesPresentation = !expanded || selected != destination || closesCommandBar
+        let closesCombo = showingCombo
+        let changesPresentation = !expanded || selected != destination || closesCommandBar || closesCombo
             || showingAppPanel != appPanel || selectedMetric != metric || showingSections != sections
         if changesPresentation, destination == .tools, !appPanel, !sections, metric == nil {
             QuickLauncherService.shared.prepareForPresentation()
@@ -1353,6 +1365,7 @@ final class NotchService: ObservableObject {
         let mascotFrom = mascotBridgeStart(opening: true)
         mutatePresentation(transitionContent: changesPresentation ? (expanded ? .replace : .reveal) : .none) {
             showingCommandBar = false
+            showingCombo = false
             showingAppPanel = appPanel
             showingSections = sections
             if selected != destination { selected = destination }
@@ -1372,12 +1385,14 @@ final class NotchService: ObservableObject {
         if takeFocus { panel.makeKey() }
         if feedback, changesPresentation { provideHapticFeedback() }
         if closesCommandBar { commandBarDidClose() }
+        if closesCombo { comboDidClose() }
     }
 
     func collapse() {
         guard captureControls == nil, !heldDrag else { return }
         let closeCapture = detachCaptureIfClosingOnCollapse()
         let closesCommandBar = showingCommandBar
+        let closesCombo = showingCombo
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         pinned = false
         hoverWork?.cancel(); hoverWork = nil
@@ -1392,6 +1407,7 @@ final class NotchService: ObservableObject {
             showingAppPanel = false
             showingSections = false
             showingCommandBar = false
+            showingCombo = false
             sectionQuery = ""
             highlightedSection = nil
             sectionRow = 0
@@ -1400,6 +1416,7 @@ final class NotchService: ObservableObject {
         panel?.acceptsKeyFocus = false
         panel?.resignKey()
         if closesCommandBar { commandBarDidClose() }
+        if closesCombo { comboDidClose() }
         removeEventMonitors()
         syncVisibleConsumers()
         closeCapture?()
@@ -1425,7 +1442,7 @@ final class NotchService: ObservableObject {
     @discardableResult
     func showClipboard(toggle: Bool = false) -> Bool {
         guard acceptsUserInteraction, NotchSupport.routesClipboardWindow() else { return false }
-        if toggle, expanded, selected == .clipboard, !showingAppPanel, !showingSections, !showingCommandBar { collapse() }
+        if toggle, expanded, selected == .clipboard, !showingAppPanel, !showingSections, !showsGuest { collapse() }
         else { open(.clipboard) }
         return true
     }
@@ -1793,14 +1810,14 @@ final class NotchService: ObservableObject {
     @discardableResult
     func showScratchpad(toggle: Bool = false) -> Bool {
         guard NotchSupport.routesScratchpad(), acceptsUserInteraction else { return false }
-        if toggle, expanded, selected == .scratchpad, !showingAppPanel, !showingSections, !showingCommandBar,
+        if toggle, expanded, selected == .scratchpad, !showingAppPanel, !showingSections, !showsGuest,
            selectedMetric == nil, panel?.isKeyWindow == true { collapse() }
         else { open(.scratchpad) }
         return true
     }
 
     func openAppPanel(toggle: Bool = false) {
-        if toggle, expanded, showingAppPanel, !showingSections, !showingCommandBar { collapse(); return }
+        if toggle, expanded, showingAppPanel, !showingSections, !showsGuest { collapse(); return }
         MenuPanelFocus.shared.showNormalPanel()
         open(.controls, appPanel: true)
         // The toggling route is the menu bar's. Opened from there, the panel
@@ -1810,21 +1827,21 @@ final class NotchService: ObservableObject {
 
     func openQuickPanel(toggle: Bool = false) -> Bool {
         guard NotchSupport.routesQuickPanel(), acceptsUserInteraction else { return false }
-        if toggle, expanded, selected == .tools, !showingSections, !showingCommandBar { collapse() }
+        if toggle, expanded, selected == .tools, !showingSections, !showsGuest { collapse() }
         else { open(.tools) }
         return true
     }
 
     func openShelf(toggle: Bool = false) -> Bool {
         guard NotchSupport.routesShelf(), acceptsUserInteraction else { return false }
-        if toggle, expanded, selected == .files, !showingSections, !showingCommandBar { collapse() }
+        if toggle, expanded, selected == .files, !showingSections, !showsGuest { collapse() }
         else { open(.files) }
         return true
     }
 
     func showMetric(_ metric: MetricDetailKind, toggle: Bool = false) {
         guard metricIsAvailable(metric) else { return }
-        if toggle, expanded, selectedMetric == metric, !showingSections, !showingCommandBar { collapse(); return }
+        if toggle, expanded, selectedMetric == metric, !showingSections, !showsGuest { collapse(); return }
         open(.system, metric: metric)
         // A metric opened from its menu bar item closes on Escape, like the popover.
         if toggle { detailHasPage = false }
@@ -1913,7 +1930,9 @@ final class NotchService: ObservableObject {
         // A Command Bar open in the island closes with it, or it would keep
         // the island's keys while the controls are up.
         let closesCommandBar = showingCommandBar
+        let closesCombo = showingCombo
         showingCommandBar = false
+        showingCombo = false
         expanded = false
         showingSections = false
         peeking = false
@@ -1921,6 +1940,7 @@ final class NotchService: ObservableObject {
         noticeExpanded = false
         hoverWork?.cancel()
         if closesCommandBar { commandBarDidClose() }
+        if closesCombo { comboDidClose() }
         removeEventMonitors()
         panel?.acceptsKeyFocus = true
         panel?.level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()) + 1)
@@ -2370,14 +2390,14 @@ final class NotchService: ObservableObject {
 
     func isCaptureVisible(id: UUID) -> Bool {
         acceptsSystemFeedback && expanded && selected == .captures
-            && !showingAppPanel && !showingSections && !showingCommandBar && selectedMetric == nil
+            && !showingAppPanel && !showingSections && !showsGuest && selectedMetric == nil
             && captureControls == nil && captureID == id && captureContent != nil
     }
 
     func removeCapture(id: UUID) {
         guard captureID == id else { return }
         clearCapture()
-        if expanded, selected == .captures, !showingSections, !showingCommandBar {
+        if expanded, selected == .captures, !showingSections, !showsGuest {
             if pinned { refreshPresentation() }
             else { collapse() }
         }
@@ -2543,7 +2563,7 @@ final class NotchService: ObservableObject {
         presented.surfaceShift = surfaceShift
         windowHost?.present(size: size, geometry: presented, animated: animated,
                             transitionContent: contentTransition,
-                            quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
+                            quickAccess: expanded && captureControls == nil && !showsGuest && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
                                 && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
@@ -3525,8 +3545,8 @@ final class NotchService: ObservableObject {
             // drops the candidate; the island takes the next one.
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53,
                (self.panel?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
-            // The Command Bar inside the island reads its own keys, Escape included.
-            if event.type == .keyDown, event.window === self.panel, self.showingCommandBar { return event }
+            // The Command Bar or combo inside the island reads its own keys, Escape included.
+            if event.type == .keyDown, event.window === self.panel, self.showsGuest { return event }
             if event.type == .keyDown, event.window === self.panel, self.captureControls == nil {
                 let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
                 if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "k" {
@@ -3643,7 +3663,7 @@ final class NotchService: ObservableObject {
         let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
-                                          && !showingCommandBar))
+                                          && !showsGuest))
         let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
                                                           musicSurface: musicSurface,
                                                           control: interaction.control, scroll: interaction.scroll)
@@ -4074,16 +4094,16 @@ final class NotchService: ObservableObject {
             releaseMonitor()
             return
         }
-        if !NotchCameraSupport.canPresent(expanded: expanded && !showingSections && !showingCommandBar, selected: selected,
+        if !NotchCameraSupport.canPresent(expanded: expanded && !showingSections && !showsGuest, selected: selected,
             appPanel: showingAppPanel, captureControls: captureControls != nil) {
             CameraPreviewService.shared.hideEmbedded()
         }
         let musicWanted = modules.contains(.music) && ((expanded && (selected == .music || (selected == .controls && NotchSupport.controls().contains(.music)))
-            && !showingAppPanel && !showingSections && !showingCommandBar)
+            && !showingAppPanel && !showingSections && !showsGuest)
             || (!hiddenUntilHover && (NotchSupport.watchesMusicActivity() || NotchSupport.routes(.track))))
         if musicWanted { NotchMusicService.shared.start() } else { NotchMusicService.shared.stop() }
         let needs = expanded && selected == .system && selectedMetric == nil && modules.contains(.system) && !showingAppPanel
-            && !showingSections && !showingCommandBar
+            && !showingSections && !showsGuest
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
         if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
@@ -4418,7 +4438,7 @@ extension NotchService {
     /// it. The row must leave it room: free when the header sits below the
     /// camera, or past the title or the actions on its side of the camera.
     var mascotResidentShows: Bool {
-        guard mascotOn, !mascotInBar, expanded, !showingCommandBar, captureControls == nil,
+        guard mascotOn, !mascotInBar, expanded, !showsGuest, captureControls == nil,
               !dragPlaceholder, !noticeExpanded, geometry.isNotched, !geometry.floats else { return false }
         let header = expandedGeometry
         guard header.headerCameraGap > 0 else { return true }
@@ -4482,6 +4502,7 @@ extension NotchService {
         if !expanded { removeHoverExitMonitors() }
         mutatePresentation(transitionContent: expanded ? .replace : .reveal) {
             showingCommandBar = true
+            showingCombo = false
             showingAppPanel = false
             showingSections = false
             selectedMetric = nil
@@ -4924,6 +4945,70 @@ extension NotchService {
         let measured = ceil(height)
         guard commandBarHeight != measured else { return }
         commandBarHeight = measured
+        refreshPresentation()
+    }
+
+    // MARK: Combo mode
+
+    /// The open island around combo mode's keys: their width within the
+    /// island's margins, and their height below the camera.
+    var comboSurfaceSize: CGSize {
+        let width = max(geometry.cameraWidth + 80, ComboModeIslandView.width + NotchLayout.horizontalInset * 2)
+        let height = geometry.safeContentTop + (comboHeight ?? ComboModeIslandView.minimumHeight) + NotchLayout.bottomInset
+        return CGSize(width: min(geometry.screen.width - 24, width), height: min(geometry.screen.height - 48, height))
+    }
+
+    /// Opens the island around combo mode's keys, the way the Command Bar
+    /// opens in it, but leaves the keyboard where it is: combo mode's own
+    /// unseen panel holds it. False when the island cannot open here, and
+    /// the combo then shows centered instead.
+    func presentCombo() -> Bool {
+        guard NotchSupport.isEnabled(), acceptsUserInteraction, !hiddenInFullscreen, captureControls == nil,
+              !heldDrag, NSMouseInRect(NSEvent.mouseLocation, geometry.screen, false), panel != nil else { return false }
+        // A Command Bar already in the island gives way, as when a page opens.
+        let closesCommandBar = showingCommandBar
+        (NSApp.delegate as? AppDelegate)?.closePopover(preservingNotch: true)
+        hoverState.open()
+        hoverWork?.cancel()
+        if !expanded { removeHoverExitMonitors() }
+        mutatePresentation(transitionContent: expanded ? .replace : .reveal) {
+            showingCombo = true
+            showingCommandBar = false
+            showingAppPanel = false
+            showingSections = false
+            selectedMetric = nil
+            peeking = false
+            openedByHover = false
+            expanded = true
+            if notice?.notificationID != nil { noticeWork?.cancel(); noticeWork = nil; notice = nil; noticeExpanded = false }
+        }
+        // The island never takes the keys from combo mode's panel.
+        panel?.acceptsKeyFocus = false
+        if closesCommandBar { commandBarDidClose() }
+        inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
+        installEventMonitors()
+        syncVisibleConsumers()
+        return true
+    }
+
+    /// Combo mode ended on its own, and the island closes with it.
+    func dismissCombo() {
+        guard showingCombo else { return }
+        collapse()
+    }
+
+    /// The island closed around the combo, from a click away, another app
+    /// or a page opened in its place, and the combo ends too.
+    fileprivate func comboDidClose() {
+        comboHeight = nil
+        ComboModeService.shared.islandDidClose()
+    }
+
+    func updateComboHeight(_ height: CGFloat) {
+        guard showingCombo, height.isFinite, height > 0 else { return }
+        let measured = ceil(height)
+        guard comboHeight != measured else { return }
+        comboHeight = measured
         refreshPresentation()
     }
 }

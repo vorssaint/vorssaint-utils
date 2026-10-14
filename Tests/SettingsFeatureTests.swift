@@ -265,6 +265,10 @@ enum SettingsFeatureTests {
                "linear scrolling preferences travel with the settings backup")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { backupKeys.contains($0.defaultsKey) },
                "the apps each mouse feature leaves alone travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.comboModeEnabled)
+                && backupKeys.contains(DefaultsKey.comboModeTrigger)
+                && backupKeys.contains(DefaultsKey.comboModeKeymap),
+               "combo mode's switch, trigger and keymap travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),

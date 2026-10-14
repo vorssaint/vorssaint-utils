@@ -394,6 +394,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
+        Sources/Vorssaint/Core/ComboModeStrings.swift
+        Sources/Vorssaint/Services/ComboMode/ComboKeymapSupport.swift
+        Sources/Vorssaint/Services/ComboMode/ComboPresentationSupport.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift

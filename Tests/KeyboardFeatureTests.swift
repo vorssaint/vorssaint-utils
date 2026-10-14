@@ -220,6 +220,8 @@ enum KeyboardFeatureTests {
                "every configurable shortcut's feature is silenced while recording")
         suite.expect(silenced.contains(.windowLayout),
                "the window layout keys are silenced too, though they have no role")
+        suite.expect(silenced.contains(.comboMode),
+               "the combo mode trigger is silenced too, though it has no role")
         suite.expect(silenced.contains(.finderRename),
                "the scoped Finder key steps aside while its recorder is listening")
         suite.expect(silenced.contains(.switcher) && silenced.contains(.radialMenu)
