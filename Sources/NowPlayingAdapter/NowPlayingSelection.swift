@@ -186,7 +186,8 @@ enum NotchNativePlayback {
                     isMusicApp: isMusicApp(app, parentBundleIdentifier: candidate.applicationBundleIdentifier),
                     isPlaying: (info?["kMRMediaRemoteNowPlayingInfoPlaybackRate"] as? NSNumber)?.doubleValue ?? 0 > 0,
                     hasTrack: (info?["kMRMediaRemoteNowPlayingInfoTitle"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false,
-                    displayName: presentation[candidate.pid]?.name ?? app.localizedName)
+                    displayName: presentation[candidate.pid]?.name ?? app.localizedName,
+                    applicationBundleIdentifier: candidate.applicationBundleIdentifier)
                 resultsLock.lock()
                 candidates.append((candidate, source))
                 resultsLock.unlock()
