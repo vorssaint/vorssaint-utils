@@ -71,6 +71,8 @@ enum UninstallerCommandBarCleanupTests {
         var cachedApps: [App] = []
         var uninstallSelectionEntries: [Entry] = []
         var rowHotkeys: [Hotkey] = []
+        var appShortcutPresses: [String: Int] = [:]
+        var appShortcutReturnPID: [String: pid_t] = [:]
         var refusedRowShortcutKeys: Set<String> = []
         var refreshes = 0
         static func spotlightApplicationPaths() -> [String] { [] }
