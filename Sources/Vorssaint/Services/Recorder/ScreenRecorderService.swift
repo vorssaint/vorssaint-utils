@@ -36,7 +36,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// wanted; which of the two the file receives is settled in `start()`.
     private var systemAudioTap: RecorderSystemAudioTap?
     private var writesTapAudio = false
-    /// Raised when an output device change costs the tap its reader mid
+    /// Raised when a device or process change costs the tap its reader mid
     /// recording. One way, and read from the audio threads, so it is the flag
     /// type rather than a plain Bool.
     private let tapReaderLost = RecorderAudioFlag()
@@ -161,12 +161,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// picture. Nothing for a display, and nothing for a window of our own:
     /// this process plays the volume mixer's re-render of every other app.
     private static func windowOwner(of region: RecorderSupport.Region) -> pid_t? {
-        guard let windowID = region.windowID,
-              let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]],
-              let pid = (info.first?[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-              pid != ProcessInfo.processInfo.processIdentifier
-        else { return nil }
-        return pid
+        RecorderSupport.systemAudioApp(
+            windowOwner: region.windowID.flatMap(WindowServerSupport.ownerProcessID(ofWindowID:)),
+            ownProcess: ProcessInfo.processInfo.processIdentifier)
     }
 
     var isPaused: Bool { pauseClock.isPaused }
@@ -200,8 +197,9 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             await engine.stop()
         }
         await tapStop
-        // A tap that lost its reader was cut short by a device change, not by a
-        // missing permission, so this recording proves nothing either way.
+        // A tap that lost its reader was cut short by a device or process
+        // change, not by a missing permission, so this recording proves
+        // nothing either way.
         if let tap, !tapReaderLost.value {
             UserDefaults.standard.set(
                 RecorderSupport.trustsSystemAudioTap(previously: writesTapAudio,

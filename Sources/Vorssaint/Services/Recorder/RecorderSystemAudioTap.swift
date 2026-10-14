@@ -46,7 +46,9 @@ enum RecorderAudioProbe {
 
 /// The sound of the Mac for a recording, read from the audio system as one
 /// mix of every process but this one. A recording of one window hears only
-/// the app that owns it, so the sound follows the picture.
+/// the app that owns it, so the sound follows the picture. An app that has
+/// not played since it launched has no audio process to tap yet, so its tap
+/// is built when the first one appears.
 ///
 /// ScreenCaptureKit hands over the same mix, but an app the volume mixer
 /// adjusts reaches it twice: its own muted stream and this app's re-render
@@ -89,6 +91,9 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     private var tapChannels = 2
     /// The processes an app's tap was built from, to notice when they change.
     private var tapped: [AudioObjectID] = []
+    /// An app's tap made before the app first played, built by the process
+    /// list listener once one of the app's audio processes appears.
+    private var awaitingApp = false
     private var clock: CMClock?
     private var aggregateID = AudioObjectID(0)
     private var ioProc: AudioDeviceIOProcID?
@@ -134,16 +139,24 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         guard let ownProcess = Self.processObject(for: ProcessInfo.processInfo.processIdentifier)
         else { return nil }
         self.ownProcess = ownProcess
-        guard buildTap() else { return nil }
+        // Listed once, so the tap is built from the processes just checked.
+        let gathered = pid.map { Self.processObjects(for: $0, excluding: ownProcess) }
+        if gathered?.isEmpty == true {
+            // Nothing of the app reaches the audio system yet, so it is
+            // silent until one of its processes connects.
+            awaitingApp = true
+            return
+        }
+        guard buildTap(around: gathered) else { return nil }
     }
 
-    /// One app's processes for a recording of its window, or every process
-    /// but this one.
+    /// One app's processes for a recording of its window, `gathered` when
+    /// the caller just listed them, or every process but this one.
     @available(macOS 14.4, *)
-    private func buildTap() -> Bool {
+    private func buildTap(around gathered: [AudioObjectID]? = nil) -> Bool {
         let description: CATapDescription
         if let pid {
-            let objects = Self.processObjects(for: pid)
+            let objects = gathered ?? Self.processObjects(for: pid, excluding: ownProcess)
             guard !objects.isEmpty else { return false }
             tapped = objects
             description = CATapDescription(stereoMixdownOfProcesses: objects)
@@ -185,21 +198,24 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// first start on a Mac may raise the system's audio permission prompt;
     /// until it is granted, the reader runs but every buffer is silent.
     /// A false answer means no reader exists, so its sound must come from
-    /// elsewhere for this recording.
+    /// elsewhere for this recording. A tap waiting for its app to play
+    /// answers true: the app is silent until then.
     @discardableResult
     func start(synchronizingTo clock: CMClock) async -> Bool {
         await withCheckedContinuation { continuation in
             queue.async { [self] in
                 self.clock = clock
                 if !stopped {
-                    // Read before the first cycle, so the head of the file
-                    // already has its level.
-                    followProcesses()
-                    buildPipeline()
+                    if !awaitingApp {
+                        // Read before the first cycle, so the head of the
+                        // file already has its level.
+                        followProcesses()
+                        buildPipeline()
+                    }
                     watchDefaultOutputDevice()
                     watchProcessList()
                 }
-                continuation.resume(returning: aggregateID != 0)
+                continuation.resume(returning: aggregateID != 0 || awaitingApp)
             }
         }
     }
@@ -348,18 +364,30 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// its tabs, and a tap hears only the processes it was built from, so an
     /// app's tap is made again around its processes as they are now, and its
     /// level is read from them. Only a real change rebuilds, because any app
-    /// launching stirs the same list.
+    /// launching stirs the same list. A tap waiting for its app is built the
+    /// first time one of the app's processes appears.
     private func rebuildTapIfProcessesChanged() {
-        guard !stopped, aggregateID != 0, let pid, #available(macOS 14.4, *) else { return }
-        let current = Self.processObjects(for: pid)
-        guard !current.isEmpty, Set(current) != Set(tapped) else { return }
+        guard !stopped, let pid, #available(macOS 14.4, *) else { return }
+        let current = Self.processObjects(for: pid, excluding: ownProcess)
+        if awaitingApp {
+            guard !current.isEmpty, clock != nil else { return }
+            awaitingApp = false
+            if buildTap(around: current) {
+                followProcesses()
+                buildPipeline()
+            }
+            if aggregateID == 0 { onReaderLost?() }
+            return
+        }
+        guard aggregateID != 0,
+              RecorderSupport.rebuildsAppTap(tapped: Set(tapped), current: Set(current)) else { return }
         teardownPipeline()
         Self.destroy(aggregateID: 0, ioProc: nil, tapID: tapID)
         // The HAL may hand this ID to another tap from here on.
         tapID = 0
         levelWatch?.stop()
         levelWatch = nil
-        if buildTap() {
+        if buildTap(around: current) {
             followProcesses()
             buildPipeline()
         }
@@ -432,8 +460,9 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
 
     // MARK: - Level
 
-    /// Keeps the level the tap gives back right for where every other
-    /// process plays.
+    /// Keeps the level the tap gives back right for where the processes it
+    /// hears play: every other one for the whole Mac, the app's own for an
+    /// app's tap.
     ///
     /// The stereo mixdown divides what a process plays on an output with more
     /// than two channels by that output's channel pairs, a known system issue
@@ -594,19 +623,22 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// Every audio process the app answers for. A browser makes its sound in
     /// a helper process, so a tap on the app's own pid alone would never hear
     /// it; the mixer and the island's level reader gather theirs the same way.
+    /// The audio system lists only processes connected to it, so an app that
+    /// has not played since it launched has none. Sound the system plays for
+    /// an app from a process of its own, such as a call, is not the app's
+    /// and stays out. This process is left out even when the app answers for
+    /// it, as a terminal does for what it starts, since it plays the mixer's
+    /// re-render of every other app.
     @available(macOS 14.4, *)
-    private static func processObjects(for pid: pid_t) -> [AudioObjectID] {
+    private static func processObjects(for pid: pid_t, excluding own: AudioObjectID) -> [AudioObjectID] {
         var objects: [AudioObjectID] = []
-        for object in AppVolumeMixer.audioProcessObjects() {
+        for object in AppVolumeMixer.audioProcessObjects() where object != own {
             var owner: pid_t = -1
             guard read(object, kAudioProcessPropertyPID, &owner), owner > 0,
                   owner == pid || ResponsibleProcess.regularAppOwner(of: owner)?.processIdentifier == pid
             else { continue }
             objects.append(object)
         }
-        // An app that holds no audio connection yet still has a process
-        // object of its own, which starts sounding when it does.
-        if objects.isEmpty, let direct = processObject(for: pid) { objects.append(direct) }
         return objects
     }
 
