@@ -17,7 +17,7 @@ struct FinderToggleStrings {
         switch language {
         case .enUS: return .init(title: "Toggle Finder", caption: "Hides Finder, or brings it back.")
         case .ptBR: return .init(title: "Alternar Finder", caption: "Oculta o Finder ou o traz de volta.")
-        case .tr: return .init(title: "Finder'ı aç/kapat", caption: "Finder'ı gizler veya geri getirir.")
+        case .tr: return .init(title: "Finder’ı aç/kapat", caption: "Finder’ı gizler veya geri getirir.")
         case .ru: return .init(title: "Переключить Finder", caption: "Скрывает Finder или возвращает его.")
         case .es: return .init(title: "Alternar Finder", caption: "Oculta Finder o lo vuelve a mostrar.")
         case .sk: return .init(title: "Prepnúť Finder", caption: "Skryje Finder alebo ho vráti späť.")
