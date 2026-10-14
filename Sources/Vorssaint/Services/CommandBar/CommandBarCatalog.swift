@@ -1559,7 +1559,8 @@ enum CommandBarCatalog {
 
         // Retyping a whole document would be slower than doing it by hand, and
         // the case rows only earn their place when the case would change.
-        if typesOver, text.count <= 5_000 {
+        let replacement = selected ?? text
+        if typesOver, replacement.count <= 5_000 {
             let cases: [(String, String, String, (String) -> String)] = [
                 ("selection.upper", bar.selectionUpper, "textformat.size.larger",
                  { $0.localizedUppercase }),
@@ -1576,7 +1577,7 @@ enum CommandBarCatalog {
                     subtitle: kind,
                     icon: .symbol(symbol),
                     trouble: Permissions.shared.accessibility ? nil : .needsPermission,
-                    run: { _ in typeAtCursor(transform(selected ?? text)) }))
+                    run: { _ in typeAtCursor(transform(replacement)) }))
             }
         }
 

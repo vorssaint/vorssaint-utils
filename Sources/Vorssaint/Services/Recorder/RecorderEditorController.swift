@@ -1647,11 +1647,6 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
             case .cancelled:
                 break
-            case .tooLongForGIF:
-                let seconds = Int(RecorderSupport.maximumGIFSeconds(
-                    fps: self.model.document.resolvedGIFFrameRate))
-                QuickToolHUD.show(icon: "record.circle",
-                                  message: String(format: self.strings.gifTooLongFormat, seconds))
             default:
                 NSSound.beep()
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)

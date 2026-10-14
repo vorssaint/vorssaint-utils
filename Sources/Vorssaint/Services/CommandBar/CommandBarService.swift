@@ -2896,6 +2896,7 @@ final class CommandBarService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
+                includeBundledApplications: true,
                 spotlightPaths: Self.spotlightApplicationPaths()))
             // The uninstall browse offers only what the uninstaller will
             // take, and its check reads the disk for every app.

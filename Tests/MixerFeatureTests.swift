@@ -27,6 +27,36 @@ enum MixerFeatureTests {
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         suite.expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0)), 0, "a muted app stays silent")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0.5)), 0.25,
+                    "half the slider is a clearly quieter app, not a 6 dB trim")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
+        suite.expectClose(MixerRoutingSupport.volume(forGain: 0.25), 0.5,
+                    "a saved gain moves to the slider position that plays it")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.appVolumesArePositions),
+               "the saved volumes' format travels with them in a backup")
+        let curveSuite = "vorss.tests.mixer.volumecurve"
+        if let curveDefaults = UserDefaults(suiteName: curveSuite) {
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+            curveDefaults.set(["com.example.quiet": 0.25, "com.example.boosted": 1.5, "com.example.muted": 0.0],
+                              forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let migrated = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: migrated["com.example.quiet"] ?? -1)), 0.25,
+                        "an app saved below 100% plays exactly as loud after the update, converted once")
+            suite.expect(migrated["com.example.boosted"] == 1.5 && migrated["com.example.muted"] == 0,
+                   "boosted and muted apps keep their saved levels")
+            curveDefaults.removeObject(forKey: DefaultsKey.appVolumesArePositions)
+            curveDefaults.set(["com.example.quiet": 0.25], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let restored = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(restored["com.example.quiet"] ?? -1, 0.5,
+                        "a backup restored from before the change is converted on the next launch")
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+        }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
                                                        maximumPercent: 200) ?? -1,
                     0.4,
@@ -674,6 +704,10 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
+        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
+                     && !mixerCode.contains("Float(app.volume)")
+                     && !mixerCode.contains("Float(latestApp.volume)"),
+                     "every engine plays an app's slider through the same loudness curve")
         let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)

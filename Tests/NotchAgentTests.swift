@@ -783,6 +783,32 @@ enum NotchAgentTests {
         }
         suite.expect(linesRead.isEmpty, "incremental read ignores subsequent updates to user message metadata")
 
+        // OpenCode 2 stores sessions and messages in versioned tables and
+        // keeps the message type outside its JSON data.
+        let v2Path = tmpDir.appending(path: "opencode-v2.db").path
+        var v2: OpaquePointer?
+        guard sqlite3_open(v2Path, &v2) == SQLITE_OK, let v2 else {
+            suite.expect(false, "temporary OpenCode 2 database opens")
+            return
+        }
+        sqlite3_exec(v2, """
+        CREATE TABLE session_v2 (id TEXT PRIMARY KEY, directory TEXT, parent_id TEXT, time_created INTEGER, time_updated INTEGER);
+        CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
+        INSERT INTO session_v2 VALUES ('s_v2', '/Users/me/code/v2', NULL, 1790088000000, 1790088020000);
+        INSERT INTO session_message VALUES ('m_v2', 's_v2', 'assistant', 1790088005000, 1790088005000,
+          '{"model":{"id":"provider/model","providerID":"provider"},"cost":0.01,"tokens":{"input":8,"output":3,"reasoning":2,"cache":{"read":4,"write":1}},"time":{"created":1790088005000,"completed":1790088006000}}');
+        """, nil, nil, nil)
+        sqlite3_close(v2)
+        let v2Cursor = AgentLogCursor(path: v2Path, provider: .opencode)
+        var v2Lines: [String] = []
+        AgentOpenCodeReader.readAppended(v2Cursor) { v2Lines.append(String(decoding: $0, as: UTF8.self)) }
+        let v2Payload = v2Lines.first.flatMap { $0.data(using: .utf8) } ?? Data()
+        var v2State = AgentLogState()
+        let v2Entries = AgentLogParser.parseOpenCode(v2Payload, state: &v2State, now: now)
+        suite.expect(v2Lines.count == 1 && v2Payload.contains(Data(#""role":"assistant""#.utf8))
+                        && v2Entries.contains { if case .usage = $0 { return true }; return false },
+                     "OpenCode 2 tables provide assistant usage to the existing parser")
+
         // Cancellation check
         linesRead.removeAll()
         AgentOpenCodeReader.readAppended(cursor, shouldContinue: { false }) { data in
@@ -944,6 +970,11 @@ enum NotchAgentTests {
         openCodeOpenReplies(suite)
         openCodeStoppedLoops(suite, now: now)
         openCodeQuietSessions(suite, now: now)
+        openCodeTwo(suite, now: now)
+        openCodeTwoUpgrade(suite, now: now)
+        openCodeTwoHistory(suite)
+        openCodeTwoCutStep(suite, now: now)
+        openCodeTwoSlowStep(suite, now: now)
     }
 
     private static func openCodeReasoningTokens(_ suite: TestSuite, now: Date) {
@@ -1379,7 +1410,8 @@ enum NotchAgentTests {
 
     // MARK: OpenCode database helpers
 
-    /// A database laid out like OpenCode's, in a folder of its own.
+    /// A database laid out like OpenCode's, in a folder of its own. OpenCode
+    /// 1.15 and later also keep a session_message table of their own.
     static func openCodeDatabase(_ sql: String) -> (folder: URL, path: String)? {
         let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -1388,6 +1420,7 @@ enum NotchAgentTests {
         CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT, parent_id TEXT, time_created INTEGER, time_updated INTEGER);
         CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
         CREATE TABLE part (id TEXT PRIMARY KEY, message_id TEXT, session_id TEXT, time_created INTEGER, time_updated INTEGER, data TEXT);
+        CREATE TABLE session_message (id TEXT PRIMARY KEY, session_id TEXT, type TEXT, time_created INTEGER, time_updated INTEGER, data TEXT, seq INTEGER);
         \(sql)
         """) else { return nil }
         return (folder, path)
@@ -1399,6 +1432,308 @@ enum NotchAgentTests {
         guard sqlite3_open(path, &db) == SQLITE_OK else { return false }
         defer { sqlite3_close(db) }
         return sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK
+    }
+
+    /// OpenCode 2's own tables, column for column as OpenCode 2.0.27 creates
+    /// them. A fresh install has only these.
+    static let openCodeTwoTables = """
+    CREATE TABLE session_v2 (id text PRIMARY KEY, project_id text NOT NULL, workspace_id text, parent_id text,
+      fork_session_id text, fork_boundary text, slug text NOT NULL, directory text NOT NULL, path text, title text,
+      version text NOT NULL, share_url text, summary_additions integer, summary_deletions integer,
+      summary_files integer, summary_diffs text, metadata text, cost real DEFAULT 0 NOT NULL,
+      tokens_input integer DEFAULT 0 NOT NULL, tokens_output integer DEFAULT 0 NOT NULL,
+      tokens_reasoning integer DEFAULT 0 NOT NULL, tokens_cache_read integer DEFAULT 0 NOT NULL,
+      tokens_cache_write integer DEFAULT 0 NOT NULL, revert text, permission text, agent text, model text,
+      time_created integer NOT NULL, time_updated integer NOT NULL, time_idle integer, time_viewed integer,
+      idle_outcome text, time_compacting integer, time_archived integer, time_suspended integer,
+      resume_attempts integer DEFAULT 0 NOT NULL);
+    CREATE TABLE session_message (id text PRIMARY KEY, session_id text NOT NULL, type text NOT NULL,
+      seq integer NOT NULL, time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);
+    CREATE UNIQUE INDEX session_message_session_seq_idx ON session_message (session_id, seq);
+    CREATE INDEX session_message_session_type_seq_idx ON session_message (session_id, type, seq);
+    CREATE INDEX session_message_session_time_created_id_idx ON session_message (session_id, time_created, id);
+    CREATE INDEX session_message_time_created_idx ON session_message (time_created);
+
+    """
+
+    /// OpenCode 1's tables, which OpenCode 2 keeps beside its own when it
+    /// upgrades a database.
+    static let openCodeOneTables = """
+    CREATE TABLE session (id text PRIMARY KEY, project_id text NOT NULL, parent_id text, slug text NOT NULL,
+      directory text NOT NULL, title text NOT NULL, version text NOT NULL, share_url text, summary_additions integer,
+      summary_deletions integer, summary_files integer, summary_diffs text, revert text, permission text,
+      time_created integer NOT NULL, time_updated integer NOT NULL, time_compacting integer, time_archived integer);
+    CREATE TABLE message (id text PRIMARY KEY, session_id text NOT NULL, time_created integer NOT NULL,
+      time_updated integer NOT NULL, data text NOT NULL);
+    CREATE TABLE part (id text PRIMARY KEY, message_id text NOT NULL, session_id text NOT NULL,
+      time_created integer NOT NULL, time_updated integer NOT NULL, data text NOT NULL);
+    CREATE INDEX message_session_idx ON message (session_id);
+    CREATE INDEX part_message_idx ON part (message_id);
+
+    """
+
+    /// An OpenCode 2 task read as it is written, on a fresh install and on a
+    /// database upgraded from OpenCode 1: a step cut off at its length in the
+    /// middle of a tool call, which OpenCode goes on from, an automatic
+    /// compaction that outlasts the settle wait, a last step that only used a
+    /// search the provider ran, and the row that marks the end of the turn.
+    private static func openCodeTwo(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        for upgraded in [false, true] {
+            let layout = upgraded ? "an upgraded database" : "a fresh install"
+            let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let path = folder.appending(path: "opencode.db").path
+            guard openCodeExec(path, (upgraded ? openCodeOneTables : "") + openCodeTwoTables + """
+            INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+              VALUES ('ses_two', 'global', 'two', '/Users/me/code/two', '2.0.27', 1790090000000, 1790090000000);
+            INSERT INTO session_message VALUES ('msg_u', 'ses_two', 'user', 0, 1790090000000, 1790090000000,
+              '{"text":"secret prompt","time":{"created":1790090000000}}');
+            INSERT INTO session_message VALUES ('msg_a1', 'ses_two', 'assistant', 1, 1790090001000, 1790090009000,
+              '{"agent":"build",\(model),"content":[{"type":"text","text":"secret reply"},{"type":"tool","id":"c1","name":"write","executed":false,"state":{"status":"error","input":{},"error":{"type":"tool.input-incomplete","message":"secret"}},"time":{"created":1790090002000}}],"finish":"length","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090001000,"completed":1790090009000}}');
+            INSERT INTO session_message VALUES ('msg_c', 'ses_two', 'compaction', 2, 1790090010000, 1790090010000,
+              '{"reason":"auto","status":"running","summary":"","recent":"secret recent","time":{"created":1790090010000}}');
+            """) else {
+                suite.expect(false, "an OpenCode 2 database opens as \(layout)")
+                return
+            }
+            let cursor = AgentLogCursor(path: path, provider: .opencode)
+            let store = AgentUsageStore()
+            store.reportsTransitions = true
+            var events: [AgentUsageEvent] = []
+            var payloads: [String] = []
+            func read(at seconds: TimeInterval) {
+                AgentOpenCodeReader.readAppended(cursor) { data in
+                    payloads.append(String(decoding: data, as: UTF8.self))
+                    let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                    events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                          tracksTurns: true, modified: now, now: at(seconds))
+                }
+            }
+            read(at: 1_790_090_011)
+            suite.expect(store.live.count == 1 && events.isEmpty,
+                         "on \(layout), a step cut off in the middle of a tool call keeps its turn going")
+            suite.expect(!store.closeSettledTurns(now: at(1_790_090_050)) && store.live.count == 1,
+                         "on \(layout), a compaction still running keeps its turn")
+            guard openCodeExec(path, """
+            UPDATE session_message SET time_updated = 1790090050000,
+              data = '{"reason":"auto","status":"completed","summary":"secret summary","recent":"secret recent",\(model),"cost":0.5,"tokens":{"input":1000,"output":100,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090010000}}'
+              WHERE id = 'msg_c';
+            INSERT INTO session_message VALUES ('msg_a2', 'ses_two', 'assistant', 3, 1790090051000, 1790090060000,
+              '{"agent":"build",\(model),"content":[{"type":"tool","id":"ws","name":"websearch","executed":true,"state":{"status":"completed","input":{},"content":[{"type":"text","text":"secret result"}]},"time":{"created":1790090052000}},{"type":"text","text":"secret answer"}],"finish":"stop","cost":0.125,"tokens":{"input":200,"output":40,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090051000,"completed":1790090060000}}');
+            INSERT INTO session_message VALUES ('msg_i', 'ses_two', 'idle', 4, 1790090060001, 1790090060001,
+              '{"outcome":"succeeded","time":{"created":1790090060001}}');
+            """) else {
+                suite.expect(false, "an OpenCode 2 database takes new rows as \(layout)")
+                return
+            }
+            read(at: 1_790_090_061)
+            suite.expect(store.records.filter { $0.provider == .opencode }.count == 3
+                            && events == [.finished(provider: .opencode, duration: 60, cost: 0.875, tokens: 1460,
+                                                    project: "two")],
+                         "on \(layout), the compaction's cost counts and the task finishes once, after its last step")
+            suite.expect(!payloads.contains { $0.contains("secret") },
+                         "on \(layout), no prompt, reply, tool output or summary leaves the database")
+        }
+
+        // A turn its last step leaves waiting ends where OpenCode 2 says it did.
+        var waiting = AgentLogState()
+        _ = AgentLogParser.parseOpenCode(line(#"{"id":"u1","session_id":"s_w","time_created":1790091000000,"role":"user","time":{"created":1790091000000}}"#), state: &waiting, now: now)
+        _ = AgentLogParser.parseOpenCode(line(#"{"id":"a1","session_id":"s_w","time_created":1790091001000,"role":"assistant","tokens":{"input":5},"finish":"tool-calls","time":{"created":1790091001000,"completed":1790091005000}}"#), state: &waiting, now: now)
+        let interrupted = AgentLogParser.parseOpenCode(line(#"{"id":"i1","session_id":"s_w","time_created":1790091006000,"role":"idle","outcome":"interrupted","time":{"created":1790091006000}}"#), state: &waiting, now: now)
+        suite.expect(interrupted == [.turnEnded(at(1_790_091_006), completed: false, duration: 6)],
+                     "an idle row ends the turn, finished only when it succeeded")
+    }
+
+    /// OpenCode 1 rows read before the upgrade, then OpenCode 2's copies of
+    /// them under new rowids after a session it imported first.
+    private static func openCodeTwoUpgrade(_ suite: TestSuite, now: Date) {
+        guard let (folder, path) = openCodeDatabase("""
+        INSERT INTO session VALUES ('ses_old', '/Users/me/code/one', NULL, 1790090000000, 1790090000000);
+        INSERT INTO message VALUES ('msg_1', 'ses_old', 1790090000000, 1790090000000, '{"role":"user","time":{"created":1790090000000}}');
+        INSERT INTO message VALUES ('msg_2', 'ses_old', 1790090001000, 1790090009000, '{"role":"assistant","parentID":"msg_1","modelID":"ox-alpha","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"finish":"stop","time":{"created":1790090001000,"completed":1790090009000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 1 database opens before its upgrade")
+            return
+        }
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        var payloads: [String] = []
+        func read() {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                payloads.append(String(decoding: data, as: UTF8.self))
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: now)
+                _ = store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                tracksTurns: true, modified: now, now: now)
+            }
+        }
+        read()
+        suite.expect(store.records.filter { $0.provider == .opencode }.count == 1,
+                     "OpenCode 1 is read beside the session_message table it keeps since 1.15")
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        // OpenCode 2 replaces OpenCode 1's session_message with its own.
+        guard openCodeExec(path, "DROP TABLE session_message;\n" + openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated) VALUES
+          ('ses_next', 'global', 'next', '/Users/me/code/two', '2.0.27', 1790089000000, 1790089000000),
+          ('ses_old', 'global', 'old', '/Users/me/code/one', '1.18.35', 1790090000000, 1790090000000);
+        INSERT INTO session_message VALUES ('msg_0', 'ses_next', 'user', 0, 1790089000000, 1790089000000,
+          '{"text":"","time":{"created":1790089000000}}');
+        INSERT INTO session_message VALUES ('msg_1', 'ses_old', 'user', 0, 1790090000000, 1790090000000,
+          '{"text":"","time":{"created":1790090000000}}');
+        INSERT INTO session_message VALUES ('msg_2', 'ses_old', 'assistant', 1, 1790090001000, 1790090009000,
+          '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090001000,"completed":1790090009000}}');
+        INSERT INTO session_message VALUES ('msg_3', 'ses_old', 'assistant', 2, 1790090100000, 1790090110000,
+          '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.5,"tokens":{"input":10,"output":2,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790090100000,"completed":1790090110000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 upgrades the database")
+            return
+        }
+        payloads.removeAll()
+        read()
+        let replies = store.records.filter { $0.provider == .opencode }
+        suite.expect(payloads.first == #"{"type":"reset"}"# && replies.count == 2
+                        && replies.compactMap(\.cost).reduce(0, +) == 0.75,
+                     "after the upgrade the copied history is read again without counting a reply twice")
+    }
+
+    /// OpenCode 2 copies an upgraded database's history session by session,
+    /// so an old session picked up again sits before sessions long ended.
+    private static func openCodeTwoHistory(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        var sql = openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_a', 'global', 'a', '/code/a', '1.18.35', 1780000000000, 1790000000000);
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_a', 'user', 0, 1780000000000, 1780000000000, '{}');
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_a', 'user', 1, 1790000000000, 1790000000000, '{}');
+
+        """
+        for index in 0..<8 {
+            let time = 1_781_000_000_000 + index * 60_000
+            sql += "INSERT INTO session_message VALUES ('msg_b\(index)', 'ses_a', 'user', \(index + 2), \(time), \(time), '{}');\n"
+        }
+        sql += "INSERT INTO session_message VALUES ('msg_c', 'ses_a', 'user', 10, 1790000500000, 1790000500000, '{}');"
+        guard openCodeExec(path, sql) else {
+            suite.expect(false, "a copied OpenCode 2 history opens")
+            return
+        }
+        var payloads: [String] = []
+        AgentOpenCodeReader.readAppended(AgentLogCursor(path: path, provider: .opencode),
+                                         since: Date(timeIntervalSince1970: 1_789_000_000)) {
+            payloads.append(String(decoding: $0, as: UTF8.self))
+        }
+        suite.expect(payloads.contains { $0.contains(#""id":"msg_a2""#) }
+                        && payloads.contains { $0.contains(#""id":"msg_c""#) },
+                     "a first read finds every recent row, whatever the rowid order the upgrade left")
+        suite.expect(!payloads.contains { $0.contains(#""id":"msg_b"#) },
+                     "older sessions the upgrade copied after a recent row are passed without reading their data")
+    }
+
+    /// OpenCode 2 saves a step only once the model starts to answer, so a
+    /// long prompt leaves no row for a while after the step before it.
+    private static func openCodeTwoSlowStep(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        guard openCodeExec(path, openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_slow', 'global', 'slow', '/Users/me/code/slow', '2.0.27', 1790093000000, 1790093000000);
+        INSERT INTO session_message VALUES ('msg_u', 'ses_slow', 'user', 0, 1790093000000, 1790093000000,
+          '{"text":"","time":{"created":1790093000000}}');
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_slow', 'assistant', 1, 1790093001000, 1790093005000,
+          '{"agent":"build",\(model),"content":[{"type":"tool","id":"c1","name":"read","executed":false,"state":{"status":"completed","input":{},"content":[{"type":"text","text":"x"}]},"time":{"created":1790093002000}}],"finish":"tool-calls","cost":0.25,"tokens":{"input":100,"output":20,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790093001000,"completed":1790093005000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 2 database opens with a step that called a tool")
+            return
+        }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        var events: [AgentUsageEvent] = []
+        func read(at seconds: TimeInterval) {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                      tracksTurns: true, modified: now, now: at(seconds))
+            }
+        }
+        read(at: 1_790_093_006)
+        suite.expect(!store.closeSettledTurns(now: at(1_790_093_065)) && store.live.count == 1,
+                     "a turn waiting a minute for OpenCode 2's next step keeps going")
+        guard openCodeExec(path, """
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_slow', 'assistant', 2, 1790093006000, 1790093066000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790093006000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 saves the next step once the model answers")
+            return
+        }
+        read(at: 1_790_093_066)
+        guard openCodeExec(path, """
+        UPDATE session_message SET time_updated = 1790093070000,
+          data = '{"agent":"build",\(model),"content":[],"finish":"stop","cost":0.5,"tokens":{"input":200,"output":40,"reasoning":0,"cache":{"read":0,"write":0}},"time":{"created":1790093006000,"completed":1790093070000}}'
+          WHERE id = 'msg_a2';
+        """) else {
+            suite.expect(false, "OpenCode 2 completes the late step")
+            return
+        }
+        read(at: 1_790_093_071)
+        suite.expect(events == [.finished(provider: .opencode, duration: 70, cost: 0.75, tokens: 360, project: "slow")],
+                     "a step OpenCode 2 saves late keeps the whole task's cost and tokens")
+    }
+
+    /// OpenCode 2 completes a step it cut short only as the next one starts,
+    /// as when it resumes a task after it was killed.
+    private static func openCodeTwoCutStep(_ suite: TestSuite, now: Date) {
+        func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+        let model = #""model":{"id":"ox-alpha","providerID":"stealth","variant":"default"}"#
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-opencode2-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let path = folder.appending(path: "opencode.db").path
+        guard openCodeExec(path, openCodeTwoTables + """
+        INSERT INTO session_v2 (id, project_id, slug, directory, version, time_created, time_updated)
+          VALUES ('ses_cut', 'global', 'cut', '/Users/me/code/cut', '2.0.27', 1790092000000, 1790092000000);
+        INSERT INTO session_message VALUES ('msg_u', 'ses_cut', 'user', 0, 1790092000000, 1790092000000,
+          '{"text":"","time":{"created":1790092000000}}');
+        INSERT INTO session_message VALUES ('msg_a1', 'ses_cut', 'assistant', 1, 1790092001000, 1790092001000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790092001000}}');
+        """) else {
+            suite.expect(false, "an OpenCode 2 database opens with a step being written")
+            return
+        }
+        let cursor = AgentLogCursor(path: path, provider: .opencode)
+        let store = AgentUsageStore()
+        store.reportsTransitions = true
+        var events: [AgentUsageEvent] = []
+        func read(at seconds: TimeInterval) {
+            AgentOpenCodeReader.readAppended(cursor) { data in
+                let entries = AgentLogParser.parseOpenCode(data, state: &cursor.state, now: at(seconds))
+                events += store.apply(entries, file: "\(path)#\(cursor.state.session)", provider: .opencode,
+                                      tracksTurns: true, modified: now, now: at(seconds))
+            }
+        }
+        read(at: 1_790_092_002)
+        guard openCodeExec(path, """
+        UPDATE session_message SET time_updated = 1790092300000,
+          data = '{"agent":"build",\(model),"content":[],"time":{"created":1790092001000,"completed":1790092300000}}'
+          WHERE id = 'msg_a1';
+        INSERT INTO session_message VALUES ('msg_a2', 'ses_cut', 'assistant', 2, 1790092300000, 1790092300000,
+          '{"agent":"build",\(model),"content":[],"time":{"created":1790092300000}}');
+        """) else {
+            suite.expect(false, "OpenCode 2 starts the next step")
+            return
+        }
+        read(at: 1_790_092_301)
+        suite.expect(events.isEmpty && store.live.count == 1,
+                     "a step OpenCode 2 cut short and closed as the next one started does not finish the task")
     }
 
     private static func openCodeRead(_ cursor: AgentLogCursor, since horizon: Date = .distantPast) -> [[String: Any]] {
@@ -2471,6 +2806,60 @@ enum NotchAgentTests {
                         && AgentClaudeAppUsage.limits(from: samples, now: now, sessionStart: at("2026-09-23T13:40:00Z"))?
                         .windows.first?.resetsAt == at("2026-09-23T19:05:00Z"),
                      "Claude Code's first request places the session only inside the gap the readings leave")
+        // Readings hours apart leave the start anywhere between them, and the
+        // first one above zero is only the latest it can have been.
+        let slept = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-12T12:26:00Z", "o", ["fh": 2, "sd": 9]), ("2026-10-12T19:03:00Z", "o", ["fh": 4, "sd": 11])])) ?? []
+        let sleptReset = AgentClaudeAppUsage.limits(from: slept, now: at("2026-10-12T19:04:00Z"))?.windows.first?.estimatedResetsAt
+        suite.expect(sleptReset == at("2026-10-12T21:33:00Z"),
+                     "a session first read after sleep estimates the midpoint instead of the latest possible renewal")
+        let overnight = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-11T23:00:00Z", "o", ["fh": 0, "sd": 40]), ("2026-10-12T11:59:00Z", "o", ["fh": 29, "sd": 41])])) ?? []
+        let overnightReset = AgentClaudeAppUsage.limits(from: overnight, now: at("2026-10-12T12:32:00Z"))?.windows.first?.estimatedResetsAt
+        suite.expect(overnightReset == at("2026-10-12T14:29:00Z"),
+                     "an overnight gap keeps the renewal between the reading and five hours after it")
+        let lone = AgentClaudeAppUsage.samples(from: history([("2026-10-12T19:03:00Z", "o", ["fh": 4, "sd": 11])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: lone, now: at("2026-10-12T19:04:00Z"))?.windows.first?.resetsAt
+                        == at("2026-10-13T00:03:00Z"),
+                     "a file that starts with the session has nothing before it to bracket the start")
+        let gap = AgentClaudeAppUsage.samples(from: history([
+            ("2026-10-12T00:00:00Z", "o", ["fh": 0]), ("2026-10-12T08:00:00Z", "o", ["fh": 90]),
+            ("2026-10-12T08:10:00Z", "o", ["fh": 95]), ("2026-10-12T10:40:00Z", "o", ["fh": 100])])) ?? []
+        let beforeEstimate = AgentClaudeAppUsage.limits(from: Array(gap.prefix(3)), now: at("2026-10-12T08:10:00Z"))
+        let afterEstimate = AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T10:40:00Z"))
+        if let window = afterEstimate?.windows.first, let warned = beforeEstimate?.windows.first {
+            let now = at("2026-10-12T10:40:00Z")
+            suite.expect(window.usedPercent == 100 && AgentLimitSupport.current(window, at: now).usedPercent == 100,
+                         "fresh increasing usage survives the estimated renewal in the reader and the display")
+            suite.expect(window.estimatedResetsAt == at("2026-10-12T10:30:00Z")
+                            && AgentLimitSupport.displayedReset(window, now: now) == nil
+                            && AgentLimitSupport.pace(for: window, now: now) == nil,
+                         "an elapsed estimate hides the countdown and pace without clearing usage")
+            suite.expect(warned.resetsAt == at("2026-10-12T13:00:00Z") && window.resetsAt == warned.resetsAt,
+                         "a warning keeps the latest possible renewal, so the midpoint cannot send a reset alert")
+            suite.expect(AgentLimitSupport.crossings(previous: beforeEstimate, current: afterEstimate!, threshold: 90).isEmpty,
+                         "continuing usage after the midpoint does not become another threshold crossing")
+            suite.expect(AgentLimitSupport.displayedReset(warned, now: at("2026-10-12T09:00:00Z"))
+                            == at("2026-10-12T10:30:00Z"),
+                         "the card still shows the useful midpoint while it is in the future")
+        } else {
+            suite.expect(false, "fresh observed session usage must remain present after its estimated renewal")
+        }
+        suite.expect(AgentClaudeAppUsage.limits(from: Array(gap.prefix(3)), now: at("2026-10-12T10:40:00Z"))?
+                        .windows.first?.usedPercent == 95,
+                     "the midpoint alone cannot discard a reading between Claude app checks")
+        let placedGap = AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T10:40:00Z"),
+                                                   sessionStart: at("2026-10-12T07:55:00Z"))?.windows.first
+        suite.expect(placedGap?.resetsAt == at("2026-10-12T12:55:00Z") && placedGap?.estimatedResetsAt == nil,
+                     "a first request within the gap replaces the presentation estimate with its known start")
+        suite.expect(AgentClaudeAppUsage.limits(from: gap, now: at("2026-10-12T13:00:00Z")) == nil,
+                     "an estimated window still expires at its latest possible renewal")
+        let dropped = gap + [AgentClaudeAppUsage.Sample(date: at("2026-10-12T10:50:00Z"), organization: "o", used: ["fh": 0]),
+                             AgentClaudeAppUsage.Sample(date: at("2026-10-12T11:00:00Z"), organization: "o", used: ["fh": 2])]
+        let newSession = AgentClaudeAppUsage.limits(from: dropped, now: at("2026-10-12T11:00:00Z"))?.windows.first
+        suite.expect(newSession?.usedPercent == 2 && newSession?.estimatedResetsAt == nil
+                        && newSession?.resetsAt == at("2026-10-12T16:00:00Z"),
+                     "an observed renewal starts a new window without retaining the old estimate")
         let requests = [record(.claude, at("2026-09-23T13:55:00Z"), cost: 1), record(.claude, at("2026-09-23T18:58:00Z"), cost: 1)]
         let placed = AgentClaudeAppUsage.sessionStart(requests, samples: samples)
         let ended = at("2026-09-23T19:00:00Z")

@@ -1385,12 +1385,32 @@ enum NotchTests {
                "stopped idle music shrinks to the physical camera without reserving empty side space")
         defaults.set(NotchIdleContent.none.rawValue, forKey: DefaultsKey.notchIdleContent)
         defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+        let savedMascotAvailability = defaults.object(forKey: AppFeature.notchMascot.availabilityKey)
+        let savedMascotEnabled = defaults.object(forKey: DefaultsKey.notchMascotEnabled)
+        let savedMascotHideWhenIdle = defaults.object(forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        defaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
         suite.expect(!NotchSupport.watchesMusicActivity(in: defaults)
                && !NotchSupport.showsMusicActivity(isPlaying: true, in: defaults)
                && NotchSupport.visibleIdleContent(isPlaying: true, in: defaults) == .none,
                "Nothing at rest suppresses playing music and its background observer without disabling the island")
         suite.expect(NotchSupport.isEnabled(in: defaults) && NotchSupport.modules(in: defaults).contains(.music),
                "Nothing at rest keeps the island and its on-demand music section available")
+        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchMascotHidesWhenIdle)
+        suite.expect(NotchSupport.watchesMusicActivity(in: defaults)
+               && NotchSupport.visibleIdleContent(isPlaying: false, in: defaults) == .none
+               && NotchSupport.visibleIdleContent(isPlaying: true, in: defaults) == .music,
+               "playing music takes the idle companion's place and the companion returns when the island is empty")
+        let companionAndMusic = NotchSupport.compactActivities(
+            timer: false, downloads: false, agents: true, calendar: false,
+            music: NotchSupport.showsMusicActivity(isPlaying: true, in: defaults))
+        suite.expect(companionAndMusic == [.agents, .music],
+                     "music remains selectable beside a live AI activity while the companion yields")
+        defaults.set(savedMascotAvailability, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(savedMascotEnabled, forKey: DefaultsKey.notchMascotEnabled)
+        defaults.set(savedMascotHideWhenIdle, forKey: DefaultsKey.notchMascotHidesWhenIdle)
         defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchSupport.watchesMusicActivity(in: defaults)
