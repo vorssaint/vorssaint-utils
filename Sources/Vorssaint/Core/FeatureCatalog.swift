@@ -31,7 +31,7 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
+         notchQueue, notchSpotify, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
@@ -118,7 +118,7 @@ extension AppFeature {
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
-             .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
+             .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
              .notchMascot:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
@@ -188,6 +188,7 @@ extension AppFeature {
         case .notchAccessories: return "battery.25percent"
         case .notchLyrics: return "quote.bubble"
         case .notchQueue: return "list.bullet"
+        case .notchSpotify: return "heart"
         case .notchLiveEqualizer: return "waveform"
         case .notchDownloads: return "arrow.down.circle"
         case .notchNotifications: return "bell"
@@ -262,6 +263,8 @@ extension AppFeature {
         case .notchAccessories: return [DefaultsKey.notchAccessoriesEnabled]
         case .notchLyrics: return [DefaultsKey.notchLyricsEnabled]
         case .notchQueue: return [DefaultsKey.notchQueueEnabled]
+        // Connecting the account is its switch; there is nothing else to turn on.
+        case .notchSpotify: return []
         case .notchLiveEqualizer: return [DefaultsKey.notchLiveEqualizer]
         case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
@@ -332,6 +335,9 @@ extension AppFeature {
         case .notchGestures: return []
         case .notchTimer, .notchAccessories: return []
         case .notchLyrics, .notchQueue: return []
+        // Signing in happens in the browser and the account's tokens sit in
+        // an owner-only file in the app's container; no system permission is involved.
+        case .notchSpotify: return []
         // Session logs and the saved limits sit in the home folder, outside
         // every protected location, and no sign-in or keychain item is used.
         case .notchAgents: return []
@@ -484,7 +490,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .notchSpotify:
             return false
         }
     }

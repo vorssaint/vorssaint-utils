@@ -353,6 +353,8 @@ final class FeatureRuntime: ObservableObject {
             if !NotchLyricsSupport.isEnabled() { NotchLyricsService.shared.stop() }
         },
         .notchQueue: { NotchMusicService.shared.syncQueuePreference() },
+        // Bindings run on the main thread, where the account lives.
+        .notchSpotify: { MainActor.assumeIsolated { NotchSpotifyService.shared.syncWithPreferences() } },
         .notchLiveEqualizer: { NotchAudioLevelService.shared.syncWithPreferences() },
         .notchNotifications: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
