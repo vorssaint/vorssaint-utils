@@ -61,7 +61,10 @@ final class AppUpdatesService: ObservableObject {
     private var knownIDs = Set<String>()
     /// The person was sent elsewhere to finish an update, so the list is
     /// about to be wrong until it is read again.
-    private(set) var updateHandoffPending = false
+    private var pendingUpdateHandoffs = Set<UUID>()
+    var updateHandoffPending: Bool {
+        !pendingUpdateHandoffs.isEmpty
+    }
     private var onlineCatalogCache: (loadedAt: Date, entries: [AppUpdatesSupport.CatalogEntry])?
     /// Alive only while an upgrade this service started is running, so the
     /// list refreshes itself even when no window is on screen to notice.
@@ -670,10 +673,11 @@ final class AppUpdatesService: ObservableObject {
     /// again the moment the person is back. Opening runs off the main thread,
     /// since launching a large app can take a while.
     private func handOff(_ url: URL) {
-        updateHandoffPending = true
+        let request = UUID()
+        pendingUpdateHandoffs.insert(request)
         NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
             guard error != nil else { return }
-            DispatchQueue.main.async { self?.updateHandoffPending = false }
+            DispatchQueue.main.async { self?.pendingUpdateHandoffs.remove(request) }
         }
     }
 
@@ -729,7 +733,7 @@ final class AppUpdatesService: ObservableObject {
     /// behind. Reading it clears the flag, so the window is restored once.
     func consumeUpdateHandoffReturn() -> Bool {
         guard updateHandoffPending else { return false }
-        updateHandoffPending = false
+        pendingUpdateHandoffs.removeAll()
         return true
     }
 

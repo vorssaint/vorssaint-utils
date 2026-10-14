@@ -3,8 +3,6 @@
 
 import AVFoundation
 import CoreGraphics
-import ImageIO
-import UniformTypeIdentifiers
 
 /// Writes the finished file: reads the master, applies the edit and encodes.
 ///
@@ -35,7 +33,6 @@ final class RecorderExporter {
         case noVideo
         case readFailed
         case writeFailed
-        case tooLongForGIF
         case tooLargeForSharing
         case invalidShareArtifact
         case cancelled
@@ -545,10 +542,9 @@ final class RecorderExporter {
 
     // MARK: - GIF
 
-    /// A GIF is written by ImageIO, which holds every frame until the file is
-    /// closed. The frame budget in RecorderSupport is what keeps that from
-    /// becoming the memory of the whole machine, so it is enforced here before
-    /// a single frame is decoded.
+    /// Sample the edited timeline and encode it chunk by chunk into a
+    /// disk-backed GIF. Decoded frames never exceed one chunk and the encoded
+    /// file is not held in memory, however long the recording gets.
     private func exportGIF(asset: AVURLAsset,
                            videoTrack: AVAssetTrack,
                            pointerURL: URL,
@@ -571,9 +567,6 @@ final class RecorderExporter {
         else { return .readFailed }
         let timeline = result.asset
         let outputDuration = CMTimeGetSeconds((try? await timeline.load(.duration)) ?? .zero)
-        guard RecorderSupport.gifFitsBudget(duration: outputDuration, fps: fps) else {
-            return .tooLongForGIF
-        }
         let frameCount = RecorderSupport.gifFrameCount(duration: outputDuration, fps: fps)
         guard frameCount > 0 else { return .noVideo }
 
@@ -591,6 +584,7 @@ final class RecorderExporter {
         let size = RecorderSupport.gifOutputSize(source: canvas, size: document.resolvedGIFSize)
 
         let generator = AVAssetImageGenerator(asset: timeline)
+        defer { generator.cancelAllCGImageGeneration() }
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
@@ -609,48 +603,31 @@ final class RecorderExporter {
             generator.videoComposition = composition
         }
 
-        // Encoded in memory and written out only once it is whole. Given a
-        // URL, ImageIO writes through a hidden file of its own beside it, and
-        // a cancel before the end leaves that file behind in the person's
-        // folder. The frames are held until the end either way, and the
-        // finished GIF is much smaller than they are.
-        let encoded = NSMutableData()
-        guard let sink = CGImageDestinationCreateWithData(encoded as CFMutableData,
-                                                          UTType.gif.identifier as CFString,
-                                                          frameCount,
-                                                          nil)
-        else { return .writeFailed }
-        CGImageDestinationSetProperties(sink, [
-            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
-        ] as CFDictionary)
-
-        let delay = RecorderSupport.gifDelay(fps: fps)
-        // Readers clamp anything under 100 ms unless the unclamped delay is
-        // written as well, so both go in and a 12 fps GIF actually plays at
-        // 12 fps instead of at 10.
-        let frameProperties = [
-            kCGImagePropertyGIFDictionary: [
-                kCGImagePropertyGIFDelayTime: delay,
-                kCGImagePropertyGIFUnclampedDelayTime: delay,
-            ],
-        ] as CFDictionary
-
-        for index in 0..<frameCount {
-            if cancelled.isCancelled { return .cancelled }
-            let seconds = min(outputDuration, Double(index) / Double(fps))
-            let time = CMTime(seconds: seconds, preferredTimescale: 600)
-            guard let frame = try? await generator.image(at: time).image else { continue }
-            CGImageDestinationAddImage(sink, frame, frameProperties)
-            progress(min(0.99, Double(index + 1) / Double(frameCount)))
-        }
-
-        guard CGImageDestinationFinalize(sink) else { return .writeFailed }
-        // A cancel that arrived while the GIF was finalized writes nothing.
-        if cancelled.isCancelled { return .cancelled }
+        guard let workspace = try? RecorderGIFWorkspace() else { return .writeFailed }
+        defer { workspace.discard() }
         do {
-            try encoded.write(to: destination)
+            let writer = try RecorderGIFWriter(url: workspace.fileURL, fps: fps)
+            for index in 0..<frameCount {
+                if cancelled.isCancelled { return .cancelled }
+                let seconds = min(outputDuration, Double(index) / Double(fps))
+                let time = CMTime(seconds: seconds, preferredTimescale: 600)
+                // A decode failure must preserve the existing destination,
+                // rather than silently shortening the animation.
+                guard let frame = try? await generator.image(at: time).image else {
+                    return cancelled.isCancelled ? .cancelled : .readFailed
+                }
+                if cancelled.isCancelled { return .cancelled }
+                try writer.append(frame)
+                progress(min(0.99, Double(index + 1) / Double(frameCount)))
+            }
+            if cancelled.isCancelled { return .cancelled }
+            try writer.finish()
+            if cancelled.isCancelled { return .cancelled }
+            // Copy the completed file to the destination volume before the
+            // entry point's atomic replacement. Both scratch and this staged
+            // sibling are removed on error or cancellation.
+            try FileManager.default.copyItem(at: workspace.fileURL, to: destination)
         } catch {
-            try? FileManager.default.removeItem(at: destination)
             return .writeFailed
         }
         progress(1)

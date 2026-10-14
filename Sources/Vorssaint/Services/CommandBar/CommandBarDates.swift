@@ -243,7 +243,9 @@ enum CommandBarDates {
         if let date = short.date(from: written) { return date }
 
         // Without a year the formatter refuses, so the missing year is filled
-        // in: this year, or the next one if the day has already gone by.
+        // in: the first year, from this one, where that day exists and has not
+        // gone by. A 29 February waits for the next leap year instead of
+        // sliding into a neighbouring day.
         let parts = written.split(whereSeparator: { !$0.isNumber }).compactMap { Int($0) }
         guard parts.count == 2 else { return nil }
         let order = dayComesFirst(locale: locale)
@@ -251,13 +253,16 @@ enum CommandBarDates {
         let month = order ? parts[1] : parts[0]
         guard (1...31).contains(day), (1...12).contains(month) else { return nil }
         let year = calendar.component(.year, from: now)
-        var components = DateComponents(year: year, month: month, day: day)
-        guard let candidate = calendar.date(from: components) else { return nil }
-        if candidate < calendar.startOfDay(for: now) {
-            components.year = year + 1
-            return calendar.date(from: components)
+        let startOfToday = calendar.startOfDay(for: now)
+        for candidateYear in year...(year + 8) {
+            let components = DateComponents(year: candidateYear, month: month, day: day)
+            guard let candidate = calendar.date(from: components),
+                  calendar.component(.month, from: candidate) == month,
+                  calendar.component(.day, from: candidate) == day,
+                  candidate >= startOfToday else { continue }
+            return candidate
         }
-        return candidate
+        return nil
     }
 
     /// Whether this Mac writes the day before the month.
