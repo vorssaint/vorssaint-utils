@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint nutzt den Ton jeder App, um ihre Lautstärke im Mixer zu regeln, die Musikbalken von Dynamic Island zu bewegen und den Ton des Mac in die Bildschirmaufnahmen aufzunehmen, die du startest. Nichts verlässt deinen Mac.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint verwendet Bluetooth nur, um den Akkustand verbundener Peripheriegeräte zu lesen. Nichts verlässt deinen Mac.";
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint verwendet Bluetooth, um den Akkustand von Peripheriegeräten zu lesen und die von dir ausgewählten gekoppelten Geräte beim Ruhezustand des Mac zu trennen. Nichts verlässt deinen Mac.";
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint nimmt dein Mikrofon nur auf, wenn du es für eine Bildschirmaufnahme einschaltest. Der Ton bleibt auf deinem Mac, außer du erstellst einen temporären Link.";

@@ -109,6 +109,9 @@ enum SettingsBackupSupport {
         DefaultsKey.spacesOrderRestartPending,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
+        // Device addresses refer to this Mac's pairings; importing a backup
+        // keeps its local selection rather than targeting another Mac's gear.
+        DefaultsKey.bluetoothSleepDevices,
         DefaultsKey.micMuteActive,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.

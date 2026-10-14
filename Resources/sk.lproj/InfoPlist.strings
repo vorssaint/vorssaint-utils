@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint používa zvuk každej aplikácie na nastavenie jej hlasitosti v mixéri, na rozpohybovanie hudobných stĺpcov Dynamic Island a na pridanie zvuku Macu do nahrávok obrazovky, ktoré spustíte. Nič neopustí váš Mac.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint používa Bluetooth len na načítanie stavu batérie pripojeného príslušenstva. Nič neopustí váš Mac.";
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint používa Bluetooth na čítanie stavu batérie príslušenstva a odpojenie vybraných spárovaných zariadení, keď Mac zaspí. Nič neopustí váš Mac.";
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint nahráva váš mikrofón len vtedy, keď ho zapnete pre nahrávanie obrazovky. Zvuk ostáva na vašom Macu, pokiaľ sa nerozhodnete vytvoriť dočasný odkaz.";

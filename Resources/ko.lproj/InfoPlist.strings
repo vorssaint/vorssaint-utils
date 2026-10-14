@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하고 Dynamic Island의 음악 막대를 움직이며 시작한 화면 기록에 Mac의 소리를 담기 위해 각 앱의 오디오를 사용합니다. 어떤 것도 Mac 밖으로 나가지 않습니다.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint는 연결된 주변 기기의 배터리 잔량을 읽는 데만 Bluetooth를 사용합니다. 어떤 데이터도 Mac 밖으로 전송되지 않습니다.";
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint는 주변 기기의 배터리 잔량을 읽고 Mac이 잠들면 선택한 페어링 기기의 연결을 끊기 위해 Bluetooth를 사용합니다. 어떤 데이터도 Mac 밖으로 전송되지 않습니다.";
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint는 화면 녹화에서 마이크를 켠 경우에만 음성을 녹음합니다. 임시 링크를 만들지 않는 한 오디오는 Mac에만 보관됩니다.";

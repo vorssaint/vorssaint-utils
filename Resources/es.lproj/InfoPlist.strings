@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint usa el audio de cada app para ajustar su volumen en el mezclador, para mover las barras de música de Dynamic Island y para incluir el sonido del Mac en las grabaciones de pantalla que inicies. Nada sale de tu Mac.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint usa Bluetooth solo para leer la batería de los periféricos conectados. Nada sale de tu Mac.";
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint usa Bluetooth para leer la batería de los periféricos y desconectar los dispositivos enlazados que selecciones cuando el Mac entre en reposo. Nada sale de tu Mac.";
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint graba tu micrófono solo cuando lo activas para una grabación de pantalla. El audio se queda en tu Mac salvo que elijas crear un enlace temporal.";

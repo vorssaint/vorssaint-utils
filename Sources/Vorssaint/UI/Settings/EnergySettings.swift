@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import AppKit
 
 /// The Energy page: Keep Awake with its live status and options, the
 /// displays' brightness and power, extra brightness on XDR panels, and
@@ -15,6 +16,7 @@ struct EnergySettings: View {
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var bluetoothSleep = BluetoothSleepService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
@@ -23,6 +25,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.extraBrightnessEnabled) private var extraBrightnessEnabled = false
     @AppStorage(DefaultsKey.extraBrightnessLevel) private var extraBrightnessLevel = 100
     @AppStorage(DefaultsKey.bluetoothSleepEnabled) private var bluetoothSleepEnabled = false
+    @AppStorage(DefaultsKey.bluetoothSleepMode) private var bluetoothSleepMode = BluetoothSleepSupport.Mode.powerOff.rawValue
     @AppStorage(DefaultsKey.bluetoothSleepRestoreOnWake) private var bluetoothSleepRestoreOnWake = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
@@ -37,6 +40,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
     @State private var brightnessOptionsExpanded = false
+    @State private var bluetoothDevices: [BluetoothSleepSupport.Device] = []
+    @State private var selectedBluetoothDevices: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -82,9 +87,19 @@ struct EnergySettings: View {
             refreshVisibleServices()
         }
         .onChange(of: focus) { _, _ in refreshVisibleServices() }
+        .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
+            if focus == nil || focus == .bluetoothSleep,
+               bluetoothSleepEnabled, effectiveBluetoothMode == .selectedDevices {
+                refreshBluetoothDevices()
+            }
+        }
     }
 
     private func refreshVisibleServices() {
+        if focus == nil || focus == .bluetoothSleep,
+           bluetoothSleepEnabled, effectiveBluetoothMode == .selectedDevices {
+            refreshBluetoothDevices()
+        }
         if focus == nil || focus == .keepAwake {
             awake.refreshPasswordlessStatus()
         }
@@ -474,12 +489,30 @@ struct EnergySettings: View {
                         .labelsHidden()
                         .onChange(of: bluetoothSleepEnabled) { _, _ in
                             BluetoothSleepService.shared.syncWithPreferences()
+                            if bluetoothSleepEnabled, effectiveBluetoothMode == .selectedDevices {
+                                refreshBluetoothDevices()
+                            }
                         }
                 }
                 if bluetoothSleepEnabled {
-                    SettingsRow(symbol: "arrow.counterclockwise", title: strings.restoreToggle,
-                                caption: strings.restoreCaption) {
-                        Toggle(strings.restoreToggle, isOn: $bluetoothSleepRestoreOnWake).labelsHidden()
+                    SettingsRow(symbol: "moon", title: strings.modeLabel) {
+                        Picker(strings.modeLabel, selection: $bluetoothSleepMode) {
+                            Text(strings.powerOffMode).tag(BluetoothSleepSupport.Mode.powerOff.rawValue)
+                            Text(strings.selectedDevicesMode).tag(BluetoothSleepSupport.Mode.selectedDevices.rawValue)
+                        }
+                        .labelsHidden()
+                        .onChange(of: bluetoothSleepMode) { _, _ in
+                            BluetoothSleepService.shared.syncWithPreferences()
+                            if effectiveBluetoothMode == .selectedDevices { refreshBluetoothDevices() }
+                        }
+                    }
+                    if effectiveBluetoothMode == .powerOff {
+                        SettingsRow(symbol: "arrow.counterclockwise", title: strings.restoreToggle,
+                                    caption: strings.restoreCaption) {
+                            Toggle(strings.restoreToggle, isOn: $bluetoothSleepRestoreOnWake).labelsHidden()
+                        }
+                    } else {
+                        bluetoothDevicePicker(strings)
                     }
                 }
             } else {
@@ -488,6 +521,61 @@ struct EnergySettings: View {
                     EmptyView()
                 }
             }
+        }
+    }
+
+    private var effectiveBluetoothMode: BluetoothSleepSupport.Mode {
+        BluetoothSleepSupport.Mode(storageValue: bluetoothSleepMode)
+    }
+
+    private func refreshBluetoothDevices() {
+        selectedBluetoothDevices = BluetoothSleepSupport.selectedAddresses(
+            UserDefaults.standard.stringArray(forKey: DefaultsKey.bluetoothSleepDevices) ?? [])
+        bluetoothDevices = BluetoothSleepService.pairedDevices()
+    }
+
+    private func bluetoothSelection(_ address: String) -> Binding<Bool> {
+        Binding(get: { selectedBluetoothDevices.contains(address) }, set: { selected in
+            if selected { selectedBluetoothDevices.insert(address) }
+            else { selectedBluetoothDevices.remove(address) }
+            UserDefaults.standard.set(selectedBluetoothDevices.sorted(), forKey: DefaultsKey.bluetoothSleepDevices)
+            BluetoothSleepService.shared.syncWithPreferences()
+        })
+    }
+
+    @ViewBuilder private func bluetoothDevicePicker(_ strings: BluetoothSleepStrings) -> some View {
+        Text(strings.selectedCaption)
+            .font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        HStack {
+            Text(strings.devicesLabel).font(.subheadline.weight(.semibold))
+            Spacer()
+            Button(strings.refresh, action: refreshBluetoothDevices).buttonStyle(.borderless)
+        }
+        if bluetoothDevices.isEmpty {
+            Text(strings.noDevices).font(.caption).foregroundStyle(.secondary)
+        }
+        ForEach(bluetoothDevices) { device in
+            SettingsRow(symbol: "dot.radiowaves.left.and.right", title: device.name,
+                        caption: (device.isConnected ? strings.connected : strings.disconnected) + " · " + device.id) {
+                Toggle(device.name, isOn: bluetoothSelection(device.id)).labelsHidden().toggleStyle(.checkbox)
+            }
+        }
+        let pairedAddresses = Set(bluetoothDevices.map(\.id))
+        ForEach(selectedBluetoothDevices.subtracting(pairedAddresses).sorted(), id: \.self) { address in
+            SettingsRow(symbol: "dot.radiowaves.left.and.right", title: address, caption: strings.notPaired) {
+                Toggle(address, isOn: bluetoothSelection(address)).labelsHidden().toggleStyle(.checkbox)
+            }
+        }
+        if selectedBluetoothDevices.isEmpty {
+            Text(strings.emptySelection).font(.caption).foregroundStyle(.secondary)
+        }
+        Text(strings.reconnectNote).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if bluetoothSleep.failedDisconnectCount > 0 {
+            Text(String(format: strings.failedFormat, bluetoothSleep.failedDisconnectCount))
+                .font(.caption).foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

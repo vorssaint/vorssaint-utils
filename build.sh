@@ -404,6 +404,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift
+        Sources/Vorssaint/Services/Bluetooth/BluetoothSleepService.swift
         Sources/Vorssaint/UI/MenuPanel/MixerPercentNativeTextField.swift
         Sources/Vorssaint/UI/MenuPanel/MixerAppDragSource.swift
         Sources/Vorssaint/Services/Audio/BoostLimiter.swift

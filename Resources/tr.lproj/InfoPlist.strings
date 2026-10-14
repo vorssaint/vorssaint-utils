@@ -5,7 +5,7 @@
 "NSAudioCaptureUsageDescription" = "Vorssaint, mikserde ses düzeyini ayarlamak, Dynamic Island'ın müzik çubuklarını hareket ettirmek ve başlattığın ekran kayıtlarına Mac'in sesini eklemek için her uygulamanın sesini kullanır. Hiçbir şey Mac'inden çıkmaz.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "Vorssaint, Bluetooth'u yalnızca bağlı çevre birimlerinin pil düzeyini okumak için kullanır. Hiçbir veri Mac'inden çıkmaz.";
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint, çevre birimlerinin pil düzeyini okumak ve Mac uyuduğunda seçtiğin eşlenmiş aygıtların bağlantısını kesmek için Bluetooth’u kullanır. Hiçbir veri Mac’inden çıkmaz.";
 
 /* macOS Microphone permission prompt. */
 "NSMicrophoneUsageDescription" = "Vorssaint, mikrofonunuzu yalnızca ekran kaydı için açtığınızda kaydeder. Geçici bir bağlantı oluşturmadığınız sürece ses Mac'inizde kalır.";
