@@ -440,7 +440,9 @@ final class NotchService: ObservableObject {
     /// or strolling through, where its wings fit beside the camera. A capsule
     /// holds it inside, as it holds the charge.
     func mascotShows(on geometry: NotchGeometry) -> Bool {
-        (mascotAtRest || mascotVisit != nil) && (geometry.floats || geometry.restingWingWidth > 0)
+        // Resting means the island has no live activity to occupy its place.
+        // Visits remain visible over content as intentional, temporary reactions.
+        (mascotRestsInView || mascotVisit != nil) && (geometry.floats || geometry.restingWingWidth > 0)
     }
 
     /// The companion needs the menu bar measured to know where its wings fit.

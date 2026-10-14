@@ -1607,8 +1607,12 @@ enum NotchSupport {
     }
 
     static func watchesMusicActivity(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && modules(in: defaults).contains(.music)
-            && idleContent(in: defaults) != .none
+        let choice = idleContent(in: defaults)
+        // The companion can occupy an otherwise empty resting island. Keep
+        // watching playback in that case so a song can take its place.
+        let companionOccupiesRest = choice == .none && NotchMascotSupport.isEnabled(in: defaults)
+        return isEnabled(in: defaults) && modules(in: defaults).contains(.music)
+            && (choice != .none || companionOccupiesRest)
             && (defaults.object(forKey: DefaultsKey.notchShowPlayingMusic) as? Bool ?? true)
     }
 
@@ -1702,7 +1706,13 @@ enum NotchSupport {
 
     static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {
         let choice = idleContent(in: defaults)
-        return choice == .music && !showsMusicActivity(isPlaying: isPlaying, in: defaults) ? .none : choice
+        // When the companion is the only thing at rest, real playback takes
+        // over the island; the companion returns as soon as playback ends.
+        if showsMusicActivity(isPlaying: isPlaying, in: defaults),
+           choice == .music || (choice == .none && NotchMascotSupport.isEnabled(in: defaults)) {
+            return .music
+        }
+        return choice == .music ? .none : choice
     }
 
     static func controls(in defaults: UserDefaults = .standard) -> [NotchControlItem] {
