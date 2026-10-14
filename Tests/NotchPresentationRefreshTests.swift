@@ -285,6 +285,8 @@ enum NotchPresentationRefreshContract {
         var edgeClicksEnabled = false
         func syncScreenEdgeClicks() { edgeClicksEnabled = true }
         func removeScreenEdgeClickMonitors() { edgeClicksEnabled = false }
+        func syncScreenEdgeScrolls() {}
+        func removeScreenEdgeScrollMonitors() {}
     }
 
     /// The music strip naming its song eases to its width in place and keeps
