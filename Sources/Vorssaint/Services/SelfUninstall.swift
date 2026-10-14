@@ -90,7 +90,8 @@ enum SelfUninstall {
                 // rule removal must stop before anything else is removed. The
                 // Space arrangement marker goes with the preferences, so that
                 // setting is put back first too.
-                guard SpacesOrderHold.restoreForRemoval(), restoreSleepBeforeRemoval() else {
+                guard MenuBarGlobalSpacing.restoreForRemoval(),
+                      SpacesOrderHold.restoreForRemoval(), restoreSleepBeforeRemoval() else {
                     stop(L10n.shared.s.advancedUninstallFailedBody)
                     return
                 }
@@ -143,6 +144,9 @@ enum SelfUninstall {
         // their preferences, so it has to happen before the suspends below,
         // or it would re-arm the very taps this teardown just stopped.
         CleaningModeManager.shared.deactivateForSystemTeardown()
+        // Release synthetic mouse-down and cursor suppression synchronously,
+        // while Accessibility still permits posting the matching mouse-up.
+        MainActor.assumeIsolated { MenuBarOrganizerService.shared.stop() }
         ScrollInverter.shared.suspend()
         FocusFollowsMouseService.shared.stop()
         SmoothScrollService.shared.suspend()

@@ -87,12 +87,20 @@ final class FeatureRuntime: ObservableObject {
     /// all decide here. A feature the Mac cannot run never installs, so a
     /// disabled row cannot be walked around from the button above it.
     ///
-    /// Uninstalls are never refused and an existing install is never revoked:
-    /// the check reads hardware and can be wrong, and a wrong answer that
-    /// strands someone's settings costs far more than one that leaves a
-    /// feature reporting itself unsupported.
+    /// Hardware checks never prevent removal. A failed system-setting restore
+    /// does: keep the feature installed so its recovery controls remain reachable.
     private func mayFlip(_ feature: AppFeature, to available: Bool) -> Bool {
         guard feature.isAvailable != available else { return false }
+        guard available || feature.prepareForRemoval(restoreMenuBarSpacing: {
+            MenuBarGlobalSpacing.restoreForRemoval()
+        }) else {
+            let alert = NSAlert()
+            alert.messageText = FeatureStrings.menuBarOrganizer(L10n.shared.language).restore
+            alert.informativeText = FeatureStrings.menuBarEditor(L10n.shared.language).removalFailed
+            alert.alertStyle = .warning
+            alert.runModal()
+            return false
+        }
         return !available || feature.isHardwareSupported
     }
 
@@ -405,6 +413,7 @@ final class FeatureRuntime: ObservableObject {
                 FanControlService.shared.syncWithPreferences()
             }
         },
+        .menuBarHider: { MenuBarHiderService.shared.syncWithPreferences() },
     ]
 
     private static func syncMonitor() {

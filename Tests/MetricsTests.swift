@@ -36,6 +36,14 @@ struct MetricsTests {
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
+            ("menu-bar-hider", {
+                MenuBarOrganizerTests.run(suite)
+                MenuBarItemPreviewTests.run(suite)
+                MenuBarHiderTests.run(suite)
+                MenuBarHiderRuntimeTests.run(suite)
+                MenuBarOrganizerLifecycleTests.run(suite)
+                MenuBarItemSourceResolverTests.run(suite)
+            }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", { AppManagementFeatureTests.run(suite) }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),

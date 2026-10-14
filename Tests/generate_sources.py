@@ -84,7 +84,40 @@ def main():
                         "    private static func accessibilityWindows(for pid: pid_t,",
                         "    private static func appendUnique(", "    private static func contains("])
           + "}\n")
+    hider = "Sources/Vorssaint/Services/MenuBarHider/MenuBarHiderService.swift"
+    write("MenuBarHiderRuntime.swift", "import AppKit\nimport Foundation\nextension MenuBarHiderRuntimeTests {\n"
+          + "final class Host: Fixture {\n"
+          + "".join(declaration(hider, prefix).replace("private ", "", 1)
+                    .replace("UserDefaults.standard", "defaults")
+                    .replace("AppFeature.menuBarHider.isAvailable", "AppFeature.menuBarHider.isAvailable(in: defaults)")
+                    .replace("GlobalShortcut.saved(for: DefaultsKey.menuBarHiderShortcut,\n                                            fallback: .menuBarHiderDefault)",
+                             "GlobalShortcut(storageValue: defaults.string(forKey: DefaultsKey.menuBarHiderShortcut) ?? \"\") ?? .menuBarHiderDefault")
+                    .replace("for: shortcut, excluding: .menuBarHider, includeInactive: true)",
+                             "for: shortcut, excluding: .menuBarHider, isAvailable: { $0.isAvailable(in: self.defaults) }, includeInactive: true)")
+                    for prefix in [
+                        "    func syncWithPreferences()", "    func resetSeparatorPositions()",
+                        "    func beginOrganizerOperation()", "    func endOrganizerOperation(",
+                        "    var organizerDisplayState:", "    func restoreAfterOrganizerActivation(",
+                        "    func resumeAfterOrganizerOperation()",
+                        "    private func syncHotkey()", "    private func teardown()", "    private func setupScrollMonitor()",
+                        "    func toggle()", "    func expand(", "    func collapse()", "    func prepareForOrganizerOperation()",
+                        "    private func applySeparatorOrder(", "    private func repairSeparatorOrder()", "    private func applyFallbackSeparatorOrder(",
+                        "    private func handleToggleClick(",
+                        "    private func syncSeparatorMouseMoveMonitor(",
+                        "    func beginConfigurationMode()", "    func endConfigurationMode()",
+                        "    func revealForStatusItemRecovery()", "    private func persistCollapsedState()",
+                        "    private func restartAutoCollapseTimerIfNeeded()", "    private func autoCollapseIfCurrent(",
+                        "    private func stopAutoCollapseTimer()", "    private func setReorderingItems(_"])
+          + "}\n}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
+    organizer = "Sources/Vorssaint/Services/MenuBarOrganizer/MenuBarOrganizerService.swift"
+    write("MenuBarOrganizerLifecycle.swift", "import AppKit\nimport Foundation\n"
+          + "extension MenuBarOrganizerLifecycleTests {\n@MainActor final class Host: Fixture {\n"
+          + "".join(declaration(organizer, prefix).replace("private ", "", 1)
+                    .replace("AXIsProcessTrusted()", "trusted") for prefix in [
+                        "    func syncWithPreferences()", "    func stop()",
+                        "    private func stopOperations()", "    private func finishActivationRecovery()"])
+          + "}\n}\n")
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
           + "extension LaunchAtLoginSettingsTests.View {\n"
           + "".join(declaration(general, prefix).replace("private func", "func", 1)
@@ -1705,9 +1738,14 @@ def main():
           + "}\n}\n")
 
     self_uninstall = "Sources/Vorssaint/Services/SelfUninstall.swift"
+    # Exercise the actual pre-TCC teardown, replacing unrelated services only.
+    suspend = declaration(self_uninstall, "    private static func suspendInputInterceptors()")
+    for service in set(re.findall(r"(\w+)\.shared\.", suspend)):
+        if service not in {"MenuBarOrganizerService", "MouseAccelerationService"}:
+            suspend = suspend.replace(service + ".shared.", "NoopInputService.shared.")
     write("SelfUninstallRemoval.swift", "import Foundation\n\nextension SelfUninstallContract {\nenum Host {\n"
           + "static let bundleID = \"test\"\n"
-          + "static func suspendInputInterceptors() -> Bool { events.append(\"suspend\"); return suspensionAllowed }\n"
+          + suspend.replace("private static", "static", 1)
           + "static func restoreSleepBeforeRemoval() -> Bool { events.append(\"sleep\"); return sleepRestoreAllowed }\n"
           + "static func detachFanControl() -> Bool { events.append(\"fan\"); return detachAllowed }\n"
           + "static func detachLoginItem() { events.append(\"login\") }\n"
@@ -1720,6 +1758,11 @@ def main():
           + declaration(self_uninstall, "    private static func removeSudoersRuleIfPresent(")
           + declaration(self_uninstall, "    private static func resetTCC(")
             .replace("private static", "@discardableResult static", 1)
+          + "}\n}\n")
+
+    write("CommandLineUninstallRemoval.swift", "import Foundation\n\nextension SelfUninstallContract {\nenum CLI {\n"
+          + declaration("Sources/Vorssaint/Support/Uninstaller.swift", "    static func runAndExit()")
+            .replace("-> Never", "-> Int32").replace("exit(", "return (")
           + "}\n}\n")
 
     downloads = "Sources/Vorssaint/Services/Notch/NotchDownloadService.swift"

@@ -14,6 +14,10 @@ import ServiceManagement
 /// `SMAppService.mainApp` is scoped to the running app's bundle identifier.
 enum Uninstaller {
     static func runAndExit() -> Never {
+        guard MenuBarGlobalSpacing.restoreForRemoval() else {
+            fputs("UNINSTALL: menu bar spacing restoration failed; recovery preferences were kept\n", stderr)
+            exit(EXIT_FAILURE)
+        }
         // The fan helper is a daemon service of its own, so unregistering the
         // main app as a login item never reaches it. Without this its root
         // registration outlives the bundle that carried its executable.
@@ -48,7 +52,8 @@ enum Uninstaller {
         } catch {
             print("UNINSTALL: login item was not registered")
         }
-        // Only the daemon decides the status. A login item that was never
+        // Spacing recovery is checked before any detach. After that, only the
+        // daemon decides the status. A login item that was never
         // registered is not a failure, and sleep and Space rearranging are
         // settings the caller can read back for itself; a daemon left behind
         // is the one thing it cannot.

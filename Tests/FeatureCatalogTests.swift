@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "menuBarHider", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -1325,6 +1325,15 @@ enum FeatureCatalogTests {
             DefaultsKey.windowGestureEnabled,
             DefaultsKey.windowEdgeSnapEnabled,
         ]
+        suite.expect(!AppFeature.menuBarHider.monitorsPermissionChanges(boolFor: { _ in true }),
+                     "optional organizer Accessibility does not poll while the basic hider is idle")
+        var spacingRestores = 0
+        suite.expect(!AppFeature.menuBarHider.prepareForRemoval { spacingRestores += 1; return false }
+                     && spacingRestores == 1, "failed spacing restore refuses feature removal")
+        suite.expect(AppFeature.menuBarHider.prepareForRemoval { spacingRestores += 1; return true }
+                     && spacingRestores == 2, "successful spacing restore permits feature removal")
+        suite.expect(AppFeature.screenshot.prepareForRemoval { spacingRestores += 1; return false }
+                     && spacingRestores == 2, "unrelated feature removal does not touch menu bar spacing")
         suite.expect(!AppFeature.windowLayout.monitorsPermissionChanges(boolFor: { _ in false })
                && !AppFeature.windowLayout.monitorsPermissionChanges {
                    $0 == DefaultsKey.screenshotShortcutEnabled

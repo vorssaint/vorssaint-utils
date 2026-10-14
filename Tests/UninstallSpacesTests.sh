@@ -186,5 +186,23 @@ if ! (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
     failures=$((failures + 1))
 fi
 
+# Global spacing recovery must survive even if the app binary is missing or
+# too old to restore it. Run the actual shared preflight with inert plist data.
+probe_status=0
+for ran_app in 0 1; do
+    for recovery_value in '<data>e30=</data>' '<string>broken</string>' '<integer>42</integer>'; do
+        recovery_xml="<?xml version=\"1.0\" encoding=\"UTF-8\"?><plist version=\"1.0\"><dict><key>menuBarOrganizerSpacingRestoreOnThisMac</key>$recovery_value</dict></plist>"
+        if (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
+            print -u2 'outstanding or malformed spacing recovery must stop before permissions or preferences are removed'
+            failures=$((failures + 1))
+        fi
+    done
+done
+recovery_xml='<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>'
+if ! (source /dev/stdin <<< "$preflight") >/dev/null 2>&1; then
+    print -u2 'spacing already restored or never applied must allow removal'
+    failures=$((failures + 1))
+fi
+
 (( failures == 0 )) || exit 1
 print 'UNINSTALL SPACES TESTS OK'

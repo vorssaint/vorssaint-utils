@@ -165,6 +165,14 @@ if ! spaces_snapshot="$(spaces_read_domain "$BUNDLE")" \
     exit 1
 fi
 spaces_before_removal="$(spaces_removal_state "$spaces_owed" "$spaces_journal")"
+# The binary restores global spacing before detaching. If it failed, was an
+# older binary, or is already missing, keep the only copy of the original
+# values. A malformed recovery entry must also block destructive removal.
+if /usr/bin/plutil -type menuBarOrganizerSpacingRestoreOnThisMac - <<< "$spaces_snapshot" >/dev/null 2>&1; then
+    print -u2 "Menu bar spacing has not been restored. The app and its recovery preferences were kept."
+    print -u2 "Restore spacing in Menu Bar Hider settings, then try uninstalling again."
+    exit 1
+fi
 # Keeping the app only helps while it is still here to try again. An app
 # already trashed by hand cannot restore anything, so the removal goes on and
 # the warnings below say how to put rearranging back.

@@ -602,6 +602,7 @@ struct SettingsView: View {
         case .screenshot: ScreenCaptureSettings()
         case .windowLayout: WindowLayoutSettings()
         case .shelf: ShelfSettings()
+        case .menuBarHider: MenuBarHiderSettings()
         case .shortcuts: ShortcutsSettings()
         case .advanced: AdvancedSettings()
         case .about: AboutSettings()

@@ -941,6 +941,30 @@ enum DefaultsKey {
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
     static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
 
+    // Menu Bar Hider
+    static let menuBarOrganizerAdvanced = "menuBarOrganizerAdvanced"
+    static let menuBarOrganizerSpacing = "menuBarOrganizerSpacing"
+    static let menuBarOrganizerAppearance = "menuBarOrganizerAppearance"
+    static let menuBarOrganizerGradient = "menuBarOrganizerGradient"
+    static let menuBarOrganizerBorder = "menuBarOrganizerBorder"
+    static let menuBarOrganizerShadow = "menuBarOrganizerShadow"
+    static let menuBarOrganizerRounded = "menuBarOrganizerRounded"
+    static let menuBarOrganizerSplit = "menuBarOrganizerSplit"
+    static let menuBarOrganizerFirstColor = "menuBarOrganizerFirstColor"
+    static let menuBarOrganizerSecondColor = "menuBarOrganizerSecondColor"
+    static let menuBarOrganizerOpacity = "menuBarOrganizerOpacity"
+    static let menuBarHiderEnabled = "menuBarHiderEnabled"
+    static let menuBarHiderCollapsed = "menuBarHiderCollapsed"
+    static let menuBarHiderAlwaysHiddenEnabled = "menuBarHiderAlwaysHiddenEnabled"
+    static let menuBarHiderAutoCollapse = "menuBarHiderAutoCollapse"
+    static let menuBarHiderAutoCollapseDelay = "menuBarHiderAutoCollapseDelay"
+    static let menuBarHiderExpandOnHover = "menuBarHiderExpandOnHover"
+    static let menuBarHiderScrollToToggle = "menuBarHiderScrollToToggle"
+    static let menuBarHiderHapticFeedback = "menuBarHiderHapticFeedback"
+    static let menuBarHiderIconStyle = "menuBarHiderIconStyle"
+    static let menuBarHiderShortcutEnabled = "menuBarHiderShortcutEnabled"
+    static let menuBarHiderShortcut = "menuBarHiderShortcut"
+
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
     static let simulateBetaUI = "simulateBetaUI"
@@ -1557,6 +1581,28 @@ enum Defaults {
         DefaultsKey.panelControlCutPaste: true,
         DefaultsKey.panelControlAutoQuit: true,
         DefaultsKey.panelControlShelf: true,
+        DefaultsKey.menuBarOrganizerAdvanced: false,
+        DefaultsKey.menuBarOrganizerSpacing: 16,
+        DefaultsKey.menuBarOrganizerAppearance: false,
+        DefaultsKey.menuBarOrganizerGradient: false,
+        DefaultsKey.menuBarOrganizerBorder: false,
+        DefaultsKey.menuBarOrganizerShadow: false,
+        DefaultsKey.menuBarOrganizerRounded: true,
+        DefaultsKey.menuBarOrganizerSplit: true,
+        DefaultsKey.menuBarOrganizerFirstColor: "#303038",
+        DefaultsKey.menuBarOrganizerSecondColor: "#606070",
+        DefaultsKey.menuBarOrganizerOpacity: 0.25,
+        DefaultsKey.menuBarHiderEnabled: false,
+        DefaultsKey.menuBarHiderCollapsed: false,
+        DefaultsKey.menuBarHiderAlwaysHiddenEnabled: true,
+        DefaultsKey.menuBarHiderAutoCollapse: false,
+        DefaultsKey.menuBarHiderAutoCollapseDelay: MenuBarHiderSupport.defaultAutoCollapseDelay,
+        DefaultsKey.menuBarHiderExpandOnHover: false,
+        DefaultsKey.menuBarHiderScrollToToggle: true,
+        DefaultsKey.menuBarHiderHapticFeedback: true,
+        DefaultsKey.menuBarHiderIconStyle: MenuBarHiderIconStyle.circle.rawValue,
+        DefaultsKey.menuBarHiderShortcutEnabled: false,
+        DefaultsKey.menuBarHiderShortcut: GlobalShortcut.menuBarHiderDefault.storageValue,
         DefaultsKey.panelControlWindowMaximize: true,
         DefaultsKey.panelControlKeyDebounce: true,
         DefaultsKey.panelControlDockClick: true,
@@ -1945,6 +1991,7 @@ enum Defaults {
         migrateFanControlVisibility(in: defaults)
         migrateScrollInverterAxes(in: defaults)
         migrateLinearScrollAvailability(in: defaults)
+        migrateMenuBarHiderAvailability(in: defaults)
         migrateWhatsAppDownloadsEnabled(in: defaults)
         migrateBatteryTemperatureVisibility(in: defaults)
         migrateSwitcherPreviewSize(in: defaults)
@@ -2196,6 +2243,14 @@ enum Defaults {
               defaults.object(forKey: DefaultsKey.linearScrollEnabled) as? Bool == true
         else { return }
         defaults.set(true, forKey: AppFeature.linearScroll.availabilityKey)
+    }
+
+    /// Existing development installs keep the hider when they already enabled it.
+    static func migrateMenuBarHiderAvailability(in defaults: UserDefaults) {
+        guard defaults.object(forKey: AppFeature.menuBarHider.availabilityKey) == nil,
+              defaults.object(forKey: DefaultsKey.menuBarHiderEnabled) as? Bool == true
+        else { return }
+        defaults.set(true, forKey: AppFeature.menuBarHider.availabilityKey)
     }
 
     static func migrateFanControlVisibility(in defaults: UserDefaults) {
