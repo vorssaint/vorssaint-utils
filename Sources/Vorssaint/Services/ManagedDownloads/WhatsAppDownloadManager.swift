@@ -263,10 +263,10 @@ final class WhatsAppDownloadManager: ObservableObject {
         return SettingsSnapshot(
             retentionDays: WhatsAppDownloadSupport.sanitizedRetentionDays(
                 defaults.integer(forKey: DefaultsKey.whatsAppDownloadsRetentionDays)),
-            categories: WhatsAppDownloadSupport.decodedCategories(
-                defaults.string(forKey: DefaultsKey.whatsAppDownloadsCategories)),
             sources: DownloadRouter.decodedSources(
                 defaults.string(forKey: DefaultsKey.downloadOrganizerSources)),
+            categories: WhatsAppDownloadSupport.decodedCategories(
+                defaults.string(forKey: DefaultsKey.whatsAppDownloadsCategories)),
             includeExisting: defaults.bool(forKey: DefaultsKey.whatsAppDownloadsIncludeExisting),
             automaticStartDate: start > 0 ? Date(timeIntervalSince1970: start) : nil)
     }
