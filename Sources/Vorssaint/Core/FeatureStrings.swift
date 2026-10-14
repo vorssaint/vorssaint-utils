@@ -112,6 +112,7 @@ enum FeatureStrings {
     case .tr: return .tr
     case .ru: return .ru
     case .es: return .es
+    case .sk, .uk: return .enUS
     case .de: return .de
     case .fr: return .fr
     case .it: return .it
