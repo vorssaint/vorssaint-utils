@@ -62,7 +62,7 @@ enum WakeVolumeCapTests {
         }
         suite.expect(WakeVolumeCapSupport.sanitizedCeilingPercent(150) == 100,
                      "a stored ceiling past full scale stops at 100")
-        let domain = "vorssaint.tests.wake-volume-cap"
+        let domain = "vorss.tests.wake-volume-cap"
         if let scratch = UserDefaults(suiteName: domain) {
             scratch.removePersistentDomain(forName: domain)
             scratch.set(80.0, forKey: "ceiling")
