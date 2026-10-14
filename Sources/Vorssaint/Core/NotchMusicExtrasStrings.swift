@@ -91,7 +91,11 @@ extension FeatureStrings {
             liveEqualizer: "Staplar följer musiken",
             liveEqualizerDescription: "Låt staplarna i Dynamic Island röra sig med ljudet från spelaren.",
             liveEqualizerHint: "Lyssnar på spelarens eget ljud för att röra staplarna. macOS frågar en gång om att tillåta inspelning av systemljud. Inget lagras eller skickas. Utan detta behåller staplarna sin vanliga rörelse.",
-            liveEqualizerUnavailable: "Kräver macOS 14.4 eller senare.")
+            liveEqualizerUnavailable: "Kräver macOS 14.4 eller senare.",
+            shuffle: "Blanda",
+            preferredPlayer: "Föredragen spelare",
+            preferredPlayerHint: "Använd den här spelaren när flera appar spelar ljud.",
+            openNamedPlayer: "Öppna %@")
         case .enUS: return NotchMusicExtrasStrings(
             lyrics: "Lyrics",
             lyricsDescription: "Follow the lyrics of the current song in the Dynamic Island.",

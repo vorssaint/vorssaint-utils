@@ -157,6 +157,8 @@ extension FeatureStrings {
             appearance: "Utseende", behavior: "Beteende",
             reactions: "Reagera på det som händer",
             reactionsHint: "Den kommer fram för att reagera på musik, tidtagare, hämtningar, skärmbilder, mikrofonen, Håll vaken och mycket annat.",
+            hidesWhenIdle: "Dölj vid inaktivitet",
+            hidesWhenIdleHint: "Efter en halv minut utan aktivitet hoppar den in i ön och ön återgår till sin vanliga storlek. Besök och reaktioner tar fortfarande fram den.",
             sayHi: "Hälsa", sayHiHint: "Visar ett besök i Dynamic Island nu.",
             momentsTitle: "Se hur den reagerar",
             visitMoment: "Ett besök", timerStarted: "Tidtagare startad", downloadFailed: "Hämtningen misslyckades", unlocked: "Datorn låstes upp",

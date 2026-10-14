@@ -678,7 +678,10 @@ struct ClipboardFeatureStrings {
         menuBarPreviewLength: "Längd på förhandsvisning",
         menuBarPreviewLengthSuffix: "tecken",
         clearRecentConfirmFormat: "Rensa ofästa (%d)?",
-        clearRecentConfirmMessage: "Fästa objekt och allt som kopieras efter detta blir kvar. Detta går inte att ångra."
+        clearRecentConfirmMessage: "Fästa objekt och allt som kopieras efter detta blir kvar. Detta går inte att ångra.",
+        historyLayout: "Historiklayout",
+        historyLayoutCards: "Kort",
+        historyLayoutList: "Lista"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -1721,6 +1724,9 @@ struct WindowLayoutFeatureStrings {
         edgeSnapSystemConflict: "macOS använder samma kanter. Stäng av fönsterplacering i Skrivbord och Dock så kan Vorssaint ta över.",
         edgeSnapOpenSystemSettings: "Öppna Skrivbord och Dock",
         edgeSnapWaitingForSystem: "Aktiverat i Vorssaint. Det börjar fungera så snart fönsterplacering i macOS är avstängd.",
+        edgeSnapUseCorner: "Använd det här hörnet",
+        edgeSnapUseEdge: "Använd den här kanten",
+        edgeSnapAreasOnEdge: "Områden på den här kanten",
         marginMaximize: "Maximera med marginal",
         marginPerEdge: "Marginal per kant",
         gapsSection: "Mellanrum",

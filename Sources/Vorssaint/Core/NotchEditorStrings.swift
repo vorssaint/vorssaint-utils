@@ -132,6 +132,8 @@ extension FeatureStrings {
             activationTime: "Aktiveringstid",
             activationTimeHint: "Håll pekaren över ön så här länge för att öppna den.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Stängningstid",
+            closeTimeHint: "Vänta så här länge efter att pekaren lämnat ön innan den stängs.",
             enableFeatureFormat: "Aktivera ”%@” i Funktioner.",
             enableSettingFormat: "Aktivera ”%@” i dess inställningar.",
             showPageFormat: "Visa ”%@” på fliken Innehåll.",

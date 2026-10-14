@@ -489,6 +489,8 @@ extension FeatureHubStrings {
         footerNote: "Avinstallation raderar ingenting: funktionen lämnar bara appen och slutar ladda. Installera den igen när som helst och allt återgår som det var.",
         restartNote: "Funktioner som avinstalleras i den här sessionen förblir laddade tills appen startas om. Starta om för att ladda ur dem från minnet nu.",
         restartButton: "Starta om nu",
+        installButton: "Installera",
+        uninstallButton: "Avinstallera",
         installAllButton: "Installera alla",
         uninstallAllButton: "Avinstallera alla",
         presetsTitle: "Börja med ett paket",
