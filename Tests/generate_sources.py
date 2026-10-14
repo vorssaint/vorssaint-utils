@@ -584,7 +584,7 @@ def main():
                       "GetPropertyData", "SetPropertyData", "AddPropertyListener",
                       "RemovePropertyListener"):
         input_bodies = input_bodies.replace("AudioObject" + operation + "(", "HAL." + operation + "(")
-    write("MixerInputVolume.swift", "import Foundation\nimport Combine\nimport CoreAudio\nimport AudioToolbox\n"
+    write("MixerInputVolume.swift", "import AppKit\nimport Foundation\nimport Combine\nimport CoreAudio\nimport AudioToolbox\n"
           + "extension MixerInputVolumeContract {\n" + input_bodies + "}\n")
     mixer = "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift"
     write("MixerUniversalRouting.swift", "import CoreAudio\nimport Foundation\n"
