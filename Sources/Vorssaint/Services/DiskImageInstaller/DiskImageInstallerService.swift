@@ -91,7 +91,7 @@ final class DiskImageInstallerService {
     }
 
     private func inspect(mountURL: URL) {
-        guard mountObserver != nil, !Self.isHomebrewInstallingApp else { return }
+        guard mountObserver != nil else { return }
         let path = mountURL.standardizedFileURL.resolvingSymlinksInPath().path
         guard processingMounts.insert(path).inserted else { return }
 
@@ -100,29 +100,15 @@ final class DiskImageInstallerService {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.processingMounts.remove(path)
-                guard self.mountObserver != nil,
-                      !Self.isHomebrewInstallingApp,
-                      let candidate else { return }
+                guard self.mountObserver != nil, let candidate else { return }
                 self.pending.append(candidate)
                 self.presentNextCandidate()
             }
         }
     }
 
-    /// Homebrew casks can mount disk images as part of their own install flow.
-    /// Those mounts belong to Homebrew, so they should never enter this UI.
-    private static var isHomebrewInstallingApp: Bool {
-        guard let status = HomebrewManager.shared.operationStatus, status.isActive else { return false }
-        switch status.action {
-        case .install, .upgrade:
-            return status.package?.kind == .cask
-        case .upgradeAll:
-            return true
-        case .uninstall, .updateHomebrew:
-            return false
-        }
-    }
-
+    /// Only Homebrew's own images are excluded. An unrelated manual mount
+    /// must still be offered while a cask installation is running.
     private static func isHomebrewImage(_ imageURL: URL) -> Bool {
         guard let libraryURL = FileManager.default.urls(for: .libraryDirectory,
                                                         in: .userDomainMask).first else { return false }

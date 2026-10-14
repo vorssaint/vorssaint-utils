@@ -322,6 +322,23 @@ enum RecorderSupport {
         return trusted
     }
 
+    /// The one app a recording hears: the owner of the recorded window, so
+    /// the sound follows the picture. Nothing for a display or an area, and
+    /// nothing for a window of this app, which plays the volume mixer's
+    /// re-render of every other app.
+    static func systemAudioApp(windowOwner: pid_t?, ownProcess: pid_t) -> pid_t? {
+        guard let windowOwner, windowOwner > 0, windowOwner != ownProcess else { return nil }
+        return windowOwner
+    }
+
+    /// Whether an app's tap is made again around its processes as they are
+    /// now. Any app launching stirs the process list, so only a real change
+    /// counts, and a list holding none of the app's processes keeps the tap
+    /// it has, since nothing could be built from it.
+    static func rebuildsAppTap<Process: Hashable>(tapped: Set<Process>, current: Set<Process>) -> Bool {
+        !current.isEmpty && current != tapped
+    }
+
     /// Turns the tap's interleaved samples back up by what its stereo mixdown
     /// took from an output with more than two channels. Sound that fills every
     /// channel of such an output, like a film in 5.1, can add up past full
@@ -722,9 +739,8 @@ enum RecorderSupport {
 
     // MARK: - GIF
 
-    /// A GIF holds every frame uncompressed while it is being written, so the
-    /// only real defence against a recording that eats the memory of the
-    /// machine is to keep the frame count and the picture small on purpose.
+    /// GIF frames are encoded a chunk at a time, so the picture size and the
+    /// chunk length bound the memory an export needs, whatever its length.
     enum GIFSize: String, CaseIterable {
         case small, medium, large
 
@@ -742,33 +758,16 @@ enum RecorderSupport {
     }
 
     static let gifFrameRates = [8, 12, 15]
-    static let maximumGIFFrames = 300
 
     static func sanitizedGIFFrameRate(_ raw: Int) -> Int {
         gifFrameRates.contains(raw) ? raw : 12
     }
 
     static func gifFrameCount(duration: Double, fps: Int) -> Int {
-        guard duration > 0, fps > 0 else { return 0 }
-        return max(1, Int((duration * Double(fps)).rounded(.down)))
-    }
-
-    /// Whether a clip fits inside the frame budget at the chosen rate, and
-    /// how long it would have to be to fit. Answering this before the person
-    /// commits is the difference between a clear limit and a hang.
-    static func gifFitsBudget(duration: Double, fps: Int) -> Bool {
-        gifFrameCount(duration: duration, fps: fps) <= maximumGIFFrames
-    }
-
-    static func maximumGIFSeconds(fps: Int) -> Double {
-        guard fps > 0 else { return 0 }
-        return Double(maximumGIFFrames) / Double(fps)
-    }
-
-    /// GIF delay below 100 ms is silently clamped by readers unless the
-    /// unclamped key is written too, so anything above 10 fps needs both.
-    static func gifDelay(fps: Int) -> Double {
-        1 / Double(max(1, fps))
+        guard duration.isFinite, duration > 0, fps > 0 else { return 0 }
+        let count = (duration * Double(fps)).rounded(.down)
+        guard count.isFinite, count < Double(Int.max) else { return 0 }
+        return max(1, Int(count))
     }
 
     static func gifOutputSize(source: CGSize, size: GIFSize) -> CGSize {

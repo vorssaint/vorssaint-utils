@@ -27,11 +27,12 @@ enum AgentOpenCodeReader {
     /// them by. The query takes out only these, so prompts, replies, the
     /// summaries OpenCode saves on prompts and error text never leave the
     /// database. Of an error, only whether there is one is read, and of the
-    /// paths a reply records, only the folder it worked in.
+    /// paths a reply records, only the folder it worked in. OpenCode 2 adds
+    /// the state of a compaction and how a turn ended, never their text.
     private static let values: [(name: String, path: String)] = [
         ("role", "$.role"), ("parentID", "$.parentID"), ("modelID", "$.modelID"), ("model_id", "$.model_id"),
         ("model", "$.model"), ("tokens", "$.tokens"), ("cost", "$.cost"), ("finish", "$.finish"),
-        ("time", "$.time"), ("cwd", "$.path.cwd"),
+        ("time", "$.time"), ("cwd", "$.path.cwd"), ("status", "$.status"), ("outcome", "$.outcome"),
     ]
 
     /// When the database or its write-ahead log last changed; nil when there
@@ -52,7 +53,7 @@ enum AgentOpenCodeReader {
     /// first read, and the replies still being written that changed since.
     /// Calls `line` with a small JSON payload of the values read for each.
     ///
-    /// OpenCode indexes messages by session only, so a filter on their times
+    /// OpenCode 1 indexes messages by session only, so a filter on their times
     /// would walk the whole table. SQLite stores rows in the order they were
     /// saved and keeps that place when a row is updated: new rows are the
     /// ones past `cursor.offset`, the last rowid read, and the only rows that
@@ -80,21 +81,47 @@ enum AgentOpenCodeReader {
         }
         sqlite3_busy_timeout(db, 2000)
 
+        // OpenCode 1 keeps a session_message table of its own since 1.15,
+        // so only the session_v2 table tells OpenCode 2 apart.
+        let version2 = exists(db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'session_v2'")
+        let messageTable = version2 ? "session_message" : "message"
+        let sessionTable = version2 ? "session_v2" : "session"
         // Reverting a session deletes its newest messages, and SQLite gives
         // their rowids to the next ones saved.
-        if !resumes(db, cursor) { restart(cursor, announce: true, line: line) }
+        if !resumes(db, cursor, table: messageTable) { restart(cursor, announce: true, line: line) }
+        let floor = Int64(max(0, horizon.timeIntervalSince1970) * 1000)
         if cursor.offset == 0 {
-            cursor.offset = UInt64(firstRow(db, since: Int64(max(0, horizon.timeIntervalSince1970) * 1000)))
+            // OpenCode 2 copies an upgraded database's history session by
+            // session, so its rows are not saved in time order; the index it
+            // keeps on their times finds the first recent one instead.
+            let indexed = version2 ? firstIndexedRow(db, since: floor) : nil
+            cursor.offset = UInt64(indexed ?? firstRow(db, table: messageTable, since: floor))
         }
+        // Older sessions copied after that first recent row are passed by
+        // their times alone, without reading their data.
+        let recent = version2 && floor > 0 ? "m.time_created >= \(floor) AND " : ""
 
-        let hasParentID = exists(db, "SELECT 1 FROM pragma_table_info('session') WHERE name = 'parent_id'")
+        let hasParentID = exists(db, "SELECT 1 FROM pragma_table_info('\(sessionTable)') WHERE name = 'parent_id'")
         let hasParts = exists(db, "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'part'")
+        let role = version2 ? "m.type" : field("m.data", "$.role")
 
         // A reply that ends the loop by its finish can still hold tool calls
         // the loop goes on with, and the summary of a compaction OpenCode
         // started on its own is followed by its request to continue. Only
         // each part's type and state are looked at, never its content.
-        let toolCalls = hasParts ? """
+        // OpenCode 2 keeps OpenCode 1's tables when it upgrades a database,
+        // so its own layout is checked first. It goes on after a step that
+        // called a tool it runs itself, whatever the finish, and records
+        // compactions in rows of their own.
+        let toolCalls = version2 ? """
+            CASE WHEN \(recent)\(role) = 'assistant'
+                AND \(field("m.data", "$.finish")) NOT IN ('tool-calls', 'unknown')
+            THEN EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(m.data)
+                THEN json_extract(m.data, '$.content') ELSE '[]' END) c
+                WHERE json_extract(c.value, '$.type') = 'tool'
+                    AND coalesce(json_extract(c.value, '$.executed'), 0) = 0)
+            ELSE 0 END
+            """ : hasParts ? """
             CASE WHEN \(field("m.data", "$.role")) = 'assistant'
                 AND \(field("m.data", "$.finish")) NOT IN ('tool-calls', 'unknown')
             THEN EXISTS (SELECT 1 FROM part p WHERE p.message_id = m.id
@@ -104,28 +131,32 @@ enum AgentOpenCodeReader {
                     AND coalesce(\(field("p.data", "$.state.metadata.interrupted")), 0) = 1))
             ELSE 0 END
             """ : "0"
-        let autoCompaction = hasParts ? """
+        let autoCompaction = !version2 && hasParts ? """
             CASE WHEN \(field("m.data", "$.role")) = 'assistant' AND \(field("m.data", "$.summary")) = 1
             THEN EXISTS (SELECT 1 FROM part p WHERE p.message_id = \(field("m.data", "$.parentID"))
                 AND \(field("p.data", "$.type")) = 'compaction' AND \(field("p.data", "$.auto")) = 1)
             ELSE 0 END
             """ : "0"
-        // A reply is written until it records when it completed.
+        // A reply is written until it records when it completed, and an
+        // OpenCode 2 compaction until it leaves its running state.
         let writing = """
-            coalesce(\(field("m.data", "$.role")) = 'assistant'
+            (\(recent)(coalesce(\(role) = 'assistant'
                 AND \(field("m.data", "$.time.completed")) IS NULL, 0)
+            OR coalesce(\(role) = 'compaction' AND \(field("m.data", "$.status")) = 'running', 0)))
             """
         let parentCol = hasParentID ? "s.parent_id" : "NULL"
         // One pass over each message's JSON hands over the values the parser
         // reads. SQLite keeps that parse for the checks above in the same row.
-        let paths = values.map { "'\($0.path)'" }.joined(separator: ", ")
+        let fields = values.map { "json_extract(m.data, '\($0.path)')" }.joined(separator: ", ")
+        // Counting a row's characters reads all of it too.
+        let size = recent.isEmpty ? "length(m.data)" : "CASE WHEN \(recent)1 THEN length(m.data) END"
         let select = """
-        SELECT m.rowid, m.id, m.session_id, m.time_created, m.time_updated, length(m.data), s.directory,
-            \(parentCol), CASE WHEN json_valid(m.data) THEN json_extract(m.data, \(paths)) END,
+        SELECT m.rowid, m.id, m.session_id, m.time_created, m.time_updated, \(size), s.directory,
+            \(parentCol), CASE WHEN \(recent)json_valid(m.data) THEN json_array(\(role), \(fields)) END,
             \(toolCalls), \(autoCompaction), \(writing),
-            CASE WHEN json_valid(m.data) THEN json_type(m.data, '$.error') END
-        FROM message m
-        JOIN session s ON m.session_id = s.id
+            CASE WHEN \(recent)json_valid(m.data) THEN json_type(m.data, '$.error') END
+        FROM \(messageTable) m
+        JOIN \(sessionTable) s ON m.session_id = s.id
         """
         let now = Date()
 
@@ -151,7 +182,7 @@ enum AgentOpenCodeReader {
                     if now.timeIntervalSince(known.changed) > abandoned { cursor.openCode.open[id] = nil }
                     continue
                 }
-                handOver(stmt, cursor: cursor, now: now, line: line)
+                handOver(stmt, cursor: cursor, now: now, version2: version2, line: line)
             }
             // A reply deleted with its session or by a revert is written no more.
             guard shouldContinue() else { return }
@@ -171,13 +202,14 @@ enum AgentOpenCodeReader {
                 cursor.openCode.tail.append((rowid, id))
                 if cursor.openCode.tail.count > tailLength { cursor.openCode.tail.removeFirst() }
             }
-            handOver(stmt, cursor: cursor, now: now, line: line)
+            handOver(stmt, cursor: cursor, now: now, version2: version2, line: line)
         }
     }
 
     /// Hands over the row `stmt` stands on, and keeps a reply still being
     /// written to look at again.
-    private static func handOver(_ stmt: OpaquePointer?, cursor: AgentLogCursor, now: Date, line: (Data) -> Void) {
+    private static func handOver(_ stmt: OpaquePointer?, cursor: AgentLogCursor, now: Date, version2: Bool,
+                                 line: (Data) -> Void) {
         // A later version could leave any of these empty; such a row is
         // skipped rather than read as if it held a value.
         guard let id = text(stmt, 1), let sessionID = text(stmt, 2),
@@ -193,9 +225,10 @@ enum AgentOpenCodeReader {
         // A row whose data cannot be read is let go above, not looked at again.
         guard let extracted = text(stmt, 8),
               let found = (try? JSONSerialization.jsonObject(with: Data(extracted.utf8))) as? [Any],
-              found.count == values.count else { return }
+              found.count == values.count + 1 else { return }
         var json: [String: Any] = [:]
-        for (value, read) in zip(values, found) where !(read is NSNull) { json[value.name] = read }
+        if !(found[0] is NSNull) { json["role"] = found[0] }
+        for (value, read) in zip(values, found.dropFirst()) where !(read is NSNull) { json[value.name] = read }
         if let cwd = json.removeValue(forKey: "cwd") { json["path"] = ["cwd": cwd] }
         json["id"] = id
         json["session_id"] = sessionID
@@ -206,6 +239,14 @@ enum AgentOpenCodeReader {
         if sqlite3_column_int64(stmt, 9) != 0 { json["tool_calls"] = true }
         if sqlite3_column_int64(stmt, 10) != 0 { json["auto_compaction"] = true }
         if let error = text(stmt, 12), error != "null" { json["error"] = true }
+        // OpenCode 2 completes a step it cut short, as when it resumes a task
+        // after it was killed, only as the next step starts. Without a finish,
+        // an error or usage, it neither ends nor starts a turn.
+        if version2, json["role"] as? String == "assistant", json["finish"] == nil, json["error"] == nil,
+           json["tokens"] == nil, (json["time"] as? [String: Any])?["completed"] != nil { return }
+        // OpenCode 2 marks where its loop stopped, so the parser does not
+        // wait out the gap before a step it saves late.
+        if version2 { json["version"] = 2 }
 
         if let mergedData = try? JSONSerialization.data(withJSONObject: json) {
             line(mergedData)
@@ -226,11 +267,11 @@ enum AgentOpenCodeReader {
     /// False when every row read last is gone or holds another message, so
     /// the place reached means nothing. When only the newest were deleted,
     /// reading goes on after the newest one still there.
-    private static func resumes(_ db: OpaquePointer?, _ cursor: AgentLogCursor) -> Bool {
+    private static func resumes(_ db: OpaquePointer?, _ cursor: AgentLogCursor, table: String) -> Bool {
         let tail = cursor.openCode.tail
         guard !tail.isEmpty else { return true }
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT id FROM message WHERE rowid = ?", -1, &stmt, nil) == SQLITE_OK else {
+        guard sqlite3_prepare_v2(db, "SELECT id FROM \(table) WHERE rowid = ?", -1, &stmt, nil) == SQLITE_OK else {
             return true
         }
         defer { sqlite3_finalize(stmt) }
@@ -248,15 +289,15 @@ enum AgentOpenCodeReader {
     /// The rowid just before the first message created at `floor` or later.
     /// Rows are stored in the order they were saved, so their times only
     /// grow along them, and a binary search finds the place in a few steps.
-    private static func firstRow(_ db: OpaquePointer?, since floor: Int64) -> Int64 {
+    private static func firstRow(_ db: OpaquePointer?, table: String, since floor: Int64) -> Int64 {
         guard floor > 0 else { return 0 }
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, "SELECT rowid, time_created FROM message WHERE rowid >= ? ORDER BY rowid LIMIT 1",
+        guard sqlite3_prepare_v2(db, "SELECT rowid, time_created FROM \(table) WHERE rowid >= ? ORDER BY rowid LIMIT 1",
                                  -1, &stmt, nil) == SQLITE_OK else { return 0 }
         defer { sqlite3_finalize(stmt) }
         var last: OpaquePointer?
         var high: Int64 = 0
-        if sqlite3_prepare_v2(db, "SELECT max(rowid) FROM message", -1, &last, nil) == SQLITE_OK,
+        if sqlite3_prepare_v2(db, "SELECT max(rowid) FROM \(table)", -1, &last, nil) == SQLITE_OK,
            sqlite3_step(last) == SQLITE_ROW {
             high = sqlite3_column_int64(last, 0)
         }
@@ -279,6 +320,25 @@ enum AgentOpenCodeReader {
             }
         }
         return low
+    }
+
+    /// The rowid just before the first OpenCode 2 message created at `floor`
+    /// or later, found on the index OpenCode keeps on their times, or the
+    /// newest rowid when none is that recent. Nil without that index.
+    private static func firstIndexedRow(_ db: OpaquePointer?, since floor: Int64) -> Int64? {
+        guard floor > 0 else { return 0 }
+        var stmt: OpaquePointer?
+        let query = """
+            SELECT (SELECT min(rowid) FROM session_message INDEXED BY session_message_time_created_idx
+                    WHERE time_created >= ?),
+                (SELECT max(rowid) FROM session_message)
+            """
+        guard sqlite3_prepare_v2(db, query, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        sqlite3_bind_int64(stmt, 1, floor)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        if sqlite3_column_type(stmt, 0) == SQLITE_NULL { return sqlite3_column_int64(stmt, 1) }
+        return max(0, sqlite3_column_int64(stmt, 0) - 1)
     }
 
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)

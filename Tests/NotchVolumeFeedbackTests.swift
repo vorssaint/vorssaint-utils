@@ -7,8 +7,18 @@ import Foundation
 /// Runs the production subscription and notice selection with real Combine
 /// delivery and a controlled audio source, without changing hardware volume.
 enum NotchVolumeFeedbackTests {
+    struct OutputDevice {
+        let uid: String
+        let name: String
+        let isHeadphones: Bool
+    }
+
     final class AppVolumeMixer {
         static var shared = AppVolumeMixer()
+        var outputDevices = [
+            OutputDevice(uid: "speakers", name: "MacBook Pro Speakers", isHeadphones: false),
+            OutputDevice(uid: "headphones", name: "Wireless Headphones", isHeadphones: true)
+        ]
         @Published var currentOutputDeviceUID: String? = "speakers"
         @Published var systemOutputVolume: Double? = 0.3
         @Published var systemOutputMuted: Bool? = false
@@ -53,6 +63,42 @@ enum NotchVolumeFeedbackTests {
             suite.expect(delivered, "queued volume publications settle within the test deadline")
         }
         defer { AppVolumeMixer.shared = AppVolumeMixer() }
+        let outputs: [(name: String, dataSource: String?, symbol: String)] = [
+            ("MacBook Pro Speakers", nil, "speaker.wave.2.fill"),
+            ("Built-in Output", "Headphones", "headphones"),
+            ("WH-1000XM5", "Headphones", "headphones"),
+            ("Alex's AirPods", nil, "airpods"),
+            ("Alex's AirPods Pro", nil, "airpodspro"),
+            ("Alex's AirPods Max", nil, "airpodsmax"),
+            ("JBL Flip 6", nil, "speaker.wave.2.fill")
+        ]
+        for output in outputs {
+            let mixer = AppVolumeMixer()
+            AppVolumeMixer.shared = mixer
+            mixer.outputDevices.append(OutputDevice(
+                uid: "selected", name: output.name,
+                isHeadphones: MixerRoutingSupport.outputLooksLikeHeadphones(
+                    name: output.name, uid: "selected", dataSourceName: output.dataSource)))
+            mixer.currentOutputDeviceUID = "selected"
+            let service = Service()
+            service.showCurrentVolume()
+            suite.expect(service.notice?.symbol == output.symbol,
+                         "volume keys identify the active output: \(output.name)")
+            service.showVolume(0.6)
+            suite.expect(service.notice?.symbol == output.symbol && service.notice?.level == 0.6,
+                         "explicit volume feedback identifies the active output: \(output.name)")
+            for muted in [false, true] {
+                service.showVolume(muted ? 0.6 : 0, muted: muted)
+                let silentSymbol = output.symbol == "speaker.wave.2.fill" ? "speaker.slash.fill" : output.symbol
+                suite.expect(service.notice?.symbol == silentSymbol && service.notice?.level == 0
+                             && service.notice?.detail == "0%",
+                             "silent output keeps its device identity and reports zero: \(output.name)")
+            }
+            mixer.currentOutputDeviceUID = "missing"
+            service.showCurrentVolume()
+            suite.expect(service.notice?.symbol == "speaker.wave.2.fill",
+                         "missing output metadata falls back without using another connected device")
+        }
         let connection = NotchNotice(event: .accessory, title: "Wireless Headphones",
                                      detail: "Connected", symbol: "headphones")
         for identityFirst in [false, true] {
@@ -72,6 +118,8 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.notice?.event == .volume && service.notice?.level == 0.8 && service.presented.count == 1,
                    "a real adjustment on the new output appears once with its final mute state")
+            suite.expect(service.notice?.symbol == "headphones",
+                   "observed volume feedback uses the new output after either publication order")
             service.presented.removeAll()
             service.notice = connection
             mixer.publish(device: "another-output", volume: 0.8, muted: false, identityFirst: identityFirst)
@@ -82,6 +130,8 @@ enum NotchVolumeFeedbackTests {
             drain()
             suite.expect(service.notice?.event == .volume && service.notice?.level == 0,
                    "the first real mute change after an equal-volume switch is not swallowed")
+            suite.expect(service.notice?.symbol == "speaker.slash.fill",
+                   "switching away from headphones clears the previous device icon")
             service.presented.removeAll()
             service.notice = connection
             mixer.publish(device: nil, volume: nil, muted: nil)

@@ -9,7 +9,7 @@
 
 <p align="center">
   One menu bar icon doing the job of a dozen paid Mac apps.<br>
-  Free, open source, and local-first.
+  Install only what you use.
 </p>
 
 <p align="center">

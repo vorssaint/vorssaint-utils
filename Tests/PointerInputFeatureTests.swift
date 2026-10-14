@@ -269,6 +269,10 @@ enum PointerInputFeatureTests {
         suite.expect(clickDebounceRearm.contains("state.reset()")
                 && clickDebounceRearm.contains("SessionActivity.shared.isActive"),
                "click debounce resets before any safe tap re-arm")
+        // Its own stop switches the tap off, which the callback hears like a
+        // disable by the system; recovering from that undid suspend().
+        suite.expect(!clickDebounceRearm.contains("} else {"),
+               "click debounce leaves alone a tap its own stop switched off")
         suite.expect(clickDebounceServiceCode.contains(
             "recoveryGeneration == self.lifecycleGeneration"
         ), "click debounce drops disabled-tap recovery after a newer lifecycle change")
@@ -361,6 +365,23 @@ enum PointerInputFeatureTests {
                                                     accessibilityGranted: false,
                                                     sessionIsActive: true),
                "a modifying tap needs Accessibility even in the session on screen")
+
+        // Switching a tap off is reported to its callback like a disable by
+        // the system. Cleaning Mode suspends the middle click that way, and
+        // the notice used to sync it back from preferences under the hand
+        // wiping the trackpad.
+        suite.expect(SessionActivitySupport.disabledTapRecovery(tapHeld: false, tapShouldRun: true)
+                        == .leaveStopped,
+               "a tap suspended on purpose stays stopped although its feature is still wanted")
+        suite.expect(SessionActivitySupport.disabledTapRecovery(tapHeld: false, tapShouldRun: false)
+                        == .leaveStopped,
+               "a tap already given up has nothing left to tear down")
+        suite.expect(SessionActivitySupport.disabledTapRecovery(tapHeld: true, tapShouldRun: true)
+                        == .rearm,
+               "a tap the system disabled is switched back on while it should still run")
+        suite.expect(SessionActivitySupport.disabledTapRecovery(tapHeld: true, tapShouldRun: false)
+                        == .tearDown,
+               "a disabled tap that may no longer run is torn down instead of re-armed")
 
         // Launching into a session that is already switched away is announced
         // before the tap owners exist to hear it, so the state is read rather
@@ -489,6 +510,73 @@ enum PointerInputFeatureTests {
                "prefix matching stops at the org.mozilla. namespace boundary")
         suite.expect(!MouseNavigationSupport.shouldPassThrough(bundleIdentifier: nil),
                "an unknown frontmost app keeps the navigation behavior")
+        // Right after Forward, Finder and Safari still report Back as disabled
+        // for up to about a second; a quick change of direction must press it.
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?],
+                                                        disabled: [["Back"], []], searchedInFull: true)?.item == "Back",
+               "a Back that still reads disabled is pressed, so a quick change of direction goes through")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil] as [String?],
+                                                        disabled: [["Back"]],
+                                                        searchedInFull: true)?.readEnabled == false,
+               "a press on an item that read disabled is marked, so its refusal posts no shortcut")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: ["Back"], disabled: [["Indent"]],
+                                                        searchedInFull: true)?.item == "Back",
+               "an item that reads enabled wins over one that reads disabled")
+        // The Go menu can keep a key from another keyboard that carries
+        // another command in the app in front, which shows the declared one.
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, "Back"], disabled: [["Forward"], []],
+                                                        searchedInFull: true)
+                        .map { $0.item == "Back" && $0.shortcut == 1 } == true,
+               "an enabled item under the declared bracket wins over a disabled one under the Go menu's key")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?],
+                                                        disabled: [["Forward"], ["Back"]], searchedInFull: true) == nil,
+               "items that read disabled under both shortcuts are left alone, since either may be really available")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?],
+                                                        disabled: [["Indent", "Back"], []],
+                                                        searchedInFull: true) == nil,
+               "two items that read disabled under one shortcut are left alone, since an editing command can share it")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?],
+                                                        disabled: [[], ["Back"]], searchedInFull: true)?.shortcut == 1,
+               "a Back that reads disabled under the declared bracket alone is pressed")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?],
+                                                        disabled: [["Back"], []], searchedInFull: false) == nil,
+               "an item that reads disabled is left alone after a search cut short, which may have missed another")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: ["Back", nil], disabled: [[], []],
+                                                        searchedInFull: false)?.item == "Back",
+               "an item that reads enabled is pressed even when the search was cut short")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: ["Back", "Indent"], disabled: [[], []],
+                                                        searchedInFull: true)?.shortcut == 0,
+               "between enabled items the most likely shortcut wins")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, "Back"], disabled: [[], []],
+                                                        searchedInFull: true)?.readEnabled == true,
+               "an item that reads enabled keeps its shortcut fallback")
+        suite.expect(MouseNavigationSupport.itemToPress(enabled: [nil, nil] as [String?], disabled: [[], []],
+                                                        searchedInFull: true) == nil,
+               "with no item carrying a shortcut there is nothing to press")
+        suite.expect(MouseNavigationSupport.miss(sawDisabledItem: true, answeredInFull: true) == .disabled,
+               "items that read disabled keep the click even when none of them was pressed")
+        suite.expect(MouseNavigationSupport.miss(sawDisabledItem: false, answeredInFull: true) == .absent,
+               "menus read in full without any of the shortcuts count as having no command")
+        suite.expect(MouseNavigationSupport.miss(sawDisabledItem: false, answeredInFull: false) == .unanswered,
+               "menus not read in full may still hold a shortcut")
+        suite.expect(MouseNavigationSupport.returnsClick(miss: .absent, appStillInFront: true,
+                                                        pressedOverApp: true, pointerOverApp: true),
+               "an app with neither shortcut gets its side click back")
+        suite.expect(!MouseNavigationSupport.returnsClick(miss: .disabled, appStillInFront: true,
+                                                         pressedOverApp: true, pointerOverApp: true),
+               "a Back or Forward that refused its press keeps the click")
+        suite.expect(!MouseNavigationSupport.returnsClick(miss: .unanswered, appStillInFront: true,
+                                                         pressedOverApp: true, pointerOverApp: true),
+               "menus that did not answer in full keep the click")
+        suite.expect(!MouseNavigationSupport.returnsClick(miss: .absent, appStillInFront: false,
+                                                         pressedOverApp: true, pointerOverApp: true),
+               "a click is not handed back once another app came to the front during the search")
+        suite.expect(!MouseNavigationSupport.returnsClick(miss: .absent, appStillInFront: true,
+                                                         pressedOverApp: true, pointerOverApp: false),
+               "a click is not handed back once the pointer moved onto another app's window")
+        suite.expect(!MouseNavigationSupport.returnsClick(miss: .absent, appStillInFront: true,
+                                                         pressedOverApp: false, pointerOverApp: true),
+               "a click pressed over another app's window is not handed back after the pointer moved onto this one")
 
         // MARK: Event timestamps at the HID tap (issue #1689)
 
@@ -3431,6 +3519,20 @@ enum PointerInputFeatureTests {
                 || tapOwner.contains("ShortcutRecordingTap") {
                 suite.expect(rearm.contains("AXIsProcessTrusted()"),
                        "\(tapOwner) does not keep a modifying tap alive after Accessibility is lost")
+            }
+            // A tap served by its own thread is switched off by the main
+            // thread that stops it, and the callback hears that like a
+            // disable by the system. Syncing whenever there was no tap to
+            // re-arm started these again under Cleaning Mode and under a
+            // permission reset, so the sync has to be asked for by a tap
+            // still held, never by a bare else.
+            if tapOwner.contains("FinderCutPaste")
+                || tapOwner.contains("FinderRename")
+                || tapOwner.contains("KeyboardDebounce")
+                || tapOwner.contains("AppSwitcher")
+                || tapOwner.contains("TextSnippet") {
+                suite.expect(rearm.contains("syncWithPreferences()") && !rearm.contains("} else {"),
+                       "\(tapOwner) leaves alone a tap its own stop switched off")
             }
             // Switching a tap off leaves the process owning it, which is what
             // the window server waits on; teardown must invalidate the port,

@@ -109,6 +109,7 @@ final class NotchService: ObservableObject {
     @Published private(set) var geometry = NotchGeometry(
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
     @Published private(set) var expanded = false
+    @Published private(set) var showsKeyboardFocus = false
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -249,6 +250,11 @@ final class NotchService: ObservableObject {
     /// When the output last moved its own level, so the rest of that ramp
     /// stays quiet with it.
     private var lastVolumeRide: TimeInterval = -.infinity
+    /// The source the layout notice last read, so a repeated announcement of
+    /// the same source, and the one the system posts at launch, say nothing.
+    private var inputSourceID: String?
+    /// The accepted Command Bar selection awaiting its source-change reading.
+    private var ownInputSourceID: String?
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private var menuSpaceReading = false
@@ -435,7 +441,9 @@ final class NotchService: ObservableObject {
     /// or strolling through, where its wings fit beside the camera. A capsule
     /// holds it inside, as it holds the charge.
     func mascotShows(on geometry: NotchGeometry) -> Bool {
-        (mascotAtRest || mascotVisit != nil) && (geometry.floats || geometry.restingWingWidth > 0)
+        // Resting means the island has no live activity to occupy its place.
+        // Visits remain visible over content as intentional, temporary reactions.
+        (mascotRestsInView || mascotVisit != nil) && (geometry.floats || geometry.restingWingWidth > 0)
     }
 
     /// The companion needs the menu bar measured to know where its wings fit.
@@ -1339,7 +1347,10 @@ final class NotchService: ObservableObject {
         hoverWork?.cancel()
         // Entering a detail decides what lies behind it; switching details or
         // passing through the gallery keeps that answer.
-        if !expanded { detailHasPage = false }
+        if !expanded {
+            detailHasPage = false
+            showsKeyboardFocus = false
+        }
         else if appPanel || metric != nil, !showingAppPanel, selectedMetric == nil { detailHasPage = true }
         // Following the closed island ends the moment it opens, before a page
         // or a capture preview under the pointer can be told the pointer left.
@@ -3516,6 +3527,11 @@ final class NotchService: ObservableObject {
         }) { eventMonitors.append(token) }
         if let token = NSEvent.addLocalMonitorForEvents(matching: clicks.union(.keyDown), handler: { [weak self] event in
             guard let self else { return event }
+            // Opening by pointer may assign a control focus automatically.
+            // Restore its visible indicator before handling any keyboard input.
+            if event.type == .keyDown, event.window === self.panel, !self.showsKeyboardFocus {
+                self.showsKeyboardFocus = true
+            }
             // While an input method is composing, Esc belongs to it and
             // drops the candidate; the island takes the next one.
             if event.type == .keyDown, event.window === self.panel, event.keyCode == 53,
@@ -3843,6 +3859,17 @@ final class NotchService: ObservableObject {
         if NotchSupport.routes(.volume) {
             bindVolumeEvents()
         }
+        if NotchSupport.routes(.inputSource) {
+            // The layout labels already refresh on every source change and
+            // post when they do, including once at launch; the current source
+            // is read now so that first post announces nothing.
+            ownInputSourceID = nil
+            inputSourceID = InputSourceSelection.currentReading()?.id
+            NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.inputSourceChanged() }
+                .store(in: &subscriptions)
+        }
         if NotchSupport.routes(.systemNotification) {
             NotchNotificationService.shared.received.sink { [weak self] item in
                 guard let self else { return }
@@ -3970,9 +3997,35 @@ final class NotchService: ObservableObject {
     func showVolume(_ volume: Double, muted: Bool? = nil) -> Bool {
         guard volume.isFinite else { return false }
         let value = muted == true ? 0 : min(1, max(0, volume))
+        let mixer = AppVolumeMixer.shared
+        let output = mixer.outputDevices.first { $0.uid == mixer.currentOutputDeviceUID }
+        let symbol: String
+        if let output, output.isHeadphones {
+            symbol = NotchAccessorySupport.symbol(for: .audio, name: output.name)
+        } else {
+            symbol = value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill"
+        }
         return show(NotchNotice(event: .volume, title: FeatureStrings.notch(L10n.shared.language).volume,
                                 detail: "\(Int((value * 100).rounded()))%",
-                                symbol: value == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", level: value))
+                                symbol: symbol, level: value))
+    }
+
+    /// The Command Bar borrows a Latin layout while it is up and gives it
+    /// back on close. Neither switch is news the typist asked for, so each
+    /// one marks itself as the app's own.
+    func noteOwnInputSourceSwitch(to sourceID: String) {
+        ownInputSourceID = sourceID
+    }
+
+    private func inputSourceChanged() {
+        guard let reading = InputSourceSelection.currentReading(), reading.id != inputSourceID else { return }
+        inputSourceID = reading.id
+        let isOwnSwitch = reading.id == ownInputSourceID
+        ownInputSourceID = nil
+        guard !isOwnSwitch else { return }
+        // Like the volume reading, the code takes the value's place and the
+        // source's own name stands where the meter would.
+        show(NotchNotice(event: .inputSource, title: reading.code, detail: reading.name, symbol: "keyboard"))
     }
 
     private func startPower() {

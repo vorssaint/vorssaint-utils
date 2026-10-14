@@ -37,4 +37,27 @@ enum SessionActivitySupport {
                              sessionIsActive: Bool) -> Bool {
         featureWanted && accessibilityGranted && sessionIsActive
     }
+
+    /// What a tap's callback owes a tap that was just reported as disabled.
+    enum DisabledTapRecovery: Equatable {
+        /// The system switched it off and it is still wanted: switch it back on.
+        case rearm
+        /// It may no longer run: tear it down, then sync from preferences.
+        case tearDown
+        /// Its owner already let go of it. Nothing to recover.
+        case leaveStopped
+    }
+
+    /// Reads a disabled-tap notice for a tap whose callback runs away from
+    /// the thread that stops it.
+    ///
+    /// Switching a tap off is reported to its callback like any other
+    /// disable, so the notice alone does not say the system took the tap
+    /// away. An owner that no longer holds the port stopped it on purpose
+    /// (Cleaning Mode, quit, a permission reset): syncing from preferences
+    /// there would start the feature again under that suspension.
+    static func disabledTapRecovery(tapHeld: Bool, tapShouldRun: Bool) -> DisabledTapRecovery {
+        guard tapHeld else { return .leaveStopped }
+        return tapShouldRun ? .rearm : .tearDown
+    }
 }

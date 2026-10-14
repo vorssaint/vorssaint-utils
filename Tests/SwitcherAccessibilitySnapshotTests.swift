@@ -25,6 +25,8 @@ enum SwitcherAccessibilitySnapshotTests {
         static var windows: [Window] = []
         static var focused: Window?
         static var listResult: AXError = .success
+        static var nativeFullscreen = false
+        static var frameFullscreen = false
 
         enum AXWindowResolver {
             static func windowID(for window: Window) -> CGWindowID? { window.id }
@@ -52,8 +54,8 @@ enum SwitcherAccessibilitySnapshotTests {
         }
         static func accessibilityTitle(for window: Window) -> String { "Workspace" }
         static func boolAttribute(_ window: Window, _ attribute: String) -> Bool { false }
-        static func isFullscreenWindow(_ window: Window, isCancelled: () -> Bool) -> Bool { false }
-        static func frameLooksFullscreen(_ frame: CGRect?, screenFrames: [CGRect]) -> Bool { false }
+        static func isFullscreenWindow(_ window: Window, isCancelled: () -> Bool) -> Bool { nativeFullscreen }
+        static func frameLooksFullscreen(_ frame: CGRect?, screenFrames: [CGRect]) -> Bool { frameFullscreen }
     }
 
     static func run(_ suite: TestSuite) {
@@ -61,6 +63,8 @@ enum SwitcherAccessibilitySnapshotTests {
             Reader.windows = []
             Reader.focused = nil
             Reader.listResult = .success
+            Reader.nativeFullscreen = false
+            Reader.frameFullscreen = false
         }
         func snapshot(_ windows: [Window]) -> Reader.AccessibilityWindowSnapshotList? {
             Reader.windows = windows
@@ -104,6 +108,15 @@ enum SwitcherAccessibilitySnapshotTests {
         suite.expect(ordinary?.everyWindowUnanswered == false && keeps(1, in: ordinary)
                         && !keeps(2, in: ordinary),
                      "fully answered snapshots still reject unmatched current-space surfaces")
+        Reader.frameFullscreen = true
+        let maximized = snapshot([Window(1, .userFacing)])?.byID[1]
+        suite.expect(maximized?.isFullscreen == true && maximized?.isNativeFullscreen == false,
+                     "a screen-sized AX window keeps the frame hint separate from native fullscreen state")
+        Reader.frameFullscreen = false
+        Reader.nativeFullscreen = true
+        let fullscreen = snapshot([Window(1, .userFacing)])?.byID[1]
+        suite.expect(fullscreen?.isFullscreen == true && fullscreen?.isNativeFullscreen == true,
+                     "an AX fullscreen flag survives in both fullscreen metadata fields")
         suite.expect(Reader.accessibilityWindows(for: 1, normalLevelWindowIDs: [], screenFrames: [],
                                                 isCancelled: { true }) == nil,
                      "a cancelled snapshot does not publish a partial answer")

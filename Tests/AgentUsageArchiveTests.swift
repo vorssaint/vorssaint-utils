@@ -60,10 +60,12 @@ enum AgentUsageArchiveTests {
         suite.expect(decoded == contents, "saved progress reads back as it was written")
         var sourced = contents
         sourced.store.limits = [AgentLimits.Source.sessionLog, .claudeApp, .account].map {
-            AgentLimits(provider: .codex, windows: [], observedAt: now, source: $0)
+            AgentLimits(provider: .codex, windows: [AgentLimitWindow(id: "test", kind: .session, minutes: 300,
+                scope: nil, usedPercent: 90, resetsAt: now.addingTimeInterval(18_000),
+                estimatedResetsAt: now.addingTimeInterval(9_000))], observedAt: now, source: $0)
         }
         suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(sourced, build: build), build: build) == sourced,
-                     "limits keep where they came from: a log, the Claude app or the account")
+                     "limits keep their source and preserve the estimate separately from the expiry deadline")
         suite.expect(!first.saved.records.isEmpty && !first.saved.limits.isEmpty && first.saved.codexPlan != nil
                         && !first.saved.turns.isEmpty && cursor.state.fast && !cursor.state.model.isEmpty,
                      "the fixture saves records, limits, a plan, an open turn and parser context")
@@ -295,7 +297,7 @@ enum AgentUsageArchiveTests {
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
-            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt"]),
+            ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
