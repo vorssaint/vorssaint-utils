@@ -186,10 +186,12 @@ enum PanelCloseReason {
     case outsideClick
     /// A panel row or button that closes the panel on its way to other work.
     case action
+    /// The close button of a panel dragged off the menu bar.
+    case closeButton
 
     var dismissesWithoutTakeover: Bool {
         switch self {
-        case .escape, .statusItem: return true
+        case .escape, .statusItem, .closeButton: return true
         case .outsideClick, .action: return false
         }
     }

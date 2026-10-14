@@ -33,6 +33,7 @@ enum MenuPanelKeyTests {
     final class Controller { let view = View() }
     final class Popover {
         var isShown = true
+        var isDetached = false
         let contentViewController: Controller? = Controller()
     }
     final class PanelInteractionState {
@@ -84,5 +85,10 @@ enum MenuPanelKeyTests {
         suite.expect(host.handlePopoverKeyDown(escape) == nil && !host.popover.isShown
                      && host.closeReasons == [.escape],
                      "Esc closes the panel once composition ends")
+        host.popover.isShown = true
+        host.popover.isDetached = true
+        suite.expect(host.handlePopoverKeyDown(escape) != nil && host.popover.isShown
+                     && host.closeReasons == [.escape],
+                     "Esc leaves a panel dragged off the menu bar open")
     }
 }

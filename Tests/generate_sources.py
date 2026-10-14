@@ -160,7 +160,11 @@ def main():
               "    private func endPanelActivationTracking(", "    private func returnActivation(",
               "    private func runPopoverCloseCompletions(",
               "    private func closePopoverNow(", "    private func fadeOutPopover(",
-              "    private func finishPopoverFadeOut(", "    private func closePopoverWithoutAnimation("])
+              "    private func finishPopoverFadeOut(", "    private func closePopoverWithoutAnimation(",
+              "    private func scheduleMetricAnchorSwitch(", "    private func reanchorMetricPopover(",
+              "    private func switchMetricPopover(", "    func popoverDidDetach("])
+          # The fixture stubs scheduleMetricAnchorSwitch for showMetricPanel; the real one runs under another name.
+          .replace("func scheduleMetricAnchorSwitch(", "func liveScheduleMetricAnchorSwitch(")
           .replace("func endPanelActivationTracking()", "@discardableResult func endPanelActivationTracking()")
           + "func closePopover(animated: Bool = true, reason: PanelCloseReason) { closePopoverNow(animated: animated, reason: reason, completion: nil) }\n"
           + "var popoverAnchor: PanelAnchor?\nvar lastGoodPanelAnchor: PanelAnchor?\n"
