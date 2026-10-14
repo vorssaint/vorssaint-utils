@@ -89,7 +89,7 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             return .writerFailed
         }
         if capturesSystemAudio {
-            systemAudioTap = await RecorderSystemAudioTap.make()
+            systemAudioTap = await RecorderSystemAudioTap.make(hearing: Self.windowOwner(of: region))
         }
         let tap = systemAudioTap
         // A tap that has not yet heard sound on this Mac may be waiting on a
@@ -155,6 +155,18 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
             typing.start()
         }
         return nil
+    }
+
+    /// The app whose window is being recorded, so the sound follows the
+    /// picture. Nothing for a display, and nothing for a window of our own:
+    /// this process plays the volume mixer's re-render of every other app.
+    private static func windowOwner(of region: RecorderSupport.Region) -> pid_t? {
+        guard let windowID = region.windowID,
+              let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]],
+              let pid = (info.first?[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+              pid != ProcessInfo.processInfo.processIdentifier
+        else { return nil }
+        return pid
     }
 
     var isPaused: Bool { pauseClock.isPaused }
