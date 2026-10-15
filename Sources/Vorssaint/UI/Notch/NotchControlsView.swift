@@ -187,7 +187,18 @@ struct NotchAudioControls: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
+    private var level: Double? {
+        if let software = mixer.softwareOutputVolume {
+            return mixer.systemOutputMuted == true ? 0 : software
+        }
+        return mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 }
+    }
+    private var isMuted: Bool {
+        if let software = mixer.softwareOutputVolume {
+            return software <= 0.001 || mixer.systemOutputMuted == true
+        }
+        return mixer.systemOutputMuted == true
+    }
     private var deviceName: String {
         mixer.outputDevices.first(where: { $0.uid == mixer.currentOutputDeviceUID })?.name ?? l10n.s.mixerSystemOutputTitle
     }
@@ -260,24 +271,30 @@ struct NotchAudioControls: View {
     /// header keeps its title instead of repeating it.
     private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
         notch.noteOwnVolumeAdjustment()
+        if mixer.softwareOutputVolume != nil {
+            if let volume { mixer.setSoftwareOutputVolume(volume) }
+            if muted != nil { mixer.toggleSoftwareOutputMute() }
+            return
+        }
         mixer.requestOutputAdjustment(volume: volume, muted: muted)
     }
 
     private var mute: some View {
         Button {
-            if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
+            if mixer.softwareOutputVolume != nil { adjustOutput(muted: !isMuted) }
+            else if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
         } label: {
-            Image(systemName: mixer.systemOutputMuted == true ? "speaker.slash.fill" : "speaker.wave.2.fill")
+            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(mixer.systemOutputMuted == true ? Color.red : Color.white)
+                .foregroundStyle(isMuted ? Color.red : Color.white)
                 .contentTransition(.symbolEffect(.replace))
-                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: mixer.systemOutputMuted)
+                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: isMuted)
                 .frame(width: 18, height: 18)
                 .contentShape(Rectangle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 6))
-        .disabled(mixer.systemOutputMuted == nil)
-        .accessibilityLabel(mixer.systemOutputMuted == true ? l10n.s.actionUnmute : l10n.s.actionMute)
+        .disabled(mixer.systemOutputMuted == nil && mixer.softwareOutputVolume == nil)
+        .accessibilityLabel(isMuted ? l10n.s.actionUnmute : l10n.s.actionMute)
     }
 
     @ViewBuilder private var slider: some View {

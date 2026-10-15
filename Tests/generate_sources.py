@@ -652,6 +652,8 @@ def main():
           + "static func outputVolume(for device: AudioObjectID) -> Float32? { Hardware.volume }\n"
           + "static func outputMuted(for device: AudioObjectID) -> Bool? { Hardware.muted }\n"
           + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
+          + "var softwareOutputVolume: Double?\n"
+          + "func setSoftwareOutputVolume(_ value: Double) { softwareOutputVolume = value }\n"
           + "var outputControlListenerDevice: AudioObjectID?\n"
           + "var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []\n"
           + "var outputControlRefreshGeneration = 0\n"
@@ -841,7 +843,8 @@ def main():
           + declaration(notch, "    var acceptsSystemFeedback: Bool {")
           + declaration(notch, "    private func updateFullscreenVisibility(").replace("private func", "func", 1)
           + declaration(notch, "    private func fullscreenEnvironmentDidChange()").replace("private func", "func", 1)
-          + "}\nfinal class PreciseVolumeRollerService: VolumeState {\n"
+          + "}\nfinal class AppVolumeMixer { static let shared = AppVolumeMixer(); var softwareOutputVolume: Double? }\n"
+          + "final class PreciseVolumeRollerService: VolumeState {\n"
           + "static let shared = PreciseVolumeRollerService()\n"
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func syncWithPreferences()")
           + "}\n}\n")

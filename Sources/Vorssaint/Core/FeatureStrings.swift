@@ -104,6 +104,10 @@ enum FeatureStrings {
         }
     }
 
+    static func mixerSoftwareVolume(_ language: AppLanguage) -> MixerSoftwareVolumeStrings {
+        MixerSoftwareVolumeStrings.localized(language)
+    }
+
     static func whatsAppDownloads(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         WhatsAppDownloadStrings.localized(language)
     }
@@ -136,6 +140,93 @@ struct MixerFeatureStrings {
     static let zhHans = MixerFeatureStrings(hideInactiveApps: "隐藏不活跃的 App", pin: "置顶", unpin: "取消置顶", moveUp: "上移", moveDown: "下移", pinFirst: "置于最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 并拖移以重新排列", actions: "操作")
     static let zhTW = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
     static let zhHK = MixerFeatureStrings(hideInactiveApps: "隱藏非活躍的 App", pin: "置頂", unpin: "取消置頂", moveUp: "上移", moveDown: "下移", pinFirst: "置於最前", moveLeft: "左移", moveRight: "右移", arrange: "按住 Command 並拖移以重新排列", actions: "動作")
+}
+
+struct MixerSoftwareVolumeStrings {
+    let title: String
+    let caption: String
+    let failure: String
+    let pausedApps: String
+
+    static func localized(_ language: AppLanguage) -> Self {
+        switch language {
+        case .enUS: return .init(
+            title: "Software volume for fixed-output devices",
+            caption: "Controls the selected output when macOS disables its volume slider. Per-app volume and routing pause while active.",
+            failure: "Could not start software volume. Check System Audio Recording permission, then turn this option off and on to retry.",
+            pausedApps: "Per-app volume and routing are paused while software output volume is active.")
+        case .ptBR: return .init(
+            title: "Volume por software para saídas fixas",
+            caption: "Controla a saída selecionada quando o macOS desativa o controle de volume. O volume e o roteamento por app ficam pausados.",
+            failure: "Não foi possível iniciar o volume por software. Verifique a permissão de gravação do áudio do sistema e desligue e ligue esta opção para tentar novamente.",
+            pausedApps: "O volume e o roteamento por app ficam pausados enquanto o volume por software está ativo.")
+        case .tr: return .init(
+            title: "Sabit çıkışlar için yazılım ses düzeyi",
+            caption: "macOS ses kaydırıcısını devre dışı bıraktığında seçili çıkışı kontrol eder. Uygulama bazında ses ve yönlendirme duraklatılır.",
+            failure: "Yazılım ses düzeyi başlatılamadı. Sistem Sesi Kaydı iznini kontrol edin, sonra yeniden denemek için bu seçeneği kapatıp açın.",
+            pausedApps: "Yazılım ses düzeyi etkinken uygulama bazında ses ve yönlendirme duraklatılır.")
+        case .ru: return .init(
+            title: "Программная громкость для выходов с фиксированным уровнем",
+            caption: "Управляет выбранным выходом, если ползунок громкости macOS недоступен. Громкость и маршрутизация отдельных приложений приостанавливаются.",
+            failure: "Не удалось запустить программную громкость. Проверьте разрешение на запись системного аудио, затем выключите и снова включите эту функцию.",
+            pausedApps: "Громкость и маршрутизация отдельных приложений приостановлены, пока работает программная громкость.")
+        case .es: return .init(
+            title: "Volumen por software para salidas fijas",
+            caption: "Controla la salida seleccionada cuando macOS desactiva su control de volumen. El volumen y el enrutamiento por app se pausan.",
+            failure: "No se pudo iniciar el volumen por software. Comprueba el permiso de grabación de audio del sistema y desactiva y activa esta opción para reintentar.",
+            pausedApps: "El volumen y el enrutamiento por app están pausados mientras el volumen por software está activo.")
+        case .sk: return .init(
+            title: "Softvérová hlasitosť pre výstupy s pevnou úrovňou",
+            caption: "Ovláda vybraný výstup, keď macOS vypne posuvník hlasitosti. Hlasitosť a smerovanie jednotlivých aplikácií sa pozastavia.",
+            failure: "Softvérovú hlasitosť sa nepodarilo spustiť. Skontrolujte povolenie na nahrávanie systémového zvuku a vypnite a zapnite túto možnosť.",
+            pausedApps: "Hlasitosť a smerovanie jednotlivých aplikácií sú počas softvérovej hlasitosti pozastavené.")
+        case .de: return .init(
+            title: "Softwarelautstärke für Ausgänge mit festem Pegel",
+            caption: "Steuert den gewählten Ausgang, wenn macOS seinen Lautstärkeregler deaktiviert. Lautstärke und Routing einzelner Apps pausieren.",
+            failure: "Softwarelautstärke konnte nicht gestartet werden. Berechtigung für die Aufnahme von Systemaudio prüfen und diese Option zum Wiederholen aus- und einschalten.",
+            pausedApps: "Lautstärke und Routing einzelner Apps pausieren, solange die Softwarelautstärke aktiv ist.")
+        case .fr: return .init(
+            title: "Volume logiciel pour les sorties à niveau fixe",
+            caption: "Contrôle la sortie sélectionnée quand macOS désactive son réglage de volume. Le volume et l’acheminement par app sont suspendus.",
+            failure: "Impossible de démarrer le volume logiciel. Vérifiez l’autorisation d’enregistrement de l’audio système, puis désactivez et réactivez cette option.",
+            pausedApps: "Le volume et l’acheminement par app sont suspendus pendant que le volume logiciel est actif.")
+        case .it: return .init(
+            title: "Volume software per uscite a livello fisso",
+            caption: "Controlla l’uscita selezionata quando macOS disattiva il cursore del volume. Volume e instradamento per app vengono sospesi.",
+            failure: "Impossibile avviare il volume software. Controlla il permesso di registrazione dell’audio di sistema, poi disattiva e riattiva questa opzione.",
+            pausedApps: "Volume e instradamento per app sono sospesi mentre il volume software è attivo.")
+        case .ja: return .init(
+            title: "固定音量の出力にソフトウェア音量を使用",
+            caption: "macOS の音量スライダーが無効な出力を調整します。有効中はアプリ別の音量と出力先の設定を一時停止します。",
+            failure: "ソフトウェア音量を開始できませんでした。システムオーディオ録音の許可を確認し、この設定を一度オフにしてから再度オンにしてください。",
+            pausedApps: "ソフトウェア音量の使用中は、アプリ別の音量と出力先の設定を一時停止します。")
+        case .ko: return .init(
+            title: "고정 출력 장치의 소프트웨어 음량",
+            caption: "macOS 음량 슬라이더가 비활성화된 선택 출력의 음량을 조절합니다. 앱별 음량과 출력 경로는 일시 중지됩니다.",
+            failure: "소프트웨어 음량을 시작할 수 없습니다. 시스템 오디오 녹음 권한을 확인한 다음 이 옵션을 껐다 켜서 다시 시도하세요.",
+            pausedApps: "소프트웨어 음량이 활성화된 동안 앱별 음량과 출력 경로가 일시 중지됩니다.")
+        case .uk: return .init(
+            title: "Програмна гучність для виходів із фіксованим рівнем",
+            caption: "Керує вибраним виходом, коли повзунок гучності macOS недоступний. Гучність і маршрутизація окремих програм призупиняються.",
+            failure: "Не вдалося запустити програмну гучність. Перевірте дозвіл на запис системного аудіо, потім вимкніть і знову ввімкніть цю опцію.",
+            pausedApps: "Гучність і маршрутизацію окремих програм призупинено, поки працює програмна гучність.")
+        case .zhHans: return .init(
+            title: "为固定音量输出启用软件音量",
+            caption: "当 macOS 音量滑块不可用时，调节所选输出。启用期间暂停单个 App 的音量和输出路由。",
+            failure: "无法启动软件音量。请检查系统音频录制权限，然后关闭并重新开启此选项。",
+            pausedApps: "软件音量启用期间，单个 App 的音量和输出路由已暂停。")
+        case .zhTW: return .init(
+            title: "為固定音量輸出啟用軟體音量",
+            caption: "當 macOS 音量滑桿無法使用時，調整所選輸出。啟用期間暫停個別 App 的音量和輸出路由。",
+            failure: "無法啟動軟體音量。請檢查系統音訊錄製權限，然後關閉並重新開啟此選項。",
+            pausedApps: "軟體音量啟用期間，個別 App 的音量和輸出路由已暫停。")
+        case .zhHK: return .init(
+            title: "為固定音量輸出啟用軟件音量",
+            caption: "當 macOS 音量滑桿無法使用時，調整所選輸出。啟用期間暫停個別 App 的音量和輸出路由。",
+            failure: "無法啟動軟件音量。請檢查系統音訊錄製權限，然後關閉並重新開啟此選項。",
+            pausedApps: "軟件音量啟用期間，個別 App 的音量和輸出路由已暫停。")
+        }
+    }
 }
 
 extension SettingsCategoryStrings {

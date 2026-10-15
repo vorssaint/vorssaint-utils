@@ -40,6 +40,7 @@ enum MixerUniversalRoutingContract {
         typealias L10n = MixerUniversalRoutingContract.L10n
         typealias AirPlayRouteManager = AirPlay
         typealias UserDefaults = Preferences
+        typealias PreciseVolumeRollerService = MixerUniversalRoutingContract.PreciseVolumeRollerService
         static var deviceLists: [AudioObjectID: [AudioObjectID]] = [:]
         static var reads: [(AudioObjectID, AudioObjectPropertySelector, AudioObjectPropertyScope)] = []
         static var writes: [(AudioObjectID, AudioObjectPropertySelector)] = []
@@ -63,6 +64,10 @@ enum MixerUniversalRoutingContract {
         var volumes: [String: Double] = [:]
         var sessionRoutes: [String: String] = [:]
         var sessionVolumes: [String: Double] = [:]
+        var softwareTargetUID: String?
+        var softwareOutputVolume: Double?
+        var softwareRetiringAt: CFAbsoluteTime?
+        func stopSoftwareOutput() { softwareTargetUID = nil }
         var refresh = MixerRefreshCoordinator()
         var builds = MixerEngineBuilds()
         var engineRecovery = MixerEngineRecovery()
@@ -78,6 +83,11 @@ enum MixerUniversalRoutingContract {
         }
         func applyRouting(for app: MixerApp) { applied.append(app) }
         func chooseAirPlaySpeaker(for app: MixerApp) {}
+    }
+
+    final class PreciseVolumeRollerService {
+        static let shared = PreciseVolumeRollerService()
+        func syncWithPreferences() {}
     }
 
     static func row(_ id: String = "process:77", objects: [AudioObjectID] = [100],
@@ -126,6 +136,12 @@ enum MixerUniversalRoutingContract {
                      && Mixer.writes[0].1 == kAudioHardwarePropertyDefaultOutputDevice,
                      "universal selection writes only the requested default output")
 
+        let softwareMixer = Mixer()
+        softwareMixer.softwareTargetUID = "speakers"
+        suite.expect(softwareMixer.setDefaultOutputDeviceUID("airpods")
+                     && softwareMixer.softwareTargetUID == nil,
+                     "switching the default output releases the previous software master tap")
+
         mixer.volumes = [:]
         mixer.currentOutputDeviceUID = "airpods"
         mixer.apps = snapshot()
@@ -138,6 +154,17 @@ enum MixerUniversalRoutingContract {
         suite.expect(mixer.appNeedsEngine(mixer.apps[0]) && mixer.rowMayBeTapped(mixer.apps[0])
                      && !mixer.appNeedsEngine(mixer.apps[1]) && !mixer.rowMayBeTapped(mixer.apps[1]),
                      "both engine gates enforce the requested output at 100 percent and leave a following app untouched")
+        mixer.softwareTargetUID = "airpods"
+        mixer.softwareOutputVolume = 0.5
+        suite.expect(!mixer.appNeedsEngine(mixer.apps[0]),
+                     "software master pauses per-app taps while it owns the output")
+        mixer.softwareRetiringAt = CFAbsoluteTimeGetCurrent()
+        suite.expect(mixer.appNeedsEngine(mixer.apps[0]),
+                     "per-app taps can rebuild while the retiring master still controls volume")
+        mixer.softwareOutputVolume = nil
+        mixer.softwareRetiringAt = nil
+        suite.expect(mixer.appNeedsEngine(mixer.apps[0]),
+                     "per-app routing resumes when software master stops")
         mixer.currentOutputDeviceUID = "speakers"
         suite.expect(mixer.appNeedsEngine(mixer.apps[0]) && mixer.rowMayBeTapped(mixer.apps[0]),
                      "publishing the next output choice does not drop the existing route before the HAL refresh")

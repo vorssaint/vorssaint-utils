@@ -301,6 +301,12 @@ enum MixerOutputAdjustmentContract {
                      "a level set from the menu bar before the step's own reading starts the next key from that level")
 
         mixer = make()
+        mixer.softwareOutputVolume = 0.4
+        suite.expect(mixer.setCurrentOutputVolume(0.6) && mixer.softwareOutputVolume == 0.6
+                     && Hardware.writes.isEmpty,
+                     "the menu bar adjusts software volume without writing a fixed-output device")
+
+        mixer = make()
         Hardware.accepts = coarse
         Hardware.volume = 0.3
         Hardware.succeeds = false
