@@ -19,6 +19,8 @@ struct NotchFilesView: View {
     @State private var outputPanel: NSSavePanel?
     @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
+    /// The system's own AirDrop service, named in the system's language.
+    private static let airDrop = NSSharingService(named: .sendViaAirDrop)
 
     var body: some View {
         VStack(spacing: NotchLayout.rowSpacing) {
@@ -66,6 +68,17 @@ struct NotchFilesView: View {
                         }
                         .disabled(!shelf.hasFilesForActions || !archives.canAcceptMediaDrop)
                         .popover(isPresented: $showingActions) { fileActions.padding(14).frame(width: 270) }
+                    }
+                    // AirDrop at once, beside the share menu that also lists it.
+                    if let airDrop = Self.airDrop {
+                        NotchIconButton(symbol: "dot.radiowaves.left.and.right", title: airDrop.title) {
+                            let urls = shelf.fileURLsForActions()
+                            guard !urls.isEmpty, airDrop.canPerform(withItems: urls) else { return }
+                            // The island never takes focus; AirDrop's window must come forward.
+                            NSApp.activate(ignoringOtherApps: true)
+                            airDrop.perform(withItems: urls)
+                        }
+                        .disabled(!shelf.hasFilesForActions)
                     }
                     NotchIconButton(symbol: "square.and.arrow.up", title: l10n.s.shelfActionShare) {
                         shareAnchor.present(shelf.fileURLsForActions())
