@@ -68,6 +68,7 @@ struct NotchEditorStrings {
     let scratchpadSummary: String
     let agentsSummary: String
     let watchSummary: String
+    let accountsSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -92,6 +93,7 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .accounts: return accountsSummary
         }
     }
 }
@@ -163,7 +165,8 @@ extension FeatureStrings {
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
             agentsSummary: "Claude Code, Codex, OpenCode and GitHub Copilot usage, limits and costs.",
-            watchSummary: "Any part of a window, read live, with an alert when it changes."
+            watchSummary: "Any part of a window, read live, with an alert when it changes.",
+            accountsSummary: "Several Claude Code and Codex logins, their limits, and a swap by tap."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -229,7 +232,8 @@ extension FeatureStrings {
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
             agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode e do GitHub Copilot.",
-            watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar."
+            watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar.",
+            accountsSummary: "Vários logins do Claude Code e do Codex, os limites de cada um e a troca com um toque."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -295,7 +299,8 @@ extension FeatureStrings {
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
             agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode y GitHub Copilot.",
-            watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie."
+            watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie.",
+            accountsSummary: "Varios inicios de sesión de Claude Code y Codex, sus límites y el cambio con un toque."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -361,7 +366,8 @@ extension FeatureStrings {
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
             agentsSummary: "Využitie, limity a náklady Claude Code, Codexu, OpenCode a GitHub Copilot.",
-            watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení."
+            watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení.",
+            accountsSummary: "Viac prihlásení do Claude Code a Codexu, ich limity a prepnutie jedným ťuknutím."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -427,7 +433,8 @@ extension FeatureStrings {
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
             agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode und GitHub Copilot.",
-            watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen."
+            watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen.",
+            accountsSummary: "Mehrere Anmeldungen für Claude Code und Codex, ihre Limits und der Wechsel per Klick."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -493,7 +500,8 @@ extension FeatureStrings {
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
             agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode et GitHub Copilot.",
-            watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change."
+            watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change.",
+            accountsSummary: "Plusieurs connexions Claude Code et Codex, leurs limites et le changement en un clic."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -559,7 +567,8 @@ extension FeatureStrings {
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
             agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode e GitHub Copilot.",
-            watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia."
+            watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia.",
+            accountsSummary: "Più accessi a Claude Code e Codex, i loro limiti e il cambio con un clic."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -625,7 +634,8 @@ extension FeatureStrings {
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
             agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode и GitHub Copilot.",
-            watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях."
+            watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях.",
+            accountsSummary: "Несколько входов в Claude Code и Codex, их лимиты и переключение одним нажатием."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -691,7 +701,8 @@ extension FeatureStrings {
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
             agentsSummary: "Claude Code, Codex, GitHub Copilot ve OpenCode kullanımı, sınırları ve maliyetleri.",
-            watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir."
+            watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir.",
+            accountsSummary: "Birden fazla Claude Code ve Codex oturumu, sınırları ve tek dokunuşla geçiş."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -757,7 +768,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilotの使用量、上限、コスト。",
-            watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。"
+            watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。",
+            accountsSummary: "Claude CodeとCodexの複数のログイン、それぞれの上限、ワンタップでの切り替え。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -823,7 +835,8 @@ extension FeatureStrings {
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
             agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot의 사용량, 한도, 비용.",
-            watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다."
+            watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다.",
+            accountsSummary: "Claude Code와 Codex의 여러 로그인, 각 한도, 한 번의 탭으로 전환."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -889,7 +902,8 @@ extension FeatureStrings {
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限额和费用。",
-            watchSummary: "实时读取窗口的任意部分，变化时提醒你。"
+            watchSummary: "实时读取窗口的任意部分，变化时提醒你。",
+            accountsSummary: "Claude Code 和 Codex 的多个登录、各自的限额，以及一键切换。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -955,7 +969,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
-            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
+            accountsSummary: "Claude Code 和 Codex 的多個登入、各自的限額，以及一鍵切換。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -1021,7 +1036,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
             agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
-            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
+            accountsSummary: "Claude Code 和 Codex 的多個登入、各自的限額，以及一鍵切換。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1087,7 +1103,8 @@ extension FeatureStrings {
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
             agentsSummary: "Використання Claude Code, Codex, OpenCode і GitHub Copilot, ліміти й витрати.",
-            watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни."
+            watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни.",
+            accountsSummary: "Кілька входів у Claude Code і Codex, їхні ліміти та перемикання одним дотиком."
         )
         }
     }

@@ -1085,10 +1085,13 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchSupport.keepsAccounts() { AgentAccountService.shared.stop() }
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
             NotchLockScreenService.shared.sync(session)
+            // An automatic swap turned on or off meanwhile starts or stops its reading.
+            AgentAccountService.shared.pause()
             return
         }
         // Checked before any service starts, so each preference change while
@@ -1100,6 +1103,7 @@ final class NotchService: ObservableObject {
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
         AgentUsageService.shared.syncWithPreferences()
+        if NotchSupport.keepsAccounts() { AgentAccountService.shared.syncWithPreferences() }
         followsPointer = displayPreference == .pointer || displayPreference == .all
         showsOnAllDisplays = displayPreference == .all
         updateFullscreenDisplays()
@@ -1167,6 +1171,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        AgentAccountService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -1229,6 +1234,7 @@ final class NotchService: ObservableObject {
         NotchCalendarService.shared.stop()
         NotchNotificationService.shared.stop()
         AgentUsageService.shared.pause()
+        AgentAccountService.shared.pause()
         settingsSignature = ""
         expanded = false
         peeking = false
@@ -2235,6 +2241,7 @@ final class NotchService: ObservableObject {
         open(selectedNotice.event == .download ? .downloads : selectedNotice.event == .timer ? .timer
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
+             : selectedNotice.event == .accounts ? .accounts
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
              : selectedNotice.event == .watch ? .watch : .controls)
     }
@@ -3877,6 +3884,11 @@ final class NotchService: ObservableObject {
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
         }
+        if NotchSupport.routes(.accounts) {
+            AgentAccountService.shared.events.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showAccountEvent($0) }
+                .store(in: &subscriptions)
+        }
         stopPower()
         if NotchSupport.routes(.volume) {
             bindVolumeEvents()
@@ -3948,6 +3960,25 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        }
+    }
+
+    /// A swap the person tapped happens in the open island, where the page
+    /// shows it; only one made for them is worth a notice.
+    private func showAccountEvent(_ event: AgentAccountEvent) {
+        let text = FeatureStrings.notchAccounts(L10n.shared.language)
+        switch event {
+        case .swapped(let provider, let from, let to, let automatic):
+            guard automatic else { return }
+            let used = from.flatMap { AgentAutoSwap.binding($0.limits) }.map { AgentFormat.percent($0 / 100) }
+            show(NotchNotice(event: .accounts, title: text.switched(provider.displayName, to: to.account.displayName),
+                             detail: from.flatMap { from in used.map { text.previousAt(from.account.displayName, used: $0) } } ?? "",
+                             symbol: provider.symbol, agent: provider))
+        case .exhausted(let provider, let nextReset):
+            let locale = L10n.shared.language.formattingLocale()
+            let reset = nextReset.map { text.nextReset($0.formatted(Date.FormatStyle(date: .omitted, time: .shortened).locale(locale))) }
+            show(NotchNotice(event: .accounts, title: text.exhausted(provider.displayName), detail: reset ?? "",
+                             symbol: "exclamationmark.triangle.fill", agent: provider))
         }
     }
 
