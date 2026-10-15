@@ -195,7 +195,19 @@ struct NotchCalendarView: View {
         }
     }
 
-    @ViewBuilder private func appointmentList(now: Date) -> some View {
+    /// With more than one countdown, or a call to join, every event counting
+    /// down leads the list, so meetings at the same time are all in view
+    /// together and Join is at the top.
+    private func appointmentList(now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if let stack = calendar.stack, stack.countdowns.count > 1 {
+                NotchCalendarUpNext(stack: stack, text: text) { openCalendar(showing: $0) }
+            }
+            eventList(now: now)
+        }
+    }
+
+    @ViewBuilder private func eventList(now: Date) -> some View {
         let groups = groups(now: now)
         let next = NotchCalendarSupport.next(calendar.events, now: now)
         if calendar.loading {
@@ -289,6 +301,82 @@ struct NotchCalendarView: View {
     }
 }
 
+/// The events counting down, each with its own clock, under "Up next" and,
+/// when they start together, a line that says so. The Calendar page shows
+/// every one; the heads-up card under the closed island shows `limit` and
+/// counts the rest.
+struct NotchCalendarUpNext: View {
+    let stack: NotchCalendarStack
+    let text: NotchCalendarStrings
+    var limit: Int? = nil
+    let open: (NotchCalendarEvent) -> Void
+
+    private typealias Layout = NotchCalendarUpNextLayout
+
+    var body: some View {
+        let shown = Array(stack.countdowns.prefix(limit ?? .max))
+        VStack(alignment: .leading, spacing: Layout.spacing) {
+            label(text.next, color: .white.opacity(0.7))
+            if stack.startsTogether { label(text.together, color: .orange) }
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                VStack(spacing: 0) {
+                    ForEach(Array(shown.enumerated()), id: \.offset) { index, countdown in
+                        row(countdown, now: context.date)
+                            .frame(height: Layout.rowHeight)
+                            .overlay(alignment: .top) {
+                                if index > 0 { Rectangle().fill(.white.opacity(0.08)).frame(height: 0.5) }
+                            }
+                    }
+                }
+            }
+            if shown.count < stack.countdowns.count {
+                label("+\(stack.countdowns.count - shown.count)", color: .white.opacity(0.7))
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func label(_ title: String, color: Color) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .frame(height: Layout.labelHeight)
+    }
+
+    private func row(_ countdown: NotchCalendarCountdown, now: Date) -> some View {
+        let event = countdown.event
+        let title = NotchCalendarStrip.displayTitle(event, untitled: text.untitled)
+        return HStack(spacing: 8) {
+            Button { open(event) } label: {
+                HStack(spacing: 8) {
+                    Circle().fill(event.color.color).frame(width: 7, height: 7)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(title).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                        (Text(event.start, format: .dateTime.hour().minute()) + Text(" · ")
+                            + Text(event.end, format: .dateTime.hour().minute()))
+                            .font(.system(size: 11)).monospacedDigit()
+                            .foregroundStyle(.white.opacity(0.65))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(NotchCalendarSupport.countdownText(until: countdown.target, now: now))
+                        .font(.system(size: 15, weight: .medium)).monospacedDigit()
+                        .foregroundStyle(countdown.ongoing ? Color.mint : Color.white)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help(text.openCalendar)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(countdown.ongoing ? text.ongoing : text.next): \(title)")
+            .accessibilityValue(NotchCalendarSupport.countdownAccessibilityText(until: countdown.target, now: now,
+                                                                                locale: .current))
+        }
+    }
+}
+
 private struct NotchCalendarDayLabel: View {
     let day: Date
     let now: Date
@@ -330,6 +418,7 @@ private struct NotchCalendarEventRow: View {
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
             .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+
     }
 
     private var card: some View {
