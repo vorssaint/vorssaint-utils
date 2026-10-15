@@ -890,6 +890,71 @@ enum AgentLogParser {
 
     /// The folder an agent ran in names the project. A worktree kept inside
     /// the repository still belongs to that repository.
+    // MARK: Antigravity
+
+    /// A turn whose newest step is still running but has not moved for this
+    /// long was left behind, as when `agy` is killed mid-step.
+    static let antigravityAbandoned: TimeInterval = 600
+    /// Steps older than this only add usage; they never open a turn.
+    static let antigravityLive: TimeInterval = 900
+
+    /// Antigravity's own names for the models it routes to, where they
+    /// differ from the API name the price list knows.
+    static let antigravityModels = ["gemini-pro-default": "gemini-3.1-pro"]
+
+    /// One step, or where the conversation stands, as AgentAntigravityReader hands them over.
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        guard let json = object(line), let type = json["type"] as? String else { return [] }
+        switch type {
+        case "reset":
+            state.turnOpen = false
+            return [.reset(now)]
+        case "tail":
+            guard state.turnOpen, let date = seconds(json["time"]) else { return [] }
+            if json["settled"] as? Bool == true {
+                state.turnOpen = false
+                return [.turnSettled(date)]
+            }
+            guard now.timeIntervalSince(date) > antigravityAbandoned else { return [] }
+            state.turnOpen = false
+            return [.turnEnded(date, completed: false, duration: nil)]
+        case "step":
+            break
+        default:
+            return []
+        }
+        guard let date = seconds(json["time"]) else { return [] }
+        let end = seconds(json["end"]) ?? date
+        if let conversation = json["conversation"] as? String, !conversation.isEmpty { state.session = native(conversation) }
+        if let project = json["project"] as? String, !project.isEmpty { state.project = native(project) }
+        let live = now.timeIntervalSince(end) < antigravityLive
+        var entries: [AgentLogEntry] = []
+
+        if let raw = json["model"] as? String {
+            let model = native(raw)
+            if !model.isEmpty { state.model = antigravityModels[model] ?? model }
+            let reasoning = int(json["reasoning"])
+            let tokens = AgentTokens(input: int(json["input"]), cacheRead: int(json["cacheRead"]),
+                                     output: int(json["output"]) + reasoning, reasoning: reasoning)
+            let billable = AgentBillable(tokens: tokens)
+            let priced = AgentPricing.cost(billable, model: state.model)
+            let index = int(json["idx"])
+            entries.append(.usage(key: "antigravity:\(state.session):\(index)", record: AgentUsageRecord(
+                provider: .antigravity, date: end, model: state.model, project: state.project, session: state.session,
+                tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable))
+        }
+        guard live else { return entries }
+        if int(json["kind"]) == Int(AgentAntigravityReader.Kind.userInput) && !state.turnOpen {
+            state.turnOpen = true
+            entries.append(.turnBegan(date))
+        } else {
+            state.turnOpen = true
+            entries.append(.turnActive(end))
+        }
+        entries.append(.turnContext(model: state.model, project: state.project))
+        return entries
+    }
+
     static func projectName(_ path: String) -> String {
         var path = path
         if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }

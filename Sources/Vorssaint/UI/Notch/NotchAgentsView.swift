@@ -16,13 +16,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil,
+         antigravity ? .antigravity : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -220,7 +222,7 @@ private struct NotchAgentLimitsCard: View {
     /// What the window covers: its length, or the model it is kept for.
     private func label(_ window: AgentLimitWindow) -> String {
         switch window.kind {
-        case .session: return text.session
+        case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
@@ -276,8 +278,8 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
-        } else if provider == .opencode {
-            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+        } else if provider == .opencode || provider == .antigravity {
+            let todayUsage = snapshot.usage(.today).byProvider[provider]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
                 let costText: String = {
                     if todayUsage.unpriced > 0 {
@@ -361,14 +363,27 @@ private struct NotchAgentSpendCard: View {
     let providers: [AgentProvider]
     @Binding var period: String
     let text: NotchAgentStrings
+    @AppStorage(DefaultsKey.notchAgentsSpendFilter) private var filter = ""
 
     private var chosen: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
+    /// The agent picked in the filter, while it is still followed.
+    private var picked: AgentProvider? {
+        AgentProvider(rawValue: filter).flatMap { providers.contains($0) ? $0 : nil }
+    }
+
     var body: some View {
-        let usage = snapshot.usage(chosen)
+        let full = snapshot.usage(chosen)
+        let usage = scoped(full)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
-                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) { periodMenu }
+                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol,
+                                     tint: picked?.tint ?? .secondary) {
+                    HStack(spacing: 2) {
+                        filterMenu
+                        periodMenu
+                    }
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
@@ -385,6 +400,7 @@ private struct NotchAgentSpendCard: View {
                 }
                 .help(usage.fullyPriced ? text.valueNote : text.unpriced)
                 split(usage)
+                breakdown(full)
                 Text(footer(usage))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
@@ -393,6 +409,53 @@ private struct NotchAgentSpendCard: View {
                     .help(text.saved(AgentFormat.cost(usage.total.savings)))
             }
         }
+    }
+
+    /// The period's usage, narrowed to the agent picked in the filter.
+    private func scoped(_ usage: AgentPeriodUsage) -> AgentPeriodUsage {
+        guard let picked else { return usage }
+        let totals = usage.byProvider[picked] ?? AgentTotals()
+        return AgentPeriodUsage(total: totals, byProvider: [picked: totals])
+    }
+
+    private var filterMenu: some View {
+        let all = NotchMenuItem(title: text.allAgents, checked: picked == nil) { filter = "" }
+        let each = providers.map { provider in
+            NotchMenuItem(title: provider.displayName, checked: picked == provider) { filter = provider.rawValue }
+        }
+        return NotchMenuButton(title: picked?.displayName ?? text.allAgents, items: [all, .separator] + each) {
+            Text("\(picked?.displayName ?? text.allAgents) \(Image(systemName: "chevron.down"))")
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(picked?.tint ?? .secondary)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+        }
+    }
+
+    /// Each agent's share of the period, side by side; a tap narrows the card to it.
+    private func breakdown(_ usage: AgentPeriodUsage) -> some View {
+        HStack(spacing: 10) {
+            ForEach(providers.filter { (usage.byProvider[$0]?.tokens.total ?? 0) > 0 }) { provider in
+                let totals = usage.byProvider[provider] ?? AgentTotals()
+                Button {
+                    filter = picked == provider ? "" : provider.rawValue
+                } label: {
+                    HStack(spacing: 4) {
+                        NotchAgentMark(provider: provider, size: 9)
+                            .frame(width: 12, height: 12)
+                        Text((totals.unpriced > 0 ? "≥ " : "") + AgentFormat.cost(totals.cost))
+                            .font(.system(size: 10, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(picked == nil || picked == provider ? .white.opacity(0.85) : .secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(provider.displayName)
+            }
+            Spacer(minLength: 0)
+        }
+        .lineLimit(1)
     }
 
     private var periodMenu: some View {

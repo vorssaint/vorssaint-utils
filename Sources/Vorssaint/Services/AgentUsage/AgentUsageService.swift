@@ -89,6 +89,9 @@ final class AgentUsageService: ObservableObject {
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
+    /// When `agy` was last asked for its limits, and whether it is still answering.
+    private var antigravityChecked = Date.distantPast
+    private var antigravityChecking = false
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -207,11 +210,29 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    /// Antigravity keeps its limits on the account; `agy` reports them on
+    /// request, more often while one of its turns runs. Runs on `queue`.
+    private func refreshAntigravityLimits(now: Date, soon: Bool = false) {
+        guard enabled.contains(.antigravity), !antigravityChecking else { return }
+        let busy = soon || store.turns.values.contains { $0.provider == .antigravity }
+        let wait = busy ? AgentAntigravityLimits.busyInterval : AgentAntigravityLimits.interval
+        guard now.timeIntervalSince(antigravityChecked) >= wait else { return }
+        antigravityChecking = true
+        antigravityChecked = now
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let reading = AgentAntigravityLimits.read()
+            guard let self else { return }
+            self.queue.async { self.antigravityChecking = false }
+            if let reading { DispatchQueue.main.async { self.noteLimits(reading) } }
+        }
+    }
+
     /// Opening the page shows the latest limits the Claude app saved.
     func pageDidAppear() {
         guard running else { return }
         queue.async { [self] in
             guard readerSession >= 0 else { return }
+            refreshAntigravityLimits(now: Date(), soon: true)
             readClaudeApp(now: Date())
             checkLimits()
             publish()
@@ -274,6 +295,7 @@ final class AgentUsageService: ObservableObject {
             watchNetwork()
             publish()
             saveProgress()
+            refreshAntigravityLimits(now: now)
         }
     }
 
@@ -298,7 +320,7 @@ final class AgentUsageService: ObservableObject {
         // contents gave. Left out, the next launch reads it as rewritten.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { !$0.restarted && !$0.provider.keepsDatabase }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -306,9 +328,9 @@ final class AgentUsageService: ObservableObject {
     /// Changes whenever a log is read further, replaced or let go. OpenCode,
     /// which is never saved, leaves it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
+        let records = store.records.reduce(0) { $1.provider.keepsDatabase ? $0 : $0 + 1 }
         return cursors.values.reduce(records) { mark, cursor in
-            guard cursor.provider != .opencode else { return mark }
+            guard !cursor.provider.keepsDatabase else { return mark }
             var hasher = Hasher()
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
@@ -378,7 +400,7 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
+            if cursor.provider.keepsDatabase {
                 // A database changes in place: its write-ahead log grows instead.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
@@ -450,6 +472,7 @@ final class AgentUsageService: ObservableObject {
             case .codex: entries = AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
             case .opencode: entries = AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
             case .copilot: entries = AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+            case .antigravity: entries = AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
             }
             guard !entries.isEmpty else { return }
             changed = true
@@ -542,6 +565,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudeApp(now: now)
             checkLimits()
+            refreshAntigravityLimits(now: now)
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
             // Publish only when stored values or sliding time windows change.

@@ -73,6 +73,9 @@ struct AgentPriceList: Equatable {
     let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
+    /// Google's Gemini models, which Antigravity runs. Optional in the file:
+    /// a list without them keeps the ones the app ships with.
+    var gemini: [Model] = []
 
     static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
                                       webSearch: 0, usOnlyMultiplier: 1)
@@ -88,9 +91,15 @@ struct AgentPriceList: Equatable {
               let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
+        var geminiModels: [Model] = []
+        if let gemini = json["gemini"] {
+            guard let section = gemini as? [String: Any],
+                  let found = models(section["models"], prefix: "gemini-") else { return nil }
+            geminiModels = found
+        }
         return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
                               claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
-                              usOnlyMultiplier: usOnly)
+                              usOnlyMultiplier: usOnly, gemini: geminiModels)
     }
 
     /// The newer of the list inside the app and the last one downloaded. On
@@ -98,7 +107,10 @@ struct AgentPriceList: Equatable {
     static func newer(_ shipped: AgentPriceList?, _ downloaded: AgentPriceList?) -> AgentPriceList? {
         guard let downloaded else { return shipped }
         guard let shipped else { return downloaded }
-        return downloaded.updated >= shipped.updated ? downloaded : shipped
+        var winner = downloaded.updated >= shipped.updated ? downloaded : shipped
+        // A published list that has no Gemini section yet keeps the shipped one.
+        if winner.gemini.isEmpty { winner.gemini = shipped.gemini.isEmpty ? downloaded.gemini : shipped.gemini }
+        return winner
     }
 
     private static func models(_ value: Any?, prefix: String?) -> [Model]? {
@@ -215,7 +227,7 @@ enum AgentPricing {
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
-        let table = id.hasPrefix("claude-") ? list.claude : list.codex
+        let table = id.hasPrefix("claude-") ? list.claude : id.hasPrefix("gemini-") ? list.gemini : list.codex
         guard let match = table.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
         // A smaller, larger or specialized sibling the list does not name is
