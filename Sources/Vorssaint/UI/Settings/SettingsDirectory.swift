@@ -171,6 +171,7 @@ enum SettingsDirectory {
                          superKeySource: SuperKeySource = SuperKeyService.shared.source)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
+        let hub = FeatureStrings.hub(language)
         let quitProtection = FeatureStrings.quitProtection(language)
         return [
             (categories.essentials, [
@@ -245,7 +246,7 @@ enum SettingsDirectory {
                                          [FeatureStrings.mouseClickDebounce(language).title,
                                           FeatureStrings.mouseClickDebounce(language).windowLabel,
                                           "debounce"]),
-                                       ]),
+                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
@@ -294,6 +295,43 @@ enum SettingsDirectory {
                                       keywords: [quitProtection.description, "⌘Q", "⌘W",
                                                  quitProtection.hold, quitProtection.doublePress,
                                                  quitProtection.extraModifier]),
+            ]),
+            // Everything about the physical input devices sits together: the
+            // mouse, the keys and what they do per app.
+            (hub.groupMouseKeyboard, [
+                SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",
+                                       featureKeywords: [
+                                        (.scrollInverter, [s.invertMouseScroll, s.invertVerticalScroll,
+                                                           s.invertHorizontalScroll]),
+                                        (.scrollHorizontal, [s.scrollHorizontalName,
+                                                             s.scrollHorizontalModifierLabel]),
+                                        (.middleClick, [s.middleClickTapPicker]),
+                                        (.focusFollowsMouse, [s.focusFollowsMouseName,
+                                                              s.focusFollowsMouseDelay]),
+                                        (.smoothScroll, [s.smoothScrollName]),
+                                        (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
+                                        (.mouseAcceleration, [s.mouseAccelerationName]),
+                                        (.mouseNavigation, [s.mouseNavigationEnable]),
+                                        (.mouseButtonShortcuts,
+                                         [FeatureStrings.mouseButtons(language).pageTitle,
+                                          FeatureStrings.mouseButtons(language).sideWheelLeftName,
+                                          FeatureStrings.mouseButtons(language).sideWheelRightName,
+                                          FeatureStrings.mouseExceptions(language).listTitle]),
+                                        (.mouseClickDebounce,
+                                          [FeatureStrings.mouseClickDebounce(language).title,
+                                           FeatureStrings.mouseClickDebounce(language).windowLabel,
+                                           "debounce"]),
+                                        ]),
+                SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
+                SettingsDirectoryItem(page: .superKey,
+                                      title: FeatureStrings.superKey(language).pageTitle,
+                                      icon: superKeySource.systemImage,
+                                      keywords: SuperKeySource.allCases.map {
+                                          FeatureStrings.superKey(language).sourceLabel($0)
+                                      }),
+                SettingsDirectoryItem(page: .fnLock,
+                                      title: FeatureStrings.fnLock(language).pageTitle,
+                                      icon: "fn"),
             ]),
             (categories.files, [
                 SettingsDirectoryItem(page: .clipboard, title: FeatureStrings.clipboard(language).title,
@@ -411,13 +449,6 @@ enum SettingsDirectory {
                                        featureKeywords: SettingsSearchSupport
                                         .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
-                SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
-                SettingsDirectoryItem(page: .superKey,
-                                      title: FeatureStrings.superKey(language).pageTitle,
-                                      icon: superKeySource.systemImage,
-                                      keywords: SuperKeySource.allCases.map {
-                                          FeatureStrings.superKey(language).sourceLabel($0)
-                                      }),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",

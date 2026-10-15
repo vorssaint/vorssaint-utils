@@ -586,6 +586,7 @@ struct SettingsView: View {
         case .dock: DockSettings()
         case .keyDebounce: KeyboardDebounceSettings()
         case .superKey: SuperKeySettings()
+        case .fnLock: FnLockSettings()
         case .cutPaste: CutPasteSettings()
         case .autoQuit: AutoQuitSettings()
         case .quitProtection: QuitProtectionSettings()
