@@ -1158,6 +1158,7 @@ enum NotchTests {
         NotchNotificationReaderTests.run(suite)
         NotchGestureTests.run(suite)
         NotchSectionPagingTests.run(suite)
+        NotchSystemReadoutTests.run(suite)
         NotchKeyboardLightTests.run(suite)
         NotchActivityTests.run(suite)
         NotchWatchTests.run(suite)

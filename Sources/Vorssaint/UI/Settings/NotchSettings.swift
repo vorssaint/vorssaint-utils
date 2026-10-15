@@ -87,6 +87,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCapsuleFitDrop) private var capsuleFitDrop = 0.0
     @AppStorage(DefaultsKey.notchHapticFeedback) private var hapticFeedback = true
     @AppStorage(DefaultsKey.notchTranslucentBackground) private var translucentBackground = false
+    @AppStorage(DefaultsKey.notchSystemReadout) private var systemReadout = false
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var liquidGlass = false
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
@@ -116,7 +117,7 @@ struct NotchSettings: View {
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
-         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
+         String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(systemReadout), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
@@ -270,6 +271,9 @@ struct NotchSettings: View {
             }
             SettingsCard {
                 switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
+                switchRow("gauge.with.dots.needle.50percent", text.systemReadout, caption: text.systemReadoutHint,
+                          isOn: $systemReadout)
+                    .disabled(NotchSystemReadout.availableKinds().isEmpty)
             }
             // Only a physical camera has an outline to match.
             if NotchSupport.hasNotchedDisplay {

@@ -93,6 +93,8 @@ struct NotchStrings {
     let translucentBackground: String
     let translucentBackgroundHint: String
     let translucentBackgroundGlassHint: String
+    let systemReadout: String
+    let systemReadoutHint: String
 }
 
 extension FeatureStrings {
@@ -207,7 +209,9 @@ extension NotchStrings {
         quickAccessRight: "Right",
         translucentBackground: "Translucent background",
         translucentBackgroundHint: "When open, Dynamic Island blurs what is behind it with the system’s own material.",
-        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead."
+        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead.",
+        systemReadout: "System readings",
+        systemReadoutHint: "When Dynamic Island is open, its header shows battery, CPU, GPU and memory until the pointer reaches its buttons."
     )
 
     static let ptBR = NotchStrings(
@@ -299,7 +303,9 @@ extension NotchStrings {
         quickAccessRight: "Direito",
         translucentBackground: "Fundo translúcido",
         translucentBackgroundHint: "Quando aberta, a Dynamic Island desfoca o que está atrás dela com o material do próprio sistema.",
-        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar."
+        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar.",
+        systemReadout: "Leituras do sistema",
+        systemReadoutHint: "Com a Dynamic Island aberta, o cabeçalho mostra bateria, CPU, GPU e memória até o ponteiro chegar aos botões."
     )
 
     static let es = NotchStrings(
@@ -391,7 +397,9 @@ extension NotchStrings {
         quickAccessRight: "Derecho",
         translucentBackground: "Fondo translúcido",
         translucentBackgroundHint: "Al abrirse, Dynamic Island desenfoca lo que hay detrás con el material del propio sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar."
+        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar.",
+        systemReadout: "Lecturas del sistema",
+        systemReadoutHint: "Con Dynamic Island abierta, la cabecera muestra batería, CPU, GPU y memoria hasta que el puntero llega a sus botones."
     )
 
     static let sk = NotchStrings(
@@ -483,7 +491,9 @@ extension NotchStrings {
         quickAccessRight: "Vpravo",
         translucentBackground: "Priesvitné pozadie",
         translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
-        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu."
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu.",
+        systemReadout: "Systémové údaje",
+        systemReadoutHint: "Keď je Dynamic Island otvorený, hlavička zobrazuje batériu, CPU, GPU a pamäť, kým ukazovateľ nedosiahne jej tlačidlá."
     )
 
     static let de = NotchStrings(
@@ -575,7 +585,9 @@ extension NotchStrings {
         quickAccessRight: "Rechts",
         translucentBackground: "Durchscheinender Hintergrund",
         translucentBackgroundHint: "Geöffnet zeichnet Dynamic Island den Hintergrund mit dem Material des Systems unscharf.",
-        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass."
+        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass.",
+        systemReadout: "Systemwerte",
+        systemReadoutHint: "Bei geöffneter Dynamic Island zeigt die Kopfzeile Batterie, CPU, GPU und Speicher, bis der Zeiger ihre Tasten erreicht."
     )
 
     static let fr = NotchStrings(
@@ -667,7 +679,9 @@ extension NotchStrings {
         quickAccessRight: "Droite",
         translucentBackground: "Fond translucide",
         translucentBackgroundHint: "Ouverte, Dynamic Island floute ce qui se trouve derrière avec le matériau du système.",
-        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place."
+        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place.",
+        systemReadout: "Mesures système",
+        systemReadoutHint: "Quand Dynamic Island est ouverte, l’en-tête affiche batterie, CPU, GPU et mémoire jusqu’à ce que le pointeur atteigne ses boutons."
     )
 
     static let it = NotchStrings(
@@ -759,7 +773,9 @@ extension NotchStrings {
         quickAccessRight: "Destra",
         translucentBackground: "Sfondo traslucido",
         translucentBackgroundHint: "Quando è aperta, Dynamic Island sfoca ciò che si trova dietro con il materiale del sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello."
+        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello.",
+        systemReadout: "Valori di sistema",
+        systemReadoutHint: "Con Dynamic Island aperta, l’intestazione mostra batteria, CPU, GPU e memoria finché il puntatore non raggiunge i suoi pulsanti."
     )
 
     static let ru = NotchStrings(
@@ -851,7 +867,9 @@ extension NotchStrings {
         quickAccessRight: "Справа",
         translucentBackground: "Полупрозрачный фон",
         translucentBackgroundHint: "Открытый Dynamic Island размывает то, что под ним, системным материалом.",
-        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его."
+        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его.",
+        systemReadout: "Показатели системы",
+        systemReadoutHint: "Когда Dynamic Island открыт, в заголовке видны батарея, ЦП, ГП и память, пока указатель не дойдёт до его кнопок."
     )
 
     static let tr = NotchStrings(
@@ -943,7 +961,9 @@ extension NotchStrings {
         quickAccessRight: "Sağ",
         translucentBackground: "Yarı saydam arka plan",
         translucentBackgroundHint: "Dynamic Island açıkken arkasındakini sistemin kendi malzemesiyle bulanıklaştırır.",
-        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır."
+        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır.",
+        systemReadout: "Sistem değerleri",
+        systemReadoutHint: "Dynamic Island açıkken başlık, işaretçi düğmelerine gelene kadar pil, CPU, GPU ve belleği gösterir."
     )
 
     static let ja = NotchStrings(
@@ -1035,7 +1055,9 @@ extension NotchStrings {
         quickAccessRight: "右",
         translucentBackground: "半透明の背景",
         translucentBackgroundHint: "開いた Dynamic Island の背後をシステムの素材でぼかします。",
-        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。"
+        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。",
+        systemReadout: "システムの値",
+        systemReadoutHint: "Dynamic Island が開いている間、ポインタがボタンに届くまでヘッダにバッテリー、CPU、GPU、メモリを表示します。"
     )
 
     static let ko = NotchStrings(
@@ -1127,7 +1149,9 @@ extension NotchStrings {
         quickAccessRight: "오른쪽",
         translucentBackground: "반투명 배경",
         translucentBackgroundHint: "열린 Dynamic Island가 시스템 재질로 뒤쪽을 흐리게 표시합니다.",
-        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다."
+        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다.",
+        systemReadout: "시스템 수치",
+        systemReadoutHint: "Dynamic Island가 열려 있는 동안 포인터가 버튼에 닿기 전까지 헤더에 배터리, CPU, GPU, 메모리를 표시합니다."
     )
 
     static let zhHans = NotchStrings(
@@ -1219,7 +1243,9 @@ extension NotchStrings {
         quickAccessRight: "右侧",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展开的 Dynamic Island 会用系统材质模糊其背后的内容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。",
+        systemReadout: "系统读数",
+        systemReadoutHint: "Dynamic Island 展开时，在指针移到按钮之前，标题栏显示电池、CPU、GPU 和内存。"
     )
 
     static let zhTW = NotchStrings(
@@ -1311,7 +1337,9 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        systemReadout: "系統讀數",
+        systemReadoutHint: "Dynamic Island 展開時，在指標移到按鈕之前，標題列會顯示電池、CPU、GPU 和記憶體。"
     )
 
     static let zhHK = NotchStrings(
@@ -1403,7 +1431,9 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        systemReadout: "系統讀數",
+        systemReadoutHint: "Dynamic Island 展開時，在指標移到按鈕之前，標題列會顯示電池、CPU、GPU 和記憶體。"
     )
 
     static let uk = NotchStrings(
@@ -1495,7 +1525,9 @@ extension NotchStrings {
         quickAccessRight: "Праворуч",
         translucentBackground: "Напівпрозоре тло",
         translucentBackgroundHint: "Відкритий Dynamic Island розмиває вміст позаду за допомогою системного матеріалу.",
-        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його."
+        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його.",
+        systemReadout: "Показники системи",
+        systemReadoutHint: "Коли Dynamic Island відкрито, заголовок показує батарею, ЦП, ГП і пам’ять, доки вказівник не дійде до його кнопок."
     )
 
 }
