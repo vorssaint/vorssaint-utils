@@ -105,6 +105,7 @@ enum AgentUsageReadTests {
         catch { suite.expect(false, "the streaming fixture creates its folder: \(error)"); return }
         let now = Date()
         let timestamp = now.timeIntervalSince1970
+        let isoDate = ISO8601DateFormatter().string(from: now)
         let cases: [(AgentProvider, [String])] = [
             (.claude, [
                 #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","message":{"content":"work"}}"#,
@@ -129,15 +130,30 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.antigravity, [
+                #"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"\#(isoDate)","content":"work in /tmp/example"}"#,
+                #"{"step_index":2,"type":"PLANNER_RESPONSE","status":"RUNNING","created_at":"\#(isoDate)","thinking":"inspecting","tool_calls":[{"tool_name":"view_file","args":{"Cwd":"/tmp/example"}}]}"#,
+                #"{"step_index":3,"type":"GENERIC","status":"DONE","created_at":"\#(isoDate)","content":"file content"}"#,
+                #"{"step_index":4,"type":"PLANNER_RESPONSE","status":"DONE","created_at":"\#(isoDate)","content":"finished"}"#
             ])
         ]
         for (provider, lines) in cases {
             // A canonical filename, not a Codex side-thread filename.
-            let file = folder.appending(path: "\(provider.rawValue).jsonl")
+            let file: URL
+            // Antigravity names the conversation only in its folder, relative to the root being read.
+            let roots = [AgentLogRoot(provider: .antigravity, url: folder.appending(path: "brain", directoryHint: .isDirectory))]
+            if provider == .antigravity {
+                let sub = folder.appending(path: "brain/conversation-1/.system_generated/logs")
+                try? FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+                file = sub.appending(path: "transcript.jsonl")
+            } else {
+                file = folder.appending(path: "\(provider.rawValue).jsonl")
+            }
             do { try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file) }
             catch { suite.expect(false, "the streaming fixture writes its log: \(error)"); continue }
 
-            let cursor = AgentLogCursor(path: file.path, provider: provider)
+            let cursor = AgentLogCursor(path: file.path, provider: provider, roots: roots)
             var entries: [AgentLogEntry] = []
             let consume: (Data) -> Void = { line in
                 switch provider {
@@ -145,6 +161,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -158,6 +175,7 @@ enum AgentUsageReadTests {
                                                  tracksTurns: cursor.tracksTurns, parent: cursor.parent,
                                                  modified: cursor.modified, now: now)
             let host = Host()
+            host.watchedRoots = roots
             host.store.reportsTransitions = true
             var counts: [Int] = []
             AgentLogReader.beforeLine = { counts.append(host.store.records.count) }
@@ -169,6 +187,10 @@ enum AgentUsageReadTests {
                             && host.store.waiting == reference.waiting && host.store.limits == reference.limits
                             && host.store.codexPlan == reference.codexPlan && host.events == expectedEvents,
                          "streaming \(provider.rawValue) preserves duplicate merging, usage, turns, limits, plans and event order")
+            suite.expect(provider != .antigravity || (roots[0].accepts(file.path)
+                            && !host.store.records.isEmpty
+                            && host.store.records.allSatisfy { $0.session == "conversation-1" && $0.project == "example" }),
+                         "the Antigravity cursor takes the conversation from its folder under the given root")
             suite.expect((provider == .copilot || !expectedEvents.isEmpty)
                             && host.cursors[file.path]?.state == cursor.state,
                          "\(provider.rawValue) retains the same parser context without replaying historical finishes")
@@ -239,7 +261,9 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let file = provider == .antigravity
+                ? root.url.appending(path: "session/.system_generated/logs/transcript.jsonl")
+                : root.url.appending(path: "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)

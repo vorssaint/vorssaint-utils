@@ -263,7 +263,8 @@ final class AgentUsageStore {
     func reprice() {
         summary.invalidate()
         for position in records.indices {
-            guard !records[position].reportedCost else { continue }
+            // Antigravity records no tokens, so its cost stays unavailable.
+            guard !records[position].reportedCost, records[position].provider != .antigravity else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
@@ -475,7 +476,11 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"),
+         (.copilot, ".copilot/session-state"),
+         (.antigravity, ".gemini/antigravity/brain"),
+         (.antigravity, ".gemini/antigravity-ide/brain"),
+         (.antigravity, ".gemini/antigravity-cli/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,9 +504,16 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
-        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        if provider == .copilot {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        }
+        if provider == .antigravity {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 4 && !parts[0].isEmpty
+                && parts[1...] == [".system_generated", "logs", "transcript.jsonl"]
+        }
+        return true
     }
 }
 
@@ -558,6 +570,7 @@ final class AgentLogCursor {
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
+    let session: String
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -569,13 +582,39 @@ final class AgentLogCursor {
     /// its progress is not saved: the next launch reads it as rewritten.
     private(set) var restarted = false
 
-    init(path: String, provider: AgentProvider) {
+    /// `roots` are the folders being read; only an Antigravity log needs
+    /// them, to find its conversation, and resolves them itself without.
+    init(path: String, provider: AgentProvider, roots: [AgentLogRoot]? = nil) {
         self.path = path
         self.provider = provider
         let name = (path as NSString).lastPathComponent
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
         tracksTurns = provider == .claude ? parent == nil : (provider == .codex ? !name.contains("_") : true)
+        let session = AgentLogCursor.session(of: path, provider: provider, roots: roots)
+        self.session = session
+        state.session = session
+    }
+
+    static func session(of path: String, provider: AgentProvider, roots: [AgentLogRoot]? = nil) -> String {
+        guard provider == .antigravity else { return "" }
+        if let root = (roots ?? AgentLogRoot.all()).first(where: { $0.provider == .antigravity && path.hasPrefix($0.url.path + "/") }) {
+            let relative = String(path.dropFirst(root.url.path.count + 1))
+            if let first = relative.split(separator: "/").first, !first.isEmpty {
+                return String(first)
+            }
+        }
+        let parts = path.split(separator: "/")
+        if let brainIndex = parts.firstIndex(of: "brain"), brainIndex + 1 < parts.count {
+            return String(parts[brainIndex + 1])
+        }
+        if parts.count >= 2, (path as NSString).lastPathComponent == "transcript.jsonl" {
+            if let sgIndex = parts.firstIndex(of: ".system_generated"), sgIndex > 0 {
+                return String(parts[sgIndex - 1])
+            }
+            return String(parts[parts.count - 2])
+        }
+        return ""
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -608,7 +647,7 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
+        state = AgentLogState(session: session)
         fingerprinted = nil
     }
 
@@ -673,6 +712,16 @@ enum AgentLogReader {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
+    }
+
+    static func isLog(_ path: String, in root: AgentLogRoot) -> Bool {
+        guard isLog(path), path.hasPrefix(root.url.path + "/") else { return false }
+        guard root.provider == .antigravity else { return true }
+        // Only <conversation>/.system_generated/logs/transcript.jsonl.
+        let relative = String(path.dropFirst(root.url.path.count + 1))
+        let parts = relative.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 4 && !parts[0].isEmpty
+            && parts[1...] == [".system_generated", "logs", "transcript.jsonl"]
     }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and

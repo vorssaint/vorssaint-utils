@@ -460,7 +460,8 @@ struct NotchCapsuleAgentStrip: View {
         NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
             HStack(spacing: CapsuleLayout.spacing) {
                 NotchCapsuleAgentMarks(providers: working)
-                NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
+                NotchAgentReadoutTimeline(readout: NotchAgentSupport.shownReadout(
+                    NotchAgentReadout(rawValue: readout) ?? .elapsed, usage.snapshot)) { date in
                     let text = reading(at: date, live: live)
                     Text(text)
                         .font(Font(CapsuleLayout.readingFont as CTFont))

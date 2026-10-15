@@ -201,9 +201,11 @@ enum AgentPricing {
         // own logs and the public price list use a dash.
         if id.hasPrefix("claude-") { id = id.replacingOccurrences(of: ".", with: "-") }
         if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
-        for marker in ["@", "["] {
+        for marker in ["@", "[", "("] {
             if let index = id.firstIndex(of: Character(marker)) { id = String(id[..<index]) }
         }
+        id = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.contains(" ") { id = id.replacingOccurrences(of: " ", with: "-") }
         return id
     }
 
@@ -281,6 +283,17 @@ enum AgentPricing {
             let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
+            return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("gemini-") {
+            var parts = id.dropFirst(7).split(separator: "-").map(String.init)
+            parts.removeAll { $0 == "latest" }
+            parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
+            parts.removeAll { $0 == "high" || $0 == "low" || $0 == "medium" }
+            let words = parts.filter { !$0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
+            let version = versions.joined(separator: ".")
+            let name = ["Gemini", version] + words.map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
