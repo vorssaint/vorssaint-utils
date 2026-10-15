@@ -29,6 +29,9 @@ struct NotchAgentsSettingsControls: View {
     @State private var claudeApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
+    /// Whether Agent Tree keeps a recent snapshot, read from the file while
+    /// the page is shown.
+    @State private var agentTreeFound = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
@@ -70,6 +73,11 @@ struct NotchAgentsSettingsControls: View {
             // The one card that makes Codex ask the account, said where it is chosen.
             if codex, cardBinding(.resets).wrappedValue {
                 Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // The tree card needs another app, said where it is chosen.
+            if cardBinding(.agentTree).wrappedValue, usage.agentTree == nil, !agentTreeFound {
+                Text(text.agentTreeMissing).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
@@ -146,6 +154,7 @@ struct NotchAgentsSettingsControls: View {
         .toggleStyle(.switch)
         .onAppear {
             findRoots()
+            findAgentTree()
             // An agent turned off is not read at all, not even for its status.
             if claude { findClaudeApp() }
         }
@@ -206,6 +215,15 @@ struct NotchAgentsSettingsControls: View {
         DispatchQueue.global(qos: .utility).async {
             let checked = AgentClaudeAppUsage.lastCheck()
             DispatchQueue.main.async { claudeAppFileCheck = checked }
+        }
+    }
+
+    /// Agent Tree's snapshot is looked up off the main thread when the page opens.
+    private func findAgentTree() {
+        DispatchQueue.global(qos: .utility).async {
+            let url = AgentTreeLive.url(home: FileManager.default.homeDirectoryForCurrentUser)
+            let found = AgentTreeLive.current(AgentTreeLive.load(from: url), now: Date()) != nil
+            DispatchQueue.main.async { agentTreeFound = found }
         }
     }
 

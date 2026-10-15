@@ -25,6 +25,8 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
+    /// The thread Agent Tree last saw, while it keeps a recent one and its card is shown.
+    @Published private(set) var agentTree: AgentTreeSnapshot.Tree?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -89,6 +91,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
+    private var agentTreeModified: Date?
+    private var agentTreeFile: AgentTreeSnapshot?
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -120,6 +124,8 @@ final class AgentUsageService: ObservableObject {
             resume()
         }
         syncPrices()
+        // The tree card may have been shown or hidden.
+        refreshAgentTree()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -168,6 +174,7 @@ final class AgentUsageService: ObservableObject {
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
         claudeAppChecked = nil
+        agentTree = nil
         queue.async { [self] in
             readerSession = -1
             readerCancellation = nil
@@ -190,6 +197,8 @@ final class AgentUsageService: ObservableObject {
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
+            agentTreeModified = nil
+            agentTreeFile = nil
             savedMark = nil
             lastSave = .distantPast
         }
@@ -213,8 +222,18 @@ final class AgentUsageService: ObservableObject {
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudeApp(now: Date())
+            readAgentTree(now: Date())
             checkLimits()
             publish()
+        }
+    }
+
+    /// Looks at Agent Tree's snapshot again while the page is open.
+    func refreshAgentTree() {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            readAgentTree(now: Date())
         }
     }
 
@@ -541,6 +560,7 @@ final class AgentUsageService: ObservableObject {
                 readClaudePlan()
             }
             readClaudeApp(now: now)
+            readAgentTree(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -700,6 +720,30 @@ final class AgentUsageService: ObservableObject {
             store.setLimits(limits)
         } else if store.limits[.claude]?.source == .claudeApp {
             store.clearLimits(.claude)
+        }
+    }
+
+    /// Reads Agent Tree's snapshot when the file changes, and drops it once
+    /// it is a day old. Only the file's date is checked otherwise, and nothing
+    /// at all while the card is hidden. Runs on `queue`.
+    private func readAgentTree(now: Date) {
+        var tree: AgentTreeSnapshot.Tree?
+        if NotchAgentSupport.cards().contains(.agentTree) {
+            let url = AgentTreeLive.url(home: home)
+            let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if modified != agentTreeModified {
+                agentTreeModified = modified
+                agentTreeFile = modified == nil ? nil : AgentTreeLive.load(from: url)
+            }
+            tree = AgentTreeLive.current(agentTreeFile, now: now)
+        } else {
+            agentTreeModified = nil
+            agentTreeFile = nil
+        }
+        let session = readerSession
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running, self.session == session, self.agentTree != tree else { return }
+            self.agentTree = tree
         }
     }
 

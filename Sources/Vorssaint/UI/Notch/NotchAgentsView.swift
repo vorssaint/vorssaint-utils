@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The AI page: cards the person picked, paired across the strip.
@@ -29,7 +30,8 @@ struct NotchAgentsView: View {
     private var rows: [[NotchAgentTile]] {
         // The strings are read here so a change in Settings redraws the page.
         _ = (cardOrder, hiddenCards)
-        return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers),
+        return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
+                                                              agentTree: usage.agentTree != nil),
                                       width: size.width)
     }
 
@@ -41,19 +43,23 @@ struct NotchAgentsView: View {
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if providers.isEmpty {
+            } else if providers.isEmpty && usage.agentTree == nil {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
             } else if rows.isEmpty {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
-                        ScrollView { grid(rows, now: context.date) }
-                            .scrollIndicators(.automatic)
-                    } else {
-                        grid(rows, now: context.date)
+                    Group {
+                        if NotchAgentSupport.contentHeight(rows, tree: usage.agentTree) > size.height + 0.5 {
+                            ScrollView { grid(rows, now: context.date) }
+                                .scrollIndicators(.automatic)
+                        } else {
+                            grid(rows, now: context.date)
+                        }
                     }
+                    // Agent Tree rewrites its snapshot after every scan.
+                    .onChange(of: context.date) { _, _ in usage.refreshAgentTree() }
                 }
             }
         }
@@ -68,7 +74,7 @@ struct NotchAgentsView: View {
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
                 }
-                .frame(height: NotchAgentSupport.height(of: row))
+                .frame(height: NotchAgentSupport.height(of: row, tree: usage.agentTree))
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -87,6 +93,8 @@ struct NotchAgentsView: View {
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+        case .agentTree:
+            if let tree = usage.agentTree { NotchAgentTreeCard(tree: tree, text: text) }
         case .trend:
             NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .models:
@@ -528,6 +536,217 @@ private struct NotchAgentLiveCard: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+        }
+    }
+}
+
+// MARK: Agent Tree
+
+/// The agents of one thread as Agent Tree saw them, each under the one that
+/// started it: the working ones first when they do not all fit. With Agent
+/// Tree on this Mac a click anywhere on the card opens it; without, the card
+/// only informs and offers nothing to click.
+private struct NotchAgentTreeCard: View {
+    let tree: AgentTreeSnapshot.Tree
+    let text: NotchAgentStrings
+    /// Agent Tree's app, looked up when the card appears rather than on each redraw.
+    @State private var app: URL?
+    @State private var hovered = false
+    @Environment(\.locale) private var locale
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let indent: CGFloat = 11
+    private static let rowHeight = NotchAgentSupport.treeRowHeight
+    /// Deeper nodes line up with the deepest drawn, so a label keeps its room.
+    private static let deepest = 6
+
+    var body: some View {
+        let shown = NotchAgentSupport.treeShown(tree)
+        let levels = AgentTreeLive.levels(shown.rows, in: tree.nodes)
+        let depths = levels.map { min($0.depth, Self.deepest) }
+        let branches = AgentTreeLive.branches(depths, gaps: levels.map(\.gap))
+        let family = (tree.nodes.first(where: \.running) ?? tree.nodes.first)?.family ?? ""
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: NotchAgentSupport.treeSpacing) {
+                NotchAgentCardHeader(title: text.agentTreeCard, symbol: NotchAgentCard.agentTree.symbol,
+                                     tint: tree.live ? tint(family) : .secondary) {
+                    HStack(spacing: 4) {
+                        Text(caption)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        if tree.live { NotchAgentPulse(tint: tint(family), size: 5) }
+                        if app != nil {
+                            // The same glyph as the island's other "open the app" controls.
+                            Image(systemName: "arrow.up.forward.app")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(hovered ? 0.85 : 0.4))
+                                .accessibilityHidden(true)
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(shown.rows.enumerated()), id: \.element.id) { index, node in
+                        row(node, depth: depths[index], branch: branches[index])
+                    }
+                }
+                if shown.hidden > 0 {
+                    Text(text.agentTreeMore(shown.hidden.formatted(.number.locale(locale))))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .frame(height: NotchAgentSupport.treeLineHeight)
+                }
+            }
+        }
+        // A light wash under the pointer, as on the calendar's event cards.
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(.white.opacity(app != nil && hovered ? 0.05 : 0))
+                .allowsHitTesting(false)
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: hovered)
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
+        // Without the app the card's own tap is switched off, not just ignored.
+        .gesture(TapGesture().onEnded(openAgentTree), including: app != nil ? .all : .subviews)
+        .help(app != nil ? text.agentTreeOpen : "")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(text.agentTreeCard)
+        .accessibilityValue(caption)
+        .accessibilityAddTraits(app != nil ? .isButton : [])
+        .accessibilityHint(app != nil ? text.agentTreeOpen : "")
+        .accessibilityActions {
+            if app != nil { Button(text.agentTreeOpen, action: openAgentTree) }
+        }
+        .onAppear { app = AgentTreeLive.application() }
+    }
+
+    private var caption: String {
+        // One agent has no depth to speak of.
+        let summary = tree.nodeCount == 1 ? text.agentTreeSummaryOne
+            : text.agentTreeSummary(agents: tree.nodeCount.formatted(.number.locale(locale)),
+                                    depth: tree.maxDepth.formatted(.number.locale(locale)))
+        return tree.live ? summary : text.agentTreeLastThread + " · " + summary
+    }
+
+    private func row(_ node: AgentTreeSnapshot.Node, depth: Int, branch: AgentTreeLive.Branch) -> some View {
+        let model = AgentPricing.displayName(node.model)
+        return HStack(spacing: 5) {
+            ZStack(alignment: .trailing) {
+                NotchAgentTreeBranch(depth: depth, branch: branch, indent: Self.indent)
+                dot(node)
+                    .frame(width: Self.indent, height: Self.rowHeight)
+            }
+            .frame(width: CGFloat(depth + 1) * Self.indent, height: Self.rowHeight)
+            .accessibilityHidden(true)
+            Text(node.label.isEmpty ? model : node.label)
+                .font(.system(size: 10.5, weight: node.depth == 0 ? .semibold : .medium))
+                .foregroundStyle(.white.opacity(node.running || node.depth == 0 ? 0.92 : 0.72))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            if !model.isEmpty && !node.label.isEmpty {
+                NotchAgentChip(text: model, tint: tint(node.family)).fixedSize()
+            }
+            Text(AgentFormat.tokens(node.tokens, locale: locale))
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 34, alignment: .trailing)
+            Text(node.cost.map { AgentFormat.cost($0, locale: locale) } ?? "")
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 40, alignment: .trailing)
+        }
+        .frame(height: Self.rowHeight)
+        .help(help(node, model: model))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(node.label.isEmpty ? model : node.label)
+        .accessibilityValue(help(node, model: model, label: false))
+    }
+
+    /// A working agent pulses in its maker's color; a finished one stays a
+    /// quiet dot, orange when it failed.
+    @ViewBuilder private func dot(_ node: AgentTreeSnapshot.Node) -> some View {
+        if node.running {
+            NotchAgentPulse(tint: tint(node.family), size: 5)
+        } else {
+            Circle()
+                .fill(node.failed ? Color.orange.opacity(0.9) : Color.white.opacity(0.4))
+                .frame(width: 5, height: 5)
+        }
+    }
+
+    private func help(_ node: AgentTreeSnapshot.Node, model: String, label: Bool = true) -> String {
+        var parts = label ? [node.label] : []
+        parts += [model, node.running ? text.agentTreeWorking : "", text.tokens(AgentFormat.tokens(node.tokens, locale: locale))]
+        // Agent Tree's costs are estimates, and a model without a price has none.
+        parts.append(node.cost.map { AgentFormat.cost($0, locale: locale) + " " + text.apiValue } ?? text.unpriced)
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// The colors the page gives each maker's agents.
+    private func tint(_ family: String) -> Color {
+        switch family {
+        case "anthropic": return AgentProvider.claude.tint
+        case "openai": return AgentProvider.codex.tint
+        default: return .white
+        }
+    }
+
+    /// Brings Agent Tree to the front. The app is looked up again, as it may
+    /// have gone since the card appeared; the island then closes or stays as
+    /// it does whenever another app comes forward.
+    private func openAgentTree() {
+        app = AgentTreeLive.application()
+        guard let app else { return }
+        NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+    }
+}
+
+/// The thin lines that hang a node from the one that started it.
+private struct NotchAgentTreeBranch: View {
+    let depth: Int
+    let branch: AgentTreeLive.Branch
+    let indent: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            let middle = size.height / 2
+            func x(_ column: Int) -> CGFloat { CGFloat(column) * indent + indent / 2 }
+            var path = Path()
+            for (column, through) in branch.through.enumerated() where through {
+                path.move(to: CGPoint(x: x(column), y: 0))
+                path.addLine(to: CGPoint(x: x(column), y: size.height))
+            }
+            var skipped = Path()
+            if depth > 0 {
+                let column = depth - 1
+                // Levels left out above this node show as a dotted stretch of its line.
+                if branch.gap {
+                    skipped.move(to: CGPoint(x: x(column), y: 0))
+                    skipped.addLine(to: CGPoint(x: x(column), y: middle - 2))
+                    if branch.more {
+                        path.move(to: CGPoint(x: x(column), y: middle))
+                        path.addLine(to: CGPoint(x: x(column), y: size.height))
+                    }
+                } else {
+                    path.move(to: CGPoint(x: x(column), y: 0))
+                    path.addLine(to: CGPoint(x: x(column), y: branch.more ? size.height : middle))
+                }
+                path.move(to: CGPoint(x: x(column), y: middle))
+                path.addLine(to: CGPoint(x: x(depth) - 4, y: middle))
+            }
+            if branch.children {
+                path.move(to: CGPoint(x: x(depth), y: middle + 4))
+                path.addLine(to: CGPoint(x: x(depth), y: size.height))
+            }
+            context.stroke(path, with: .color(.white.opacity(0.18)), lineWidth: 1)
+            context.stroke(skipped, with: .color(.white.opacity(0.32)),
+                           style: StrokeStyle(lineWidth: 1, lineCap: .round, dash: [0.1, 2.5]))
         }
     }
 }

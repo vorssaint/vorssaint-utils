@@ -97,6 +97,15 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let agentTreeCard: String
+    let agentTreeSummaryFormat: String
+    /// The summary of a tree that is a single agent.
+    let agentTreeSummaryOne: String
+    let agentTreeLastThread: String
+    let agentTreeMoreFormat: String
+    let agentTreeMissing: String
+    let agentTreeOpen: String
+    let agentTreeWorking: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -111,6 +120,8 @@ struct NotchAgentStrings {
     func claudeLimitsStale(_ when: String) -> String { String(format: claudeLimitsStaleFormat, when) }
     func pricesFrom(_ day: String) -> String { String(format: pricesFromFormat, day) }
     func resetsExpiry(_ when: String) -> String { String(format: resetsExpiryFormat, when) }
+    func agentTreeSummary(agents: String, depth: String) -> String { String(format: agentTreeSummaryFormat, agents, depth) }
+    func agentTreeMore(_ count: String) -> String { String(format: agentTreeMoreFormat, count) }
 
     func period(_ period: AgentPeriod) -> String {
         switch period {
@@ -125,6 +136,7 @@ struct NotchAgentStrings {
         case .limits: return limitsCard
         case .spend: return spendCard
         case .live: return liveCard
+        case .agentTree: return agentTreeCard
         case .trend: return trendCard
         case .models: return modelsCard
         case .projects: return projectsCard
@@ -267,7 +279,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ agents · depth %2$@",
+        agentTreeSummaryOne: "1 agent",
+        agentTreeLastThread: "Last thread",
+        agentTreeMoreFormat: "+%@ more",
+        agentTreeMissing: "Install Agent Tree to show this card. It draws how your agents start subagents, from a file Agent Tree keeps on this Mac.",
+        agentTreeOpen: "Open Agent Tree",
+        agentTreeWorking: "Working")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -362,7 +382,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "Агентів: %1$@ · глибина %2$@",
+        agentTreeSummaryOne: "1 агент",
+        agentTreeLastThread: "Остання розмова",
+        agentTreeMoreFormat: "Ще %@",
+        agentTreeMissing: "Встановіть Agent Tree, щоб бачити цю картку. Вона показує, як ваші агенти запускають субагентів, за файлом, який Agent Tree зберігає на цьому Mac.",
+        agentTreeOpen: "Відкрити Agent Tree",
+        agentTreeWorking: "Працює")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -457,7 +485,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ agentes · profundidade %2$@",
+        agentTreeSummaryOne: "1 agente",
+        agentTreeLastThread: "Última conversa",
+        agentTreeMoreFormat: "+%@ outros",
+        agentTreeMissing: "Instale o Agent Tree para ver este cartão. Ele mostra como seus agentes iniciam subagentes, a partir de um arquivo que o Agent Tree mantém neste Mac.",
+        agentTreeOpen: "Abrir o Agent Tree",
+        agentTreeWorking: "Trabalhando")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -552,7 +588,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ agentes · profundidad %2$@",
+        agentTreeSummaryOne: "1 agente",
+        agentTreeLastThread: "Última conversación",
+        agentTreeMoreFormat: "+%@ más",
+        agentTreeMissing: "Instala Agent Tree para ver esta tarjeta. Muestra cómo tus agentes inician subagentes, a partir de un archivo que Agent Tree guarda en este Mac.",
+        agentTreeOpen: "Abrir Agent Tree",
+        agentTreeWorking: "Trabajando")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -647,7 +691,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "Agenti: %1$@ · hĺbka %2$@",
+        agentTreeSummaryOne: "1 agent",
+        agentTreeLastThread: "Posledné vlákno",
+        agentTreeMoreFormat: "Ďalšie: %@",
+        agentTreeMissing: "Nainštalujte Agent Tree, aby sa zobrazila táto karta. Ukazuje, ako vaši agenti spúšťajú subagentov, zo súboru, ktorý Agent Tree uchováva na tomto Macu.",
+        agentTreeOpen: "Otvoriť Agent Tree",
+        agentTreeWorking: "Pracuje")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -742,7 +794,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ Agenten · Tiefe %2$@",
+        agentTreeSummaryOne: "1 Agent",
+        agentTreeLastThread: "Letzter Thread",
+        agentTreeMoreFormat: "+%@ weitere",
+        agentTreeMissing: "Installiere Agent Tree, um diese Karte zu sehen. Sie zeigt, wie deine Agenten Subagenten starten, aus einer Datei, die Agent Tree auf diesem Mac führt.",
+        agentTreeOpen: "Agent Tree öffnen",
+        agentTreeWorking: "Arbeitet")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -837,7 +897,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ agents · profondeur %2$@",
+        agentTreeSummaryOne: "1 agent",
+        agentTreeLastThread: "Dernier fil",
+        agentTreeMoreFormat: "+%@ de plus",
+        agentTreeMissing: "Installez Agent Tree pour afficher cette carte. Elle montre comment vos agents lancent des sous-agents, à partir d’un fichier qu’Agent Tree tient sur ce Mac.",
+        agentTreeOpen: "Ouvrir Agent Tree",
+        agentTreeWorking: "En cours")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -932,7 +1000,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ agenti · profondità %2$@",
+        agentTreeSummaryOne: "1 agente",
+        agentTreeLastThread: "Ultima conversazione",
+        agentTreeMoreFormat: "+%@ altri",
+        agentTreeMissing: "Installa Agent Tree per vedere questa scheda. Mostra come i tuoi agenti avviano sottoagenti, da un file che Agent Tree tiene su questo Mac.",
+        agentTreeOpen: "Apri Agent Tree",
+        agentTreeWorking: "Al lavoro")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1027,7 +1103,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "Агентов: %1$@ · глубина %2$@",
+        agentTreeSummaryOne: "1 агент",
+        agentTreeLastThread: "Последняя беседа",
+        agentTreeMoreFormat: "Ещё %@",
+        agentTreeMissing: "Установите Agent Tree, чтобы видеть эту карточку. Она показывает, как ваши агенты запускают субагентов, по файлу, который Agent Tree хранит на этом Mac.",
+        agentTreeOpen: "Открыть Agent Tree",
+        agentTreeWorking: "Работает")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1122,7 +1206,15 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ ajan · derinlik %2$@",
+        agentTreeSummaryOne: "1 ajan",
+        agentTreeLastThread: "Son sohbet",
+        agentTreeMoreFormat: "+%@ daha",
+        agentTreeMissing: "Bu kartı görmek için Agent Tree’yi yükleyin. Ajanlarınızın alt ajanları nasıl başlattığını, Agent Tree’nin bu Mac’te tuttuğu bir dosyadan gösterir.",
+        agentTreeOpen: "Agent Tree’yi aç",
+        agentTreeWorking: "Çalışıyor")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1217,7 +1309,15 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "エージェント%1$@件 · 深さ%2$@",
+        agentTreeSummaryOne: "エージェント1件",
+        agentTreeLastThread: "最後のスレッド",
+        agentTreeMoreFormat: "ほか%@件",
+        agentTreeMissing: "このカードを表示するにはAgent Treeをインストールしてください。Agent TreeがこのMacに保存するファイルから、エージェントがサブエージェントを起動する様子を表示します。",
+        agentTreeOpen: "Agent Treeを開く",
+        agentTreeWorking: "作業中")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1312,7 +1412,15 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "에이전트 %1$@개 · 깊이 %2$@",
+        agentTreeSummaryOne: "에이전트 1개",
+        agentTreeLastThread: "마지막 스레드",
+        agentTreeMoreFormat: "+%@개 더",
+        agentTreeMissing: "이 카드를 보려면 Agent Tree를 설치하세요. Agent Tree가 이 Mac에 저장하는 파일로 에이전트가 하위 에이전트를 실행하는 모습을 보여 줍니다.",
+        agentTreeOpen: "Agent Tree 열기",
+        agentTreeWorking: "작업 중")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1407,7 +1515,15 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ 个智能体 · 深度 %2$@",
+        agentTreeSummaryOne: "1 个智能体",
+        agentTreeLastThread: "最近的会话",
+        agentTreeMoreFormat: "另外 %@ 个",
+        agentTreeMissing: "安装 Agent Tree 以显示此卡片。它根据 Agent Tree 在这台 Mac 上保存的文件，显示智能体如何启动子智能体。",
+        agentTreeOpen: "打开 Agent Tree",
+        agentTreeWorking: "运行中")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1502,7 +1618,15 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ 個代理 · 深度 %2$@",
+        agentTreeSummaryOne: "1 個代理",
+        agentTreeLastThread: "最近的對話",
+        agentTreeMoreFormat: "另外 %@ 個",
+        agentTreeMissing: "安裝 Agent Tree 以顯示此卡片。它會根據 Agent Tree 在這台 Mac 上保存的檔案，顯示代理如何啟動子代理。",
+        agentTreeOpen: "開啟 Agent Tree",
+        agentTreeWorking: "執行中")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1597,5 +1721,13 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        agentTreeCard: "Agent Tree",
+        agentTreeSummaryFormat: "%1$@ 個代理 · 深度 %2$@",
+        agentTreeSummaryOne: "1 個代理",
+        agentTreeLastThread: "最近的對話",
+        agentTreeMoreFormat: "另外 %@ 個",
+        agentTreeMissing: "安裝 Agent Tree 以顯示此卡片。它會根據 Agent Tree 在這部 Mac 上保存的檔案，顯示代理如何啟動子代理。",
+        agentTreeOpen: "開啟 Agent Tree",
+        agentTreeWorking: "執行中")
 }
