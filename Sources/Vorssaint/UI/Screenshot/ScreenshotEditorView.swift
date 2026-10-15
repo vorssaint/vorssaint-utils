@@ -145,6 +145,10 @@ struct ScreenshotEditorView: View {
             )
         }
         .clipped()
+        // Every mark on this canvas is placed in the capture's own pixels, so
+        // the picture keeps one orientation whatever the language; the tools
+        // and panels around it still follow it.
+        .unmirroredLayout()
     }
 
     @State private var magnifyBase: CGFloat?

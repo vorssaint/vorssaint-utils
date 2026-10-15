@@ -236,7 +236,7 @@ struct WallpaperSection: View {
                 Button {
                     page = max(1, currentPage - 1)
                 } label: {
-                    Image(systemName: "chevron.left")
+                    Image(systemName: "chevron.backward")
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 22, height: 22)
                 }
@@ -253,7 +253,7 @@ struct WallpaperSection: View {
                 Button {
                     page = min(pageCount, currentPage + 1)
                 } label: {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 22, height: 22)
                 }

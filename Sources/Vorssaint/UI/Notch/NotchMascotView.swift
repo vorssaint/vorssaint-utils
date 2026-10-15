@@ -1291,9 +1291,11 @@ struct NotchMascotTrackView: NSViewRepresentable {
         view.followsPointer = rests && awake
         view.followsIsland = followsIsland && rests && awake
         view.yieldsToActivities = yieldsToActivities
-        // A countdown is watched from the camera's left whatever the side.
-        let stand = visit?.kind.watchesTimer == true ? track.leftSide.rest : track.rest
-        view.playVisit(visit, path: NotchMascotMotion.path(for: visit?.kind ?? .pass, on: track),
+        // A countdown is watched over the timer's mark whatever the side.
+        let rightToLeft = context.environment.layoutDirection == .rightToLeft
+        let stand = visit?.kind.watchesTimer == true ? track.timerSide(rightToLeft: rightToLeft).rest : track.rest
+        view.playVisit(visit, path: NotchMascotMotion.path(for: visit?.kind ?? .pass, on: track,
+                                                            rightToLeft: rightToLeft),
                        baseline: track.baseline, stand: CGPoint(x: stand, y: track.baseline),
                        lift: track.hop(0.22))
         if rests { view.react(reaction, lift: track.hop(0.22)) }
@@ -1313,6 +1315,7 @@ struct NotchMascotActivityVisit: ViewModifier {
     /// The island's own strip, the only one that names its song.
     var ownStrip = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
 
     func body(content: Content) -> some View {
         // A lap or a homecoming ends where it rests, which an activity's
@@ -1329,11 +1332,14 @@ struct NotchMascotActivityVisit: ViewModifier {
         let hidden = track?.hidden
         let ownWing = visit?.kind.takesOnlyItsWing == true && hidden != nil
         let stepsAside = visit != nil && service.mascotStepsAside && !ownWing
-        // A countdown is watched from the camera's left whatever the side.
-        let rightWing = track?.mirrored == true && visit?.kind.watchesTimer == false
+        // A countdown is watched over the timer's mark whatever the side.
+        let rightWing = visit?.kind.watchesTimer == true
+            ? layoutDirection == .rightToLeft : track?.mirrored == true
         // Beside a strip naming its song, the black starts where the words
         // end, which the cover's inset leaves less room before than spacing.
-        let clearance = ownStrip && !rightWing && service.namedMusicWings != nil
+        // The words are on the strip's leading side, the camera's right in a
+        // right-to-left language.
+        let clearance = ownStrip && rightWing == (layoutDirection == .rightToLeft) && service.namedMusicWings != nil
             ? max(0, NotchMusicStripLayout.coverInset(service.compactActivityGeometry) - NotchMusicStripLayout.spacing) : 0
         content
             .opacity(stepsAside ? 0 : 1)
@@ -1345,10 +1351,14 @@ struct NotchMascotActivityVisit: ViewModifier {
                 // a strip reaches to one side.
                 if ownWing, service.mascotStepsAside, let track, let hidden {
                     Color.black
-                        .frame(width: rightWing ? track.width - hidden.upperBound : max(0, hidden.lowerBound - clearance),
+                        .frame(width: rightWing ? max(0, track.width - hidden.upperBound - clearance)
+                                                : max(0, hidden.lowerBound - clearance),
                                height: track.height)
                         .offset(x: rightWing ? hidden.upperBound : clearance)
                         .frame(width: track.width, alignment: .leading)
+                        // The wing is the camera's, measured from its left
+                        // edge, so it stays put in a right-to-left language.
+                        .unmirroredLayout()
                         .transition(.opacity)
                 }
             }

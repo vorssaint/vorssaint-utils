@@ -509,6 +509,36 @@ extension FeatureStrings {
             closedNotice: "視窗已關閉",
             sinceFormat: "自 %@ 起觀察",
             sound: "播放聲音")
+        case .ar: return NotchWatchStrings(
+            title: "المراقبة",
+            description: "حوّل أي جزء من أي نافذة إلى نشاط مباشر في الجزيرة الديناميكية، مع تنبيه عندما يتغير أو ينتهي أو يُظهر ما تنتظره.",
+            setupHint: "اختر أي جزء من نافذة، كشريط تقدّم أو حالة بناء أو نتيجة مباراة. تقرؤه الجزيرة نيابةً عنك وتخبرك عندما يتغير.",
+            choose: "اختيار منطقة",
+            chooseAgain: "اختيار منطقة أخرى",
+            purpose: "اختر ما تريد مراقبته",
+            stop: "إيقاف المراقبة",
+            watchAgain: "المراقبة مجددًا",
+            permissionHint: "تقرأ المراقبة المنطقة التي تختارها على الـ Mac، لذا تحتاج إلى إذن تسجيل الشاشة. ولا يغادر شيء جهازك.",
+            allowAccess: "السماح بتسجيل الشاشة",
+            tellMe: "أخبرني",
+            changes: "عندما يتغير",
+            settles: "عندما يتوقف عن التغير",
+            contains: "عندما يُظهر",
+            reaches: "عندما يبلغ الرقم",
+            settlesHint: "بعد أن يتغير، يجب أن يبقى ثابتًا 30 ثانية.",
+            textPlaceholder: "نص، مثل تم",
+            numberPlaceholder: "رقم، مثل 100",
+            noText: "لا يوجد نص",
+            inIsland: "الإظهار في الجزيرة",
+            automatic: "تلقائي",
+            hidden: "النافذة مخفية. وتستمر المراقبة عند عودتها.",
+            changedNotice: "تغيّر",
+            settledNotice: "توقف عن التغير",
+            showsFormat: "يُظهر %@",
+            reachedFormat: "بلغ %@",
+            closedNotice: "أُغلقت النافذة",
+            sinceFormat: "قيد المراقبة منذ %@",
+            sound: "تشغيل صوت")
         }
     }
 }

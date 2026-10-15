@@ -110,6 +110,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Полиця заповнена",
                 fullBody: "Вкладення збереглося, але на полиці більше немає місця.",
                 okButton: "OK")
+        case .ar:
+            return .init(
+                failedTitle: "تعذّرت إضافة المرفق",
+                failedBody: "لم يُكمل الملف حفظه على الرف.",
+                fullTitle: "الرف ممتلئ",
+                fullBody: "أكمل المرفق حفظه لكن لم تبقَ مساحة على الرف.",
+                okButton: "موافق")
         }
     }
 }

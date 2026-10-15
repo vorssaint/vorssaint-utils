@@ -32,6 +32,13 @@ struct NotchLevelSlider: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NSSlider {
         let slider = NSSlider()
+        // The environment does cross into a representable, but an AppKit
+        // control does nothing with it on its own. Handed the direction, the
+        // cell mirrors its own tracking, so a click near an edge means what a
+        // reader of the language expects; the fill below is drawn here and has
+        // to be mirrored by hand.
+        slider.userInterfaceLayoutDirection = context.environment.layoutDirection == .rightToLeft
+            ? .rightToLeft : .leftToRight
         let cell = NotchLevelCell()
         cell.trackingChanged = { [weak coordinator = context.coordinator] editing in
             coordinator?.trackingChanged(editing)
@@ -50,6 +57,9 @@ struct NotchLevelSlider: NSViewRepresentable {
 
     func updateNSView(_ slider: NSSlider, context: Context) {
         context.coordinator.parent = self
+        let wanted: NSUserInterfaceLayoutDirection =
+            context.environment.layoutDirection == .rightToLeft ? .rightToLeft : .leftToRight
+        if slider.userInterfaceLayoutDirection != wanted { slider.userInterfaceLayoutDirection = wanted }
         let lower = range.lowerBound
         let upper = max(lower, range.upperBound)
         if slider.minValue != lower { slider.minValue = lower }
@@ -125,11 +135,14 @@ private final class NotchLevelCell: NSSliderCell {
         let span = maxValue - minValue
         let fraction = span > 0 ? min(1, max(0, (doubleValue - minValue) / span)) : 0
         fill.withAlphaComponent(isEnabled ? 0.92 : 0.3).setFill()
+        // The fader runs vertically, so only the horizontal bar and its marker
+        // have a reading direction to follow.
+        let mirrored = (controlView?.userInterfaceLayoutDirection ?? userInterfaceLayoutDirection) == .rightToLeft
         if isFader {
             let height = track.height * fraction
             NSRect(x: track.minX, y: flipped ? track.maxY - height : track.minY, width: track.width, height: height).fill()
         } else {
-            NSRect(x: track.minX, y: track.minY, width: track.width * fraction, height: track.height).fill()
+            NotchLevelBar.fillRect(track: track, fraction: fraction, mirrored: mirrored).fill()
         }
         if let marker, span > 0, marker > minValue, marker < maxValue {
             let position = (marker - minValue) / span
@@ -138,7 +151,8 @@ private final class NotchLevelCell: NSSliderCell {
                 let y = flipped ? track.maxY - track.height * position : track.minY + track.height * position
                 NSRect(x: track.minX, y: y - 0.5, width: track.width, height: 1).fill()
             } else {
-                NSRect(x: track.minX + track.width * position - 0.5, y: track.minY, width: 1, height: track.height).fill()
+                NSRect(x: NotchLevelBar.markerX(track: track, position: position, mirrored: mirrored) - 0.5,
+                       y: track.minY, width: 1, height: track.height).fill()
             }
         }
         NSGraphicsContext.restoreGraphicsState()

@@ -57,6 +57,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
         }
     }
 }
@@ -554,5 +555,38 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "Не вдалося завершити процес",
         killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
         adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
+    )
+
+    static let ar = KillProcessFeatureStrings(
+        pageTitle: "إنهاء العمليات",
+        browseSubtitle: "استعراض وإنهاء",
+        hubDescription: "ابحث في العمليات الجارية وأجبرها على الإنهاء أو أعِد تشغيلها أو أنهِ شجرة العمليات",
+        searchPlaceholder: "التصفية حسب الاسم",
+        columnProcess: "العملية",
+        columnCPU: "المعالج",
+        columnMemory: "الذاكرة",
+        columnPID: "المعرّف",
+        groupToggle: "تجميع العمليات المرتبطة",
+        groupCaption: "يجمع العمليات المساعِدة تحت التطبيق المسؤول عنها.",
+        commandBarToggle: "الإظهار في شريط الأوامر",
+        commandBarCaption: "يضيف العمليات الجارية إلى شريط الأوامر، لتتمكن من العثور عليها وإنهائها دون فتح الإعدادات.",
+        refreshTooltip: "تحديث",
+        pidLabelFormat: "المعرّف %d",
+        processCountFormat: "العمليات: %d",
+        killButton: "إنهاء",
+        forceKillButton: "إنهاء إجباري",
+        killAllFormat: "إنهاء كل “%@”",
+        killTreeButton: "إنهاء شجرة العمليات",
+        restartButton: "إعادة التشغيل",
+        copyPID: "نسخ المعرّف",
+        copyPath: "نسخ المسار",
+        emptyStateTitle: "لم يتم العثور على عمليات",
+        confirmKillFormat: "إنهاء %@؟",
+        confirmForceKillFormat: "إنهاء %@ إجباريًا؟",
+        confirmKillAllFormat: "إنهاء كل عمليات “%@”؟",
+        confirmKillTreeFormat: "إنهاء %@ وكل العمليات المتفرعة عنه؟",
+        killFailedTitle: "تعذّر إنهاء العملية",
+        killFailedMessage: "قد تكون العملية قد انتهت بالفعل أو تتطلب صلاحيات إضافية.",
+        adminPromptFormat: "يحتاج Vorssaint إلى صلاحيات المسؤول لإنهاء “%@”."
     )
 }
