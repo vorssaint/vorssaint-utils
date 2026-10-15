@@ -59,6 +59,7 @@ After updating, What's New shows the changes for the features you use. The windo
 - Audio controls no longer crash with microphones that report an invalid volume, such as the Insta360 Link 2C Pro.
 - The island scratchpad's shortcut opens and closes it every time and places the caret while a Vorssaint window is in front.
 - Clipboard, Scratchpad, Quick Launcher and Shelf shortcuts expand the island's capture controls while they show, instead of leaving the island to open by itself once the capture ends.
+- Port Manager shows ports and PIDs without thousands separators, such as 5173 instead of 5,173.
 
 ### Contributors
 Thanks to @2-Chengs, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @beckhauser, @benjcrich, @capozz03, @carltonking, @chadfidev, @claude, @COMEBACKISREAL, @cprecioso, @DanyRodier, @eioz, @EugeneCarldotme, @gustavoramalho, @Hackmodford, @iancenry, @JeanBaeez, @JoeC-Dev, @juanra, @kit101, @LechTheMitch, @Likheet, @luantedesco, @ManuLorenzzo, @mohammadhprp, @morhaf-ko, @Narangor, @nateships, @ncesar, @oecer, @oskarsss, @PratikPawar1401, @RoccoRakete, @unfilet, @voljumet, @Werkezeugs, @ywu73 and @zhanghk2001.

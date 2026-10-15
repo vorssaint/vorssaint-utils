@@ -115,6 +115,18 @@ enum UtilitiesFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")
 
+        // MARK: Port manager row numbers
+
+        // An integer interpolated into Text("…") is formatted for the locale, so
+        // port 5173 read "5,173" in English and "5.173" in Portuguese.
+        for path in ["Sources/Vorssaint/UI/PortManager/PortManagerView.swift",
+                     "Sources/Vorssaint/UI/MenuPanel/PanelPortManagerView.swift"] {
+            let rowSource = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            suite.expect(rowSource.contains("Text(String(entry.port))")
+                   && !rowSource.contains("\\(entry.port)") && !rowSource.contains("\\(entry.pid)"),
+                   "\(path) shows ports and PIDs without a thousands separator")
+        }
+
         // MARK: Text snippets engine (issue #201)
 
         suite.expect(TextSnippetSupport.alertSoundNames(from: ["Tink.aiff", "Basso.aiff"])
