@@ -220,12 +220,29 @@ struct ScreenshotEditorView: View {
         }
         .overlay(alignment: .topLeading) {
             if model.tool == .expandCanvas {
-                let draft = model.expansionDraft ?? CGRect(origin: .zero, size: model.imageSize)
-                ScreenshotCanvasExpansionPreview(originalSize: model.imageSize,
-                                                 draft: draft, fill: model.expansionFill,
-                                                 zoom: zoom, scale: model.scale)
-                    .offset(x: (draft.minX + model.backdropPaddingPixels) * zoom,
-                            y: (draft.minY + model.backdropPaddingPixels) * zoom)
+                // Both layers place themselves from the canvas's top left;
+                // the overlay's own stack would center them on each other.
+                ZStack(alignment: .topLeading) {
+                    // The grips straddle the capture's edge. Without a backdrop the
+                    // canvas ends there, so this takes presses and hover for the
+                    // grips' outer half; the canvas gesture below handles them.
+                    let reach = ScreenshotCanvasSupport.expansionGripReach
+                    Color.clear
+                        .frame(width: canvasSize.width + reach * 2, height: canvasSize.height + reach * 2)
+                        .contentShape(Rectangle())
+                        .offset(x: -reach, y: -reach)
+                    let draft = model.expansionDraft ?? CGRect(origin: .zero, size: model.imageSize)
+                    // The capture's own corners: the canvas clip alone, or the
+                    // rounded card drawn on a backdrop.
+                    ScreenshotCanvasExpansionPreview(originalSize: model.imageSize,
+                                                     draft: draft, fill: model.expansionFill,
+                                                     zoom: zoom, scale: model.scale,
+                                                     cardCornerRadius: model.showsBackdrop
+                                                         ? model.cardCornerPixels * zoom
+                                                         : outerRadius)
+                        .offset(x: (draft.minX + model.backdropPaddingPixels) * zoom,
+                                y: (draft.minY + model.backdropPaddingPixels) * zoom)
+                }
             }
         }
         .gesture(canvasGesture(zoom: zoom, available: available))
@@ -1065,6 +1082,8 @@ struct ScreenshotEditorView: View {
                 Text(strings.canvasFillTransparent).tag(1)
                 Text(strings.canvasFillCustom).tag(2)
             }
+            // The choices name themselves; the label stays for VoiceOver.
+            .labelsHidden()
             .fixedSize()
             .onChange(of: expansionFillChoice) { _, _ in updateExpansionFill() }
             if expansionFillChoice == 2 {

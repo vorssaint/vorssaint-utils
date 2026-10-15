@@ -828,7 +828,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             expansionDraft = CGRect(origin: .zero, size: imageSize)
             expansionHandle = ScreenshotCanvasSupport.expansionHandle(at: point,
                 rect: CGRect(origin: .zero, size: imageSize),
-                tolerance: 10 / max(currentDisplayZoom, 0.001))
+                tolerance: ScreenshotCanvasSupport.expansionGripReach / max(currentDisplayZoom, 0.001))
             expansionStartPoint = expansionHandle == nil ? nil : point
         case .text, .sticker, .counter, .image:
             break
@@ -1175,6 +1175,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         expansionHandle = nil
         expansionStartPoint = nil
         expansionRejected = false
+    }
+
+    /// Escape backs out of Expand canvas the way it backs out of crop: a drag
+    /// in progress is dropped first, then the tool itself is left, so the
+    /// editor only closes once there is nothing left to leave.
+    func leaveCanvasExpansion() {
+        if expansionDraft != nil || expansionRejected {
+            cancelCanvasExpansion()
+        } else {
+            tool = .select
+        }
     }
 
     // MARK: - Edits
@@ -1553,8 +1564,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             return true
         case kVK_Escape:
-            if model.tool == .expandCanvas, model.expansionDraft != nil || model.expansionRejected {
-                model.cancelCanvasExpansion()
+            if model.tool == .expandCanvas {
+                model.leaveCanvasExpansion()
             } else if model.tool == .crop, model.cropDraft != nil {
                 model.tool = .select
             } else if !model.selectedWordIndexes.isEmpty {

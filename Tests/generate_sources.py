@@ -147,12 +147,18 @@ def main():
               "    func pasteImage(", "    func commitCanvasExpansion(",
               "    private func registerUndo()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
-              "    func cancelCanvasExpansion()", "    func hitTest("])
+              "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest("])
           + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
           + "}\n}\n")
     write("ScreenshotEditorPaste.swift",
           "import AppKit\nextension ScreenshotCanvasModelTests.Paste {\nfinal class Host: Fixture {\n"
           + declaration(editor, "    private func pasteImageFromClipboard()").replace("private func", "func", 1)
+          + "}\n}\n")
+    expansion_preview = "Sources/Vorssaint/UI/Screenshot/ScreenshotCanvasExpansionPreview.swift"
+    write("ScreenshotExpansionPreviewChrome.swift", "import SwiftUI\n"
+          + "extension ScreenshotCanvasSupportTests {\nenum ExpansionPreview {\n"
+          + declaration(expansion_preview, "    struct Layout {")
+          + declaration(expansion_preview, "    static func cardHole(")
           + "}\n}\n")
     panel = "Sources/Vorssaint/App/AppDelegate.swift"
     write("UpdateIntroFlow.swift", "import AppKit\nimport Foundation\n"

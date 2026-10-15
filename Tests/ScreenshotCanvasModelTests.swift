@@ -97,6 +97,18 @@ enum ScreenshotCanvasModelTests {
         }
     }
 
+    private static func leavingExpansion(_ suite: TestSuite) {
+        let host = Host(image: ScreenshotCanvasSupportTests.image(width: 40, height: 40))
+        host.tool = .expandCanvas
+        host.expansionDraft = CGRect(x: 0, y: 0, width: 60, height: 40)
+        host.leaveCanvasExpansion()
+        suite.expect(host.tool == .expandCanvas && host.expansionDraft == nil,
+                     "escape during an expansion drag drops the drag and keeps the tool")
+        host.leaveCanvasExpansion()
+        suite.expect(host.tool == .select && host.imageSize == CGSize(width: 40, height: 40),
+                     "escape in expand canvas at rest leaves the tool like crop, without changing the canvas")
+    }
+
     static func run(_ suite: TestSuite) {
         counterSizeAfterExpansion(suite)
         samplesAfterExpansion(suite)
@@ -104,6 +116,7 @@ enum ScreenshotCanvasModelTests {
         pasteOnWholePixels(suite)
         spotlightAfterExpansion(suite)
         spotlightPastTheEdge(suite)
+        leavingExpansion(suite)
         let base = ScreenshotCanvasSupportTests.image(width: 40, height: 40)
         let host = Host(image: base)
         let pasted = ScreenshotCanvasSupportTests.image(width: 20, height: 10)

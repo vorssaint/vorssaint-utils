@@ -76,6 +76,11 @@ enum ScreenshotCanvasSupport {
     }
     static let imageHandles = ScreenshotSupport.Handle.allCases
 
+    /// How close to an expansion grip, in points on screen, a press picks it
+    /// up. The grips sit centered on the capture's edge, so the editor takes
+    /// presses this far outside the canvas too.
+    static let expansionGripReach: CGFloat = 10
+
     static func expansionHandle(at point: CGPoint, rect: CGRect,
                                 tolerance: CGFloat) -> ScreenshotSupport.Handle? {
         let radius = min(tolerance, max(2, min(rect.width, rect.height) / 4))

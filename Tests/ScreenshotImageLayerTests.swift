@@ -448,6 +448,11 @@ enum ScreenshotImageLayerTests {
             else { return "" }
             return String(source[lower.lowerBound..<upper.lowerBound])
         }
+        // The expansion preview and its grip hit area are two layers of one
+        // overlay; without their own top-left stack the overlay centers them on
+        // each other, which moves the preview off the card on a backdrop.
+        suite.expect(source.contains("            if model.tool == .expandCanvas {\n                // Both layers place themselves from the canvas's top left;\n                // the overlay's own stack would center them on each other.\n                ZStack(alignment: .topLeading) {"),
+                     "the expansion preview and its grip area share one top-left stack over the canvas")
         let content = section("    private func drawContent(", "    /// Highlight for recognized words")
         let checker = content.range(of: "let showsChecker = !model.showsBackdrop\n        if showsChecker {\n            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)\n            cg.fill(imageRect)\n        }")
         let layer = content.range(of: "if isolatesContent { cg.beginTransparencyLayer(auxiliaryInfo: nil) }")
@@ -460,6 +465,26 @@ enum ScreenshotImageLayerTests {
                      "the fill controls sit in the same capsule as the crop and style bars")
         suite.expect(controls.contains("supportsOpacity: false)\n                    .labelsHidden()"),
                      "the custom fill well does not repeat the name its picker already shows")
+        suite.expect(controls.contains("Picker(strings.colorLabel, selection: $expansionFillChoice)")
+                && controls.contains("            .labelsHidden()\n            .fixedSize()\n            .onChange(of: expansionFillChoice)"),
+                     "the fill picker shows only its choices and keeps its name for VoiceOver")
+        let canvas = section("    private func canvas(zoom: CGFloat, canvasSize: CGSize, available: CGSize)",
+                             "    /// The live backdrop layer")
+        let gripArea = canvas.range(of: "Color.clear\n                        .frame(width: canvasSize.width + reach * 2, height: canvasSize.height + reach * 2)\n                        .contentShape(Rectangle())\n                        .offset(x: -reach, y: -reach)")
+        let gesture = canvas.range(of: ".gesture(canvasGesture(zoom: zoom, available: available))")
+        suite.expect(canvas.contains("let reach = ScreenshotCanvasSupport.expansionGripReach")
+                && gripArea != nil && gesture != nil && gripArea!.upperBound <= gesture!.lowerBound,
+                     "the canvas takes presses on the expansion grips' outer half, past its edge")
+        suite.expect(canvas.contains("cardCornerRadius: model.showsBackdrop\n                                                         ? model.cardCornerPixels * zoom\n                                                         : outerRadius)"),
+                     "the expansion preview fills around the card's corners with the rounding they are drawn with")
+        let preview = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotCanvasExpansionPreview.swift",
+                                   encoding: .utf8)) ?? ""
+        suite.expect(preview.contains("cg.addRect(outer)\n                cg.addPath(Self.cardHole(old, in: outer, cornerRadius: cardCornerRadius))\n                cg.clip(using: .evenOdd)"),
+                     "the expansion preview fills the wedges at the card's corners the margin meets")
+        suite.expect(preview.contains("for dot in layout.grips {")
+                && preview.contains("let outer = layout.draft\n")
+                && preview.contains(".frame(width: layout.size.width, height: layout.size.height)\n        .offset(x: -layout.draft.minX, y: -layout.draft.minY)"),
+                     "the expansion preview draws its grips whole, in the room around the draft")
     }
 
     private static func clipboardInput(_ suite: TestSuite) {
