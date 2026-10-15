@@ -73,6 +73,7 @@ struct ScreenCaptureSettings: View {
             switch currentTool {
             case .screenshot:
                 ScreenshotCaptureSettings()
+                ScreenshotPinSettings()
             case .recording:
                 ScreenRecordingCaptureSettings()
             case .text:

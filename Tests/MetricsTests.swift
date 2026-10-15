@@ -8,6 +8,10 @@ import Foundation
 @main
 struct MetricsTests {
     static func main() {
+        if CommandLine.arguments.dropFirst().elementsEqual(["--pin-preview"]) {
+            MainActor.assumeIsolated { ScreenshotPinPreview.run() }
+            return
+        }
         let suite = TestSuite()
         let groups: [(String, () -> Void)] = [
             ("harness", {
@@ -76,6 +80,7 @@ struct MetricsTests {
                 UpdateIntroFlowTests.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
+            ("screenshot-pins", { ScreenshotPinGestureTests.run(suite) }),
             ("screenshots", {
                 ScreenTextCompletionTests.run(suite)
                 ScreenshotOCRControlTests.run(suite)

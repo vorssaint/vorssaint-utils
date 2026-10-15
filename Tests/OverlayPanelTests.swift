@@ -32,7 +32,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
             "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
             "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
-            "Sources/Vorssaint/Services/QuickTools/ScreenshotPinController.swift",
+            "Sources/Vorssaint/Services/QuickTools/ScreenshotPinWindow.swift",
             "Sources/Vorssaint/Services/QuickTools/QRResultController.swift",
             "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
             "Sources/Vorssaint/Services/Snippets/SnippetLibraryService.swift",

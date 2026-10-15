@@ -483,6 +483,15 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinGestureView.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinFeedbackView.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinWindow.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinContentView.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinChrome.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinFilePromise.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotPinDragView.swift
+        Sources/Vorssaint/Core/ScreenshotPinPreferences.swift
+        Sources/Vorssaint/Core/ScreenshotPinStrings.swift
         Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/UI/Settings/MonitorToken.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
