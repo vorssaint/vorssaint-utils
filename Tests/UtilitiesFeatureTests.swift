@@ -115,6 +115,81 @@ enum UtilitiesFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityPortManager] as? Bool == true,
                "the port manager panel row ships visible like its siblings and travels in backups")
 
+        // MARK: Command environment
+
+        suite.expect(EnvironmentSupport.splitPath("/a:/b::/a:/c\n") == ["/a", "/b", "/c"],
+               "PATH parsing drops empty entries and keeps only the first of a repeat")
+        var pathReport = EnvironmentReport()
+        pathReport.terminalPath = ["/opt/homebrew/bin", "/usr/bin", "/Users/test/.bun/bin"]
+        pathReport.appPath = EnvironmentSupport.launchdDefaultPath
+        suite.expect(pathReport.terminalOnlyPath == ["/opt/homebrew/bin", "/Users/test/.bun/bin"],
+               "the terminal-only list keeps PATH order and names exactly what an app lacks")
+
+        let envFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-env-\(UUID().uuidString)")
+        let envFirst = envFixture.appendingPathComponent("first/bin")
+        let envSecond = envFixture.appendingPathComponent("second/bin")
+        try? FileManager.default.createDirectory(at: envFirst, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: envSecond, withIntermediateDirectories: true)
+        let fakeShell = envFixture.appendingPathComponent("shell")
+        for (file, body) in [
+            (envFirst.appendingPathComponent("node"), "#!/bin/sh\nexec /Users/test/.bun/bin/bun \"$@\"\n"),
+            (envSecond.appendingPathComponent("node"), "#!/bin/sh\necho v1.2.3\n"),
+            (fakeShell, "#!/bin/sh\nprintf '%s' \(HomebrewEnvironment.dumpMarker)\nprintf 'PATH=/x/bin:/y:/x/bin\\0'\n"),
+        ] {
+            try? body.write(to: file, atomically: true, encoding: .utf8)
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file.path)
+        }
+        suite.expect(EnvironmentSupport.loginShellPath(shellPath: fakeShell.path) == ["/x/bin", "/y"],
+               "the terminal PATH is the login shell's exported PATH")
+        suite.expect(EnvironmentSupport.loginShellPath(shellPath: "/usr/bin/false") == nil,
+               "a login shell that gives no PATH is reported as not answering, not as an empty PATH")
+        let shimmed = EnvironmentSupport.tool(named: "node",
+                                              in: EnvironmentSupport.splitPath("\(envFirst.path):\(envSecond.path):\(envFirst.path)"))
+        suite.expect(shimmed.path == envFirst.appendingPathComponent("node").path
+                && shimmed.shadowedPaths == [envSecond.appendingPathComponent("node").path],
+               "the first PATH entry wins and each losing copy is listed once, found \(shimmed.shadowedPaths)")
+        suite.expect(shimmed.shimTarget == "/Users/test/.bun/bin/bun",
+               "a wrapper script reports the command it execs")
+        let plain = EnvironmentSupport.tool(named: "node", in: [envSecond.path])
+        suite.expect(plain.shimTarget == nil && plain.version == "v1.2.3",
+               "a script that execs nothing else is not a shim, and its version is its first line")
+        let stubRan = envFixture.appendingPathComponent("stub-ran")
+        let stub = envSecond.appendingPathComponent("python3")
+        try? "#!/bin/sh\ntouch '\(stubRan.path)'\necho Python 3\n".write(to: stub, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub.path)
+        let stubbed = EnvironmentSupport.tool(named: "python3", in: [envSecond.path], stubDirectories: [envSecond.path])
+        suite.expect(stubbed.path == stub.path && stubbed.version == nil
+                && !FileManager.default.fileExists(atPath: stubRan.path),
+               "a command in a stub folder is listed without being run")
+        suite.expect(EnvironmentSupport.tool(named: "vorssaint-missing", in: [envFirst.path]).path == nil,
+               "a command nowhere in PATH reports no path")
+        let linkPath = envFirst.appendingPathComponent("npx")
+        try? FileManager.default.createSymbolicLink(atPath: linkPath.path,
+                                                    withDestinationPath: "../../second/bin/node")
+        suite.expect(EnvironmentSupport.shimTarget(of: linkPath.path, command: "npx")
+                == envSecond.appendingPathComponent("node").path,
+               "a relative symlink to another name is a shim with a normalized target")
+        try? FileManager.default.removeItem(at: envFixture)
+
+        suite.expect(EnvironmentSupport.execTarget(in: #"  install|i) exec "$HOME/.bun/bin/bun" install "$@" ;;"#)
+                == "$HOME/.bun/bin/bun"
+                && EnvironmentSupport.execTarget(in: "exec -a login /bin/zsh") == "/bin/zsh",
+               "exec inside a case branch or with flags still names its target, unquoted")
+        suite.expect(EnvironmentSupport.execTarget(in: "codexec /bin/zsh") == nil,
+               "a word that merely ends in exec is not an exec")
+
+        pathReport.tools = [shimmed, EnvironmentTool(command: "uv")]
+        let reportLines = EnvironmentSupport.reportText(pathReport).components(separatedBy: "\n")
+        suite.expect(reportLines.contains("    shadowed: " + envSecond.appendingPathComponent("node").path)
+                && reportLines.contains("  uv: not found")
+                && reportLines.contains("terminal PATH (login shell did not answer; system entries only)")
+                && reportLines.suffix(2) == ["  /opt/homebrew/bin", "  /Users/test/.bun/bin"],
+               "the report names shadowed copies, missing commands, an unanswered shell and the terminal-only folders")
+        pathReport.readLoginShell = true
+        suite.expect(EnvironmentSupport.reportText(pathReport).contains("terminal PATH\n"),
+               "an answered shell's PATH is reported without the warning")
+
         // MARK: Text snippets engine (issue #201)
 
         suite.expect(TextSnippetSupport.alertSoundNames(from: ["Tink.aiff", "Basso.aiff"])

@@ -356,6 +356,10 @@ enum SettingsDirectory {
                                       title: FeatureStrings.portManager(language).title,
                                       icon: "network",
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
+                SettingsDirectoryItem(page: .environment,
+                                      title: FeatureStrings.environment(language).title,
+                                      icon: "terminal",
+                                      keywords: ["PATH", "node", "npm", "npx", "python", "bun", "uv", "MCP"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

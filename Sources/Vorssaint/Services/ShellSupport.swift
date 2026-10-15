@@ -15,11 +15,13 @@ enum Shell {
     static func run(_ path: String,
                     _ args: [String],
                     timeout: TimeInterval = defaultTimeout,
-                    maxOutputBytes: Int = 4 * 1024 * 1024)
+                    maxOutputBytes: Int = 4 * 1024 * 1024,
+                    cancellation: BoundedProcessCancellation? = nil)
         -> (status: Int32, output: String) {
         let result = BoundedProcessRunner.run(path, args,
                                               timeout: timeout,
-                                              maxOutputBytes: maxOutputBytes)
+                                              maxOutputBytes: maxOutputBytes,
+                                              cancellation: cancellation)
         return (result.status, String(decoding: result.output, as: UTF8.self))
     }
 }
