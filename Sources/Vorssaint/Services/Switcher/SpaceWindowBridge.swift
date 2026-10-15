@@ -97,6 +97,7 @@ enum SpaceWindowBridge {
             let spaces: [UInt64]
             let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
+            var spaceUUIDs: [UInt64: String] = [:]
         }
 
         /// With separate Spaces, only the island's display controls visibility.
@@ -162,10 +163,16 @@ enum SpaceWindowBridge {
             let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
             let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
+            let spaceUUIDs = Dictionary(spaceDictionaries.compactMap { space -> (UInt64, String)? in
+                guard let id = (space["id64"] as? NSNumber)?.uint64Value,
+                      let uuid = space["uuid"] as? String, UUID(uuidString: uuid) != nil else { return nil }
+                return (id, uuid)
+            }, uniquingKeysWith: { first, _ in first })
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
                                                  fullscreenSpaces: fullscreenSpaces,
-                                                 currentSpace: current?.uint64Value))
+                                                 currentSpace: current?.uint64Value,
+                                                 spaceUUIDs: spaceUUIDs))
         }
         guard !displays.isEmpty else { return nil }
         return Topology(displays: displays)
@@ -386,6 +393,11 @@ enum SpaceWindowBridge {
     /// unreadable, in which case no synthetic travel is attempted.
     static func spaceShortcut(_ direction: SpaceDirection) -> SpaceShortcut? {
         registeredShortcut(direction.hotKeyID)
+    }
+
+    static func desktopShortcut(number: Int?) -> SpaceShortcut? {
+        guard let id = SpaceHopSupport.desktopHotKeyID(number: number) else { return nil }
+        return registeredShortcut(id)
     }
 
     /// The same lookup for the overviews. Nil when the user switched that

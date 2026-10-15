@@ -133,6 +133,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Everyday tools
 
+- **Named Spaces.** Name desktops locally and switch Spaces from the Dynamic Island by click, arrow key or optional swipe gesture. Show Spaces while idle without overwriting your saved idle display choice. Under Windows and Dock → Spaces, optionally show every display’s desktops, grouped in screen order. Switching requires Accessibility and enabled Mission Control shortcuts.
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
 - **AI agents.** Follow Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.

@@ -63,6 +63,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
     @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = true
     @AppStorage(DefaultsKey.notchPreferredPlayer) private var preferredPlayer = NotchPreferredPlayer.automatic
+    @AppStorage(DefaultsKey.notchSpacesIdleEnabled) private var spacesWhenIdle = false
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchLowBatteryTint) private var lowBatteryTint = false
     @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
@@ -113,7 +114,7 @@ struct NotchSettings: View {
         [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft),
          String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled),
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
-         String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
+         String(showPlayingMusic), String(includeOtherPlayers), String(spacesWhenIdle), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
@@ -496,6 +497,8 @@ struct NotchSettings: View {
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         case .agents:
             NotchAgentsSettingsControls()
+        case .spaces:
+            NotchSpacesSettingsControls()
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
@@ -519,6 +522,10 @@ struct NotchSettings: View {
                     }
                     idleChoice(.music, title: text.music, symbol: "music.note",
                                reason: pageReason(.music, feature: nil), fix: pageAction(.music, feature: nil))
+                    if NotchSupport.canRest(with: .spaces) {
+                        idleChoice(.spaces, title: FeatureStrings.notchSpaces(l10n.language).title,
+                                   symbol: NotchModule.spaces.symbol)
+                    }
                     // Offered once the section is on, and kept while it is the
                     // saved choice, waiting like the others.
                     if NotchSupport.canRest(with: .agents) || idle == NotchIdleContent.agents.rawValue {
@@ -817,7 +824,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .controls, .music, .captures, .system, .spaces: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf
@@ -874,7 +881,7 @@ struct NotchSettings: View {
     /// what it would rest with. A saved battery reading on a Mac without a
     /// battery rests with nothing.
     private var restingChoice: NotchIdleContent {
-        let choice = NotchSupport.idleContent()
+        let choice = NotchSpacesSupport.restingChoice()
         return choice == .battery && !PowerSampler.hasInternalBattery ? .none : choice
     }
 
@@ -906,11 +913,16 @@ struct NotchSettings: View {
         let waits = reason != nil && !NotchSupport.canRest(with: item)
         let marked = restingChoice == item || (waits && idle == item.rawValue)
         return VStack(spacing: 6) {
-            Button { idle = item.rawValue } label: {
+            Button { NotchSpacesSupport.selectResting(item) } label: {
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         if item == .none, restsWithMascot {
                             restingMascot
+                        } else if item == .spaces {
+                            Text("1").font(.system(size: 9, weight: .semibold))
+                            Text("2").font(.system(size: 9, weight: .semibold))
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(.white.opacity(0.2), in: Capsule())
                         } else if item != .none {
                             Image(systemName: symbol).font(.system(size: 11))
                             RoundedRectangle(cornerRadius: 4).fill(.black).frame(width: 20, height: 12)

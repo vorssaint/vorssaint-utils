@@ -847,6 +847,11 @@ enum DefaultsKey {
     static let notchQueueEnabled = "notchQueueEnabled"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
+    static let notchSpacesEnabled = "notchSpacesEnabled"
+    static let notchSpacesIdleEnabled = "notchSpacesIdleEnabled"
+    static let notchSpacesShowCurrent = "notchSpacesShowCurrent"
+    static let notchSpacesAllDisplays = "notchSpacesAllDisplays"
+    static let notchSpacesNames = "notchSpacesNames"
     // Watch: any part of any window read live in the island.
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
@@ -1466,6 +1471,11 @@ enum Defaults {
         DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: true,
         DefaultsKey.notchDownloadsEnabled: true,
+        DefaultsKey.notchSpacesEnabled: true,
+        DefaultsKey.notchSpacesIdleEnabled: false,
+        DefaultsKey.notchSpacesShowCurrent: false,
+        DefaultsKey.notchSpacesAllDisplays: false,
+        DefaultsKey.notchSpacesNames: [String: String](),
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,
         DefaultsKey.notchWatchCondition: NotchWatchCondition.changes.rawValue,

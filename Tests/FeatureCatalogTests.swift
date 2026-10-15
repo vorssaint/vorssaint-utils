@@ -1980,6 +1980,8 @@ enum FeatureCatalogTests {
             FeatureVisibilitySupport.isPageVisible(page) { available.contains($0) }
         }
         let allFeatures = Set(AppFeature.allCases)
+        suite.expect(pageVisible(.dock, available: [.notch]),
+                     "island Spaces keep their Windows and Dock settings reachable without Dock features")
         suite.expect(pageVisible(.mouse, available: allFeatures), "mouse page shows with everything available")
         suite.expect(pageVisible(.mouse, available: [.middleClick]),
                "one remaining mouse feature keeps the mouse page")

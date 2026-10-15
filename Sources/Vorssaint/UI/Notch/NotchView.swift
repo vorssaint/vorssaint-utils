@@ -238,6 +238,7 @@ struct NotchView: View {
         if floats {
             switch activity {
             case .timer: NotchCapsuleTimerStrip(service: service, size: size)
+            case .spaces: NotchSpacesStrip(service: service, size: size)
             case .watch: NotchCapsuleWatchStrip(service: service, size: size)
             case .downloads: NotchCapsuleDownloadStrip(service: service, size: size)
             case .agents: NotchCapsuleAgentStrip(service: service, size: size)
@@ -252,6 +253,7 @@ struct NotchView: View {
             let geometry = service.compactActivityGeometry
             switch activity {
             case .timer: NotchTimerStrip(service: service, displayGeometry: geometry)
+            case .spaces: NotchSpacesStrip(service: service, displayGeometry: geometry)
             case .watch: NotchWatchStrip(service: service, displayGeometry: geometry)
             case .downloads: NotchDownloadStrip(service: service, displayGeometry: geometry)
             case .agents: NotchAgentStrip(service: service, displayGeometry: geometry)
@@ -664,6 +666,7 @@ struct NotchView: View {
             case .tools: QuickLauncherView(notchSize: pageSize)
             case .scratchpad: NotchScratchpadView(service: service)
             case .agents: NotchAgentsView(size: pageSize)
+            case .spaces: NotchSpacesView()
             case .watch: NotchWatchView(size: pageSize)
             }
         }
@@ -841,7 +844,7 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: true)
                                 .padding(.leading, restingBatteryInset)
-                        case .none: EmptyView()
+                        case .none, .spaces: EmptyView()
                         }
                     }
                     .frame(width: geometry.restingWingWidth)
@@ -866,7 +869,7 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
-                        case .none: EmptyView()
+                        case .none, .spaces: EmptyView()
                         }
                     }
                     .frame(width: geometry.restingWingWidth)
@@ -966,6 +969,7 @@ extension NotchModule: PanelOrderItem {
         case .tools: return FeatureStrings.notch(language).tools
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
+        case .spaces: return FeatureStrings.notchSpaces(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
         }
     }

@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, spaces
     var id: String { rawValue }
 
     var symbol: String {
@@ -30,6 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
+        case .spaces: return "rectangle.3.group"
         case .watch: return "eye"
         }
     }
@@ -52,12 +53,14 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .downloads: return "d"
         case .scratchpad: return "p"
         case .agents: return "g"
+        case .spaces: return "e"
         case .watch: return "o"
         }
     }
 
     func isAvailable(in defaults: UserDefaults = .standard) -> Bool {
         switch self {
+        case .spaces: return AppFeature.notch.isAvailable(in: defaults)
         case .controls, .music: return true
         case .timer: return AppFeature.notchTimer.isAvailable(in: defaults)
         case .camera: return AppFeature.cameraPreview.isAvailable(in: defaults)
@@ -518,7 +521,7 @@ struct NotchControlsLayout: Equatable {
 }
 
 enum NotchIdleContent: String, CaseIterable {
-    case none, battery, music, agents
+    case none, battery, music, agents, spaces
 }
 
 /// How urgently the charge is shown: amber for the early warning, red when low.
@@ -633,12 +636,13 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, watch, downloads, agents, calendar, music, keepAwake, spaces
 
     var id: String { rawValue }
 
     func title(_ language: AppLanguage) -> String {
         switch self {
+        case .spaces: return FeatureStrings.notchSpaces(language).title
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .watch: return FeatureStrings.notchWatch(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
@@ -652,6 +656,7 @@ enum NotchCompactActivity: String, Identifiable {
     /// Keep Awake has no page of its own: its tile is on Controls.
     var module: NotchModule {
         switch self {
+        case .spaces: return .spaces
         case .timer: return .timer
         case .watch: return .watch
         case .downloads: return .downloads
@@ -1541,10 +1546,10 @@ enum NotchSupport {
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
     static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false, spaces: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
             (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
-            (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
+            (calendar, .calendar), (music, .music), (keepAwake, .keepAwake), (spaces, .spaces)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
     }
@@ -1608,6 +1613,7 @@ enum NotchSupport {
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
+                && ($0 != .spaces || defaults.bool(forKey: DefaultsKey.notchSpacesEnabled))
         }
     }
 
@@ -1705,8 +1711,14 @@ enum NotchSupport {
         case .none: return true
         case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
         case .music: return modules(in: defaults).contains(.music)
+        case .spaces: return modules(in: defaults).contains(.spaces)
         case .agents: return NotchAgentSupport.sectionShows(in: defaults)
         }
+    }
+
+    static func restingActivity(selected: NotchCompactActivity?, spacesEnabled: Bool,
+                                spacesAvailable: Bool) -> NotchCompactActivity? {
+        selected ?? (spacesEnabled && spacesAvailable ? .spaces : nil)
     }
 
     static func visibleIdleContent(isPlaying: Bool, in defaults: UserDefaults = .standard) -> NotchIdleContent {
@@ -2428,7 +2440,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch, .spaces:
                 contentHeight = budget
             }
         }

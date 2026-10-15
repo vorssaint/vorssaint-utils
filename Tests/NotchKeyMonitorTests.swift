@@ -6,6 +6,10 @@ import Foundation
 /// The island's production event monitor runs against plain doubles. No
 /// window is shown, no native monitor is installed and no key is posted.
 enum NotchKeyMonitorTests {
+    final class NotchSpacesService {
+        static let shared = NotchSpacesService()
+        func step(forward: Bool) { actions.append(forward ? "spaceRight" : "spaceLeft") }
+    }
     struct NSEvent {
         struct ModifierFlags: OptionSet {
             let rawValue: Int
@@ -157,6 +161,23 @@ enum NotchKeyMonitorTests {
         actions = []
         suite.expect(NSEvent.handler?(escape) == nil && actions == ["stepBack"],
                      "without the bar, Escape steps back through the island again")
+        service.selected = .spaces
+        service.showingSections = false
+        service.showingAppPanel = false
+        service.panel?.firstResponder = nil
+        actions = []
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 124)) == nil
+                     && actions == ["spaceRight"], "the Spaces page consumes Right to move a desktop")
+        actions = []
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 123)) == nil
+                     && actions == ["spaceLeft"], "the Spaces page consumes Left to move a desktop")
+        service.panel?.firstResponder = NSTextView(isFieldEditor: true)
+        actions = []
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 124)) != nil && actions.isEmpty,
+                     "arrows in a text field never switch desktops")
+        service.panel?.firstResponder = nil
+        suite.expect(NSEvent.handler?(NSEvent(window: service.panel, keyCode: 124, modifierFlags: .command)) != nil
+                     && actions.isEmpty, "modified arrows remain available to other commands")
         // A title too long to sit beside the camera takes a row below it, so
         // a custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.

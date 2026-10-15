@@ -157,6 +157,7 @@ enum NotchPresentationRefreshContract {
         }
     }
     class State: ObservableObject {
+        var externalDisplay = false
         var noticeFitsInPlace = false
         var activitySelection = NotchActivitySelection()
         var compactActivities: [NotchCompactActivity] = []
@@ -524,6 +525,29 @@ enum NotchPresentationRefreshContract {
         countdown.windowHost?.activate?()
         suite.expect(countdown.countdownOpenings == 1 && !countdown.expanded,
                      "the open island's close button still closes it while an event counts down")
+        for floats in [false, true] {
+            let spaces = Service()
+            spaces.expanded = false
+            spaces.compactActivityIsVisible = true
+            spaces.compactActivity = .spaces
+            if floats {
+                spaces.geometry = NotchGeometry(screen: spaces.geometry.screen, safeAreaTop: 0,
+                                               cameraWidth: 0, compactSideRoom: 150, silhouette: .capsule)
+            }
+            spaces.refreshPresentation(animated: false)
+            let opening = spaces.windowHost!.activationRect
+            suite.expect(floats ? opening == .zero : opening.width == spaces.geometry.cameraWidth,
+                         "the camera keeps its opening target while capsule Space buttons receive their own clicks")
+            if !floats {
+                spaces.windowHost?.activate?()
+                suite.expect(spaces.expanded, "clicking the closed Spaces island's camera target expands it")
+            }
+            spaces.expanded = false
+            spaces.externalDisplay = true
+            spaces.refreshPresentation(animated: false)
+            suite.expect(spaces.windowHost?.activationRect == .zero,
+                         "external-display Space pills remain clickable across the simulated camera area")
+        }
         musicStripChecks(suite)
         let fullscreenSimulated = Service()
         fullscreenSimulated.expanded = false

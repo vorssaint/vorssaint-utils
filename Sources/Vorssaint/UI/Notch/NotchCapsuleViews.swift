@@ -234,7 +234,7 @@ struct NotchCapsuleRestingView: View {
                     if music.playback?.isPlaying == true {
                         NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10, tint: music.artworkTint?.color ?? .white)
                     }
-                case .none:
+                case .none, .spaces:
                     EmptyView()
                 }
             }
@@ -428,7 +428,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .spaces:
             EmptyView()
         }
     }

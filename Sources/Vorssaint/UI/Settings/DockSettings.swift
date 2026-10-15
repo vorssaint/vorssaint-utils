@@ -19,6 +19,7 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var dockPreviewQuitAppOnClose = false
     @AppStorage(DefaultsKey.dockPreviewOrderByCreation) private var dockPreviewOrderByCreation = false
     @AppStorage(DefaultsKey.dockPreviewKeepDockVisible) private var dockPreviewKeepDockVisible = false
+    @AppStorage(DefaultsKey.notchSpacesAllDisplays) private var spacesAllDisplays = false
     @State private var dockPreviewMoreOptionsExpanded = false
     @AppStorage(DefaultsKey.dockClickMinimize) private var dockClickMinimize = false
     @AppStorage(DefaultsKey.dockClickHide) private var dockClickHide = false
@@ -47,6 +48,18 @@ struct DockSettings: View {
                 if AppFeature.dockClick.isAvailable {
                     dockClickCard
                         .settingsSectionAnchor(.dockClick, cornerRadius: 16)
+                }
+                if AppFeature.notch.isAvailable {
+                    SettingsCard(title: FeatureStrings.notchSpaces(l10n.language).title) {
+                        SettingsRow(symbol: "display.2", title: FeatureStrings.notchSpaces(l10n.language).allDisplays,
+                                    caption: FeatureStrings.notchSpaces(l10n.language).allDisplaysHint) {
+                            Toggle(FeatureStrings.notchSpaces(l10n.language).allDisplays, isOn: $spacesAllDisplays)
+                                .labelsHidden()
+                                .onChange(of: spacesAllDisplays) { _, _ in
+                                    NotchSpacesService.shared.syncWithPreferences()
+                                }
+                        }
+                    }
                 }
                 if AppFeature.spacesOrder.isAvailable {
                     spacesOrderCard

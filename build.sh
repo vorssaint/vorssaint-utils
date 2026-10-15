@@ -269,6 +269,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
         Sources/Vorssaint/Services/Notch/NotchPreferredPlayer.swift
         Sources/Vorssaint/Core/NotchFilesStrings.swift
+        Sources/Vorssaint/Core/NotchSpacesStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchSpacesSupport.swift
         Sources/Vorssaint/Core/NotchWatchStrings.swift
         Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
         Sources/Vorssaint/Core/NotchMascotStrings.swift

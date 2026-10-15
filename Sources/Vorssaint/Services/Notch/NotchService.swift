@@ -493,13 +493,17 @@ final class NotchService: ObservableObject {
 
     var compactActivity: NotchCompactActivity? {
         // A new song waiting for its notice is not drawn yet.
-        activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
+        NotchSupport.restingActivity(
+            selected: activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities),
+            spacesEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.notchSpacesIdleEnabled),
+            spacesAvailable: NotchSpacesService.shared.hasIdleContent)
     }
 
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
-                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
+                                      music: hasMusicActivity, keepAwake: hasKeepAwakeActivity,
+                                      spaces: NotchSpacesService.shared.hasCompactActivity)
     }
 
     var showsCompactActivityPicker: Bool {
@@ -619,6 +623,8 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
+        case .spaces: return geometry.compactWatchGeometry(wing: NotchSpacesLayout.wingWidth(
+            spaces: NotchSpacesService.shared.snapshot.spaces))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
@@ -1020,6 +1026,11 @@ final class NotchService: ObservableObject {
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
                                           time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                                           geometry: geometry)
+        case .spaces:
+            let spaces = NotchSpacesService.shared.snapshot.spaces
+            return layout.surface(content: NotchSpacesLayout.capsuleContentWidth(
+                spaces: spaces, external: NotchSpacesSupport.isExternalDisplay(frame: geometry.screen)),
+                                  maximum: NotchSpacesLayout.maximumWidth, geometry: geometry)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -1101,6 +1112,7 @@ final class NotchService: ObservableObject {
         // the lid is closed does not start and stop them all again.
         guard screenIndex(in: NSScreen.screens) != nil else { withdrawFromMissingScreen(); return }
         refreshModules()
+        NotchSpacesService.shared.syncWithPreferences()
         NotchDownloadService.shared.syncWithPreferences()
         NotchCalendarService.shared.syncWithPreferences()
         NotchNotificationService.shared.syncWithPreferences()
@@ -1219,6 +1231,7 @@ final class NotchService: ObservableObject {
     }
 
     private func tearDownPresentation() {
+        NotchSpacesService.shared.stop()
         screenRefreshWork?.cancel(); screenRefreshWork = nil
         nextMascotVisitWork?.cancel(); nextMascotVisitWork = nil
         mascotVisitWork?.cancel(); mascotVisitWork = nil
@@ -2156,6 +2169,12 @@ final class NotchService: ObservableObject {
         openSettings()
     }
 
+    func switchSpace(_ id: UInt64) {
+        guard acceptsUserInteraction, modules.contains(.spaces),
+              NotchSpacesService.shared.snapshot.spaces.contains(where: { $0.id == id && !$0.current }) else { return }
+        perform { NotchSpacesService.shared.select(id) }
+    }
+
     func perform(_ action: @escaping () -> Void) {
         collapse()
         if let windowHost { windowHost.whenSettled(action) }
@@ -2622,6 +2641,10 @@ final class NotchService: ObservableObject {
             activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero
         } else if notice != nil || dragPlaceholder {
             activationRect = .zero
+        } else if compactActivityIsVisible, compactActivity == .spaces {
+            activationRect = geometry.floats || NotchSpacesSupport.isExternalDisplay(frame: geometry.screen)
+                ? .zero : compactActivityGeometry.activationArea(
+                in: size, hasHeader: false, compactActivity: true)
         } else if showsCompactActivityPicker {
             let strip = compactActivityGeometry.compactActivitySize
             activationRect = compactActivityGeometry.activationArea(
@@ -3011,7 +3034,8 @@ final class NotchService: ObservableObject {
             // Shown at once where the island just left, so the two trade places.
             mirror.host.present(size: size, geometry: base, animated: !revealing,
                                 transitionContent: !revealing && previous != activity ? .replace : .none)
-            mirror.host.setActivationArea(CGRect(origin: .zero, size: size),
+            mirror.host.setActivationArea(activity == .spaces && NotchSpacesSupport.isExternalDisplay(frame: base.screen)
+                                          ? .zero : CGRect(origin: .zero, size: size),
                                           title: FeatureStrings.notch(L10n.shared.language).open,
                                           willPress: {}, activate: { [weak self] in self?.bringIsland(to: id) })
             if !mirror.host.panel.isVisible { mirror.host.panel.orderFrontRegardless() }
@@ -3611,6 +3635,12 @@ final class NotchService: ObservableObject {
                     self.toggleSections()
                     return nil
                 }
+                if self.selected == .spaces, !self.showingSections, !self.showingAppPanel,
+                   modifiers.isEmpty, (event.keyCode == 123 || event.keyCode == 124),
+                   !(self.panel?.firstResponder is NSTextView) {
+                    NotchSpacesService.shared.step(forward: event.keyCode == 124)
+                    return nil
+                }
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
@@ -3707,10 +3737,13 @@ final class NotchService: ObservableObject {
         let musicSurface = modules.contains(.music)
             && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
                                           && !showingCommandBar))
+        let spacesSurface = modules.contains(.spaces)
+            && ((!expanded && compactActivity == .spaces)
+                || (expanded && selected == .spaces && !showingAppPanel && !showingSections && !showingCommandBar))
         let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
                                                           musicSurface: musicSurface,
                                                           control: interaction.control, scroll: interaction.scroll)
-        let horizontal = !interaction.control && !interaction.scroll && !inHeader && musicSurface
+        let horizontal = !inHeader && ((spacesSurface && (expanded || !interaction.scroll)) || (!interaction.control && !interaction.scroll && musicSurface))
         let x = NotchGestureSupport.movement(Double(event.scrollingDeltaX), precise: event.hasPreciseScrollingDeltas,
                                              inverted: event.isDirectionInvertedFromDevice)
         let y = NotchGestureSupport.movement(Double(event.scrollingDeltaY), precise: event.hasPreciseScrollingDeltas,
@@ -3726,6 +3759,10 @@ final class NotchService: ObservableObject {
         case .open: open()
         case .close: collapse()
         case .nextTrack, .previousTrack:
+            if spacesSurface {
+                NotchSpacesService.shared.step(forward: action == .nextTrack)
+                return true
+            }
             guard musicSurface else { gesture = NotchGestureSupport(); return false }
             NotchMusicService.shared.skipFromGesture(forward: action == .nextTrack)
         }
@@ -3745,6 +3782,11 @@ final class NotchService: ObservableObject {
 
     private func bindEvents() {
         subscriptions.removeAll()
+        NotchSpacesService.shared.$snapshot.removeDuplicates().dropFirst().receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+                self?.refreshPresentation()
+            }.store(in: &subscriptions)
         if modules.contains(.timer) {
             NotchTimerService.shared.$session.removeDuplicates().receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

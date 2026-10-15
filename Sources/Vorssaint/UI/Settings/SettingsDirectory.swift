@@ -113,13 +113,20 @@ enum SettingsDirectory {
             windowsControls: rows(1), utilities: rows(4).filter {
                 !islandPages.contains($0.id) && $0.id != .page(.notchMascot)
             })
+        var windowsDock = byGroup.windowsDock
+        if isAvailable(.notch) {
+            windowsDock.removeAll { $0.id == .page(.dock) }
+            windowsDock.append(SettingsSidebarItem(id: .page(.dock), destination: FeatureSettingsDestination(.dock),
+                                                   title: FeatureStrings.notchSpaces(language).title,
+                                                   icon: "rectangle.3.group"))
+        }
         let featured = [
             SettingsSidebarSection(id: 0, title: categories.essentials,
                                    items: Array(core.prefix(3)) + island + Array(core.dropFirst(3))),
             SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities),
             SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound + byGroup.sound),
             SettingsSidebarSection(id: 7, title: hub.groupEnergyDisplay, items: energy),
-            SettingsSidebarSection(id: 1, title: hub.groupWindowsDock, items: byGroup.windowsDock),
+            SettingsSidebarSection(id: 1, title: hub.groupWindowsDock, items: windowsDock),
             SettingsSidebarSection(id: 8, title: hub.groupMouseKeyboard, items: byGroup.mouseKeyboard),
             SettingsSidebarSection(id: 2, title: categories.files, items: rows(2) + byGroup.files),
         ]
@@ -260,6 +267,8 @@ enum SettingsDirectory {
                                        ]),
                 SettingsDirectoryItem(page: .dock, title: FeatureStrings.settingsPages(language).dockTitle,
                                        icon: "dock.rectangle",
+                                       keywords: [FeatureStrings.notchSpaces(language).title,
+                                                  FeatureStrings.notchSpaces(language).allDisplays],
                                        featureKeywords: [
                                         (.dockPreview, [s.dockPreviewName, s.dockPreviewEnable,
                                                         s.dockPreviewOpenDelay,

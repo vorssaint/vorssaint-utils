@@ -950,6 +950,9 @@ def main():
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
     music_visibility = music_visibility.replace("calendar: hasCalendarActivity", "calendar: false")
+    music_visibility = music_visibility.replace("NotchSpacesService.shared.hasCompactActivity", "false")
+    music_visibility = music_visibility.replace("NotchSpacesService.shared.hasIdleContent", "false")
+    music_visibility = music_visibility.replace("NotchSpacesService.shared.snapshot.spaces", "[]")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
                                                 "playback?.isPlaying == true, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("captureControls: captureControls != nil)",
@@ -1014,6 +1017,18 @@ def main():
               .replace("NotchMascotSupport.hidesWhenIdle()", "hidesWhenIdle")
               .replace("CACurrentMediaTime()", "mediaTime()")
           + "}\n}\n")
+    spaces_service = "Sources/Vorssaint/Services/Notch/NotchSpacesService.swift"
+    write("NotchSpacesClick.swift", "import AppKit\nimport Foundation\nextension NotchSpacesClickTests {\n"
+          + declaration(spaces_service, "    struct Snapshot:")
+          + "final class Service: State {\n"
+          + "".join(declaration(spaces_service, prefix).replace("    private func", "    func", 1)
+                   .replace("NotchSpacesSupport.isEnabled()", "self.enabled")
+                   .replace("AXIsProcessTrusted()", "self.AXIsProcessTrusted()") for prefix in [
+                       "    func step(", "    func select(", "    private func cancelTravel(", "    private func advance(",
+                       "    private func waitForArrival("])
+          + "}\nfinal class Island: IslandState {\n"
+          + declaration(notch, "    func switchSpace(")
+          + "}\n}\n")
     write("NotchKeyMonitor.swift", "import Foundation\nextension NotchKeyMonitorTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func installEventMonitors()").replace("private func", "func", 1)
           + "}\n}\n")
@@ -1046,6 +1061,7 @@ def main():
           + declaration(notch, "    private func switchCompactSelection(").replace("private func", "func", 1)
           + declaration(notch, "    func refreshPresentation(")
               .replace("NotchSupport.coversMenus()", "UserDefaults.standard.coversMenus")
+              .replace("NotchSpacesSupport.isExternalDisplay(frame: geometry.screen)", "externalDisplay")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func presentCapture(")
               .replace("content: AnyView, actions: AnyView? = nil", "content: Bool, actions: Bool? = nil")

@@ -103,6 +103,7 @@ enum SettingsBackupSupport {
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         DefaultsKey.dockPreviewRestoreAutohide,
+        DefaultsKey.notchSpacesNames,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.
         DefaultsKey.spacesOrderRestore,
