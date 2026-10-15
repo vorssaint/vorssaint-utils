@@ -6,10 +6,10 @@ import Carbon.HIToolbox
 import UniformTypeIdentifiers
 
 /// Floating pinned screenshots keep a capture visible while working.
-/// Drag anywhere to move, resize from the edges keeping proportions, arrows
-/// nudge, double click or Esc closes, right click offers copy, save, opacity
-/// and click-through. A monitor exists only while a click-through pin needs
-/// its Option-click escape hatch.
+/// Drag anywhere to move, resize from the edges keeping proportions, scroll
+/// to zoom, Option-scroll for opacity and pinch to zoom. Arrows nudge, double
+/// click or Esc closes, right click offers copy, save, opacity and click-through.
+/// A monitor exists only while a click-through pin needs its Option-click escape.
 final class ScreenshotPinController {
     static let shared = ScreenshotPinController()
 
@@ -186,7 +186,7 @@ private final class ScreenshotPinWindow: OverlayPanel {
 
     // MARK: Content
 
-    private final class PinContentView: NSView {
+    private final class PinContentView: ScreenshotPinGestureView {
         /// Weak for the same reason the capture surface is: closing a pin
         /// releases its window from inside this view's own event handling,
         /// so a menu item or a second click can arrive with the window gone.

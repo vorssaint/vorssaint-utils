@@ -75,6 +75,7 @@ struct MetricsTests {
                 UpdateIntroFlowTests.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
+            ("screenshot-pins", { ScreenshotPinGestureTests.run(suite) }),
             ("screenshots", {
                 ScreenTextCompletionTests.run(suite)
                 ScreenshotOCRControlTests.run(suite)
