@@ -68,6 +68,11 @@ struct NotchPlayback: Equatable {
         if info["artworkUnchanged"] as? Bool == true {
             info[RadialNowPlayingSupport.artworkDataKey] = previousArtwork
         }
+        // Spotify can repeat a previous recording’s native artwork with a
+        // new title. Only its process-bound reader supplies Spotify covers.
+        if reply.displayID == "com.spotify.client" {
+            info.removeValue(forKey: RadialNowPlayingSupport.artworkDataKey)
+        }
         guard let track = RadialNowPlayingSupport.snapshot(
                 info: info, isPlaying: true,
                 appBundleIdentifier: reply.displayID, appPID: reply.pid) else { return nil }
@@ -91,7 +96,9 @@ struct NotchPlayback: Equatable {
                                 .map { $0.doubleValue.isFinite && $0.doubleValue >= 0 } == true,
                              itemIdentifier: reply.info["itemIdentifier"] as? String,
                              commandContext: commandContext?.pid == track.appPID ? commandContext : nil,
-                             canSendCommandsDirectly: canSendCommandsDirectly,
+                             // Spotify's advertised native commands can fail
+                             // while another app owns the system session.
+                             canSendCommandsDirectly: canSendCommandsDirectly && track.appBundleIdentifier != "com.spotify.client",
                              canSkipNext: reply.info["canSkipNext"] as? Bool,
                              canSkipPrevious: reply.info["canSkipPrevious"] as? Bool)
     }
@@ -133,6 +140,9 @@ struct NotchArtworkCache<Artwork> {
         guard let playback else { self = Self(); return }
         let next = Identity(playback)
         if identity?.pid != next.pid || identity?.bundle != next.bundle { self = Self() }
+        // A Spotify cover is tied to a verified recording. Never carry it
+        // over to another song or a native fallback without that identity.
+        if next.bundle == "com.spotify.client", identity != next { self = Self() }
         if identity != next || inheritedUntil.map({ now >= $0 }) == true { inheritedUntil = nil }
         if let incoming {
             if artworkData == nil || playback.track.artworkData != artworkData {
