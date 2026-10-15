@@ -150,13 +150,18 @@ struct NotchView: View {
                             NotchCapsuleNoticeView(notice: notice, geometry: service.geometry,
                                                    size: service.notice == nil ? service.capsuleNoticeSurface(notice)
                                                        : service.surfaceSize)
+                        } else if notice.showsSwitch {
+                            NotchSwitchNoticeView(notice: notice)
+                                .padding(.top, service.geometry.safeContentTop)
+                                .frame(width: service.surfaceSize.width, height: service.surfaceSize.height,
+                                       alignment: .top)
                         } else {
                             NotchNoticeView(notice: notice, geometry: service.geometry, hidesMascot: service.mascotBridging)
                         }
                     }
                     // Beside a camera the notice reaches further toward its
                     // wider side, and takes clicks all the way to its end.
-                    .contentShape(Rectangle().offset(x: floats ? 0
+                    .contentShape(Rectangle().offset(x: floats || notice.showsSwitch ? 0
                         : service.geometry.noticeShift(notice.wings(in: service.geometry))))
                 }
                 // A floating capsule lights up under the pointer. Beside a

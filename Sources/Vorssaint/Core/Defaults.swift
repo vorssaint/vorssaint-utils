@@ -729,6 +729,12 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityDefaultBrowser = "panelUtilityDefaultBrowser"
+
+    // Default browser — the shortcut and the browsers it moves between.
+    static let defaultBrowserShortcutEnabled = "defaultBrowserShortcutEnabled"
+    static let defaultBrowserShortcut = "defaultBrowserShortcut"
+    static let defaultBrowserRotation = "defaultBrowserRotation"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -906,6 +912,7 @@ enum DefaultsKey {
     static let notchQuickAccessThird = "notchQuickAccessThird"
     static let notchVolume = "notchVolume"
     static let notchInputSource = "notchInputSource"
+    static let notchDefaultBrowser = "notchDefaultBrowser"
     static let notchMicrophone = "notchMicrophone"
     static let notchBrightness = "notchBrightness"
     static let notchBattery = "notchBattery"
@@ -1490,6 +1497,7 @@ enum Defaults {
         DefaultsKey.notchQuickAccessLayout: Data(),
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,
+        DefaultsKey.notchDefaultBrowser: true,
         DefaultsKey.notchMicrophone: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,
@@ -1822,6 +1830,10 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityDefaultBrowser: true,
+        DefaultsKey.defaultBrowserShortcutEnabled: false,
+        DefaultsKey.defaultBrowserShortcut: GlobalShortcut.defaultBrowserDefault.storageValue,
+        DefaultsKey.defaultBrowserRotation: [String](),
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

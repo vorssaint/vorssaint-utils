@@ -1402,7 +1402,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource, defaultBrowser
 
     var preferenceKey: String {
         switch self {
@@ -1416,6 +1416,7 @@ enum NotchEvent: String, CaseIterable {
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
         case .inputSource: return DefaultsKey.notchInputSource
+        case .defaultBrowser: return DefaultsKey.notchDefaultBrowser
         case .volume: return DefaultsKey.notchVolume
         case .brightness: return DefaultsKey.notchBrightness
         case .battery: return DefaultsKey.notchBattery
@@ -1426,7 +1427,7 @@ enum NotchEvent: String, CaseIterable {
 
     var priority: Int {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
+        case .volume, .brightness, .keyboardLight, .microphone, .inputSource, .defaultBrowser: return 3
         case .capture, .timer, .watch: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
@@ -1440,10 +1441,22 @@ enum NotchEvent: String, CaseIterable {
         case .timer, .download, .watch: return 6
         case .agents: return 5
         case .battery, .accessory: return 4
-        case .clipboard: return 2.5
+        case .clipboard, .defaultBrowser: return 2.5
         case .capture: return 12
         }
     }
+}
+
+/// A switch from one app to another, read below the camera.
+enum NotchSwitchLayout {
+    static let iconSize: CGFloat = 20
+    static let spacing: CGFloat = 6
+    static let arrowWidth: CGFloat = 12
+    static let rowHeight: CGFloat = 24
+    static let bottomInset: CGFloat = 12
+    static let horizontalInset: CGFloat = 20
+    /// Everything on the line but the two names.
+    static let fixedWidth = iconSize * 2 + arrowWidth + spacing * 4 + 8
 }
 
 enum NotchSupport {
@@ -1780,6 +1793,7 @@ enum NotchSupport {
         case .track: return modules(in: defaults).contains(.music)
         // A layout notice needs no feature of its own, only its own toggle.
         case .inputSource: return true
+        case .defaultBrowser: return AppFeature.defaultBrowser.isAvailable(in: defaults)
         }
     }
 
@@ -2303,6 +2317,13 @@ struct NotchGeometry: Equatable {
     func noticeWings(_ preferred: NotchNoticeWings) -> NotchNoticeWings {
         NotchNoticeWings(leading: noticeWingWidth(preferred: preferred.leading),
                          trailing: noticeWingWidth(preferred: preferred.trailing))
+    }
+
+    /// A switch drops below the camera, as wide as its line needs.
+    func switchNoticeSize(contentWidth: CGFloat) -> CGSize {
+        let width = max(cameraWidth + 40, contentWidth + NotchSwitchLayout.horizontalInset * 2)
+        return CGSize(width: min(screen.width - 24, width),
+                      height: safeContentTop + NotchSwitchLayout.rowHeight + NotchSwitchLayout.bottomInset)
     }
 
     func noticeSize(wings preferred: NotchNoticeWings) -> CGSize {

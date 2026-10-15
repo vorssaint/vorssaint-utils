@@ -356,6 +356,11 @@ enum SettingsDirectory {
                                       title: FeatureStrings.portManager(language).title,
                                       icon: "network",
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
+                SettingsDirectoryItem(page: .defaultBrowser,
+                                      title: FeatureStrings.defaultBrowser(language).title,
+                                      icon: "globe",
+                                      keywords: [FeatureStrings.defaultBrowser(language).current,
+                                                 "browser", "default browser", "http", "https", "links"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

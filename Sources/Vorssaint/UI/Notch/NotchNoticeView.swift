@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// Feedback keeps the central camera area clear on physical and simulated notches.
@@ -135,6 +136,38 @@ struct NotchNoticeView: View {
                 .lineLimit(1)
                 .truncationMode(notice.event == .accessory ? .middle : .tail)
                 .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+}
+
+/// One app to another on a single line below the camera.
+struct NotchSwitchNoticeView: View {
+    let notice: NotchNotice
+
+    var body: some View {
+        HStack(spacing: NotchSwitchLayout.spacing) {
+            app(notice.apps[0], notice.title, dimmed: true)
+            Image(systemName: "arrow.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: NotchSwitchLayout.arrowWidth)
+                .padding(.horizontal, 4)
+            app(notice.apps[1], notice.detail, dimmed: false)
+        }
+        .font(.system(size: 13, weight: .medium))
+        .lineLimit(1)
+        .frame(height: NotchSwitchLayout.rowHeight)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(notice.accessibilityText)
+    }
+
+    private func app(_ url: URL, _ name: String, dimmed: Bool) -> some View {
+        HStack(spacing: NotchSwitchLayout.spacing) {
+            Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
+                .resizable()
+                .frame(width: NotchSwitchLayout.iconSize, height: NotchSwitchLayout.iconSize)
+            Text(name)
+                .foregroundStyle(.white.opacity(dimmed ? 0.7 : 1))
         }
     }
 }

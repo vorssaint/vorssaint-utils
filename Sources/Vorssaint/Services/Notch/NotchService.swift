@@ -22,6 +22,18 @@ struct NotchNotice: Equatable {
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
+    /// Apps a switch goes from and to. Beside a camera the notice drops
+    /// below it and reads as one line, rather than split across the housing.
+    var apps: [URL] = []
+
+    var showsSwitch: Bool { apps.count == 2 }
+
+    /// The switch's line: icon, name, arrow, icon, name.
+    var switchWidth: CGFloat {
+        let font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        let names = [title, detail].map { ($0 as NSString).size(withAttributes: [.font: font]).width }.reduce(0, +)
+        return ceil(names + NotchSwitchLayout.fixedWidth)
+    }
 
     /// Each side as wide as what it shows, so neither ends in a band of
     /// empty black: the island reaches further toward its wider side.
@@ -887,6 +899,7 @@ final class NotchService: ObservableObject {
         if expanded { return showingCommandBar ? commandBarSurfaceSize : expandedSize }
         if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }
         if let notice {
+            if notice.showsSwitch { return geometry.switchNoticeSize(contentWidth: notice.switchWidth) }
             guard noticeExpanded else { return geometry.noticeSize(wings: notice.wings(in: geometry)) }
             return geometry.notificationPreviewSize(
                 contentHeight: notice.previewContentHeight(width: geometry.notificationPreviewContentWidth))
@@ -913,7 +926,7 @@ final class NotchService: ObservableObject {
     /// further toward its wider side. A capsule runs its strips end to end.
     var surfaceShift: CGFloat {
         guard !geometry.floats, !fullscreenCompact, captureControls == nil, !expanded, !dragPlaceholder else { return 0 }
-        if let notice { return noticeExpanded ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
+        if let notice { return noticeExpanded || notice.showsSwitch ? 0 : geometry.noticeShift(notice.wings(in: geometry)) }
         return namedMusicWings.map { ($0.trailing - $0.leading) / 2 } ?? 0
     }
 
