@@ -1569,6 +1569,9 @@ enum ScreenshotFeatureTests {
         suite.expect(!ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_Return, command: false, isRepeat: false)
                 && !ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_Z, command: true, isRepeat: true),
                "a single Return copies, and held undo keeps repeating")
+        suite.expect(ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: true)
+                && !ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: false),
+               "a held Command-V pastes the image once instead of stacking copies under it")
         let previewFrame = ScreenshotSupport.quickPreviewFrame(
             size: CGSize(width: 286, height: 210),
             anchor: CGRect(x: 1100, y: 100, width: 300, height: 300),

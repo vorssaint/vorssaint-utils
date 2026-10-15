@@ -1050,10 +1050,11 @@ enum ScreenshotSupport {
 
     /// A held Return or ⌘C repeats into what the first press left on screen:
     /// Return that applied a crop, or chose Edit in the preview, would copy
-    /// the capture and close the editor a moment later.
+    /// the capture and close the editor a moment later. A held ⌘V would
+    /// stack copies of the same image exactly under the pasted one.
     static func editorIgnoresRepeatedOutputKey(keyCode: Int, command: Bool, isRepeat: Bool) -> Bool {
         isRepeat && (keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter
-            || (command && keyCode == kVK_ANSI_C))
+            || (command && (keyCode == kVK_ANSI_C || keyCode == kVK_ANSI_V)))
     }
 
     /// Local key monitors normally receive the editor's window number, but
@@ -1423,6 +1424,14 @@ enum ScreenshotSupport {
         /// Existing rectangular marks with visible resize grips.
         var resizesWithHandles: Bool {
             dragsRect || self == .sticker || self == .image
+        }
+
+        /// The tool a new editor opens with. Select, crop and expand canvas
+        /// act on the capture as a whole and an image is never picked by
+        /// hand, so each falls back to arrow and the editor opens ready to draw.
+        static func startingTool(remembered raw: String?) -> Tool {
+            let tool = Tool(rawValue: raw ?? "") ?? .arrow
+            return [.select, .crop, .expandCanvas, .image].contains(tool) ? .arrow : tool
         }
 
         /// Saved ids first, then any tools added by a later version in the

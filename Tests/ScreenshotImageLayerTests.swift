@@ -18,6 +18,13 @@ enum ScreenshotImageLayerTests {
         imagePixels(suite)
         blurLayers(suite)
         textRunsAfterSampling(suite)
+        sampleReuse(suite)
+        sampleBounds(suite)
+        textOnlyAreasOverImages(suite)
+        eraseOverImages(suite)
+        areasBesideImages(suite)
+        startingTool(suite)
+        editorViewContracts(suite)
         clipboardInput(suite)
         let origin = CGRect(x: 10, y: 20, width: 40, height: 20)
         let resized = ScreenshotCanvasSupport.resizedImageRect(
@@ -132,12 +139,36 @@ enum ScreenshotImageLayerTests {
 
     static func renderLayers(_ base: CGImage, _ annotations: [ScreenshotSupport.Annotation],
                              cache: ScreenshotRenderer.ImageLayerCache) -> CGImage? {
-        let sources = ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache)
-        return ScreenshotRenderer.renderExport(
+        render(base, annotations, sources: ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache))
+    }
+
+    static func render(_ base: CGImage, _ annotations: [ScreenshotSupport.Annotation],
+                       sources: ScreenshotRenderer.BlurSources) -> CGImage? {
+        ScreenshotRenderer.renderExport(
             baseImage: base, annotations: annotations, blurSources: sources, scale: 1,
             annotationShadowsEnabled: false, watermark: ScreenshotSupport.WatermarkStyle(),
             watermarkImage: nil, style: ScreenshotSupport.BackdropStyle(),
             fill: .none, downscaleTo1x: false)?.image
+    }
+
+    /// The RGBA bytes of `rect`, top row first.
+    static func bytes(_ image: CGImage, in rect: CGRect) -> [UInt8] {
+        let width = Int(rect.width), height = Int(rect.height)
+        guard let crop = image.cropping(to: rect) else { return [] }
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        bytes.withUnsafeMutableBytes { buffer in
+            CGContext(data: buffer.baseAddress, width: width, height: height,
+                      bitsPerComponent: 8, bytesPerRow: width * 4,
+                      space: CGColorSpaceCreateDeviceRGB(),
+                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?
+                .draw(crop, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return bytes
+    }
+
+    static func layer(_ color: NSColor, _ rect: CGRect) -> ScreenshotSupport.Annotation {
+        ScreenshotSupport.Annotation(tool: .image, rect: rect, imageAsset: ScreenshotSupport.ImageAsset(
+            image: solid(color, width: Int(rect.width), height: Int(rect.height))))
     }
 
     static func blurLayers(_ suite: TestSuite) {
@@ -171,15 +202,19 @@ enum ScreenshotImageLayerTests {
             let changed = ScreenshotCanvasSupportTests.pixel(reordered, x: 40, y: 40)
             suite.expect(Int(changed[2]) > Int(changed[1]) + 100,
                          "moving blue below blur changes sampling and invalidates the cache")
+            // The moved image still lies in the area, away from the hole.
             var moved = green
-            moved.rect.origin.x = 100
-            guard let movedResult = renderLayers(base, [moved, blur, blue], cache: cache) else {
+            moved.rect.origin.x = 75
+            guard let movedResult = renderLayers(base, [moved, blur, blue], cache: cache),
+                  let uncovered = renderLayers(base, [moved, blur], cache: cache) else {
                 suite.expect(false, "moved image exports")
                 continue
             }
             let exposed = ScreenshotCanvasSupportTests.pixel(movedResult, x: 40, y: 40)
-            suite.expect(Int(exposed[0]) > Int(exposed[1]) + 100,
-                         "moving the lower image makes blur sample the exposed red base")
+            // Next to the moved image's edge, a drawn area mixes red and green.
+            let edge = ScreenshotCanvasSupportTests.pixel(uncovered, x: 73, y: 40)
+            suite.expect(Int(exposed[0]) > Int(exposed[1]) + 100 && edge[0] > 40 && edge[1] > 40,
+                         "moving the lower image makes blur sample the exposed red base: \(exposed), \(edge)")
         }
     }
 
@@ -189,13 +224,238 @@ enum ScreenshotImageLayerTests {
             rect: CGRect(x: 20, y: 20, width: 80, height: 40), blurTextOnly: true,
             renderReferenceSize: CGSize(width: 120, height: 80))
         let cache = ScreenshotRenderer.ImageLayerCache()
-        cache.beginPass(base: base, annotations: [area])
+        cache.beginPass(base: base)
         var original = ScreenshotRenderer.BlurSources(image: base)
         let pending = cache.sources(for: area, images: [], original: original)
         original.textRuns = [CGRect(x: 30, y: 30, width: 20, height: 10)]
         let recognized = cache.sources(for: area, images: [], original: original)
         suite.expect(pending?.textRuns == nil && recognized?.textRuns == original.textRuns,
                      "text-only blur uses recognition results arriving after sample creation")
+    }
+
+    /// Samples carry random noise, so an area that got a new one on every
+    /// redraw would flicker while the user draws elsewhere.
+    private static func sampleReuse(_ suite: TestSuite) {
+        // Wide enough for an image to sit past what a blur reads around the area.
+        let base = solid(NSColor(deviceRed: 0.45, green: 0.5, blue: 0.55, alpha: 1), width: 200, height: 80)
+        let pasted = layer(NSColor(deviceRed: 0.3, green: 0.6, blue: 0.4, alpha: 1),
+                           CGRect(x: 20, y: 20, width: 60, height: 40))
+        let far = layer(NSColor(deviceRed: 0.7, green: 0.3, blue: 0.5, alpha: 1),
+                        CGRect(x: 170, y: 0, width: 10, height: 10))
+        let arrow = ScreenshotSupport.Annotation(tool: .arrow,
+            points: [CGPoint(x: 90, y: 72), CGPoint(x: 115, y: 76)])
+        for style in [ScreenshotSupport.BlurStyleID.pixelate, .blur] {
+            let area = ScreenshotSupport.Annotation(tool: .pixelate,
+                rect: CGRect(x: 10, y: 10, width: 70, height: 50), blurStyle: style)
+            let cache = ScreenshotRenderer.ImageLayerCache()
+            let original = ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache)
+            func sample() -> CGImage? {
+                let sources = cache.sources(for: area, images: [pasted], original: original)
+                return style == .pixelate ? sources?.mosaics[area.blurLevel] : sources?.softBlurs[area.blurLevel]
+            }
+            var moved = far
+            moved.rect.origin.y = 60
+            guard let first = renderLayers(base, [far, pasted, area], cache: cache) else {
+                suite.expect(false, "\(style): an area over an image renders")
+                continue
+            }
+            let firstSample = sample()
+            guard let marked = renderLayers(base, [far, pasted, area, arrow], cache: cache) else { continue }
+            let markedSample = sample()
+            guard let shifted = renderLayers(base, [moved, pasted, area, arrow], cache: cache) else { continue }
+            let pixels = bytes(first, in: area.rect)
+            suite.expect(firstSample != nil && markedSample === firstSample
+                         && bytes(marked, in: area.rect) == pixels,
+                         "\(style): a mark added elsewhere keeps the sample and noise of an area over an image")
+            suite.expect(sample() === firstSample && bytes(shifted, in: area.rect) == pixels,
+                         "\(style): moving an image outside the area keeps its sample and noise")
+            var dragged = area
+            dragged.rect.origin.x += 6
+            _ = renderLayers(base, [moved, pasted, dragged, arrow], cache: cache)
+            suite.expect(sample() === firstSample,
+                         "\(style): moving the area over the same image keeps its sample")
+            var newer = pasted
+            newer.rect.origin.x += 4
+            _ = renderLayers(base, [moved, newer, area, arrow], cache: cache)
+            let newerSources = cache.sources(for: area, images: [newer], original: original)
+            let newerSample = style == .pixelate
+                ? newerSources?.mosaics[area.blurLevel] : newerSources?.softBlurs[area.blurLevel]
+            suite.expect(newerSample != nil && newerSample !== firstSample,
+                         "\(style): moving the image below the area makes a new sample")
+        }
+    }
+
+    /// A long drag must not keep a sample for every position it passed.
+    private static func sampleBounds(_ suite: TestSuite) {
+        let base = solid(NSColor(deviceRed: 0.45, green: 0.5, blue: 0.55, alpha: 1), width: 120, height: 80)
+        let pasted = layer(NSColor(deviceRed: 0.3, green: 0.6, blue: 0.4, alpha: 1),
+                           CGRect(x: 20, y: 20, width: 60, height: 40))
+        for style in [ScreenshotSupport.BlurStyleID.pixelate, .erase] {
+            let area = ScreenshotSupport.Annotation(tool: .pixelate,
+                rect: CGRect(x: 10, y: 10, width: 90, height: 60), blurStyle: style)
+            let cache = ScreenshotRenderer.ImageLayerCache()
+            let original = ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache)
+            func held() -> CGImage? {
+                let sources = cache.sources(for: area, images: [pasted], original: original)
+                return style == .pixelate ? sources?.mosaics[area.blurLevel] : sources?.image
+            }
+            _ = renderLayers(base, [pasted, area], cache: cache)
+            let start = held()
+            // An erase sample keeps a copy of what its area reads and goes
+            // after one redraw without it; mosaics go once there are many.
+            let steps = style == .erase ? 2 : ScreenshotRenderer.ImageLayerCache.entryLimit + 2
+            for step in 1...steps {
+                var moved = pasted
+                moved.rect.origin.x += CGFloat(step)
+                _ = renderLayers(base, [moved, area], cache: cache)
+            }
+            _ = renderLayers(base, [pasted, area], cache: cache)
+            suite.expect(start != nil && held() !== start,
+                         "\(style): samples a drag no longer uses are dropped")
+        }
+    }
+
+    private static func textOnlyAreasOverImages(_ suite: TestSuite) {
+        // A white image pasted over dark text in the capture: covering that
+        // text must paint what shows there, not the capture below the image.
+        let dark = solid(NSColor(deviceRed: 0.1, green: 0.1, blue: 0.1, alpha: 1), width: 120, height: 80)
+        let white = layer(NSColor(deviceRed: 0.95, green: 0.95, blue: 0.95, alpha: 1),
+                          CGRect(x: 10, y: 10, width: 100, height: 60))
+        let strip = CGRect(x: 30, y: 30, width: 60, height: 12)
+        let covering = ScreenshotSupport.Annotation(tool: .pixelate,
+            rect: CGRect(x: 20, y: 20, width: 80, height: 40), blurTextOnly: true)
+        var sources = ScreenshotRenderer.BlurSources(image: dark, textRuns: [strip],
+                                                     imageLayerCache: ScreenshotRenderer.ImageLayerCache())
+        if let mosaic = ScreenshotRenderer.pixelatedImage(from: dark) {
+            sources.mosaics = [ScreenshotSupport.BlurStrength.defaultLevel: mosaic]
+        }
+        if let result = render(dark, [white, covering], sources: sources) {
+            let inside = ScreenshotCanvasSupportTests.pixel(result, x: 60, y: 36)
+            suite.expect(inside[0] > 180 && inside[1] > 180 && inside[2] > 180,
+                         "a text only area over a pasted image paints the image, not the capture under it: \(inside)")
+        } else {
+            suite.expect(false, "a text only area over an image renders")
+        }
+
+        // Recognition never reads pasted pixels, so their part inside a text
+        // only area is covered as unread text, and nothing outside the area.
+        let gray = solid(NSColor(deviceRed: 0.5, green: 0.5, blue: 0.5, alpha: 1), width: 120, height: 80)
+        let pasted = layer(NSColor(deviceRed: 0.35, green: 0.55, blue: 0.75, alpha: 1),
+                           CGRect(x: 20, y: 20, width: 60, height: 40))
+        let area = ScreenshotSupport.Annotation(tool: .pixelate,
+            rect: CGRect(x: 40, y: 10, width: 70, height: 60), blurTextOnly: true)
+        let read = ScreenshotRenderer.BlurSources(image: gray, textRuns: [],
+                                                  imageLayerCache: ScreenshotRenderer.ImageLayerCache())
+        guard let plain = render(gray, [pasted], sources: .none),
+              let covered = render(gray, [pasted, area], sources: read) else {
+            suite.expect(false, "a text only area over an image renders")
+            return
+        }
+        let inside = CGRect(x: 40, y: 20, width: 40, height: 40)
+        let outside = CGRect(x: 20, y: 20, width: 20, height: 40)
+        suite.expect(bytes(covered, in: inside) != bytes(plain, in: inside),
+                     "a text only area covers the pasted image inside it")
+        suite.expect(bytes(covered, in: outside) == bytes(plain, in: outside)
+                     && bytes(covered, in: CGRect(x: 80, y: 10, width: 30, height: 60))
+                        == bytes(plain, in: CGRect(x: 80, y: 10, width: 30, height: 60)),
+                     "the image outside the area and the capture without text stay as they are")
+    }
+
+    private static func eraseOverImages(_ suite: TestSuite) {
+        let base = solid(NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1), width: 120, height: 80)
+        let green = layer(NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1),
+                          CGRect(x: 20, y: 20, width: 80, height: 40))
+        // A mark on the image that erasing has to remove.
+        let mark = layer(NSColor(deviceRed: 0, green: 0, blue: 1, alpha: 1),
+                         CGRect(x: 45, y: 35, width: 10, height: 10))
+        let erase = ScreenshotSupport.Annotation(tool: .pixelate,
+            rect: CGRect(x: 40, y: 30, width: 20, height: 20), blurStyle: .erase)
+        let cache = ScreenshotRenderer.ImageLayerCache()
+        guard let result = renderLayers(base, [green, mark, erase], cache: cache) else {
+            suite.expect(false, "an erased area over an image renders")
+            return
+        }
+        let center = ScreenshotCanvasSupportTests.pixel(result, x: 50, y: 40)
+        suite.expect(Int(center[1]) > Int(center[0]) + 100 && Int(center[1]) > Int(center[2]) + 100,
+                     "erasing over a pasted image fills from the image around the area: \(center)")
+        // The area and the 8 px a fill can read around it, not the canvas.
+        let held = cache.sources(for: erase, images: [green, mark],
+                                 original: ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache))
+        suite.expect(held?.image?.width == 36 && held?.image?.height == 36
+                     && held?.imageOrigin == CGPoint(x: 32, y: 22),
+                     "an erase sample over images keeps only what its area reads, not a copy of the canvas")
+
+        // A text only area covers the image inside it as unread text, filled
+        // from what lies around the whole image, well past the area.
+        let textOnly = ScreenshotSupport.Annotation(tool: .pixelate,
+            rect: CGRect(x: 40, y: 30, width: 20, height: 20), blurStyle: .erase, blurTextOnly: true)
+        let read = ScreenshotRenderer.BlurSources(image: base, textRuns: [],
+                                                  imageLayerCache: ScreenshotRenderer.ImageLayerCache())
+        guard let covered = render(base, [green, textOnly], sources: read) else {
+            suite.expect(false, "a text only erased area over an image renders")
+            return
+        }
+        let filled = ScreenshotCanvasSupportTests.pixel(covered, x: 50, y: 40)
+        suite.expect(filled[0] > 200 && filled[1] < 50,
+                     "a text only erase reads around the whole image it covers: \(filled)")
+    }
+
+    /// Every style reads a little past the area's edge, so an image just
+    /// outside it shows there too, as on the canvas.
+    private static func areasBesideImages(_ suite: TestSuite) {
+        let base = solid(NSColor(deviceRed: 1, green: 0, blue: 0, alpha: 1), width: 120, height: 80)
+        let green = layer(NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1),
+                          CGRect(x: 20, y: 20, width: 80, height: 48))
+        let level = ScreenshotSupport.BlurStrength.defaultLevel
+        var capture = ScreenshotRenderer.BlurSources(image: base,
+                                                     imageLayerCache: ScreenshotRenderer.ImageLayerCache())
+        if let mosaic = ScreenshotRenderer.pixelatedImage(from: base),
+           let blurred = ScreenshotRenderer.softBlurredImage(from: base) {
+            capture.mosaics = [level: mosaic]
+            capture.softBlurs = [level: blurred]
+        }
+        // Each area starts on the image's bottom edge without overlapping it.
+        for style in ScreenshotSupport.BlurStyleID.allCases {
+            let area = ScreenshotSupport.Annotation(tool: .pixelate,
+                rect: CGRect(x: 40, y: 68, width: 20, height: 10), blurStyle: style)
+            guard let result = render(base, [green, area], sources: capture) else {
+                suite.expect(false, "\(style): an area beside an image renders")
+                continue
+            }
+            let edge = ScreenshotCanvasSupportTests.pixel(result, x: 50, y: style == .erase ? 68 : 69)
+            suite.expect(edge[1] > (style == .erase ? 100 : 40),
+                         "\(style): an area takes in the image just past its edge: \(edge)")
+        }
+    }
+
+    private static func startingTool(_ suite: TestSuite) {
+        typealias Tool = ScreenshotSupport.Tool
+        for raw in [nil, "", "missing", "select", "crop", "expandCanvas", "image"] {
+            suite.expect(Tool.startingTool(remembered: raw) == .arrow,
+                         "a new editor opens with arrow instead of \(raw ?? "nothing")")
+        }
+        suite.expect(Tool.startingTool(remembered: "pixelate") == .pixelate
+                     && Tool.startingTool(remembered: "text") == .text,
+                     "a new editor opens with the drawing tool used last")
+    }
+
+    private static func editorViewContracts(_ suite: TestSuite) {
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Screenshot/ScreenshotEditorView.swift",
+                                  encoding: .utf8)) ?? ""
+        func section(_ start: String, _ end: String) -> String {
+            guard let lower = source.range(of: start),
+                  let upper = source.range(of: end, range: lower.upperBound..<source.endIndex)
+            else { return "" }
+            return String(source[lower.lowerBound..<upper.lowerBound])
+        }
+        let upright = section("    private func drawImageUpright(", "    // MARK: - Gestures")
+        suite.expect(upright.contains("if !model.showsBackdrop {\n            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)\n            cg.fill(rect)\n        }"),
+                     "the canvas shows the checkerboard only without a backdrop, as the export does")
+        let controls = section("    private var expansionControls: some View {", "    private func updateExpansionFill()")
+        suite.expect(controls.contains(".padding(.horizontal, 12)\n        .padding(.vertical, 8)\n        .background(.regularMaterial, in: Capsule(style: .continuous))\n        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)"),
+                     "the fill controls sit in the same capsule as the crop and style bars")
+        suite.expect(controls.contains("supportsOpacity: false)\n                    .labelsHidden()"),
+                     "the custom fill well does not repeat the name its picker already shows")
     }
 
     private static func clipboardInput(_ suite: TestSuite) {

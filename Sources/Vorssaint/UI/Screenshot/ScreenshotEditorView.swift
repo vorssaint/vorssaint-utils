@@ -379,8 +379,12 @@ struct ScreenshotEditorView: View {
 
     private func drawImageUpright(_ cg: CGContext, in rect: CGRect, canvasHeight: CGFloat) {
         cg.saveGState()
-        cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
-        cg.fill(rect)
+        // The checkerboard shows where the picture is transparent. With a
+        // backdrop on, the export shows the backdrop there, and so does this.
+        if !model.showsBackdrop {
+            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
+            cg.fill(rect)
+        }
         cg.translateBy(x: 0, y: canvasHeight)
         cg.scaleBy(x: 1, y: -1)
         let flipped = CGRect(x: rect.minX,
@@ -1028,20 +1032,29 @@ struct ScreenshotEditorView: View {
     @State private var expansionCustomColor = Color.white
 
     private var expansionControls: some View {
-        HStack {
+        HStack(spacing: 10) {
             Picker(strings.colorLabel, selection: $expansionFillChoice) {
                 Text(strings.canvasFillWhite).tag(0)
                 Text(strings.canvasFillTransparent).tag(1)
                 Text(strings.canvasFillCustom).tag(2)
             }
+            .fixedSize()
             .onChange(of: expansionFillChoice) { _, _ in updateExpansionFill() }
             if expansionFillChoice == 2 {
+                // The fill picker beside it already names the custom color.
                 ColorPicker(strings.canvasFillCustom, selection: $expansionCustomColor, supportsOpacity: false)
+                    .labelsHidden()
                     .onChange(of: expansionCustomColor) { _, _ in updateExpansionFill() }
             }
             let size = model.expansionDraft?.size ?? model.imageSize
-            Text("\(Int(size.width)) × \(Int(size.height)) px").monospacedDigit()
+            Text("\(Int(size.width)) × \(Int(size.height)) px")
+                .font(.system(size: 11.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(.secondary)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.regularMaterial, in: Capsule(style: .continuous))
+        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)
     }
 
     private func updateExpansionFill() {

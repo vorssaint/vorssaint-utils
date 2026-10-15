@@ -226,10 +226,8 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         baseImage = image
         self.scale = scale
         let defaults = UserDefaults.standard
-        var lastTool = ScreenshotSupport.Tool(
-            rawValue: defaults.string(forKey: DefaultsKey.screenshotLastTool) ?? "") ?? .arrow
-        if lastTool == .select || lastTool == .crop || lastTool == .image { lastTool = .arrow }
-        tool = lastTool
+        tool = ScreenshotSupport.Tool.startingTool(
+            remembered: defaults.string(forKey: DefaultsKey.screenshotLastTool))
         color = ScreenshotSupport.ColorID.sanitized(
             defaults.string(forKey: DefaultsKey.screenshotLastColor))
         stroke = ScreenshotSupport.StrokeID.sanitized(
@@ -918,7 +916,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             return
         }
         let delta = CGPoint(x: point.x - dragStart.x, y: point.y - dragStart.y)
-        if annotations[index].points.isEmpty {
+        if annotations[index].tool == .image {
+            // Whole pixels, so the moved layer still exports pixel for pixel.
+            annotations[index].rect = CGRect(origin: CGPoint(x: (moveOrigin.minX + delta.x).rounded(),
+                                                             y: (moveOrigin.minY + delta.y).rounded()),
+                                             size: moveOrigin.size)
+        } else if annotations[index].points.isEmpty {
             annotations[index].rect = moveOrigin.offsetBy(dx: delta.x, dy: delta.y)
         } else {
             annotations[index].points = movePoints.map {
@@ -1432,11 +1435,24 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// Reads and decodes the clipboard image on the shared pasteboard lane,
+    /// as opening the clipboard image in the editor does: the read can race
+    /// with the clipboard history poll, data another app only promised can
+    /// keep it waiting, and a large photo copied in Finder takes a while to
+    /// decode. The paste lands only while this editor is still open.
     private func pasteImageFromClipboard() {
-        guard let image = ScreenshotService.clipboardImage(from: .general),
-              let capture = ScreenshotService.imageCapture(from: image),
-              model.pasteImage(capture.image)
-        else { NSSound.beep(); return }
+        GeneralPasteboardAccess.shared.async({
+            autoreleasepool {
+                ScreenshotService.clipboardImage(from: .general)
+                    .flatMap { ScreenshotService.imageCapture(from: $0) }
+            }
+        }) { [weak self] capture in
+            guard let self, self.window != nil else { return }
+            guard let capture, self.model.pasteImage(capture.image) else {
+                NSSound.beep()
+                return
+            }
+        }
     }
 
     private func handleKey(_ event: NSEvent) -> Bool {

@@ -64,11 +64,14 @@ enum ScreenshotCanvasSupport {
         context.draw(image, in: destination)
         return context.makeImage()
     }
+    /// Centered on whole pixels: a layer drawn off the pixel grid is
+    /// resampled, and a pasted screenshot's text would export blurred.
     static func fittedImageRect(_ image: CGImage, canvas: CGSize) -> CGRect {
         let width = CGFloat(image.width), height = CGFloat(image.height)
         let factor = min(1, min(canvas.width / width, canvas.height / height))
         let size = CGSize(width: width * factor, height: height * factor)
-        return CGRect(x: (canvas.width - size.width) / 2, y: (canvas.height - size.height) / 2,
+        return CGRect(x: ((canvas.width - size.width) / 2).rounded(.down),
+                      y: ((canvas.height - size.height) / 2).rounded(.down),
                       width: size.width, height: size.height)
     }
     static let imageHandles = ScreenshotSupport.Handle.allCases

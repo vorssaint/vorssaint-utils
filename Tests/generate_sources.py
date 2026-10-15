@@ -112,6 +112,11 @@ def main():
               "    private func registerUndo()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
               "    func cancelCanvasExpansion()", "    func hitTest("])
+          + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
+          + "}\n}\n")
+    write("ScreenshotEditorPaste.swift",
+          "import AppKit\nextension ScreenshotCanvasModelTests.Paste {\nfinal class Host: Fixture {\n"
+          + declaration(editor, "    private func pasteImageFromClipboard()").replace("private func", "func", 1)
           + "}\n}\n")
     panel = "Sources/Vorssaint/App/AppDelegate.swift"
     write("UpdateIntroFlow.swift", "import AppKit\nimport Foundation\n"

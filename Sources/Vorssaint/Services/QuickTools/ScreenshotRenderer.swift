@@ -52,27 +52,27 @@ enum ScreenshotRenderer {
                                 annotationShadowsEnabled: Bool,
                                 skippingText editingID: UUID? = nil) {
         blurSources.eraseCache?.beginPass(image: blurSources.image, textRuns: blurSources.textRuns)
-        blurSources.imageLayerCache?.beginPass(base: blurSources.image, annotations: annotations)
+        blurSources.imageLayerCache?.beginPass(base: blurSources.image)
         var precedingImages: [ScreenshotSupport.Annotation] = []
         for annotation in annotations {
             switch annotation.tool {
             case .pixelate:
-                if annotation.blurStyle != .erase {
-                    let images = annotation.blurTextOnly ? [] : precedingImages
-                    let cache = blurSources.imageLayerCache
-                    if let sources = cache?.sources(for: annotation, images: images, original: blurSources) {
-                        drawBlurArea(annotation, in: context, sources: sources, imageSize: imageSize)
-                    } else if images.isEmpty && annotation.renderReferenceSize == nil {
-                        drawBlurArea(annotation, in: context, sources: blurSources, imageSize: imageSize)
-                    } else {
-                        context.saveGState()
-                        context.setBlendMode(.copy)
-                        context.setFillColor(CGColor(gray: 0, alpha: 1))
-                        context.fill(annotation.rect.intersection(CGRect(origin: .zero, size: imageSize)))
-                        context.restoreGState()
-                    }
-                } else {
+                // Every style paints what lies below the area, pasted images
+                // included, and only images its paint reads change what that is.
+                let images = ImageLayerCache.images(below: annotation, among: precedingImages,
+                                                    textRuns: blurSources.textRuns, imageSize: imageSize)
+                if ImageLayerCache.usesCapture(annotation, below: images) {
                     drawBlurArea(annotation, in: context, sources: blurSources, imageSize: imageSize)
+                } else if let sources = blurSources.imageLayerCache?.sources(
+                    for: annotation, images: images, original: blurSources) {
+                    drawBlurArea(annotation, in: context, sources: sources, imageSize: imageSize)
+                } else {
+                    // Without a sample of what is below, the area stays covered.
+                    context.saveGState()
+                    context.setBlendMode(.copy)
+                    context.setFillColor(CGColor(gray: 0, alpha: 1))
+                    context.fill(annotation.rect.intersection(CGRect(origin: .zero, size: imageSize)))
+                    context.restoreGState()
                 }
             case .redact:
                 context.setFillColor(color(annotation.color))
@@ -312,11 +312,13 @@ enum ScreenshotRenderer {
     /// blur per level in use, the capture and its finished fills for erasing,
     /// and the text runs recognition found. `textRuns` stays nil until
     /// recognition has read the capture, and text only areas cover all of
-    /// themselves until then.
+    /// themselves until then. `imageOrigin` is where `image` starts on the
+    /// canvas: an erase sample over pasted images holds only what its area reads.
     struct BlurSources {
         var mosaics: [Int: CGImage] = [:]
         var softBlurs: [Int: CGImage] = [:]
         var image: CGImage?
+        var imageOrigin = CGPoint.zero
         var eraseCache: EraseCache?
         var textRuns: [CGRect]?
         var imageLayerCache: ImageLayerCache?
@@ -348,25 +350,29 @@ enum ScreenshotRenderer {
                        clippedTo: runs.map { $0.intersection(rect) }, interpolation: .high)
         case .erase:
             guard let image = sources.image else { return }
+            // Fills are made in the image's own pixels and drawn back on the canvas.
+            let origin = sources.imageOrigin
+            let local = { (canvas: CGRect) in canvas.offsetBy(dx: -origin.x, dy: -origin.y) }
             // The fill is read around the whole run, so an area that cuts
             // through a word never samples the word itself. Text runs are
             // skipped while reading, and a run's own never lies in what is
             // read around it, so one list serves every run.
-            let text = annotation.blurTextOnly ? (sources.textRuns ?? []) : []
+            let text = (annotation.blurTextOnly ? (sources.textRuns ?? []) : []).map(local)
             let bounds = CGRect(origin: .zero, size: imageSize)
             for run in runs {
-                guard let patch = sources.eraseCache?.patch(for: run, in: image, skipping: text)
-                        ?? erasePatch(for: run, in: image, skipping: text) else { continue }
+                guard let patch = sources.eraseCache?.patch(for: local(run), in: image, skipping: text)
+                        ?? erasePatch(for: local(run), in: image, skipping: text) else { continue }
+                let target = patch.rect.offsetBy(dx: origin.x, dy: origin.y)
                 context.saveGState()
                 context.clip(to: run.intersection(rect).intersection(bounds))
                 // Replace what is under the run. Blending would let text in a
                 // translucent capture show through a fill with alpha.
                 context.setBlendMode(.copy)
                 // CGContext.draw expects an unflipped space, so flip around the patch.
-                context.translateBy(x: 0, y: patch.rect.minY + patch.rect.maxY)
+                context.translateBy(x: 0, y: target.minY + target.maxY)
                 context.scaleBy(x: 1, y: -1)
                 context.interpolationQuality = .high
-                context.draw(patch.image, in: patch.rect)
+                context.draw(patch.image, in: target)
                 context.restoreGState()
             }
         }
