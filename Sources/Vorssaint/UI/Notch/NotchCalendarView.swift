@@ -320,6 +320,23 @@ private struct NotchCalendarEventRow: View {
     let choose: (Bool) -> Void
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
+    @State private var expanded = false
+    @State private var fullNotesHeight: CGFloat = 0
+    @State private var shownNotesHeight: CGFloat = 0
+    @AppStorage(DefaultsKey.notchCalendarNotes) private var showsNotes = true
+
+    private var canExpandNotes: Bool {
+        NotchCalendarSupport.notesCanExpand(fullHeight: fullNotesHeight,
+                                           shownHeight: shownNotesHeight, expanded: expanded)
+    }
+
+    private func notesHeightReader(_ height: Binding<CGFloat>) -> some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear { height.wrappedValue = proxy.size.height }
+                .onChange(of: proxy.size.height) { _, value in height.wrappedValue = value }
+        }
+    }
 
     private var ongoing: Bool { !event.allDay && event.start <= now && event.end > now }
     private var ended: Bool { event.end <= now }
@@ -332,40 +349,84 @@ private struct NotchCalendarEventRow: View {
             .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
     }
 
-    private var card: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            if ongoing || isNext {
-                Text(ongoing ? text.ongoing : text.next)
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
-                    .lineLimit(1)
-            }
-            Text(event.title.isEmpty ? text.untitled : event.title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
+    @ViewBuilder private var dateLabel: some View {
+        if event.allDay {
+            Text(text.allDay)
+        } else if Calendar.current.isDate(event.start, inSameDayAs: day)
+                    && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
+            Text(event.start, format: .dateTime.hour().minute())
+                + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
+        } else {
+            Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
+                + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
+        }
+    }
+
+    private var notesView: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(event.notes)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(expanded ? nil : 3)
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Group {
-                    if event.allDay {
-                        Text(text.allDay)
-                    } else if Calendar.current.isDate(event.start, inSameDayAs: day)
-                                && Calendar.current.isDate(event.end.addingTimeInterval(-1), inSameDayAs: day) {
-                        Text(event.start, format: .dateTime.hour().minute())
-                            + Text(" · ") + Text(event.end, format: .dateTime.hour().minute())
-                    } else {
-                        Text(event.start, format: .dateTime.day().month(.abbreviated).hour().minute())
-                            + Text(" → ") + Text(event.end, format: .dateTime.day().month(.abbreviated).hour().minute())
+                .background(notesHeightReader($shownNotesHeight))
+                .background(alignment: .top) {
+                    Text(event.notes)
+                        .font(.system(size: 11))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .hidden()
+                        .background(notesHeightReader($fullNotesHeight))
+                }
+            if canExpandNotes {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: expanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(maxWidth: .infinity, minHeight: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.6))
+                .accessibilityLabel(expanded ? text.showLess : text.showMore)
+            }
+        }
+    }
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(event.title.isEmpty ? text.untitled : event.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(ended ? 0.65 : 1))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if countdown == true {
+                        Image(systemName: "timer")
+                            .accessibilityLabel(text.countdown)
                     }
                 }
-                .fixedSize(horizontal: false, vertical: true)
-                // The mark of an event chosen to count down on its own.
-                if countdown == true {
-                    Image(systemName: "timer")
-                        .accessibilityLabel(text.countdown)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .trailing, spacing: 3) {
+                    if ongoing || isNext || countdown == true {
+                        HStack(spacing: 5) {
+                            if ongoing || isNext {
+                                Text(ongoing ? text.ongoing : text.next)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(ongoing ? .mint : .white.opacity(0.7))
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                    dateLabel
+                        .fixedSize(horizontal: false, vertical: true)
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.75))
                 }
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 150, alignment: .trailing)
             }
-            .font(.system(size: 11)).monospacedDigit()
-            .foregroundStyle(.white.opacity(0.75))
+            if showsNotes, !event.notes.isEmpty { notesView }
             Text(event.calendar)
                 .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1)
             if !event.location.isEmpty {

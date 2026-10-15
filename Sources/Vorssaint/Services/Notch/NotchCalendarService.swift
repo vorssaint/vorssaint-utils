@@ -28,7 +28,8 @@ private actor NotchCalendarReader {
                                       start: start, end: end, allDay: event.isAllDay,
                                       location: event.location ?? "", color: Self.tint(event.calendar),
                                       calendarItemIdentifier: event.calendarItemIdentifier,
-                                      recurring: recurring, countdownKey: countdownKey)
+                                      recurring: recurring, countdownKey: countdownKey,
+                                      notes: (event.notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
