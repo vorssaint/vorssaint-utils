@@ -67,6 +67,7 @@ enum NotchKeyMonitorTests {
     class State {
         var eventMonitors: [Any] = []
         var clickedSinceOpening = false
+        var showsKeyboardFocus = false
         var keepsWorkingSurface = false
         let panel: Panel? = Panel()
         var windowHost: Host? = Host()
@@ -101,6 +102,21 @@ enum NotchKeyMonitorTests {
         }
         let service = Service()
         service.installEventMonitors()
+        let click = NSEvent(type: .leftMouseDown, window: service.panel, keyCode: 0)
+        _ = NSEvent.handler?(click)
+        _ = NSEvent.handler?(NSEvent(window: Panel(), keyCode: 48))
+        suite.expect(!service.showsKeyboardFocus,
+                     "pointer input and keys in another window do not expose the island's automatic focus")
+        let tab = NSEvent(window: service.panel, keyCode: 48)
+        suite.expect(NSEvent.handler?(tab) != nil && service.showsKeyboardFocus,
+                     "Tab restores visible focus and still reaches the controls for navigation")
+        _ = NSEvent.handler?(click)
+        suite.expect(service.showsKeyboardFocus,
+                     "pointer input after keyboard navigation keeps the focused control visible")
+        service.showsKeyboardFocus = false
+        let backTab = NSEvent(window: service.panel, keyCode: 48, modifierFlags: .shift)
+        suite.expect(NSEvent.handler?(backTab) != nil && service.showsKeyboardFocus,
+                     "reverse keyboard navigation restores visible focus without consuming Shift-Tab")
         let escape = NSEvent(window: service.panel, keyCode: 53)
         // Each Escape branch, reached from a field that can hold a composing
         // input method: the gallery search, a field in a Tools utility, one

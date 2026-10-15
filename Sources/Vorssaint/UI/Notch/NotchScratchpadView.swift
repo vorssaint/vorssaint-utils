@@ -24,8 +24,8 @@ struct NotchScratchpadView: View {
     private static let editorInset = NSSize(width: 6, height: 6)
 
     /// Holds the editor's text view so a tab change can aim the caret at it
-    /// and a clear can go through its undo. Weak, since the view belongs to
-    /// the editor.
+    /// and a clear or a checkbox click can go through its undo. Weak, since
+    /// the view belongs to the editor.
     private final class EditorHandle {
         weak var view: NSTextView?
     }
@@ -49,7 +49,11 @@ struct NotchScratchpadView: View {
                         PlainTextEditor(text: $pad.text, fontSize: textSize,
                                         textColor: .white,
                                         textContainerInset: Self.editorInset,
-                                        usesFindBar: true) { view in
+                                        usesFindBar: true,
+                                        completesTaskBoxes: true,
+                                        continuesLists: true,
+                                        onCommandReturn: { pad.togglePreview() },
+                                        isActive: !pad.isPreviewing) { view in
                             view.insertionPointColor = .white
                             editor.view = view
                             DispatchQueue.main.async { focusEditor() }
@@ -59,7 +63,9 @@ struct NotchScratchpadView: View {
                         .accessibilityHidden(pad.isPreviewing)
                         if pad.isPreviewing {
                             MarkdownPreview(blocks: ScratchpadSupport.markdownPreview(pad.text),
-                                            baseSize: textSize)
+                                            baseSize: textSize,
+                                            taskStates: (done: text.taskDone, notDone: text.taskNotDone),
+                                            onToggleTask: { pad.toggleTask(box: $0, through: editor.view) })
                         } else if pad.text.isEmpty {
                             Text(text.placeholder)
                                 .font(.system(size: textSize))

@@ -227,7 +227,7 @@ private struct NotchMasterFader: View {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
                                  label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 28)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
-                NotchEditablePercent(percent: Int((level * 100).rounded()), maximum: 100,
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: level), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,
                                      label: l10n.s.mixerSystemOutputTitle, height: 28) {
                     adjustOutput(volume: $0)
@@ -271,7 +271,7 @@ private struct NotchMicrophoneFader: View {
                                  label: l10n.s.mixerInputTitle, vertical: true, trackThickness: 28)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                     .disabled(micMute.isMuted)
-                NotchEditablePercent(percent: Int((volume * 100).rounded()), maximum: 100,
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-fader", editingID: $editingVolumeID,
                                      label: l10n.s.mixerInputTitle, height: 28) {
                     input.setInputVolume($0)
@@ -447,7 +447,7 @@ private struct NotchMixerOptions: View {
                                  label: l10n.s.mixerInputTitle)
                     .frame(height: 22)
                     .disabled(micMute.isMuted)
-                NotchEditablePercent(percent: Int((volume * 100).rounded()), maximum: 100,
+                NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: volume), maximum: 100,
                                      editorID: "notch-microphone-input", editingID: $editingVolumeID,
                                      label: l10n.s.mixerInputTitle) {
                     input.setInputVolume($0)
@@ -499,7 +499,7 @@ private struct NotchAppFader: View {
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     private var strings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
-    private var percent: Int { Int((app.volume * 100).rounded()) }
+    private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
     private var boosting: Bool { percent > 100 }
     private var muted: Bool { app.volume <= 0.001 }
     private var routed: Bool { !app.isBypassed && app.selectedOutputDeviceUID != nil }

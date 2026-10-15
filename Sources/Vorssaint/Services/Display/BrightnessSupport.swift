@@ -124,11 +124,13 @@ enum BrightnessSupport {
 
     /// Parses a Get VCP Feature reply: checksum first (seeded with the host
     /// address the display answers to), then the big-endian maximum and
-    /// current values. Anything malformed reads as no reply.
-    static func parseReply(_ reply: [UInt8]) -> (current: UInt16, maximum: UInt16)? {
+    /// current values. Anything malformed reads as no reply, and so does a
+    /// reply for another control: a monitor read too early hands back the
+    /// answer to the previous request.
+    static func parseReply(_ reply: [UInt8], code: UInt8) -> (current: UInt16, maximum: UInt16)? {
         guard reply.count >= replyLength else { return nil }
         let checksum = reply[0..<(reply.count - 1)].reduce(UInt8(0x50)) { $0 ^ $1 }
-        guard checksum == reply[reply.count - 1] else { return nil }
+        guard checksum == reply[reply.count - 1], reply[2] == 0x02, reply[4] == code else { return nil }
         let maximum = UInt16(reply[6]) << 8 | UInt16(reply[7])
         let current = UInt16(reply[8]) << 8 | UInt16(reply[9])
         return (current, maximum)

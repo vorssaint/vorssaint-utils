@@ -448,9 +448,13 @@ enum ScreenshotImageLayerTests {
             else { return "" }
             return String(source[lower.lowerBound..<upper.lowerBound])
         }
-        let upright = section("    private func drawImageUpright(", "    // MARK: - Gestures")
-        suite.expect(upright.contains("if !model.showsBackdrop {\n            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)\n            cg.fill(rect)\n        }"),
-                     "the canvas shows the checkerboard only without a backdrop, as the export does")
+        let content = section("    private func drawContent(", "    /// Highlight for recognized words")
+        let checker = content.range(of: "let showsChecker = !model.showsBackdrop\n        if showsChecker {\n            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)\n            cg.fill(imageRect)\n        }")
+        let layer = content.range(of: "if isolatesContent { cg.beginTransparencyLayer(auxiliaryInfo: nil) }")
+        suite.expect(checker != nil && layer != nil && checker!.upperBound <= layer!.lowerBound,
+                     "the canvas shows the checkerboard only without a backdrop, as the export does, below the content layer")
+        suite.expect(content.contains("$0.tool == .pixelate || (showsChecker && $0.tool == .spotlight)"),
+                     "a spotlight over the checkerboard draws in its own layer, so transparent parts the export keeps stay undimmed")
         let controls = section("    private var expansionControls: some View {", "    private func updateExpansionFill()")
         suite.expect(controls.contains(".padding(.horizontal, 12)\n        .padding(.vertical, 8)\n        .background(.regularMaterial, in: Capsule(style: .continuous))\n        .shadow(color: .black.opacity(0.16), radius: 12, y: 3)"),
                      "the fill controls sit in the same capsule as the crop and style bars")

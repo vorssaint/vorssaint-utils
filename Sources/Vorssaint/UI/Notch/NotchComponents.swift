@@ -770,3 +770,29 @@ extension NSAlert {
         return response
     }
 }
+
+extension NSSavePanel {
+    /// Runs an open or save panel from inside the island just above it, like
+    /// `NSAlert.confirmAboveIsland`: an application-modal panel would open
+    /// below the island, and a sheet would move and reskin its surface.
+    func runAboveIsland() -> NSApplication.ModalResponse {
+        let island = NotchService.shared.presentationWindow
+        var observers: [NSObjectProtocol] = []
+        if let island {
+            // The modal session resets the level when it activates the app or
+            // makes the panel key. Raise it once running and after each reset.
+            let level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+            let raise: (Notification) -> Void = { [weak self] _ in self?.level = level }
+            observers = [NSWindow.didBecomeKeyNotification, NSApplication.didBecomeActiveNotification].map {
+                NotificationCenter.default.addObserver(forName: $0, object: nil, queue: .main, using: raise)
+            }
+            DispatchQueue.main.async { [weak self] in self?.level = level }
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let response = runModal()
+        observers.forEach(NotificationCenter.default.removeObserver)
+        // A closed island declines key status, so this only returns to an open one.
+        if let island, island.isVisible { island.makeKey() }
+        return response
+    }
+}

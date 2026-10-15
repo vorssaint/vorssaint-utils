@@ -32,11 +32,14 @@ enum ScratchpadRetention: String, CaseIterable {
     }
 }
 
-struct ScratchpadMarkdownBlock {
+struct ScratchpadMarkdownBlock: Equatable {
     enum Kind: Equatable {
         case paragraph
         case heading(Int)
         case unorderedListItem(depth: Int)
+        /// A `- [ ]` or `- [x]` item; `box` is the UTF-16 offset of its `[`
+        /// in the text, so a click edits the very box it was drawn from.
+        case taskListItem(depth: Int, checked: Bool, box: Int)
         case orderedListItem(ordinal: Int, depth: Int)
         case quote(depth: Int)
         case code
@@ -46,6 +49,9 @@ struct ScratchpadMarkdownBlock {
     let kind: Kind
     let containerID: Int?
     let text: AttributedString
+    /// The quotes around a list item, which its reading keeps ahead of its
+    /// marker; a quote's own paragraphs carry their depth in `kind`.
+    var quoteDepth = 0
 }
 
 struct ScratchpadPad: Codable, Equatable, Identifiable {
@@ -232,9 +238,12 @@ enum ScratchpadSupport {
     /// second Markdown parser or any work while the preview is closed.
     static func markdownPreview(_ text: String) -> [ScratchpadMarkdownBlock] {
         guard !text.isEmpty else { return [] }
+        // Source positions say where each task's box sits in the text. They
+        // leave the blocks once read, so the reading never carries them.
         let options = AttributedString.MarkdownParsingOptions(
             interpretedSyntax: .full,
-            failurePolicy: .returnPartiallyParsedIfPossible)
+            failurePolicy: .returnPartiallyParsedIfPossible,
+            appliesSourcePositionAttributes: true)
         guard let parsed = try? AttributedString(markdown: text, options: options) else {
             return [ScratchpadMarkdownBlock(kind: .paragraph,
                                             containerID: nil,
@@ -245,6 +254,7 @@ enum ScratchpadSupport {
         var currentID: Int?
         var currentKind = ScratchpadMarkdownBlock.Kind.paragraph
         var currentContainerID: Int?
+        var currentQuoteDepth = 0
         var currentText = AttributedString()
 
         func finishBlock() {
@@ -256,7 +266,8 @@ enum ScratchpadSupport {
             }
             blocks.append(ScratchpadMarkdownBlock(kind: currentKind,
                                                   containerID: currentContainerID,
-                                                  text: currentText))
+                                                  text: currentText,
+                                                  quoteDepth: currentQuoteDepth))
             currentText = AttributedString()
         }
 
@@ -269,10 +280,12 @@ enum ScratchpadSupport {
                 let presentation = markdownBlockPresentation(components)
                 currentKind = presentation.kind
                 currentContainerID = presentation.containerID
+                currentQuoteDepth = presentation.quoteDepth
             }
             currentText.append(AttributedString(parsed[run.range]))
         }
         finishBlock()
+        blocks = blocks.map { withTask($0, in: text) }
 
         return blocks.isEmpty
             ? [ScratchpadMarkdownBlock(kind: .paragraph,
@@ -281,23 +294,151 @@ enum ScratchpadSupport {
             : blocks
     }
 
+    /// The checkbox opening a list item's text: `[ ]`, `[x]` or `[X]`, and
+    /// the bare `[]` that is easy to type, followed by a space or the end.
+    private static func taskMarker(in text: String) -> (checked: Bool, length: Int)? {
+        let characters = Array(text.prefix(4))
+        func closes(_ at: Int) -> Bool { characters.count == at || characters[at] == " " || characters[at] == "\t" }
+        guard characters.first == "[" else { return nil }
+        if characters.count > 1, characters[1] == "]", closes(2) { return (false, 2) }
+        if characters.count > 2, characters[2] == "]", closes(3) {
+            if characters[1] == " " { return (false, 3) }
+            if characters[1] == "x" || characters[1] == "X" { return (true, 3) }
+        }
+        return nil
+    }
+
+    /// Turns a list item that opens with a checkbox into a task that knows
+    /// where its box is in `source`: the parser's own position of the item's
+    /// first run, so the reading and a click can never disagree about which
+    /// line a box belongs to. Source positions leave the block here.
+    private static func withTask(_ block: ScratchpadMarkdownBlock, in source: String) -> ScratchpadMarkdownBlock {
+        var text = block.text
+        let first = text.runs.first
+        text.markdownSourcePosition = nil
+        let plain = ScratchpadMarkdownBlock(kind: block.kind, containerID: block.containerID, text: text,
+                                            quoteDepth: block.quoteDepth)
+        // The box has to open the item as plain text: `[ ]` in code or
+        // emphasis is only text, and so is an escaped or encoded bracket,
+        // which reads the same but leaves no box where its run starts.
+        guard case .unorderedListItem(let depth) = block.kind,
+              let first, first.inlinePresentationIntent == nil, first.link == nil,
+              let position = first.markdownSourcePosition,
+              // Foundation turns the parser's line and UTF-8 column into an
+              // index; its NSRange variant misplaces every line after a CRLF.
+              let start = Range<String.Index>(position, in: source)?.lowerBound,
+              let marker = taskMarker(in: String(text.characters))
+        else { return plain }
+        // A NUL above the item moves that conversion onto a later line, which
+        // may hold a box of the same shape, so the text there has to read as
+        // the run does, up to the first escape or entity the parser resolved.
+        let run = String(block.text[first.range].characters)
+        guard run.hasPrefix(source[start...].prefix(run.count).prefix { !"\\&\u{0}".contains($0) })
+        else { return plain }
+        let box = NSRange(start..<start, in: source).location
+        guard let written = taskBox(at: box, in: source),
+              written.checked == marker.checked, written.length == marker.length else { return plain }
+        let opening = text.characters.startIndex
+        var end = text.characters.index(opening, offsetBy: marker.length)
+        if end < text.characters.endIndex, text.characters[end] == " " || text.characters[end] == "\t" {
+            end = text.characters.index(after: end)
+        }
+        text.removeSubrange(opening..<end)
+        return ScratchpadMarkdownBlock(kind: .taskListItem(depth: depth, checked: marker.checked, box: box),
+                                       containerID: block.containerID, text: text, quoteDepth: block.quoteDepth)
+    }
+
+    /// The box whose `[` sits at UTF-16 offset `box` of `text`: `[ ]`, `[x]`,
+    /// `[X]` or the bare `[]`, or nil when no box starts there.
+    private static func taskBox(at box: Int, in text: String) -> (checked: Bool, length: Int)? {
+        let text = text as NSString
+        func character(_ offset: Int) -> String? {
+            box + offset < text.length ? text.substring(with: NSRange(location: box + offset, length: 1)) : nil
+        }
+        guard box >= 0, character(0) == "[" else { return nil }
+        if character(1) == "]" { return (false, 2) }
+        guard let mark = character(1), [" ", "x", "X"].contains(mark), character(2) == "]" else { return nil }
+        return (mark != " ", 3)
+    }
+
+    static let taskScheme = "vorssaint-task"
+
+    /// The edit that checks or unchecks the box whose `[` sits at UTF-16
+    /// offset `box`, or nil when the text holds no box there any more.
+    static func taskToggleEdit(box: Int, in text: String) -> (range: NSRange, replacement: String)? {
+        guard let current = taskBox(at: box, in: text) else { return nil }
+        if current.length == 2 { return (NSRange(location: box + 1, length: 0), "x") }
+        return (NSRange(location: box + 1, length: 1), current.checked ? " " : "x")
+    }
+
+    private static let listMarker = try? NSRegularExpression(
+        pattern: #"^([ \t]*(?:>[ \t]*)*)([-*+]|\d+[.)])([ \t]+)(\[[ xX]?\](?:[ \t]+|$))?"#)
+
+    /// What Shift-Return does with the caret at `caret`: in a list item it
+    /// opens the next one, with the same marker, a fresh unchecked box for a
+    /// task and the next number for a numbered item; on an empty item it ends
+    /// the list instead; anywhere else it is a plain line break. `range` is
+    /// what is replaced and `caret` the offset after the edit.
+    static func lineBreakEdit(in text: String, selection: NSRange) -> (range: NSRange, replacement: String, caret: Int) {
+        let plain = (range: selection, replacement: "\n", caret: selection.location + 1)
+        let whole = text as NSString
+        guard selection.length == 0, selection.location <= whole.length, let listMarker else { return plain }
+        let line = whole.lineRange(for: NSRange(location: selection.location, length: 0))
+        var content = line
+        while content.length > 0, "\n\r".contains(whole.substring(with: NSRange(location: NSMaxRange(content) - 1, length: 1))) {
+            content.length -= 1
+        }
+        let lineText = whole.substring(with: content)
+        guard let match = listMarker.firstMatch(in: lineText, range: NSRange(location: 0, length: (lineText as NSString).length))
+        else { return plain }
+        let markerEnd = content.location + match.range.length
+        guard selection.location >= markerEnd else { return plain }
+        let lineNS = lineText as NSString
+        let prefix = lineNS.substring(with: match.range(at: 1))
+        let marker = lineNS.substring(with: match.range(at: 2))
+        let spacing = lineNS.substring(with: match.range(at: 3))
+        let hasBox = match.range(at: 4).location != NSNotFound
+        if selection.location == NSMaxRange(content), match.range.length == lineNS.length || lineNS.substring(from: match.range.length).trimmingCharacters(in: .whitespaces).isEmpty {
+            // An empty item: the list ends, and the marker goes.
+            return (content, "", content.location)
+        }
+        var next = marker
+        if let digits = Int(marker.dropLast()), let delimiter = marker.last { next = "\(digits + 1)\(delimiter)" }
+        let replacement = "\n" + prefix + next + spacing + (hasBox ? "[ ] " : "")
+        return (selection, replacement, selection.location + (replacement as NSString).length)
+    }
+
+    /// Whether `before`, the text of a line up to the caret, ends with the
+    /// `[` of a list item's checkbox, so that a `]` typed next closes an
+    /// empty box: `- [`, `  * [`, `> - [`.
+    static func completesEmptyTaskBox(before: String) -> Bool {
+        guard before.hasSuffix("["), let marker = taskLine else { return false }
+        let box = before + " ]"
+        return marker.firstMatch(in: box, range: NSRange(box.startIndex..., in: box)) != nil
+    }
+
+    private static let taskLine = try? NSRegularExpression(pattern: #"^[\s>]*[-*+][ \t]+\[( |x|X)?\]([ \t]|$)"#)
+
     private static func markdownBlockPresentation(
         _ components: [PresentationIntent.IntentType]
-    ) -> (kind: ScratchpadMarkdownBlock.Kind, containerID: Int?) {
+    ) -> (kind: ScratchpadMarkdownBlock.Kind, containerID: Int?, quoteDepth: Int) {
         var listDepth = 0
         var listIsOrdered: Bool?
         var listOrdinal = 1
         var quoteDepth = 0
+        // Components run from the innermost out, so a quote met after a list
+        // holds that list, and its items keep the quote around their marker.
+        var listQuoteDepth = 0
         var containerID: Int?
 
         for component in components {
             switch component.kind {
             case .header(let level):
-                return (.heading(level), nil)
+                return (.heading(level), nil, 0)
             case .codeBlock:
-                return (.code, nil)
+                return (.code, nil, 0)
             case .thematicBreak:
-                return (.thematicBreak, nil)
+                return (.thematicBreak, nil, 0)
             case .listItem(let ordinal):
                 if listDepth == 0 { listOrdinal = ordinal }
             case .orderedList:
@@ -310,6 +451,7 @@ enum ScratchpadSupport {
                 containerID = component.identity
             case .blockQuote:
                 quoteDepth += 1
+                if listDepth > 0 { listQuoteDepth += 1 }
                 containerID = component.identity
             case .paragraph, .table, .tableHeaderRow, .tableRow, .tableCell:
                 break
@@ -319,13 +461,13 @@ enum ScratchpadSupport {
         }
 
         if listIsOrdered == true {
-            return (.orderedListItem(ordinal: listOrdinal, depth: max(1, listDepth)), containerID)
+            return (.orderedListItem(ordinal: listOrdinal, depth: max(1, listDepth)), containerID, listQuoteDepth)
         }
         if listIsOrdered == false {
-            return (.unorderedListItem(depth: max(1, listDepth)), containerID)
+            return (.unorderedListItem(depth: max(1, listDepth)), containerID, listQuoteDepth)
         }
-        if quoteDepth > 0 { return (.quote(depth: quoteDepth), containerID) }
-        return (.paragraph, nil)
+        if quoteDepth > 0 { return (.quote(depth: quoteDepth), containerID, 0) }
+        return (.paragraph, nil, 0)
     }
 
     static func sanitizedPadName(_ name: String) -> String {

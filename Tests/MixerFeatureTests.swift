@@ -27,6 +27,42 @@ enum MixerFeatureTests {
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
         suite.expectClose(Defaults.sanitizedAppVolume(.infinity), 1, "non-finite app volume falls back to unity")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0)), 0, "a muted app stays silent")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 0.5)), 0.25,
+                    "half the slider is a clearly quieter app, not a 6 dB trim")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 1)), 1, "100% plays the app untouched")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: 2)), 2, "the boost range keeps its ceiling")
+        suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: -1)), 0, "a level below zero never plays")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
+        suite.expect(MixerRoutingSupport.displayPercent(forVolume: 1e300) == 100_000, "a huge finite volume cannot overflow")
+        suite.expectClose(MixerRoutingSupport.volume(forGain: 0.25), 0.5,
+                    "a saved gain moves to the slider position that plays it")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.appVolumesArePositions),
+               "the saved volumes' format travels with them in a backup")
+        let curveSuite = "vorss.tests.mixer.volumecurve"
+        if let curveDefaults = UserDefaults(suiteName: curveSuite) {
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+            curveDefaults.set(["com.example.quiet": 0.25, "com.example.boosted": 1.5, "com.example.muted": 0.0],
+                              forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let migrated = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(Double(MixerRoutingSupport.gain(forVolume: migrated["com.example.quiet"] ?? -1)), 0.25,
+                        "an app saved below 100% plays exactly as loud after the update, converted once")
+            suite.expect(migrated["com.example.boosted"] == 1.5 && migrated["com.example.muted"] == 0,
+                   "boosted and muted apps keep their saved levels")
+            curveDefaults.removeObject(forKey: DefaultsKey.appVolumesArePositions)
+            curveDefaults.set(["com.example.quiet": 0.25], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: curveDefaults)
+            let restored = curveDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            suite.expectClose(restored["com.example.quiet"] ?? -1, 0.5,
+                        "a backup restored from before the change is converted on the next launch")
+            curveDefaults.removePersistentDomain(forName: curveSuite)
+        }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
                                                        maximumPercent: 200) ?? -1,
                     0.4,
@@ -68,26 +104,69 @@ enum MixerFeatureTests {
         percentWindow.orderOut(nil)
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(35) == 35,
                "headphone disconnect volume preserves valid percentages")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect volume never drops below the audible floor")
-        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0)
-               == Defaults.minimumMixerHeadphonesDisconnectVolumePercent,
-               "headphone disconnect protection lowers the speakers, it never silences them")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(-5) == 0,
+               "headphone disconnect volume never drops below silence")
+        suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(0) == 0,
+               "headphone disconnect volume can silence the speakers")
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(105) == 100,
                "headphone disconnect volume clamps high values")
+        suite.expect(MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                         currentlyMuted: false),
+               "silence chosen for a headphone disconnect also mutes the speakers")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 5,
+                                                                          currentlyMuted: false),
+               "a low but audible headphone disconnect volume leaves the speakers unmuted")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: true),
+               "speakers muted before a headphone disconnect are not claimed by the lowering")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: nil),
+               "an output without a mute switch is only lowered")
+        suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed] as? Bool) == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectVolumePercent),
+               "silence becomes a saved choice only after the one-time migration, and both travel in a backup")
+        suite.expect(!SettingsBackupSupport.valueLooksRight(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed, "true"),
+               "an imported silence marker must be a boolean")
         let headphonesSuite = "vorss.tests.mixer.headphones"
         if let silentHeadphoneVolume = UserDefaults(suiteName: headphonesSuite) {
+            let volumeKey = DefaultsKey.mixerHeadphonesDisconnectVolumePercent
+            let markerKey = DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
-            silentHeadphoneVolume.set(0, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
-                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
                    "a stored volume of zero from the first release of the option migrates to the default")
-            silentHeadphoneVolume.set(60, forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+            silentHeadphoneVolume.set(60, forKey: volumeKey)
             Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
-            suite.expect(silentHeadphoneVolume.integer(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) == 60,
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 60,
                    "a volume the user chose is never migrated")
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0,
+                   "silence chosen after that migration is kept")
+            let kept = SettingsBackupSupport.sanitizedSettings(from: SettingsBackupSupport.payload(
+                appVersion: "3.4.1") { silentHeadphoneVolume.object(forKey: $0) }) ?? [:]
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            for (key, value) in kept { silentHeadphoneVolume.set(value, forKey: key) }
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey) == 0
+                   && silentHeadphoneVolume.bool(forKey: markerKey),
+                   "restoring a backup keeps a chosen silence instead of rewriting it")
+            for key in SettingsBackupSupport.exportKeys() { silentHeadphoneVolume.removeObject(forKey: key) }
+            silentHeadphoneVolume.set(0, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
+                   "an old backup with the accidental zero is still rewritten once")
+            silentHeadphoneVolume.removeObject(forKey: markerKey)
+            silentHeadphoneVolume.set(Defaults.legacyMixerHeadphonesDisconnectVolumeFloor, forKey: volumeKey)
+            Defaults.migrateSilentHeadphonesDisconnectVolume(in: silentHeadphoneVolume)
+            suite.expect(silentHeadphoneVolume.integer(forKey: volumeKey)
+                   == Defaults.legacyMixerHeadphonesDisconnectVolumeFloor,
+                   "the old floor of 10 percent was a real choice and stays where it was set")
             silentHeadphoneVolume.removePersistentDomain(forName: headphonesSuite)
         }
         suite.expect(Defaults.sanitizedAppOutputDeviceUID(" BuiltInSpeakerDevice ") == "BuiltInSpeakerDevice",
@@ -674,6 +753,10 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
+        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
+                     && !mixerCode.contains("Float(app.volume)")
+                     && !mixerCode.contains("Float(latestApp.volume)"),
+                     "every engine plays an app's slider through the same loudness curve")
         let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)

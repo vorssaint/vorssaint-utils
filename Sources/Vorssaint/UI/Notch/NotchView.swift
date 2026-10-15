@@ -322,6 +322,9 @@ struct NotchView: View {
         .padding(.top, service.expandedGeometry.headerTopInset)
         .padding(.bottom, NotchLayout.bottomInset)
         .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
+        // Opening the island makes its panel key, so Keyboard navigation would ring
+        // the first header button. Show the ring once keyboard input begins.
+        .focusEffectDisabled(!service.showsKeyboardFocus)
     }
 
     /// Keep each page's minimum usable layout reachable when a custom height
@@ -409,16 +412,11 @@ struct NotchView: View {
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
-                    if !quickActions.contains(.explore) {
-                        NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
-                    }
-                    Text(service.selected.title(l10n.language))
-                        .font(Font(NotchLayout.headerTitleFont as CTFont))
-                        .lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    pageTitle(quickActions: quickActions)
                 }
             }
-            .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil)
+            .frame(width: service.expandedGeometry.headerCameraGap > 0 ? (service.contentSize.width - service.expandedGeometry.headerCameraGap) / 2 : nil,
+                   alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
             // Keep search mounted so a media key never discards its focus.
             .opacity(headerFeedback == nil ? 1 : 0)
@@ -463,11 +461,55 @@ struct NotchView: View {
         .onDisappear { headerHovered = false }
     }
 
+    /// A page's title with the sections button before it and, on the clipboard
+    /// page, the magnifier after it where the island has room for it: exactly
+    /// what `NotchLayout.pageTitleWidth` counts, since a title the island places
+    /// beside the camera gets only that much room. Anything more, a spacer's
+    /// spacing included, would cut it.
+    private func pageTitle(quickActions: [NotchQuickAction]) -> some View {
+        HStack(spacing: 6) {
+            if !quickActions.contains(.explore) {
+                NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
+            }
+            Text(service.selected.title(l10n.language))
+                .font(Font(NotchLayout.headerTitleFont as CTFont))
+                .lineLimit(1)
+            if showsClipboardActions, service.clipboardHeaderShowsSearch {
+                NotchIconButton(symbol: "magnifyingglass", title: FeatureStrings.clipboard(l10n.language).search,
+                                action: service.requestClipboardSearch)
+            }
+        }
+    }
+
     /// The island's history page shows only the cards, so its clear action
     /// sits in the header, where the panel's own header keeps it.
     private var showsCapturesClear: Bool {
         service.selected == .captures && service.captureContent == nil && !showsDetail
             && !service.showingSections && !service.modules.isEmpty
+    }
+
+    /// The clipboard page keeps its search and filter in the header, so the
+    /// entries have the rows they would take.
+    private var showsClipboardActions: Bool {
+        service.selected == .clipboard && !showsDetail && !service.showingSections && !service.modules.isEmpty
+    }
+
+    /// The clipboard's filter, clearing and history window join the header's
+    /// own buttons. Where all of them would cut the title, as in a narrow
+    /// island, the header gathers them in the menu it shows beside the camera.
+    private func clipboardActionsInMenu(quickActions: [NotchQuickAction]) -> Bool {
+        guard showsClipboardActions else { return false }
+        // An offered or running update draws its label in this row too, as wide
+        // as its language makes it, so the clipboard's three wait in the menu
+        // while it shows rather than cut the title.
+        if case .available = updates.state { return true }
+        if updates.state.isInProgress { return true }
+        // The clipboard's three and Collapse, and Keep open and Settings unless they float.
+        let buttons = 4 + [NotchQuickAction.pin, .settings].filter { !quickActions.contains($0) }.count
+        let title = NotchLayout.headerTitleWidth(service.selected.title(l10n.language),
+                                                 button: !quickActions.contains(.explore))
+            + (service.clipboardHeaderShowsSearch ? NotchLayout.headerSearchWidth : 0)
+        return title + 6 + CGFloat(buttons) * 28 + CGFloat(buttons - 1) * 6 > service.contentSize.width
     }
 
     /// Notifications show only cards too; every row of height is theirs.
@@ -488,13 +530,14 @@ struct NotchView: View {
             NotchUpdateControl(action: service.showUpdate, compact: compactUpdate)
             overflowMenu(items: overflowItems(
                 tools: service.selected == .tools && !showsDetail && !service.showingSections && launcher.activeUtility == nil,
-                clear: showsCapturesClear, clearNotifications: showsNotificationsClear))
+                clear: showsCapturesClear, clearNotifications: showsNotificationsClear, clipboard: showsClipboardActions))
         }
     }
 
     /// The header's overflow entries, each with the glyph its own button
     /// wears when the pointer row shows them separately.
-    private func overflowItems(tools: Bool, clear: Bool, clearNotifications: Bool = false) -> [NotchMenuItem] {
+    private func overflowItems(tools: Bool, clear: Bool, clearNotifications: Bool = false,
+                               clipboard: Bool = false) -> [NotchMenuItem] {
         var items: [NotchMenuItem] = []
         if tools {
             items.append(NotchMenuItem(title: text.customizeTools, checked: launcher.isEditing,
@@ -520,6 +563,26 @@ struct NotchView: View {
                 guard !unavailable() else { return }
                 NotchClearNotificationsButton.confirmClearAboveIsland()
             }))
+        }
+        if clipboard {
+            // The clipboard's own header buttons, which the header beside the
+            // camera, or one too narrow, has no room for. Clearing is checked
+            // as the header draws and again when chosen, like the entries above.
+            let strings = FeatureStrings.clipboard(l10n.language)
+            let history = ClipboardHistoryService.shared
+            // A title with room beside the camera for itself alone leaves the
+            // magnifier here; typing still opens the search as well.
+            if !service.clipboardHeaderShowsSearch {
+                items.append(NotchMenuItem(title: strings.search, symbol: "magnifyingglass",
+                                           action: service.requestClipboardSearch))
+            }
+            items.append(NotchMenuItem(title: strings.pinned, checked: service.clipboardPinnedOnly,
+                                       symbol: "line.3.horizontal.decrease.circle") { service.clipboardPinnedOnly.toggle() })
+            items.append(NotchMenuItem(title: strings.clearRecent, symbol: "trash", enabled: !history.recentEntries.isEmpty,
+                                       action: NotchClipboardHeaderActions.confirmClearRecent))
+            items.append(NotchMenuItem(title: strings.title, symbol: "arrow.up.forward.app") {
+                service.perform { history.showHistoryWindow(preferNotch: false) }
+            })
         }
         if !items.isEmpty { items.append(.separator) }
         items.append(NotchMenuItem(title: service.pinned ? text.unpin : text.pin,
@@ -550,27 +613,32 @@ struct NotchView: View {
         let revealed = headerHovered || updating
         return HStack(spacing: 6) {
             NotchUpdateControl(action: service.showUpdate)
-            if service.selected == .tools, !service.showingAppPanel, !service.showingSections, service.selectedMetric == nil,
-               !service.modules.isEmpty, launcher.activeUtility == nil {
-                NotchIconButton(symbol: launcher.isEditing ? "checkmark" : "slider.horizontal.3",
-                                title: text.customizeTools, selected: launcher.isEditing) {
-                    withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
+            if clipboardActionsInMenu(quickActions: quickActions) {
+                overflowMenu(items: overflowItems(tools: false, clear: false, clipboard: true))
+            } else {
+                if service.selected == .tools, !service.showingAppPanel, !service.showingSections, service.selectedMetric == nil,
+                   !service.modules.isEmpty, launcher.activeUtility == nil {
+                    NotchIconButton(symbol: launcher.isEditing ? "checkmark" : "slider.horizontal.3",
+                                    title: text.customizeTools, selected: launcher.isEditing) {
+                        withAnimation(.easeOut(duration: 0.15)) { launcher.isEditing.toggle() }
+                    }
                 }
-            }
-            if showsCapturesClear { NotchClearCapturesButton() }
-            if showsNotificationsClear { NotchClearNotificationsButton() }
-            // Keeping the island open is one click, like the floating buttons;
-            // a header button steps aside when the same action floats beside it.
-            if !quickActions.contains(.pin) {
-                NotchIconButton(symbol: service.pinned ? "pin.fill" : "pin",
-                                title: service.pinned ? text.unpin : text.pin, selected: service.pinned) {
-                    service.pinned.toggle()
+                if showsCapturesClear { NotchClearCapturesButton() }
+                if showsClipboardActions { NotchClipboardHeaderActions(service: service) }
+                if showsNotificationsClear { NotchClearNotificationsButton() }
+                // Keeping the island open is one click, like the floating buttons;
+                // a header button steps aside when the same action floats beside it.
+                if !quickActions.contains(.pin) {
+                    NotchIconButton(symbol: service.pinned ? "pin.fill" : "pin",
+                                    title: service.pinned ? text.unpin : text.pin, selected: service.pinned) {
+                        service.pinned.toggle()
+                    }
                 }
+                if !quickActions.contains(.settings) {
+                    NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
+                }
+                NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
             }
-            if !quickActions.contains(.settings) {
-                NotchIconButton(symbol: "gearshape", title: l10n.s.menuSettings, action: service.openSettings)
-            }
-            NotchIconButton(symbol: "chevron.up", title: text.collapse, action: service.collapse)
         }
         .opacity(revealed ? 1 : 0)
         .overlay(alignment: .trailing) {

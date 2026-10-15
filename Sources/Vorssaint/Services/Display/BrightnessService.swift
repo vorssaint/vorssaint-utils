@@ -2606,7 +2606,7 @@ final class BrightnessService: ObservableObject {
             var reply = [UInt8](repeating: 0, count: BrightnessSupport.replyLength)
             if read(service, BrightnessSupport.chipAddress, 0,
                     &reply, UInt32(reply.count)) == KERN_SUCCESS,
-               let parsed = BrightnessSupport.parseReply(reply) {
+               let parsed = BrightnessSupport.parseReply(reply, code: BrightnessSupport.luminanceCode) {
                 return .replied(current: parsed.current, maximum: parsed.maximum)
             }
             if attempt + 1 < attempts {

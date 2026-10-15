@@ -110,6 +110,8 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let scope: String?
     let usedPercent: Double
     let resetsAt: Date?
+    /// A presentation estimate, never a deadline for clearing usage or alerts.
+    var estimatedResetsAt: Date? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }

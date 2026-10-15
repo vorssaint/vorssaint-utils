@@ -232,17 +232,7 @@ struct ScreenshotEditorView: View {
         .onContinuousHover { phase in
             switch phase {
             case .active(let location):
-                let point = imagePoint(from: location, zoom: zoom)
-                if model.tool != .select, model.selectedAnnotationOwns(point) {
-                    NSCursor.openHand.set()
-                } else if model.tool != .select {
-                    NSCursor.crosshair.set()
-                } else if model.wordIndex(at: point) != nil {
-                    // Recognized text under the cursor reads as text.
-                    NSCursor.iBeam.set()
-                } else {
-                    NSCursor.arrow.set()
-                }
+                updateHoverCursor(at: imagePoint(from: location, zoom: zoom))
             case .ended:
                 NSCursor.arrow.set()
             }
@@ -319,13 +309,26 @@ struct ScreenshotEditorView: View {
             }
         }
 
+        // The checkerboard shows where the picture is transparent. With a
+        // backdrop on, the export shows the backdrop there, and so does this.
+        let showsChecker = !model.showsBackdrop
+        if showsChecker {
+            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
+            cg.fill(imageRect)
+        }
+
         // Blur areas replace the pixels under them. With any on the canvas,
         // the capture and its annotations draw in a layer of their own, as
         // the exporter flattens them, so that never reaches the card's
-        // shadow or the backdrop. Without one, the layer is skipped, since
-        // it costs a canvas-sized buffer on every redraw.
-        let isolatesBlurAreas = model.annotations.contains { $0.tool == .pixelate }
-        if isolatesBlurAreas { cg.beginTransparencyLayer(auxiliaryInfo: nil) }
+        // shadow, the backdrop or the checkerboard. A spotlight dims only
+        // what is painted below it, so over the checkerboard it needs the
+        // layer too, or transparent parts the export keeps would darken here.
+        // Without either, the layer is skipped, since it costs a canvas-sized
+        // buffer on every redraw.
+        let isolatesContent = model.annotations.contains {
+            $0.tool == .pixelate || (showsChecker && $0.tool == .spotlight)
+        }
+        if isolatesContent { cg.beginTransparencyLayer(auxiliaryInfo: nil) }
         if let cardPath {
             cg.saveGState()
             cg.addPath(cardPath)
@@ -343,9 +346,10 @@ struct ScreenshotEditorView: View {
                                            imageSize: model.imageSize,
                                            scale: model.scale,
                                            annotationShadowsEnabled: model.annotationShadowsEnabled,
-                                           skippingText: model.editingTextID)
+                                           skippingText: model.editingTextID,
+                                           spotlightDimStrength: model.spotlightDimStrength)
         cg.restoreGState()
-        if isolatesBlurAreas { cg.endTransparencyLayer() }
+        if isolatesContent { cg.endTransparencyLayer() }
 
         cg.saveGState()
         enterImageSpace()
@@ -379,12 +383,6 @@ struct ScreenshotEditorView: View {
 
     private func drawImageUpright(_ cg: CGContext, in rect: CGRect, canvasHeight: CGFloat) {
         cg.saveGState()
-        // The checkerboard shows where the picture is transparent. With a
-        // backdrop on, the export shows the backdrop there, and so does this.
-        if !model.showsBackdrop {
-            cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
-            cg.fill(rect)
-        }
         cg.translateBy(x: 0, y: canvasHeight)
         cg.scaleBy(x: 1, y: -1)
         let flipped = CGRect(x: rect.minX,
@@ -441,6 +439,23 @@ struct ScreenshotEditorView: View {
     private func imagePoint(from viewPoint: CGPoint, zoom: CGFloat) -> CGPoint {
         let pad = model.backdropPaddingPixels
         return CGPoint(x: viewPoint.x / zoom - pad, y: viewPoint.y / zoom - pad)
+    }
+
+    private func updateHoverCursor(at point: CGPoint) {
+        // The same rule a press follows: a spotlight region offers only its
+        // handles and edge while its tool is active, and expanding the canvas
+        // never moves a mark.
+        if model.tool != .select, model.tool != .expandCanvas,
+           model.selectedAnnotationOwns(point, includingInterior: model.tool != .spotlight) {
+            NSCursor.openHand.set()
+        } else if model.tool != .select {
+            NSCursor.crosshair.set()
+        } else if model.wordIndex(at: point) != nil {
+            // Recognized text under the cursor reads as text.
+            NSCursor.iBeam.set()
+        } else {
+            NSCursor.arrow.set()
+        }
     }
 
     // MARK: - Crop loupe
@@ -922,9 +937,21 @@ struct ScreenshotEditorView: View {
             return selected.tool != .sticker
                 && selected.tool != .image
                 && selected.tool != .pixelate
-        case .sticker, .pixelate, .crop, .image, .expandCanvas:
+                && selected.tool != .spotlight
+        case .sticker, .pixelate, .crop, .spotlight, .image, .expandCanvas:
             return false
         }
+    }
+
+    /// A picked region keeps the dim control, so its strength changes
+    /// without going back to the tool.
+    private var showsSpotlightControls: Bool {
+        if model.tool == .spotlight { return true }
+        guard model.tool == .select,
+              let selectedID = model.selectedID,
+              let selected = model.annotations.first(where: { $0.id == selectedID })
+        else { return false }
+        return selected.tool == .spotlight
     }
 
     private var showsBlurControls: Bool {
@@ -1084,6 +1111,10 @@ struct ScreenshotEditorView: View {
                 if model.blurStyle.usesStrength {
                     blurLevelControl
                 }
+                Divider().frame(height: 16)
+            }
+            if showsSpotlightControls {
+                spotlightDimControl
                 Divider().frame(height: 16)
             }
             if showsColorControls {
@@ -1378,6 +1409,43 @@ struct ScreenshotEditorView: View {
             @unknown default: break
             }
         }
+    }
+
+    /// From leaving the outside untouched to turning it black, shaped like
+    /// the blur strength control beside it. A stepped slider would draw 21
+    /// tick marks, so it stays continuous and its value settles on 5% steps.
+    private var spotlightDimControl: some View {
+        let step: CGFloat = 0.05
+        return HStack(spacing: 5) {
+            // Daylight to night reads at 11 pt; sun.max and sun.min do not.
+            Image(systemName: "sun.max.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+            Slider(value: spotlightDimValue, in: 0...1)
+                .controlSize(.mini)
+                .frame(width: 84)
+            Image(systemName: "moon.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(height: 24)
+        .screenshotSafeHelp(strings.spotlightDimStrengthLabel)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(strings.spotlightDimStrengthLabel)
+        .accessibilityValue(Double(model.spotlightDimStrength)
+            .formatted(.percent.precision(.fractionLength(0))))
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: spotlightDimValue.wrappedValue = model.spotlightDimStrength + step
+            case .decrement: spotlightDimValue.wrappedValue = model.spotlightDimStrength - step
+            @unknown default: break
+            }
+        }
+    }
+
+    private var spotlightDimValue: Binding<CGFloat> {
+        Binding(get: { model.spotlightDimStrength },
+                set: { model.spotlightDimStrength = ScreenshotSupport.steppedSpotlightDim($0) })
     }
 
     private func textSizeStepButton(up: Bool) -> some View {
@@ -1710,6 +1778,7 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return "aqi.medium"
         case .redact: return "rectangle.fill"
         case .crop: return "crop"
+        case .spotlight: return "viewfinder"
         case .image: return "photo"
         case .expandCanvas: return "arrow.up.left.and.arrow.down.right"
         }
@@ -1730,6 +1799,7 @@ extension ScreenshotSupport.Tool {
         case .pixelate: return strings.toolBlur
         case .redact: return strings.toolRedact
         case .crop: return strings.toolCrop
+        case .spotlight: return strings.toolSpotlight
         case .image: return strings.pastedImage
         case .expandCanvas: return strings.toolExpandCanvas
         }

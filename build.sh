@@ -265,6 +265,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
+        Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
         Sources/Vorssaint/Services/Notch/NotchPreferredPlayer.swift
@@ -370,6 +371,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderImageRenderer.swift
         Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFClipboard.swift
+        Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift
+        Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift

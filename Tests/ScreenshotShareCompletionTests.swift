@@ -51,6 +51,26 @@ enum ScreenshotShareCompletionTests {
         func bool(forKey: String) -> Bool { enabled }
     }
 
+    struct PreviewCapture {
+        let image: Int
+    }
+
+    final class ScreenTextService {
+        static let shared = ScreenTextService()
+        var copiedImages: [Int] = []
+        func copyText(from image: Int) { copiedImages.append(image) }
+    }
+
+    /// Holds Copy text back while an after-capture copy is pending.
+    final class ScreenshotService {
+        static let shared = ScreenshotService()
+        var autoCopyPending = false
+        var waiting: [() -> Void] = []
+        func afterAutoCopy(_ body: @escaping () -> Void) {
+            if autoCopyPending { waiting.append(body) } else { body() }
+        }
+    }
+
     class EditorState {
         typealias UserDefaults = SharingDefaults
         let model = Model()
@@ -93,6 +113,7 @@ enum ScreenshotShareCompletionTests {
         var onClose: () -> Void = {}
         var shareHandler: ((ScreenshotShareDuration, @escaping @MainActor (ScreenshotShareRecord?) -> Void) -> Void)?
         var closed = false
+        let capture = PreviewCapture(image: 42)
         let model = Model()
         var dismissWork: DispatchWorkItem?
         var baseDismissDuration: TimeInterval? = 12
@@ -141,9 +162,10 @@ enum ScreenshotShareCompletionTests {
     }
 
     enum AppFeature {
-        case screenshot
+        case screenshot, screenOCR
         static var available = true
-        var isAvailable: Bool { Self.available }
+        static var ocrAvailable = true
+        var isAvailable: Bool { self == .screenOCR ? Self.ocrAvailable : Self.available }
     }
 
     enum ScreenshotLastCaptureStore {
@@ -197,6 +219,7 @@ enum ScreenshotShareCompletionTests {
         var completion: (@MainActor (ScreenshotShareRecord?) -> Void)?
         var uploads = 0
         var uploadedCaptures: [Int] = []
+        var autoCopyTask: Task<Void, Never>?
 
         init() {
             defaults = UserDefaults(suiteName: defaultsName)!
@@ -245,6 +268,26 @@ enum ScreenshotShareCompletionTests {
         AppFeature.available = true
         SharingDefaults.standard.enabled = true
         service.revoked = []
+        ScreenTextService.shared.copiedImages = []
+        ScreenshotService.shared.autoCopyPending = true
+        ScreenshotService.shared.waiting = []
+        let ocr = Controller()
+        ocr.copyText()
+        ocr.copyText()
+        suite.expect(ocr.closed && ScreenTextService.shared.copiedImages.isEmpty
+                     && ScreenshotService.shared.waiting.count == 1,
+                     "Copy text closes at once and waits for a pending after-capture copy")
+        ScreenshotService.shared.autoCopyPending = false
+        ScreenshotService.shared.waiting.forEach { $0() }
+        ScreenshotService.shared.waiting = []
+        suite.expect(ScreenTextService.shared.copiedImages == [ocr.capture.image],
+                     "preview OCR closes once and recognizes the full-resolution capture")
+        AppFeature.ocrAvailable = false
+        let disabledOCR = Controller()
+        disabledOCR.copyText()
+        suite.expect(!disabledOCR.closed && ScreenTextService.shared.copiedImages.count == 1,
+                     "a stale OCR button cannot close the preview or start work after OCR is disabled")
+        AppFeature.ocrAvailable = true
         let open = Controller()
         open.performShare(.oneHour)
         open.completion?(record)
@@ -619,5 +662,25 @@ enum ScreenshotShareCompletionTests {
         editingWithHistory.uploadLastCapture()
         suite.expect(editingWithHistory.uploadedCaptures == [2],
                      "an open history preview still uploads its own visible capture")
+
+        // A preview's Copy text waits for the after-capture copy, so the
+        // capture lands first and the text, when there is any, replaces it.
+        let copying = Uploader()
+        var recognitions = 0
+        copying.afterAutoCopy { recognitions += 1 }
+        suite.expect(recognitions == 1, "with no after-capture copy pending, Copy text starts at once")
+        var finishCopy: CheckedContinuation<Void, Never>?
+        copying.autoCopyTask = Task { @MainActor in
+            await withCheckedContinuation { finishCopy = $0 }
+        }
+        copying.afterAutoCopy { recognitions += 1 }
+        let copyDeadline = Date().addingTimeInterval(2)
+        while finishCopy == nil && Date() < copyDeadline { await Task.yield() }
+        for _ in 0..<20 { await Task.yield() }
+        suite.expect(finishCopy != nil && recognitions == 1,
+                     "Copy text waits while the after-capture copy is still being prepared")
+        finishCopy?.resume()
+        while recognitions == 1 && Date() < copyDeadline { await Task.yield() }
+        suite.expect(recognitions == 2, "Copy text starts once the after-capture copy is in")
     }
 }

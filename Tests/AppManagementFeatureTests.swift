@@ -466,6 +466,12 @@ enum AppManagementFeatureTests {
         suite.expect(Bundle(url: wrappedApp)?.bundleIdentifier == "com.vendor.wrapped"
                && UninstallerSupport.selection(for: wrappedApp) == nil,
                "a bundle with a valid identifier but no Contents/Info.plist is refused")
+        // A tool or helper inside another app's bundle belongs to that app:
+        // removing it alone would break the app it ships in.
+        let hostedApp = selectionBundle("Host.app/Contents/Applications/Tool.app", bundleID: "com.vendor.host.tool")
+        suite.expect(Bundle(url: hostedApp)?.bundleIdentifier == "com.vendor.host.tool"
+               && UninstallerSupport.selection(for: hostedApp) == nil,
+               "an app inside another app's bundle is refused")
         let listedApps = [editorApp, appleEditorApp, bareApp, wrappedApp].map {
             InstalledApps.InstalledApp(id: $0.standardizedFileURL.path, name: $0.lastPathComponent,
                                       bundleID: nil, url: $0, isSystem: false)

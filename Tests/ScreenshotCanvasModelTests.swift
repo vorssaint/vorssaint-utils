@@ -102,6 +102,8 @@ enum ScreenshotCanvasModelTests {
         samplesAfterExpansion(suite)
         pasteFromClipboard(suite)
         pasteOnWholePixels(suite)
+        spotlightAfterExpansion(suite)
+        spotlightPastTheEdge(suite)
         let base = ScreenshotCanvasSupportTests.image(width: 40, height: 40)
         let host = Host(image: base)
         let pasted = ScreenshotCanvasSupportTests.image(width: 20, height: 10)
@@ -165,6 +167,111 @@ enum ScreenshotCanvasModelTests {
                      && ScreenshotImageLayerTests.bytes(first, in: area.rect)
                         == ScreenshotImageLayerTests.bytes(second, in: area.rect),
                      "after an expansion, a mark added elsewhere keeps an older blur area's sample and noise")
+    }
+
+    /// A spotlight moves with the content like any mark and dims the whole
+    /// new canvas outside its regions, where transparent margins stay
+    /// transparent. Pasted images below its topmost region dim, those above
+    /// stay bright, and a blur area over an image keeps its sample however
+    /// the regions change.
+    private static func spotlightAfterExpansion(_ suite: TestSuite) {
+        let base = ScreenshotImageLayerTests.solid(
+            NSColor(deviceRed: 0.8, green: 0.8, blue: 0.8, alpha: 1), width: 40, height: 40)
+        let below = ScreenshotImageLayerTests.layer(NSColor(deviceRed: 0, green: 0, blue: 1, alpha: 1),
+                                                    CGRect(x: 25, y: 25, width: 10, height: 10))
+        let spot = ScreenshotSupport.Annotation(tool: .spotlight, rect: CGRect(x: 5, y: 5, width: 10, height: 10))
+        let above = ScreenshotImageLayerTests.layer(NSColor(deviceRed: 0, green: 1, blue: 0, alpha: 1),
+                                                    CGRect(x: 25, y: 5, width: 10, height: 10))
+        for fill in [ScreenshotCanvasSupport.Fill.transparent, .white] {
+            let host = Host(image: base)
+            host.expansionFill = fill
+            host.annotations = [below, spot, above]
+            guard host.commitCanvasExpansion(to: CGRect(x: -20, y: 0, width: 60, height: 40)),
+                  let result = ScreenshotImageLayerTests.render(
+                    host.baseImage, host.annotations,
+                    sources: ScreenshotRenderer.BlurSources(image: host.baseImage))
+            else {
+                suite.expect(false, "\(fill): a canvas with a spotlight expands and exports")
+                continue
+            }
+            func pixel(_ x: Int, _ y: Int) -> [UInt8] { ScreenshotCanvasSupportTests.pixel(result, x: x, y: y) }
+            let margin = pixel(5, 20)
+            suite.expect(host.annotations[1].rect == CGRect(x: 25, y: 5, width: 10, height: 10)
+                         && host.annotations[1].renderReferenceSize == nil,
+                         "\(fill): a spotlight region moves with the content")
+            suite.expect((200...208).contains(pixel(30, 10)[0])
+                         && (95...110).contains(pixel(30, 30)[0])
+                         && (fill == .transparent
+                             ? margin[3] == 0
+                             : margin[3] == 255 && (120...135).contains(margin[0])),
+                         "\(fill): the dim covers the expanded canvas outside the region and keeps clear margins clear: \(margin)")
+            suite.expect((120...135).contains(pixel(50, 30)[2]) && pixel(50, 10)[1] >= 250,
+                         "\(fill): an image below the spotlight dims and one above stays bright")
+        }
+        let area = ScreenshotSupport.Annotation(tool: .pixelate, rect: CGRect(x: 22, y: 22, width: 16, height: 16))
+        let cache = ScreenshotRenderer.ImageLayerCache()
+        let sources = ScreenshotRenderer.BlurSources(image: base, imageLayerCache: cache)
+        let images = ScreenshotRenderer.ImageLayerCache.images(
+            below: area, among: [below], textRuns: nil, imageSize: CGSize(width: 40, height: 40))
+        var marks = [below, area, spot]
+        // The area lies outside every region in both renders, so it dims
+        // alike, and only a rebuilt sample, with new noise, changes its pixels.
+        let first = ScreenshotImageLayerTests.render(base, marks, sources: sources)
+        let rebuilt = ScreenshotImageLayerTests.render(
+            base, marks, sources: ScreenshotRenderer.BlurSources(
+                image: base, imageLayerCache: ScreenshotRenderer.ImageLayerCache()))
+        marks[2].rect = CGRect(x: 2, y: 2, width: 6, height: 6)
+        marks.append(ScreenshotSupport.Annotation(tool: .spotlight, rect: CGRect(x: 20, y: 0, width: 8, height: 8)))
+        let second = ScreenshotImageLayerTests.render(base, marks, sources: sources)
+        guard let first, let rebuilt, let second else {
+            suite.expect(false, "a blur area over an image renders beside spotlight regions")
+            return
+        }
+        let firstBytes = ScreenshotImageLayerTests.bytes(first, in: area.rect)
+        suite.expect(!images.isEmpty && firstBytes != ScreenshotImageLayerTests.bytes(rebuilt, in: area.rect),
+                     "a blur area over an image gets new noise with a new sample")
+        suite.expect(firstBytes == ScreenshotImageLayerTests.bytes(second, in: area.rect),
+                     "drawing or moving spotlight regions keeps the sample of a blur area over an image")
+    }
+
+    /// Only the part of a spotlight region on the image lights anything, so
+    /// an expansion keeps just that part: what lay past the old edge must
+    /// not light the new margin, and a region that lit nothing must not
+    /// start dimming the canvas.
+    private static func spotlightPastTheEdge(_ suite: TestSuite) {
+        let base = ScreenshotImageLayerTests.solid(
+            NSColor(deviceRed: 0.8, green: 0.8, blue: 0.8, alpha: 1), width: 40, height: 40)
+        let grow = CGRect(x: 0, y: 0, width: 60, height: 40)
+        let overshooting = Host(image: base)
+        overshooting.annotations = [ScreenshotSupport.Annotation(
+            tool: .spotlight, rect: CGRect(x: 30, y: 5, width: 16, height: 10))]
+        if overshooting.commitCanvasExpansion(to: grow),
+           let result = ScreenshotImageLayerTests.render(
+            overshooting.baseImage, overshooting.annotations,
+            sources: ScreenshotRenderer.BlurSources(image: overshooting.baseImage)) {
+            let beside = ScreenshotCanvasSupportTests.pixel(result, x: 43, y: 10)
+            let margin = ScreenshotCanvasSupportTests.pixel(result, x: 50, y: 30)
+            suite.expect(overshooting.annotations.map(\.rect) == [CGRect(x: 30, y: 5, width: 10, height: 10)]
+                         && (200...208).contains(ScreenshotCanvasSupportTests.pixel(result, x: 35, y: 10)[0])
+                         && (120...135).contains(beside[0]) && (120...135).contains(margin[0]),
+                         "a spotlight region past the old edge lights only the content it covered: \(beside) \(margin)")
+        } else {
+            suite.expect(false, "a canvas with a region past its edge expands and exports")
+        }
+        let outside = Host(image: base)
+        outside.annotations = [ScreenshotSupport.Annotation(
+            tool: .spotlight, rect: CGRect(x: 45, y: 5, width: 10, height: 10))]
+        if outside.commitCanvasExpansion(to: grow),
+           let result = ScreenshotImageLayerTests.render(
+            outside.baseImage, outside.annotations,
+            sources: ScreenshotRenderer.BlurSources(image: outside.baseImage)) {
+            let content = ScreenshotCanvasSupportTests.pixel(result, x: 20, y: 20)
+            let margin = ScreenshotCanvasSupportTests.pixel(result, x: 50, y: 30)
+            suite.expect(outside.annotations.isEmpty && (200...208).contains(content[0]) && margin[0] >= 250,
+                         "a spotlight region off the image still dims nothing after an expansion toward it: \(content) \(margin)")
+        } else {
+            suite.expect(false, "a canvas with a region off its image expands and exports")
+        }
     }
 
     /// A layer off the pixel grid is resampled with every export, so an odd
