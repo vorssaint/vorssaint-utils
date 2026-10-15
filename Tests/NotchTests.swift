@@ -1016,10 +1016,11 @@ enum NotchTests {
         for language in AppLanguage.allCases {
             let activities: [NotchCompactActivity] = [.timer, .downloads, .agents, .calendar, .music, .keepAwake]
             let font = NSFont.systemFont(ofSize: 12, weight: .medium)
-            let width = activities.map {
-                ($0.title(language) as NSString).size(withAttributes: [.font: font]).width
+            // Home leads the row, so its label must fit as every activity's does.
+            let width = (activities.map { $0.title(language) } + [NotchModule.home.title(language)]).map {
+                ($0 as NSString).size(withAttributes: [.font: font]).width
             }.max()!
-            for count in 2...6 {
+            for count in 2...7 {
                 let layout = NotchActivityPickerLayout(count: count, labelWidth: width,
                     stripSize: CGSize(width: 300, height: 32), screenWidth: 1024)
                 let cell = (layout.size.width - NotchActivityPickerLayout.horizontalInset * 2
@@ -1092,6 +1093,7 @@ enum NotchTests {
         NotchNotificationReaderTests.run(suite)
         NotchGestureTests.run(suite)
         NotchSectionPagingTests.run(suite)
+        NotchHomeTests.run(suite)
         NotchKeyboardLightTests.run(suite)
         NotchActivityTests.run(suite)
         NotchWatchTests.run(suite)

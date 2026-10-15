@@ -93,6 +93,7 @@ struct NotchStrings {
     let translucentBackground: String
     let translucentBackgroundHint: String
     let translucentBackgroundGlassHint: String
+    let home: String
 }
 
 extension FeatureStrings {
@@ -207,7 +208,8 @@ extension NotchStrings {
         quickAccessRight: "Right",
         translucentBackground: "Translucent background",
         translucentBackgroundHint: "When open, Dynamic Island blurs what is behind it with the system’s own material.",
-        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead."
+        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead.",
+        home: "Home"
     )
 
     static let ptBR = NotchStrings(
@@ -299,7 +301,8 @@ extension NotchStrings {
         quickAccessRight: "Direito",
         translucentBackground: "Fundo translúcido",
         translucentBackgroundHint: "Quando aberta, a Dynamic Island desfoca o que está atrás dela com o material do próprio sistema.",
-        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar."
+        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar.",
+        home: "Início"
     )
 
     static let es = NotchStrings(
@@ -391,7 +394,8 @@ extension NotchStrings {
         quickAccessRight: "Derecho",
         translucentBackground: "Fondo translúcido",
         translucentBackgroundHint: "Al abrirse, Dynamic Island desenfoca lo que hay detrás con el material del propio sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar."
+        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar.",
+        home: "Inicio"
     )
 
     static let sk = NotchStrings(
@@ -483,7 +487,8 @@ extension NotchStrings {
         quickAccessRight: "Vpravo",
         translucentBackground: "Priesvitné pozadie",
         translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
-        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu."
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu.",
+        home: "Domov"
     )
 
     static let de = NotchStrings(
@@ -575,7 +580,8 @@ extension NotchStrings {
         quickAccessRight: "Rechts",
         translucentBackground: "Durchscheinender Hintergrund",
         translucentBackgroundHint: "Geöffnet zeichnet Dynamic Island den Hintergrund mit dem Material des Systems unscharf.",
-        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass."
+        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass.",
+        home: "Start"
     )
 
     static let fr = NotchStrings(
@@ -667,7 +673,8 @@ extension NotchStrings {
         quickAccessRight: "Droite",
         translucentBackground: "Fond translucide",
         translucentBackgroundHint: "Ouverte, Dynamic Island floute ce qui se trouve derrière avec le matériau du système.",
-        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place."
+        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place.",
+        home: "Accueil"
     )
 
     static let it = NotchStrings(
@@ -759,7 +766,8 @@ extension NotchStrings {
         quickAccessRight: "Destra",
         translucentBackground: "Sfondo traslucido",
         translucentBackgroundHint: "Quando è aperta, Dynamic Island sfoca ciò che si trova dietro con il materiale del sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello."
+        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello.",
+        home: "Home"
     )
 
     static let ru = NotchStrings(
@@ -851,7 +859,8 @@ extension NotchStrings {
         quickAccessRight: "Справа",
         translucentBackground: "Полупрозрачный фон",
         translucentBackgroundHint: "Открытый Dynamic Island размывает то, что под ним, системным материалом.",
-        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его."
+        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его.",
+        home: "Главная"
     )
 
     static let tr = NotchStrings(
@@ -943,7 +952,8 @@ extension NotchStrings {
         quickAccessRight: "Sağ",
         translucentBackground: "Yarı saydam arka plan",
         translucentBackgroundHint: "Dynamic Island açıkken arkasındakini sistemin kendi malzemesiyle bulanıklaştırır.",
-        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır."
+        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır.",
+        home: "Ana sayfa"
     )
 
     static let ja = NotchStrings(
@@ -1035,7 +1045,8 @@ extension NotchStrings {
         quickAccessRight: "右",
         translucentBackground: "半透明の背景",
         translucentBackgroundHint: "開いた Dynamic Island の背後をシステムの素材でぼかします。",
-        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。"
+        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。",
+        home: "ホーム"
     )
 
     static let ko = NotchStrings(
@@ -1127,7 +1138,8 @@ extension NotchStrings {
         quickAccessRight: "오른쪽",
         translucentBackground: "반투명 배경",
         translucentBackgroundHint: "열린 Dynamic Island가 시스템 재질로 뒤쪽을 흐리게 표시합니다.",
-        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다."
+        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다.",
+        home: "홈"
     )
 
     static let zhHans = NotchStrings(
@@ -1219,7 +1231,8 @@ extension NotchStrings {
         quickAccessRight: "右侧",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展开的 Dynamic Island 会用系统材质模糊其背后的内容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。",
+        home: "主页"
     )
 
     static let zhTW = NotchStrings(
@@ -1311,7 +1324,8 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        home: "首頁"
     )
 
     static let zhHK = NotchStrings(
@@ -1403,7 +1417,8 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        home: "首頁"
     )
 
     static let uk = NotchStrings(
@@ -1495,7 +1510,8 @@ extension NotchStrings {
         quickAccessRight: "Праворуч",
         translucentBackground: "Напівпрозоре тло",
         translucentBackgroundHint: "Відкритий Dynamic Island розмиває вміст позаду за допомогою системного матеріалу.",
-        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його."
+        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його.",
+        home: "Головна"
     )
 
 }
