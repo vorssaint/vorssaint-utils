@@ -153,9 +153,6 @@ enum DefaultsKey {
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
     static let mixerHeadphonesDisconnectSilenceAllowed = "mixerHeadphonesDisconnectSilenceAllowed" // one-time: volumes below 10% were rewritten before silence became a choice
-    static let mixerSwitchToOutputOnConnect = "mixerSwitchToOutputOnConnect"
-    static let mixerSwitchToOutputOnConnectUID = "mixerSwitchToOutputOnConnectUID" // output selected when that device connects
-    static let mixerSwitchToOutputOnConnectName = "mixerSwitchToOutputOnConnectName" // last name of that output, shown while it is away
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
@@ -1286,9 +1283,6 @@ enum Defaults {
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
         DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed: false,
-        DefaultsKey.mixerSwitchToOutputOnConnect: false,
-        DefaultsKey.mixerSwitchToOutputOnConnectUID: "",
-        DefaultsKey.mixerSwitchToOutputOnConnectName: "",
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
@@ -2632,13 +2626,14 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
-    /// The volume the speakers are set to when headphones disconnect. Zero
-    /// silences the speakers. The default stays audible, so turning the option
-    /// on does not mute them until that level is chosen.
+    /// The volume the speakers are set to when headphones disconnect. At zero
+    /// the lowering also turns their mute on, because the bottom of the level
+    /// range is still faintly audible on some speakers. The default stays
+    /// audible, so turning the option on does not mute them until zero is chosen.
     static let minimumMixerHeadphonesDisconnectVolumePercent = 0
     static let defaultMixerHeadphonesDisconnectVolumePercent = 25
-    /// The stepper used to stop here. Anything stored below it was the first
-    /// release writing 0 for an untouched control, which silenced the speakers.
+    /// The stepper used to stop here. Anything stored below it comes from the
+    /// first release, where an untouched control saved 0.
     static let legacyMixerHeadphonesDisconnectVolumeFloor = 10
 
     static func sanitizedMixerHeadphonesDisconnectVolumePercent(_ percent: Int) -> Int {

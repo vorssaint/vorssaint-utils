@@ -537,8 +537,7 @@ struct MixerSection: View {
 
 /// The options under the routing, shared with the island's mixer page so
 /// both surfaces offer the same switches: idle rows, the headphone guard, the
-/// headset that is selected on connect, the precise roller, the output
-/// switcher and the hidden apps.
+/// precise roller, the output switcher and the hidden apps.
 struct MixerOptionsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
@@ -550,12 +549,6 @@ struct MixerOptionsControls: View {
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
-    @AppStorage(DefaultsKey.mixerSwitchToOutputOnConnect)
-    private var switchToOutputOnConnect = false
-    @AppStorage(DefaultsKey.mixerSwitchToOutputOnConnectUID)
-    private var switchToOutputOnConnectUID = ""
-    @AppStorage(DefaultsKey.mixerSwitchToOutputOnConnectName)
-    private var switchToOutputOnConnectName = ""
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
     @State private var showListChooser = false
@@ -567,7 +560,6 @@ struct MixerOptionsControls: View {
                 inactiveAppsVisibilityToggle
             }
             headphoneDisconnectProtectionToggle
-            switchToConnectedOutputToggle
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
@@ -630,87 +622,6 @@ struct MixerOptionsControls: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
-    }
-
-    private var switchToConnectedOutputToggle: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Toggle(l10n.s.mixerSwitchToOutputOnConnect, isOn: $switchToOutputOnConnect)
-                .toggleStyle(.checkbox)
-                .font(.system(size: 11.5, weight: .medium))
-                .onChange(of: switchToOutputOnConnect) { _, enabled in
-                    guard enabled else { return }
-                    if switchToOutputOnConnectUID.isEmpty {
-                        let headphones = mixer.outputDevices.filter { $0.canBeDefaultOutput && $0.isHeadphones }
-                        let suggested = headphones.first { $0.uid == mixer.currentOutputDeviceUID } ?? headphones.first
-                        if let suggested {
-                            switchToOutputOnConnectUID = suggested.uid
-                            switchToOutputOnConnectName = suggested.name
-                        }
-                    }
-                    selectConnectedOutputNow()
-                }
-
-            Text(l10n.s.mixerSwitchToOutputOnConnectCaption)
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if switchToOutputOnConnect {
-                Picker(l10n.s.mixerSwitchToOutputOnConnect, selection: switchToOutputOnConnectBinding) {
-                    if switchToOutputOnConnectUID.isEmpty {
-                        Text(l10n.s.mixerSwitchToOutputOnConnectChoose)
-                            .tag("")
-                    }
-                    ForEach(connectedOutputSwitchChoices, id: \.uid) { choice in
-                        Text(choice.name)
-                            .tag(choice.uid)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .disabled(connectedOutputSwitchChoices.isEmpty && switchToOutputOnConnectUID.isEmpty)
-                .accessibilityLabel(l10n.s.mixerSwitchToOutputOnConnect)
-            }
-        }
-    }
-
-    private var connectedOutputSwitchChoices: [(uid: String, name: String)] {
-        let live = mixer.outputDevices.filter(\.canBeDefaultOutput)
-        var rows = (live.filter(\.isHeadphones) + live.filter { !$0.isHeadphones })
-            .map { (uid: $0.uid, name: $0.name) }
-        let saved = Defaults.sanitizedAppOutputDeviceUID(switchToOutputOnConnectUID) ?? ""
-        if !saved.isEmpty, !rows.contains(where: { $0.uid == saved }) {
-            let name = switchToOutputOnConnectName.trimmingCharacters(in: .whitespacesAndNewlines)
-            rows.insert((uid: saved, name: name.isEmpty ? saved : name), at: 0)
-        }
-        return rows
-    }
-
-    private var switchToOutputOnConnectBinding: Binding<String> {
-        Binding(
-            get: { Defaults.sanitizedAppOutputDeviceUID(switchToOutputOnConnectUID) ?? "" },
-            set: { newValue in
-                let uid = Defaults.sanitizedAppOutputDeviceUID(newValue) ?? ""
-                switchToOutputOnConnectUID = uid
-                if let device = mixer.outputDevices.first(where: { $0.uid == uid }) {
-                    switchToOutputOnConnectName = device.name
-                }
-                selectConnectedOutputNow()
-            }
-        )
-    }
-
-    /// Turning the option on, or picking the headset, selects it immediately
-    /// when it is already connected. Later connections are handled when the
-    /// device appears.
-    private func selectConnectedOutputNow() {
-        guard switchToOutputOnConnect,
-              let uid = Defaults.sanitizedAppOutputDeviceUID(switchToOutputOnConnectUID),
-              mixer.outputDevices.contains(where: { $0.uid == uid && $0.canBeDefaultOutput }),
-              uid != mixer.currentOutputDeviceUID else { return }
-        mixer.setPriorityOutputDeviceUID(uid, reportsError: false)
     }
 
     private var preciseVolumeRollerToggle: some View {

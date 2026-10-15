@@ -789,9 +789,6 @@ struct Strings {
     let mixerLowerOnHeadphonesDisconnect: String
     let mixerLowerOnHeadphonesDisconnectCaption: String
     let mixerHeadphonesDisconnectVolume: String
-    let mixerSwitchToOutputOnConnect: String
-    let mixerSwitchToOutputOnConnectCaption: String
-    let mixerSwitchToOutputOnConnectChoose: String
     let preciseVolumeRollerEnable: String
     let preciseVolumeRollerCaption: String
     let preciseVolumeRollerTapFailed: String
@@ -1915,9 +1912,6 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Baixar volume ao desconectar fones",
         mixerLowerOnHeadphonesDisconnectCaption: "Ajusta a saída quando fones com fio ou Bluetooth desconectam.",
         mixerHeadphonesDisconnectVolume: "Volume ao desconectar",
-        mixerSwitchToOutputOnConnect: "Trocar para um fone quando ele conectar",
-        mixerSwitchToOutputOnConnectCaption: "Seleciona essa saída quando o fone escolhido conecta.",
-        mixerSwitchToOutputOnConnectChoose: "Escolher fone",
         preciseVolumeRollerEnable: "Volume mais preciso no controle",
         preciseVolumeRollerCaption: "Transforma roletes e teclas de volume em passos menores.",
         preciseVolumeRollerTapFailed: "Não foi possível ouvir as teclas de volume.",
@@ -3018,9 +3012,6 @@ extension Strings {
         mixerLowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
         mixerLowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
         mixerHeadphonesDisconnectVolume: "Volume after disconnect",
-        mixerSwitchToOutputOnConnect: "Switch to a headset when it connects",
-        mixerSwitchToOutputOnConnectCaption: "Selects that output when the chosen headset connects.",
-        mixerSwitchToOutputOnConnectChoose: "Choose a headset",
         preciseVolumeRollerEnable: "Use finer volume steps",
         preciseVolumeRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
         preciseVolumeRollerTapFailed: "Could not listen for volume keys.",

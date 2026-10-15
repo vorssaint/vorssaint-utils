@@ -2036,8 +2036,9 @@ enum SwitcherModelFeatureTests {
         suite.expect(registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectVolumePercent] as? Int
                == Defaults.defaultMixerHeadphonesDisconnectVolumePercent,
                "headphone disconnect protection starts at an audible volume until silence is chosen")
+        // Zero is now a choice, so the default is held to the old audible floor.
         suite.expect(Defaults.defaultMixerHeadphonesDisconnectVolumePercent
-               >= Defaults.minimumMixerHeadphonesDisconnectVolumePercent
+               >= Defaults.legacyMixerHeadphonesDisconnectVolumeFloor
                && Defaults.defaultMixerHeadphonesDisconnectVolumePercent < 100,
                "the headphone disconnect default is a real reduction that can still be heard")
         suite.expect(registeredDefaults[DefaultsKey.mixerShowFinder] as? Bool == true,

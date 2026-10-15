@@ -659,6 +659,13 @@ def main():
               "    private func applyOutputControls(", "    private func drainOutputAdjustment(",
               "    func setCurrentOutputVolume("])
           + "}\n}\n")
+    write("MixerHeadphonesDisconnect.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension MixerHeadphonesDisconnectContract.Mixer {\n"
+          + "".join(declaration(mixer, prefix).replace("private ", "", 1) for prefix in [
+              "    private struct LoweredOutput {", "    private struct LoweredOutputState {",
+              "    private static func loweringOutputVolumeIfHeadphonesDisconnected(",
+              "    private static func restoringLoweredOutputVolume("])
+          + "}\n")
     write("NotchVolumeRouting.swift", "import Foundation\nimport CoreGraphics\n"
           + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",

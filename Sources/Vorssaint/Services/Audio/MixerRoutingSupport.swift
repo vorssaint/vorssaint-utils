@@ -661,6 +661,14 @@ enum MixerRoutingSupport {
         return abs(currentVolume - appliedVolume) < 0.005
     }
 
+    /// Level 0 is still faintly audible on some speakers (built-in MacBook Pro
+    /// speakers sit near -63 dB there), so a headphone disconnect lowered to 0
+    /// also mutes the output. An output that is already muted, or has no mute
+    /// switch, is left alone, so only a mute this feature set is undone later.
+    static func shouldMuteOutputLoweredForDisconnect(lowerToPercent: Int, currentlyMuted: Bool?) -> Bool {
+        lowerToPercent <= 0 && currentlyMuted == false
+    }
+
     /// Pro audio hosts (DAWs and live rack hosts) own their output device,
     /// clock and latency chain; the mixer's stereo-mixdown tap mutes their
     /// real output and replays it elsewhere, which silences them outright
@@ -862,22 +870,6 @@ enum MixerRoutingSupport {
         guard let targetUID else { return false }
         guard targetUID != currentUID else { return false }
         return true
-    }
-
-    /// The output to select because a chosen device just connected. Already
-    /// connected devices stay put, so a manual change to the speakers is not
-    /// taken back while the headset remains on. The first device list is a
-    /// baseline: opening the app must not move the output.
-    static func outputUIDToSelectOnConnect(enabled: Bool,
-                                           preferredUID: String?,
-                                           hasBaseline: Bool,
-                                           previousUIDs: Set<String>,
-                                           currentUIDs: Set<String>,
-                                           currentDefaultUID: String?) -> String? {
-        guard enabled, hasBaseline, let preferredUID, !preferredUID.isEmpty else { return nil }
-        guard currentUIDs.contains(preferredUID), !previousUIDs.contains(preferredUID) else { return nil }
-        guard preferredUID != currentDefaultUID else { return nil }
-        return preferredUID
     }
 
     /// The first observed set establishes a baseline. Afterwards only an

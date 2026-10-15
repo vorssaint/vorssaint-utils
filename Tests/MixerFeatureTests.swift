@@ -110,39 +110,18 @@ enum MixerFeatureTests {
                "headphone disconnect volume can silence the speakers")
         suite.expect(Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(105) == 100,
                "headphone disconnect volume clamps high values")
-        suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerSwitchToOutputOnConnect] as? Bool) == false
-               && (Defaults.registeredDefaults[DefaultsKey.mixerSwitchToOutputOnConnectUID] as? String) == "",
-               "switching to a headset on connect is opt-in")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: true, preferredUID: "airpods", hasBaseline: true,
-            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
-            currentDefaultUID: "speakers") == "airpods",
-               "a chosen headset is selected when it connects")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: false, preferredUID: "airpods", hasBaseline: true,
-            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
-            currentDefaultUID: "speakers") == nil,
-               "headset selection on connect stays off until chosen")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: true, preferredUID: "airpods", hasBaseline: false,
-            previousUIDs: [], currentUIDs: ["speakers", "airpods"],
-            currentDefaultUID: "speakers") == nil,
-               "opening the app does not move the output to a headset already connected")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: true, preferredUID: "airpods", hasBaseline: true,
-            previousUIDs: ["speakers", "airpods"], currentUIDs: ["speakers", "airpods"],
-            currentDefaultUID: "speakers") == nil,
-               "a headset that was already connected is not taken back from a manual choice")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: true, preferredUID: "airpods", hasBaseline: true,
-            previousUIDs: ["speakers"], currentUIDs: ["speakers", "airpods"],
-            currentDefaultUID: "airpods") == nil,
-               "a headset macOS already selected needs no second switch")
-        suite.expect(MixerRoutingSupport.outputUIDToSelectOnConnect(
-            enabled: true, preferredUID: "airpods", hasBaseline: true,
-            previousUIDs: ["speakers"], currentUIDs: ["speakers"],
-            currentDefaultUID: "speakers") == nil,
-               "a missing headset is not selected")
+        suite.expect(MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                         currentlyMuted: false),
+               "silence chosen for a headphone disconnect also mutes the speakers")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 5,
+                                                                          currentlyMuted: false),
+               "a low but audible headphone disconnect volume leaves the speakers unmuted")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: true),
+               "speakers muted before a headphone disconnect are not claimed by the lowering")
+        suite.expect(!MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(lowerToPercent: 0,
+                                                                          currentlyMuted: nil),
+               "an output without a mute switch is only lowered")
         suite.expect((Defaults.registeredDefaults[DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed] as? Bool) == false
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerHeadphonesDisconnectVolumePercent),
