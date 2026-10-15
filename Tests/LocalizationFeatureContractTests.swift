@@ -169,6 +169,8 @@ enum LocalizationFeatureContractTests {
                    && !strings.switcherWindowlessAppsFinder.contains("—")
                    && !strings.switcherWindowlessAppsAll.contains("—"),
                    "\(prefix) App Switcher windowless apps choices are all present without em dash")
+            expectFormat(strings.switcherWindowlessAppsLockedFormat, ["@"],
+                         "\(prefix) App Switcher windowless apps locked reason names the shortcut takeover")
             suite.expect(!strings.diskAvailable.isEmpty
                    && !strings.diskPurgeable.isEmpty
                    && !strings.diskAvailable.contains("—")

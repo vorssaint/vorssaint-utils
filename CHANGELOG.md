@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-The window switcher can limit its columns and reach fullscreen windows from the current desktop, screenshot previews copy text, and recordings save as GIFs of any length. Dynamic Island finds lyrics across more catalog variations, shows the active audio output in volume feedback and announces keyboard layout changes, with fixes for volume keys, mouse navigation, Dock instances, M4 Pro temperatures and Command Bar dates.
+The window switcher offers column limits and clearer app filtering. Screenshots copy text, recordings export longer GIFs and isolate window audio, and mixer sliders follow perceived loudness. AI Agents supports OpenCode 2 and safer Claude renewal estimates. Dynamic Island improves lyrics, companion playback and keyboard focus. Command Bar opens and searches faster. Clipboard history leaves sensitive-text guessing off by default. Cleaning Mode keeps input taps suspended, alongside fixes for clipboard pastes, display brightness, recording, app updates, Homebrew installs, volume keys, mouse navigation, Dock instances and M4 Pro temperatures.
 
 ### Added
 - Dynamic Island can show the keyboard input source when it changes. Command Bar's temporary layout switches stay quiet. Settings → Dynamic Island → Activity → Indicators.
@@ -15,10 +15,28 @@ The window switcher can limit its columns and reach fullscreen windows from the 
 - Screenshot previews can copy the text in a capture when Screen OCR is installed.
 
 ### Changed
+- Clipboard history's sensitive-text filter now starts off, including after upgrading or restoring an older backup. It can be enabled in Settings → Clipboard. Copies marked as confidential and ignored apps remain excluded.
+- Command Bar opens and searches faster, with the same matching and ranking rules.
 - Save as GIF and Copy as GIF work for recordings of any length.
 - With Show only the current desktop on, the window switcher also lists fullscreen windows from other desktops while Show fullscreen windows is on.
+- App sliders in the Volume mixer follow perceived loudness, so 50% sounds clearly quieter. Saved levels keep how loud each app plays.
+- Recording a single window captures only the sound of the app that owns it.
 
 ### Fixed
+- Clipboard history's optional sensitive-text filter no longer rejects commands, terminal output and links merely for mentioning words such as "token" or "password".
+- Paste as plain text and snippets cancel when a newer copy replaces the clipboard before the paste.
+- Recordings and exports fall back to H.264 when the Mac cannot encode their size in HEVC. Recording startup prepares the encoder without freezing the interface.
+- App Updates opens destinations without freezing the interface and preserves the return to its window when requests overlap.
+- Display brightness ignores stale DDC replies meant for other monitor controls.
+- An app hidden by its Command Bar shortcut stays hidden even when macOS reports that hiding failed.
+- Command Bar reads more browser selections and preserves surrounding spaces and line breaks when changing letter case.
+- App Updates recognizes beta10 and rc10 as newer than beta9 and rc9.
+- Disk Image Installer ignores Homebrew's cached installers while still offering unrelated mounted apps.
+- Playing music takes the idle companion's place in Dynamic Island and stays selectable alongside AI activity.
+- Dynamic Island hides its automatic opening focus ring and restores visible focus when keyboard navigation begins.
+- AI Agents estimates Claude session renewals after long gaps without discarding observed usage or sending reset alerts at the estimate.
+- Cleaning Mode keeps middle click and debounce suspended. Stopping input taps for permission cleanup or shutdown no longer restarts them.
+- Window switcher settings explain why replacing macOS app shortcuts locks the choices for apps with no open window.
 - Lyrics lookup handles differences in titles, albums and artist credits, using bounded searches and verified artist aliases while rejecting incompatible recordings and unknown collaborators.
 - Volume feedback uses the selected headphones or AirPods icon, including when muted or at zero volume.
 - Mouse navigation handles quick changes between Back and Forward when the app's menu state has not caught up.
@@ -28,9 +46,11 @@ The window switcher can limit its columns and reach fullscreen windows from the 
 - Dock clicks and Dock Preview act on the right instance when an app runs as several processes.
 - CPU temperature on Apple M4 Pro reads its hottest cores, so alerts and fan curves react in time.
 - Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.
+- AI Agents follows OpenCode 2, including databases upgraded from OpenCode 1 and the cost of compactions.
+- Command Bar finds the tools Xcode keeps inside its bundle, such as Simulator, Instruments and Device Hub, and the uninstaller refuses apps that live inside another app.
 
 ### Contributors
-Thanks to @AB-boi, @beckhauser, @benjcrich, @COMEBACKISREAL, @eioz, @EugeneCarldotme, @JeanBaeez, @Likheet, @ManuLorenzzo, @oskarsss, @PratikPawar1401, @unfilet and @ywu73.
+Thanks to @2-Chengs, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @beckhauser, @benjcrich, @capozz03, @claude, @COMEBACKISREAL, @cprecioso, @eioz, @EugeneCarldotme, @gustavoramalho, @Hackmodford, @iancenry, @JeanBaeez, @juanra, @LechTheMitch, @Likheet, @luantedesco, @ManuLorenzzo, @mohammadhprp, @morhaf-ko, @nateships, @ncesar, @oskarsss, @PratikPawar1401, @unfilet, @ywu73 and @zhanghk2001.
 
 ## [3.4.1] - 2026-10-08
 

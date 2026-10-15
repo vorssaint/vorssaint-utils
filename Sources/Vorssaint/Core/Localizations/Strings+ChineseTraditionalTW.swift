@@ -243,6 +243,7 @@ extension Strings {
         switcherWindowlessAppsOff: "不顯示",
         switcherWindowlessAppsFinder: "僅 Finder",
         switcherWindowlessAppsAll: "所有 App",
+        switcherWindowlessAppsLockedFormat: "開啟「%@」時，會保留所有執行中 App 的入口。如需選擇，請關閉此選項。",
         switcherNoOpenWindow: "沒有開啟的視窗",
         switcherOtherDesktop: "其他桌面",
         dockPreviewName: "Dock Preview",

@@ -242,6 +242,7 @@ extension Strings {
         switcherWindowlessAppsOff: "Ne pas afficher",
         switcherWindowlessAppsFinder: "Finder uniquement",
         switcherWindowlessAppsAll: "Toutes les apps",
+        switcherWindowlessAppsLockedFormat: "Toutes les apps ouvertes restent accessibles tant que l’option «\u{00A0}%@\u{00A0}» est activée. Désactivez-la pour choisir.",
         switcherNoOpenWindow: "Sans fenêtre ouverte",
         switcherOtherDesktop: "Autre bureau",
         dockPreviewName: "Dock Preview",

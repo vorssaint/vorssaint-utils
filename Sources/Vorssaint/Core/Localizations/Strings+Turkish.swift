@@ -242,6 +242,7 @@ extension Strings {
         switcherWindowlessAppsOff: "Gösterme",
         switcherWindowlessAppsFinder: "Yalnızca Finder",
         switcherWindowlessAppsAll: "Tüm uygulamalar",
+        switcherWindowlessAppsLockedFormat: "“%@” açıkken çalışan tüm uygulamalara erişim korunur. Seçim yapmak için bu seçeneği kapatın.",
         switcherNoOpenWindow: "Açık penceresi yok",
         switcherOtherDesktop: "Başka masaüstü",
         dockPreviewName: "Dock Preview",

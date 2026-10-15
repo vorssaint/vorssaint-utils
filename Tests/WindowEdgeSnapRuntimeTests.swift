@@ -8,7 +8,8 @@ import Foundation
 private typealias EdgeSnapGeometry = WindowEdgeSnapSupport
 
 /// The production pointer callback, tracking, lookup, target and release bodies
-/// are extracted on every test build. Scheduling, window server snapshots, AX,
+/// are extracted on every test build, and so is the move gesture's callback with
+/// its arming and promotion, which hands a modifier move over to the tracking. Scheduling, window server snapshots, AX,
 /// screens, preferences, the preview and the placement itself are replaced, and
 /// every AX call is counted by where it is asked: on the lookup queue, or on the
 /// main run loop that also serves the event taps. Events are passed directly,
@@ -35,6 +36,10 @@ enum WindowEdgeSnapRuntimeTests {
     static var stampsEvents = true
     /// The saved placements of the drop areas, read only under their own key.
     static var zoneActions: String?
+    /// Whether the window's app is on the ignored list.
+    static var appIgnored = false
+    /// Whether the window's server ID can be read from its Accessibility element.
+    static var windowIDReadable = true
     /// A real timer fires at or after its deadline, here a millisecond after,
     /// so a look set for exactly the rest of a pause finds it complete.
     static let timerLatency: TimeInterval = 0.001
@@ -169,10 +174,20 @@ enum WindowEdgeSnapRuntimeTests {
         let processIdentifier: pid_t
         let launchDate: Date? = launch
         let activationPolicy = ActivationPolicy.regular
+        let bundleIdentifier: String? = "com.example.dragged"
+        let executableURL: URL? = nil
+        struct ActivationOptions: OptionSet { let rawValue: Int }
+        func activate(options: ActivationOptions) -> Bool { true }
         var isTerminated: Bool { !windowExists }
         init?(processIdentifier: pid_t) {
             guard windowExists, processIdentifier == processID else { return nil }
             self.processIdentifier = processIdentifier
+        }
+    }
+    final class WindowLayoutIgnoredApps {
+        static let shared = WindowLayoutIgnoredApps()
+        func contains(bundleID: String?, executablePath: @autoclosure () -> String?) -> Bool {
+            appIgnored && bundleID == "com.example.dragged"
         }
     }
     struct Window {
@@ -190,9 +205,14 @@ enum WindowEdgeSnapRuntimeTests {
     enum AXWindowResolver {
         static func windowID(for window: Window) -> CGWindowID? {
             countAX()
-            return window.id
+            return windowIDReadable ? window.id : nil
         }
     }
+    struct EnhancedUserInterfaceSuspension {
+        static func suspend(forAppOf window: Window) -> EnhancedUserInterfaceSuspension? { nil }
+        func resume() {}
+    }
+    static func AXUIElementPerformAction(_ window: Window, _ action: CFString) {}
 
     /// Every question to the window's app. Asked from the main run loop it
     /// holds the taps until that app answers.
@@ -220,14 +240,22 @@ enum WindowEdgeSnapRuntimeTests {
         var edgeSnapResolving = false
         var edgeSnapLastPointer: CGPoint?
         var edgeSnapTrail = WindowEdgeSnapPointerTrail()
+        var edgeSnapFollowsMoveGesture = false
         var edgeSnapStillCheckGeneration = 0
         var edgeSnapStillCheckPending = false
         let edgeSnapResolveQueue = DispatchQueue(label: "test lookup", qos: .userInitiated)
-        var activeGesture: Bool?
-        var pendingGesture: Bool?
+        var activeGesture: WindowPointerGesture?
+        var pendingGesture: PendingWindowGesture?
+        var gestureTap: CFMachPort?
+        var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
+        let moveGestureUpdateInterval: TimeInterval = 0
+        let resizeGestureUpdateInterval: TimeInterval = 0
+        let edgeSnapResolveAttemptLimit = 4
+        var replayedClicks = 0
         let edgeSnapSampleInterval: TimeInterval = 0
         var enabledEdgeSnapZones = WindowEdgeSnapZone.allEnabled
         var previews = 0
+        var previewShown = false
         var placements: [WindowLayoutFrame] = []
         var placedActions: [WindowLayoutAction] = []
 
@@ -236,8 +264,11 @@ enum WindowEdgeSnapRuntimeTests {
         func edgeSnapQuartzScreenFrames() -> [CGRect] { [CGRect(x: 0, y: 0, width: 1440, height: 900)] }
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
         static var uptimeSeconds: TimeInterval { clockStart + clock }
-        func showEdgeSnapPreview(frame: CGRect) { previews += 1 }
-        func hideEdgeSnapPreview(immediately: Bool) {}
+        func showEdgeSnapPreview(frame: CGRect) {
+            previews += 1
+            previewShown = true
+        }
+        func hideEdgeSnapPreview(immediately: Bool) { previewShown = false }
         func onScreenWindowIDs() -> Set<CGWindowID>? { windowExists ? [windowID] : [] }
         func windowsAttribute(_ app: Window) -> [Window]? {
             countAX()
@@ -264,6 +295,32 @@ enum WindowEdgeSnapRuntimeTests {
             return canBePlaced
         }
         func pruneWindowState(keeping key: WindowLayoutWindowKey) {}
+        func isTrackedButtonDown() -> Bool { false }
+        func flushPending(proxy: CGEventTapProxy?, at point: CGPoint?) {
+            guard pendingGesture != nil else { return }
+            pendingGesture = nil
+            replayedClicks += 1
+        }
+        func endGestureAssistiveMode() {}
+        func gestureTarget(at point: CGPoint, requiresResize: Bool) -> WindowGestureTarget? {
+            guard currentFrame.contains(point), let app = NSRunningApplication(processIdentifier: processID)
+            else { return nil }
+            return WindowGestureTarget(window: Window(pid: processID, id: windowID), app: app,
+                                       frame: WindowLayoutFrame(origin: currentFrame.origin, size: currentFrame.size))
+        }
+        /// The app takes every frame the gesture writes at once.
+        func enqueueGestureApply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
+            switch gesture.kind {
+            case .move:
+                currentFrame.origin = WindowGestureSupport.movedOrigin(from: gesture.originalFrame.origin,
+                                                                       pointerStart: gesture.pointerStart,
+                                                                       pointerNow: pointer)
+            case .resize(let edges):
+                currentFrame = WindowGestureSupport.resizedFrame(from: gesture.originalFrame,
+                                                                 pointerStart: gesture.pointerStart,
+                                                                 pointerNow: pointer, edges: edges)
+            }
+        }
         @discardableResult
         func applyPlacement(_ action: WindowLayoutAction, to target: WindowLayoutTarget,
                             visibleFrame: CGRect, historyFrame: WindowLayoutFrame,
@@ -289,6 +346,8 @@ enum WindowEdgeSnapRuntimeTests {
         clockStart = TimeInterval(clock_gettime_nsec_np(CLOCK_UPTIME_RAW)) / 1_000_000_000
         stampsEvents = true
         zoneActions = nil
+        appIgnored = false
+        windowIDReadable = true
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
@@ -356,6 +415,44 @@ enum WindowEdgeSnapRuntimeTests {
 
     private static var movedToEdge: CGRect {
         initialFrame.offsetBy(dx: edgePoint.x - pressPoint.x, dy: 0)
+    }
+
+    /// A modifier move or resize as the gesture tap promotes it from the press.
+    private static func gesture(_ kind: WindowPointerGesture.Kind = .move,
+                                snapsAtEdges: Bool = true) -> WindowPointerGesture {
+        WindowPointerGesture(window: Window(pid: processID, id: windowID), kind: kind, button: .primary,
+                             originalFrame: initialFrame, pointerStart: pressPoint, lastAppliedAt: 0,
+                             snapsAtEdges: snapsAtEdges)
+    }
+
+    /// The promotion past the drag slop, handed over the way the gesture tap
+    /// hands it: the gesture holds the window, and its first step follows.
+    private static func take(_ host: Host, _ gesture: WindowPointerGesture,
+                             to point: CGPoint = CGPoint(x: 240, y: 200), windowFollows: Bool = true) {
+        buttonDown = true
+        host.activeGesture = gesture
+        host.forwardToEdgeSnap(gesture, .moveGestureBegan(pressOrigin: pressPoint, initialFrame: initialFrame,
+                                                          windowID: windowID, processID: processID))
+        carry(host, gesture, to: point, windowFollows: windowFollows)
+    }
+
+    /// A gesture step. A move writes the window under the pointer itself,
+    /// unless the app is still behind with it.
+    private static func carry(_ host: Host, _ gesture: WindowPointerGesture, to point: CGPoint,
+                              windowFollows: Bool = true) {
+        if case .move = gesture.kind, windowFollows {
+            currentFrame = initialFrame.offsetBy(dx: point.x - pressPoint.x, dy: point.y - pressPoint.y)
+        }
+        host.forwardToEdgeSnap(gesture, .dragged(location: point, time: clockStart + clock))
+        DispatchQueue.main.runDue()
+    }
+
+    /// The release, handed over once the gesture has written its last frame.
+    private static func drop(_ host: Host, _ gesture: WindowPointerGesture, at point: CGPoint) {
+        buttonDown = false
+        host.activeGesture = nil
+        host.forwardToEdgeSnap(gesture, .up(location: point, time: clockStart + clock))
+        DispatchQueue.main.drain()
     }
 
     static func run(_ suite: TestSuite) {
@@ -634,5 +731,268 @@ enum WindowEdgeSnapRuntimeTests {
         send(unstamped, .leftMouseUp, CGPoint(x: 1430, y: 200))
         suite.expect(previewedWhileCreeping && unstamped.placements.count == 1,
                      "events posted with no timestamp are timed by the clock, so creeping onto a seam previews and snaps")
+
+        reset()
+        let modifierMove = Host()
+        let move = gesture()
+        take(modifierMove, move)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        carry(modifierMove, move, to: edgePoint)
+        let previewedDuringMove = modifierMove.previews == 1
+        drop(modifierMove, move, at: edgePoint)
+        suite.expect(previewedDuringMove && mainAXWhileHeld == 0 && modifierMove.placedActions == [.rightHalf]
+                        && modifierMove.placements == [WindowLayoutFrame(origin: initialFrame.origin,
+                                                                         size: initialFrame.size)],
+                     "a window carried to an edge by the modifier move previews the zone, snaps on release and keeps its starting frame for Restore")
+
+        reset()
+        zoneActions = "right=rightThird"
+        let modifierChosen = Host()
+        take(modifierChosen, move)
+        DispatchQueue.drainLookups()
+        carry(modifierChosen, move, to: edgePoint)
+        drop(modifierChosen, move, at: edgePoint)
+        suite.expect(modifierChosen.placedActions == [.rightThird],
+                     "a modifier move dropped on an area set to another placement lands in that placement")
+
+        reset()
+        let modifierZoneOff = Host()
+        modifierZoneOff.enabledEdgeSnapZones.remove(.right)
+        take(modifierZoneOff, move)
+        DispatchQueue.drainLookups()
+        carry(modifierZoneOff, move, to: edgePoint)
+        drop(modifierZoneOff, move, at: edgePoint)
+        suite.expect(modifierZoneOff.previews == 0 && modifierZoneOff.placements.isEmpty,
+                     "a modifier move dropped on a switched-off zone shows no preview and stays where it was dropped")
+
+        reset()
+        let modifierMidScreen = Host()
+        take(modifierMidScreen, move)
+        DispatchQueue.drainLookups()
+        carry(modifierMidScreen, move, to: CGPoint(x: 700, y: 200))
+        drop(modifierMidScreen, move, at: CGPoint(x: 700, y: 200))
+        suite.expect(modifierMidScreen.previews == 0 && modifierMidScreen.placements.isEmpty
+                        && mainAXAfterRelease == 0,
+                     "a modifier move released away from every zone leaves the window where it was dropped")
+
+        reset()
+        let modifierFlick = Host()
+        take(modifierFlick, move, to: edgePoint)
+        drop(modifierFlick, move, at: edgePoint)
+        suite.expect(modifierFlick.placements.count == 1,
+                     "a modifier move flicked to an edge snaps even when the release beats its lookup")
+
+        reset()
+        let modifierResize = Host()
+        let resize = gesture(.resize([.right]))
+        take(modifierResize, resize)
+        carry(modifierResize, resize, to: edgePoint)
+        drop(modifierResize, resize, at: edgePoint)
+        suite.expect(modifierResize.previews == 0 && modifierResize.placements.isEmpty
+                        && DispatchQueue.lookup.jobs.isEmpty && lookupQueueAX + mainAXAfterRelease == 0,
+                     "a modifier resize dragged to an edge never previews, snaps or asks its app")
+
+        reset()
+        let modifierSnapOff = Host()
+        let unsnapped = gesture(snapsAtEdges: false)
+        take(modifierSnapOff, unsnapped)
+        carry(modifierSnapOff, unsnapped, to: edgePoint)
+        drop(modifierSnapOff, unsnapped, at: edgePoint)
+        suite.expect(modifierSnapOff.previews == 0 && modifierSnapOff.placements.isEmpty,
+                     "a modifier move begun while edge snapping is off never snaps")
+
+        reset()
+        WindowEdgeSnapSupport.isSystemTilingEnabled = true
+        let modifierSystemTiling = Host()
+        take(modifierSystemTiling, move)
+        DispatchQueue.drainLookups()
+        carry(modifierSystemTiling, move, to: edgePoint)
+        drop(modifierSystemTiling, move, at: edgePoint)
+        suite.expect(modifierSystemTiling.previews == 0 && modifierSystemTiling.placements.isEmpty,
+                     "with macOS tiling on, a modifier move does not snap")
+
+        reset()
+        let modifierDropped = Host()
+        take(modifierDropped, move)
+        DispatchQueue.drainLookups()
+        carry(modifierDropped, move, to: edgePoint)
+        let previewedBeforeDrop = modifierDropped.previews == 1
+        modifierDropped.forwardToEdgeSnap(move, .moveGestureDropped)
+        DispatchQueue.main.drain()
+        let hiddenOnDrop = !modifierDropped.previewShown
+        carry(modifierDropped, move, to: CGPoint(x: edgePoint.x, y: 300))
+        modifierDropped.forwardToEdgeSnap(move, .up(location: edgePoint, time: clockStart + clock))
+        DispatchQueue.main.drain()
+        suite.expect(previewedBeforeDrop && hiddenOnDrop && modifierDropped.previews == 1
+                        && modifierDropped.placements.isEmpty,
+                     "a modifier move the system cuts off mid-drag hides the preview and nothing after it snaps")
+
+        reset()
+        let modifierLagging = Host()
+        take(modifierLagging, move, to: CGPoint(x: 240, y: 200), windowFollows: false)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.runDue()
+        for step in 1...6 {
+            clock += 0.05
+            carry(modifierLagging, move, to: CGPoint(x: 240 + CGFloat(step) * 150, y: 200), windowFollows: false)
+        }
+        clock += 0.05
+        carry(modifierLagging, move, to: edgePoint, windowFollows: false)
+        let previewedWhileLagging = modifierLagging.previews == 1
+        drop(modifierLagging, move, at: edgePoint)
+        suite.expect(previewedWhileLagging && modifierLagging.placedActions == [.rightHalf],
+                     "a modifier move previews and snaps even while the window server still shows the window behind the pointer")
+
+        reset()
+        let modifierLaggingFlick = Host()
+        take(modifierLaggingFlick, move, to: edgePoint, windowFollows: false)
+        drop(modifierLaggingFlick, move, at: edgePoint)
+        suite.expect(modifierLaggingFlick.placements.count == 1,
+                     "a modifier move flicked to an edge snaps when the release beats both its lookup and the window server")
+
+        reset()
+        appIgnored = true
+        let modifierIgnored = Host()
+        take(modifierIgnored, move)
+        DispatchQueue.drainLookups()
+        carry(modifierIgnored, move, to: edgePoint)
+        drop(modifierIgnored, move, at: edgePoint)
+        suite.expect(modifierIgnored.previews == 0 && modifierIgnored.placements.isEmpty,
+                     "a modifier move of a listed app's window carried in the background never snaps")
+
+        reset()
+        let titleBarDuringGesture = Host()
+        send(titleBarDuringGesture, .leftMouseDown, pressPoint)
+        titleBarDuringGesture.pendingGesture = PendingWindowGesture(
+            down: event(.leftMouseDown, at: pressPoint), button: .primary, kind: .move,
+            window: Window(pid: processID, id: windowID), app: NSRunningApplication(processIdentifier: processID)!,
+            originalFrame: initialFrame, origin: pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(titleBarDuringGesture, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(titleBarDuringGesture, .leftMouseDragged, edgePoint)
+        send(titleBarDuringGesture, .leftMouseUp, edgePoint)
+        suite.expect(titleBarDuringGesture.previews == 0 && titleBarDuringGesture.placements.isEmpty,
+                     "a title bar drag seen while the move gesture holds a press is not tracked toward an edge")
+
+        reset()
+        let titleBarDuringMove = Host()
+        send(titleBarDuringMove, .leftMouseDown, pressPoint)
+        titleBarDuringMove.activeGesture = gesture()
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(titleBarDuringMove, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        currentFrame = movedToEdge
+        send(titleBarDuringMove, .leftMouseDragged, edgePoint)
+        send(titleBarDuringMove, .leftMouseUp, edgePoint)
+        suite.expect(titleBarDuringMove.previews == 0 && titleBarDuringMove.placements.isEmpty,
+                     "a title bar drag seen while a move gesture is under way is not tracked toward an edge")
+
+        reset()
+        canBePlaced = false
+        let modifierUnplaceable = Host()
+        take(modifierUnplaceable, move)
+        for step in 1...5 {
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+            modifierUnplaceable.edgeSnapLastResolveAt = 0
+            clock += 0.1
+            carry(modifierUnplaceable, move, to: CGPoint(x: 240 + CGFloat(step) * 200, y: 200))
+        }
+        carry(modifierUnplaceable, move, to: edgePoint)
+        drop(modifierUnplaceable, move, at: edgePoint)
+        suite.expect(mainLookupsAfterRelease == 0 && modifierUnplaceable.placements.isEmpty,
+                     "a modifier move whose window every lookup turned down is not looked up again at release")
+
+        // The gesture tap's own callback, with real events carrying the chord.
+        let chord: CGEventFlags = [.maskControl, .maskCommand]
+        let dummyTap = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil)
+        /// One event through the move gesture's callback and the jobs it
+        /// leaves. Returns whether the event went on to the app.
+        func gestureEvent(_ host: Host, _ type: CGEventType, _ point: CGPoint,
+                          flags: CGEventFlags = chord) -> Bool {
+            if type == .leftMouseDown { buttonDown = true }
+            if type == .leftMouseUp { buttonDown = false }
+            let pointerEvent = event(type, at: point)
+            pointerEvent.flags = flags
+            let passed = host.handleGestureEvent(proxy: nil, type: type, event: pointerEvent) != nil
+            DispatchQueue.main.runDue()
+            return passed
+        }
+        func chordDrag(_ host: Host, flags: CGEventFlags = chord) -> (heldPress: Bool, preview: Bool) {
+            let pressPassed = gestureEvent(host, .leftMouseDown, pressPoint, flags: flags)
+            _ = gestureEvent(host, .leftMouseDragged, CGPoint(x: 240, y: 200), flags: flags)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.runDue()
+            clock += 0.05
+            _ = gestureEvent(host, .leftMouseDragged, edgePoint, flags: flags)
+            return (!pressPassed, host.previewShown)
+        }
+
+        reset()
+        let tapMove = Host()
+        tapMove.edgeSnapTap = dummyTap
+        let tapMoveDrag = chordDrag(tapMove)
+        let releaseSwallowed = !gestureEvent(tapMove, .leftMouseUp, edgePoint)
+        DispatchQueue.main.drain()
+        suite.expect(tapMoveDrag.heldPress && tapMoveDrag.preview && releaseSwallowed
+                        && tapMove.placedActions == [.rightHalf]
+                        && tapMove.placements == [WindowLayoutFrame(origin: initialFrame.origin,
+                                                                    size: initialFrame.size)],
+                     "a chord drag through the gesture tap previews the zone, snaps on release and keeps its starting frame for Restore")
+
+        reset()
+        let tapResize = Host()
+        tapResize.edgeSnapTap = dummyTap
+        let tapResizeDrag = chordDrag(tapResize, flags: chord.union(.maskShift))
+        _ = gestureEvent(tapResize, .leftMouseUp, edgePoint, flags: chord.union(.maskShift))
+        DispatchQueue.main.drain()
+        suite.expect(tapResizeDrag.heldPress && !tapResizeDrag.preview && tapResize.placements.isEmpty
+                        && mainAXWhileHeld + lookupQueueAX + mainAXAfterRelease == 0,
+                     "a resize chord through the gesture tap never previews, snaps or asks for the window's server ID")
+
+        reset()
+        let tapSnapOff = Host()
+        let tapSnapOffDrag = chordDrag(tapSnapOff)
+        _ = gestureEvent(tapSnapOff, .leftMouseUp, edgePoint)
+        DispatchQueue.main.drain()
+        suite.expect(tapSnapOffDrag.heldPress && !tapSnapOffDrag.preview && tapSnapOff.placements.isEmpty
+                        && mainAXWhileHeld + lookupQueueAX + mainAXAfterRelease == 0,
+                     "a chord drag while edge snapping is off moves the window without snapping or asking for its server ID")
+
+        reset()
+        let tapClick = Host()
+        tapClick.edgeSnapTap = dummyTap
+        _ = gestureEvent(tapClick, .leftMouseDown, pressPoint)
+        _ = gestureEvent(tapClick, .leftMouseUp, pressPoint)
+        DispatchQueue.main.drain()
+        suite.expect(tapClick.replayedClicks == 1 && mainAXWhileHeld + mainAXAfterRelease == 0,
+                     "a plain chord click is handed back without asking for the window's server ID")
+
+        reset()
+        windowIDReadable = false
+        let tapNoID = Host()
+        tapNoID.edgeSnapTap = dummyTap
+        let tapNoIDDrag = chordDrag(tapNoID)
+        _ = gestureEvent(tapNoID, .leftMouseUp, edgePoint)
+        DispatchQueue.main.drain()
+        suite.expect(!tapNoIDDrag.preview && tapNoID.placements.isEmpty,
+                     "a chord drag whose window has no readable server ID moves without snapping")
+
+        reset()
+        let tapCutOff = Host()
+        tapCutOff.edgeSnapTap = dummyTap
+        let tapCutOffDrag = chordDrag(tapCutOff)
+        _ = tapCutOff.handleGestureEvent(proxy: nil, type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
+        DispatchQueue.main.runDue()
+        let hiddenOnCutOff = !tapCutOff.previewShown
+        _ = gestureEvent(tapCutOff, .leftMouseUp, edgePoint)
+        DispatchQueue.main.drain()
+        suite.expect(tapCutOffDrag.preview && hiddenOnCutOff && tapCutOff.placements.isEmpty,
+                     "a chord drag the system cuts off through the gesture tap hides the preview and never snaps")
     }
 }

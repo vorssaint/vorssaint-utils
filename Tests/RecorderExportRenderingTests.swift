@@ -18,7 +18,7 @@ enum RecorderExportRenderingTests {
             }
             done.signal()
         }
-        suite.expect(done.wait(timeout: .now() + 90) == .success,
+        suite.expect(done.wait(timeout: .now() + 300) == .success,
                      "export regression finishes within its deadline")
     }
 

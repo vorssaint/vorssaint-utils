@@ -411,8 +411,16 @@ enum AgentLimitSupport {
                                 scope: window.scope, usedPercent: 0, resetsAt: nil)
     }
 
+    /// Once an estimate has passed, the countdown is unknown until another
+    /// reading places it. That does not mean the allowance has renewed.
+    static func displayedReset(_ window: AgentLimitWindow, now: Date) -> Date? {
+        guard let reset = window.estimatedResetsAt ?? window.resetsAt, reset > now else { return nil }
+        return reset
+    }
+
     static func pace(for window: AgentLimitWindow, now: Date) -> AgentPace? {
-        guard let minutes = window.minutes, minutes > 0, let resets = window.resetsAt, resets > now else { return nil }
+        guard let minutes = window.minutes, minutes > 0,
+              let resets = displayedReset(window, now: now) else { return nil }
         let length = TimeInterval(minutes) * 60
         let elapsed = now.timeIntervalSince(resets.addingTimeInterval(-length))
         guard elapsed > 0 else { return nil }

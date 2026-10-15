@@ -193,7 +193,9 @@ enum NotchCompactTests {
         sizing(suite)
     }
     private static func calendarRows(_ suite: TestSuite) {
-        let day = Date(timeIntervalSince1970: 1_780_000_000)
+        // Local noon, so the one-hour event never crosses midnight in any time zone.
+        let day = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0,
+                                        of: Date(timeIntervalSince1970: 1_780_000_000)) ?? Date(timeIntervalSince1970: 1_780_000_000)
         for language in AppLanguage.allCases {
             for width: CGFloat in [192, 304, 424] {
                 func height(title: String, chosen: Bool? = nil) -> CGFloat {
