@@ -30,6 +30,7 @@ struct NotchMusicStrip: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
 
     private typealias Layout = NotchMusicStripLayout
     private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.compactActivityGeometry }
@@ -41,6 +42,7 @@ struct NotchMusicStrip: View {
     private var playback: NotchPlayback? { shown?.playback ?? music.playback }
     private var artwork: NSImage? { shown == nil ? music.artwork : shown?.artwork }
     private var tint: NotchArtworkTint? { shown == nil ? music.artworkTint : shown?.tint }
+    private var accent: Color { accentEnabled ? (tint?.color ?? .white) : .white }
     private var live: Bool { interactive && snapshot == nil }
     /// A physical camera's wings are fitted to the cover and the bars; a
     /// simulated one keeps a little air beside its drawn cutout.
@@ -130,10 +132,10 @@ struct NotchMusicStrip: View {
                                    bars: NotchLayout.compactMusicBarCount,
                                    barWidth: NotchLayout.compactMusicBarWidth,
                                    height: geometry.compactMusicBarHeight,
-                                   tint: tint?.color ?? .white)
+                                   tint: accent)
                 .opacity(showsControl ? 0 : 1)
             if showsControl {
-                NotchMusicStripButton(playing: playing, tint: tint?.color ?? .white,
+                NotchMusicStripButton(playing: playing, tint: accent,
                                       height: geometry.compactMusicBarHeight)
                     .transition(.opacity)
             }

@@ -639,6 +639,7 @@ struct NotchRestingStrip: View {
     @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
     @AppStorage(DefaultsKey.notchLowBatteryEarly) private var earlyBatteryWarning = false
     @AppStorage(DefaultsKey.notchLowBatteryEarlyThreshold) private var earlyBatteryThreshold = NotchSupport.defaultEarlyBatteryThreshold
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
@@ -699,7 +700,7 @@ struct NotchRestingStrip: View {
                         case .music:
                             if music.playback?.isPlaying == true {
                                 NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 11,
-                                                       tint: music.artworkTint?.color ?? .white)
+                                                       tint: accentEnabled ? (music.artworkTint?.color ?? .white) : .white)
                             }
                         case .battery:
                             if let percent = service.power.chargePercent {
