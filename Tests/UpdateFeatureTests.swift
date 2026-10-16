@@ -1362,6 +1362,16 @@ enum UpdateFeatureTests {
                 && AppUpdatesSupport.isNewer("3.5", than: "3.5beta")
                 && AppUpdatesSupport.isNewer("1.9b", than: "1.9a"),
                "a lettered part compares by its number first, and the bare number outranks its own suffixed run")
+        suite.expect(AppUpdatesSupport.isNewer("3.5.0beta10", than: "3.5.0beta9")
+                && !AppUpdatesSupport.isNewer("3.5.0beta9", than: "3.5.0beta10")
+                && AppUpdatesSupport.isNewer("2.0-rc10", than: "2.0-rc9")
+                && AppUpdatesSupport.compare("1.0b10", "1.0b2") == .orderedDescending
+                && AppUpdatesSupport.compare("1.0b2", "1.0b10") == .orderedAscending,
+               "a number after the letters counts as a number, so beta10 follows beta9")
+        suite.expect(AppUpdatesSupport.isNewer("1.0beta2", than: "1.0beta")
+                && AppUpdatesSupport.isNewer("1.0rc1", than: "1.0beta12")
+                && AppUpdatesSupport.compare("1.0Beta02", "1.0beta2") == .orderedSame,
+               "the letters still decide first, and neither case nor leading zeros make two spellings differ")
         suite.expect(AppUpdatesSupport.versionCore("3.5.262,260717dcrpwg7m0") == "3.5.262"
                 && AppUpdatesSupport.versionCore("0.0.402") == "0.0.402",
                "the revision after a comma is not part of the version")
@@ -1896,6 +1906,38 @@ enum UpdateFeatureTests {
             homeDirectory: "/Users/test")
         suite.expect(discoveredPaths == ["/Applications/Editor.app", "/Users/test/Tools/Side App.app"],
                "shared app discovery keeps installed apps and rejects system, transient, nested and duplicate copies")
+        // Xcode keeps the tools people open in its own Contents/Applications
+        // folder and Simulator in Contents/Developer/Applications. Those count
+        // as apps; helpers elsewhere in a bundle do not.
+        let bundleFixture = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-bundled-apps-\(UUID().uuidString)", isDirectory: true)
+        let host = bundleFixture.appendingPathComponent("Host.app", isDirectory: true)
+        let tool = host.appendingPathComponent("Contents/Applications/Tool.app", isDirectory: true)
+        let simulator = host.appendingPathComponent("Contents/Developer/Applications/Simulator.app",
+                                                    isDirectory: true)
+        let plain = bundleFixture.appendingPathComponent("Plain.app", isDirectory: true)
+        for folder in [tool, simulator, plain, host.appendingPathComponent("Contents/Library/LoginItems/Helper.app")] {
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        }
+        FileManager.default.createFile(
+            atPath: host.appendingPathComponent("Contents/Applications/ReadMe.txt").path, contents: Data())
+        suite.expect(InstalledApps.bundledApplications(in: host).map(\.standardizedFileURL.path)
+                == [tool.standardizedFileURL.path, simulator.standardizedFileURL.path]
+                && InstalledApps.bundledApplications(in: plain).isEmpty,
+               "an app's Contents/Applications and Contents/Developer/Applications tools are found and its helpers are not")
+        // The walk itself adds them only for the search that asks, so every
+        // picker that acts on whole apps keeps listing whole apps only.
+        func scannedPaths(includeBundled: Bool) -> Set<String> {
+            Set(InstalledApps.installedApplications(includeBundledApplications: includeBundled,
+                                                    roots: [bundleFixture])
+                .map { $0.url.resolvingSymlinksInPath().standardizedFileURL.path })
+        }
+        let wholeApps = Set([host, plain].map { $0.resolvingSymlinksInPath().standardizedFileURL.path })
+        let shippedTools = Set([tool, simulator].map { $0.resolvingSymlinksInPath().standardizedFileURL.path })
+        suite.expect(scannedPaths(includeBundled: true) == wholeApps.union(shippedTools)
+                && scannedPaths(includeBundled: false) == wholeApps,
+               "the app scan lists the tools an app ships only when asked and never its helpers")
+        try? FileManager.default.removeItem(at: bundleFixture)
 
         let noon = Date(timeIntervalSince1970: 1_800_000_000)
         suite.expect(AppUpdatesSupport.nextCheckDate(lastCheck: noon, frequency: .off, now: noon) == nil,

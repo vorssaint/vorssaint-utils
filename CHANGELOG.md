@@ -6,6 +6,67 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+After updating, What's New shows the changes for the features you use. The window switcher offers column limits and clearer app filtering. The screenshot editor adds Spotlight, canvas expansion and pasted image layers, and screenshots copy text. Recordings export longer GIFs and isolate window audio, and mixer sliders follow perceived loudness. Dynamic Island opens to a cleaner layout and with a keyboard shortcut, starts its clipboard page on the last copy and improves lyrics, companion playback and keyboard focus. The scratchpad reads task lists, App Updates can leave any app out, and windows moved with the modifier drag snap to screen edges. AI Agents supports OpenCode 2 and safer Claude renewal estimates. Command Bar opens and searches faster. Clipboard history leaves sensitive-text guessing off by default. Cleaning Mode keeps input taps suspended, alongside fixes for microphone volume, clipboard pastes, display brightness, recording, app updates, Homebrew installs, volume keys, mouse navigation, Dock instances and M4 Pro temperatures.
+
+### Added
+- Dynamic Island can show the keyboard input source when it changes. Command Bar's temporary layout switches stay quiet. Settings → Dynamic Island → Activity → Indicators.
+- The window switcher can limit how many items sit in a row and wraps the rest. Settings → Window switcher → Options → Maximum columns.
+- Screenshot previews can copy the text in a capture when Screen OCR is installed.
+- The screenshot editor's Spotlight tool dims everything outside the areas you draw. Expand canvas adds white, transparent or custom-color space, and Command-V pastes an image as a layer to move, resize and reorder.
+- Dynamic Island can open and close with a keyboard shortcut, off until you turn it on. Settings → Dynamic Island → Behavior → Opening.
+- The scratchpad's formatted reading shows Markdown task lists as checkboxes you can click, and Shift-Return continues a list.
+- App Updates can leave out any app, including one with no update showing, from Update exceptions. Settings → App Updates.
+- With Snap windows at screen edges and Move and resize by dragging on, a window moved with the modifier drag snaps like a title bar drag.
+- After an update, What's New lists the changes for the features you use, with new features first and the others a click away. The release notes shown before updating can be turned off. Settings → About → Updates.
+
+### Changed
+- The open Dynamic Island drops page titles, the ⋯ menu and the companion. Each page keeps its controls beside the camera, the home page's levels share the top row, Now Playing has a compact player, and Pin, Settings and Close are a secondary click away.
+- Clipboard history's sensitive-text filter now starts off, including after upgrading or restoring an older backup. It can be enabled in Settings → Clipboard. Copies marked as confidential and ignored apps remain excluded.
+- Command Bar opens and searches faster, with the same matching and ranking rules.
+- Save as GIF and Copy as GIF work for recordings of any length.
+- With Show only the current desktop on, the window switcher also lists fullscreen windows from other desktops while Show fullscreen windows is on.
+- App sliders in the Volume mixer follow perceived loudness, so 50% sounds clearly quieter. Saved levels keep how loud each app plays.
+- Recording a single window captures only the sound of the app that owns it.
+- Dynamic Island's clipboard page opens on the entry copied last, keeps search behind a magnifier and can show compact entries. Settings → Dynamic Island → Content → Clipboard.
+- The speakers can be lowered to silence when headphones disconnect, and at 0% they are also muted.
+
+### Fixed
+- Clipboard history's optional sensitive-text filter no longer rejects commands, terminal output and links merely for mentioning words such as "token" or "password".
+- Paste as plain text and snippets cancel when a newer copy replaces the clipboard before the paste.
+- Recordings and exports fall back to H.264 when the Mac cannot encode their size in HEVC. Recording startup prepares the encoder without freezing the interface.
+- App Updates opens destinations without freezing the interface and preserves the return to its window when requests overlap.
+- Display brightness ignores stale DDC replies meant for other monitor controls.
+- An app hidden by its Command Bar shortcut stays hidden even when macOS reports that hiding failed.
+- Command Bar reads more browser selections and preserves surrounding spaces and line breaks when changing letter case.
+- App Updates recognizes beta10 and rc10 as newer than beta9 and rc9.
+- Disk Image Installer ignores Homebrew's cached installers while still offering unrelated mounted apps.
+- Playing music takes the idle companion's place in Dynamic Island and stays selectable alongside AI activity.
+- Dynamic Island hides its automatic opening focus ring and restores visible focus when keyboard navigation begins.
+- Dynamic Island's brightness and keyboard light sliders no longer repeat their level over the top row.
+- AI Agents estimates Claude session renewals after long gaps without discarding observed usage or sending reset alerts at the estimate.
+- Cleaning Mode keeps middle click and debounce suspended. Stopping input taps for permission cleanup or shutdown no longer restarts them.
+- Window switcher settings explain why replacing macOS app shortcuts locks the choices for apps with no open window.
+- Lyrics lookup handles differences in titles, albums and artist credits, using bounded searches and verified artist aliases while rejecting incompatible recordings and unknown collaborators.
+- Volume feedback uses the selected headphones or AirPods icon, including when muted or at zero volume.
+- Mouse navigation handles quick changes between Back and Forward when the app's menu state has not caught up.
+- Apps without Back or Forward menu commands receive side clicks again, provided the click still belongs to the same foreground app.
+- Command Bar resolves February 29 without a year to the next valid occurrence and rejects impossible dates such as April 31.
+- Volume keys keep moving on outputs that only take coarse volume steps.
+- Dock clicks and Dock Preview act on the right instance when an app runs as several processes.
+- Window switcher and Dock Preview can pause thumbnails in programs that are not apps, such as the Java that runs Minecraft.
+- CPU temperature on Apple M4 Pro reads its hottest cores, so alerts and fan curves react in time.
+- Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.
+- AI Agents follows OpenCode 2, including databases upgraded from OpenCode 1 and the cost of compactions.
+- Command Bar finds the tools Xcode keeps inside its bundle, such as Simulator, Instruments and Device Hub, and the uninstaller refuses apps that live inside another app.
+- Audio controls no longer crash with microphones that report an invalid volume, such as the Insta360 Link 2C Pro.
+- The island scratchpad's shortcut opens and closes it every time and places the caret while a Vorssaint window is in front.
+- Clipboard, Scratchpad, Quick Launcher and Shelf shortcuts expand the island's capture controls while they show, instead of leaving the island to open by itself once the capture ends.
+- Port Manager shows ports and PIDs without thousands separators, such as 5173 instead of 5,173.
+
+### Contributors
+Thanks to @2-Chengs, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @Alpaka05, @beckhauser, @benjcrich, @capozz03, @carltonking, @chadfidev, @claude, @COMEBACKISREAL, @cprecioso, @DanyRodier, @eioz, @EugeneCarldotme, @gustavoramalho, @Hackmodford, @iancenry, @JeanBaeez, @JoeC-Dev, @juanra, @kit101, @LechTheMitch, @Likheet, @luantedesco, @ManuLorenzzo, @mohammadhprp, @morhaf-ko, @Narangor, @nateships, @ncesar, @oecer, @oskarsss, @PratikPawar1401, @RoccoRakete, @unfilet, @voljumet, @Werkezeugs, @ywu73 and @zhanghk2001.
+
 ## [3.4.1] - 2026-10-08
 
 ### Summary

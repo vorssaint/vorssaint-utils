@@ -489,10 +489,11 @@ enum ClipboardJSONFormat {
     }
 }
 
-/// How large a picture from the history is decoded for text recognition.
-/// Screen OCR hands Vision its whole capture, so a 5K or 6K screenshot keeps
-/// every pixel and its small text; only a larger picture, like a long
-/// scrolling capture, is scaled down to this area to bound its bitmap.
+/// How large a picture from the history or a screen capture is read for
+/// text recognition. Screen OCR hands Vision its whole capture, so a 5K or
+/// 6K screenshot keeps every pixel and its small text; only a larger
+/// picture, like a long scrolling capture, is scaled down to this area to
+/// bound its bitmap.
 enum ClipboardImageRecognition {
     static let maxPixels = 24_000_000
 
@@ -502,6 +503,16 @@ enum ClipboardImageRecognition {
         let pixels = Double(max(width, 1)) * Double(max(height, 1))
         guard pixels > Double(maxPixels) else { return longest }
         return max(1, Int(Double(longest) * (Double(maxPixels) / pixels).squareRoot()))
+    }
+
+    /// The same bound for a picture already in memory, like a capture in a
+    /// screenshot preview: the size to scale it to, or nil to read it whole.
+    static func scaledSize(width: Int, height: Int) -> (width: Int, height: Int)? {
+        let longest = max(width, height, 1)
+        let side = decodeMaxPixelSize(width: width, height: height)
+        guard side < longest else { return nil }
+        let shorter = max(1, Int(Double(min(width, height)) * Double(side) / Double(longest)))
+        return width >= height ? (width: side, height: shorter) : (width: shorter, height: side)
     }
 }
 
@@ -1036,10 +1047,22 @@ enum ClipboardHistorySensitiveText {
         types.contains(concealedPasteboardType)
     }
 
+    // A mention of "token" in a command, error or source code is not a
+    // credential. Require a named field with a nonempty value, including
+    // environment variables, quoted JSON keys, Authorization headers and
+    // explicit command-line options such as --password VALUE.
+    // Horizontal whitespace keeps an empty assignment from consuming the
+    // next line of terminal output. Compile once for repeated clipboard reads.
+    private static let credentialName = #"(?:password|passwd|secret|token|api[_-]?key|authorization)"#
+    private static let credentialAssignment = try? NSRegularExpression(
+        pattern: #"(?<![\w-])(?:[\w-]*\#(credentialName)["']?[ \t]*[:=][ \t]*|--[\w-]*\#(credentialName)[ \t]+)["']?[^\s"'`,;{}\[\]]"#,
+        options: [.caseInsensitive]
+    )
+
     static func looksSensitive(_ text: String) -> Bool {
-        let lowered = text.lowercased()
-        let obviousWords = ["password", "passwd", "secret", "token", "apikey", "api_key", "authorization"]
-        if obviousWords.contains(where: lowered.contains) { return true }
+        if credentialAssignment?.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) != nil {
+            return true
+        }
         if isWebURL(text) { return false }
         // An identifier code is nobody's secret, and it fits the shape below
         // exactly: long, unbroken, letters and digits with dashes between

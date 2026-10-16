@@ -39,6 +39,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchDisplay) private var display = NotchDisplay.automatic.rawValue
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
     @AppStorage(DefaultsKey.notchOpenOnHover) private var hover = false
+    @AppStorage(DefaultsKey.notchShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
     @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
@@ -50,11 +51,13 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchHiddenModules) private var hidden = ""
     @AppStorage(DefaultsKey.notchModuleOrder) private var order = ""
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
+    @AppStorage(DefaultsKey.notchInputSource) private var inputSource = true
     @AppStorage(DefaultsKey.notchMicrophone) private var microphone = true
     @AppStorage(DefaultsKey.notchBrightness) private var brightness = true
     @AppStorage(DefaultsKey.notchBattery) private var battery = true
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = true
     @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = true
+    @AppStorage(DefaultsKey.notchClipboardCardSize) private var clipboardCardSize = NotchClipboardCardSize.comfortable.rawValue
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var captureAction = ""
     @AppStorage(DefaultsKey.notchCapture) private var capture = true
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
@@ -118,11 +121,12 @@ struct NotchSettings: View {
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
          String(hoverExpand), String(hideUntilHover), String(hideInFullscreen), String(coversMenus),
-         display, silhouette, String(hover), hidden, order, String(volume), String(brightness), String(keyboardLight),
-         String(microphone), String(battery), String(clipboard), String(clipboardWindow),
+         display, silhouette, String(hover), hidden, order, String(volume), String(inputSource),
+         String(brightness), String(keyboardLight),
+         String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
          String(returnHome), homeModule, String(opensActivity), String(scratchpad),
-         String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity)]
+         String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -483,6 +487,23 @@ struct NotchSettings: View {
         case .clipboard:
             destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
             switchRow("doc.on.clipboard", text.clipboardActivity, caption: text.privacy, isOn: $clipboard)
+            if clipboardWindow, AppFeature.clipboardHistory.isAvailable {
+                let size = FeatureStrings.notchClipboardSize(l10n.language)
+                VStack(alignment: .leading, spacing: 6) {
+                    // Read as the page reads it, so a value it does not know shows comfortable here too.
+                    SettingsChoiceRow(symbol: "rectangle.compress.vertical", title: size.entrySize,
+                                      selection: Binding(get: { NotchClipboardCardSize(stored: clipboardCardSize) },
+                                                         set: { clipboardCardSize = $0.rawValue })) {
+                        Text(size.compact).tag(NotchClipboardCardSize.compact)
+                        Text(size.comfortable).tag(NotchClipboardCardSize.comfortable)
+                    }
+                    Text(size.hint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, settingsRowTextInset)
+                }
+            }
         case .captures:
             SettingsFeatureSwitchRow(symbol: "camera.viewfinder", title: text.captureActivity, isOn: $capture, feature: .screenshot)
             if capture, AppFeature.screenshot.isAvailable {
@@ -586,6 +607,10 @@ struct NotchSettings: View {
                     toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
                                reason: pageReason(.music, feature: nil), reservesReason: reserves,
                                unavailableAction: pageAction(.music, feature: nil))
+                    // A layout change is read straight from the system, so
+                    // this card never waits on another feature.
+                    toggleCard(text.inputSource, symbol: "keyboard", value: $inputSource,
+                               available: true, reservesReason: reserves)
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
                 if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
@@ -610,6 +635,19 @@ struct NotchSettings: View {
                 if hover {
                     hoverDelayControl
                     if hoverExpand { closeDelayControl }
+                }
+                switchRow("keyboard", l10n.s.quickToolShortcutToggle, isOn: $shortcutEnabled)
+                if shortcutEnabled {
+                    ShortcutPreferenceRow(role: .notch) {
+                        NotchService.shared.syncWithPreferences()
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                    if notch.shortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .padding(.leading, settingsRowTextInset)
+                    }
                 }
                 SettingsFeatureSwitchRow(symbol: "hand.draw", title: FeatureStrings.notchGestures(l10n.language).title,
                                          caption: gesturesEnabled ? FeatureStrings.notchGestures(l10n.language).hint : nil,

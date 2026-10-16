@@ -172,8 +172,44 @@ enum MixerRoutingSupport {
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
+    /// The whole percent a slider position is shown as. A device can report a
+    /// level that is not a number, and converting that to an integer traps, so
+    /// it reads as 0% here instead of taking the app down.
+    static func displayPercent(forVolume volume: Double) -> Int {
+        guard volume.isFinite else { return 0 }
+        // Bound the value so an absurdly large finite level cannot overflow Int.
+        return Int((min(max(volume, -1000), 1000) * 100).rounded())
+    }
+
     static func isUnity(_ volume: Double) -> Bool {
         abs(volume - 1) < 0.005
+    }
+
+    /// The gain an app's slider position is played at.
+    ///
+    /// Loudness is heard on a logarithmic scale, so a slider used as the gain
+    /// itself keeps nearly all of its audible range in the bottom fifth: 50%
+    /// was only 6 dB down and hardly sounded quieter. Squaring the position
+    /// puts 50% at -12 dB and 25% at -24 dB, with silence still at 0 and an
+    /// untouched level at 100%. The boost range stays linear, so 200% is the
+    /// same +6 dB it always was.
+    static func gain(forVolume volume: Double) -> Float {
+        // Squaring would turn a level below zero into a positive gain. Such a
+        // level is silence, and one that is not a number plays the app
+        // untouched, the same reading a saved volume gets.
+        guard volume.isFinite else { return 1 }
+        let level = max(volume, 0)
+        return Float(level < 1 ? level * level : level)
+    }
+
+    /// The slider position that plays `gain`, the inverse of the curve above.
+    /// Volumes saved before the sliders followed perceived loudness were the
+    /// gain itself, and move here once so the update never changes how loud
+    /// an app plays, only where its slider sits.
+    static func volume(forGain gain: Double) -> Double {
+        guard gain.isFinite else { return 1 }
+        let level = max(gain, 0)
+        return level < 1 ? level.squareRoot() : level
     }
 
     /// The most a tap is ever turned back up: four channel pairs, the widest
@@ -319,7 +355,7 @@ enum MixerRoutingSupport {
         return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
     }
 
-    /// Turns the text entered beside a mixer slider into its gain. The field
+    /// Turns the text entered beside a mixer slider into its level. The field
     /// accepts the same optional percent sign it displays, while the caller
     /// supplies the limit (100 for the system output, 200 for an app row).
     static func volumeFraction(fromPercentageText text: String,
@@ -623,6 +659,14 @@ enum MixerRoutingSupport {
     static func shouldRestoreOutputVolume(appliedVolume: Double, currentVolume: Double?) -> Bool {
         guard let currentVolume else { return false }
         return abs(currentVolume - appliedVolume) < 0.005
+    }
+
+    /// Level 0 is still faintly audible on some speakers (built-in MacBook Pro
+    /// speakers sit near -63 dB there), so a headphone disconnect lowered to 0
+    /// also mutes the output. An output that is already muted, or has no mute
+    /// switch, is left alone, so only a mute this feature set is undone later.
+    static func shouldMuteOutputLoweredForDisconnect(lowerToPercent: Int, currentlyMuted: Bool?) -> Bool {
+        lowerToPercent <= 0 && currentlyMuted == false
     }
 
     /// Pro audio hosts (DAWs and live rack hosts) own their output device,

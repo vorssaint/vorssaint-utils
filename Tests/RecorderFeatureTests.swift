@@ -204,8 +204,41 @@ enum RecorderFeatureTests {
         suite.expect(!systemAudioTapSource.contains("PropertyListenerBlock"),
                "the system audio tap never listens with a block it cannot remove")
         suite.expect(systemAudioTapSource.components(separatedBy: "Self.removeListener(deviceListenerClient, from:").count - 1 == 2
+                && systemAudioTapSource.components(separatedBy: "Self.removeListener(processListenerClient, from:").count - 1 == 2
                 && systemAudioTapSource.components(separatedBy: "Self.removeListener(rateListenerClient, from:").count - 1 == 2,
-               "the tap gives back its output listener on stop and deinit, and its rate listener with each aggregate and on deinit")
+               "the tap gives back its output and process listeners on stop and deinit, and its rate listener with each aggregate and on deinit")
+        suite.expect(RecorderSupport.systemAudioApp(windowOwner: nil, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 50, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 0, ownProcess: 50) == nil
+                && RecorderSupport.systemAudioApp(windowOwner: 77, ownProcess: 50) == 77,
+               "a window recording hears the app that owns the window, while displays, areas and this app's windows keep the whole Mac")
+        suite.expect(!RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4, 9]), current: [9, 4])
+                && !RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4]), current: [])
+                && RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4]), current: [4, 9])
+                && RecorderSupport.rebuildsAppTap(tapped: Set<UInt32>([4, 9]), current: [4]),
+               "an app's tap is made again only when its processes really changed")
+        // The session is not compiled into the tests, so its wiring is read
+        // as source text.
+        let recorderSessionSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(recorderSessionSource.contains("RecorderSystemAudioTap.make(hearing: Self.windowOwner(of: region))")
+                && recorderSessionSource.contains("WindowServerSupport.ownerProcessID(ofWindowID:)"),
+               "a window recording hears the app that owns the window, found by its window number")
+        suite.expect(systemAudioTapSource.contains("awaitingApp = true")
+                && systemAudioTapSource.contains("continuation.resume(returning: aggregateID != 0 || awaitingApp)")
+                && systemAudioTapSource.contains("if awaitingApp {")
+                && systemAudioTapSource.contains("AppVolumeMixer.audioProcessObjects() where object != own"),
+               "an app's tap waits for the app's first audio process and never holds this app's own")
+        // Built again on every later change, a waiting tap would make a new
+        // tap each time and lose the one before without giving it back.
+        suite.expect(systemAudioTapSource.contains("awaitingApp = false\n            if buildTap(around: current) {"),
+               "a waiting tap is built once, by the first change that brings its app's processes")
+        // A refused rebuild leaves no tap behind, and stop must not give back
+        // an ID the audio system may have handed to another tap since.
+        suite.expect(systemAudioTapSource.contains(
+                "// The HAL may hand this ID to another tap from here on.\n        tapID = 0\n"),
+               "a rebuilt app tap forgets the ID it gave back")
         // The tap's mixdown keeps a quarter of what plays on an eight channel
         // output, and the recorder turns its copy of the samples back up.
         var restored: [Float] = [0.1, -0.2, 0.05, 0.6]
@@ -506,13 +539,11 @@ enum RecorderFeatureTests {
 
         suite.expect(RecorderSupport.gifFrameCount(duration: 10, fps: 12) == 120,
                "a GIF holds one frame per tick of its own rate")
-        suite.expect(RecorderSupport.gifFitsBudget(duration: 10, fps: 12)
-                && !RecorderSupport.gifFitsBudget(duration: 120, fps: 12),
-               "a GIF long enough to eat the memory of the machine is refused before it starts")
-        suite.expect(Int(RecorderSupport.maximumGIFSeconds(fps: 12)) == 25,
-               "the refusal can say exactly how long a GIF may be at that rate")
-        suite.expect(RecorderSupport.gifDelay(fps: 10) == 0.1,
-               "the frame delay is the reciprocal of the rate")
+        suite.expect(RecorderSupport.gifFrameCount(duration: 120, fps: 12) == 1440,
+               "streaming GIFs retain all frames beyond the former duration cap")
+        suite.expect([Double.nan, .infinity, -1, 0, Double.greatestFiniteMagnitude].allSatisfy {
+            RecorderSupport.gifFrameCount(duration: $0, fps: 12) == 0
+        }, "invalid and unrepresentable GIF durations cannot overflow the frame count")
         let gifSize = RecorderSupport.gifOutputSize(source: CGSize(width: 2940, height: 1912),
                                                     size: .medium)
         suite.expect(max(gifSize.width, gifSize.height) <= RecorderSupport.GIFSize.medium.longEdge

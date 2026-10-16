@@ -173,12 +173,24 @@ final class CommandBarService: ObservableObject {
     /// The raw scan is what gets cached; the rows are rebuilt on every open so
     /// the live dot and the running apps are never a stale picture.
     private var cachedApps: [InstalledApps.InstalledApp] = []
+    /// The opening whose answers are waiting on the coalesced rebuild.
+    private var pendingAnswerRefresh: UUID?
     @Published private(set) var appsLoading = false
     private var pendingAppShortcut = CommandBarRowShortcuts.PendingAppLaunch()
     private var windowsLoading = false
     private var windowsLoadedAt: Date?
     private var menuEntries: [CommandBarEntry] = [] { didSet { foldedSections[.menus] = nil } }
-    private var emojiEntries: [CommandBarEntry] = [] { didSet { foldedSections[.emoji] = nil } }
+    private var emojiEntries: [CommandBarEntry] = [] {
+        didSet {
+            foldedSections[.emoji] = nil
+            emojiBaseFold = nil
+        }
+    }
+    /// The emoji rows' folded text without aliases. Unlike every other
+    /// folded copy it survives the panel closing: it is the same fixed list
+    /// for everyone, nothing typed or seen, and refolding it was most of the
+    /// first index on every opening.
+    private var emojiBaseFold: [(title: String, keywords: String)]?
     /// The Mac's own Settings panes, scanned once per launch. The language
     /// they were built in comes with them, because the words they answer to
     /// are translated and a change of language has to reread them.
@@ -655,6 +667,8 @@ final class CommandBarService: ObservableObject {
             // a no-op — while a missed record strands the typist on the
             // borrowed layout.
             guard InputSourceSelection.select(sourceID: target) else { return }
+            // Borrowed, not chosen: the island keeps its layout notice quiet.
+            NotchService.shared.noteOwnInputSourceSwitch(to: target)
             self.suspendedInputSourceID = currentID
         }
         if Thread.isMainThread {
@@ -687,6 +701,7 @@ final class CommandBarService: ObservableObject {
     func restoreBorrowedInputSource() {
         guard let sourceID = suspendedInputSourceID,
               InputSourceSelection.select(sourceID: sourceID) else { return }
+        NotchService.shared.noteOwnInputSourceSwitch(to: sourceID)
         suspendedInputSourceID = nil
     }
 
@@ -893,17 +908,19 @@ final class CommandBarService: ObservableObject {
         // An app already in front hides on its own combination, so one key
         // brings it forward and puts it away. With the bar open, the key
         // opens the app instead: the panel never takes focus, so the app
-        // underneath is still active. A hide the app refuses falls through to
-        // opening it, as before. Launcher-style apps can misreport isActive,
-        // so the workspace's frontmost app is the tiebreaker, as for the Dock.
+        // underneath is still active. The result of hide() is not a verdict:
+        // macOS can return false while the app goes on to hide, and opening
+        // it on that answer would bring it straight back. Launcher-style apps
+        // can misreport isActive, so the workspace's frontmost app is the
+        // tiebreaker, as for the Dock.
         if !isVisible, let app = installedApp(for: entry), let running = runningApplication(for: app),
            CommandBarRowShortcuts.hidesAppInFront(
                isFrontmost: running.isActive
                    || NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier,
                isHidden: running.isHidden,
                ownsFrontWindow: WindowServerSupport.frontWindowOwner(
-                   in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier),
-           running.hide() {
+                   in: WindowServerSupport.onScreenWindowInfo()) == running.processIdentifier) {
+            running.hide()
             return
         }
         if isVisible { hide() }
@@ -1293,9 +1310,47 @@ final class CommandBarService: ObservableObject {
         refreshResults()
     }
 
+    /// Storage, battery, memory and Wi-Fi answer within a few milliseconds
+    /// of each other right after the bar opens, and each used to rebuild the
+    /// whole catalog and rank it again on its own. One rebuild covers them all.
+    private func scheduleAnswerRefresh(for id: UUID) {
+        // The latest opening wins: a reopen inside the window must not be
+        // dropped because a rebuild was already queued for the one before.
+        let alreadyQueued = pendingAnswerRefresh != nil
+        pendingAnswerRefresh = id
+        guard !alreadyQueued else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+            guard let self, let id = self.pendingAnswerRefresh else { return }
+            self.pendingAnswerRefresh = nil
+            guard self.presentationLifecycle.acceptsSharedCacheCompletion(
+                startedBy: id, currentID: self.presentationID,
+                isVisible: self.isVisible) else { return }
+            self.rebuildCatalog()
+            self.refreshResults()
+        }
+    }
+
+    private struct EmojiInputs: Equatable {
+        let language: AppLanguage
+        let skinTone: String
+        let accessibility: Bool
+    }
+    private var builtEmojiInputs: EmojiInputs?
+
     private func rebuildCatalog(index: Bool = true) {
         catalog = CommandBarCatalog.build(automationDenied: finderAutomationDenied)
-        emojiEntries = CommandBarCatalog.emojiEntries(bar: FeatureStrings.commandBar(L10n.shared.language))
+        // The emoji rows are most of the pool and depend on nothing the
+        // catalog's other rebuild triggers touch, so they are kept until one
+        // of their own inputs moves. Assigning them again would also drop
+        // their folded copy and refold every one.
+        let emojiInputs = EmojiInputs(
+            language: L10n.shared.language,
+            skinTone: UserDefaults.standard.string(forKey: DefaultsKey.commandBarEmojiSkinTone) ?? "",
+            accessibility: Permissions.shared.accessibility)
+        if emojiEntries.isEmpty || emojiInputs != builtEmojiInputs {
+            emojiEntries = CommandBarCatalog.emojiEntries(bar: FeatureStrings.commandBar(L10n.shared.language))
+            builtEmojiInputs = emojiInputs
+        }
         builtLanguage = L10n.shared.language
         if index { indexEntries() }
     }
@@ -1348,11 +1403,25 @@ final class CommandBarService: ObservableObject {
         foldedSections = [:]
     }
 
+    private static func baseFold(_ entry: CommandBarEntry) -> (title: String, keywords: String) {
+        (CommandBarSearch.normalized(entry.matchTitle ?? entry.title),
+         CommandBarSearch.normalized(entry.keywords))
+    }
+
     private func indexEntries() {
         // Folding a thousand titles on every keystroke is the one thing that
         // could make typing feel heavy. It happens here instead, once per list
         // per rebuild: a list nobody assigned again keeps the copy it has.
         let names = aliasCache
+        if foldedSections[.emoji] == nil {
+            let base = emojiBaseFold ?? emojiEntries.map(Self.baseFold)
+            emojiBaseFold = base
+            foldedSections[.emoji] = zip(emojiEntries, base).map { entry, folded in
+                let alias = names[entry.stableKey]
+                    .map { " " + CommandBarSearch.normalized($0) } ?? ""
+                return (folded.title, folded.keywords + alias)
+            }
+        }
         for section in PoolSection.allCases where foldedSections[section] == nil {
             foldedSections[section] = entries(in: section).map { entry in
                 // A name the person gave is searchable text like any other, so
@@ -2893,6 +2962,7 @@ final class CommandBarService: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let apps = SpotlightNames.enriching(InstalledApps.installedApplications(
                 includeSystemApplications: true,
+                includeBundledApplications: true,
                 spotlightPaths: Self.spotlightApplicationPaths()))
             // The uninstall browse offers only what the uninstaller will
             // take, and its check reads the disk for every app.
@@ -2902,14 +2972,20 @@ final class CommandBarService: ObservableObject {
                 guard let self else { return }
                 self.appsLoading = false
                 guard AppFeature.commandBar.isAvailable else { return }
+                // Each open rescans the disk, and the answer is nearly always
+                // the list the bar is already showing. Rebuilding and ranking
+                // it again lands half a second in, mid-typing, for nothing.
+                let unchanged = apps == self.cachedApps
+                    && uninstallable == self.uninstallableAppIDs
                 self.cachedApps = apps
                 self.uninstallableAppIDs = uninstallable
-                self.rebuildRunningEntries()
+                if !unchanged { self.rebuildRunningEntries() }
                 if let key = self.pendingAppShortcut.take(in: self.rowShortcuts,
                                                           isAvailable: AppFeature.commandBar.isAvailable) {
                     self.runRow(withStableKey: key, refreshAppsIfMissing: false)
                 }
-                guard self.presentationLifecycle.acceptsSharedCacheCompletion(
+                guard !unchanged,
+                      self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) else { return }
                 self.refreshResults()
@@ -3039,7 +3115,7 @@ final class CommandBarService: ObservableObject {
         guard !selectionLoading else { return }
         selectionLoading = true
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let text = CommandBarSelectionReader.readSelectedText()
+            let (text, exact, typesOver) = CommandBarSelectionReader.readSelection()
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.selectionLoading = false
@@ -3054,7 +3130,8 @@ final class CommandBarService: ObservableObject {
                 }
                 let bar = FeatureStrings.commandBar(L10n.shared.language)
                 self.selectedText = text
-                self.selectionEntries = CommandBarCatalog.selectionEntries(text, bar: bar) {
+                self.selectionEntries = CommandBarCatalog.selectionEntries(text, exactly: exact,
+                                                                           typesOver: typesOver, bar: bar) {
                     [weak self] selected in
                     // The bar stays open: the point is to convert, add up or
                     // look up what was selected without retyping it.
@@ -3211,8 +3288,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3242,8 +3318,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3261,8 +3336,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }
@@ -3280,8 +3354,7 @@ final class CommandBarService: ObservableObject {
                 if self.presentationLifecycle.acceptsSharedCacheCompletion(
                     startedBy: id, currentID: self.presentationID,
                     isVisible: self.isVisible) {
-                    self.rebuildCatalog()
-                    self.refreshResults()
+                    self.scheduleAnswerRefresh(for: id)
                 }
             }
         }

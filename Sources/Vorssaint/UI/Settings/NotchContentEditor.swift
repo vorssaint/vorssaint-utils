@@ -97,60 +97,50 @@ struct NotchIslandPreview: View {
         return false
     }
 
+    /// The island as it opens on this section: the page, and its top row
+    /// with what the page puts there, around the camera where the island has
+    /// one. The row's own way to the sections leads it when nothing floats
+    /// beside the island for that.
     private func island(size: CGSize, geometry: NotchGeometry) -> some View {
         let content = geometry.contentSize(for: size)
-        return VStack(spacing: NotchLayout.spacing) {
-            header(geometry: geometry, width: content.width)
-            NotchPagePreview(module: module, size: content)
-                .frame(width: content.width, height: content.height, alignment: .top)
-                .clipped()
-        }
-        .padding(.horizontal, NotchLayout.horizontalInset)
-        .padding(.top, geometry.headerTopInset)
-        .padding(.bottom, NotchLayout.bottomInset)
-        .frame(width: size.width, height: size.height, alignment: .top)
-        .background {
-            NotchShape.island(height: size.height, geometry: geometry).fill(.black)
-        }
-        .foregroundStyle(.white)
-        .tint(.white)
-        .environment(\.colorScheme, .dark)
-        .environment(\.notchPresentation, true)
-        .environment(\.notchGlassSurface, glassSurface)
-        .environment(\.notchSettingsPreview, true)
-        .allowsHitTesting(false)
-    }
-
-    /// The island's title row: the section's name, the camera between the
-    /// halves, and the actions that wait for the pointer.
-    private func header(geometry: NotchGeometry, width: CGFloat) -> some View {
-        let half = geometry.headerCameraGap > 0 ? (width - geometry.headerCameraGap) / 2 : nil
-        return HStack(spacing: 0) {
-            HStack(spacing: 6) {
-                if !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .frame(width: 28, height: 28)
+        let band = NotchBand(geometry: geometry, contentWidth: content.width)
+        let wraps = geometry.pageTop == .wrapsCamera
+        return NotchPagePreview(module: module, size: content)
+            .frame(width: content.width, height: content.height, alignment: .top)
+            .clipped()
+            .padding(.top, geometry.pageTopInset - geometry.headerTopInset)
+            .overlayPreferenceValue(NotchBandKey.self, alignment: .top) { items in
+                if geometry.headerRowHeight > 0 {
+                    NotchBandRow(band: band) {
+                        if !wraps {
+                            if !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
+                                Image(systemName: "square.grid.2x2")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                    .frame(width: 28, height: 28)
+                            }
+                            items.leading
+                        }
+                    } trailing: {
+                        items.trailing
+                    }
                 }
-                Text(module.title(l10n.language))
-                    .font(Font(NotchLayout.headerTitleFont as CTFont))
-                    .lineLimit(1)
             }
-            .frame(width: half, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            if geometry.headerCameraGap > 0 {
-                Color.clear.frame(width: geometry.headerCameraGap)
+            .environment(\.notchBand, band)
+            .padding(.horizontal, NotchLayout.horizontalInset)
+            .padding(.top, geometry.headerTopInset)
+            .padding(.bottom, NotchLayout.bottomInset)
+            .frame(width: size.width, height: size.height, alignment: .top)
+            .background {
+                NotchShape.island(height: size.height, geometry: geometry).fill(.black)
             }
-            // In a row of its own the title takes the width the actions leave.
-            Image(systemName: "ellipsis")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.35))
-                .frame(width: 28, height: 28)
-                .frame(width: half, alignment: .trailing)
-                .frame(maxWidth: half == nil ? nil : .infinity, alignment: .trailing)
-        }
-        .frame(height: geometry.headerRowHeight)
+            .foregroundStyle(.white)
+            .tint(.white)
+            .environment(\.colorScheme, .dark)
+            .environment(\.notchPresentation, true)
+            .environment(\.notchGlassSurface, glassSurface)
+            .environment(\.notchSettingsPreview, true)
+            .allowsHitTesting(false)
     }
 }
 
@@ -167,14 +157,17 @@ struct NotchPagePreview: View {
         switch module {
         case .timer: NotchTimerView(size: size)
         case .camera: camera
-        case .notifications: NotchNotificationsView(size: size)
+        // The island hands these rows their clearing from outside the page.
+        case .notifications:
+            NotchNotificationsView(size: size).notchBand(trailing: { NotchClearNotificationsButton() })
         case .downloads: NotchDownloadsView(size: size)
         case .calendar: NotchCalendarView(size: size)
         case .controls: NotchControlsView(service: notch, size: size)
         case .mixer: NotchMixerView(size: size)
         case .music: NotchMusicView(size: size, extrasHeight: notch.geometry.musicExtrasHeight)
         case .clipboard: NotchClipboardView(service: notch, size: size)
-        case .captures: RecentCapturesView(onClose: nil, notchSize: size)
+        case .captures:
+            RecentCapturesView(onClose: nil, notchSize: size).notchBand(trailing: { NotchClearCapturesButton() })
         case .files: NotchFilesView(service: notch)
         case .system: NotchSystemView(size: size) { _ in }
         case .tools: QuickLauncherView(notchSize: size)
@@ -206,43 +199,76 @@ struct NotchPagePreview: View {
     }
 }
 
-/// The scratchpad page without its editor: the pads' tabs and the current
-/// note, or the prompt a new one shows.
+/// The scratchpad page without its editor: the current note, or the prompt a
+/// new one shows, and in the island's row the pads and the note's actions as
+/// the page puts them there.
 private struct NotchScratchpadStill: View {
     @ObservedObject private var pad = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchBand) private var band
     @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
 
     var body: some View {
         let text = FeatureStrings.scratchpad(l10n.language)
-        VStack(spacing: 6) {
-            HStack(spacing: 4) {
-                let names = pad.pads.isEmpty ? [text.pageTitle] : pad.pads.map(\.name)
-                ForEach(Array(names.prefix(4).enumerated()), id: \.offset) { index, name in
-                    Text(name)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                        .padding(.horizontal, 10)
-                        .frame(height: 26)
-                        .background(.white.opacity(pad.pads.isEmpty || pad.pads[index].id == pad.selectedPadID ? 0.12 : 0),
-                                    in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        Text(pad.text.isEmpty ? text.placeholder : pad.text)
+            .font(.system(size: ScratchpadSupport.sanitizedTextSize(storedTextSize)))
+            .foregroundStyle(.white.opacity(pad.text.isEmpty ? 0.35 : 0.9))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(10)
+            .modifier(NotchControlSurface(cornerRadius: 12, interactive: false))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .notchBand(leading: {
+                if band.besideCamera {
+                    HStack(spacing: 4) {
+                        Text(pad.selectedPadName)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 7)
+                } else {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 4) {
+                            let names = pad.pads.isEmpty ? [text.pageTitle] : pad.pads.map(\.name)
+                            ForEach(Array(names.prefix(4).enumerated()), id: \.offset) { index, name in
+                                tab(name, selected: pad.pads.isEmpty || pad.pads[index].id == pad.selectedPadID)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        glyph("plus")
+                    }
                 }
-                Spacer(minLength: 0)
-                ForEach(["textformat", "plus", "eye", "doc.on.doc", "ellipsis"], id: \.self) { symbol in
-                    Image(systemName: symbol)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.55))
-                        .frame(width: 28, height: 28)
+            }, trailing: {
+                HStack(spacing: 6) {
+                    ForEach(["textformat", "eye", "doc.on.doc"], id: \.self) { glyph($0) }
                 }
+            })
+    }
+
+    private func tab(_ name: String, selected: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+            if selected {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
             }
-            Text(pad.text.isEmpty ? text.placeholder : pad.text)
-                .font(.system(size: ScratchpadSupport.sanitizedTextSize(storedTextSize)))
-                .foregroundStyle(.white.opacity(pad.text.isEmpty ? 0.35 : 0.9))
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .padding(10)
-                .modifier(NotchControlSurface(cornerRadius: 12, interactive: false))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .foregroundStyle(selected ? .white : .white.opacity(0.6))
+        .padding(.leading, 10)
+        .padding(.trailing, selected ? 8 : 10)
+        .frame(height: 22)
+        .background(.white.opacity(selected ? 0.14 : 0.05), in: Capsule())
+    }
+
+    private func glyph(_ symbol: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(0.55))
+            .frame(width: 28, height: 28)
     }
 }
 

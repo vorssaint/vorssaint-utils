@@ -37,12 +37,16 @@ struct MetricsTests {
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
-            ("app-management", { AppManagementFeatureTests.run(suite) }),
+            ("app-management", {
+                AppManagementFeatureTests.run(suite)
+                DiskImageHomebrewTests.run(suite)
+            }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),
             ("media", { MediaFeatureTests.run(suite) }),
             ("mixer", {
                 MixerNativeDragTests.run(suite)
                 MixerOutputAdjustmentContract.run(suite)
+                MixerHeadphonesDisconnectContract.run(suite)
                 MixerLevelCompensationContract.run(suite)
                 SoundOutputSwitchContract.run(suite)
                 MixerUniversalRoutingContract.run(suite)
@@ -70,12 +74,19 @@ struct MetricsTests {
                 UpdateAdminInstallContract.run(suite)
                 UpdateHighlightsTests.run(suite)
                 UpdateIntroFlowTests.run(suite)
+                ReleaseDigestTests.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
             ("screenshots", {
+                ScreenshotCanvasSupportTests.run(suite)
+                ScreenshotImageLayerTests.run(suite)
+                ScreenshotCanvasModelTests.run(suite)
+                ScreenTextCompletionTests.run(suite)
+                ScreenshotOCRControlTests.run(suite)
                 ScreenshotPreviewHoverTests.run(suite)
                 ScreenshotWatermarkTests.run(suite)
                 ScreenshotFeatureTests.run(suite)
+                ScreenshotSpotlightEditingTests.run(suite)
                 ScreenshotShareCompletionTests.run(suite)
                 ScreenshotAutoShelfTests.run(suite)
                 ScreenshotScrollingCaptureTests.run(suite)
@@ -83,12 +94,18 @@ struct MetricsTests {
                 ScreenCaptureToolPickerTests.run(suite)
             }),
             ("recorder", {
+                RecorderGIFWriterTests.run(suite)
                 RecorderFeatureTests.run(suite)
                 RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
             }),
-            ("command-bar", { CommandBarFeatureTests.run(suite) }),
+            ("command-bar", {
+                CommandBarFeatureTests.run(suite)
+                CommandBarSelectionTests.run(suite)
+            }),
+            ("transient-paste", { TransientPasteTests.run(suite) }),
+            ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
                 NotchCompactTests.run(suite)
@@ -96,6 +113,7 @@ struct MetricsTests {
                 PlainTextLineMoverTests.run(suite)
                 NotchVolumeKeyTests.run(suite)
                 NotchSettingsTabRowTests.run(suite)
+                NotchPresentationProbeArgumentTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
@@ -114,6 +132,7 @@ struct MetricsTests {
                 NotchSettingsChoiceTests.run(suite)
                 MonitorTokenTests.run(suite)
             }),
+            ("feature-hub-layout", { FeatureHubLayoutTests.run(suite) }),
             ("display-restoration", {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
@@ -135,6 +154,7 @@ struct MetricsTests {
             ("quit-protection", { QuitProtectionHUD.progressChecks(suite) }),
             ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),
             ("recording", {
+                RecorderPreparationTests.run(suite)
                 RecorderSampleTimingTests.run(suite)
                 RecorderWriterTests.run(suite)
                 RecorderExportChipTests.run { suite.expect($0, $1) }
@@ -145,6 +165,7 @@ struct MetricsTests {
                 NetworkAddressTests.run { suite.expect($0, $1) }
             }),
             ("app-updates", {
+                AppUpdateHandoffTests.run(suite)
                 AppUpdatesContract.run(suite)
                 AppUpdateRulesContract.run(suite)
             }),
@@ -204,7 +225,9 @@ struct MetricsTests {
             groups.forEach { print($0.0) }
             exit(0)
         }
-        for (name, body) in groups where selected.isEmpty || selected.contains(name) {
+        // notch-music is a focused subset already executed by notch. Running it
+        // twice in an unfiltered pass also repeats stateful adapter fixtures.
+        for (name, body) in groups where (selected.isEmpty && name != "notch-music") || selected.contains(name) {
             suite.run(name, body)
         }
         suite.finish()

@@ -3,10 +3,10 @@
 
 import SwiftUI
 
-/// The Features hub. One switch per feature, grouped in plain language: off
-/// means the feature disappears from the whole app (Settings, panel, menu
-/// bar, shortcuts) and costs nothing; its configuration is kept for its
-/// return. The Permissions tab is the transparency portal: what each system
+/// The Features hub. Install or uninstall each feature, grouped in plain
+/// language: uninstalling removes it from the whole app (Settings, panel,
+/// menu bar, shortcuts) and stops its work; its configuration is kept for
+/// its return. The Permissions tab is the transparency portal: what each system
 /// permission does, which features use it right now, and a gentle nudge when
 /// one is granted with nothing using it.
 struct FeatureHubSettings: View {
@@ -59,27 +59,36 @@ struct FeatureHubSettings: View {
         // layout could keep redoing itself until Settings froze.
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(hub.pageTitle).font(.title2.bold())
-                    Text(tab == .features ? hub.intro : hub.permissionsIntro)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Picker(hub.pageTitle, selection: $tab) {
-                    Text(hub.tabFeatures).tag(Tab.features)
-                    Text(hub.tabPermissions).tag(Tab.permissions)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                // The restart notice comes first, whichever tab is open:
-                // uninstalling anything makes it impossible to miss.
-                if features.needsRestartToUnload {
-                    restartCard
+                // Keep one header child in the lazy stack. Inserting or
+                // removing the restart notice as an offscreen lazy child
+                // invalidates its visible range: the page jumps or goes
+                // blank until the next scroll event.
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(hub.pageTitle).font(.title2.bold())
+                        Text(tab == .features ? hub.intro : hub.permissionsIntro)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Picker(hub.pageTitle, selection: $tab) {
+                        Text(hub.tabFeatures).tag(Tab.features)
+                        Text(hub.tabPermissions).tag(Tab.permissions)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    // The restart notice comes first on either tab.
+                    if features.needsRestartToUnload {
+                        restartCard
+                    }
                 }
                 if tab == .features {
-                    summaryCard
-                    neverUsedCard
+                    // The never-used offer comes and goes with installs too,
+                    // so it shares one stable child with the summary.
+                    VStack(alignment: .leading, spacing: 20) {
+                        summaryCard
+                        neverUsedCard
+                    }
                     dynamicIslandCard
                     presetsCard
                     ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
@@ -503,7 +512,7 @@ private struct PresetCard: View {
 // MARK: - Feature row
 
 /// Icon, name and one line about the feature; small icons for the
-/// permissions it can use and what it keeps alive; and the install switch.
+/// permissions it can use and what it keeps alive; and the install action.
 /// An installed feature with a page of its own opens it from the row.
 private struct FeatureHubRow: View {
     @ObservedObject private var l10n = L10n.shared
@@ -528,7 +537,7 @@ private struct FeatureHubRow: View {
 
     /// Set only while this Mac cannot run the feature and it is not yet
     /// installed, so an install that predates the check keeps an ordinary
-    /// row with its settings and the switch reachable.
+    /// row with its settings and Uninstall reachable.
     private var unsupportedReason: String? { feature.installBlockedReason }
 
     private var accessibilityTitle: String {
@@ -559,19 +568,6 @@ private struct FeatureHubRow: View {
         }
     }
 
-    /// The switch reads availability itself, so it only moves once the
-    /// runtime has flipped; the Dynamic Island asks about its extensions
-    /// before leaving, and the switch springs back if that is cancelled.
-    private var installBinding: Binding<Bool> {
-        Binding(get: { installed }, set: { wanted in
-            if !wanted, !installedExtensions.isEmpty {
-                confirmingExtensions = true
-            } else {
-                flip(to: wanted)
-            }
-        })
-    }
-
     var body: some View {
         HStack(spacing: 12) {
             if opensSettings {
@@ -594,7 +590,7 @@ private struct FeatureHubRow: View {
                     .saturation(unsupportedReason == nil ? 1 : 0)
             }
             metadata
-            installSwitch
+            installAction
         }
         .padding(.vertical, 7)
         .padding(.horizontal, 8)
@@ -694,22 +690,31 @@ private struct FeatureHubRow: View {
     }
 
     @ViewBuilder
-    private var installSwitch: some View {
-        let toggle = Toggle(accessibilityTitle, isOn: installBinding)
-            .labelsHidden()
-            .toggleStyle(.switch)
+    private var installAction: some View {
+        if installed {
+            Button(hub.uninstallButton) {
+                if installedExtensions.isEmpty { flip(to: false) } else { confirmingExtensions = true }
+            }
+            .buttonStyle(.bordered)
             .controlSize(.small)
-        if let reason = unsupportedReason {
+            .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+        } else if let reason = unsupportedReason {
             // .help() never fires on a disabled control, so the tooltip
             // has to sit on this wrapper. Flattening it loses the only
             // place the reason is shown.
             HStack(spacing: 0) {
-                toggle.disabled(true)
+                Button(hub.installButton) { flip(to: true) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(true)
+                    .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(reason)")
             }
             .help(reason)
-            .accessibilityLabel("\(accessibilityTitle). \(reason)")
         } else {
-            toggle
+            Button(hub.installButton) { flip(to: true) }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
         }
     }
 

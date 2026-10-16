@@ -55,11 +55,24 @@ struct NotchAgentsView: View {
                         grid(rows, now: context.date)
                     }
                 }
+                // The period drives several cards, so it sits in the island's
+                // top row, beside the camera, while any of them shows.
+                .notchBand(leading: {
+                    if rows.joined().contains(where: { $0.card.followsPeriod }) { periodMenu }
+                })
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear { usage.pageDidAppear() }
+    }
+
+    private var periodMenu: some View {
+        NotchMenuButton(title: text.period(chosenPeriod), items: AgentPeriod.allCases.map { option in
+            NotchMenuItem(title: text.period(option), checked: option == chosenPeriod) { period = option.rawValue }
+        }, cornerRadius: 9) {
+            NotchBandMenuLabel(title: text.period(chosenPeriod))
+        }
     }
 
     private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
@@ -84,7 +97,7 @@ struct NotchAgentsView: View {
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
@@ -194,8 +207,9 @@ private struct NotchAgentLimitsCard: View {
                     .lineLimit(1)
                     .layoutPriority(1)
                 Group {
-                    if let resets = window.resetsAt {
-                        Label(countdown(to: resets), systemImage: "arrow.clockwise")
+                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+                        Label((window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: resets),
+                              systemImage: "arrow.clockwise")
                             .labelStyle(NotchAgentInlineLabel())
                             .foregroundStyle(.secondary)
                     }
@@ -238,8 +252,9 @@ private struct NotchAgentLimitsCard: View {
     private func help(_ window: AgentLimitWindow) -> String {
         var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
-        if let resets = window.resetsAt {
+        if let resets = AgentLimitSupport.displayedReset(window, now: now) {
             parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
+            if window.estimatedResetsAt != nil { parts.append(text.estimated) }
         }
         if let observed = snapshot.limits[provider]?.observedAt, now.timeIntervalSince(observed) > 600 {
             parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
@@ -354,19 +369,21 @@ private struct NotchAgentInlineLabel: LabelStyle {
 
 // MARK: Spending
 
+/// The period it covers is chosen in the island's top row, which the trend,
+/// models and projects follow too; the plan multiples take its place here.
 private struct NotchAgentSpendCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
-    @Binding var period: String
+    let period: AgentPeriod
     let text: NotchAgentStrings
 
-    private var chosen: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
-
     var body: some View {
-        let usage = snapshot.usage(chosen)
+        let usage = snapshot.usage(period)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
-                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) { periodMenu }
+                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
+                    if period == .month { multiples(usage) }
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
@@ -379,7 +396,6 @@ private struct NotchAgentSpendCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if chosen == .month { multiples(usage) }
                 }
                 .help(usage.fullyPriced ? text.valueNote : text.unpriced)
                 split(usage)
@@ -390,18 +406,6 @@ private struct NotchAgentSpendCard: View {
                     .minimumScaleFactor(0.85)
                     .help(text.saved(AgentFormat.cost(usage.total.savings)))
             }
-        }
-    }
-
-    private var periodMenu: some View {
-        NotchMenuButton(title: text.period(chosen), items: AgentPeriod.allCases.map { option in
-            NotchMenuItem(title: text.period(option), checked: option == chosen) { period = option.rawValue }
-        }) {
-            Text("\(text.period(chosen)) \(Image(systemName: "chevron.down"))")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .contentShape(Rectangle())
         }
     }
 

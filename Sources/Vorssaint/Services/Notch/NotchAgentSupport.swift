@@ -26,6 +26,9 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
 
     /// Charts need the island's width; everything else pairs up.
     var fullWidth: Bool { self == .trend || self == .activity }
+
+    /// Cards that cover the period chosen in the island's top row.
+    var followsPeriod: Bool { self == .spend || self == .trend || self == .models || self == .projects }
 }
 
 /// What the closed island shows beside the camera while an agent works.

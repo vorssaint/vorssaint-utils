@@ -101,7 +101,98 @@ enum AppUpdateRulesContract {
             DefaultsKey.appUpdatesRules] as? String) == [exclude], "app exclusions are portable too")
 
         serviceRules(suite, excludedRaw: excludedRaw)
+        pickedExclusions(suite)
+        listControls(suite)
         sourceIdentity(suite, app: app)
+    }
+
+    /// The add button reads the picked bundle itself, so an app that is up to
+    /// date or never matched by a source can still be left out.
+    private static func pickedExclusions(_ suite: TestSuite) {
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorss-app-update-rules-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        func bundle(_ name: String, _ info: [String: Any]) -> URL {
+            let url = folder.appendingPathComponent("\(name).app", isDirectory: true)
+            let contents = url.appendingPathComponent("Contents", isDirectory: true)
+            try? FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+            let data = try? PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+            try? data?.write(to: contents.appendingPathComponent("Info.plist"))
+            return url
+        }
+        let other = Support.UpdateRule(bundleID: "com.example.other", name: "Other", version: nil)
+        let excluded = Support.UpdateRule(bundleID: "com.example.picked", name: "Picked", version: nil)
+        let picked = bundle("Picked", ["CFBundleIdentifier": excluded.bundleID, "CFBundleShortVersionString": "1.0"])
+        let service = Service()
+        service.addExclusion(appAt: picked)
+        suite.expect(service.rules == [excluded], "a picked app bundle becomes an exclusion with its identity and name")
+
+        service.saveRules([Support.UpdateRule(bundleID: excluded.bundleID, name: excluded.name, version: "1.1"), other])
+        service.addExclusion(appAt: picked)
+        suite.expect(service.rules == [other, excluded], "picking an app with a skipped version turns it into an exclusion")
+
+        let kept = service.rules
+        service.addExclusion(appAt: bundle("Anonymous", ["CFBundleShortVersionString": "1.0"]))
+        suite.expect(service.rules == kept, "a picked bundle without an identifier adds no rule")
+        service.addExclusion(appAt: bundle("Empty", ["CFBundleIdentifier": ""]))
+        suite.expect(service.rules == kept, "a picked bundle with an empty identifier adds no rule")
+        service.addExclusion(appAt: bundle("Vorssaint", ["CFBundleIdentifier": "com.vorssaint.utils"]))
+        suite.expect(service.rules == kept, "Vorssaint's own bundles never become exclusions")
+        service.addExclusion(appAt: bundle("Spaced", ["CFBundleIdentifier": "com.example two"]))
+        suite.expect(service.rules == kept, "a picked identifier with whitespace that a reload would drop adds no rule")
+        service.addExclusion(appAt: bundle("Slashed", ["CFBundleIdentifier": "com.example/two"]))
+        suite.expect(service.rules == kept, "a picked identifier with a slash that a reload would drop adds no rule")
+        service.addExclusion(appAt: bundle("Blank", ["CFBundleIdentifier": "com.example.blank", "CFBundleDisplayName": " "]))
+        suite.expect(service.rules == kept, "a picked app without a usable name adds no rule a reload would drop")
+        service.addExclusion(appAt: folder.appendingPathComponent("Missing.app", isDirectory: true))
+        suite.expect(service.rules == kept, "a picked path without a bundle adds no rule")
+
+        service.isChecking = true
+        service.addExclusion(appAt: bundle("Later", ["CFBundleIdentifier": "com.example.later"]))
+        suite.expect(service.rules == kept, "picking an app cannot race an active scan")
+        service.isChecking = false
+        service.addExclusion(appAt: bundle("Later", ["CFBundleIdentifier": "com.example.later"]))
+        suite.expect(service.rules.last?.bundleID == "com.example.later" && service.rules.count == 3,
+                     "the same pick is saved once the scan is over")
+        suite.expect(Support.decodedRules(UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesRules)) == service.rules,
+                     "picked exclusions are saved in the restorable rule preference")
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.appUpdatesRules)
+    }
+
+    private static func listControls(_ suite: TestSuite) {
+        let source = (try? String(contentsOfFile: "Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
+                                  encoding: .utf8)) ?? ""
+        suite.expect(source.contains("guard !inNotch else {")
+                     && source.contains("guard panel.runAboveIsland() == .OK, let url = panel.url else { return }"),
+                     "inside the island the app picker opens above it instead of below it")
+        suite.expect(source.contains(".help(moreOptions)")
+                     && source.contains(".accessibilityLabel(\"\\(moreOptions): \\(item.name)\")")
+                     && !source.contains(".help(text.excludeApp)"),
+                     "the row menu is named for both rule actions and says which app it belongs to")
+
+        // Settings hosts the full list and the menu bar panel the compact one,
+        // whose rows have no width to spare for the visible menu.
+        let settings = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/AppUpdatesSettings.swift",
+                                    encoding: .utf8)) ?? ""
+        let panel = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/PanelAppUpdatesView.swift",
+                                 encoding: .utf8)) ?? ""
+        let row = (source.components(separatedBy: "private func row(_ item: AppUpdatesSupport.Item) -> some View {")
+            .dropFirst().first ?? "").components(separatedBy: "private func ruleActions(").first ?? ""
+        let glyph = "Image(systemName: \"ellipsis.circle\")"
+        let gated = row.components(separatedBy: "if !compact, item.bundleID != nil {")
+        suite.expect(source.contains("var compact = false")
+                     && settings.contains("AppUpdatesListView()") && panel.contains("AppUpdatesListView(compact: true)")
+                     && gated.count == 2 && !gated[0].contains(glyph) && gated[1].contains(glyph)
+                     && row.contains(".contextMenu { ruleActions(for: item) }"),
+                     "Settings rows show the menu button and panel rows keep only the context menu with the same actions")
+        // A borderless popup draws its label through AppKit, which ignores a
+        // foreground style there; only the menu's tint greys the glyph.
+        let label = (row.components(separatedBy: glyph).dropFirst().first ?? "")
+            .components(separatedBy: ".menuStyle(").first ?? ""
+        let menuChain = (row.components(separatedBy: ".menuStyle(.borderlessButton)").dropFirst().first ?? "")
+            .components(separatedBy: ".help(moreOptions)").first ?? ""
+        suite.expect(menuChain.contains(".tint(.secondary)") && !label.contains(".foregroundStyle("),
+                     "the row menu glyph is secondary like the other small row and header icons")
     }
 
     private static func serviceRules(_ suite: TestSuite, excludedRaw: String) {
@@ -177,8 +268,9 @@ enum AppUpdateRulesContract {
                      "publisher findings preserve portable app identity")
         for language in AppLanguage.allCases {
             let text = FeatureStrings.appUpdates(language)
-            suite.expect([text.skipVersionFormat, text.excludeApp, text.rulesTitle, text.skippedVersionFormat,
-                          text.excludedApp, text.removeRule, text.rulesHint, text.noVisibleUpdates].allSatisfy { !$0.isEmpty },
+            suite.expect([text.skipVersionFormat, text.excludeApp, text.rulesTitle, text.addException, text.skippedVersionFormat,
+                          text.excludedApp, text.removeRule, text.rulesHint, text.noVisibleUpdates,
+                          FeatureStrings.mouseClickDebounce(language).moreOptions].allSatisfy { !$0.isEmpty },
                          "update rule controls are localized for \(language)")
             suite.expect(text.skipVersionFormat.contains("%@") && text.skippedVersionFormat.contains("%@"),
                          "localized skip actions identify the exact release")

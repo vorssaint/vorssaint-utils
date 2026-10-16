@@ -86,6 +86,7 @@ enum ClipboardFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
         let source = SourceHost()
         func sourceCheck(declared: String? = nil, remote: Bool = false,
@@ -297,6 +298,16 @@ enum ClipboardFeatureTests {
                      "a picture past the area bound is scaled down to it")
         suite.expect(scrollingPixels > 0.99 * Double(ClipboardImageRecognition.maxPixels),
                      "a picture past the area bound keeps nearly all of that area")
+        suite.expect(ClipboardImageRecognition.scaledSize(width: 6_016, height: 3_384) == nil,
+                     "a 6K capture in a screenshot preview is read whole")
+        let longCaptureHeight = ScreenshotSupport.scrollingCaptureMaximumPixels / 3_000
+        let longCapture = ClipboardImageRecognition.scaledSize(width: 3_000, height: longCaptureHeight)
+        let longCapturePixels = (longCapture?.width ?? 0) * (longCapture?.height ?? 0)
+        suite.expect(longCapture?.height == ClipboardImageRecognition.decodeMaxPixelSize(
+                        width: 3_000, height: longCaptureHeight)
+                     && longCapturePixels <= ClipboardImageRecognition.maxPixels
+                     && Double(longCapturePixels) > 0.99 * Double(ClipboardImageRecognition.maxPixels),
+                     "the largest scrolling capture in a preview is scaled to the area bound before recognition")
 
         // MARK: Clipboard history search tokens and highlight ranges
 
@@ -1291,7 +1302,51 @@ enum ClipboardFeatureTests {
         suite.expect(!ClipboardHistorySensitiveText.looksSensitive("http://localhost:3000/page"),
                "clipboard history does not treat normal web URLs as secrets")
         suite.expect(ClipboardHistorySensitiveText.looksSensitive("https://example.com/callback?token=abc"),
-               "clipboard history still skips URLs with obvious secret words")
+               "clipboard history still skips URLs containing a credential value")
+        for text in [
+            "echo password",
+            "security find-generic-password -h",
+            "grep -R token Sources",
+            "Error: unexpected token near ')'",
+            "Authorization failed. Please sign in again.",
+            "This command prints the secret name, not its value.",
+            "let tokenCount = 42\nprint(tokenCount)",
+            "password",
+            "tokenizer",
+            "/etc/passwd",
+            "https://example.com/docs/token-authentication",
+            "https://example.com/password/reset",
+            "TOKEN=",
+            "TOKEN=\"\"",
+            "{\"password\": \"\"}",
+            "TOKEN=\nordinary output on the next line",
+            "command --token",
+            "command --password ''"
+        ] {
+            suite.expect(!ClipboardHistorySensitiveText.looksSensitive(text),
+                         "clipboard history keeps ordinary terminal text: \(text)")
+        }
+        for text in [
+            "password=hunter2",
+            "PASSWORD = hunter2",
+            "export GITHUB_TOKEN=exampleCredential",
+            "client_secret: exampleCredential",
+            "api_key=exampleCredential",
+            "apiKey: exampleCredential",
+            "sessionToken=exampleCredential",
+            "command --password hunter2",
+            "command --access-token 'example credential'",
+            "command --api-key exampleCredential",
+            "{\"password\": \"example credential\"}",
+            "Authorization: Bearer exampleCredential",
+            "curl -H 'Authorization: Bearer exampleCredential' https://example.com",
+            "ordinary output\nexport ACCESS_TOKEN=exampleCredential\nmore output",
+            "🔐 export ACCESS_TOKEN=exampleCredential",
+            "https://example.com/callback?access_token=exampleCredential"
+        ] {
+            suite.expect(ClipboardHistorySensitiveText.looksSensitive(text),
+                         "clipboard history still excludes credential assignments and headers: \(text)")
+        }
         suite.expect(ClipboardHistorySensitiveText.looksSensitive("abc1234567890-xyz-abc"),
                "clipboard history still skips compact secret-looking text")
         // Issue #423: an identifier code is ordinary content to copy around,
@@ -1506,8 +1561,20 @@ enum ClipboardPreviewContract {
         var keyboardSelectionPointer: NSPoint?
         enum NSCursor { static func setHiddenUntilMouseMoves(_ hidden: Bool) {} }
         enum NSEvent { static let mouseLocation = NSPoint.zero }
+        enum UserDefaults {
+            struct Preferences {
+                var skipSensitive = Defaults.registeredDefaults[
+                    DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
+                func bool(forKey key: String) -> Bool {
+                    key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
+                }
+            }
+            static var standard = Preferences()
+        }
         let capturedEntry = PassthroughSubject<ClipboardHistoryEntry, Never>()
-        func looksSensitive(_ text: String) -> Bool { false }
+        func looksSensitive(_ text: String) -> Bool {
+            ClipboardHistorySensitiveText.looksSensitive(text)
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -1723,6 +1790,38 @@ enum ClipboardPreviewContract {
         searchFolding(suite)
         quickSelection(suite)
         promotedSource(suite)
+        sensitiveText(suite)
+    }
+
+    private static func sensitiveText(_ suite: TestSuite) {
+        let defaultService = Service()
+        for text in [
+            "export GITHUB_TOKEN=exampleCredential",
+            "/Users/example/project2026/package.json",
+            "abc1234567890-xyz-abc",
+            "Error: unexpected token near ')'"
+        ] {
+            defaultService.promote(text, source: "com.mitchellh.ghostty", keepsSource: false)
+            suite.expect(defaultService.entries.first?.text == text,
+                         "production history records unmarked terminal text by default: \(text)")
+        }
+        Fixture.UserDefaults.standard.skipSensitive = true
+        defer { Fixture.UserDefaults.standard.skipSensitive = false }
+        let service = Service()
+        let terminalText = "Error: unexpected token near ')'"
+        let terminalApp = "com.mitchellh.ghostty"
+        service.promote(terminalText, source: terminalApp, keepsSource: false)
+        suite.expect(service.entries.map(\.text) == [terminalText]
+                     && service.latestPasteboardEntry?.sourceBundleID == terminalApp,
+                     "production history saves ordinary terminal output with the sensitive filter enabled")
+        let credential = "export GITHUB_TOKEN=exampleCredential"
+        service.promote(credential, source: terminalApp, keepsSource: false)
+        suite.expect(service.entries.map(\.text) == [terminalText],
+                     "production history still excludes a terminal credential with the filter enabled")
+        Fixture.UserDefaults.standard.skipSensitive = false
+        service.promote(credential, source: terminalApp, keepsSource: false)
+        suite.expect(service.entries.map(\.text) == [credential, terminalText],
+                     "disabling the sensitive text heuristic still permits unmarked credential text")
     }
 
     /// A copy taken out of the history's own panel is of an entry already

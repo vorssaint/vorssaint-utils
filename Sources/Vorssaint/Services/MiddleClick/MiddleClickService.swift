@@ -494,15 +494,23 @@ final class MiddleClickService: ObservableObject {
                 accessibilityGranted: AXIsProcessTrusted(),
                 sessionIsActive: SessionActivity.shared.isActive
             )
-            if shouldRearm, let port = tapStateLock.withLock({ tap }) {
-                CGEvent.tapEnable(tap: port, enable: true)
-            } else {
+            // stop() lets go of the port before it switches the tap off, and
+            // that switch-off arrives here as well. A suspension has to
+            // outlast it, so only a tap still held is recovered.
+            let port = tapStateLock.withLock { tap }
+            switch SessionActivitySupport.disabledTapRecovery(tapHeld: port != nil,
+                                                              tapShouldRun: shouldRearm) {
+            case .rearm:
+                if let port { CGEvent.tapEnable(tap: port, enable: true) }
+            case .tearDown:
                 // The matching middle-up was sent above. Tear the disabled tap
                 // down after its callback returns instead of resurrecting it.
                 DispatchQueue.main.async { [weak self] in
                     self?.stop()
                     self?.syncWithPreferences()
                 }
+            case .leaveStopped:
+                break
             }
             return Unmanaged.passUnretained(event)
         }

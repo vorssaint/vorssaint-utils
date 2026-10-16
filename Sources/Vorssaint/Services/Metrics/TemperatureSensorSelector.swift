@@ -9,6 +9,7 @@ enum CPUTemperaturePlatform: Equatable {
     case appleM2Family
     case appleM3Family
     case appleM4Family
+    case appleM4ProFamily
     case appleM5Family
     case unmappedAppleSilicon
     case generic
@@ -48,6 +49,17 @@ enum TemperatureSensorSelector {
         "Tp0V", "Tp0Y", "Tp0b", "Tp0e",
     ]
 
+    // Read on an M4 Pro (Mac16,8), which lacks three of the base M4 keys and
+    // runs hottest on sensors outside them. Each Tpx/Tex key repeats the
+    // hottest of a few Tp/Te sensors; in idle and loaded samples no other
+    // Tp/Te key read hotter beyond the moment between two reads. The Tex
+    // keys keep answering while the P cores are parked.
+    private static let appleM4ProCPUCoreKeys: Set<String> = [
+        "Tex0", "Tex1", "Tex2", "Tex3",
+        "Tpx0", "Tpx1", "Tpx2", "Tpx3", "Tpx4", "Tpx5",
+        "Tpx8", "Tpx9", "TpxA", "TpxB", "TpxC", "TpxD",
+    ]
+
     private static let appleM5CPUCoreKeys: Set<String> = [
         "Tp00", "Tp04", "Tp08", "Tp0C",
         "Tp0G", "Tp0K",
@@ -65,7 +77,7 @@ enum TemperatureSensorSelector {
         case 1: return .appleM1Family
         case 2: return .appleM2Family
         case 3: return .appleM3Family
-        case 4: return .appleM4Family
+        case 4: return brand == "Apple M4 Pro" ? .appleM4ProFamily : .appleM4Family
         case 5: return .appleM5Family
         default: return brand.hasPrefix("Apple ") ? .unmappedAppleSilicon : .generic
         }
@@ -103,7 +115,8 @@ enum TemperatureSensorSelector {
 
     static func hasCPUCoreSet(platform: CPUTemperaturePlatform) -> Bool {
         switch platform {
-        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family, .appleM5Family:
+        case .appleM1Family, .appleM2Family, .appleM3Family, .appleM4Family,
+             .appleM4ProFamily, .appleM5Family:
             return true
         case .unmappedAppleSilicon, .generic: return false
         }
@@ -119,6 +132,8 @@ enum TemperatureSensorSelector {
             return appleM3CPUCoreKeys.contains(key)
         case .appleM4Family:
             return appleM4CPUCoreKeys.contains(key)
+        case .appleM4ProFamily:
+            return appleM4ProCPUCoreKeys.contains(key)
         case .appleM5Family:
             return appleM5CPUCoreKeys.contains(key)
         case .unmappedAppleSilicon, .generic:

@@ -77,15 +77,18 @@ enum AgentClaudeAppUsage {
             let length = TimeInterval(window.minutes) * 60
             // An old reading says nothing about a session that renewed since.
             if window.kind == .session, now.timeIntervalSince(latest.date) >= length { continue }
+            let session = window.kind == .session
+                ? sessionEnd(history, used: used, start: sessionStart, length: length) : nil
             let resets = window.kind == .session
-                ? sessionEnd(history, used: used, start: sessionStart, length: length)
+                ? session?.latest
                 : renewal(history, key: window.key, length: length, after: latest.date)
             // A window that renewed after the reading has spent an unknown
             // amount since, and without a date a day-old week may have too.
             if let resets, resets <= now { continue }
             if resets == nil, now.timeIntervalSince(latest.date) >= 86_400 { continue }
             result.append(AgentLimitWindow(id: "claude.\(window.key)", kind: window.kind, minutes: window.minutes,
-                                           scope: window.scope, usedPercent: used, resetsAt: resets))
+                                           scope: window.scope, usedPercent: used, resetsAt: resets,
+                                           estimatedResetsAt: session?.estimate))
         }
         guard !result.isEmpty else { return nil }
         return AgentLimits(provider: .claude, windows: result, observedAt: latest.date, source: .claudeApp)
@@ -109,7 +112,8 @@ enum AgentClaudeAppUsage {
         organization.map { account in samples.filter { $0.organization == nil || $0.organization == account } } ?? samples
     }
 
-    private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval) -> Date? {
+    private static func sessionEnd(_ history: [Sample], used: Double, start: Date?, length: TimeInterval)
+        -> (latest: Date, estimate: Date?)? {
         guard used > 0, var first = history.indices.last else { return nil }
         // The run of readings above zero that ends with the latest one. A drop
         // is a renewal too: work that goes on across one never reads zero.
@@ -120,8 +124,28 @@ enum AgentClaudeAppUsage {
         }
         let latest = history[first].date
         let earliest = first > 0 ? history[first - 1].date : latest.addingTimeInterval(-length)
-        let began = start.flatMap { $0 > earliest && $0 <= latest ? $0 : nil } ?? latest
-        return began.addingTimeInterval(length)
+        if let start, start > earliest, start <= latest {
+            return (start.addingTimeInterval(length), nil)
+        }
+        let estimate = unseenStart(earliest: earliest, latest: latest, bracketed: first > 0, length: length)
+        // The midpoint can precede the real renewal. Keep the latest possible
+        // end for expiring usage and alerts; only the card uses the estimate.
+        return (latest.addingTimeInterval(length), estimate < latest ? estimate.addingTimeInterval(length) : nil)
+    }
+
+    /// Where a session began when only the readings place it. Readings a few
+    /// minutes apart bracket it closely, so the first one above zero stands.
+    /// A longer gap means the app missed checks, with the Mac asleep or the
+    /// app closed, and the session began somewhere in it, though no more than
+    /// a session's length before the reading that still sees it. That first
+    /// reading is the latest the start can be, so it puts the renewal as late
+    /// as it can be, by hours after a long gap. The middle of the range is
+    /// still an estimate, off by up to half of it and able to fall before the
+    /// real renewal, but it halves the worst error.
+    private static func unseenStart(earliest: Date, latest: Date, bracketed: Bool, length: TimeInterval) -> Date {
+        guard bracketed, latest.timeIntervalSince(earliest) > freshness else { return latest }
+        let lower = max(earliest, latest.addingTimeInterval(-length))
+        return lower.addingTimeInterval(latest.timeIntervalSince(lower) / 2)
     }
 
     /// The first renewal after `reading`, from the last drop the history saw.
