@@ -4,16 +4,18 @@
 import AppKit
 import SwiftUI
 
-/// The scratchpad's document inside the island: its tabs in a row, the
-/// editor or its formatted reading filling the rest, and the pad's actions
-/// behind one menu. Everything the floating pad does, at the island's size:
-/// tabs close from their own cross, Command-T and Command-W work, a new or
-/// chosen pad puts the caret in its text, and a cleared pad comes back with
-/// one undo.
+/// The scratchpad's document inside the island: the editor or its formatted
+/// reading fills the page, and the island's top row holds the pads. Beside
+/// the camera the chosen pad's name opens a menu of the pads and what a pad
+/// can do; a full row keeps the tabs, and the chosen tab opens that menu.
+/// Everything the floating pad does, at the island's size: tabs close from
+/// their own cross, Command-T and Command-W work, a new or chosen pad puts
+/// the caret in its text, and a cleared pad comes back with one undo.
 struct NotchScratchpadView: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var pad = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchBand) private var band
     @State private var loadFailed = false
     @State private var copied = false
     @State private var hoveredPadID: UUID?
@@ -38,7 +40,10 @@ struct NotchScratchpadView: View {
                 NotchEmptyView(symbol: "exclamationmark.triangle", message: text.loadFailed)
             } else {
                 VStack(spacing: 6) {
-                    toolbar
+                    // The marks open under the row, above the text they format.
+                    if pad.marksExpanded {
+                        markRow
+                    }
                     if pad.saveFailed {
                         Label(text.saveFailed, systemImage: "exclamationmark.triangle")
                             .font(.system(size: 10.5)).foregroundStyle(.white.opacity(0.6))
@@ -82,6 +87,11 @@ struct NotchScratchpadView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .notchBand(leading: {
+            if !loadFailed { padControls }
+        }, trailing: {
+            if !loadFailed { noteActions }
+        })
         .onAppear { loadFailed = !pad.loadForEmbedding() }
         .onDisappear { pad.commitEdits() }
         .onChange(of: pad.selectedPadID) { _, _ in
@@ -129,6 +139,7 @@ struct NotchScratchpadView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .frame(height: 28)
             .onAppear {
                 guard let selected = pad.selectedPadID else { return }
                 proxy.scrollTo(selected, anchor: .center)
@@ -142,31 +153,38 @@ struct NotchScratchpadView: View {
 
     private var markRow: some View {
         ScratchpadFormatBar(style: .island, editor: editor.view)
+            .frame(height: 28)
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 4) {
-            // The island has one row to spend. The marks take the tab strip's
-            // place while they are up rather than squeezing in beside it, and
-            // the chip stays put so the same click puts the tabs back.
-            if pad.marksExpanded {
-                markRow
-            } else {
-                tabStrip
+    /// Beside the camera the row has room for one pad: the chosen one's name
+    /// opens the list of pads and what a pad can do. A full row keeps the
+    /// tabs, with the way to a new pad after them.
+    @ViewBuilder private var padControls: some View {
+        if band.besideCamera {
+            NotchMenuButton(title: text.padActions, items: padItems(listsPads: true), cornerRadius: 9) {
+                NotchBandMenuLabel(title: pad.selectedPadName)
             }
+            .help(text.padActions)
+            .accessibilityValue(pad.selectedPadName)
+        } else {
+            HStack(spacing: 6) {
+                tabStrip
+                NotchIconButton(symbol: "plus", title: newPadTitle) {
+                    pad.createPad(defaultName: text.pageTitle)
+                }
+                .disabled(!pad.canCreatePad)
+            }
+        }
+    }
+
+    private var noteActions: some View {
+        HStack(spacing: 6) {
             NotchIconButton(symbol: "textformat",
                             title: text.formatMarks,
                             selected: pad.marksExpanded) {
                 withAnimation(.easeOut(duration: 0.15)) { pad.toggleMarks() }
             }
             .disabled(pad.isPreviewing)
-            NotchIconButton(symbol: "plus",
-                            title: pad.canCreatePad
-                                ? text.newPad
-                                : String(format: text.padLimitFormat, ScratchpadDocument.maximumPadCount)) {
-                pad.createPad(defaultName: text.pageTitle)
-            }
-            .disabled(!pad.canCreatePad)
             NotchIconButton(symbol: pad.isPreviewing ? "pencil" : "eye",
                             title: pad.isPreviewing ? text.editText : text.previewFormatting,
                             selected: pad.isPreviewing, action: pad.togglePreview)
@@ -176,71 +194,61 @@ struct NotchScratchpadView: View {
                 copied = true
             }
             .disabled(pad.text.isEmpty)
-            Menu {
-                if let selectedPad {
-                    Button(text.renamePad) { presentRename(selectedPad) }
-                    Button(text.closePad, role: .destructive) { requestClose(selectedPad) }
-                        .disabled(!pad.canClosePad)
-                    Divider()
-                }
-                Button(text.exportAction) {
-                    if let window = service.presentationWindow {
-                        pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
-                                       from: window)
-                    }
-                }
-                .disabled(pad.text.isEmpty)
-                Button(text.clearAction, role: .destructive) { pad.clear(through: editor.view) }
-                    .disabled(pad.text.isEmpty)
-                Divider()
-                Button(text.openButton) { service.perform { pad.show(allowsIsland: false) } }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .frame(width: 28, height: 28)
-                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-            }
-            .menuStyle(.borderlessButton)
-            .menuIndicator(.hidden)
-            .fixedSize()
-            .help(text.padActions)
-            .accessibilityLabel(text.padActions)
         }
-        .frame(height: 24)
     }
 
-    /// The cross shows on the selected tab and under the pointer, as in the
-    /// floating pad; it needs the tab strip to keep two pads or more.
+    private var newPadTitle: String {
+        pad.canCreatePad ? text.newPad : String(format: text.padLimitFormat, ScratchpadDocument.maximumPadCount)
+    }
+
+    /// The pads, where the row shows only the chosen one, then what a pad
+    /// can do, each with the confirmation or dialog it always had.
+    private func padItems(listsPads: Bool) -> [NotchMenuItem] {
+        let current = selectedPad
+        var items: [NotchMenuItem] = []
+        if listsPads, !pad.pads.isEmpty {
+            items = pad.pads.map { entry in
+                NotchMenuItem(title: entry.name, checked: entry.id == pad.selectedPadID) { pad.selectPad(entry.id) }
+            }
+            items.append(.separator)
+        }
+        items += [
+            NotchMenuItem(title: newPadTitle, enabled: pad.canCreatePad) { pad.createPad(defaultName: text.pageTitle) },
+            NotchMenuItem(title: text.renamePad, enabled: current != nil) {
+                if let current { presentRename(current) }
+            },
+            NotchMenuItem(title: text.closePad, enabled: current != nil && pad.canClosePad) {
+                if let current { requestClose(current) }
+            },
+            .separator,
+            NotchMenuItem(title: text.exportAction, enabled: !pad.text.isEmpty) {
+                guard let window = service.presentationWindow else { return }
+                pad.exportText(suggestedName: ScratchpadSupport.exportFileName(title: pad.selectedPadName, date: Date()),
+                               from: window)
+            },
+            NotchMenuItem(title: text.clearAction, enabled: !pad.text.isEmpty) { pad.clear(through: editor.view) },
+            .separator,
+            NotchMenuItem(title: text.openButton) { service.perform { pad.show(allowsIsland: false) } }
+        ]
+        return items
+    }
+
+    /// The chosen tab opens the pad's menu, as the pad's name does beside the
+    /// camera. Another tab shows its cross under the pointer, as in the
+    /// floating pad, while the strip keeps two pads or more.
     private func tab(_ entry: ScratchpadPad) -> some View {
         let selected = entry.id == pad.selectedPadID
-        let showsClose = pad.canClosePad && (selected || hoveredPadID == entry.id)
-        return Button { pad.selectPad(entry.id) } label: {
-            HStack(spacing: 4) {
-                Text(entry.name)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(1)
-                if showsClose {
-                    Button { requestClose(entry) } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.6))
-                            .frame(width: 14, height: 14)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(text.closePad)
-                    .accessibilityLabel(text.closePad)
+        return Group {
+            if selected {
+                NotchMenuButton(title: text.padActions, items: padItems(listsPads: false), cornerRadius: 11) {
+                    tabLabel(entry, selected: true)
                 }
+                .accessibilityValue(entry.name)
+            } else {
+                Button { pad.selectPad(entry.id) } label: { tabLabel(entry, selected: false) }
+                    .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
             }
-            .foregroundStyle(selected ? .white : .white.opacity(0.6))
-            .padding(.leading, 10)
-            .padding(.trailing, showsClose ? 5 : 10)
-            .frame(height: 22)
-            .background(.white.opacity(selected ? 0.14 : 0.05), in: Capsule())
-            .contentShape(Capsule())
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
         .onHover { hovering in
             if hovering { hoveredPadID = entry.id } else if hoveredPadID == entry.id { hoveredPadID = nil }
         }
@@ -250,7 +258,37 @@ struct NotchScratchpadView: View {
                 .disabled(!pad.canClosePad)
         }
         .accessibilityAddTraits(selected ? .isSelected : [])
-        .help(entry.name)
+        .help(selected ? text.padActions : entry.name)
+    }
+
+    private func tabLabel(_ entry: ScratchpadPad, selected: Bool) -> some View {
+        let showsClose = !selected && pad.canClosePad && hoveredPadID == entry.id
+        return HStack(spacing: 4) {
+            Text(entry.name)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+            if selected {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            } else if showsClose {
+                Button { requestClose(entry) } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 14, height: 14)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(text.closePad)
+                .accessibilityLabel(text.closePad)
+            }
+        }
+        .foregroundStyle(selected ? .white : .white.opacity(0.6))
+        .padding(.leading, 10)
+        .padding(.trailing, showsClose ? 5 : selected ? 8 : 10)
+        .frame(height: 22)
+        .background(.white.opacity(selected ? 0.14 : 0.05), in: Capsule())
+        .contentShape(Capsule())
     }
 
     /// The caret lands at the end of the pad's text, as the floating pad

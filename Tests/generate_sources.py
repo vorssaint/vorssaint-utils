@@ -862,7 +862,9 @@ def main():
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func bindVolumeEvents(", "    private func volumeChanged(",
-              "    func showCurrentVolume(", "    func noteOwnVolumeAdjustment("])
+              "    func showCurrentVolume(",
+              "    func noteOwnLevelAdjustment(", "    private func ownsLevelAdjustment(",
+              "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
@@ -870,6 +872,7 @@ def main():
     scratchpad_reading = "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift"
     write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport SwiftUI\nextension NotchCompactTests {\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
+          + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraStopButton:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
               .replace("private struct", "struct", 1)
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCountdownChoice:")
@@ -894,6 +897,10 @@ def main():
           + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var pageSize:")
               .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
               .replace("NotchTimerService.shared", "NotchCompactTests.NotchTimerService.shared")
+              .replace("NotchTimerSupport.savedMode()", "timerMode")
+          + declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", "    private var headerFeedback:")
+              .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
+              .replace("BrightnessService.shared.islandSliderShowsFocusedDisplay", "brightnessSlider")
           + "}\n")
     update = "Sources/Vorssaint/Services/Update/UpdateService.swift"
     update_view = "Sources/Vorssaint/UI/Notch/NotchUpdateControl.swift"
@@ -1302,37 +1309,6 @@ def main():
               "    private func openText(", "    private func searchHighlight(", "    private func follow(",
               "    private func thumbnail<"])
           + "}\n}\n")
-    # The header's menu beside the camera and its buttons below it, with the services their
-    # entries reach as stand-ins, and the title width that decides whether the title sits there.
-    components = "Sources/Vorssaint/UI/Notch/NotchComponents.swift"
-    write("NotchHeaderMenu.swift", "import SwiftUI\nextension NotchHeaderMenuTests {\n"
-          + "".join(declaration(components, prefix).replace("private struct", "struct", 1) for prefix in [
-              "struct NotchMenuItem {", "struct NotchButtonStyle:", "struct NotchIconButton: View {",
-              "struct NotchMenuButton<Label: View>: View {", "final class NotchMenuAnchor: NSObject {",
-              "private struct NotchMenuAnchorView: NSViewRepresentable {"])
-          + "struct NotchClipboardHeaderActions: View {\nlet service: Service\n"
-          + "let history = ClipboardHistoryService.shared\n"
-          + "var text: ClipboardFeatureStrings { FeatureStrings.clipboard(L10n.shared.language) }\n"
-          + "static var clears = 0\nstatic func confirmClearRecent() { clears += 1 }\n"
-          + declaration("Sources/Vorssaint/UI/Notch/NotchClipboardView.swift", "    var body: some View {",
-                        scope="struct NotchClipboardHeaderActions: View {")
-          + "}\nstruct Header {\nlet service: Service\nlet launcher = Launcher()\nvar l10n = Language()\n"
-          + "let updates = Updates()\nvar headerHovered = false\nvar reduceMotion = true\n"
-          + "var showsCapturesClear = false\nvar showsClipboardActions = false\nvar showsNotificationsClear = false\n"
-          + "var text: NotchStrings { FeatureStrings.notch(l10n.language) }\n"
-          + "".join(declaration("Sources/Vorssaint/UI/Notch/NotchView.swift", prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func overflowItems(", "    private func pageTitle(",
-                                   "    private func overflowMenu(", "    private func headerActions(",
-                                   "    private func clipboardActionsInMenu("])
-          + "}\nfinal class Island {\nvar geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112),\n"
-          + "safeAreaTop: 37.5, cameraWidth: 208)\n"
-          + "var showingSections = false\nvar showingAppPanel = false\nvar selectedMetric: Int?\n"
-          + "var modules: [NotchModule] = NotchModule.allCases\nvar selected = NotchModule.clipboard\n"
-          + "var headerShowsSectionsButton = false\nvar detailTitle = \"Detail\"\n"
-          + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
-              "    private func previewGeometry(for module: NotchModule, sectionsButton: Bool)",
-              "    private var headerTitleWidth: CGFloat {", "    var clipboardHeaderShowsSearch: Bool {"])
-          + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
           + "extension MediaWorkspaceLayoutTests {\n"
@@ -1420,6 +1396,14 @@ def main():
                     for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:"])
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "enum QuickToggleAction:")
           + "}\n")
+
+    # The Developer probe's modes and argument check, outside its development-only file.
+    probe = "Sources/Vorssaint/Support/NotchPresentationProbe.swift"
+    write("NotchPresentationProbeArguments.swift", "import Foundation\n\nextension NotchPresentationProbeArgumentTests {\n"
+          + "enum Probe {\n"
+          + "".join(declaration(probe, prefix, scope="enum NotchPresentationProbe {")
+                    for prefix in ["    enum Mode:", "    static func isRequested("])
+          + "}\n}\n")
 
     preview = "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift"
     screen_text = "Sources/Vorssaint/Services/QuickTools/ScreenTextService.swift"

@@ -41,12 +41,19 @@ struct NotchWatchView: View {
                 NotchWatchSetupView()
             } else {
                 VStack(alignment: .leading, spacing: NotchLayout.rowSpacing) {
-                    header
                     NotchWatchAreaCard()
                         .frame(maxHeight: .infinity)
                     NotchWatchRuleRow()
                     footer
                 }
+                // What is watched and its two actions sit in the island's top
+                // row, beside the camera where they fit; setup leaves it empty.
+                .notchBand(leading: { watched }, trailing: {
+                    NotchIconButton(symbol: "viewfinder", title: text.chooseAgain) {
+                        NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
+                    }
+                    NotchIconButton(symbol: "xmark", title: text.stop) { watch.stop() }
+                })
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -54,25 +61,30 @@ struct NotchWatchView: View {
         .onDisappear { if !preview { watch.pageVisible = false } }
     }
 
-    private var header: some View {
-        HStack(spacing: 8) {
+    /// The app's icon and name, then its window's title, which gives way in
+    /// the middle when the row is short.
+    private var watched: some View {
+        HStack(spacing: 6) {
             if let icon = watch.target?.appIcon {
                 Image(nsImage: icon).resizable().frame(width: 16, height: 16).accessibilityHidden(true)
             } else {
                 Image(systemName: NotchModule.watch.symbol).foregroundStyle(NotchWatchStrip.tint)
             }
-            Text(headerTitle).lineLimit(1).truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            NotchIconButton(symbol: "viewfinder", title: text.chooseAgain) {
-                NotchService.shared.perform { NotchWatchService.shared.chooseArea() }
+            Group {
+                if let target = watch.target, let window = target.windowTitle, window != target.appName {
+                    Text("\(Text(target.appName).fontWeight(.semibold)) \(Text("· " + window).foregroundStyle(.secondary))")
+                } else {
+                    Text(watchedTitle).fontWeight(.semibold)
+                }
             }
-            NotchIconButton(symbol: "xmark", title: text.stop) { watch.stop() }
+            .lineLimit(1).truncationMode(.middle)
         }
-        .font(.caption).foregroundStyle(.secondary)
-        .frame(height: 24)
+        .font(.system(size: 12))
+        .foregroundStyle(.white.opacity(0.85))
+        .help(watchedTitle)
     }
 
-    private var headerTitle: String {
+    private var watchedTitle: String {
         guard let target = watch.target else { return text.title }
         guard let title = target.windowTitle, title != target.appName else { return target.appName }
         return "\(target.appName) · \(title)"

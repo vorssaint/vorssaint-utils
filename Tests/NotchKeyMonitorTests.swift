@@ -79,13 +79,14 @@ enum NotchKeyMonitorTests {
         var showingCommandBar = false
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),
                                      safeAreaTop: 32, cameraWidth: 180)
-        var headerTitleWidth: CGFloat = 0
+        var fullWidthRow = false
         var expandedGeometry: NotchGeometry {
             var result = geometry
-            result.headerTitleWidth = headerTitleWidth
+            result.requiresFullWidthHeader = fullWidthRow
             return result
         }
         func collapse() { NotchKeyMonitorTests.actions.append("collapse") }
+        func openSettings() { NotchKeyMonitorTests.actions.append("settings") }
         func stepBack() { NotchKeyMonitorTests.actions.append("stepBack") }
         func toggleSections() { NotchKeyMonitorTests.actions.append("sections") }
         func select(_ module: NotchModule) { selected = module }
@@ -157,8 +158,14 @@ enum NotchKeyMonitorTests {
         actions = []
         suite.expect(NSEvent.handler?(escape) == nil && actions == ["stepBack"],
                      "without the bar, Escape steps back through the island again")
-        // A title too long to sit beside the camera takes a row below it, so
-        // a custom island leaves the Tools rail fewer rows than the island
+        // With no settings button in the island, Command-Comma opens its page.
+        actions = []
+        let commandComma = NSEvent(window: service.panel, keyCode: 43, modifierFlags: .command,
+                                   charactersIgnoringModifiers: ",")
+        suite.expect(NSEvent.handler?(commandComma) == nil && actions == ["settings"],
+                     "Command-Comma opens the island's settings from inside it")
+        // A top row that cannot wrap the camera takes a row below it, so a
+        // custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.
         let launcher = QuickLauncherService.shared
         let items = launcher.visibleItems
@@ -170,11 +177,11 @@ enum NotchKeyMonitorTests {
         service.panel?.firstResponder = nil
         service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 37.5,
                                          cameraWidth: 208, layout: .custom, customWidth: 480, customHeight: 330)
-        service.headerTitleWidth = 200
+        service.fullWidthRow = true
         launcher.flows = []
         _ = NSEvent.handler?(NSEvent(window: service.panel, keyCode: 125))
         let drawn = service.expandedGeometry.toolFlow(count: 12)
         suite.expect(launcher.flows == [drawn] && drawn != service.geometry.toolFlow(count: 12),
-                     "the Tools arrows follow the rail below a title that takes the row under the camera")
+                     "the Tools arrows follow the rail below a top row under the camera")
     }
 }

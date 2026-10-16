@@ -5,7 +5,7 @@ import SwiftUI
 
 /// The history as a vertical list of cards, with everything the panel's list
 /// and the quick panel offer on each: paste or copy, pin, move, delete, and
-/// the recent ones cleared in one go from the island's header.
+/// the recent ones cleared in one go from the island's top row.
 struct NotchClipboardView: View {
     @ObservedObject var service: NotchService
     let size: CGSize
@@ -105,6 +105,15 @@ struct NotchClipboardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The magnifier and the history's own actions sit in the island's top
+        // row, so the cards start at the top of the page.
+        .notchBand(leading: {
+            if !searchOpen {
+                NotchIconButton(symbol: "magnifyingglass", title: text.search, action: service.requestClipboardSearch)
+            }
+        }, trailing: {
+            HStack(spacing: 6) { NotchClipboardHeaderActions(service: service) }
+        })
         .onChange(of: query) { _, query in queryChanged(query) }
         // Resting on an entry with the arrow keys opens it, as resting the pointer does.
         .task(id: highlightedID) {
@@ -754,9 +763,8 @@ private enum ClipboardFileIcons {
     }
 }
 
-/// The filter, the clearing of recent entries and the history window, which
-/// sit in the island's header beside its other actions, or in its menu
-/// beside the camera.
+/// The filter, the clearing of recent entries and the history window, at the
+/// trailing end of the island's top row.
 struct NotchClipboardHeaderActions: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var history = ClipboardHistoryService.shared
@@ -764,7 +772,7 @@ struct NotchClipboardHeaderActions: View {
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(l10n.language) }
 
     var body: some View {
-        // A filter's glyph: the header's pin keeps the island open.
+        // A filter's glyph: the row's pin keeps the island open.
         NotchIconButton(symbol: service.clipboardPinnedOnly ? "line.3.horizontal.decrease.circle.fill"
                             : "line.3.horizontal.decrease.circle",
                         title: text.pinned, selected: service.clipboardPinnedOnly) {

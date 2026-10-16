@@ -364,6 +364,99 @@ private struct NotchSettingsPreviewKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+private struct NotchBandEnvironmentKey: EnvironmentKey {
+    static let defaultValue = NotchBand()
+}
+
+extension EnvironmentValues {
+    /// The open island's top row, where the page's own controls go: beside
+    /// the camera, or across the top of an island without one.
+    var notchBand: NotchBand {
+        get { self[NotchBandEnvironmentKey.self] }
+        set { self[NotchBandEnvironmentKey.self] = newValue }
+    }
+}
+
+/// Controls a page hands the island's top row. The island names no page, so
+/// the row holds what the page needs at hand, and the island adds its own
+/// around them: the way back on its leading side, an update or the pin on
+/// its trailing side.
+struct NotchBandItems {
+    var leading: AnyView?
+    var trailing: AnyView?
+}
+
+struct NotchBandKey: PreferenceKey {
+    static var defaultValue = NotchBandItems()
+
+    static func reduce(value: inout NotchBandItems, nextValue: () -> NotchBandItems) {
+        let next = nextValue()
+        if let leading = next.leading { value.leading = leading }
+        if let trailing = next.trailing { value.trailing = trailing }
+    }
+}
+
+extension View {
+    /// Puts controls in the island's top row, beside the camera where they
+    /// fit there. The page keeps their state: they are drawn from its body.
+    /// Each call sets only its own sides, so an outer call leaves the other
+    /// side to what the page inside it set.
+    func notchBand<Leading: View, Trailing: View>(@ViewBuilder leading: () -> Leading,
+                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
+        let leading = AnyView(leading()), trailing = AnyView(trailing())
+        return transformPreference(NotchBandKey.self) { $0.leading = leading; $0.trailing = trailing }
+    }
+
+    func notchBand<Leading: View>(@ViewBuilder leading: () -> Leading) -> some View {
+        let leading = AnyView(leading())
+        return transformPreference(NotchBandKey.self) { $0.leading = leading }
+    }
+
+    func notchBand<Trailing: View>(@ViewBuilder trailing: () -> Trailing) -> some View {
+        let trailing = AnyView(trailing())
+        return transformPreference(NotchBandKey.self) { $0.trailing = trailing }
+    }
+}
+
+/// The open island's top row: a page's controls on either side of the
+/// camera, each side kept clear of it, or one row across an island without
+/// one, its leading controls at the start and its trailing ones at the end.
+struct NotchBandRow<Leading: View, Trailing: View>: View {
+    let band: NotchBand
+    /// A side a level reading covers for a moment: its controls stay in place
+    /// and keep their state, out of sight and out of reach.
+    var covered: HorizontalEdge? = nil
+    @ViewBuilder let leading: () -> Leading
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: 0) {
+            side(covered == .leading) {
+                HStack(spacing: 6) { leading() }
+            }
+            .frame(width: band.besideCamera ? band.side : nil, alignment: .leading)
+            .frame(maxWidth: band.besideCamera ? nil : .infinity, alignment: .leading)
+            Spacer(minLength: band.besideCamera ? 0 : 12)
+            side(covered == .trailing) {
+                HStack(spacing: 6) { trailing() }
+            }
+            .frame(width: band.besideCamera ? band.side : nil, alignment: .trailing)
+            // Across the top the trailing controls take what they need first,
+            // measured against the room the row has, so whatever has to give
+            // way (the island's own marks first) is told how much there is.
+            .layoutPriority(band.besideCamera ? 0 : 1)
+        }
+        .frame(height: band.height)
+    }
+
+    private func side<Content: View>(_ hidden: Bool, @ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .opacity(hidden ? 0 : 1)
+            .allowsHitTesting(!hidden)
+            .accessibilityHidden(hidden)
+    }
+}
+
 /// The native host publishes the same path used by its animated mask. Keeping
 /// this in canvas coordinates avoids scaling the glass's corners independently.
 final class NotchBackdropPresentation: ObservableObject {
@@ -637,6 +730,57 @@ struct NotchMenuButton<Label: View>: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: cornerRadius, lifts: false))
             .background(NotchMenuAnchorView(anchor: anchor))
             .accessibilityLabel(title)
+    }
+}
+
+/// The way back in the island's top row. It names where it is, as a title
+/// did above a detail before the island stopped naming its pages.
+struct NotchBandBackButton: View {
+    let title: String
+    let action: () -> Void
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.55))
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 7)
+            .frame(height: 28)
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .help(l10n.s.obBack)
+        .accessibilityLabel(l10n.s.obBack)
+        .accessibilityValue(title)
+    }
+}
+
+/// What a menu in the island's top row reads: its current choice, cut to the
+/// room its side leaves, with the chevron that says a list opens from it.
+struct NotchBandMenuLabel: View {
+    let title: String
+    var symbol: String? = nil
+    var truncation: Text.TruncationMode = .tail
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let symbol {
+                Image(systemName: symbol).foregroundStyle(.white.opacity(0.55))
+            }
+            Text(title).lineLimit(1).truncationMode(truncation)
+            Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.85))
+        .padding(.horizontal, 7)
+        .frame(height: 28)
+        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }
 

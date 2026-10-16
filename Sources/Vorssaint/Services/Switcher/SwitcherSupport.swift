@@ -651,10 +651,15 @@ enum SwitcherSupport {
         }
     }
 
+    /// A program that is not an app, such as the Java a game runs on, has no
+    /// bundle identifier and is listed by its path instead (issue #3033).
     static func shouldPausePreviewCapture(frontmostBundleIdentifier: String?,
+                                          frontmostExecutablePath: @autoclosure () -> String? = nil,
                                           excludedBundleIdentifiers: [String]) -> Bool {
-        guard let frontmostBundleIdentifier else { return false }
-        return excludedBundleIdentifiers.contains(frontmostBundleIdentifier)
+        guard let identity = MouseAppExceptionSupport.identity(bundleID: frontmostBundleIdentifier,
+                                                               executablePath: frontmostExecutablePath())
+        else { return false }
+        return excludedBundleIdentifiers.contains(identity)
     }
 
     static func needsScreenRecording(switcherEnabled: Bool,

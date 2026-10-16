@@ -12,8 +12,8 @@ enum NotchCompactTests {
         static let shared = CameraPreviewService()
         @Published var isEmbeddedPresented = false
         var stops = 0
-        /// What the preview's stop button calls, as the island handed it over.
-        var previewStop: (() -> Void)?
+        /// Whether the island's preview offers its own camera picker over the image.
+        var previewMenu: Bool?
         func showEmbedded() { isEmbeddedPresented = true }
         func hideEmbedded() {
             guard isEmbeddedPresented else { return }
@@ -24,10 +24,9 @@ enum NotchCompactTests {
     struct CameraPreviewView: View {
         let size: CGSize
         let showsCameraMenu: Bool
-        var onStop: (() -> Void)? = nil
         var body: some View {
             Color.black.frame(width: size.width, height: size.height)
-                .onAppear { CameraPreviewService.shared.previewStop = onStop }
+                .onAppear { CameraPreviewService.shared.previewMenu = showsCameraMenu }
         }
     }
     final class NotchService: ObservableObject {
@@ -37,9 +36,17 @@ enum NotchCompactTests {
         var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
+        var notice: NotchNotice?
+        var showingSections = false
+        var modules: [NotchModule] = [.controls, .music]
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 0, cameraWidth: 0, layout: .custom,
                                      menuBarHeight: 64, customWidth: 360, customHeight: 260)
+        var expandedGeometry: NotchGeometry {
+            var result = geometry
+            result.pageTop = selected.pageTop
+            return result
+        }
         func perform(_ action: () -> Void) { action() }
     }
     final class NotchTimerService {
@@ -91,12 +98,41 @@ enum NotchCompactTests {
         var lifts = true
         func makeBody(configuration: Configuration) -> some View { configuration.label }
     }
+    /// What each button the pages draw would do, by its title, so a test can press it.
+    static var buttonActions: [String: () -> Void] = [:]
     struct NotchIconButton: View {
         let symbol: String
         let title: String
         var selected = false
         let action: () -> Void
-        var body: some View { Button(title, action: action) }
+        var body: some View {
+            let _ = (NotchCompactTests.buttonActions[title] = action)
+            Button(title, action: action)
+        }
+    }
+    struct NotchPillButton: View {
+        let title: String
+        var prominent = false
+        let action: () -> Void
+        var body: some View {
+            let _ = (NotchCompactTests.buttonActions[title] = action)
+            Button(title, action: action)
+        }
+    }
+    struct NotchMenuItem {
+        let title: String
+        var checked = false
+        var symbol: String? = nil
+        var enabled = true
+        var action: () -> Void = {}
+        static let separator = NotchMenuItem(title: "")
+    }
+    struct NotchMenuButton<Label: View>: View {
+        let title: String
+        let items: [NotchMenuItem]
+        var cornerRadius: CGFloat = 6
+        @ViewBuilder let label: () -> Label
+        var body: some View { label() }
     }
     struct ScratchpadFormatBar: View {
         enum Style { case pad, island }
@@ -110,6 +146,8 @@ enum NotchCompactTests {
         var showsDetail = false
         var service = NotchService()
         var controls: [NotchControlItem] = [.music, .volume, .brightness, .timer]
+        var timerMode = NotchTimerMode.timer
+        var brightnessSlider = true
     }
     final class Window {
         static var key: Window?
@@ -223,7 +261,7 @@ enum NotchCompactTests {
         let service = CameraPreviewService.shared
         service.isEmbeddedPresented = false
         service.stops = 0
-        service.previewStop = nil
+        service.previewMenu = nil
         let host = NSHostingView(rootView: AnyView(VStack {
             NotchCameraView(size: CGSize(width: 424, height: 180))
         }))
@@ -238,12 +276,25 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 0,
                      "starting the embedded camera does not dismiss it when the start card disappears")
-        service.previewStop?()
+        suite.expect(service.previewMenu == false,
+                     "the island's preview leaves its camera picker and stop button to the top row, clear of the image")
+        // The top row's stop button, as a pill in a full row and a glyph
+        // beside the camera.
+        var band = NotchBand()
+        let stopTitle = FeatureStrings.notchActivities(L10n.shared.language).stopCamera
+        for besideCamera in [false, true] {
+            band.besideCamera = besideCamera
+            buttonActions = [:]
+            let stop = NSHostingView(rootView: NotchCameraStopButton().environment(\.notchBand, band))
+            stop.layoutSubtreeIfNeeded()
+            suite.expect(buttonActions[stopTitle] != nil, "the top row offers Stop while the mirror runs, beside a camera: \(besideCamera)")
+        }
+        buttonActions[stopTitle]?()
         settle(host)
         service.showEmbedded()
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 1,
-                     "the stop button over the preview stops the camera, and it starts again within the same page")
+                     "stopping from the top row brings back the start card, and the camera starts again within the same page")
         host.rootView = AnyView(EmptyView())
         settle(host)
         suite.expect(!service.isEmbeddedPresented && service.stops == 2,
@@ -669,24 +720,44 @@ enum NotchCompactTests {
                              && layout.height >= page.service.contentSize.height,
                              "\(module) keeps the chosen width and exposes any vertically overflowing content")
                 if module == .controls {
-                    let required = NotchLayout.controls(hasCards: true, shortcutCount: 1, width: layout.width, height: layout.height)
+                    // Playback keeps the card row; the levels sit in the top row.
+                    let required = NotchLayout.controls(hasCards: page.controls.contains(.music), shortcutCount: 1,
+                                                        width: layout.width, height: layout.height)
                     suite.expect(required.height <= layout.height, "home buttons fit their scrollable layout at menu height \(bar)")
                 } else if module == .timer {
+                    // Each mode sizes the island for itself, the Pomodoro a line taller.
                     for mode in NotchTimerMode.allCases {
-                        let required = NotchLayout.timer(mode: mode, hasSession: false, width: layout.width, height: layout.height)
-                        suite.expect(required <= layout.height, "timer controls remain reachable at menu height \(bar)")
+                        page.timerMode = mode
+                        page.service.contentSize = geometry.contentSize(for: geometry.expandedSize(module: module, timerMode: mode))
+                        let layout = page.pageSize
+                        let required = NotchLayout.timer(mode: mode, hasSession: false, height: layout.height)
+                        suite.expect(required <= layout.height && layout.height >= page.service.contentSize.height,
+                                     "timer controls remain reachable at menu height \(bar): \(mode)")
                     }
+                    // A page shorter than every mode needs scrolls to the
+                    // mode it shows, which only the page's own mode decides.
+                    let short = CGSize(width: page.service.contentSize.width, height: 60)
+                    let heights = NotchTimerMode.allCases.map { mode -> CGFloat in
+                        page.timerMode = mode
+                        page.service.contentSize = short
+                        return page.pageSize.height
+                    }
+                    suite.expect(heights == NotchTimerMode.allCases.map { NotchLayout.timer(mode: $0, hasSession: false, height: 60) }
+                                 && heights[1] > heights[0],
+                                 "a short page scrolls to its own mode's controls at menu height \(bar): \(heights)")
+                    page.timerMode = .timer
                 } else if module == .calendar {
-                    let required = NotchLayout.calendarMonthHeaderHeight + NotchLayout.calendarMonthWeekdayHeight
-                        + NotchLayout.calendarMonthSpacing * 2 + 6 * NotchLayout.calendarMonthRowHeight(height: layout.height)
+                    let required = NotchLayout.calendarMonthWeekdayHeight
+                        + 6 * NotchLayout.calendarMonthRowHeight(height: layout.height)
                     suite.expect(required <= layout.height, "all six month rows remain reachable at menu height \(bar)")
                 } else if module == .clipboard {
-                    suite.expect(layout.height >= NotchLayout.clipboardSearchHeight + NotchLayout.rowSpacing
-                                 + NotchLayout.clipboardCardHeight,
-                                 "a short clipboard page keeps the search field and a complete card reachable")
+                    suite.expect(layout.height >= NotchLayout.clipboardCardHeight,
+                                 "a short clipboard page keeps a complete card reachable")
                 } else if module == .camera || module == .mixer {
-                    suite.expect(layout.height >= 144, "camera and mixer controls keep a usable height in a short island")
-                    if page.service.contentSize.height >= 144 {
+                    // The mixer's controls sit in the top row, so its faders take the whole page.
+                    let minimum = module == .camera ? 144 : NotchLayout.mixerMinimumHeight
+                    suite.expect(layout.height >= minimum, "camera and mixer controls keep a usable height in a short island")
+                    if page.service.contentSize.height >= minimum {
                         suite.expect(layout.height == page.service.contentSize.height,
                                      "camera and mixer actions fit without outer scrolling in a short island")
                     }
@@ -699,5 +770,65 @@ enum NotchCompactTests {
         suite.expect(page.pageSize == page.service.contentSize, "a single home card does not introduce unnecessary scrolling")
         page.showsDetail = true
         suite.expect(page.pageSize == page.service.contentSize, "vertical detail pages preserve their existing layout")
+
+        func reading(_ event: NotchEvent) -> NotchNotice? {
+            page.service.notice = NotchNotice(event: event, title: "", detail: "", symbol: "", level: 0.5)
+            return page.headerFeedback
+        }
+        page.showsDetail = false
+        page.controls = [.music, .brightness, .keyboardLight, .volume, .timer]
+        let levelsQuiet = reading(.brightness) == nil && reading(.keyboardLight) == nil && reading(.volume) == nil
+        page.controls = [.music, .brightness, .keyboardLight, .timer]
+        let hiddenLevelShows = reading(.volume) != nil
+        page.service.selected = .music
+        let otherPageShows = reading(.brightness) != nil
+        page.service.selected = .controls
+        page.service.showingSections = true
+        let galleryShows = reading(.brightness) != nil
+        page.service.showingSections = false
+        page.showsDetail = true
+        let detailShows = reading(.brightness) != nil
+        page.showsDetail = false
+        suite.expect(levelsQuiet && hiddenLevelShows && otherPageShows && galleryShows && detailShows,
+                     "a level key leaves the home page's levels uncovered, since the level it moves is already on the page")
+        // The row's brightness shows the display the keys last moved, so only
+        // the way to set brightness up, with no slider, leaves the reading.
+        page.brightnessSlider = false
+        suite.expect(reading(.brightness) != nil && reading(.keyboardLight) == nil,
+                     "a brightness key keeps its reading on the home page while its row has no slider")
+        page.brightnessSlider = true
     }
+}
+
+/// The island's top row as the scratchpad page uses it. The row itself is not
+/// part of these tests, so a page's items are drawn above it, built from the
+/// page's state as the island builds them.
+private struct NotchCompactBandKey: EnvironmentKey {
+    static let defaultValue = NotchBand()
+}
+
+extension EnvironmentValues {
+    var notchBand: NotchBand {
+        get { self[NotchCompactBandKey.self] }
+        set { self[NotchCompactBandKey.self] = newValue }
+    }
+}
+
+extension View {
+    func notchBand<Leading: View, Trailing: View>(@ViewBuilder leading: () -> Leading,
+                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
+        VStack(spacing: 0) {
+            HStack { leading(); trailing() }
+            self
+        }
+    }
+}
+
+/// A menu's label in the row, as the island draws it.
+struct NotchBandMenuLabel: View {
+    let title: String
+    var symbol: String? = nil
+    var truncation: Text.TruncationMode = .tail
+
+    var body: some View { Text(title).lineLimit(1).truncationMode(truncation) }
 }
