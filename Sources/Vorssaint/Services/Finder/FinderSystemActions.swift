@@ -96,17 +96,6 @@ final class FinderSystemActions: NSObject, QLPreviewPanelDataSource {
                 }
             case .eject:
                 for item in selection { try NSWorkspace.shared.unmountAndEjectDevice(at: item) }
-            case .openTerminal:
-                let isDirectory = try first.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
-                let folder = isDirectory ? first : first.deletingLastPathComponent()
-                let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
-                NSWorkspace.shared.open([folder], withApplicationAt: terminal, configuration: .init()) { _, error in
-                    DispatchQueue.main.async {
-                        if let error { completion(.failure(error)) }
-                        else { completion(.success(nil)) }
-                    }
-                }
-                return
             case .extractIcon:
                 guard let destination else { throw CocoaError(.fileWriteInvalidFileName) }
                 let icon = NSWorkspace.shared.icon(forFile: first.path)

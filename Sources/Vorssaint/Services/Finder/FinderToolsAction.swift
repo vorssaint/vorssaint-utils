@@ -21,20 +21,25 @@ enum FinderToolsAction: String, CaseIterable, Identifiable, Codable {
     case shareLAN, recordAudio, recordVideo
     case cutFiles, pasteMovedFiles, airDrop, uninstallApp
 
+    case compressPresentation, screenshot, screenRecorder, colorPicker, cleaningMode, keepAwake, micMute, clipboardHistory
+
     var usesSystemUI: Bool { [.airDrop, .setIcon, .resetIcon, .defaultApplication, .openWith, .quickLook, .reveal, .info, .packageContents, .eject,
         .extractIcon, .wallpaper, .share, .openTerminal].contains(self) }
 
-    var isDocumentOutput: Bool { [.compressPDF, .diskImage, .encryptedDiskImage, .extractAudio, .pasteImage,.mergePDF, .splitPDF, .watermarkPDF, .rotateLeft, .rotateRight,
+    var isDocumentOutput: Bool { [.compressPresentation, .compressPDF, .diskImage, .encryptedDiskImage, .extractAudio, .pasteImage,.mergePDF, .splitPDF, .watermarkPDF, .rotateLeft, .rotateRight,
         .stitchHorizontal, .stitchVertical, .removeBackground, .replaceBackground, .recolor].contains(self) }
-    var usesExistingTool: Bool { [.cutFiles, .pasteMovedFiles, .uninstallApp, .recordAudio, .recordVideo, .shareLAN, .editImage, .convertImages, .convertVideo, .extractText].contains(self) }
+    var usesExistingTool: Bool { [.screenshot, .screenRecorder, .colorPicker, .cleaningMode, .keepAwake, .micMute, .clipboardHistory, .cutFiles, .pasteMovedFiles, .uninstallApp, .recordAudio, .recordVideo, .shareLAN, .editImage, .convertImages, .convertVideo, .extractText].contains(self) }
 
     var id: String { rawValue }
     var needsName: Bool { isDocumentOutput || self == .batchRename || self == .searchFolder || [.newFile, .newFolder, .template, .pasteText, .pasteMarkdown, .group].contains(self) }
     var needsDestination: Bool { isDocumentOutput || [.pasteMovedFiles, .pasteZIP, .pasteFiles, .pasteAliases,.zip, .extractIcon].contains(self) || [.newFile, .newFolder, .template, .pasteText, .pasteMarkdown, .copyTo, .moveTo, .alias, .group].contains(self) }
-    var needsSelection: Bool { ![.pasteMovedFiles, .recordAudio, .recordVideo, .pasteZIP, .pasteImage, .pasteFiles, .pasteAliases,.newFile, .newFolder, .pasteText, .pasteMarkdown].contains(self) }
+    var needsSelection: Bool { ![.screenshot, .screenRecorder, .colorPicker, .cleaningMode, .keepAwake, .micMute, .clipboardHistory, .pasteMovedFiles, .recordAudio, .recordVideo, .pasteZIP, .pasteImage, .pasteFiles, .pasteAliases,.newFile, .newFolder, .pasteText, .pasteMarkdown].contains(self) }
     var changesSources: Bool { [.pasteMovedFiles, .repairNames, .setIcon, .resetIcon, .defaultApplication, .batchRename, .trash, .permanentDelete, .hideExtension, .showExtension,.moveTo, .hide, .unhide, .lock, .unlock, .group, .flatten].contains(self) }
 
     func title(languageCode: String) -> String {
+        if let index = [Self.compressPresentation, .screenshot, .screenRecorder, .colorPicker, .cleaningMode, .keepAwake, .micMute, .clipboardHistory].firstIndex(of: self) {
+            return Self.systemToolTitles(languageCode)[index]
+        }
         if let index = [Self.cutFiles, .pasteMovedFiles, .airDrop, .uninstallApp].firstIndex(of: self) {
             return Self.integrationTitles(languageCode)[index]
         }
@@ -188,6 +193,29 @@ private extension FinderToolsAction {
         case "zh-Hans": return ["剪切文件", "粘贴已剪切的文件", "AirDrop", "卸载应用"]
         case "zh-TW", "zh-HK": return ["剪下檔案", "貼上已剪下的檔案", "AirDrop", "解除安裝應用程式"]
         default: return ["Cut Files", "Paste Cut Files", "AirDrop", "Uninstall Application"]
+        }
+    }
+}
+
+private extension FinderToolsAction {
+    static func systemToolTitles(_ language: String) -> [String] {
+        switch language {
+        case "en-US": return ["Reduce PPTX Size", "Take Screenshot", "Toggle Screen Recording", "Pick Color", "Clean Keyboard", "Toggle Keep Awake", "Toggle Microphone Mute", "Clipboard History"]
+        case "pt-BR": return ["Reduzir tamanho do PPTX", "Capturar tela", "Iniciar ou parar gravação da tela", "Selecionar cor", "Limpar teclado", "Ativar ou desativar manter acordado", "Ativar ou desativar microfone", "Histórico da área de transferência"]
+        case "es": return ["Reducir tamaño de PPTX", "Capturar pantalla", "Iniciar o detener grabación de pantalla", "Seleccionar color", "Limpiar teclado", "Activar o desactivar mantener despierto", "Silenciar o activar micrófono", "Historial del portapapeles"]
+        case "fr": return ["Réduire la taille du PPTX", "Capturer l’écran", "Démarrer ou arrêter l’enregistrement d’écran", "Choisir une couleur", "Nettoyer le clavier", "Activer ou désactiver le maintien en éveil", "Couper ou activer le microphone", "Historique du presse-papiers"]
+        case "de": return ["PPTX-Größe reduzieren", "Bildschirmfoto aufnehmen", "Bildschirmaufnahme starten oder stoppen", "Farbe auswählen", "Tastatur reinigen", "Wachhalten umschalten", "Mikrofonstummschaltung umschalten", "Zwischenablageverlauf"]
+        case "it": return ["Riduci dimensione PPTX", "Acquisisci schermata", "Avvia o interrompi registrazione schermo", "Seleziona colore", "Pulisci tastiera", "Attiva o disattiva mantieni attivo", "Disattiva o attiva microfono", "Cronologia degli appunti"]
+        case "ja": return ["PPTXサイズを縮小", "スクリーンショットを撮影", "画面収録を開始・停止", "色を選択", "キーボードを清掃", "スリープ防止を切り替え", "マイクの消音を切り替え", "クリップボード履歴"]
+        case "ko": return ["PPTX 크기 줄이기", "스크린샷 촬영", "화면 녹화 시작 또는 중지", "색상 선택", "키보드 청소", "잠자기 방지 전환", "마이크 음소거 전환", "클립보드 기록"]
+        case "zh-Hans": return ["缩小 PPTX 大小", "截取屏幕", "开始或停止屏幕录制", "选取颜色", "清洁键盘", "切换保持唤醒", "切换麦克风静音", "剪贴板历史"]
+        case "zh-TW": return ["縮小 PPTX 大小", "擷取螢幕", "開始或停止螢幕錄製", "選取顏色", "清潔鍵盤", "切換保持喚醒", "切換麥克風靜音", "剪貼簿歷史"]
+        case "zh-HK": return ["縮小 PPTX 大小", "擷取螢幕", "開始或停止螢幕錄製", "選取顏色", "清潔鍵盤", "切換保持喚醒", "切換咪高峰靜音", "剪貼簿記錄"]
+        case "ru": return ["Уменьшить размер PPTX", "Снимок экрана", "Начать или остановить запись экрана", "Выбрать цвет", "Очистить клавиатуру", "Переключить запрет сна", "Переключить микрофон", "История буфера обмена"]
+        case "uk": return ["Зменшити розмір PPTX", "Знімок екрана", "Почати або зупинити запис екрана", "Вибрати колір", "Очистити клавіатуру", "Перемкнути запобігання сну", "Перемкнути мікрофон", "Історія буфера обміну"]
+        case "tr": return ["PPTX Boyutunu Küçült", "Ekran Görüntüsü Al", "Ekran Kaydını Başlat veya Durdur", "Renk Seç", "Klavyeyi Temizle", "Uyanık Tutmayı Aç veya Kapat", "Mikrofonun Sesini Aç veya Kapat", "Pano Geçmişi"]
+        case "sk": return ["Zmenšiť veľkosť PPTX", "Zachytiť obrazovku", "Spustiť alebo zastaviť nahrávanie obrazovky", "Vybrať farbu", "Vyčistiť klávesnicu", "Prepnúť udržiavanie bdelosti", "Prepnúť stlmenie mikrofónu", "História schránky"]
+        default: return systemToolTitles("en-US")
         }
     }
 }

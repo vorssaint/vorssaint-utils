@@ -53,6 +53,15 @@ image is the subject and the second is the replacement background.
 - Rotate, stitch, recolor, recognize QR codes, remove a foreground image's
   background or replace it using Vision. Limits are 64 megapixels and 16,384
   pixels per edge. Background replacement requires macOS 14's Vision support.
+- Reduce PPTX size by recompressing its ZIP package and JPEG pictures at 80%
+  quality, retaining picture dimensions and the exact slide/relationship parts.
+  Non-JPEG media stays unchanged. The original stays untouched, existing outputs
+  are refused, and a new output is published only when smaller. Inputs are bounded
+  to 256 MB compressed, 512 MB expanded and 64 MB per part. Encrypted, signed,
+  ZIP64 and corrupt packages are rejected. Legacy PPT and Keynote are unsupported.
+- Open screenshots, screen recording, color picker, keyboard cleaning, keep-awake,
+  microphone mute and clipboard history from the native menu. These routes reuse
+  the corresponding installed features and their permission checks.
 - Extract audio to M4A. Image/video conversion, resizing, image watermarks, OCR
   and the screenshot editor use existing Vorssaint workspaces, with their feature
   availability checks. The editor supports cropping external images.
@@ -146,7 +155,7 @@ extension or granted a permission.
 The current implementation is not complete MouseBoost parity. Still open:
 optional system-context-menu replacement; QSpace/Path Finder/custom-manager
 selection adapters; every reference terminal's tab/window modes; built-in iWork
-and proprietary WPS formats; presentation compression; encrypted ZIP; direct WeChat routing beyond the system share
+and proprietary WPS formats; legacy PPT/Keynote compression; encrypted ZIP; direct WeChat routing beyond the system share
 picker. Signed app-group preference sharing,
 foreground segmentation and microphone/camera recording also need runtime validation.
 A native Finder menu action was verified to open the Developer workspace with

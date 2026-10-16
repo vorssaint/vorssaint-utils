@@ -94,6 +94,18 @@ enum FinderToolsTests {
                 } catch is CancellationError { suite.expect(true, "cancelled operation stopped") }
             } catch { suite.expect(false, "operation fixture failed: \(error)") }
         }
+        suite.run("Finder system action routing") {
+            let mappings: [(FinderToolsAction, RadialMenuTool)] = [
+                (.screenshot, .screenshot), (.screenRecorder, .screenRecorder), (.colorPicker, .colorPicker),
+                (.cleaningMode, .cleaningMode), (.keepAwake, .keepAwake), (.micMute, .micMute),
+                (.clipboardHistory, .clipboardHistory)
+            ]
+            for (action, tool) in mappings {
+                suite.expect(FinderToolsSystemTool.tool(for: action) == tool && action.usesExistingTool && !action.needsSelection,
+                             "\(action) uses its existing tool without requiring a file")
+            }
+            suite.expect(FinderToolsSystemTool.tool(for: .newFile) == nil, "file actions are not routed into system tools")
+        }
         suite.run("Finder tools localization") {
             for language in AppLanguage.allCases {
                 let titles = FinderToolsAction.allCases.map { $0.title(languageCode: language.rawValue) }

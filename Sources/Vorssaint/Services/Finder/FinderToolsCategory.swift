@@ -34,10 +34,10 @@ extension FinderToolsAction {
         case .mergePDF, .splitPDF, .watermarkPDF, .compressPDF: return .pdf
         case .rotateLeft, .rotateRight, .stitchHorizontal, .stitchVertical, .removeBackground,
              .replaceBackground, .recolor, .readQR, .editImage, .convertImages, .convertVideo,
-             .extractText, .extractIcon, .extractAudio, .pasteImage: return .media
+             .compressPresentation, .extractText, .extractIcon, .extractAudio, .pasteImage: return .media
         case .copyPath, .copyName, .copyStem, .copyMarkdown, .copyContents, .fileTree, .directoryTree,
              .size, .sha256, .copySummary: return .copy
-        case .recordAudio, .recordVideo, .quickLook, .reveal, .info, .eject, .wallpaper, .share, .openTerminal: return .system
+        case .screenshot, .screenRecorder, .colorPicker, .cleaningMode, .keepAwake, .micMute, .clipboardHistory, .airDrop, .recordAudio, .recordVideo, .quickLook, .reveal, .info, .eject, .wallpaper, .share, .openTerminal: return .system
         default: return .files
         }
     }

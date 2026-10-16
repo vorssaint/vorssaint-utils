@@ -96,6 +96,10 @@ struct FinderToolsView: View {
                         }
                     }
                 }
+                if service.action == .compressPresentation {
+                    Text(FinderToolsStrings.presentationCompression(l10n.language.rawValue))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if service.action == .newFile {
                     Picker(l10n.s.mediaFormat, selection: Binding(get: {
                         (service.name as NSString).pathExtension.lowercased()

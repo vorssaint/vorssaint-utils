@@ -323,6 +323,11 @@ final class FinderToolsService: ObservableObject {
     }
 
     private func openExistingTool() {
+        if let tool = FinderToolsSystemTool.tool(for: action) {
+            guard tool.isRunnable() else { showFeatureSettings(); return }
+            AppToolLauncher.run(tool)
+            return
+        }
         if action == .cutFiles || action == .pasteMovedFiles {
             guard AppFeature.finderCutPaste.isAvailable,
                   UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled) else {

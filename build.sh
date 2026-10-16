@@ -464,6 +464,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/DocumentTools/FinderPDFTools.swift
         Sources/Vorssaint/Services/DocumentTools/FinderDiskImageOperation.swift
         Sources/Vorssaint/Services/DocumentTools/FinderAudioTools.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderPresentationArchive.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderPresentationTools.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsSystemTool.swift
         Sources/Vorssaint/Services/DocumentTools/FinderImageTools.swift
         Sources/Vorssaint/Services/DocumentTools/FinderDocumentExecutor.swift
         Sources/Vorssaint/Core/FinderToolsStrings.swift

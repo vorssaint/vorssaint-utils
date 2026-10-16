@@ -329,3 +329,26 @@ extension FinderToolsStrings {
         return base
     }
 }
+
+extension FinderToolsStrings {
+    static func presentationCompression(_ language: String) -> String {
+        switch language {
+        case "en-US": return "Creates a smaller PPTX copy. JPEG pictures use 80% quality; their dimensions and slide content are preserved."
+        case "pt-BR": return "Cria uma cópia PPTX menor. Imagens JPEG usam qualidade de 80%; as dimensões e o conteúdo dos slides são preservados."
+        case "es": return "Crea una copia PPTX más pequeña. Las imágenes JPEG usan calidad del 80%; se conservan sus dimensiones y el contenido de las diapositivas."
+        case "fr": return "Crée une copie PPTX plus petite. Les images JPEG utilisent une qualité de 80 % ; leurs dimensions et le contenu des diapositives sont conservés."
+        case "de": return "Erstellt eine kleinere PPTX-Kopie. JPEG-Bilder verwenden 80 % Qualität; Abmessungen und Folieninhalt bleiben erhalten."
+        case "it": return "Crea una copia PPTX più piccola. Le immagini JPEG usano qualità 80%; dimensioni e contenuto delle diapositive restano invariati."
+        case "ja": return "小さいPPTXコピーを作成します。JPEG画質は80%で、画像の寸法とスライドの内容は保持されます。"
+        case "ko": return "더 작은 PPTX 복사본을 만듭니다. JPEG 품질은 80%이며 이미지 크기와 슬라이드 내용은 유지됩니다."
+        case "zh-Hans": return "创建更小的 PPTX 副本。JPEG 图像使用 80% 质量，保留图像尺寸和幻灯片内容。"
+        case "zh-TW": return "製作較小的 PPTX 副本。JPEG 影像使用 80% 品質，保留影像尺寸和投影片內容。"
+        case "zh-HK": return "製作較小的 PPTX 副本。JPEG 影像使用 80% 品質，保留影像尺寸和投影片內容。"
+        case "ru": return "Создаёт уменьшенную копию PPTX. Качество JPEG — 80%; размеры изображений и содержимое слайдов сохраняются."
+        case "uk": return "Створює зменшену копію PPTX. Якість JPEG — 80%; розміри зображень і вміст слайдів зберігаються."
+        case "tr": return "Daha küçük bir PPTX kopyası oluşturur. JPEG kalitesi %80 olur; görsel boyutları ve slayt içeriği korunur."
+        case "sk": return "Vytvorí menšiu kópiu PPTX. Obrázky JPEG používajú kvalitu 80 %; rozmery a obsah snímok sa zachovajú."
+        default: return presentationCompression("en-US")
+        }
+    }
+}

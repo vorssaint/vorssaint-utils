@@ -41,6 +41,11 @@ enum FinderDocumentExecutor {
             let name = operation.name.lowercased().hasSuffix(".m4a") ? operation.name : operation.name + ".m4a"
             return FinderToolsResult(outputs: [try FinderAudioTools.extract(from: first,
                 to: destination.appendingPathComponent(name), cancellation: cancellation)])
+        case .compressPresentation:
+            try requireCount(inputs, count: 1)
+            let name = operation.name.lowercased().hasSuffix(".pptx") ? operation.name : operation.name + ".pptx"
+            return FinderToolsResult(outputs: [try FinderPresentationTools.compress(first,
+                to: destination.appendingPathComponent(name), cancellation: cancellation)])
         case .compressPDF:
             try requireCount(inputs, count: 1)
             return FinderToolsResult(outputs: [try FinderPDFTools.compress(first, in: destination,

@@ -32,7 +32,7 @@ struct MetricsTests {
                 FinderNewFileTemplatesTests.run(suite)
                 FinderLANShareTests.run(suite)
             }),
-            ("finder-media", { FinderMediaExportTests.run(suite) }),
+            ("finder-media", { FinderMediaExportTests.run(suite); FinderPresentationTests.run(suite) }),
             ("finder-archives", { FinderArchiveToolsTests.run(suite) }),
             ("clipboard", {
                 ClipboardFeatureTests.run(suite)
