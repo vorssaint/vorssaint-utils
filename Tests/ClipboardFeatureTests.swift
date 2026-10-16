@@ -1581,6 +1581,7 @@ enum ClipboardPreviewContract {
             static var standard = Preferences()
         }
         let capturedEntry = PassthroughSubject<ClipboardHistoryEntry, Never>()
+        var announcesCaptures = true
         func looksSensitive(_ text: String) -> Bool {
             ClipboardHistorySensitiveText.looksSensitive(text)
         }
