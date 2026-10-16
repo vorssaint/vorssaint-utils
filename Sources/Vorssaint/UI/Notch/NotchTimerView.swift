@@ -13,6 +13,7 @@ struct NotchTimerView: View {
     @AppStorage(DefaultsKey.notchPomodoroLongBreakMinutes) private var longBreakMinutes = 15
     @AppStorage(DefaultsKey.notchPomodoroLongBreakInterval) private var longBreakInterval = 4
     @AppStorage(DefaultsKey.notchPomodoroTotalSessions) private var totalSessions = 4
+    @AppStorage(DefaultsKey.notchPomodoroAutoAdvance) private var autoAdvance = false
     @AppStorage(DefaultsKey.notchTimerMinutes) private var savedMinutes = 15
     @Namespace private var modeSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -90,7 +91,7 @@ struct NotchTimerView: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.timerStartHeight / 2))
-        .help(mode == .pomodoro ? text.pomodoroHint : text.start)
+        .help(mode == .pomodoro ? (autoAdvance ? text.pomodoroAutoAdvanceHint : text.pomodoroHint) : text.start)
     }
 
     /// Beside the camera the three words do not fit, so the modes are a
@@ -181,6 +182,12 @@ struct NotchTimerView: View {
             } else if service.session.canStartNext {
                 roundButton(symbol: "play.fill", title: text.start + " " + text.phase(service.session.nextPhase),
                             action: service.startNext)
+            }
+            if service.session.mode == .pomodoro, service.mediaCommandFailed {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                    .help(text.pomodoroMediaUnavailable)
+                    .accessibilityLabel(text.pomodoroMediaUnavailable)
             }
             Spacer(minLength: 0)
             if service.session.isRunning {

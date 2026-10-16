@@ -156,8 +156,8 @@ struct NotchTimerSession: Equatable {
         phase == .focus ? (completedFocuses.isMultiple(of: configuration.longBreakInterval) ? .longBreak : .shortBreak) : .focus
     }
 
-    /// A new phase always starts by an explicit action. Returning from a long
-    /// sleep cannot silently complete work/break cycles the user never took.
+    /// Start one full phase from now. The service allows automatic transitions
+    /// only while awake; returning from sleep never catches up unseen cycles.
     mutating func startNext(at now: TimeInterval) {
         guard canStartNext, now.isFinite else { return }
         phase = nextPhase
