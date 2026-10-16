@@ -1767,6 +1767,7 @@ enum FeatureCatalogTests {
                 case .ru: return .ru
                 case .es: return .es
                 case .sk: return .sk
+                case .pl: return .pl
                 case .de: return .de
                 case .fr: return .fr
                 case .it: return .it

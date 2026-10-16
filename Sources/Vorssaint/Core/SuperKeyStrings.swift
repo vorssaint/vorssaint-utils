@@ -41,6 +41,7 @@ extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -87,6 +88,30 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
         mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
         keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
+    )
+
+    static let pl = SuperKeyStrings(
+        pageTitle: "Superklawisz",
+        hubDescription: "Zamienia jeden klawisz w wybraną kombinację modyfikatorów.",
+        enableToggle: "Użyj tego klawisza jako superklawisza",
+        enableCaption: "Przytrzymaj i naciśnij dowolny klawisz. Wybierz jeden lub więcej modyfikatorów poniżej.",
+        modifierKeysNote: "Zachowaj domyślną akcję tego klawisza w Ustawieniach systemu > Klawiatura > Klawisze modyfikujące.",
+        sourceKey: "Klawisz do przytrzymania",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Prawy %@",
+        holdHint: "Przytrzymanie",
+        soloSection: "Samo dotknięcie",
+        soloCaption: "Co robi szybkie dotknięcie, gdy nie jest naciśnięty żaden inny klawisz.",
+        soloNothing: "Nic",
+        soloCapsLock: "Włącz i wyłącz wielkie litery",
+        soloEscape: "Naciśnij klawisz Escape",
+        activeNow: "Pracuję teraz",
+        panelCaptionFormat: "%1$@ zawiera %2$@.",
+        manageButton: "Skonfiguruj…",
+        soloInputSource: "Przełącz źródło wejściowe; przytrzymaj, aby włączyć Caps Lock",
+        mappingForeignMapping: "Inna aplikacja przypisała już funkcję do wybranego klawisza. Usuń to przypisanie w tej aplikacji. Samo zakończenie jej działania nie wystarczy.",
+        mappingSystemRefused: "macOS odmówił mapowania klawiszy. Podłącz ponownie klawiaturę lub uruchom ponownie komputer Mac, a następnie włącz ją ponownie.",
+        keyboardTapRefused: "macOS nie pozwolił Vorssaint oglądać klawiatury. Wyłącz i włącz Vorssaint w Ustawieniach systemu > Prywatność i bezpieczeństwo > Dostępność, a następnie włącz tę opcję ponownie."
     )
 
     static let ptBR = SuperKeyStrings(
