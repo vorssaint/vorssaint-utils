@@ -237,6 +237,7 @@ struct NotchMusicView: View {
 
     /// Lyrics and the queue are toggles, named by their glyphs as a player's own are.
     @ViewBuilder private var extraButtons: some View {
+        if showsHeart { heartButton }
         if showsLyrics {
             extraButton(.lyrics, title: FeatureStrings.notchMusicExtras(l10n.language).lyrics, symbol: "quote.bubble")
         }
@@ -256,33 +257,33 @@ struct NotchMusicView: View {
         }
     }
 
-    private func heartButton(compact: Bool) -> some View {
-        if appleMusic.offers(service.playback) { return AnyView(appleMusicHeart(compact: compact)) }
-        return AnyView(spotifyHeart(compact: compact))
+    /// The heart for the song playing: Music's favorite, or a Spotify like.
+    @ViewBuilder private var heartButton: some View {
+        if appleMusic.offers(service.playback) { appleMusicHeart } else { spotifyHeart }
     }
 
     /// Music's own favorite. Until it has been allowed to be controlled, the
     /// first press asks for that, as the playback buttons do.
-    private func appleMusicHeart(compact: Bool) -> some View {
+    private var appleMusicHeart: some View {
         let strings = FeatureStrings.notchSpotify(l10n.language)
         let liked = appleMusic.liked == true
         let title = appleMusic.failed ? strings.likeFailed : liked ? strings.unlike : strings.like
-        return NotchMusicSideButton(symbol: appleMusic.failed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
-                                    title: title, active: liked, tint: accent, compact: compact) {
+        return NotchIconButton(symbol: appleMusic.failed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
+                               title: title, selected: liked) {
             appleMusic.toggle(for: service.playback)
         }
         .disabled(appleMusic.busy || appleMusic.requestingAccess)
     }
 
-    private func spotifyHeart(compact: Bool) -> some View {
+    private var spotifyHeart: some View {
         let strings = FeatureStrings.notchSpotify(l10n.language)
         let connected = spotify.connection == .connected
         let liked = connected && heartAnswered && spotify.saved == true
         let title = !connected ? strings.connect : spotify.actionFailed ? strings.likeFailed : liked ? strings.unlike : strings.like
         // Until Spotify answers, a tap has nothing to change; the heart stays
         // in the row rather than arriving after everything else.
-        return NotchMusicSideButton(symbol: spotify.actionFailed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
-                                    title: title, active: liked, tint: accent, compact: compact) {
+        return NotchIconButton(symbol: spotify.actionFailed ? "exclamationmark.triangle" : liked ? "heart.fill" : "heart",
+                               title: title, selected: liked) {
             if !connected { NotchService.shared.openSettings(showing: .music) } else if heartAnswered { spotify.toggleSaved() }
         }
         .disabled(spotify.busy)
@@ -320,7 +321,7 @@ struct NotchMusicView: View {
     /// of buttons, as a phone's island lays out its player.
     private func player(_ playback: NotchPlayback) -> some View {
         VStack(spacing: 0) {
-            head(corner: !band.besideCamera && (showsLyrics || showsQueue || band.pageSectionsButton)) {
+            head(corner: !band.besideCamera && (showsLyrics || showsQueue || showsHeart || band.pageSectionsButton)) {
                 Button { RadialNowPlayingApplication.open(playback.track) } label: {
                     NotchArtwork(image: service.artwork, size: NotchLayout.musicArtworkSize, source: playback.track)
                         .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.94)
