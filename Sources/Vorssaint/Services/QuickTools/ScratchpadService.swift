@@ -275,6 +275,7 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         guard !text.isEmpty else { return }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
+        pasteboard.declareVorssaintSource()
         pasteboard.setString(text, forType: .string)
     }
 
@@ -299,6 +300,28 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         if isPreviewing {
             isPreviewing = false
             focusText()
+        }
+        flushSave()
+    }
+
+    /// A checkbox clicked in the formatted reading flips its box through the
+    /// text view when it is up, so the click is one edit that Cmd+Z takes
+    /// back and the history typed before it stays. The island passes its own
+    /// editor for the same undo there.
+    func toggleTask(box: Int, through editor: NSTextView? = nil) {
+        if let textView = editor ?? textView.flatMap({ $0.window === panel ? $0 : nil }) {
+            // A live input-method composition holds a marked range into the
+            // storage; editing around it leaves that range pointing at nothing.
+            if textView.hasMarkedText() { textView.unmarkText() }
+            guard let edit = ScratchpadSupport.taskToggleEdit(box: box, in: textView.string) else { return }
+            // Its own undo step, never folded into the typing before it.
+            textView.breakUndoCoalescing()
+            guard textView.shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
+            textView.replaceCharacters(in: edit.range, with: edit.replacement)
+            textView.didChangeText()
+        } else {
+            guard let edit = ScratchpadSupport.taskToggleEdit(box: box, in: text) else { return }
+            text = (text as NSString).replacingCharacters(in: edit.range, with: edit.replacement)
         }
         flushSave()
     }

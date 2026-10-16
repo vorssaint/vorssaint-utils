@@ -9,13 +9,19 @@ import SwiftUI
 /// the tile is. The wings are as wide as the wider side needs.
 struct NotchKeepAwakeStrip: View {
     @ObservedObject var service: NotchService
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
-        if let end = awake.endDate {
+        // Ending a session clears its end before the strip has left.
+        NotchStripHold(awake.endDate, shows: awake.isActive) { content(end: $0) }
+    }
+
+    @ViewBuilder private func content(end: Date?) -> some View {
+        if let end {
             // The reading changes once a minute, so the clock wakes only then.
             TimelineView(.periodic(from: NotchKeepAwakeSupport.tickStart(until: end, now: Date()), by: 60)) { context in
                 strip(end: end, now: context.date)

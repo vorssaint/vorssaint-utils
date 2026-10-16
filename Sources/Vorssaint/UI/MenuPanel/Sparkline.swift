@@ -64,3 +64,45 @@ struct Sparkline: View {
         }
     }
 }
+
+extension View {
+    /// Marks the top of a graph with a dashed rule and names its value on that
+    /// rule, so the number reads as the scale and not as a sample.
+    func graphCeilingLabel(_ text: String) -> some View {
+        modifier(GraphCeilingLabel(text: text))
+    }
+}
+
+private struct GraphCeilingLabel: ViewModifier {
+    @AppStorage(DefaultsKey.monitorGraphScale) private var visible = true
+    let text: String
+
+    func body(content: Content) -> some View {
+        if visible {
+            content
+                .overlay {
+                    GeometryReader { geometry in
+                        Path { path in
+                            path.move(to: CGPoint(x: 0, y: 0.5))
+                            path.addLine(to: CGPoint(x: geometry.size.width, y: 0.5))
+                        }
+                        .stroke(Color.secondary.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [2, 3]))
+                    }
+                    .allowsHitTesting(false)
+                }
+                // Over the oldest samples, so the newest stay clear.
+                .overlay(alignment: .topLeading) {
+                    Text(text)
+                        .font(.system(size: 9))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 3)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 3))
+                        .alignmentGuide(.top) { $0[VerticalAlignment.center] }
+                        .allowsHitTesting(false)
+                }
+        } else {
+            content
+        }
+    }
+}

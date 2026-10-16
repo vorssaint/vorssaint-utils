@@ -40,6 +40,9 @@ struct MixerApp: Identifiable, Equatable {
     /// absence doesn't read as a bug (issue #177), but never tapped — no
     /// slider, no routing, volume pinned at unity.
     var isBypassed: Bool = false
+    /// A manual universal switch found this process still playing elsewhere.
+    /// Keep its route at unity too, without saving a per-app device preference.
+    var universalOutputRouteUID: String? = nil
     var selectedOutputDeviceUID: String?
     var effectiveOutputDeviceUID: String?
     var outputDeviceUnavailable: Bool
@@ -62,7 +65,8 @@ struct MixerHiddenApp: Identifiable, Equatable {
 /// For every app the user turns down or routes to a specific output, a muted
 /// CoreAudio process tap removes the app's sound from the original output, and
 /// an aggregate device re-renders the tapped stream with the chosen gain. Apps
-/// on the system default output at 100% are left completely untouched.
+/// already following the system default at 100% are left untouched unless the
+/// user explicitly chooses a per-app output.
 final class AppVolumeMixer: ObservableObject {
     static let shared = AppVolumeMixer()
 
@@ -71,7 +75,7 @@ final class AppVolumeMixer: ObservableObject {
         return false
     }
 
-    /// Volumes run 0...2: 1.0 is 100% (untouched passthrough), up to 2.0 is a
+    /// Volumes run 0...2: 1.0 is 100% (unity gain), up to 2.0 is a
     /// 200% boost for sources that play too quietly.
     static let maxVolume: Double = 2.0
 
@@ -113,12 +117,25 @@ final class AppVolumeMixer: ObservableObject {
     /// process runs, never written to disk.
     private var sessionVolumes: [String: Double] = [:]
     private var sessionRoutes: [String: String] = [:]
+    /// A manual "all apps" choice only changes the system default. Kept as a
+    /// request, it moved apps still on another output to the default, which
+    /// also caught apps playing through an output of their own, such as a
+    /// call on a headset, and it outlived the session. The routing that reads
+    /// it stays dormant until it can tell those apps apart; an app that keeps
+    /// its old device can be given an output of its own, which holds at 100%.
+    private var universalOutputDeviceUID: String? {
+        nil
+    }
     private var lastAudibleVolume: [String: Double] = [:]
     private var listenerInstalled = false
     /// Device priority needs the output/default substrate without per-app
     /// process discovery. A feature transition restarts the listener set when
     /// this mode changes, so priority-only operation never scans processes.
     private var processMonitoringEnabled = false
+    /// Whether this mixer started AirPlay tracking. Only then is there a
+    /// manager to stop: creating one loads the private routing stack, which
+    /// audio priority and the output switcher alone never need.
+    private var airPlayActive = false
     /// The global HAL listeners (devices, default output, process list), kept
     /// so stop() can remove each one again when the mixer leaves the hub.
     private var globalListeners: [AudioObjectPropertySelector] = []
@@ -164,13 +181,20 @@ final class AppVolumeMixer: ObservableObject {
     }
     private var pendingOutputAdjustment: OutputAdjustment?
     private var outputWriteInFlight: OutputAdjustment?
+    /// One volume or mute key waiting on the output's own reading. A nil
+    /// `level` toggles mute.
     private struct OutputStep {
-        let level: (Double) -> Double
+        let level: ((Double) -> Double)?
         let completion: (Bool) -> Void
     }
     private var queuedOutputSteps: [OutputStep] = []
     private var outputStepReadInFlight = false
     private var outputStepReadGeneration = 0
+    /// The level the last volume key asked for and the reading it stepped
+    /// from. An output with coarse steps rounds a step narrower than its own
+    /// back to that reading, and stepping from the reading again would hold
+    /// it there for good.
+    private var lastOutputStep: (device: AudioObjectID, lifetime: UUID, from: Double, to: Double)?
     private let outputControlLock = NSLock()
     private var outputControlLifetime = UUID()
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
@@ -201,6 +225,12 @@ final class AppVolumeMixer: ObservableObject {
         processMonitoringEnabled = AppFeature.mixer.isAvailable
         if processMonitoringEnabled {
             publishHiddenApps()
+            // Created here, on the main thread, before any refresh reads the
+            // AirPlay snapshot from the HAL queue.
+            AirPlayRouteManager.shared.activate { [weak self] in
+                self?.refreshApps()
+            }
+            airPlayActive = true
         }
         guard !listenerInstalled else {
             refreshApps()
@@ -267,6 +297,10 @@ final class AppVolumeMixer: ObservableObject {
         if let wakeObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(wakeObserver)
             self.wakeObserver = nil
+        }
+        if airPlayActive {
+            AirPlayRouteManager.shared.deactivate()
+            airPlayActive = false
         }
         if !apps.isEmpty { apps = [] }
         if !hiddenApps.isEmpty { hiddenApps = [] }
@@ -380,6 +414,7 @@ final class AppVolumeMixer: ObservableObject {
         // Superseded keys are handled: replaying them would adjust the new output.
         pending?.completion(true)
         outputStepReadInFlight = false
+        lastOutputStep = nil
         settleQueuedOutputSteps(handled: true)
     }
 
@@ -442,11 +477,13 @@ final class AppVolumeMixer: ObservableObject {
     /// keep both because input IO can already be running when output changes.
     private static let runningListenerSelectors: [AudioObjectPropertySelector] = [
         kAudioProcessPropertyIsRunningOutput, kAudioProcessPropertyIsRunning,
+        kAudioProcessPropertyDevices,
     ]
 
     private static func runningAddress(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(mSelector: selector,
-                                   mScope: kAudioObjectPropertyScopeGlobal,
+                                   mScope: selector == kAudioProcessPropertyDevices
+                                       ? kAudioObjectPropertyScopeOutput : kAudioObjectPropertyScopeGlobal,
                                    mElement: kAudioObjectPropertyElementMain)
     }
 
@@ -492,6 +529,8 @@ final class AppVolumeMixer: ObservableObject {
         // read for those keys may still finish later, so invalidate its value.
         outputStepReadGeneration &+= 1
         settleQueuedOutputSteps(handled: true)
+        // A key records its own step again right after this.
+        lastOutputStep = nil
         outputControlRefreshGeneration &+= 1
         let previous = pendingOutputAdjustment
         var adjustment = previous ?? OutputAdjustment(device: device,
@@ -501,10 +540,11 @@ final class AppVolumeMixer: ObservableObject {
             let value = min(1, max(0, volume))
             adjustment.volume = value
             systemOutputVolume = value
-            // The mute switch follows the level, as the system's own keys do.
-            // An output without the switch takes only the level, and an
-            // explicit `muted` below still wins.
-            if systemOutputMuted != nil {
+            // Many outputs still play faintly at a scalar of zero; macOS mutes
+            // there, so do the same. A level the percent labels show as 0%
+            // counts: a key steps from the level the output reports, so a
+            // coarse step from a hair above one step lands just above zero.
+            if systemOutputMuted != nil, muted == nil {
                 let mutes = MixerRoutingSupport.mutesOutput(atVolume: value)
                 adjustment.muted = mutes
                 systemOutputMuted = mutes
@@ -521,15 +561,31 @@ final class AppVolumeMixer: ObservableObject {
     /// level without notifying, and stepping from the stale reading left the
     /// island at 21% while the speakers played at 2%. Keys pressed while that
     /// read runs queue behind it, and keys during this app's own write carry on
-    /// from the level already requested. `level` receives the audible level
-    /// (0 while muted) and returns the one to set.
+    /// from the level already requested. So does the key after a step the
+    /// output rounded back to where it was, as one with 3 dB steps does with a
+    /// sixteenth. `level` receives the audible level (0 while muted) and
+    /// returns the one to set.
     func requestOutputStep(level: @escaping (Double) -> Double,
                            completion: @escaping (Bool) -> Void = { _ in }) {
-        guard let device = outputControlListenerDevice, systemOutputVolume != nil else {
-            completion(false)
+        enqueueOutputKey(OutputStep(level: level, completion: completion),
+                         isAvailable: systemOutputVolume != nil)
+    }
+
+    /// The mute key rides the same read and queue as the volume keys, so it
+    /// toggles the state the output reports now (a stale reading asked for the
+    /// state already in place and the key did nothing), and a volume key right
+    /// after it steps from the level that one read fetched.
+    func requestOutputMuteToggle(completion: @escaping (Bool) -> Void = { _ in }) {
+        enqueueOutputKey(OutputStep(level: nil, completion: completion),
+                         isAvailable: systemOutputMuted != nil)
+    }
+
+    private func enqueueOutputKey(_ step: OutputStep, isAvailable: Bool) {
+        guard let device = outputControlListenerDevice, isAvailable else {
+            step.completion(false)
             return
         }
-        queuedOutputSteps.append(OutputStep(level: level, completion: completion))
+        queuedOutputSteps.append(step)
         guard !outputStepReadInFlight else { return }
         guard !hasCurrentOutputAdjustment else {
             applyQueuedOutputSteps()
@@ -554,33 +610,30 @@ final class AppVolumeMixer: ObservableObject {
                 self.outputStepReadInFlight = false
                 guard isDefault else {
                     // The keys were meant for an output that has since been
-                    // replaced, as headphones taking over. Replaying each one
-                    // natively would step the new output a full step per
-                    // press, so they settle as handled, the way a pending
-                    // adjustment does when its output changes, and the
-                    // mixer resubscribes to what now plays.
-                    self.settleQueuedOutputSteps(handled: true)
+                    // replaced, as headphones taking over. Replaying a volume
+                    // key natively would step the new output a full step per
+                    // press, so those settle as handled, the way a pending
+                    // adjustment does when its output changes. A native mute
+                    // is the same toggle, so mute keys go back to the system
+                    // and still mute what now plays. The mixer resubscribes
+                    // to that output.
+                    let steps = self.queuedOutputSteps
+                    self.queuedOutputSteps.removeAll()
+                    for step in steps { step.completion(step.level != nil) }
                     if current { self.scheduleListenerRefresh() }
                     return
                 }
                 // A direct control change since the read began already set
-                // the level these keys continue from, read or not.
+                // the level these keys continue from, read or not. A control
+                // the default output lacks leaves its keys to the system; the
+                // others still apply.
                 let superseded = self.outputStepReadGeneration != readGeneration
-                guard let volume else {
-                    // The default output has no software volume: the system
-                    // keys are the only way to change it.
-                    if superseded {
-                        self.applyQueuedOutputSteps()
-                    } else {
-                        self.settleQueuedOutputSteps(handled: false)
-                    }
-                    return
-                }
-                if !superseded, !self.hasCurrentOutputAdjustment {
+                let fresh = !superseded && !self.hasCurrentOutputAdjustment
+                if fresh {
                     if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
                     if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
                 }
-                self.applyQueuedOutputSteps()
+                self.applyQueuedOutputSteps(reading: fresh ? volume : nil)
             }
         }
     }
@@ -591,17 +644,55 @@ final class AppVolumeMixer: ObservableObject {
         for step in steps { step.completion(handled) }
     }
 
-    private func applyQueuedOutputSteps() {
+    /// `reading` is the output's own level, when these keys have just read it.
+    private func applyQueuedOutputSteps(reading: Double? = nil) {
         let steps = queuedOutputSteps
         queuedOutputSteps.removeAll()
+        var reading = reading
         for step in steps {
-            guard let volume = systemOutputVolume else {
-                step.completion(false)
-                continue
+            if let level = step.level {
+                guard let volume = systemOutputVolume else {
+                    step.completion(false)
+                    continue
+                }
+                // Still at the level the last key stepped from, the output
+                // rounded that step back: go on from the level it asked for.
+                let start = reading.flatMap { roundedBackStepLevel($0, continuing: level) } ?? volume
+                let from = reading ?? lastOutputStep?.from ?? volume
+                let target = level(systemOutputMuted == true ? 0 : start)
+                requestOutputAdjustment(volume: target) { [weak self] applied in
+                    // A step the output refused carries nothing over.
+                    if !applied, self?.lastOutputStep?.to == target { self?.lastOutputStep = nil }
+                    step.completion(applied)
+                }
+                rememberOutputStep(from: from, to: target)
+                // Keys after the first in a burst continue from this one.
+                reading = nil
+            } else {
+                guard let muted = systemOutputMuted else {
+                    step.completion(false)
+                    continue
+                }
+                requestOutputAdjustment(muted: !muted, completion: step.completion)
             }
-            requestOutputAdjustment(volume: step.level(systemOutputMuted == true ? 0 : volume),
-                                    completion: step.completion)
         }
+    }
+
+    /// The level the last key asked for, while the current output still
+    /// reads the level that key stepped from and `level` keeps going the same
+    /// way. A key back the other way steps from the reading, which the output
+    /// never left.
+    private func roundedBackStepLevel(_ reading: Double, continuing level: (Double) -> Double) -> Double? {
+        guard let step = lastOutputStep, step.device == outputControlListenerDevice,
+              step.lifetime == outputControlLock.withLock({ outputControlLifetime }),
+              abs(reading - step.from) < 0.0001,
+              (level(step.to) - step.to) * (step.to - step.from) > 0 else { return nil }
+        return step.to
+    }
+
+    private func rememberOutputStep(from: Double, to: Double) {
+        guard let device = outputControlListenerDevice else { return }
+        lastOutputStep = (device, outputControlLock.withLock { outputControlLifetime }, from, to)
     }
 
     private func isCurrentOutputAdjustment(_ adjustment: OutputAdjustment) -> Bool {
@@ -614,6 +705,11 @@ final class AppVolumeMixer: ObservableObject {
 
     private func applyOutputControls(volume: Double?, muted: Bool?) {
         guard !hasCurrentOutputAdjustment else { return }
+        // Read at any other level than the one the last key stepped from, that
+        // step landed or the output has moved since, so nothing carries over.
+        if let step = lastOutputStep, volume.map({ abs($0 - step.from) >= 0.0001 }) ?? true {
+            lastOutputStep = nil
+        }
         if systemOutputVolume != volume { systemOutputVolume = volume }
         if systemOutputMuted != muted { systemOutputMuted = muted }
     }
@@ -656,6 +752,8 @@ final class AppVolumeMixer: ObservableObject {
             scheduleListenerRefresh()
             return false
         }
+        // A direct change starts the next key from its own level.
+        lastOutputStep = nil
         if systemOutputVolume != clamped { systemOutputVolume = clamped }
         // The write above moved the mute switch with the level; the published
         // state follows it on an output that has the switch.
@@ -664,9 +762,9 @@ final class AppVolumeMixer: ObservableObject {
         return true
     }
 
-    /// 100% means bit-perfect passthrough (no tap). A value the UI would round to
-    /// 100% counts as unity, so dragging near 100% or tapping reset both restore
-    /// true passthrough; anything else (quieter or boosted) runs the gain engine.
+    /// A value the UI would round to 100% counts as unity. Without an output
+    /// route to enforce, that restores untouched passthrough; otherwise the
+    /// route keeps running at unity gain.
     private func isUnity(_ volume: Double) -> Bool { MixerRoutingSupport.isUnity(volume) }
 
     func setVolume(_ volume: Double, for app: MixerApp) {
@@ -689,19 +787,43 @@ final class AppVolumeMixer: ObservableObject {
 
     func setOutputDeviceUID(_ uid: String?, for app: MixerApp) {
         guard !app.isBypassed else { return }
+        if uid == MixerRoutingSupport.airPlaySpeakerChoiceID {
+            chooseAirPlaySpeaker(for: app)
+            return
+        }
         engineRecovery.clear(app.id)
         let sanitized = Defaults.sanitizedAppOutputDeviceUID(uid)
         persistOutputDeviceUID(sanitized, for: app)
+        refresh.discardInFlight()
+        if let sanitized, MixerRoutingSupport.isAirPlaySentinel(sanitized), !AirPlayRouteManager.shared.isConnected {
+            // After the menu that asked for it closes, so the list opens at the pointer.
+            DispatchQueue.main.async { AirPlayRouteManager.shared.presentPicker() }
+        }
         if let index = apps.firstIndex(where: { $0.id == app.id }) {
             apps[index].selectedOutputDeviceUID = sanitized
             applyOutputRoute(to: &apps[index],
-                             savedOutputs: [app.id: sanitized].compactMapValues { $0 },
-                             availableUIDs: Set(outputDevices.map(\.uid)),
+                             savedOutputs: savedOutputDeviceUIDs(),
+                             availableUIDs: MixerRoutingSupport.routableOutputUIDs(
+                                outputDevices.map(\.uid),
+                                airPlayConnected: AirPlayRouteManager.isSpeakerConnected),
                              defaultUID: currentOutputDeviceUID)
             // The running tap is left alone here: applyRouting builds the one
             // for the new device first and only then stops this one, so the
             // sound never falls back to the old output in between.
             applyRouting(for: apps[index])
+        }
+        refreshApps()
+    }
+
+    /// Choosing a speaker from an app's menu sends that app to AirPlay too,
+    /// and opens the speaker list even while one is already picked.
+    private func chooseAirPlaySpeaker(for app: MixerApp) {
+        let routed = app.selectedOutputDeviceUID.map(MixerRoutingSupport.isAirPlaySentinel) == true
+        let connected = AirPlayRouteManager.shared.isConnected
+        // Without a speaker, routing the app opens the list on its own.
+        if !routed { setOutputDeviceUID(AirPlayRouteManager.airPlaySentinelUID, for: app) }
+        if routed || connected {
+            DispatchQueue.main.async { AirPlayRouteManager.shared.presentPicker() }
         }
     }
 
@@ -772,37 +894,19 @@ final class AppVolumeMixer: ObservableObject {
             volumes: savedVolumes(),
             switchSucceeded: true)
         persistOutputDeviceUIDs(preferences.outputDeviceUIDs)
-
+        sessionRoutes.removeAll()
+        // A second shortcut press can precede the HAL snapshot. Cycle from
+        // the successful choice, while the per-app routes await that read.
         currentOutputDeviceUID = device.uid
-        outputDevices = outputDevices.map { outputDevice in
-            MixerOutputDevice(id: outputDevice.id,
-                              uid: outputDevice.uid,
-                              name: outputDevice.name,
-                              isDefault: outputDevice.uid == device.uid,
-                              isHeadphones: outputDevice.isHeadphones,
-                              canBeDefaultOutput: outputDevice.canBeDefaultOutput,
-                              canBeDefaultSystemOutput: outputDevice.canBeDefaultSystemOutput,
-                              priorityTier: outputDevice.priorityTier,
-                              audioObjectID: outputDevice.audioObjectID)
-        }
 
         // Builds started for the previous device can no longer be installed;
         // the engines themselves stay live until reconciliation has their
         // replacement running on the new device.
         builds.invalidateAll()
 
-        let availableUIDs = Set(outputDevices.map(\.uid))
-        apps = apps.map { current in
-            var app = current
-            app.volume = storedVolume(for: app.identity, saved: preferences.volumes) ?? app.volume
-            applyOutputRoute(to: &app,
-                             savedOutputs: preferences.outputDeviceUIDs,
-                             availableUIDs: availableUIDs,
-                             defaultUID: device.uid)
-            return app
-        }
-        reconcileEngines(with: apps)
-        clearPermissionIfNoActiveAdjustments()
+        // Publish app routes and reconcile from the next HAL snapshot, which
+        // knows which apps actually followed the change. Dropping their old taps
+        // before that read can return a Wine game to the speakers at 100%.
         refreshApps()
         return true
     }
@@ -873,7 +977,7 @@ final class AppVolumeMixer: ObservableObject {
         }
         guard let targetOutputDeviceUID = app.effectiveOutputDeviceUID,
               appNeedsEngine(app) else {
-            // System default at 100% stays true passthrough.
+            // No volume or routing adjustment remains.
             discardEngine(for: app.id)
             clearPermissionIfNoActiveAdjustments()
             return
@@ -881,10 +985,10 @@ final class AppVolumeMixer: ObservableObject {
         if let engine = engines[app.id],
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID {
-            engine.gain = Float(app.volume)
+            engine.gain = MixerRoutingSupport.gain(forVolume: app.volume)
             return
         }
-        // Nothing is ever tapped on behalf of an app the user never adjusted.
+        // A tap needs a volume, per-app output or universal output request.
         guard rowMayBeTapped(app) else {
             discardEngine(for: app.id)
             clearPermissionIfNoActiveAdjustments()
@@ -896,9 +1000,45 @@ final class AppVolumeMixer: ObservableObject {
         guard engineRecovery.allowsBuild(app.id, configuration: configuration) else { return }
         guard #available(macOS 14.4, *), let token = builds.begin(app.id) else { return }
 
+        if MixerRoutingSupport.isAirPlaySentinel(targetOutputDeviceUID) {
+            // Without a listed Mac output to clock it, the engine would count
+            // as gone on every pass. A device list without one is a passing
+            // state, and the next refresh builds again.
+            guard let clockUID = clockDeviceUIDForAirPlayTap() else {
+                builds.finish(app.id, token: token)
+                return
+            }
+            buildQueue.async { [weak self] in
+                // No renderer, no stream: the app stays on its current path
+                // instead of being tapped into silence, and this is not a
+                // missing permission, so the permission hint stays hidden.
+                guard AirPlayRouteManager.shared.prepareToStream() else {
+                    DispatchQueue.main.async {
+                        self?.finishUnavailableAirPlayBuild(for: app.id, token: token)
+                    }
+                    return
+                }
+                let engine = AirPlayGainEngine(appID: app.id,
+                                               objects: app.audioObjects,
+                                               gain: MixerRoutingSupport.gain(forVolume: app.volume),
+                                               clockDeviceUID: clockUID)
+                if engine == nil {
+                    AirPlayRouteManager.shared.stopIfIdle()
+                }
+                DispatchQueue.main.async {
+                    guard let self else {
+                        engine?.stop()
+                        return
+                    }
+                    self.install(engine, for: app.id, token: token)
+                }
+            }
+            return
+        }
+
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects,
-                                       gain: Float(app.volume),
+                                       gain: MixerRoutingSupport.gain(forVolume: app.volume),
                                        outputDeviceUID: targetOutputDeviceUID)
             DispatchQueue.main.async {
                 guard let self else {
@@ -908,6 +1048,23 @@ final class AppVolumeMixer: ObservableObject {
                 self.install(engine, for: app.id, token: token)
             }
         }
+    }
+
+    /// An AirPlay build that could not get a renderer ends here, not in
+    /// `install`: whatever already plays the app keeps playing it, and the
+    /// permission hint (which `install` shows for a failed tap) stays hidden.
+    private func finishUnavailableAirPlayBuild(for id: String, token: Int) {
+        builds.finish(id, token: token)
+        // Shown as unavailable from now on, and not retried on every pass.
+        AirPlayRouteManager.shared.reportStreamingFailure()
+    }
+
+    /// A listed Mac output, the current one when it is listed: an engine
+    /// counts as gone once its clock is no longer listed.
+    private func clockDeviceUIDForAirPlayTap() -> String? {
+        let hardware = outputDevices.map(\.uid).filter { !MixerRoutingSupport.isAirPlaySentinel($0) }
+        if let current = currentOutputDeviceUID, hardware.contains(current) { return current }
+        return hardware.first
     }
 
     /// Lands one finished build on the main thread.
@@ -926,7 +1083,10 @@ final class AppVolumeMixer: ObservableObject {
             // running beats leaving the app with none, unless it renders to a
             // device that is gone, in which case it can only mute the app.
             if let running = engines[id],
-               !outputDevices.contains(where: { $0.uid == running.outputDeviceUID }) {
+               !MixerRoutingSupport.engineOutputIsPresent(running.outputDeviceUID,
+                                                          clockUID: running.clockDeviceUID,
+                                                          listedUIDs: outputDevices.map(\.uid),
+                                                          airPlayConnected: AirPlayRouteManager.isSpeakerConnected) {
                 discardEngine(for: id)
             }
             // A row that still has a tap running is plainly not being refused
@@ -934,6 +1094,9 @@ final class AppVolumeMixer: ObservableObject {
             if engines[id] == nil, !needsPermission {
                 needsPermission = true
             }
+            // The engine kept in its place skipped the read on the change
+            // that called for this build, so its app's level is read now.
+            engines[id]?.refreshLevelCompensation(immediately: true)
             return
         }
         if needsPermission {
@@ -953,7 +1116,7 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = Float(latestApp.volume)
+        engine.gain = MixerRoutingSupport.gain(forVolume: latestApp.volume)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
         // The fresh engine starts its render count over.
@@ -965,8 +1128,8 @@ final class AppVolumeMixer: ObservableObject {
         reconcileEngines(with: apps)
     }
 
-    /// Stops and forgets a row's engine. Used where silence is the intent
-    /// (back to 100% on the default output, row gone), never for a rebuild.
+    /// Stops and forgets a row's engine when its adjustment no longer applies
+    /// or the row went away, never for a rebuild.
     private func discardEngine(for id: String) {
         engines.removeValue(forKey: id)?.stop()
         engineChangeAt.removeValue(forKey: id)
@@ -979,15 +1142,20 @@ final class AppVolumeMixer: ObservableObject {
         MixerRoutingSupport.rowMayBeTapped(
             savedVolume: storedVolume(for: app.identity, saved: savedVolumes()),
             savedRouteUID: storedRoute(for: app.identity, saved: savedOutputDeviceUIDs()),
-            defaultOutputDeviceUID: currentOutputDeviceUID)
+            defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
+            universalOutputRouteUID: app.universalOutputRouteUID)
     }
 
     private func appNeedsEngine(_ app: MixerApp) -> Bool {
+        // A universal route and its effective output come from one snapshot.
+        // The picker may already show the next successful choice, but that
+        // must not dismantle this route before its replacement is ready.
         MixerRoutingSupport.requiresEngine(hasAudioObjects: !app.audioObjects.isEmpty,
                                            volume: app.volume,
                                            selectedOutputDeviceUID: app.selectedOutputDeviceUID,
                                            targetOutputDeviceUID: app.effectiveOutputDeviceUID,
-                                           defaultOutputDeviceUID: currentOutputDeviceUID)
+                                           defaultOutputDeviceUID: app.effectiveOutputDeviceUID,
+                                           universalOutputRouteUID: app.universalOutputRouteUID)
     }
 
     private func applyOutputRoute(to app: inout MixerApp,
@@ -1020,6 +1188,8 @@ final class AppVolumeMixer: ObservableObject {
         let savedOutputs: [String: String]
         let sessionVolumes: [String: Double]
         let sessionRoutes: [String: String]
+        let universalOutputDeviceUID: String?
+        let previouslyRoutedObjects: [String: [AudioObjectID]]
         let showFinder: Bool
         /// Persistence ids the list must leave out: the apps the user hid,
         /// plus the Finder while its toggle is off (issue #300).
@@ -1053,6 +1223,7 @@ final class AppVolumeMixer: ObservableObject {
         // now would read against state the first has not published yet. The
         // request is remembered and runs as soon as that one lands.
         guard let generation = refresh.begin() else { return }
+        let universalUID = universalOutputDeviceUID
         let request = RefreshRequest(
             includeApps: processMonitoringEnabled,
             previousDefaultUID: currentOutputDeviceUID,
@@ -1067,6 +1238,16 @@ final class AppVolumeMixer: ObservableObject {
             savedOutputs: savedOutputDeviceUIDs(),
             sessionVolumes: sessionVolumes,
             sessionRoutes: sessionRoutes,
+            universalOutputDeviceUID: universalUID,
+            previouslyRoutedObjects: Dictionary(uniqueKeysWithValues: apps.compactMap { app in
+                // A volume tap can already be muting the original output
+                // when "all apps" is chosen. An empty device read must not
+                // discard that established path as the gain returns to unity.
+                guard universalUID != nil,
+                      app.universalOutputRouteUID == universalUID
+                        || engines[app.id]?.tappedObjects == app.audioObjects else { return nil }
+                return (app.id, app.audioObjects)
+            }),
             showFinder: UserDefaults.standard.bool(forKey: DefaultsKey.mixerShowFinder),
             hiddenRowIDs: MixerRoutingSupport.hiddenRowIDs(
                 hiddenApps: savedHiddenApps(),
@@ -1114,6 +1295,16 @@ final class AppVolumeMixer: ObservableObject {
             // installed; reconciliation below replaces the live engines one by
             // one, each new tap running before its predecessor stops.
             builds.invalidateAll()
+            // A silent app can resume on the new default, so its correction
+            // is read again now rather than whenever the pass next allows.
+            var targets: [String: String] = [:]
+            for app in snapshot.apps ?? [] {
+                if let target = app.effectiveOutputDeviceUID { targets[app.id] = target }
+            }
+            for id in MixerRoutingSupport.enginesKeepingTheirOutput(
+                engineOutputs: engines.mapValues(\.outputDeviceUID), targets: targets) {
+                engines[id]?.refreshLevelCompensation(immediately: true)
+            }
         }
         // Assigning a @Published property signals SwiftUI even when the value is
         // identical, and refreshes run on every CoreAudio notification — publish
@@ -1160,7 +1351,9 @@ final class AppVolumeMixer: ObservableObject {
             selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
         let nextOutputDevices = outputDevices(defaultUID: defaultUID)
         let defaultDevice = nextOutputDevices.first { $0.uid == defaultUID }
-        let availableUIDs = Set(nextOutputDevices.map(\.uid))
+        let availableUIDs = MixerRoutingSupport.routableOutputUIDs(
+            nextOutputDevices.map(\.uid),
+            airPlayConnected: AirPlayRouteManager.isSpeakerConnected)
         let lowered = loweringOutputVolumeIfHeadphonesDisconnected(
             state: request.lowered,
             previousDefaultUID: request.previousDefaultUID,
@@ -1192,6 +1385,13 @@ final class AppVolumeMixer: ObservableObject {
         let saved = request.savedVolumes
         let savedOutputs = request.savedOutputs
         let showFinder = request.showFinder
+        let followsUniversalOutput = request.universalOutputDeviceUID != nil
+            && request.universalOutputDeviceUID == defaultUID
+        let defaultDevices = followsUniversalOutput ? defaultDevice.map {
+            MixerRoutingSupport.outputDevices(of: $0.audioObjectID,
+                                               subDeviceUIDs: subDeviceUIDs(of:),
+                                               deviceForUID: deviceID(forUID:))
+        } ?? [] : Set<AudioObjectID>()
         var groups: [pid_t: [AudioObjectID]] = [:]
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
@@ -1295,6 +1495,11 @@ final class AppVolumeMixer: ObservableObject {
                                                      otherName: $1.name, otherID: $1.id)
         }
         next = coalescingAppsWithDuplicateIDs(next)
+        next = applyingUniversalOutputRoute(to: next,
+                                            requestedUID: request.universalOutputDeviceUID,
+                                            defaultUID: defaultUID,
+                                            defaultDevices: defaultDevices,
+                                            previouslyRoutedObjects: request.previouslyRoutedObjects)
 
         return RefreshSnapshot(defaultUID: defaultUID,
                                systemSoundUID: systemSoundUID,
@@ -1305,6 +1510,36 @@ final class AppVolumeMixer: ObservableObject {
                                apps: next,
                                processObjects: processObjects,
                                lowered: lowered)
+    }
+
+    /// Runs in the HAL snapshot after rows with the same identity have been
+    /// combined, so all of an app's audio objects share one routing decision.
+    private static func applyingUniversalOutputRoute(to apps: [MixerApp],
+                                                      requestedUID: String?,
+                                                      defaultUID: String?,
+                                                      defaultDevices: Set<AudioObjectID>,
+                                                      previouslyRoutedObjects: [String: [AudioObjectID]]) -> [MixerApp] {
+        apps.map { current in
+            var app = current
+            app.universalOutputRouteUID = nil
+            guard let requestedUID, requestedUID == defaultUID,
+                  !app.isBypassed, app.selectedOutputDeviceUID == nil else { return app }
+            let devices = app.audioObjects.reduce(into: Set<AudioObjectID>()) { devices, object in
+                devices.formUnion(objectList(object, kAudioProcessPropertyDevices,
+                                             scope: kAudioObjectPropertyScopeOutput))
+            }
+            if MixerRoutingSupport.requiresUniversalOutputRouting(
+                requestedUID: requestedUID,
+                defaultUID: defaultUID,
+                selectedUID: app.selectedOutputDeviceUID,
+                audioObjects: app.audioObjects,
+                previouslyRoutedObjects: previouslyRoutedObjects[app.id],
+                processDevices: devices,
+                defaultDevices: defaultDevices) {
+                app.universalOutputRouteUID = defaultUID
+            }
+            return app
+        }
     }
 
     private static func coalescingAppsWithDuplicateIDs(_ apps: [MixerApp]) -> [MixerApp] {
@@ -1326,6 +1561,8 @@ final class AppVolumeMixer: ObservableObject {
                                      name: existing.name,
                                      audioObjects: audioObjects,
                                      isPlaying: existing.isPlaying || app.isPlaying,
+                                     isBypassed: existing.isBypassed || app.isBypassed,
+                                     universalOutputRouteUID: existing.universalOutputRouteUID ?? app.universalOutputRouteUID,
                                      selectedOutputDeviceUID: existing.selectedOutputDeviceUID,
                                      effectiveOutputDeviceUID: existing.effectiveOutputDeviceUID,
                                      outputDeviceUnavailable: existing.outputDeviceUnavailable,
@@ -1342,6 +1579,9 @@ final class AppVolumeMixer: ObservableObject {
         let uid: String
         let previousVolume: Float32
         let appliedVolume: Float32
+        /// The lowering also turned the output's mute on (silence was chosen),
+        /// so handing the speakers back turns it off again.
+        var mutedByLowering = false
     }
 
     private struct LoweredOutputState {
@@ -1387,18 +1627,24 @@ final class AppVolumeMixer: ObservableObject {
         let previousVolume = outputVolume(for: nextDefault.audioObjectID)
         if setOutputVolume(volume, for: nextDefault.audioObjectID) {
             state.lastAutomaticLoweredOutputUID = nextDefaultUID
-            if let previousVolume, previousVolume > volume {
+            let muted = MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(
+                lowerToPercent: lowerToPercent,
+                currentlyMuted: outputMuted(for: nextDefault.audioObjectID))
+                && setOutputMuted(true, for: nextDefault.audioObjectID)
+            if let previousVolume, previousVolume > volume || muted {
                 state.loweredOutput = LoweredOutput(uid: nextDefaultUID,
                                                     previousVolume: previousVolume,
-                                                    appliedVolume: volume)
+                                                    appliedVolume: volume,
+                                                    mutedByLowering: muted)
             }
         }
         return state
     }
 
-    /// Puts back the volume this feature lowered, as long as it is still the
-    /// value the app set: anything else means it was changed since, and that
-    /// choice wins. Returns what is left to restore later.
+    /// Puts back the volume this feature lowered, and the mute it set at zero,
+    /// as long as the volume is still the value the app set: anything else
+    /// means it was changed since, and that choice wins. Returns what is left
+    /// to restore later.
     private static func restoringLoweredOutputVolume(_ lowered: LoweredOutput?,
                                                      in devices: [MixerOutputDevice]) -> LoweredOutput? {
         guard let lowered else { return nil }
@@ -1410,6 +1656,11 @@ final class AppVolumeMixer: ObservableObject {
             appliedVolume: Double(lowered.appliedVolume),
             currentVolume: outputVolume(for: device.audioObjectID).map(Double.init)) else { return nil }
         _ = setOutputVolume(lowered.previousVolume, for: device.audioObjectID)
+        // A mute switched off since then was someone's choice, and one this
+        // feature did not set was never its to undo.
+        if lowered.mutedByLowering, outputMuted(for: device.audioObjectID) == true {
+            setOutputMuted(false, for: device.audioObjectID)
+        }
         return nil
     }
 
@@ -1501,20 +1752,34 @@ final class AppVolumeMixer: ObservableObject {
                 engineRenderProgress.removeValue(forKey: id)
             }
 
+            // Each move to another output is announced to the engine, and
+            // this pass, which repeats while the app plays, catches one that
+            // was not.
+            engine.refreshLevelCompensation(immediately: false)
+
+            let listedUIDs = outputDevices.map(\.uid)
+            // An AirPlay engine whose clock output went away keeps its route
+            // and objects, so that clock is checked on its own. Only that:
+            // an engine on a default the list hides is otherwise left alone.
+            let clockIsGone = engine.clockDeviceUID.map { !listedUIDs.contains($0) } == true
             guard engine.tappedObjects != app.audioObjects
                 || engine.outputDeviceUID != app.effectiveOutputDeviceUID
-                || !appNeedsEngine(app) else { continue }
+                || !appNeedsEngine(app)
+                || clockIsGone else { continue }
 
             engineChangeAt[id] = now
             guard appNeedsEngine(app) else {
-                // Back to 100% on the default output: passthrough is the point.
+                // No remaining volume or output adjustment needs a tap.
                 discardEngine(for: id)
                 continue
             }
             // An engine rendering to a device that is gone (headphones just
             // unplugged) can only mute the app, so it goes right away; every
             // other rebuild keeps its tap until the replacement is running.
-            if !outputDevices.contains(where: { $0.uid == engine.outputDeviceUID }) {
+            if !MixerRoutingSupport.engineOutputIsPresent(engine.outputDeviceUID,
+                                                          clockUID: engine.clockDeviceUID,
+                                                          listedUIDs: listedUIDs,
+                                                          airPlayConnected: AirPlayRouteManager.isSpeakerConnected) {
                 engines.removeValue(forKey: id)?.stop()
                 engineRenderProgress.removeValue(forKey: id)
             }
@@ -1727,16 +1992,7 @@ final class AppVolumeMixer: ObservableObject {
     /// Every process object the audio HAL knows about. The island's level
     /// reader groups them by responsible app the same way this mixer does.
     static func audioProcessObjects() -> [AudioObjectID] {
-        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyProcessObjectList,
-                                                 mScope: kAudioObjectPropertyScopeGlobal,
-                                                 mElement: kAudioObjectPropertyElementMain)
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(AudioObjectID(kAudioObjectSystemObject),
-                                             &address, 0, nil, &size) == noErr else { return [] }
-        var objects = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
-        guard AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject),
-                                         &address, 0, nil, &size, &objects) == noErr else { return [] }
-        return objects
+        objectList(AudioObjectID(kAudioObjectSystemObject), kAudioHardwarePropertyProcessObjectList)
     }
 
     /// The bundle id the audio HAL itself reports for a process object. Used
@@ -1842,6 +2098,28 @@ final class AppVolumeMixer: ObservableObject {
                                              audioObjectID: deviceID))
         }
 
+        // Always listed while the picker API exists, next to any AirPlay device
+        // macOS itself exposes: the two are different routes. It is a per-app
+        // route only: picking a speaker never moves the Mac's own output, so it
+        // is never offered as the system, alert-sound or priority output.
+        if AirPlayRouteManager.isListed {
+            let airPlayName: String
+            if let active = AirPlayRouteManager.currentSpeakerName, !active.isEmpty {
+                airPlayName = "\(active) (AirPlay)"
+            } else {
+                airPlayName = "AirPlay"
+            }
+            devices.append(MixerOutputDevice(id: AirPlayRouteManager.airPlaySentinelUID,
+                                             uid: AirPlayRouteManager.airPlaySentinelUID,
+                                             name: airPlayName,
+                                             isDefault: false,
+                                             isHeadphones: false,
+                                             canBeDefaultOutput: false,
+                                             canBeDefaultSystemOutput: false,
+                                             priorityTier: .hardware,
+                                             audioObjectID: 0))
+        }
+
         return devices.sorted { lhs, rhs in
             MixerRoutingSupport.deviceDisplayOrderedBefore(
                 isDefault: lhs.isDefault, name: lhs.name, uid: lhs.uid,
@@ -1880,6 +2158,25 @@ final class AppVolumeMixer: ObservableObject {
         }
         guard status == noErr else { return nil }
         return nameRef as String
+    }
+
+    /// How many channels each output stream of a device carries, in order,
+    /// empty when the device cannot say.
+    fileprivate static func outputStreamChannels(of deviceID: AudioObjectID) -> [Int] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyStreamConfiguration,
+                                                 mScope: kAudioDevicePropertyScopeOutput,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size) == noErr,
+              size >= UInt32(MemoryLayout<AudioBufferList>.size) else { return [] }
+        let storage = UnsafeMutableRawPointer.allocate(
+            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
+        defer { storage.deallocate() }
+        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, storage) == noErr else {
+            return []
+        }
+        return UnsafeMutableAudioBufferListPointer(
+            storage.assumingMemoryBound(to: AudioBufferList.self)).map { Int($0.mNumberChannels) }
     }
 
     private static func hasOutputStreams(_ deviceID: AudioObjectID) -> Bool {
@@ -1979,7 +2276,7 @@ final class AppVolumeMixer: ObservableObject {
         return setOutputMuted(muted, for: device)
     }
 
-    private static func defaultOutputDeviceID() -> AudioObjectID? {
+    fileprivate static func defaultOutputDeviceID() -> AudioObjectID? {
         var device = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    kAudioHardwarePropertyDefaultOutputDevice, &device),
@@ -2028,6 +2325,53 @@ final class AppVolumeMixer: ObservableObject {
         return changed
     }
 
+    /// A property holding a list of objects, empty when it cannot be read.
+    /// Only what the HAL actually returned counts, and never a zero ID.
+    fileprivate static func objectList(_ object: AudioObjectID,
+                                       _ selector: AudioObjectPropertySelector,
+                                       scope: AudioObjectPropertyScope = kAudioObjectPropertyScopeGlobal) -> [AudioObjectID] {
+        var address = AudioObjectPropertyAddress(mSelector: selector,
+                                                 mScope: scope,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size) == noErr,
+              size >= UInt32(MemoryLayout<AudioObjectID>.size) else { return [] }
+        var objects = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &objects) == noErr else {
+            return []
+        }
+        return objects.prefix(Int(size) / MemoryLayout<AudioObjectID>.size).filter { $0 != 0 }
+    }
+
+    /// The UIDs of every device inside an aggregate, empty for any other
+    /// device. The list arrives retained, and is released here.
+    fileprivate static func subDeviceUIDs(of device: AudioObjectID) -> [String] {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioAggregateDevicePropertyFullSubDeviceList,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var list: Unmanaged<CFArray>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFArray>?>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &list) == noErr,
+              size == UInt32(MemoryLayout<Unmanaged<CFArray>?>.size),
+              let list else { return [] }
+        return (list.takeRetainedValue() as? [String]) ?? []
+    }
+
+    /// The device the HAL knows by this UID, nil when none is connected.
+    fileprivate static func deviceID(forUID uid: String) -> AudioObjectID? {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyTranslateUIDToDevice,
+                                                 mScope: kAudioObjectPropertyScopeGlobal,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var qualifier = uid as CFString
+        var device = AudioObjectID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioObjectID>.size)
+        let status = withUnsafePointer(to: &qualifier) { pointer in
+            AudioObjectGetPropertyData(AudioObjectID(kAudioObjectSystemObject), &address,
+                                       UInt32(MemoryLayout<CFString>.size), pointer, &size, &device)
+        }
+        return status == noErr && device != kAudioObjectUnknown ? device : nil
+    }
+
     @discardableResult
     fileprivate static func read<T>(_ object: AudioObjectID,
                                     _ selector: AudioObjectPropertySelector,
@@ -2052,11 +2396,314 @@ private protocol GainEngine: AnyObject {
     var gain: Float { get set }
     var tappedObjects: [AudioObjectID] { get }
     var outputDeviceUID: String { get }
+    /// The hardware output that clocks an engine streaming elsewhere (AirPlay),
+    /// nil for an engine that plays on `outputDeviceUID` itself.
+    var clockDeviceUID: String? { get }
     /// How many IO callbacks the engine has completed. A count that stops
     /// moving while the tapped app is playing means the aggregate is no
     /// longer rendering, so the tap can only mute (issue #341).
     var renderCycles: UInt64 { get }
+    /// Reads again the output the app plays to, in case a move went
+    /// unannounced, and corrects the tap's level for it. Unless `immediately`,
+    /// at most once a second, however often it is asked.
+    func refreshLevelCompensation(immediately: Bool)
     func stop()
+}
+
+/// Keeps a tap's level correct for the outputs its processes play to.
+///
+/// The stereo mixdown tap loses level according to that output
+/// (`MixerRoutingSupport.tapLevelCompensation`), and the app can move to
+/// another one while the engine keeps running, as when headphones take over
+/// from a TV. Each move is announced on the app's process objects, so the
+/// correction is read again at once, off the audio thread. Without that, an
+/// app moving from a wide output to a stereo one would play several times
+/// too loud until something else refreshed it.
+///
+/// A tap that mixes every process but a few, like the screen recorder's,
+/// follows them as they come and go, since a video started mid recording can
+/// play through a process that was not there before. Only the processes that
+/// arrived or left change their listeners, and a change that leaves the
+/// watch's processes as they were costs no read.
+final class LevelCompensationWatch {
+    /// Touched only on `queue` once the watch follows the process list.
+    private var objects: [AudioObjectID]
+    /// Set when the watch follows every process but these.
+    private let excluded: Set<AudioObjectID>?
+    private let store: (Float) -> Void
+    /// Guards the listener bookkeeping, which a followed process list
+    /// changes on `queue` while `stopListening` may run on a teardown queue.
+    private let listenLock = NSLock()
+    private var listenedObjects: [AudioObjectID] = []
+    private var listensToProcessList = false
+    private var client: UnsafeMutableRawPointer?
+    /// One read waits at most, however often a slider drag or a burst of
+    /// announcements asks for one. An urgent request among them is read even
+    /// when the last read is recent.
+    private let pendingLock = NSLock()
+    private var refreshPending = false
+    private var immediatePending = false
+    /// Serial, so two reads in a row cannot land out of order, and one per
+    /// engine, so a read waiting on an output that is being reconfigured
+    /// never holds back another engine's correction. The two values below
+    /// are touched only on it.
+    private let queue = DispatchQueue(label: "com.vorssaint.utils.mixer.level",
+                                      qos: .userInitiated)
+    private var lastDevices = Set<AudioObjectID>()
+    private var lastReadAt: CFAbsoluteTime = 0
+
+    /// How long an engine being built waits for its first read. Long enough
+    /// for any output that answers, short enough that one being reconfigured
+    /// never holds the shared build queue behind it.
+    private static let firstReadWait = DispatchTimeInterval.milliseconds(50)
+    private let firstRead = DispatchSemaphore(value: 0)
+
+    private init(objects: [AudioObjectID], excluded: Set<AudioObjectID>? = nil,
+                 store: @escaping (Float) -> Void) {
+        self.objects = objects
+        self.excluded = excluded
+        self.store = store
+    }
+
+    /// Listens first and reads after, so a move made while the engine was
+    /// being built is already in the first value. The read runs on the
+    /// watch's own queue like every later one, while the engine builds the
+    /// rest, and `waitForFirstRead` awaits it only briefly. Until it lands,
+    /// or for an app that plays nowhere yet, the app plays with no
+    /// correction and gets it once its output answers or is announced.
+    static func started(objects: [AudioObjectID],
+                        store: @escaping (Float) -> Void) -> LevelCompensationWatch {
+        let watch = LevelCompensationWatch(objects: objects, store: store)
+        let client = Unmanaged.passRetained(watch).toOpaque()
+        for object in objects {
+            var address = Self.address
+            if AudioObjectAddPropertyListener(object, &address, Self.listener, client) == noErr {
+                watch.listenedObjects.append(object)
+            }
+        }
+        if watch.listenedObjects.isEmpty {
+            Unmanaged<LevelCompensationWatch>.fromOpaque(client).release()
+        } else {
+            watch.client = client
+        }
+        watch.queue.async {
+            watch.read()
+            watch.firstRead.signal()
+        }
+        return watch
+    }
+
+    /// Follows every process but these, read the same way. The process list
+    /// is listened to first, so a process that arrives while the first read
+    /// runs is not missed.
+    static func started(everyProcessExcept excluded: [AudioObjectID],
+                        store: @escaping (Float) -> Void) -> LevelCompensationWatch {
+        let watch = LevelCompensationWatch(objects: [], excluded: Set(excluded), store: store)
+        let client = Unmanaged.passRetained(watch).toOpaque()
+        watch.client = client
+        var address = Self.processListAddress
+        watch.listensToProcessList = AudioObjectAddPropertyListener(
+            AudioObjectID(kAudioObjectSystemObject), &address, Self.listener, client) == noErr
+        watch.queue.async {
+            _ = watch.followProcessList()
+            watch.read()
+            watch.firstRead.signal()
+        }
+        return watch
+    }
+
+    /// Called once, just before the engine starts rendering.
+    func waitForFirstRead() {
+        _ = firstRead.wait(timeout: .now() + Self.firstReadWait)
+    }
+
+    func refresh(immediately: Bool) {
+        let queued = pendingLock.withLock {
+            immediatePending = immediatePending || immediately
+            guard !refreshPending else { return false }
+            refreshPending = true
+            return true
+        }
+        guard queued else { return }
+        queue.async { [self] in
+            // Cleared before the read, so a move announced during it is read too.
+            let immediately = pendingLock.withLock {
+                defer {
+                    refreshPending = false
+                    immediatePending = false
+                }
+                return immediatePending
+            }
+            guard MixerRoutingSupport.tapLevelReadIsDue(
+                immediately: immediately,
+                sinceLastRead: CFAbsoluteTimeGetCurrent() - lastReadAt) else { return }
+            read()
+        }
+    }
+
+    /// Removes the listeners on the engines' teardown queue, since a wedged
+    /// HAL can park the removal. Weak, because the queue can keep a finished
+    /// block alive long after it ran, and the listener retain already holds
+    /// the watch until the removal.
+    func stop() {
+        // No tap, and so no watch, exists before macOS 14.4.
+        guard #available(macOS 14.4, *) else { return }
+        TapGainEngine.teardownQueue.addOperation { [weak self] in self?.stopListening() }
+    }
+
+    /// A removal the HAL refuses keeps this small object alive: a late
+    /// callback is safer than one into released memory. A process that
+    /// already quit is the exception, because the HAL no longer knows its
+    /// object and nothing can call back on it.
+    private func stopListening() {
+        let (client, listened, processList) = listenLock.withLock {
+            defer {
+                self.client = nil
+                listenedObjects.removeAll()
+                listensToProcessList = false
+            }
+            return (self.client, listenedObjects, listensToProcessList)
+        }
+        guard let client else { return }
+        var removedAll = true
+        for object in listened {
+            var address = Self.address
+            let status = AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
+            if status != noErr && status != kAudioHardwareBadObjectError {
+                removedAll = false
+            }
+        }
+        if processList {
+            var address = Self.processListAddress
+            if AudioObjectRemovePropertyListener(AudioObjectID(kAudioObjectSystemObject), &address,
+                                                 Self.listener, client) != noErr {
+                removedAll = false
+            }
+        }
+        if removedAll { Unmanaged<LevelCompensationWatch>.fromOpaque(client).release() }
+    }
+
+    /// Picks up the processes that arrived and lets go of those that left,
+    /// answering whether anything changed. Runs on `queue` only.
+    private func followProcessList() -> Bool {
+        guard let excluded else { return false }
+        let current = AppVolumeMixer.audioProcessObjects().filter { $0 != 0 && !excluded.contains($0) }
+        guard Set(current) != Set(objects) else { return false }
+        objects = current
+        listenLock.withLock {
+            // Stopped: nothing may be added that no one would remove.
+            guard let client else { return }
+            let changes = MixerRoutingSupport.listenerChanges(listened: Set(listenedObjects),
+                                                              wanted: Set(current))
+            listenedObjects.removeAll { object in
+                guard changes.remove.contains(object) else { return false }
+                var address = Self.address
+                let status = AudioObjectRemovePropertyListener(object, &address, Self.listener, client)
+                // A process that quit took its listener with it. Any other
+                // failure stays tracked, so stop cannot release a client
+                // the HAL may still call.
+                return status == noErr || status == kAudioHardwareBadObjectError
+            }
+            for object in changes.add {
+                var address = Self.address
+                if AudioObjectAddPropertyListener(object, &address, Self.listener, client) == noErr {
+                    listenedObjects.append(object)
+                }
+            }
+        }
+        return true
+    }
+
+    /// Runs on `queue` only.
+    private func read() {
+        lastReadAt = CFAbsoluteTimeGetCurrent()
+        var devices = Set<AudioObjectID>()
+        for object in objects { devices.formUnion(Self.processOutputDevices(of: object)) }
+        if let first = MixerRoutingSupport.tapLevelBeforeReading(
+            devices: devices,
+            lastDevices: lastDevices,
+            defaultOutputDevices: devices.isEmpty ? Self.defaultOutputDevices() : []) {
+            store(Float(first))
+        }
+        guard !devices.isEmpty else { return }
+        lastDevices = devices
+        store(Float(MixerRoutingSupport.tapLevelCompensation(
+            streamChannels: devices.map { Self.stereoStreamChannels(of: $0) })))
+    }
+
+    /// The outputs a process plays to right now, empty while it plays nothing.
+    /// A process on an aggregate lists the devices inside it.
+    private static func processOutputDevices(of process: AudioObjectID) -> [AudioObjectID] {
+        AppVolumeMixer.objectList(process, address.mSelector, scope: address.mScope)
+    }
+
+    /// The default output as an app's own outputs would list it. The devices
+    /// inside an aggregate are found by UID, so they are the same device
+    /// objects the app reports, never the aggregate's own sub-device objects.
+    private static func defaultOutputDevices() -> Set<AudioObjectID> {
+        guard let output = AppVolumeMixer.defaultOutputDeviceID() else { return [] }
+        return MixerRoutingSupport.outputDevices(of: output,
+                                                 subDeviceUIDs: AppVolumeMixer.subDeviceUIDs(of:),
+                                                 deviceForUID: AppVolumeMixer.deviceID(forUID:))
+    }
+
+    /// Channels of the output stream a stereo app plays into on this device,
+    /// which is what the tap's mixdown divides by.
+    private static func stereoStreamChannels(of deviceID: AudioObjectID) -> Int? {
+        let streams = AppVolumeMixer.outputStreamChannels(of: deviceID)
+        guard !streams.isEmpty else { return nil }
+        var stereoPair: (UInt32, UInt32) = (1, 2)
+        _ = AppVolumeMixer.read(deviceID, kAudioDevicePropertyPreferredChannelsForStereo, &stereoPair,
+                                scope: kAudioObjectPropertyScopeOutput)
+        return MixerRoutingSupport.stereoStreamChannels(streamChannels: streams,
+                                                        preferredLeftChannel: Int(stereoPair.0))
+    }
+
+    /// The device list announces changes only on the output scope.
+    private static let address = AudioObjectPropertyAddress(mSelector: kAudioProcessPropertyDevices,
+                                                            mScope: kAudioObjectPropertyScopeOutput,
+                                                            mElement: kAudioObjectPropertyElementMain)
+
+    private static let processListAddress = AudioObjectPropertyAddress(
+        mSelector: kAudioHardwarePropertyProcessObjectList,
+        mScope: kAudioObjectPropertyScopeGlobal,
+        mElement: kAudioObjectPropertyElementMain)
+
+    private static let listener: AudioObjectPropertyListenerProc = { object, _, _, client in
+        guard let client else { return noErr }
+        let watch = Unmanaged<LevelCompensationWatch>.fromOpaque(client).takeUnretainedValue()
+        if object == AudioObjectID(kAudioObjectSystemObject) {
+            watch.queue.async {
+                if watch.followProcessList() { watch.refresh(immediately: true) }
+            }
+        } else {
+            watch.refresh(immediately: true)
+        }
+        return noErr
+    }
+}
+
+/// A float the audio thread reads while another thread replaces it, one
+/// whole value at a time and without a lock.
+final class AtomicFloatBox {
+    private var bits: Int32
+
+    init(_ value: Float) {
+        bits = Int32(bitPattern: value.bitPattern)
+    }
+
+    var value: Float {
+        get {
+            Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits)))
+        }
+        set {
+            let replacement = Int32(bitPattern: newValue.bitPattern)
+            while true {
+                let current = OSAtomicAdd32Barrier(0, &bits)
+                if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
+            }
+        }
+    }
 }
 
 /// The audio path for one routed app: a muted process tap feeding an aggregate
@@ -2066,30 +2713,10 @@ private protocol GainEngine: AnyObject {
 private final class TapGainEngine: GainEngine {
     let tappedObjects: [AudioObjectID]
     let outputDeviceUID: String
+    var clockDeviceUID: String? { nil }
     var gain: Float {
         get { gainBox.value }
         set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
-    }
-
-    private final class AtomicFloatBox {
-        private var bits: Int32
-
-        init(_ value: Float) {
-            bits = Int32(bitPattern: value.bitPattern)
-        }
-
-        var value: Float {
-            get {
-                Float(bitPattern: UInt32(bitPattern: OSAtomicAdd32Barrier(0, &bits)))
-            }
-            set {
-                let replacement = Int32(bitPattern: newValue.bitPattern)
-                while true {
-                    let current = OSAtomicAdd32Barrier(0, &bits)
-                    if OSAtomicCompareAndSwap32Barrier(current, replacement, &bits) { return }
-                }
-            }
-        }
     }
 
     private final class AtomicCycleBox {
@@ -2115,6 +2742,9 @@ private final class TapGainEngine: GainEngine {
     private typealias ReleaseBox = AtomicFloatBox
 
     private let gainBox = AtomicFloatBox(1)
+    /// Multiplies the gain to give back what the tap took from the app's
+    /// output. Same one-float exchange as the gain.
+    private let compensationBox = AtomicFloatBox(1)
     private let cycleBox = AtomicCycleBox()
     private let releaseBox = ReleaseBox(BoostLimiter.release(sampleRate: 48000))
     var renderCycles: UInt64 { cycleBox.value }
@@ -2124,6 +2754,7 @@ private final class TapGainEngine: GainEngine {
     /// The retained `ReleaseBox` handed to the rate listener, released when
     /// the listener goes away.
     private var rateListenerClient: UnsafeMutableRawPointer?
+    private var levelWatch: LevelCompensationWatch?
 
     init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String) {
         tappedObjects = objects
@@ -2136,6 +2767,10 @@ private final class TapGainEngine: GainEngine {
         guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
             return nil
         }
+        // Started before the aggregate, so its first read runs while the
+        // aggregate is built. Every failure from here on calls stop().
+        let compensation = compensationBox
+        levelWatch = LevelCompensationWatch.started(objects: objects) { compensation.value = $0 }
 
         let aggregate: [String: Any] = [
             kAudioAggregateDeviceNameKey: "Vorssaint Mixer",
@@ -2151,22 +2786,27 @@ private final class TapGainEngine: GainEngine {
         ]
         guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID) == noErr,
               aggregateID != 0 else {
-            AudioHardwareDestroyProcessTap(tapID)
+            // Fully initialized from here, so deinit calls stop() too. One
+            // stop() tears down once and leaves nothing for the second.
+            aggregateID = 0
+            stop()
             return nil
         }
 
         let box = gainBox
+        let sampleRate = Self.nominalSampleRate(of: aggregateID)
+        let ramp = TapLevelRamp()
         // A boost pushes loud samples past full scale, and clamping the
         // overshoot flattens every peak into audible crackle (issue #326).
         // The limiter turns the whole signal down for just the moment a peak
         // would not fit, so a boosted app gets louder without distorting.
         let limiterBox = LimiterBox(
             channelCapacity: Self.outputChannelCapacity(of: aggregateID))
-        releaseBox.value = BoostLimiter.release(sampleRate: Self.nominalSampleRate(of: aggregateID))
+        releaseBox.value = BoostLimiter.release(sampleRate: sampleRate)
         let release = releaseBox
         let cycles = cycleBox
         let tapChannels = Self.tapChannels(of: tapID)
-        guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { _, input, _, output, _ in
+        guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { now, input, _, output, _ in
             let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
             let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
             guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers,
@@ -2176,7 +2816,7 @@ private final class TapGainEngine: GainEngine {
                 MixerRender.silence(outputBuffers)
                 return
             }
-            let gain = box.value
+            let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
             // `render` silences whatever it does not fill, so every path from
             // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
@@ -2194,20 +2834,24 @@ private final class TapGainEngine: GainEngine {
                                             release: releaseCoefficient)
             }
         }) == noErr else {
-            AudioHardwareDestroyAggregateDevice(aggregateID)
-            AudioHardwareDestroyProcessTap(tapID)
+            ioProc = nil
+            stop()
             return nil
         }
 
-        // Installed only once there is something to keep current, so the
-        // failure paths above have nothing to undo.
+        // The rate listener is installed only once there is something to
+        // keep current, so the failure paths above have nothing of it to
+        // undo. The level watch started before the aggregate and they stop it.
         startWatchingSampleRate()
+        levelWatch?.waitForFirstRead()
 
         guard AudioDeviceStart(aggregateID, ioProc) == noErr else {
             stop()
             return nil
         }
     }
+
+    func refreshLevelCompensation(immediately: Bool) { levelWatch?.refresh(immediately: immediately) }
 
     /// Keeps the limiter's recovery honest when the output device changes its
     /// rate under a running engine.
@@ -2231,7 +2875,7 @@ private final class TapGainEngine: GainEngine {
 
     /// Where the new rate is read, away from whatever thread the answer
     /// arrived on. Serial, so two changes in a row cannot land out of order.
-    private static let rateQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.rate",
+    fileprivate static let rateQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.rate",
                                                  qos: .userInitiated)
     /// How many teardowns may sit in the HAL at once. Operations past the
     /// bound wait in the queue holding no thread, so however often a wedged
@@ -2243,7 +2887,7 @@ private final class TapGainEngine: GainEngine {
     /// every later engine's aggregate and tap alive behind it, for as long as
     /// the app ran. Overlapping them lets the rest through, under the bound
     /// above so the parked ones cannot take the thread pool with them.
-    private static let teardownQueue: OperationQueue = {
+    fileprivate static let teardownQueue: OperationQueue = {
         let queue = OperationQueue()
         queue.name = "com.vorssaint.utils.mixer.teardown"
         queue.qualityOfService = .utility
@@ -2267,7 +2911,7 @@ private final class TapGainEngine: GainEngine {
         return noErr
     }
 
-    private static func nominalSampleRateAddress() -> AudioObjectPropertyAddress {
+    fileprivate static func nominalSampleRateAddress() -> AudioObjectPropertyAddress {
         AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyNominalSampleRate,
                                    mScope: kAudioObjectPropertyScopeGlobal,
                                    mElement: kAudioObjectPropertyElementMain)
@@ -2284,22 +2928,7 @@ private final class TapGainEngine: GainEngine {
     }
 
     private static func outputChannelCapacity(of deviceID: AudioObjectID) -> Int {
-        var address = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyStreamConfiguration,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain)
-        var size: UInt32 = 0
-        guard AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &size) == noErr,
-              size >= UInt32(MemoryLayout<AudioBufferList>.size) else { return 2 }
-        let storage = UnsafeMutableRawPointer.allocate(
-            byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment)
-        defer { storage.deallocate() }
-        guard AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, storage) == noErr else {
-            return 2
-        }
-        let buffers = UnsafeMutableAudioBufferListPointer(
-            storage.assumingMemoryBound(to: AudioBufferList.self))
-        return max(2, buffers.reduce(0) { $0 + Int($1.mNumberChannels) })
+        max(2, AppVolumeMixer.outputStreamChannels(of: deviceID).reduce(0, +))
     }
 
     /// The rate the aggregate renders at, for the limiter's release timing.
@@ -2325,6 +2954,8 @@ private final class TapGainEngine: GainEngine {
         self.aggregateID = 0
         self.ioProc = nil
         rateListenerClient = nil
+        levelWatch?.stop()
+        levelWatch = nil
 
         // `mutedWhenTapped` only suppresses the original output while the tap
         // is being read. Stop that read before returning so audio is handed
@@ -2361,4 +2992,219 @@ private final class TapGainEngine: GainEngine {
     }
 
     deinit { stop() }
+}
+
+/// An audio path that taps an application and feeds its audio into AirPlayRouteManager for streaming to AirPlay.
+@available(macOS 14.4, *)
+private final class AirPlayGainEngine: GainEngine {
+    let tappedObjects: [AudioObjectID]
+    let outputDeviceUID: String
+    let clockDeviceUID: String?
+    private let appID: String
+
+    private final class AtomicCycleBox {
+        private var bits: Int64 = 0
+        var value: UInt64 { UInt64(bitPattern: OSAtomicAdd64Barrier(0, &bits)) }
+        func increment() { _ = OSAtomicIncrement64Barrier(&bits) }
+    }
+
+    private let gainBox: AtomicFloatBox
+    /// Gives back what the tap took from the app's output, as on a device engine.
+    private let compensationBox: AtomicFloatBox
+    private let cycleBox = AtomicCycleBox()
+    var renderCycles: UInt64 { cycleBox.value }
+    private var levelWatch: LevelCompensationWatch?
+
+    var gain: Float {
+        get { gainBox.value }
+        set { gainBox.value = min(max(newValue, 0), Float(AppVolumeMixer.maxVolume)) }
+    }
+
+    private var tapID: AudioObjectID = 0
+    private var aggregateID: AudioObjectID = 0
+    private var ioProc: AudioDeviceIOProcID?
+    private let ringBuffer: AudioRingBuffer
+    /// This engine's own lane in the AirPlay mix; ended once, by this engine.
+    private var registration: AirPlayStreamRegistration?
+    /// The ring, retained for the sample-rate listener while it is installed.
+    private var rateListenerClient: UnsafeMutableRawPointer?
+
+    init?(appID: String, objects: [AudioObjectID], gain: Float, clockDeviceUID: String) {
+        self.appID = appID
+        self.tappedObjects = objects
+        self.outputDeviceUID = AirPlayRouteManager.airPlaySentinelUID
+        self.clockDeviceUID = clockDeviceUID
+        self.gainBox = AtomicFloatBox(gain)
+        self.compensationBox = AtomicFloatBox(1)
+
+        let description = CATapDescription(stereoMixdownOfProcesses: objects)
+        description.muteBehavior = .mutedWhenTapped
+        description.isPrivate = true
+        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
+            return nil
+        }
+        // Started before the aggregate, so its first read runs while the
+        // aggregate is built.
+        let compensation = compensationBox
+        levelWatch = LevelCompensationWatch.started(objects: objects) { compensation.value = $0 }
+
+        let aggregate: [String: Any] = [
+            // A fixed name, listed in MicMuteSupport.ownDeviceNames, so no
+            // device list ever offers this private aggregate as an output.
+            kAudioAggregateDeviceNameKey: "Vorssaint AirPlay",
+            kAudioAggregateDeviceUIDKey: UUID().uuidString,
+            kAudioAggregateDeviceIsPrivateKey: true,
+            kAudioAggregateDeviceMainSubDeviceKey: clockDeviceUID,
+            kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: clockDeviceUID]],
+            kAudioAggregateDeviceTapListKey: [[
+                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapDriftCompensationKey: true,
+            ]],
+            kAudioAggregateDeviceTapAutoStartKey: true,
+        ]
+        guard AudioHardwareCreateAggregateDevice(aggregate as CFDictionary, &aggregateID) == noErr,
+              aggregateID != 0 else {
+            // Not fully initialized yet, so no deinit follows: clean up here.
+            levelWatch?.stop()
+            AudioHardwareDestroyProcessTap(tapID)
+            return nil
+        }
+
+        let tapChannels = Self.tapChannels(of: tapID)
+        let sampleRate = Self.nominalSampleRate(of: aggregateID)
+        self.ringBuffer = AudioRingBuffer(sampleRate: sampleRate)
+        let ring = self.ringBuffer
+        let box = self.gainBox
+        let ramp = TapLevelRamp()
+        let cycles = self.cycleBox
+
+        guard AudioDeviceCreateIOProcIDWithBlock(&ioProc, aggregateID, nil, { now, input, _, output, _ in
+            let inputBuffers = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
+            let outputBuffers = UnsafeMutableAudioBufferListPointer(output)
+
+            MixerRender.silence(outputBuffers)
+
+            guard let tapIndex = MixerRender.tapBufferIndex(in: inputBuffers, tapChannels: tapChannels),
+                  let data = inputBuffers[tapIndex].mData?.assumingMemoryBound(to: Float.self) else {
+                return
+            }
+
+            let channels = Int(inputBuffers[tapIndex].mNumberChannels)
+            let frames = MixerRender.frames(bytes: inputBuffers[tapIndex].mDataByteSize,
+                                            channels: inputBuffers[tapIndex].mNumberChannels)
+            guard frames > 0 else { return }
+            cycles.increment()
+
+            let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
+            if currentGain > 0.0001 {
+                // The buffer's own layout: the lone buffer the tap index
+                // falls back to may not have the tap's two channels.
+                ring.write(frames: data, frameCount: frames, channels: channels, gain: currentGain)
+            }
+        }) == noErr else {
+            // Fully initialized from here, so deinit calls stop() again; one
+            // stop() tears down once and leaves nothing for the second.
+            ioProc = nil
+            stop()
+            return nil
+        }
+
+        // The rate listener is installed only once there is something to
+        // keep current, so the failure paths above have nothing of it to
+        // undo. The level watch started before the aggregate and they stop it.
+        startWatchingSampleRate()
+        levelWatch?.waitForFirstRead()
+
+        guard AudioDeviceStart(aggregateID, ioProc) == noErr,
+              let registration = AirPlayRouteManager.shared.addAudioStream(appID: appID, buffer: ringBuffer) else {
+            stop()
+            return nil
+        }
+        self.registration = registration
+    }
+
+    func refreshLevelCompensation(immediately: Bool) { levelWatch?.refresh(immediately: immediately) }
+
+    /// Keeps the ring's rate current when the clock device renegotiates it
+    /// under the running tap, the same way the device engines follow it for
+    /// their limiter. A stale rate would play the app at the wrong speed.
+    private func startWatchingSampleRate() {
+        var address = TapGainEngine.nominalSampleRateAddress()
+        let client = Unmanaged.passRetained(ringBuffer).toOpaque()
+        guard AudioObjectAddPropertyListener(aggregateID, &address,
+                                             Self.sampleRateListener, client) == noErr else {
+            Unmanaged<AudioRingBuffer>.fromOpaque(client).release()
+            return
+        }
+        rateListenerClient = client
+    }
+
+    private static let sampleRateListener: AudioObjectPropertyListenerProc = { deviceID, _, _, client in
+        guard let client else { return noErr }
+        let ring = Unmanaged<AudioRingBuffer>.fromOpaque(client).takeUnretainedValue()
+        TapGainEngine.rateQueue.async {
+            ring.sampleRate = nominalSampleRate(of: deviceID)
+        }
+        return noErr
+    }
+
+    func stop() {
+        registration?.end()
+        registration = nil
+        let aggregate = aggregateID
+        let tap = tapID
+        let proc = ioProc
+        let listenerClient = rateListenerClient
+        self.aggregateID = 0
+        self.tapID = 0
+        self.ioProc = nil
+        rateListenerClient = nil
+        levelWatch?.stop()
+        levelWatch = nil
+
+        if let proc, aggregate != 0 {
+            AudioDeviceStop(aggregate, proc)
+        }
+
+        // The same bounded queue as the device engines: a teardown parked in a
+        // wedged HAL must not take the shared thread pool with it (issue #971).
+        TapGainEngine.teardownQueue.addOperation {
+            if let listenerClient {
+                var mayRelease = aggregate == 0
+                if aggregate != 0 {
+                    var address = TapGainEngine.nominalSampleRateAddress()
+                    mayRelease = AudioObjectRemovePropertyListener(
+                        aggregate, &address, Self.sampleRateListener, listenerClient) == noErr
+                }
+                // A late callback is safer than reading a released ring.
+                if mayRelease {
+                    Unmanaged<AudioRingBuffer>.fromOpaque(listenerClient).release()
+                }
+            }
+            if let proc, aggregate != 0 {
+                AudioDeviceDestroyIOProcID(aggregate, proc)
+            }
+            if aggregate != 0 {
+                AudioHardwareDestroyAggregateDevice(aggregate)
+            }
+            if tap != 0 {
+                AudioHardwareDestroyProcessTap(tap)
+            }
+        }
+    }
+
+    deinit { stop() }
+
+    private static func tapChannels(of tapID: AudioObjectID) -> Int {
+        var format = AudioStreamBasicDescription()
+        guard AppVolumeMixer.read(tapID, kAudioTapPropertyFormat, &format),
+              format.mChannelsPerFrame > 0 else { return 2 }
+        return Int(format.mChannelsPerFrame)
+    }
+
+    private static func nominalSampleRate(of deviceID: AudioObjectID) -> Double {
+        var rate: Double = 44_100
+        _ = AppVolumeMixer.read(deviceID, kAudioDevicePropertyNominalSampleRate, &rate)
+        return rate > 0 ? rate : 44_100
+    }
 }

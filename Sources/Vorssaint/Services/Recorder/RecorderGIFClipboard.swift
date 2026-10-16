@@ -23,6 +23,8 @@ enum RecorderGIFClipboard {
         // while the native GIF flavor above remains the primary image payload.
         _ = item.setString(fileURL.absoluteString, forType: .fileURL)
         pasteboard.clearContents()
-        return pasteboard.writeObjects([item])
+        guard pasteboard.writeObjects([item]) else { return false }
+        pasteboard.declareVorssaintSource()
+        return true
     }
 }

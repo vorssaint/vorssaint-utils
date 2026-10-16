@@ -56,6 +56,7 @@ enum SettingsBackupSupport {
         DefaultsKey.commandBarRowShortcuts,
         DefaultsKey.language,
         DefaultsKey.appVolumes,
+        DefaultsKey.appVolumesArePositions,
         DefaultsKey.appOutputDevices,
         DefaultsKey.mixerHiddenApps,
         DefaultsKey.preferredInputDevice,
@@ -99,7 +100,13 @@ enum SettingsBackupSupport {
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
+        DefaultsKey.displaysSwitchedOff,
+        DefaultsKey.displaysSwitchedOffFingerprints,
         DefaultsKey.dockPreviewRestoreAutohide,
+        // The Space arrangement setting to put back, and a Dock restart still
+        // owed, belong to this Mac's Dock.
+        DefaultsKey.spacesOrderRestore,
+        DefaultsKey.spacesOrderRestartPending,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
         DefaultsKey.micMuteActive,
@@ -134,6 +141,7 @@ enum SettingsBackupSupport {
         // What one person runs most is habit, not configuration.
         DefaultsKey.commandBarUsage,
         DefaultsKey.commandBarQueryHabits,
+        DefaultsKey.commandBarQueryHabitKey,
         // A chosen folder is authority on one Mac, not portable configuration.
         // Restoring it elsewhere could search a different volume or trigger a
         // protected-folder prompt without a fresh choice.
@@ -141,6 +149,9 @@ enum SettingsBackupSupport {
         DefaultsKey.notchDownloadsFolderBookmark,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
+        DefaultsKey.recorderSaveFolder,
+        DefaultsKey.screenshotSaveFolder,
+        DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
         DefaultsKey.simulateUpdate,
@@ -149,6 +160,7 @@ enum SettingsBackupSupport {
         DefaultsKey.unifiedScreenCaptureShortcutMigrated,
         DefaultsKey.restoredScreenCaptureShortcutsMigrated,
         DefaultsKey.orphanedCaptureShortcutMigrated,
+        DefaultsKey.notchAgentsOptInMigrated,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.clipboardHistoryWindowWidth,
@@ -192,6 +204,7 @@ enum SettingsBackupSupport {
         settings = portableMediaSettings(settings)
         settings = portableMouseExceptions(settings)
         settings = portableWindowLayoutIgnoredApps(settings)
+        settings = portableThumbnailPauseLists(settings)
         return [
             formatVersionKey: formatVersion,
             appVersionKey: appVersion,
@@ -209,8 +222,8 @@ enum SettingsBackupSupport {
         else { return nil }
         let allowed = exportKeys()
         let filtered = settings.filter { allowed.contains($0.key) && valueLooksRight($0.key, $0.value) }
-        return portableNotchDisplay(portableWindowLayoutIgnoredApps(
-            portableMouseExceptions(portableMediaSettings(filtered))))
+        return portableNotchDisplay(portableThumbnailPauseLists(portableWindowLayoutIgnoredApps(
+            portableMouseExceptions(portableMediaSettings(filtered)))))
     }
 
     /// A display mode this version does not offer, such as one kept by an
@@ -297,6 +310,31 @@ enum SettingsBackupSupport {
             }
         }
         return settings
+    }
+
+    /// The lists of apps where Dock Preview and the switcher stop capturing
+    /// thumbnails. They take a program that is not an app by its path, too
+    /// (issue #3033).
+    static let thumbnailPauseListKeys = [DefaultsKey.windowPreviewExcludedApps,
+                                         DefaultsKey.switcherPreviewExcludedApps]
+
+    private static func portableThumbnailPauseLists(_ source: [String: Any]) -> [String: Any] {
+        var settings = source
+        for key in thumbnailPauseListKeys {
+            guard let apps = settings[key] as? [String] else { continue }
+            settings[key] = apps.filter { !MouseAppExceptionSupport.isExecutablePathIdentity($0) }
+        }
+        return settings
+    }
+
+    /// The switcher's paused apps for a backup written before the switcher
+    /// kept its own list, which carries only Dock Preview's. The launch
+    /// migration copies that list only while the switcher's key is unset, and
+    /// putting this Mac's paths back sets it first, so a restore copies it.
+    /// Nil when the backup has the switcher's own list.
+    static func sharedSwitcherPauseList(in settings: [String: Any]) -> [String]? {
+        guard settings[DefaultsKey.switcherPreviewExcludedApps] == nil else { return nil }
+        return settings[DefaultsKey.windowPreviewExcludedApps] as? [String]
     }
 
     private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {

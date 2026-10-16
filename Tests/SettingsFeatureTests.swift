@@ -27,15 +27,22 @@ enum SettingsFeatureTests {
         // MARK: Settings backup
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+        let marginBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.windowLayoutMarginPercent ? 12.0 : nil
+        }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: marginBackup)?[
+            DefaultsKey.windowLayoutMarginPercent] as? Double == 12,
+            "custom maximize margin survives a settings backup round trip")
         suite.expect(backupKeys.contains(DefaultsKey.switcherEnabled)
                 && backupKeys.contains(DefaultsKey.menuBarCPU)
                 && backupKeys.contains(DefaultsKey.language)
                 && backupKeys.contains(DefaultsKey.appVolumes)
+                && !backupKeys.contains(DefaultsKey.mixerUniversalOutputDevice)
                 && backupKeys.contains(DefaultsKey.mixerShowFinder)
                 && backupKeys.contains(DefaultsKey.mixerHideInactiveApps)
                 && backupKeys.contains(DefaultsKey.keepAwakeActiveIcon)
                 && backupKeys.contains(AppFeature.dockPreview.availabilityKey),
-               "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability")
+               "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
         let islandKeys: Set<String> = [
@@ -162,16 +169,17 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.windowGestureEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapEnabled)
                 && backupKeys.contains(DefaultsKey.windowEdgeSnapDisabledZones)
+                && backupKeys.contains(DefaultsKey.windowEdgeSnapZoneActions)
                 && backupKeys.contains(DefaultsKey.windowGestureModifiers)
                 && backupKeys.contains(DefaultsKey.windowGestureRaiseWindow)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
                "window layout choices travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
-                && backupKeys.contains(DefaultsKey.screenshotSaveFolder)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
+                && backupKeys.contains(DefaultsKey.screenshotHighlightWindows)
                 && backupKeys.contains(DefaultsKey.screenshotToolOrder)
                 && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcutEnabled)
@@ -187,6 +195,8 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
+        suite.expect(!backupKeys.contains(DefaultsKey.screenshotSaveFolder),
+               "the chosen screenshot save folder does not travel with the settings backup, being authority on one Mac")
         suite.expect(!backupKeys.contains(DefaultsKey.screenshotLoupeLastZoom),
                "the magnifier's last session zoom stays on its own Mac")
         suite.expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
@@ -244,6 +254,11 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.mouseAccelerationDisabled)
                 && backupKeys.contains(DefaultsKey.panelControlMouseAcceleration),
                "mouse acceleration preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.spacesOrderEnabled)
+                && backupKeys.contains(DefaultsKey.panelControlSpacesOrder)
+                && !backupKeys.contains(DefaultsKey.spacesOrderRestore)
+                && !backupKeys.contains(DefaultsKey.spacesOrderRestartPending),
+               "fixed Space order preferences travel with the settings backup, but never the restore state")
         suite.expect(backupKeys.contains(DefaultsKey.linearScrollEnabled)
                 && backupKeys.contains(DefaultsKey.linearScrollLines)
                 && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
@@ -252,6 +267,8 @@ enum SettingsFeatureTests {
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
                "the apps the clipboard history skips travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),
+               "the clipboard history layout travels with the settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
                 && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight),
                "the clipboard window size stays on the display where it was chosen")
@@ -313,10 +330,13 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
                 && !backupKeys.contains(DefaultsKey.displaysSwitchedOff)
+                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints)
                 && !backupKeys.contains(DefaultsKey.screenshotSharingDeveloperEndpoint),
                "backup never carries private content, live state or machine markers")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOff] == nil,
                "a display switched off is a repair note for this machine, not a setting")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOffFingerprints] == nil,
+               "saved display identities stay in machine recovery state, not registered preferences")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.startupDidNotFinish] == nil,
                "a start that did not finish is a note for this machine, not a setting")
 
@@ -413,6 +433,21 @@ enum SettingsFeatureTests {
                 restored: restored, carried: [localJavaPath]) == restored,
                    "repeated window layout restores do not duplicate local paths")
         }
+        suite.expect(Set(SettingsBackupSupport.thumbnailPauseListKeys)
+                == [DefaultsKey.windowPreviewExcludedApps, DefaultsKey.switcherPreviewExcludedApps],
+               "both thumbnail pause lists are treated as holding machine-local paths")
+        for key in SettingsBackupSupport.thumbnailPauseListKeys {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { requested in
+                requested == key ? ["com.apple.Safari", localJavaPath] : nil
+            }
+            let imported = SettingsBackupSupport.sanitizedSettings(from: [
+                SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+                SettingsBackupSupport.settingsKey: [key: ["com.apple.Safari", localJavaPath]],
+            ])
+            suite.expect((backup[SettingsBackupSupport.settingsKey] as? [String: Any])?[key] as? [String]
+                    == ["com.apple.Safari"] && imported?[key] as? [String] == ["com.apple.Safari"],
+                   "\(key) exports and imports bundle IDs only, never this Mac's paths")
+        }
         let mixedExceptionBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
             exceptionKeys.contains(key) ? ["com.apple.Safari", localJavaPath] : nil
         }
@@ -489,6 +524,23 @@ enum SettingsFeatureTests {
                 && captureAt! < clearAt! && writeAt! < putBackAt!,
                "a settings restore reads the machine-local entries before clearing "
                    + "and writes them back after the file's values")
+        let thumbnailCaptureAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("SettingsBackupSupport.thumbnailPauseListKeys")
+        }
+        suite.expect(thumbnailCaptureAt != nil && clearAt != nil && thumbnailCaptureAt! < clearAt!,
+               "the thumbnail pause lists' machine-local entries are read before a restore clears them")
+        suite.expect(SettingsBackupSupport.sharedSwitcherPauseList(in: [
+                    DefaultsKey.windowPreviewExcludedApps: ["com.apple.Safari"]]) == ["com.apple.Safari"]
+                && SettingsBackupSupport.sharedSwitcherPauseList(in: [
+                    DefaultsKey.windowPreviewExcludedApps: ["com.apple.Safari"],
+                    DefaultsKey.switcherPreviewExcludedApps: [String]()]) == nil,
+               "a backup from before the switcher kept its own paused apps gives it Dock Preview's list")
+        let sharedPauseAt = backupServiceLines.firstIndex {
+            isCodeLine($0) && $0.contains("SettingsBackupSupport.sharedSwitcherPauseList(")
+        }
+        suite.expect([sharedPauseAt, writeAt, putBackAt].allSatisfy { $0 != nil }
+                && writeAt! < sharedPauseAt! && sharedPauseAt! < putBackAt!,
+               "a restore copies an old backup's shared paused apps before this Mac's paths go back")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [SettingsBackupSupport.settingsKey: [String: Any]()]) == nil,
                "a file without the version envelope is rejected")
         let tampered: [String: Any] = [

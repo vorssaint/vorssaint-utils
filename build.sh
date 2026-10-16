@@ -261,12 +261,20 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchActivityStrings.swift
         Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
+        Sources/Vorssaint/UI/Notch/NotchIslandAlert.swift
         Sources/Vorssaint/Services/Notch/NotchAccessorySupport.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
+        Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchPreferredPlayer.swift
         Sources/Vorssaint/Core/NotchFilesStrings.swift
+        Sources/Vorssaint/Core/NotchWatchStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
+        Sources/Vorssaint/Core/NotchMascotStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchMascotSupport.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDropletMotion.swift
         Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift
@@ -279,11 +287,14 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
         Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
@@ -295,6 +306,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
+        Sources/Vorssaint/UI/Notch/NotchDecorativeClock.swift
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
@@ -333,6 +345,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/GeneralSettingsStrings.swift
         Sources/Vorssaint/Core/SettingsPageStrings.swift
         Sources/Vorssaint/Core/BatteryTimeStrings.swift
+        Sources/Vorssaint/Core/CPUCoreStrings.swift
+        Sources/Vorssaint/Core/MonitorLayoutStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
@@ -357,6 +371,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderImageRenderer.swift
         Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFClipboard.swift
+        Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift
+        Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift
@@ -382,9 +398,13 @@ if (( TEST )); then
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
+        Sources/Vorssaint/Core/ReleaseDigest.swift
+        Sources/Vorssaint/Core/ReleaseChangeAliases.swift
+        Sources/Vorssaint/Core/WhatsNewStrings.swift
         Sources/Vorssaint/Core/URLCleaning.swift
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
+        Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift
         Sources/Vorssaint/Services/Bluetooth/BluetoothSleepSupport.swift
@@ -395,6 +415,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Audio/PreciseVolumeRollerSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockPreviewSupport.swift
         Sources/Vorssaint/Services/DockPreview/DockAutohideHold.swift
+        Sources/Vorssaint/Services/SpacesOrder/SpacesOrderHold.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewSupport.swift
         Sources/Vorssaint/Services/Homebrew/HomebrewEnvironment.swift
         Sources/Vorssaint/Services/AppUpdates/AppUpdatesSupport.swift
@@ -418,6 +439,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift
         Sources/Vorssaint/UI/Settings/SettingsSidebarSupport.swift
         Sources/Vorssaint/UI/Settings/FeatureVisibilitySupport.swift
+        Sources/Vorssaint/UI/Onboarding/WhatsNewSupport.swift
         Sources/Vorssaint/UI/Settings/SettingsWindow.swift
         Sources/Vorssaint/Core/SettingsNavigationStrings.swift
         Sources/Vorssaint/App/MenuBarSpacingSupport.swift
@@ -466,8 +488,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotCanvasSupport.swift
         Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
+        Sources/Vorssaint/UI/Settings/MonitorToken.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
+        Sources/Vorssaint/Services/QuickTools/ScreenshotImageLayerRendering.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
@@ -496,6 +521,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/KeepAwakeAutomationSupport.swift
         Sources/Vorssaint/Services/SudoersSupport.swift
         Sources/Vorssaint/Services/Metrics/BatteryTimeSupport.swift
+        Sources/Vorssaint/Services/Metrics/BatteryPowerSupport.swift
         Sources/Vorssaint/Services/BoundedProcessRunner.swift
         Sources/Vorssaint/Services/DetachedProcess.swift
         Sources/Vorssaint/Services/ShellSupport.swift
@@ -509,6 +535,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift
         Sources/Vorssaint/Services/Metrics/USBDeviceSampler.swift
+        Sources/Vorssaint/Services/Metrics/CPUCoreSampler.swift
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift
         Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift
         Sources/Vorssaint/Services/Metrics/SustainedAlertGate.swift
@@ -516,6 +543,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift
         Sources/Vorssaint/Core/PointerDisplayStrings.swift
+        Sources/Vorssaint/Core/GraphScaleStrings.swift
+        Sources/Vorssaint/Core/NotchLowBatteryStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
@@ -541,6 +570,8 @@ if (( TEST )); then
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
     if (( ${#TEST_ARGS} == 0 )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
+        ./Tests/UninstallSpacesTests.sh || test_status=1
+        ./Tests/DeveloperInstallIsolationTests.sh || test_status=1
     fi
     discard_test_preferences || test_status=1
     exit $test_status
@@ -856,16 +887,18 @@ fi
 if (( INSTALL )); then
     echo "▸ Installing into /Applications…"
     stop_process "$EXECUTABLE"
-    # Remove the pre-rename apps so two menu bar items never coexist. Same bundle
-    # id, so macOS keeps the granted permissions for the new bundle.
-    for legacy in "Vorss:Vorss" "Vorssaint Utils:VorssaintUtils"; do
-        name="${legacy%%:*}"; proc="${legacy##*:}"
-        if [[ -d "/Applications/$name.app" ]]; then
-            stop_process "$proc"
-            rm -rf "/Applications/$name.app"
-            echo "  (legacy $name.app removed)"
-        fi
-    done
+    # Only an official install replaces the pre-rename official apps. The
+    # Developer variant must coexist with them just as it does with Vorssaint.
+    if (( ! DEV )); then
+        for legacy in "Vorss:Vorss" "Vorssaint Utils:VorssaintUtils"; do
+            name="${legacy%%:*}"; proc="${legacy##*:}"
+            if [[ -d "/Applications/$name.app" ]]; then
+                stop_process "$proc"
+                rm -rf "/Applications/$name.app"
+                echo "  (legacy $name.app removed)"
+            fi
+        done
+    fi
     INSTALL_DEST="/Applications/$APP_NAME.app"
     rm -rf "$INSTALL_DEST"
     ditto --noextattr --noqtn "$STAGE" "$INSTALL_DEST"

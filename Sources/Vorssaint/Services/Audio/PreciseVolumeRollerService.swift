@@ -166,8 +166,9 @@ final class PreciseVolumeRollerService: ObservableObject {
            !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) { return true }
         feedbackStep &+= 1
         let step = feedbackStep
-        // Like macOS, the mute key clicks only when it unmutes.
-        feedback = (key != .mute || mixer.systemOutputMuted == true) && NotchVolumeKeyGate.playsFeedback(
+        // Like macOS, the mute key clicks only when it unmutes. The toggle
+        // follows the output's own reading, so its result decides that below.
+        feedback = NotchVolumeKeyGate.playsFeedback(
             setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
             option: event.flags.contains(.maskAlternate), shift: event.flags.contains(.maskShift))
             ? (code, step, false, false) : nil
@@ -188,13 +189,18 @@ final class PreciseVolumeRollerService: ObservableObject {
                     Self.postForwardedRelease(code)
                 }
             }
-            if key == .mute, let muted = mixer.systemOutputMuted {
-                mixer.requestOutputAdjustment(muted: !muted, completion: completion)
-                NotchService.shared.showCurrentVolume()
+            // Both keys start from the device's own reading, so the island
+            // shows the result once it has been applied. A native fallback
+            // publishes its state through the listeners.
+            if key == .mute {
+                mixer.requestOutputMuteToggle { applied in
+                    if applied, mixer.systemOutputMuted == true, self?.feedback?.step == step {
+                        self?.feedback = nil
+                    }
+                    completion(applied)
+                    if applied { NotchService.shared.showCurrentVolume() }
+                }
             } else if mixer.systemOutputVolume != nil {
-                // The step starts from the device's own reading, so the
-                // island shows the level once that step has been applied. A
-                // native fallback publishes its level through the listeners.
                 let direction = key == .volumeUp ? 1 : -1
                 mixer.requestOutputStep(level: {
                     NotchSupport.volumeLevel(current: $0, direction: direction, fine: fine)

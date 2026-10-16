@@ -61,7 +61,10 @@ final class AppUpdatesService: ObservableObject {
     private var knownIDs = Set<String>()
     /// The person was sent elsewhere to finish an update, so the list is
     /// about to be wrong until it is read again.
-    private(set) var updateHandoffPending = false
+    private var pendingUpdateHandoffs = Set<UUID>()
+    var updateHandoffPending: Bool {
+        !pendingUpdateHandoffs.isEmpty
+    }
     private var onlineCatalogCache: (loadedAt: Date, entries: [AppUpdatesSupport.CatalogEntry])?
     /// Alive only while an upgrade this service started is running, so the
     /// list refreshes itself even when no window is on screen to notice.
@@ -562,10 +565,25 @@ final class AppUpdatesService: ObservableObject {
         setRule(for: item, version: nil)
     }
 
+    /// Excludes an app straight from its bundle, so one that is not in the list
+    /// (up to date, or never matched by a source) can still be left out.
+    func addExclusion(appAt url: URL) {
+        guard !isChecking,
+              let app = Self.scannedApp(at: url, includePublisherFeeds: false) else { return }
+        storeRule(bundleID: app.bundleID, name: app.name, version: nil)
+    }
+
     private func setRule(for item: AppUpdatesSupport.Item, version: String?) {
-        guard !isChecking, let bundleID = item.bundleID, !bundleID.isEmpty,
-              items.contains(item) else { return }
-        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: item.name, version: version)
+        guard !isChecking, let bundleID = item.bundleID, items.contains(item) else { return }
+        storeRule(bundleID: bundleID, name: item.name, version: version)
+    }
+
+    private func storeRule(bundleID: String, name: String, version: String?) {
+        // Same shape `decodedRules` accepts, so a rule saved now survives a reload.
+        guard !bundleID.isEmpty, bundleID.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !bundleID.contains("/"),
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: name, version: version)
         saveRules(rules.filter { $0.bundleID != bundleID } + [rule])
     }
 
@@ -667,11 +685,14 @@ final class AppUpdatesService: ObservableObject {
     }
 
     /// The destination installs its own update, so open it and tell the truth
-    /// again the moment the person is back.
+    /// again the moment the person is back. Opening runs off the main thread,
+    /// since launching a large app can take a while.
     private func handOff(_ url: URL) {
-        updateHandoffPending = true
-        if !NSWorkspace.shared.open(url) {
-            updateHandoffPending = false
+        let request = UUID()
+        pendingUpdateHandoffs.insert(request)
+        NSWorkspace.shared.open(url, configuration: NSWorkspace.OpenConfiguration()) { [weak self] _, error in
+            guard error != nil else { return }
+            DispatchQueue.main.async { self?.pendingUpdateHandoffs.remove(request) }
         }
     }
 
@@ -727,7 +748,7 @@ final class AppUpdatesService: ObservableObject {
     /// behind. Reading it clears the flag, so the window is restored once.
     func consumeUpdateHandoffReturn() -> Bool {
         guard updateHandoffPending else { return false }
-        updateHandoffPending = false
+        pendingUpdateHandoffs.removeAll()
         return true
     }
 

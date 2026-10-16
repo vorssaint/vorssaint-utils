@@ -55,6 +55,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
     @Published private(set) var events: [NotchCalendarEvent] = []
     @Published private(set) var countdown: NotchCalendarCountdown?
     @Published private(set) var loading = false
+    /// The event the Calendar page scrolls to once, after a click on the countdown.
+    @Published var revealing: String?
     /// Countdown keys of the events chosen from their menu.
     @Published private(set) var chosenCountdowns = Set<String>()
     private var reader: NotchCalendarReader?

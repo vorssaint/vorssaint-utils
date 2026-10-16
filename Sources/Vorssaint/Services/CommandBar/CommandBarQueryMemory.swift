@@ -10,11 +10,8 @@ import Foundation
 /// day can still walk past it after typing part of its name, because the habit
 /// is attached to the row and not to what they typed to reach it.
 ///
-/// **It is never written down.** The bar promises to forget everything typed
-/// into it, and that promise is worth more than remembering a preference
-/// between two Macs: this lives in memory for as long as the app runs and goes
-/// with it. Choosing the same row twice in one afternoon is where nearly all
-/// of the benefit is anyway.
+/// This small tie-breaker lives in memory. The stronger query habit ranking
+/// separately saves keyed digests, never the typed text, across app launches.
 ///
 /// Pure, so what a prefix is and what one is worth are pinned by tests.
 struct CommandBarQueryMemory: Equatable {

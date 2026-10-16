@@ -19,14 +19,17 @@ enum BreakdownKind {
 
 /// The "System" section of the panel: component temperatures, hardware usage
 /// and memory pressure, only the readings that matter, presented cleanly.
-/// Tapping CPU, GPU or Memory expands the top consumers of that resource.
+/// Tapping CPU, GPU or Memory expands the top consumers of that resource;
+/// CPU also shows the load of each core.
 struct SystemSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var monitor = SystemMonitor.shared
     @Environment(\.colorScheme) private var colorScheme
     var collapsible = true
+    let showConnectedDevices: () -> Void
     @State private var expanded: BreakdownKind?
     @State private var alertsExpanded = false
+    @State private var cpuAppsExpanded = true
     @State private var breakdownRows: [ProcessUsage] = []
     @State private var breakdownIsLoading = false
     @State private var lastBreakdownRefresh = Date.distantPast
@@ -38,10 +41,12 @@ struct SystemSection: View {
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorSysTemps) private var sysTemps = true
     @AppStorage(DefaultsKey.monitorSysCPU) private var sysCPU = true
+    @AppStorage(DefaultsKey.monitorSysCPUCores) private var sysCPUCores = true
     @AppStorage(DefaultsKey.monitorSysGPU) private var sysGPU = true
     @AppStorage(DefaultsKey.monitorSysMemory) private var sysMemory = true
     @AppStorage(DefaultsKey.monitorSysAlerts) private var sysAlerts = true
     @AppStorage(DefaultsKey.monitorSysUptime) private var sysUptime = true
+    @AppStorage(DefaultsKey.monitorSysConnectedDevices) private var sysConnectedDevices = true
     @AppStorage(DefaultsKey.panelSystemOrder) private var systemOrderRaw = ""
     @State private var draggingBlock: Block?
 
@@ -86,7 +91,7 @@ struct SystemSection: View {
 
     /// Card subsections, in order, filtered by the per-item toggles (and whether a
     /// battery exists). Drives divider interleaving so only rendered blocks get one.
-    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime }
+    private enum Block: String, PanelOrderItem { case temps, usage, memory, alerts, uptime, connectedDevices }
 
     // Hub availability per metric family: an unavailable metric leaves the
     // card entirely, including the edit-mode hidden rows.
@@ -110,6 +115,7 @@ struct SystemSection: View {
         switch block {
         case .temps, .usage: return cpuAvailable || gpuAvailable
         case .memory: return memoryAvailable
+        case .connectedDevices: return AppFeature.connectedDevices.isAvailable
         case .alerts, .uptime: return true
         }
     }
@@ -136,6 +142,7 @@ struct SystemSection: View {
         case .memory: return sysMemory
         case .alerts: return sysAlerts
         case .uptime: return sysUptime
+        case .connectedDevices: return sysConnectedDevices
         }
     }
 
@@ -144,10 +151,12 @@ struct SystemSection: View {
         systemOrderRaw = ""
         sysTemps = true
         sysCPU = true
+        sysCPUCores = true
         sysGPU = true
         sysMemory = true
         sysAlerts = true
         sysUptime = true
+        sysConnectedDevices = true
     }
 
     @ViewBuilder
@@ -158,6 +167,52 @@ struct SystemSection: View {
         case .memory: memoryRows(editing: editing)
         case .alerts: alertRows(editing: editing)
         case .uptime: uptimeRow(editing: editing)
+        case .connectedDevices: connectedDevicesRow(editing: editing)
+        }
+    }
+
+    // MARK: Connected devices
+
+    /// Opens the device list. While editing it is only a row to reorder or
+    /// hide, like the usage rows, so a drag cannot open the detail.
+    @ViewBuilder
+    private func connectedDevicesRow(editing: Bool) -> some View {
+        let strings = FeatureStrings.connectedDevices(l10n.language)
+        if !sysConnectedDevices {
+            PanelHiddenItemRow(title: strings.title, systemImage: "cable.connector",
+                               isVisible: $sysConnectedDevices)
+        } else if editing {
+            connectedDevicesRowContent(title: strings.title, isInteractive: false) {
+                PanelInlineHideButton(isVisible: $sysConnectedDevices)
+            }
+        } else {
+            Button(action: showConnectedDevices) {
+                connectedDevicesRowContent(title: strings.title, isInteractive: true) {
+                    EmptyView()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(strings.title)
+            .accessibilityValue(strings.formattedCount(monitor.snapshot.connectedDevices.count))
+        }
+    }
+
+    private func connectedDevicesRowContent<Trailing: View>(title: String, isInteractive: Bool,
+                                                             @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack(spacing: 8) {
+            Label(title, systemImage: "cable.connector")
+                .font(.system(size: 11, weight: .medium))
+            Spacer(minLength: 0)
+            Text("\(monitor.snapshot.connectedDevices.count)")
+                .font(.system(size: 11, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .opacity(isInteractive ? 1 : 0.35)
+            trailing()
         }
     }
 
@@ -175,8 +230,18 @@ struct SystemSection: View {
         }
     }
 
+    /// Opening the folded CPU apps list starts from the same recent reading
+    /// expanding a row does, not from rows kept while it was folded.
+    private func toggleCPUApps() {
+        cpuAppsExpanded.toggle()
+        if cpuAppsExpanded {
+            breakdownRows = ProcessUsageService.shared.cachedTop(.cpu, limit: breakdownLimit) ?? []
+        }
+        refreshBreakdown()
+    }
+
     private func refreshBreakdown() {
-        guard let kind = expanded else { return }
+        guard let kind = expanded, kind != .cpu || !sysCPUCores || cpuAppsExpanded else { return }
         lastBreakdownRefresh = Date()
         breakdownIsLoading = breakdownRows.isEmpty
         let sampleInterval = percentageSampleInterval
@@ -314,9 +379,33 @@ struct SystemSection: View {
                               color: .accentColor,
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
-                breakdownList(for: .cpu)
+                // The apps list folds only under the per-core bars; without
+                // them CPU expands straight to its apps, like GPU and Memory.
+                if sysCPUCores, expanded == .cpu {
+                    if !monitor.snapshot.cpuCoreUsage.isEmpty {
+                        CPUCoreMatrix(usage: monitor.snapshot.cpuCoreUsage)
+                    }
+                    Button {
+                        toggleCPUApps()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0))
+                            subsectionLabel(FeatureStrings.cpuCores(l10n.language).apps)
+                            Spacer(minLength: 0)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if !sysCPUCores || cpuAppsExpanded {
+                    breakdownList(for: .cpu)
+                }
             } else if editing, cpuAvailable {
                 PanelHiddenItemRow(title: l10n.s.cpuLabel, systemImage: "cpu", isVisible: $sysCPU)
             }
@@ -328,7 +417,8 @@ struct SystemSection: View {
                               color: PanelMetricColor.cyan(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 breakdownList(for: .gpu)
             } else if editing, gpuAvailable {
@@ -452,7 +542,8 @@ struct SystemSection: View {
                               color: PanelMetricColor.mint(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 breakdownList(for: .memory)
             }

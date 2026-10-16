@@ -331,7 +331,7 @@ extension WhatsAppDownloadStrings {
     static let zhHans = translated(language: .zhHans,
         title: "WhatsApp 下载", hub: "管理下载文件夹中的 WhatsApp 文件",
         intro: "查找经 macOS 确认为来自 WhatsApp 的文件。绝不读取文件内容或聊天。",
-        automatic: "自动清理", folder: "监控的文件夹", accessReady: "可以访问下载文件夹",
+        automatic: "自动清理", folder: "监视的文件夹", accessReady: "可以访问下载文件夹",
         accessDenied: "Vorssaint 无法访问下载文件夹。请在“文件与文件夹”中允许访问。",
         types: "文件类型", all: "全部", image: "图像", video: "视频", audio: "音频和语音消息",
         document: "文稿", archive: "压缩包", other: "其他", retention: "保留时间", days: "%d 天",

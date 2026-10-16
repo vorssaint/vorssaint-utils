@@ -21,8 +21,12 @@ final class ScreenshotService: ObservableObject {
     private let uploadHotkey = QuickToolHotkey(id: 61)
     private var uploadingCaptureID: UUID?
     private var latestCaptureID = UUID()
+    /// Names the latest capture itself. Turning the shortcut off renews
+    /// `latestCaptureID` but not this, so a later Discard still finds it.
+    private var latestCaptureToken = UUID()
     /// Set once the latest capture went through an editor or was discarded:
-    /// the stored original is then no longer what the person kept.
+    /// the stored original is then no longer what the person kept. The store
+    /// keeps the same answer for the next launch.
     private var latestCaptureWithheld = false
     private var linkCopyRetry = ScreenshotLinkCopyRetry()
 
@@ -38,6 +42,10 @@ final class ScreenshotService: ObservableObject {
     private var directCaptureTask: Task<Void, Never>?
     private var autoCopyTask: Task<Void, Never>?
     private var autoCopyGeneration = 0
+    private var autoShelfTasks: [UUID: Task<Void, Never>] = [:]
+    /// Only the latest capture still has a preview that can discard it.
+    /// Older captures stay on the shelf without a growing item registry.
+    private var autoShelvedItem: (capture: UUID, item: UUID)?
     private var scrollingTask: Task<Void, Never>?
     private var scrollingCaptureID: UUID?
     private var scrollingFinishSignal: ScreenshotScrollingCapture.FinishSignal?
@@ -187,6 +195,7 @@ final class ScreenshotService: ObservableObject {
         autoCopyTask?.cancel()
         autoCopyTask = nil
         autoCopyGeneration += 1
+        cancelAutoShelf()
         scrollingTask?.cancel()
         scrollingTask = nil
         scrollingCaptureID = nil
@@ -436,6 +445,8 @@ final class ScreenshotService: ObservableObject {
     /// exists to reach for.
     private func route(_ capture: ScreenshotSelectionController.Capture) {
         beginLatestCapture(capture)
+        // The island's companion blinks hard, as a flash, if it is there to see.
+        NotchService.shared.reactMascot(.flash, patience: 1)
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
         let defaults = UserDefaults.standard
@@ -444,10 +455,13 @@ final class ScreenshotService: ObservableObject {
         }
         let defaultAction = ScreenshotDefaultAction.current
         if defaultAction == .edit {
+            // The editor decides what is kept. Its Add to Shelf puts the
+            // finished picture there, so the raw capture is not shelved too.
             openEditor(with: capture)
             return
         }
         let result = runDefaultAction(defaultAction, capture: capture)
+        autoShelve(capture, saved: result.saved?.url)
         guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
             defaultAction: defaultAction,
             saved: result.saved != nil,
@@ -459,14 +473,47 @@ final class ScreenshotService: ObservableObject {
                        initialSaved: result.saved,
                        completedActions: result.performed,
                        dismissInterval: dismissInterval,
-                       latestCapture: latestCaptureID)
+                       latestCapture: latestCaptureToken)
     }
 
     /// Thrown away, the latest capture is no longer one the upload shortcut
     /// may publish. A capture reopened from history makes no such claim.
     private func discardLatestCapture(_ latestCapture: UUID?) {
-        guard let latestCapture, latestCapture == latestCaptureID else { return }
+        guard let latestCapture, latestCapture == latestCaptureToken else { return }
+        withholdLatestCapture()
+    }
+
+    /// A discarded preview cancels only its capture, including a copy still
+    /// being prepared. Other captures keep their place on the shelf.
+    private func unshelve(_ capture: UUID?) {
+        guard let capture else { return }
+        autoShelfTasks.removeValue(forKey: capture)?.cancel()
+        if let shelved = autoShelvedItem, shelved.capture == capture {
+            ShelfService.shared.removeItem(shelved.item)
+            autoShelvedItem = nil
+        }
+    }
+
+    /// The editor decides what is kept, and its Add to Shelf puts the
+    /// finished picture there, so the raw capture leaves the Shelf as it
+    /// does when captures open straight in the editor.
+    private func editFromPreview(_ capture: ScreenshotSelectionController.Capture, latestCapture: UUID?) {
+        unshelve(latestCapture)
+        openEditor(with: capture)
+    }
+
+    private func cancelAutoShelf() {
+        for task in autoShelfTasks.values { task.cancel() }
+        autoShelfTasks.removeAll()
+    }
+
+    private func withholdLatestCapture() {
+        // Opening an editor or discarding also withdraws a shortcut upload
+        // already in flight. Its original must not be delivered after the
+        // person chose to edit or throw it away.
+        invalidateLatestCaptureUploads()
         latestCaptureWithheld = true
+        ScreenshotLastCaptureStore.withhold()
     }
 
     /// A new capture becomes the latest one: a pending shortcut upload of the
@@ -474,6 +521,7 @@ final class ScreenshotService: ObservableObject {
     /// for the shortcuts that reopen or upload it.
     private func beginLatestCapture(_ capture: ScreenshotSelectionController.Capture) {
         invalidateLatestCaptureUploads()
+        latestCaptureToken = UUID()
         latestCaptureWithheld = false
         if ScreenshotSharingSupport.retainsLatestCapture() {
             ScreenshotLastCaptureStore.save(capture)
@@ -509,7 +557,7 @@ final class ScreenshotService: ObservableObject {
                 guard let self else { return [] }
                 switch action {
                 case .edit:
-                    self.openEditor(with: capture)
+                    self.editFromPreview(capture, latestCapture: latestCapture)
                     return [.edit]
                 case .pin:
                     ScreenshotPinController.shared.pin(image: capture.image, scale: capture.scale)
@@ -537,6 +585,7 @@ final class ScreenshotService: ObservableObject {
                             Self.rewindNumberSequence(toReuse: consumed)
                         }
                     }
+                    self.unshelve(latestCapture)
                     self.discardLatestCapture(latestCapture)
                     return [.discard]
                 }
@@ -588,7 +637,7 @@ final class ScreenshotService: ObservableObject {
         // Any editor may be showing the latest capture, and what it exports
         // is no longer the stored original, so the shortcut keeps that
         // original back until a newer capture arrives.
-        latestCaptureWithheld = true
+        withholdLatestCapture()
         let editor = ScreenshotEditorController(capture: capture)
         editors.append(editor)
         editor.show()
@@ -602,7 +651,7 @@ final class ScreenshotService: ObservableObject {
             preview.shareLink()
             return
         }
-        guard editors.isEmpty, !latestCaptureWithheld else {
+        guard editors.isEmpty, !latestCaptureWithheld, !ScreenshotLastCaptureStore.isWithheld else {
             NSSound.beep()
             return
         }
@@ -664,6 +713,9 @@ final class ScreenshotService: ObservableObject {
         }
         preview?.close()
         preview = nil
+        // Editing the latest capture takes its raw copy off the Shelf, as
+        // Edit in its preview does.
+        unshelve(latestCaptureToken)
         openEditor(with: capture)
     }
 
@@ -679,6 +731,27 @@ final class ScreenshotService: ObservableObject {
                     return
                 }
                 self.openEditor(with: capture)
+            }
+        }
+    }
+
+    /// Opens a picture from the shelf, read off the main thread. A file that
+    /// does not read as an image only beeps.
+    func editImage(at url: URL) {
+        guard AppFeature.screenshot.isAvailable else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let capture = autoreleasepool {
+                NSImage(contentsOf: url).flatMap { Self.imageCapture(from: $0) }
+            }
+            DispatchQueue.main.async {
+                guard AppFeature.screenshot.isAvailable else { return }
+                guard let capture else {
+                    NSSound.beep()
+                    return
+                }
+                NotchService.shared.perform {
+                    ScreenshotService.shared.openEditor(with: capture)
+                }
             }
         }
     }
@@ -708,7 +781,7 @@ final class ScreenshotService: ObservableObject {
 
     /// Copying a file in Finder leaves both its URL and a small icon preview on
     /// the pasteboard, so the file on disk wins whenever it is a readable image.
-    private static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
+    static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
         let options: [NSPasteboard.ReadingOptionKey: Any] = [
             .urlReadingFileURLsOnly: true,
             .urlReadingContentsConformToTypes: [UTType.image.identifier]
@@ -774,6 +847,61 @@ final class ScreenshotService: ObservableObject {
             }
             ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
             self.autoCopyTask = nil
+        }
+    }
+
+    /// Runs `body` once an automatic copy still being prepared has reached
+    /// the clipboard, or at once when none is. A preview's Copy text waits
+    /// for it: the capture lands first, as the after-capture setting asks,
+    /// and the text then replaces it, while a capture with no text stays.
+    func afterAutoCopy(_ body: @escaping () -> Void) {
+        guard let pending = autoCopyTask else {
+            body()
+            return
+        }
+        Task { @MainActor in
+            await pending.value
+            body()
+        }
+    }
+
+    /// The shelf gets a copy of its own, not the file a Save wrote, which can
+    /// later be deleted or moved to the Trash outside Vorssaint. A saved
+    /// capture lends its bytes and name, so nothing is encoded twice. Any
+    /// other is encoded off the main thread. Each capture owns its task so
+    /// taking another capture cannot lose one still being prepared. Quiet on
+    /// success like the automatic copy; a shelf that refuses it beeps.
+    private func autoShelve(_ capture: ScreenshotSelectionController.Capture, saved: URL?) {
+        autoShelvedItem = nil
+        guard ScreenshotSupport.addsCapturesToShelf() else { return }
+        let token = latestCaptureToken
+        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let name = saved?.lastPathComponent
+            ?? ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
+        autoShelfTasks[token] = Task { @MainActor [weak self] in
+            let work = Task.detached(priority: .userInitiated) { () -> Data? in
+                guard !Task.isCancelled else { return nil }
+                if let saved { return try? Data(contentsOf: saved) }
+                guard let export = Self.flatten(capture, downscaleTo1x: downscale),
+                      !Task.isCancelled else { return nil }
+                return ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+            }
+            let png = await withTaskCancellationHandler {
+                await work.value
+            } onCancel: {
+                work.cancel()
+            }
+            guard let self else { return }
+            self.autoShelfTasks[token] = nil
+            guard !Task.isCancelled, AppFeature.screenshot.isAvailable,
+                  ScreenshotSupport.addsCapturesToShelf() else { return }
+            guard let png, let item = ShelfService.shared.shelveGeneratedFile(png, named: name) else {
+                NSSound.beep()
+                return
+            }
+            if self.latestCaptureToken == token {
+                self.autoShelvedItem = (token, item)
+            }
         }
     }
 
@@ -886,7 +1014,7 @@ final class ScreenshotService: ObservableObject {
         ScreenshotRenderer.renderExport(
             baseImage: capture.image,
             annotations: [],
-            pixelated: [:],
+            blurSources: .none,
             scale: capture.scale,
             annotationShadowsEnabled: false,
             watermark: ScreenshotSupport.WatermarkStyle(),
@@ -1023,8 +1151,28 @@ enum ScreenshotLastCaptureStore {
             .appendingPathComponent("LatestScreenshot.png")
     }
 
+    /// Present while the stored capture was discarded or went through an
+    /// editor, so the upload shortcut keeps it back after a relaunch too.
+    private static var withheldURL: URL? {
+        fileURL?.deletingLastPathComponent().appendingPathComponent("LatestScreenshot.withheld")
+    }
+
+    static var isWithheld: Bool {
+        guard let withheldURL else { return false }
+        return FileManager.default.fileExists(atPath: withheldURL.path)
+    }
+
+    static func withhold() {
+        guard let withheldURL else { return }
+        try? FileManager.default.createDirectory(at: withheldURL.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: withheldURL.path, contents: nil)
+    }
+
     static func save(_ capture: ScreenshotSelectionController.Capture) {
         guard let fileURL else { return }
+        // A new capture starts out as the one the person kept.
+        if let withheldURL { try? FileManager.default.removeItem(at: withheldURL) }
         stateLock.lock()
         generation += 1
         let operation = generation
@@ -1078,6 +1226,7 @@ enum ScreenshotLastCaptureStore {
         generation += 1
         pendingCapture = nil
         stateLock.unlock()
+        if let withheldURL { try? FileManager.default.removeItem(at: withheldURL) }
         guard let fileURL else { return }
         try? FileManager.default.removeItem(at: fileURL)
     }

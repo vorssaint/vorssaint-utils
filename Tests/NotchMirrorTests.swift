@@ -74,11 +74,15 @@ enum NotchMirrorContract {
         var compactActivity: NotchCompactActivity?
         var compactCompanion: NotchCompactActivity?
         var idleContent = NotchIdleContent.none
+        var mascotVisible = false
+        func mascotShows(on geometry: NotchGeometry) -> Bool {
+            mascotVisible && (geometry.floats || geometry.restingWingWidth > 0)
+        }
         var expanded = false, peeking = false, canFollowPointer = true
         var hidesUntilHover = false, coversMenus = true, showsInCaptures = true
         var outlineEnabled = false, hidesInFullscreen = false
         let openTitle = "Open"
-        var opened = 0, collapses = 0
+        var opened = 0, collapses = 0, countdownOpenings = 0
         var moves: [CGDirectDisplayID] = []
         var made: [Host] = []
 
@@ -105,6 +109,7 @@ enum NotchMirrorContract {
         }
         func collapse() { collapses += 1; expanded = false; peeking = false }
         func open() { opened += 1; expanded = true }
+        func openCountdownEvent() { countdownOpenings += 1; expanded = true }
         func move(to screen: NSScreen) { displayID = screen.notchDisplayID; moves.append(screen.notchDisplayID) }
     }
 
@@ -195,6 +200,17 @@ enum NotchMirrorContract {
         service.coversMenus = true
         NSScreen.screensHaveSeparateSpaces = false
 
+        // The companion rests in each copy too, beside that display's camera.
+        service.displayID = 2
+        service.compactActivity = nil
+        service.mascotVisible = true
+        service.syncMirrors()
+        suite.expect(service.mirrors[1]?.model.size == service.mirrors[1]?.model.geometry.collapsed
+                     && (service.mirrors[1]?.model.size.width ?? 0) > builtInBase.cameraWidth,
+                     "a copy beside a camera opens its wings for the resting companion")
+        service.mascotVisible = false
+        service.syncMirrors()
+
         // A click on a copy brings the island there, open, closing it where it was.
         service.displayID = 2
         service.expanded = true
@@ -207,6 +223,11 @@ enum NotchMirrorContract {
         service.mirrors[2]?.host.activate?()
         service.canFollowPointer = true
         suite.expect(service.opened == opened, "a notice or a drag keeps the island where it is")
+        service.compactActivity = .calendar
+        service.mirrors[2]?.host.activate?()
+        service.compactActivity = nil
+        suite.expect(service.countdownOpenings == 1 && service.opened == opened,
+                     "clicking a copy of an event countdown opens on its event")
 
         // Unplugging a display closes its copy; leaving the choice closes them all.
         service.displayID = 1

@@ -53,14 +53,15 @@ body:
       label: Feature Area
       description: The same groups you see in Settings.
       options:
-        - Windows and Dock
-        - Mouse and keyboard
-        - Clipboard and files
+        - Essentials
+        - Utilities
         - Sound
         - Energy and display
-        - Tools
-        - System monitor
-        - Menu bar
+        - Windows and Dock
+        - Mouse and keyboard
+        - Files
+        - App management
+        - App
         - Other
     validations:
       required: true

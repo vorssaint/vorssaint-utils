@@ -338,6 +338,21 @@ enum WindowLayoutGaps {
     }
 }
 
+enum WindowLayoutMargin {
+    static let defaultPercent = 5.0
+    static let percentRange = 0.0...25.0
+
+    static var percent: Double {
+        sanitizedPercent(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutMarginPercent) as? Double
+            ?? defaultPercent)
+    }
+
+    static func sanitizedPercent(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultPercent }
+        return min(max(value, percentRange.lowerBound), percentRange.upperBound)
+    }
+}
+
 /// Whether a repeated Left or Right cycles the window through half, two thirds
 /// and one third of the same display instead of
 /// pushing it onto the display beside it.
@@ -521,7 +536,8 @@ enum WindowLayoutGeometry {
                      current: CGRect,
                      visibleFrame: CGRect,
                      windowGap: CGFloat = 0,
-                     screenGap: CGFloat = 0) -> CGRect {
+                     screenGap: CGFloat = 0,
+                     marginPercent: Double = WindowLayoutMargin.defaultPercent) -> CGRect {
         // Only placements that tile against the screen edge take the screen
         // gap. The exempt actions keep their own geometry: margin maximize's
         // percentage margin, center's size clamp, and the pass-through
@@ -533,7 +549,8 @@ enum WindowLayoutGeometry {
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
         }
-        let rect = ungappedRect(for: action, current: current, visibleFrame: frame)
+        let rect = ungappedRect(for: action, current: current, visibleFrame: frame,
+                               marginPercent: marginPercent)
         return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
     }
 
@@ -588,7 +605,8 @@ enum WindowLayoutGeometry {
 
     private static func ungappedRect(for action: WindowLayoutAction,
                                      current: CGRect,
-                                     visibleFrame: CGRect) -> CGRect {
+                                     visibleFrame: CGRect,
+                                     marginPercent: Double) -> CGRect {
         let halfWidth = visibleFrame.width / 2
         let halfHeight = visibleFrame.height / 2
         let thirdWidth = visibleFrame.width / 3
@@ -703,8 +721,9 @@ enum WindowLayoutGeometry {
         case .maximize:
             return visibleFrame.integral
         case .marginMaximize:
-            return visibleFrame.insetBy(dx: visibleFrame.width * 0.05,
-                                        dy: visibleFrame.height * 0.05).integral
+            let fraction = CGFloat(WindowLayoutMargin.sanitizedPercent(marginPercent) / 100)
+            return visibleFrame.insetBy(dx: visibleFrame.width * fraction,
+                                        dy: visibleFrame.height * fraction).integral
         case .center:
             let width = min(current.width, visibleFrame.width)
             let height = min(current.height, visibleFrame.height)

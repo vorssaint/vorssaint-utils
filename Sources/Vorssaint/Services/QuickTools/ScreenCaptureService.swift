@@ -13,6 +13,7 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     var hasFocusedControl = false
     var onPresentationReady: (() -> Void)?
     var onSelectionProgressChange: ((Bool) -> Void)?
+    var onCaptureControlsSurfaceChange: ((CGRect, CGFloat) -> Void)?
     let recorderAudio = RecorderSelectionAudioOptions()
     @Published private(set) var selectedTool: ScreenCaptureTool
     @Published var offersRepeatLastRegion = false
@@ -221,9 +222,10 @@ final class ScreenCaptureService: ObservableObject {
                     windows = ScreenshotService.shared.protectedWindowIDsForCapture(
                         honoursVisibilityPreference: tool != nil && tool != .recording)
                 }
-                // The notch never belongs in the pixels while an area is being
-                // chosen, so what sits behind it is captured cleanly.
-                if NotchSupport.isEnabled() { windows.formUnion(NotchService.shared.captureChromeWindowIDs) }
+                // The island follows its own preference even without the
+                // screenshot feature, and the capture controls it turns into
+                // never belong in the pixels.
+                if NotchSupport.isEnabled() { windows.formUnion(NotchService.shared.protectedWindowIDs) }
                 return windows
             },
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
@@ -231,6 +233,7 @@ final class ScreenCaptureService: ObservableObject {
             supportsScrollingCapture: options.availableTools.contains(.screenshot),
             screenCaptureOptions: options)
         if options.controlsInNotch {
+            connectCaptureControlsSurface(options, controller: controller)
             options.onPresentationReady = { [weak self, weak options] in
                 guard let self, let options, self.options === options else { return }
                 NotchService.shared.presentCaptureControls(options) { [weak self] in self?.cancelSelection() }
@@ -242,10 +245,22 @@ final class ScreenCaptureService: ObservableObject {
                   self.selection === controller else { return }
             NotchService.shared.endCaptureControls()
             options.onPresentationReady = nil
+            options.onCaptureControlsSurfaceChange = nil
             self.selection = nil
             self.options = nil
             self.route(outcome, selected: options.selectedTool,
                        recorderAudio: options.recorderAudio)
+        }
+    }
+
+    private func connectCaptureControlsSurface(_ options: ScreenCaptureSelectionOptions,
+                                               controller: ScreenshotSelectionController) {
+        options.onCaptureControlsSurfaceChange = { [weak self, weak options, weak controller] screenFrame, surfaceHeight in
+            guard let self, let options, let controller,
+                  self.options === options, self.selection === controller else { return }
+            controller.placeFullScreenControlBelowNotch(
+                screenFrame: screenFrame,
+                surfaceHeight: surfaceHeight)
         }
     }
 
@@ -302,6 +317,7 @@ final class ScreenCaptureService: ObservableObject {
     private func cancelSelection() {
         NotchService.shared.endCaptureControls()
         options?.onPresentationReady = nil
+        options?.onCaptureControlsSurfaceChange = nil
         countdown?.cancel()
         countdown = nil
         countdownTools = nil

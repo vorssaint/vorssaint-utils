@@ -54,6 +54,13 @@ enum AgentCodexResetTests {
         suite.expect(single?.windows.first?.id == "codex.300" && other == nil,
                      "an older answer's single allowance counts only when it is the main one")
 
+        let business = AgentCodexServer.limits(json(#"{"rateLimits":{"limitId":"codex","primary":null,"secondary":null,"individualLimit":{"limit":"2500","used":"73.16","remainingPercent":97,"resetsAt":1793491201}}}"#),
+                                               observed: now)
+        suite.expect(business?.windows.map(\.id) == ["codex.individual"]
+                        && business?.windows.first?.usedPercent == 3
+                        && business?.windows.first?.resetsAt == Date(timeIntervalSince1970: 1793491201),
+                     "a Business account's individual allowance is used when its legacy windows are empty")
+
         let countOnly = AgentCodexServer.summary(json(#"{"rateLimitResetCredits":{"availableCount":2,"credits":null}}"#), now: now)
         let none = AgentCodexServer.summary(json(#"{"rateLimitResetCredits":null}"#), now: now)
         suite.expect(countOnly?.available == 2 && countOnly?.resets.isEmpty == true && countOnly?.nextExpiry == nil
@@ -139,10 +146,11 @@ enum AgentCodexResetTests {
 
     /// Answers each question by its method, with a notification, a request
     /// of its own and a line that is not JSON along the way, the way the real
-    /// server can interleave them. `STAND_IN` picks the account it plays.
+    /// server can interleave them. `STAND_IN` picks the account it plays. It
+    /// runs only as the server started without Codex's plugins.
     private static let standIn = #"""
         #!/bin/sh
-        [ "$1" = "app-server" ] || exit 2
+        [ "$#" = 3 ] && [ "$1" = "-c" ] && [ "$2" = "features.plugins=false" ] && [ "$3" = "app-server" ] || exit 2
         [ "$STAND_IN" = "exits" ] && exit 0
         while IFS= read -r line; do
           [ "$STAND_IN" = "silent" ] && continue
@@ -186,6 +194,12 @@ enum AgentCodexResetTests {
             AgentCodexServer.environment(for: server, searchPath: nil,
                                          base: ["PATH": "/usr/bin:/bin", "STAND_IN": mode])
         }
+
+        let quiet = AgentCodexConversation(server, environment: environment("plan"), timeout: 5)
+        let introduced = quiet?.start()
+        quiet?.end()
+        suite.expect(introduced.map { if case .success = $0 { return true }; return false } == true,
+                     "a conversation starts Codex's server with its plugins off")
 
         let checked = AgentCodexServer.check(server, environment: environment("plan"))
         let summary = try? checked.get()

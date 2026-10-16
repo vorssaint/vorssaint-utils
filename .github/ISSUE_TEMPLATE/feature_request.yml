@@ -38,24 +38,18 @@ body:
       label: Feature Area
       description: The same groups you see in Settings.
       options:
-        - Windows and Dock
-        - Mouse and keyboard
-        - Clipboard and files
+        - Essentials
+        - Utilities
         - Sound
         - Energy and display
-        - Tools
-        - System monitor
-        - Menu bar
+        - Windows and Dock
+        - Mouse and keyboard
+        - Files
+        - App management
+        - App
         - Other
     validations:
       required: true
-
-  - type: input
-    id: existing_apps
-    attributes:
-      label: Does another app already do this?
-      description: "A name or a screenshot is the most useful thing you can add. A request pointing at something concrete gets answered against that thing rather than against a guess at what you meant. [Related Apps](https://github.com/vorssaint/vorssaint-utils/issues/880) already tracks the apps people cite most often and where Vorssaint stands on each — worth a look before and after you write this, and say which behaviour of it you mean rather than only the name."
-      placeholder: "Rectangle, Raycast, macOS itself..."
 
   - type: textarea
     id: mockups

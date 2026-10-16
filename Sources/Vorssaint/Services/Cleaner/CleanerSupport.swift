@@ -65,7 +65,9 @@ enum CleanerSupport {
         if lowered == "com.apple" || lowered.hasPrefix("vorss.") {
             return true
         }
-        return sharedInfrastructurePrefixes.contains { lowered.hasPrefix($0) }
+        // A domain ends at a dot: com.segment covers com.segment.analytics,
+        // not the unrelated com.segmentfault.
+        return sharedInfrastructurePrefixes.contains { lowered == $0 || lowered.hasPrefix($0 + ".") }
     }
 
     /// Whether a Library entry name is shaped like a reverse DNS bundle
@@ -104,13 +106,16 @@ enum CleanerSupport {
     /// Returns nil when the name does not clearly belong to one bundle.
     static func bundleIDCandidate(fromEntryName rawName: String) -> String? {
         var name = rawName
-        for suffix in [".plist", ".savedState", ".binarycookies", ".prefPane",
-                       ".qlgenerator", ".mdimporter", ".service", ".appex",
-                       ".plugin", ".webplugin", ".saver", ".colorPicker",
-                       ".wdgt", ".app", ".framework", ".component", ".vst",
-                       ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
-                       ".safariextz", ".mailbundle"] where
-            name.lowercased().hasSuffix(suffix.lowercased()) {
+        // An entry has one extension. Removing every match in turn also took
+        // an identifier's last component when it is spelled like one, so
+        // com.vendor.Service.plist was credited to com.vendor.
+        let lowered = name.lowercased()
+        if let suffix = [".plist", ".savedState", ".binarycookies", ".prefPane",
+                         ".qlgenerator", ".mdimporter", ".service", ".appex",
+                         ".plugin", ".webplugin", ".saver", ".colorPicker",
+                         ".wdgt", ".app", ".framework", ".component", ".vst",
+                         ".vst3", ".clap", ".dpm", ".aaxplugin", ".dictionary",
+                         ".safariextz", ".mailbundle"].first(where: { lowered.hasSuffix($0.lowercased()) }) {
             name.removeLast(suffix.count)
         }
         name = strippingTrailingUUIDComponent(name)
@@ -121,16 +126,20 @@ enum CleanerSupport {
         if parts.count >= 3, isTeamIdentifier(String(parts[0])) {
             name = parts.dropFirst().joined(separator: ".")
         }
-        // A UUID still in the remainder (update stamps, mid-name hosts)
-        // makes the owner unattributable.
-        guard !containsUUIDComponent(name) else { return nil }
-        guard looksLikeBundleID(name),
-              name.split(separator: ".").allSatisfy({ part in
-                  part.unicodeScalars.contains {
-                      ($0 >= "a" && $0 <= "z") || ($0 >= "A" && $0 <= "Z")
-                  }
-              }) else { return nil }
-        return name
+        return isAttributableBundleID(name) ? name : nil
+    }
+
+    /// An owner an entry can be credited to: dotted, every component naming
+    /// something, and no UUID left in it (update stamps, mid-name hosts).
+    /// Checked again before removal on the owner itself, which may end in a
+    /// word an entry name would carry as its extension, as io.app does.
+    static func isAttributableBundleID(_ name: String) -> Bool {
+        !containsUUIDComponent(name) && looksLikeBundleID(name)
+            && name.split(separator: ".").allSatisfy { part in
+                part.unicodeScalars.contains {
+                    ($0 >= "a" && $0 <= "z") || ($0 >= "A" && $0 <= "Z")
+                }
+            }
     }
 
     static func isDirectChild(_ url: URL, of root: URL) -> Bool {
@@ -229,13 +238,16 @@ enum CleanerSupport {
     /// The executables a launchd property list points at, in the order they
     /// should be checked. A plist whose every referenced executable is gone
     /// is an orphan: the app that installed it no longer exists.
+    /// A bare command such as `sh` runs from launchd's search path, which
+    /// this app cannot see from its own folder; it says nothing about an app
+    /// being gone, so only absolute paths count.
     static func executablePaths(inLaunchPlist plist: [String: Any]) -> [String] {
         var paths: [String] = []
-        if let program = plist["Program"] as? String, !program.isEmpty {
+        if let program = plist["Program"] as? String, program.hasPrefix("/") {
             paths.append(program)
         }
         if let arguments = plist["ProgramArguments"] as? [Any],
-           let first = arguments.first as? String, !first.isEmpty {
+           let first = arguments.first as? String, first.hasPrefix("/") {
             paths.append(first)
         }
         // BundleProgram is relative to the bundle the plist ships in; when it
@@ -302,10 +314,72 @@ enum CleanerSupport {
         return Date(timeIntervalSince1970: TimeInterval(seconds) + TimeInterval(nanoseconds) / 1e9)
     }
 
+    /// The clock time macOS ends a capture name with, its hour, and whatever
+    /// follows: on a twelve hour Mac the day period, and otherwise nothing.
+    /// The tail is captured whole rather than as non-digits, because a few
+    /// locales write a day period that carries a digit of its own.
+    private static let captureTimePattern = try? NSRegularExpression(
+        pattern: #"(\d{1,2})\.\d{2}\.\d{2}(.*)$"#)
+
+    /// The spaces macOS puts before a day period. Only these are dropped when
+    /// comparing: treating the whole whitespace class as blank would swallow
+    /// a zero width character somebody pasted into a name and leave the empty
+    /// tail of a file nobody touched.
+    private static let captureSpaces = CharacterSet(charactersIn: " \u{00A0}\u{202F}")
+
+    /// Every day period macOS could have written into a capture name, in any
+    /// language it offers, reduced so that "p. m." and "p.m." compare equal.
+    /// Asking the system for them is what separates a real day period from a
+    /// short word somebody typed: "ui" and "ok" are not in here.
+    private static let dayPeriodSymbols: Set<String> = {
+        var symbols: Set<String> = []
+        for identifier in Locale.availableIdentifiers {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: identifier)
+            if let morning = formatter.amSymbol { symbols.insert(comparableDayPeriod(morning)) }
+            if let afternoon = formatter.pmSymbol { symbols.insert(comparableDayPeriod(afternoon)) }
+        }
+        symbols.remove("")
+        return symbols
+    }()
+
+    /// Lowercased with the spacing removed, and nothing else: one locale
+    /// writes "p. m." where another writes "p.m.", so spaces cannot count,
+    /// while every other mark has to survive. Dropping punctuation here would
+    /// erase the very thing a rename adds, and a file ending in "!" or an
+    /// emoji would reduce to the empty tail of an untouched name.
+    static func comparableDayPeriod(_ text: String) -> String {
+        text.lowercased().unicodeScalars.reduce(into: "") { result, scalar in
+            if !captureSpaces.contains(scalar) { result.unicodeScalars.append(scalar) }
+        }
+    }
+
+    /// Whether what trails the capture time is a day period macOS writes after
+    /// that particular hour, or nothing at all. A day period only exists on a
+    /// twelve hour clock, so an hour past twelve has to end on the time
+    /// itself; without that, a single letter that some locale happens to use
+    /// for morning would pass as a suffix on a twenty four hour name.
+    static func isCaptureDayPeriod(_ text: String, hour: Int) -> Bool {
+        let comparable = comparableDayPeriod(text)
+        if comparable.isEmpty { return true }
+        guard (1...12).contains(hour) else { return false }
+        return dayPeriodSymbols.contains(comparable)
+    }
+
+    /// The collision suffix macOS appends when a name is already taken.
+    private static let captureCopyIndexPattern = try? NSRegularExpression(
+        pattern: #"\s*\(\d+\)$"#)
+
     /// Whether a capture still carries the name macOS gave it, which always
-    /// holds the capture day. A renamed file is a decision the user made
-    /// about it, so it never counts as forgotten. The check is deliberately
-    /// narrow: a capture saved without a date in its name is simply skipped.
+    /// holds the capture day and ends on the capture time. A renamed file is a
+    /// decision the user made about it, so it never counts as forgotten, and
+    /// that has to include a rename that keeps the original name and adds to
+    /// it, which is what duplicating a capture in Finder produces
+    /// ("... 14.13.20 copy.png"). What follows the time therefore has to be a
+    /// day period macOS itself writes, asked of the system rather than guessed
+    /// at by length, so "14.13.20 ui.png" is a rename like any other. The
+    /// check stays deliberately narrow: a capture saved without a date and a
+    /// time in its name is simply skipped.
     static func screenshotKeepsDefaultName(_ name: String, created: Date,
                                            timeZone: TimeZone = .current) -> Bool {
         let formatter = DateFormatter()
@@ -313,7 +387,26 @@ enum CleanerSupport {
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.timeZone = timeZone
         formatter.dateFormat = "yyyy-MM-dd"
-        return name.contains(formatter.string(from: created))
+        guard name.contains(formatter.string(from: created)) else { return false }
+
+        let base = strippingCaptureCopyIndex((name as NSString).deletingPathExtension)
+        guard let captureTimePattern else { return true }
+        let range = NSRange(base.startIndex..<base.endIndex, in: base)
+        guard let match = captureTimePattern.firstMatch(in: base, range: range),
+              NSMaxRange(match.range) == range.length,
+              let hourRange = Range(match.range(at: 1), in: base),
+              let hour = Int(base[hourRange]),
+              let trailing = Range(match.range(at: 2), in: base) else { return false }
+        return isCaptureDayPeriod(String(base[trailing]), hour: hour)
+    }
+
+    static func strippingCaptureCopyIndex(_ name: String) -> String {
+        guard let captureCopyIndexPattern else { return name }
+        let range = NSRange(name.startIndex..<name.endIndex, in: name)
+        guard let match = captureCopyIndexPattern.firstMatch(in: name, range: range),
+              NSMaxRange(match.range) == range.length,
+              let suffix = Range(match.range, in: name) else { return name }
+        return String(name[name.startIndex..<suffix.lowerBound])
     }
 
     /// A capture is forgotten when nothing happened to it for `days`: not

@@ -7,7 +7,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Permission | Optional | Powers |
 |---|---|---|
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
-| Screen Recording | Yes | Window previews, screenshots, copy text from screen and screen recordings |
+| Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
@@ -49,6 +49,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
 
+The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
+
 **If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
 **Optional.** Yes.
@@ -61,7 +63,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
 
-**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
+**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it; apps you route to AirPlay are streamed from memory to the speaker you pick on your local network, through macOS's own AirPlay. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
 
 ## Microphone
 
@@ -137,7 +139,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
-- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent.
+- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
 **If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 

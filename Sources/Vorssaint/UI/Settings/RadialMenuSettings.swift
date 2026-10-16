@@ -26,6 +26,7 @@ struct RadialMenuSettings: View {
     @State private var editing: RadialMenuItem?
     @State private var dragging: RadialMenuItem?
     @State private var showList = false
+    @State private var confirmingDeletion: RadialMenuProfile?
     @Environment(\.colorScheme) private var colorScheme
 
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
@@ -109,6 +110,11 @@ struct RadialMenuSettings: View {
 
             Section {
                 profileManagementRow
+                if enabled, !RadialMenuSupport.hasTrigger(selectedProfile) {
+                    Text(text.profileNoTrigger)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 profileConfigurationRows
             } header: {
                 Text(text.profilesHeader)
@@ -250,13 +256,27 @@ struct RadialMenuSettings: View {
             .disabled(!enabled)
 
             Button {
-                deleteProfile()
+                confirmingDeletion = selectedProfile
             } label: {
                 Image(systemName: "trash")
             }
             .buttonStyle(.borderless)
             .help(text.deleteProfileButton)
             .disabled(!enabled || profiles.count <= 1)
+            .confirmationDialog(
+                String(format: text.deleteProfileConfirmFormat, confirmingDeletion?.displayName(text) ?? ""),
+                isPresented: Binding(get: { confirmingDeletion != nil },
+                                     set: { if !$0 { confirmingDeletion = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmingDeletion
+            ) { profile in
+                Button(text.deleteProfileButton, role: .destructive) {
+                    deleteProfile(id: profile.id)
+                }
+                Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            } message: { _ in
+                Text(text.deleteProfileConfirmMessage)
+            }
         }
     }
 
@@ -314,7 +334,9 @@ struct RadialMenuSettings: View {
             get: { profile.mouseButton },
             set: { newTrigger in
                 guard profiles.indices.contains(pIndex) else { return }
-                profiles[pIndex].mouseButton = newTrigger
+                // One wheel owns each button: claiming it here releases the others.
+                profiles = RadialMenuSupport.assigning(mouseButton: newTrigger,
+                                                       to: profiles[pIndex].id, in: profiles)
                 persist()
                 if RadialMenuMouseTrigger.sanitized(newTrigger) != .off, !permissions.accessibility {
                     permissions.requestAccessibility()
@@ -387,9 +409,10 @@ struct RadialMenuSettings: View {
         persist()
     }
 
-    private func deleteProfile() {
-        guard profiles.count > 1 else { return }
-        let index = selectedProfileIndex
+    /// Deletes the profile the user confirmed, which the selection may no
+    /// longer point at by the time the dialog closes.
+    private func deleteProfile(id: UUID) {
+        guard profiles.count > 1, let index = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles.remove(at: index)
         let nextIndex = min(index, profiles.count - 1)
         selectedProfileID = profiles[nextIndex].id
@@ -494,7 +517,7 @@ struct RadialMenuSettings: View {
               let row = CommandBarRowShortcuts.key(for: shortcut, in: CommandBarService.shared.rowShortcuts)
         else { return nil }
         return CommandBarService.shared.entryTitle(forStableKey: row)
-            ?? FeatureStrings.commandBar(l10n.language).rowShortcutsTitle
+            ?? FeatureStrings.commandBar(l10n.language).namedTitle
     }
 
     private func requestAccessibilityIfNeeded(_ on: Bool) {

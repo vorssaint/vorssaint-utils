@@ -230,11 +230,21 @@ final class SpaceHop {
     }
 
     /// Accessibility starts describing the window shortly after its Space
-    /// becomes visible; a couple of pulses cover the settling time.
+    /// becomes visible; a couple of pulses cover the settling time. Only the
+    /// first one raises unconditionally; the others retry unless the target's
+    /// Space is visible and it is the focused window of the process that owns it, with that process in front.
     private func focusOnArrival() {
-        for delay in [0.15, 0.45, 0.9] {
+        for (index, delay) in [0.15, 0.45, 0.9].enumerated() {
             schedule(after: delay) {
                 guard !self.cancelled, !self.app.isTerminated else { return }
+                guard SpaceHopSupport.arrivalPulseShouldFocus(
+                    isFirstPulse: index == 0,
+                    targetSpaceIsVisible: self.windowSpaceIsVisible(),
+                    targetWindowID: self.windowID,
+                    windowOwnerPID: self.windowOwnerPID,
+                    frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+                    focusedWindowID: WindowActivator.focusedWindowID(for: self.windowOwnerPID))
+                else { return }
                 WindowActivator.focusAfterSpaceHop(windowID: self.windowID,
                                                    appPID: self.appPID,
                                                    windowOwnerPID: self.windowOwnerPID,

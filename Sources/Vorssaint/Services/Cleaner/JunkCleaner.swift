@@ -272,7 +272,7 @@ final class JunkCleaner: ObservableObject {
               url.resolvingSymlinksInPath().standardizedFileURL.path == path else { return false }
         if item.category == .leftovers {
             guard isDirectLeftoverRootChild(url),
-                  CleanerSupport.bundleIDCandidate(fromEntryName: item.detail) != nil,
+                  CleanerSupport.isAttributableBundleID(item.detail),
                   !CleanerSupport.isProtectedBundleID(item.detail),
                   !hasLivingOwner(item.detail, installed: installed) else { return false }
         }

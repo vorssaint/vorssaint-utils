@@ -78,9 +78,9 @@ final class KillProcessService: ObservableObject {
         groupRelated = UserDefaults.standard.bool(forKey: DefaultsKey.killProcessGroupRelated)
     }
 
-    var filteredEntries: [KillProcessEntry] {
+    var sortedEntries: [KillProcessEntry] {
         let ascending = sortAscending
-        let sorted = entries.sorted { lhs, rhs in
+        return entries.sorted { lhs, rhs in
             switch sortBy {
             case .cpu:
                 return KillProcessSupport.numberComesBefore(lhs.cpuPercent, rhs.cpuPercent,
@@ -100,9 +100,12 @@ final class KillProcessService: ObservableObject {
                                                             ascending: ascending)
             }
         }
+    }
+
+    var filteredEntries: [KillProcessEntry] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !needle.isEmpty else { return sorted }
-        return sorted.filter {
+        guard !needle.isEmpty else { return sortedEntries }
+        return sortedEntries.filter {
             $0.name.lowercased().contains(needle) || String($0.pid) == needle
         }
     }

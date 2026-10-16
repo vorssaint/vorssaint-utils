@@ -83,6 +83,8 @@ enum MixerInputVolumeContract {
         }
         var retractions = 0
         func retractMicrophoneNotice() { retractions += 1 }
+        var reactions: [NotchMascotReaction] = []
+        func reactMascot(_ reaction: NotchMascotReaction) { reactions.append(reaction) }
     }
     enum L10n {
         static let shared = Strings()
@@ -298,6 +300,31 @@ enum MixerInputVolumeContract {
         HAL.readOnly.insert(HAL.key(10))
         m = manager()
         check(m.inputVolume == nil, "read-only gain hidden")
+        m.stop()
+        for (label, bad) in [("positive infinity", Float.infinity),
+                             ("negative infinity", -Float.infinity),
+                             ("NaN", Float.nan)] {
+            HAL.reset()
+            HAL.levels[HAL.key(10)] = bad
+            m = manager()
+            check(m.inputVolume == nil, "\(label) main gain is hidden")
+            m.stop()
+            HAL.reset()
+            HAL.levels[HAL.key(10, 1)] = 0.4
+            HAL.levels[HAL.key(10, 2)] = bad
+            m = manager()
+            check(m.inputVolume == nil, "\(label) on one channel hides the gain")
+            m.stop()
+        }
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = -0.5
+        m = manager()
+        check(near(m.inputVolume, 0), "negative gain clamps to 0")
+        m.stop()
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 1.5
+        m = manager()
+        check(near(m.inputVolume, 1), "gain above 1 clamps to 1")
         m.stop()
         HAL.reset()
         HAL.levels[HAL.key(10, 1)] = 0.2
@@ -758,6 +785,7 @@ enum MixerInputVolumeContract {
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.5
         NotchService.shared.showsMicrophone = true
+        NotchService.shared.reactions = []
         QuickToolHUD.messages = []
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
@@ -766,6 +794,8 @@ enum MixerInputVolumeContract {
         check(
             QuickToolHUD.messages.isEmpty && NotchService.shared.microphone == [true, false],
             "with Dynamic Island showing it, the switch reports there instead of a floating confirmation")
+        check(NotchService.shared.reactions == [.hush, .perk],
+              "the companion hushes as the microphone mutes and perks up as it opens")
         HAL.reset()
         HAL.devices = [10, 20]
         HAL.levels[HAL.key(10)] = 0.5

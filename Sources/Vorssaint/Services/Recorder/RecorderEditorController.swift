@@ -1574,6 +1574,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
                 return
             }
+            pasteboard.declareVorssaintSource()
             QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
             if deletesRecording {
                 self.confirmedClose = true
@@ -1646,11 +1647,6 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
             case .cancelled:
                 break
-            case .tooLongForGIF:
-                let seconds = Int(RecorderSupport.maximumGIFSeconds(
-                    fps: self.model.document.resolvedGIFFrameRate))
-                QuickToolHUD.show(icon: "record.circle",
-                                  message: String(format: self.strings.gifTooLongFormat, seconds))
             default:
                 NSSound.beep()
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)

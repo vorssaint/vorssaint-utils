@@ -233,6 +233,10 @@ private final class NotchAudioLevelReader {
     private var hostDeviceUID: String?
     private var sampleRate: Double = 0
     private var tapped: [AudioObjectID] = []
+    /// What the tap's mixdown took from the player's sound, given back before
+    /// the analysis. See `followLevel`.
+    private var levelCompensation: Float = 1
+    private var levelWatch: LevelCompensationWatch?
     /// Names this reader's listener registrations. See `NotchAudioLevelListeners`.
     private let listenerClient = NotchAudioLevelListeners.reserve()
     private var deviceListening = false
@@ -297,7 +301,31 @@ private final class NotchAudioLevelReader {
         if Self.read(tapID, kAudioTapPropertyFormat, &format), format.mChannelsPerFrame > 0 {
             tapChannels = Int(format.mChannelsPerFrame)
         }
+        followLevel(of: objects)
         return true
+    }
+
+    /// The mixdown divides what the player plays on an output with more than
+    /// two channels by that output's channel pairs (FB13479345, see
+    /// `MixerRoutingSupport.tapLevelCompensation`), so the bars moved less
+    /// with a TV or an audio interface as the output. The analysis gives that
+    /// level back, and the watch follows the player to another output.
+    private func followLevel(of objects: [AudioObjectID]) {
+        let watch = LevelCompensationWatch.started(objects: objects) { [weak self] value in
+            self?.queue.async { [weak self] in
+                // A watch already replaced can still answer for the processes
+                // of an older tap.
+                guard let self, !self.stopped, self.tapped == objects else { return }
+                self.levelCompensation = value
+            }
+        }
+        stopFollowingLevel()
+        levelWatch = watch
+    }
+
+    private func stopFollowingLevel() {
+        levelWatch?.stop()
+        levelWatch = nil
     }
 
     private func buildPipeline() -> Bool {
@@ -386,6 +414,7 @@ private final class NotchAudioLevelReader {
                                               Self.processCallback, listenerClient)
             processListening = false
         }
+        stopFollowingLevel()
         tapped = []
         teardownPipeline()
         let tapID = self.tapID
@@ -518,13 +547,19 @@ private final class NotchAudioLevelReader {
         // Levels are reported only once sound has arrived, so the bars keep
         // their usual motion while the tap warms up, and give this play up
         // when the tap only ever delivers silence.
-        guard ring.hasHeard else {
+        guard ring.hasHeard(gain: levelCompensation) else {
             if NotchAudioLevelSupport.fallsBack(heard: false, elapsed: ProcessInfo.processInfo.systemUptime - startedAt) {
                 release(reporting: onSilence)
             }
             return
         }
         guard ring.latest(into: &samples) else { return }
+        if levelCompensation > 1 {
+            var gain = levelCompensation
+            samples.withUnsafeMutableBufferPointer { buffer in
+                vDSP_vsmul(buffer.baseAddress!, 1, &gain, buffer.baseAddress!, 1, vDSP_Length(buffer.count))
+            }
+        }
         let magnitudes = analyzer.magnitudes(of: samples)
         let raw = NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: analyzer.bands)
         onLevels(smoother.next(raw))
@@ -613,13 +648,18 @@ private final class NotchAudioRing {
     private var samples: [Float]
     private var head = 0
     private var filled = 0
+    private var peak: Float = 0
     private var heard = false
     private let capacity: Int
 
-    /// Whether any sample so far carried sound rather than digital silence.
-    var hasHeard: Bool {
+    /// Whether any sample so far, turned up by `gain`, carried sound rather
+    /// than digital silence. The gain is what the tap's mixdown took, so a
+    /// quiet player on a wide output is not written off as silent. Once
+    /// heard, a lower correction must not undo that proof of sound.
+    func hasHeard(gain: Float) -> Bool {
         lock.lock()
         defer { lock.unlock() }
+        if peak * gain > 0.001 { heard = true }
         return heard
     }
 
@@ -645,7 +685,7 @@ private final class NotchAudioRing {
             loudest = max(loudest, abs(mono))
         }
         filled = min(capacity, filled + frames)
-        if loudest > 0.001 { heard = true }
+        peak = max(peak, loudest)
     }
 
     /// The most recent `output.count` samples, oldest first. False until

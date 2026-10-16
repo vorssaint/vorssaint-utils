@@ -11,11 +11,18 @@ import UserNotifications
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
     private var statusController: StatusItemController!
     private let popover = NSPopover()
-    private var popoverClosedAt = Date.distantPast
     private var popoverDismissMonitor: Any?
     private var popoverLocalDismissMonitor: Any?
     private var popoverKeyboardMonitor: Any?
     private var popoverIsClosing = false
+    /// Counts close fades, so a fade cut short by a reopen never closes the
+    /// panel shown after it.
+    private var popoverCloseFadeSerial = 0
+    private var popoverIsFadingOut = false
+    /// The window being faded, kept for the end of the fade even if the
+    /// popover has let go of it by then.
+    private weak var fadingPopoverWindow: NSWindow?
+    private var popoverIsReopening = false
     private var popoverCloseIsAppRequested = false
     /// The last visible geometry and event destination survive AppKit's teardown.
     private var popoverLastFrame: CGRect?
@@ -44,6 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var updateHighlightsIsReview = false
     private var updateShowcaseWindow: NSWindow?
     private var updatePreviewWindow: NSWindow?
+    private var whatsNewWindow: NSWindow?
+    private var whatsNewIsReview = false
 
     // MARK: - Lifecycle
 
@@ -69,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
+        DispatchQueue.global(qos: .utility).async {
+            RecorderGIFWorkspace.sweep()
+        }
+
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.
@@ -76,7 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
         // Redo a launch at login registration the system lost. The stored
         // choice is the last thing the user expressed in the app; startup
-        // never turns the item off.
+        // never turns the item off. It runs off the main thread, since
+        // Service Management can stall while answering (issue #2539).
         LaunchAtLogin.repairAtStartup()
 
         // Switch back on any display a previous run left off. A run that ends
@@ -144,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
         FanControlService.recoverIfNeeded()
+        SpacesOrderHold.recoverIfNeeded()
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
@@ -200,16 +215,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.showUpdateHighlights(isReview: true)
                 return
             }
+            // `--preview-whats-new [version]`: the post-update window for an
+            // update from that version (this one by default), with the
+            // changelog's unreleased notes on top. Nothing is marked as seen.
+            if let flag = CommandLine.arguments.firstIndex(of: "--preview-whats-new") {
+                let next = CommandLine.arguments.dropFirst(flag + 1).first
+                let previous = next.flatMap { $0.hasPrefix("-") ? nil : $0 } ?? AppInfo.version
+                self.showWhatsNew(from: previous, includeUnreleased: true, isReview: true)
+                return
+            }
             #endif
             if !defaults.bool(forKey: DefaultsKey.hasOnboarded) {
                 guard !skipStartupWindows else { return }
                 self.showOnboarding(mode: .full)
             } else {
-                // Keep the last seen version marker current without opening
-                // post-update release notes; the update flow already previews
-                // them.
+                // Keep the last seen version marker current. An update is
+                // queued for the What's New window first, so a start that
+                // goes wrong before the window opens still shows it next time.
                 let previousVersion = defaults.string(forKey: DefaultsKey.lastUpdateIntroVersion)
                 self.queueBrightnessUpdatePromptIfNeeded(previousVersion: previousVersion)
+                self.queueWhatsNewIfNeeded(previousVersion: previousVersion)
                 defaults.set(OnboardingInfo.currentFeatureSet, forKey: DefaultsKey.featuresOnboardingVersion)
                 defaults.set(AppInfo.version, forKey: DefaultsKey.lastUpdateIntroVersion)
                 guard !skipStartupWindows else { return }
@@ -359,7 +384,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             if self.iconIsOnScreen(), !self.popover.isShown {
-                self.popoverClosedAt = .distantPast
                 self.togglePopover()
             }
             if !self.popover.isShown {
@@ -374,6 +398,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// bar (in which case the button still has a window, just not an on-screen one).
     private static let menuBarLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
                                            category: "menubar")
+    private static let updateLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                          category: "update")
 
     private func iconIsOnScreen() -> Bool {
         // A hidden item is not on screen, whatever frame its window last had.
@@ -444,8 +470,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         AppAppearanceController.shared.follow(panel: popover)
     }
 
+    /// Shown and not on its way out. A click on a panel that is fading out
+    /// opens it again rather than being lost to the fade.
+    private var popoverIsOpen: Bool {
+        popover.isShown && !popoverIsClosing
+    }
+
     private func togglePopover(anchor button: NSStatusBarButton? = nil) {
-        if popover.isShown {
+        if popoverIsOpen {
             closePopover(reason: .statusItem)
             return
         }
@@ -456,7 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
             NotchService.shared.openAppPanel(toggle: true); return
         }
-        if !popover.isShown {
+        if !popoverIsOpen {
             MenuPanelFocus.shared.showNormalPanel()
         }
         togglePopover()
@@ -472,7 +504,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            NotchSupport.modules().contains(.system) {
             NotchService.shared.showMetric(detailKind, toggle: true); return
         }
-        if popover.isShown {
+        if popoverIsOpen {
             if MenuPanelFocus.shared.activeMetric == detailKind {
                 metricAnchorSwitchSerial &+= 1
                 MenuPanelFocus.shared.clearMetricFocus()
@@ -503,7 +535,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func reanchorMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
         guard popover.isShown else {
             MenuPanelFocus.shared.focus(detailKind)
-            showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false)
+            showPopover(anchor: button, animate: false, activate: false)
             return
         }
         popoverIsSwitchingAnchor = true
@@ -523,13 +555,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                         anchor: resolvePanelAnchor(for: button, window: window))
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self, weak button] in
-            guard let self,
-                  let button,
+            guard let self else {
+                MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+                return
+            }
+            guard let button,
                   self.popover.isShown,
                   self.metricAnchorSwitchSerial > 0,
                   MenuPanelFocus.shared.activeMetric == detailKind else {
-                self?.popoverIsSwitchingAnchor = false
+                self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+                // A close in this window, like a second click on the same
+                // metric, ran while switching, so popoverDidClose kept these.
+                if !self.popover.isShown {
+                    self.statusController.setMicBadgeHeld(false)
+                    self.releasePanelResources()
+                    self.endPanelActivationTracking()
+                }
                 return
             }
             // The pinned anchor is the yardstick; a reported frame the system
@@ -870,6 +912,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             removePopoverDismissMonitor()
             popoverIsSwitchingAnchor = false
             MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
+            // A close during the show ran while switching, so popoverDidClose
+            // kept these for a panel that is not coming back.
+            if !popover.isShown {
+                statusController.setMicBadgeHeld(false)
+                releasePanelResources()
+                endPanelActivationTracking()
+            }
             return false
         }
         configurePopoverWindow(popoverWindow)
@@ -939,9 +988,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 }
                 return
             }
-            self.popoverClosedAt = .distantPast
             MenuPanelFocus.shared.focus(detailKind)
-            self.showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false)
+            self.showPopover(anchor: button, animate: false, activate: false)
             DispatchQueue.main.async {
                 self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
@@ -950,14 +998,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showPopover(anchor button: NSStatusBarButton? = nil,
-                             allowRecentClose: Bool = false,
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
+        // An interrupted fade continues the same presentation. Keep the
+        // requested metric and activation source through its intermediate close.
+        let reopening = popoverIsFadingOut && popover.isShown
+        let interruptedCloseReason = popoverCloseReason
+        popoverIsReopening = reopening
+        finishPopoverFadeOut()
+        popoverIsReopening = false
+        defer {
+            if reopening, !popover.isShown {
+                statusController.setMicBadgeHeld(false)
+                releasePanelResources()
+                returnActivation(to: endPanelActivationTracking(), after: interruptedCloseReason)
+            }
+        }
         guard !popover.isShown, !popoverIsClosing else { return }
-        // The click that just transient-dismissed the popover also lands here;
-        // reopening would make the panel look impossible to close.
-        guard allowRecentClose || Date().timeIntervalSince(popoverClosedAt) > 0.35 else { return }
         guard let button = button ?? statusController.button else { return }
 
         // The panel measures itself against this while the popover lays out, so
@@ -984,7 +1042,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             statusController.setMicBadgeHeld(false)
         }
         if activate {
-            beginPanelActivationTracking()
+            if !reopening || panelActivationObservers.isEmpty {
+                beginPanelActivationTracking()
+            }
             NSApp.activate(ignoringOtherApps: true)
         }
         // Only arm the monitors and the anchor if the popover actually presented
@@ -993,7 +1053,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard popover.isShown else {
             statusController.setMicBadgeHeld(false)
             endPopoverDriftCorrection()
-            endPanelActivationTracking()
+            if !reopening { endPanelActivationTracking() }
             return
         }
         if let window = popover.contentViewController?.view.window {
@@ -1115,6 +1175,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // fires on every activation, so rebuilding here would cause churn/flicker.)
         UpdateService.shared.checkIfStale()
         restoreAfterAppUpdateHandoff()
+        if settingsWindow?.isVisible == true {
+            NotificationCenter.default.post(name: LaunchAtLoginSupport.settingsRefreshRequested, object: nil)
+        }
     }
 
     /// Some updates finish in another app. With no Dock icon there is no way
@@ -1162,13 +1225,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         guard !popoverIsClosing else { return }
 
         popoverIsClosing = true
-        if animated {
-            popover.performClose(nil)
+        if animated, let window = popover.contentViewController?.view.window {
+            fadeOutPopover(window)
         } else {
-            popover.animates = false
-            popover.close()
-            popover.animates = true
+            closePopoverWithoutAnimation()
         }
+    }
+
+    /// AppKit's animated close keeps the popover on screen for about half a
+    /// second after it has faded (measured on macOS 15 and 27), and the panel
+    /// cannot be shown again until then, so a click on the icon in that time
+    /// did nothing. The panel fades itself out and then closes at once.
+    private func fadeOutPopover(_ window: NSWindow) {
+        popoverCloseFadeSerial &+= 1
+        let serial = popoverCloseFadeSerial
+        popoverIsFadingOut = true
+        fadingPopoverWindow = window
+        window.ignoresMouseEvents = true
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.1
+            window.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            guard let self, self.popoverCloseFadeSerial == serial else { return }
+            self.finishPopoverFadeOut()
+        }
+    }
+
+    private func finishPopoverFadeOut() {
+        guard popoverIsFadingOut else { return }
+        popoverIsFadingOut = false
+        popoverCloseFadeSerial &+= 1
+        let window = fadingPopoverWindow ?? popover.contentViewController?.view.window
+        fadingPopoverWindow = nil
+        closePopoverWithoutAnimation()
+        // The popover may present from the same window next time. A direct
+        // set also stops a fade AppKit is still stepping, as when a click
+        // reopens the panel mid-fade; a zero-length animation does not.
+        if let window {
+            window.alphaValue = 1
+            window.ignoresMouseEvents = false
+        }
+    }
+
+    private func closePopoverWithoutAnimation() {
+        popover.animates = false
+        popover.close()
+        popover.animates = true
     }
 
     private func runPopoverCloseCompletions() {
@@ -1195,9 +1297,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func popoverWillClose(_ notification: Notification) {
         popoverIsClosing = true
-        if !popoverIsSwitchingAnchor {
-            popoverClosedAt = Date()
-        }
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -1215,14 +1314,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if !popoverIsSwitchingAnchor && !popover.isShown {
             statusController.setMicBadgeHeld(false)
         }
-        if !popoverIsSwitchingAnchor {
+        if !popoverIsSwitchingAnchor && !popoverIsReopening {
             releasePanelResources()
         }
         removePopoverDismissMonitor()
         endPopoverDriftCorrection()
         PanelInteractionState.shared.viewKeepsPopoverOpen = false
         PanelInteractionState.shared.isPresentingPopoverModal = false
-        popoverClosedAt = popoverIsSwitchingAnchor ? .distantPast : Date()
         popoverIsClosing = false
         popoverCloseIsAppRequested = false
         let closeReason = popoverCloseReason
@@ -1230,7 +1328,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         runPopoverCloseCompletions()
         if let recoveryAnchor {
             reopenPanelAfterForeignClose(anchor: recoveryAnchor)
-        } else if !popoverIsSwitchingAnchor {
+        } else if !popoverIsSwitchingAnchor && !popoverIsReopening {
             returnActivation(to: endPanelActivationTracking(), after: closeReason)
         }
     }
@@ -1359,8 +1457,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private func reopenPanelAfterForeignClose(anchor: PanelAnchor) {
         popoverForeignReopenAt = Date()
         if let button = anchor.button {
-            showPopover(anchor: button, allowRecentClose: true, animate: false, activate: false,
-                        restoring: anchor)
+            showPopover(anchor: button, animate: false, activate: false, restoring: anchor)
         }
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -1658,6 +1755,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // that page's own onAppear, since its view was never removed from
         // the hierarchy; the window itself is the only reliable signal here.
         SecureInputMonitor.shared.setSettingsWindowOpen(true)
+        SettingsWindowVisibility.shared.set(true)
+        NotificationCenter.default.post(name: LaunchAtLoginSupport.settingsRefreshRequested, object: nil)
         DispatchQueue.main.async { [weak self] in
             guard let self, let window = self.settingsWindow else { return }
             self.positionSettingsWindow(window, force: false, on: targetScreen)
@@ -1959,6 +2058,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Beta updates only introduce their new feature; other update surfaces
     /// retain their own release gates.
     private func presentUpdateIntros() {
+        if showWhatsNewIfNeeded() { return }
         if showUpdateHighlightsIfNeeded() { return }
         if !AppInfo.isBeta {
             if showSupportUpdateIntroIfNeeded() { return }
@@ -2084,6 +2184,121 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                                   forKey: DefaultsKey.updateHighlightsSeenVersion)
     }
 
+    /// Records an update the What's New window still has to cover. A second
+    /// update before it opens keeps the older starting point.
+    private func queueWhatsNewIfNeeded(previousVersion: String?) {
+        // The Developer build takes its version from whichever worktree built
+        // it, so its versions jump around; it previews with a launch flag.
+        guard !AppInfo.isDeveloperBuild else { return }
+        let pending = WhatsNewInfo.pendingVersion(
+            current: AppInfo.version, previous: previousVersion,
+            seen: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion),
+            pending: UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion))
+        UserDefaults.standard.set(pending, forKey: DefaultsKey.whatsNewPendingVersion)
+    }
+
+    private func showWhatsNewIfNeeded() -> Bool {
+        guard !isTerminating,
+              let previous = UserDefaults.standard.string(forKey: DefaultsKey.whatsNewPendingVersion)
+        else { return false }
+        // Turned off in Settings, or nothing in the update touches what this
+        // Mac uses: the update counts as read.
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.releaseNotesOnUpdate),
+              showWhatsNew(from: previous) else {
+            markWhatsNewSeen()
+            return false
+        }
+        return true
+    }
+
+    private func markWhatsNewSeen() {
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.whatsNewPendingVersion)
+        UserDefaults.standard.set(AppInfo.version, forKey: DefaultsKey.whatsNewSeenVersion)
+        UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+    }
+
+    /// Opens What's New for the changes since `previous`. Returns false, and
+    /// opens nothing, when none of them concern this Mac's features.
+    @discardableResult
+    func showWhatsNew(from previous: String, includeUnreleased: Bool = false, isReview: Bool = false) -> Bool {
+        if let window = whatsNewWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKeyAndOrderFront(nil)
+            return true
+        }
+        let defaults = UserDefaults.standard
+        let digest = ReleaseDigest.make(from: previous, to: AppInfo.version,
+                                        changelog: ReleaseNotes.bundledChangelog() ?? "",
+                                        includeUnreleased: includeUnreleased)
+        let strings = L10n.shared.s
+        let language = L10n.shared.language
+        let hub = FeatureStrings.hub(language)
+        let sections = WhatsNewSupport.sections(
+            digest: digest,
+            newFeatures: WhatsNewInfo.newFeatures(
+                known: defaults.string(forKey: DefaultsKey.whatsNewKnownFeatures),
+                isSupported: { $0.isHardwareSupported }),
+            sidebarItems: SettingsDirectory.sidebarItems(strings, language: language,
+                                                         isAvailable: { $0.isAvailable }),
+            isAvailable: { $0.isAvailable },
+            title: { $0.hubTitle(strings, hub: hub) },
+            generalTitle: strings.tabGeneral)
+        guard sections.hasContentForYou || (isReview && !sections.rows.isEmpty) else { return false }
+        closePopover()
+        let visible = NSScreen.pointerVisibleFrame
+        let rows = sections.rows
+        let host = NSHostingController(rootView: WhatsNewDigestView(
+            digest: digest, sections: sections, availableSize: visible.size,
+            retitle: {
+                // Titles follow a language change made while the window is open.
+                let strings = L10n.shared.s
+                let language = L10n.shared.language
+                let hub = FeatureStrings.hub(language)
+                return WhatsNewSupport.titles(
+                    of: rows,
+                    sidebarItems: SettingsDirectory.sidebarItems(strings, language: language,
+                                                                 isAvailable: { _ in true }),
+                    title: { $0.hubTitle(strings, hub: hub) },
+                    generalTitle: strings.tabGeneral)
+            },
+            onOpenSettings: { [weak self] in self?.openSettingsFromWhatsNew() },
+            onFinish: { [weak self] in self?.whatsNewWindow?.close() }
+        ))
+        host.sizingOptions = .preferredContentSize
+        let window = NSWindow(contentViewController: host)
+        window.title = strings.tabReleaseNotes
+        window.styleMask = [.titled, .closable, .fullSizeContentView]
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isReleasedWhenClosed = false
+        window.isRestorable = false
+        window.delegate = self
+        centerIntroWindow(window)
+        whatsNewIsReview = isReview
+        whatsNewWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        DispatchQueue.main.async { [weak self, weak window] in
+            guard let self, let window, window === self.whatsNewWindow else { return }
+            self.centerIntroWindow(window)
+        }
+        return true
+    }
+
+    /// Settings opens beside What's New, so the change just read and the
+    /// option it mentions are both on screen. Where the screen is too narrow
+    /// for both, Settings stays in front, since its controls are the point.
+    private func openSettingsFromWhatsNew() {
+        openSettingsWindow()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let window = self.whatsNewWindow, window.isVisible else { return }
+            self.positionTourBesideSettings(window)
+            if let settings = self.settingsWindow, !window.frame.intersects(settings.frame) {
+                window.orderFront(nil)
+            }
+        }
+    }
+
     private func showUpdateShowcaseIntroIfNeeded() -> Bool {
         guard AppInfo.version == UpdateShowcaseInfo.releaseVersion else {
             UpdateShowcaseInfo.cleanupCache()
@@ -2196,6 +2411,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
            host.rootView.availableSize != visible.size {
             host.rootView.availableSize = visible.size
         }
+        if let host = window.contentViewController as? NSHostingController<WhatsNewDigestView>,
+           host.rootView.availableSize != visible.size {
+            host.rootView.availableSize = visible.size
+        }
         window.contentView?.layoutSubtreeIfNeeded()
         if let fitting = window.contentViewController?.view.fittingSize,
            fitting.width > 0, fitting.height > 0 {
@@ -2209,16 +2428,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     /// The pre-install update preview, shown before any download from BOTH the
     /// Settings install button and the menu panel's update banner (the blue
-    /// button most people use), so the changelog is always seen first. In the
-    /// Developer build `downloadAndInstall()` is a no-op, so confirming is safe.
+    /// button most people use), so the changelog is seen first unless the
+    /// person chose to skip it. In the Developer build `downloadAndInstall()`
+    /// is a no-op, so confirming is safe.
     func showUpdatePreview() {
         guard case let .available(version) = UpdateService.shared.state else { return }
-        closePopover()
         if let window = updatePreviewWindow {
+            closePopover()
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return
         }
+        // The panel stays open, so its banner shows the download's progress.
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.showReleaseNotesBeforeUpdate) else {
+            if AppInfo.isDeveloperBuild {
+                // The Developer build never installs; say so instead of
+                // ignoring the click.
+                Self.updateLog.log("release notes skipped; the Developer build does not install updates")
+            }
+            UpdateService.shared.downloadAndInstall()
+            return
+        }
+        closePopover()
         let host = NSHostingController(rootView: UpdatePreviewView(
             version: version,
             notes: UpdateService.shared.availableNotes,
@@ -2270,6 +2501,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         saveSettingsWindowSize(window)
     }
 
+    func windowDidChangeOcclusionState(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow, window === settingsWindow else { return }
+        // Minimized, on another Space or covered, Settings draws for nobody too.
+        SettingsWindowVisibility.shared.set(window.isVisible && window.occlusionState.contains(.visible))
+    }
+
     /// Remembers the user-chosen Settings size (as content size, so the
     /// restore is title bar independent).
     private func saveSettingsWindowSize(_ window: NSWindow) {
@@ -2300,6 +2537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // page's own demand is left alone, so it resumes on its own the
             // moment the window reopens, on this page or any other.
             SecureInputMonitor.shared.setSettingsWindowOpen(false)
+            SettingsWindowVisibility.shared.set(false)
             return
         }
         if window === onboardingWindow {
@@ -2338,6 +2576,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             markUpdateHighlightsSeen()
             finishedUpdateIntro = true
         }
+        if window === whatsNewWindow {
+            whatsNewWindow = nil
+            let isReview = whatsNewIsReview
+            whatsNewIsReview = false
+            guard !isTerminating, !isReview else { return }
+            markWhatsNewSeen()
+            finishedUpdateIntro = true
+        }
         if window === updatePreviewWindow {
             updatePreviewWindow = nil
         }
@@ -2359,6 +2605,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // A clean install that just saw everything in onboarding should not
         // then get the update tour; only people who updated get it.
         markUpdateHighlightsSeen()
+        // Nor treat the features it was just offered as new on the next
+        // update, or a restored backup's older version as an update.
+        if UserDefaults.standard.string(forKey: DefaultsKey.whatsNewKnownFeatures) == nil {
+            UserDefaults.standard.set(WhatsNewInfo.knownFeaturesValue, forKey: DefaultsKey.whatsNewKnownFeatures)
+        }
+        UserDefaults.standard.set(
+            WhatsNewInfo.later(UserDefaults.standard.string(forKey: DefaultsKey.whatsNewSeenVersion), AppInfo.version),
+            forKey: DefaultsKey.whatsNewSeenVersion)
+        // Setup just picked the installed features; a beta adds the companion
+        // for a Command Bar user now.
+        Defaults.installCompanionForBetaCommandBar(in: .standard)
     }
 
     private func markSupportUpdateIntroSeenIfCurrentUpdate() {

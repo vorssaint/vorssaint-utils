@@ -9,9 +9,10 @@ import SwiftUI
 /// The island over the lock screen: music on a pane of Liquid Glass between
 /// the clock and the login controls, the activities as a line under the
 /// clock, the padlock at the camera, and the padlock sounds. The
-/// island drives it from its own session state, after it has handled the
-/// same change: its teardown on locking stops the sources this service then
-/// restarts, and on unlocking it takes them back before the scene leaves.
+/// island drives it from its own session state. On locking it follows the
+/// island's teardown, which stops the sources this service then restarts.
+/// On unlocking the scene starts leaving before the island comes back, and
+/// stops none of the sources the island takes back.
 final class NotchLockScreenService {
     static let shared = NotchLockScreenService()
 
@@ -19,6 +20,8 @@ final class NotchLockScreenService {
         var player: CGRect?
         var row: CGRect?
         var island: CGRect?
+        /// The island itself inside its window, at the camera's fitted size.
+        var islandSurface: CGRect?
     }
 
     private let model = NotchLockScreenModel()
@@ -83,8 +86,11 @@ final class NotchLockScreenService {
         // The island's own reading of its camera, with the fit the person set.
         let geometry = NotchService.shared.geometry
         if geometry.isNotched, NSScreen.screens.contains(where: { $0.frame == geometry.screen && $0.safeAreaInsets.top > 0 }) {
-            frames.island = NotchLockScreenLayout.islandFrame(in: geometry.screen, cameraWidth: geometry.bareCutout.width,
-                                                              cameraHeight: geometry.bareCutout.height)
+            let surface = NotchLockScreenLayout.islandSurface(
+                in: geometry.screen, cameraWidth: geometry.bareCutout.width, cameraHeight: geometry.bareCutout.height,
+                wing: geometry.lockScreenMusicGeometry.compactActivityWingWidth)
+            frames.islandSurface = surface
+            frames.island = surface.map(NotchLockScreenLayout.islandFrame(around:))
         }
         return frames
     }
@@ -113,9 +119,13 @@ final class NotchLockScreenService {
         if let frame = frames.row {
             scene.append(Self.makePanel(frame: frame, content: NotchLockScreenActivities(model: model, size: frame.size)))
         }
-        let island = frames.island.map { frame in
-            Self.makePanel(frame: frame, content: NotchLockScreenIsland(
-                model: model, size: frame.size, cameraWidth: NotchService.shared.geometry.bareCutout.width))
+        let island = frames.island.flatMap { frame in
+            frames.islandSurface.map { surface in
+                Self.makePanel(frame: frame, content: NotchLockScreenIsland(
+                    model: model, size: surface.size, cameraWidth: NotchService.shared.geometry.bareCutout.width,
+                    geometry: NotchService.shared.geometry.lockScreenMusicGeometry,
+                    window: frame.size, origin: CGPoint(x: surface.minX - frame.minX, y: frame.maxY - surface.maxY)))
+            }
         }
         let panels = scene + [island].compactMap { $0 }
         guard !panels.isEmpty else { space.close(); return }
@@ -196,20 +206,38 @@ final class NotchLockScreenService {
         scene.forEach { Self.fadeOut($0, after: 0, completion: finished) }
         if let island {
             model.padlockOpen = true
-            Self.fadeOut(island, after: 0.55, completion: finished)
+            // The island comes back on this turn and holds the main thread, so
+            // the padlock is first seen opening once that is done. Its time
+            // starts there, or the island would fade while the padlock opens.
+            DispatchQueue.main.async { Self.fadeOut(island, after: 0.55, completion: finished) }
         }
     }
 
     private static func fadeOut(_ panel: NSPanel, after delay: TimeInterval, completion: @escaping () -> Void) {
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.2
-                panel.animator().alphaValue = 0
-            }, completionHandler: {
-                panel.orderOut(nil)
-                completion()
-            })
+        let duration: TimeInterval = 0.2
+        let fade = {
+            // AppKit steps its fades on the main thread, which the island
+            // coming back holds as the Mac unlocks, so the player could stay
+            // over the desktop for a second. The window server fades on its own,
+            // once a fade-in AppKit may still be stepping stops where it is.
+            panel.alphaValue = panel.alphaValue
+            if NotchWindowServerFade.fadeOut(panel, duration: duration) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+                    panel.alphaValue = 0
+                    panel.orderOut(nil)
+                    completion()
+                }
+            } else {
+                NSAnimationContext.runAnimationGroup({ context in
+                    context.duration = duration
+                    panel.animator().alphaValue = 0
+                }, completionHandler: {
+                    panel.orderOut(nil)
+                    completion()
+                })
+            }
         }
+        if delay > 0 { DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: fade) } else { fade() }
     }
 
     private static func makePanel<Content: View>(frame: CGRect, interactive: Bool = false,
@@ -235,6 +263,29 @@ final class NotchLockScreenService {
         panel.contentView = host
         panel.setFrame(frame, display: false)
         return panel
+    }
+}
+
+/// A fade the window server runs by itself, whatever the main thread is
+/// doing. The symbols are resolved at runtime. Without them AppKit fades.
+private enum NotchWindowServerFade {
+    private typealias AlphaFunction = @convention(c) (UInt32, UnsafePointer<UInt32>, Int32, Float, Float) -> Int32
+
+    private static let bridge: (connection: UInt32, setAlpha: AlphaFunction)? = {
+        func symbol(_ name: String) -> UnsafeMutableRawPointer? {
+            dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, name)
+        }
+        guard let main = symbol("CGSMainConnectionID"), let alpha = symbol("CGSSetWindowListAlpha") else { return nil }
+        let connection = unsafeBitCast(main, to: (@convention(c) () -> UInt32).self)()
+        guard connection != 0 else { return nil }
+        return (connection, unsafeBitCast(alpha, to: AlphaFunction.self))
+    }()
+
+    /// Whether the window server took the fade.
+    static func fadeOut(_ window: NSWindow, duration: TimeInterval) -> Bool {
+        guard let bridge, window.windowNumber > 0 else { return false }
+        var id = UInt32(window.windowNumber)
+        return bridge.setAlpha(bridge.connection, &id, 1, 0, Float(duration)) == 0
     }
 }
 

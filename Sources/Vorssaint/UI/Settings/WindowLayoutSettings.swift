@@ -18,12 +18,15 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowDirectionalShortcut) private var directionalShortcutRaw = GlobalShortcut.windowDirectionalDefault.storageValue
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
+    @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
+    @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
     // Same preference the Switcher page exposes next to Dock Preview; it is
     // mirrored here because it is a window-juggling behavior people look for
@@ -71,6 +74,7 @@ struct WindowLayoutSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     WindowEdgeSnapZonePicker(disabledZonesStorage: $edgeSnapDisabledZones,
+                                             zoneActionsStorage: $edgeSnapZoneActions,
                                              text: text,
                                              resetTitle: l10n.s.shortcutReset)
                         .disabled(!edgeSnapEnabled)
@@ -147,12 +151,21 @@ struct WindowLayoutSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if directionalEnabled {
-                        ShortcutRecorderButton(shortcut: directionalShortcut,
+                        ShortcutRecorderButton(shortcut: directionalKeyShortcut,
                                                isEnabled: permissions.accessibility,
                                                waitingTitle: l10n.s.shortcutPressKeys,
-                                               invalidAction: {},
+                                               emptyTitle: directionalTrigger.displayString,
+                                               notCapturedAction: { directionalError = l10n.s.shortcutNotCaptured },
+                                               recordingChanged: { if $0 { directionalError = nil } },
+                                               captureModifiersAction: { saveDirectionalTrigger(.modifiers($0)) },
+                                               invalidAction: { directionalError = l10n.s.shortcutInvalid },
                                                captureAction: saveDirectionalShortcut)
                             .frame(width: 108)
+                        if let directionalError {
+                            Text(directionalError)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
                         if service.directionalShortcutRegistrationFailed {
                             Text(l10n.s.shortcutUnavailable)
                                 .font(.caption)
@@ -203,6 +216,7 @@ struct WindowLayoutSettings: View {
                 Section(text.other) {
                     actionRow(.maximize)
                     actionRow(.marginMaximize)
+                    marginSlider
                     actionRow(.fullScreen)
                     actionRow(.center)
                     actionRow(.previousDisplay)
@@ -243,13 +257,26 @@ struct WindowLayoutSettings: View {
         .settingsFormSectionAnchor(.windowMaximizer)
     }
 
-    private var directionalShortcut: GlobalShortcut {
-        GlobalShortcut(storageValue: directionalShortcutRaw) ?? .windowDirectionalDefault
+    private var directionalTrigger: WindowDirectionalTrigger {
+        WindowDirectionalTrigger(storageValue: directionalShortcutRaw) ?? .key(.windowDirectionalDefault)
+    }
+
+    private var directionalKeyShortcut: GlobalShortcut {
+        if case .key(let shortcut) = directionalTrigger { return shortcut }
+        return .windowDirectionalDefault
     }
 
     private func saveDirectionalShortcut(_ shortcut: GlobalShortcut) {
-        guard service.directionalShortcutConflictTitle(shortcut) == nil else { return }
-        directionalShortcutRaw = shortcut.storageValue
+        if let conflict = service.directionalShortcutConflictTitle(shortcut) {
+            directionalError = String(format: l10n.s.shortcutConflictFormat, conflict)
+            return
+        }
+        saveDirectionalTrigger(.key(shortcut))
+    }
+
+    private func saveDirectionalTrigger(_ trigger: WindowDirectionalTrigger) {
+        directionalError = nil
+        directionalShortcutRaw = trigger.storageValue
         service.syncWithPreferences()
     }
 
@@ -276,6 +303,22 @@ struct WindowLayoutSettings: View {
         default: return "\(value) px"
         }
         return "\(name) (\(value) px)"
+    }
+
+    private var marginSlider: some View {
+        HStack(spacing: 12) {
+            Slider(value: Binding(
+                get: { WindowLayoutMargin.sanitizedPercent(marginPercent) },
+                set: { marginPercent = WindowLayoutMargin.sanitizedPercent($0) }
+            ), in: WindowLayoutMargin.percentRange, step: 1) {
+                Text(text.marginPerEdge)
+            }
+            Text(WindowLayoutMargin.sanitizedPercent(marginPercent) / 100,
+                 format: .percent.precision(.fractionLength(0)))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+        }
     }
 
     private func refreshSystemTilingState() {

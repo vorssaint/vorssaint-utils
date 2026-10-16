@@ -26,6 +26,7 @@ enum NotchHoverTests {
         struct Preferences {
             var enabled = true, expands = true, hides = false
             var delay = NotchSupport.defaultHoverDelay
+            var closeDelay = NotchSupport.defaultCloseDelay
             func bool(forKey key: String) -> Bool {
                 key == DefaultsKey.notchHideUntilHover ? hides : key == DefaultsKey.notchOpenOnHover ? enabled : expands
             }
@@ -61,11 +62,28 @@ enum NotchHoverTests {
     enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
     enum NotchMusicService {
         static let shared = Reader()
-        final class Reader { var playback: NotchPlayback? }
+        final class Reader {
+            enum Command { case toggle }
+            var playback: NotchPlayback?
+            /// Whether the player takes a command now, and whether one is still on its way.
+            var performs = true, commandPending = false, accepts = true
+            var sent: [NotchPlaybackContext?] = []
+            func canPerform(_ command: Command) -> Bool { performs && playback?.commandContext != nil }
+            func send(_ command: Command, context: NotchPlaybackContext?) -> Bool { sent.append(context); return accepts }
+            func reset() { performs = true; commandPending = false; accepts = true; sent = [] }
+        }
     }
     /// The strip's track by title; the real snapshot also holds its cover and geometry.
-    struct NotchCompactMusicSnapshot: Equatable { let title: String }
+    struct NotchCompactMusicSnapshot: Equatable {
+        let title: String
+        var playback: NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: "Artist", album: nil, artworkData: nil,
+                                                          appBundleIdentifier: "org.example.player", appPID: 42),
+                          isPlaying: false, elapsed: 0, duration: 200, rate: 0, sampledAt: Date(), canSeek: false)
+        }
+    }
     class State {
+        var noticeFitsInPlace = false
         func schedulePointerFollow() {}
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -82,6 +100,25 @@ enum NotchHoverTests {
         var awaitsTrackNotice = false
         var presentedMusic: NotchCompactMusicSnapshot?
         var heldMusic: NotchCompactMusicSnapshot?
+        var musicStripPointer: NotchMusicStripPart?
+        var musicStripNamed = false
+        var musicStripRequest: Bool?
+        var musicStripHeldSong: NotchPlaybackContext?
+        var musicStripHeldMusic: NotchCompactMusicSnapshot?
+        var musicTitleWork: DispatchWorkItem?
+        var capsuleMusicTitleShown = false
+        static let musicTitleDuration: TimeInterval = 4
+        var musicNamingWork: DispatchWorkItem?
+        var musicRequestWork: DispatchWorkItem?
+        var musicStripFitsInPlace = false
+        var openedActivities: [NotchModule] = []
+        func openActivity(_ module: NotchModule) { openedActivities.append(module) }
+        var compactMusicIsVisible: Bool {
+            !fullscreenCompact && !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
+                && compactActivity == .music
+        }
+        var capsuleMusicRefreshes = 0
+        func refreshCapsuleMusic() { capsuleMusicRefreshes += 1 }
         var compactActivity: NotchCompactActivity?
         var compactActivities: [NotchCompactActivity] = []
         var activityPickerMenuOpen = false
@@ -127,6 +164,10 @@ enum NotchHoverTests {
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change(); updateBounds() }
         var refreshes = 0, menuSpaceSyncs = 0
         func refreshPresentation() { refreshes += 1; updateBounds() }
+        func mascotNoticeBridgeStart(for incoming: NotchNotice) -> CGFloat? { nil }
+        func bridgeMascotIntoNotice(_ shown: NotchNotice, from: CGFloat) {}
+        func mascotNoticeBridgeBackStart(from ending: NotchNotice?) -> CGFloat? { nil }
+        func bridgeMascotHome(from: CGFloat) {}
         func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
         func provideHapticFeedback() { feedbacks += 1 }
         func updateBounds() { windowHost?.rect = geometry.frame(for: surfaceSize) }
@@ -140,6 +181,9 @@ enum NotchHoverTests {
         func fixture(physical: Bool = false) -> Service {
             DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
             UserDefaults.standard = UserDefaults.Preferences()
+            // Each case starts with no observers left by a pointer an earlier case never moved.
+            NSEvent.global = [:]
+            NSEvent.local = [:]
             AssistiveKeyboard.active = false
             NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
             let service = Service()
@@ -207,21 +251,28 @@ enum NotchHoverTests {
         suite.expect(hiddenPulse.surfaceSize == hiddenResting,
                      "an invisible island does not pulse before its hover reveal")
         let reducedMotion = fixture()
+        UserDefaults.standard.enabled = false
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
         let reducedResting = reducedMotion.surfaceSize
         reducedMotion.hover(true)
         suite.expect(reducedMotion.surfaceSize == reducedResting,
                      "Reduce Motion leaves the resting island still on hover")
-        let compactPulse = fixture(physical: true)
-        compactPulse.compactActivity = .music
-        compactPulse.updateBounds()
-        let compactResting = compactPulse.surfaceSize
-        compactPulse.hover(true)
-        suite.expect(compactPulse.surfaceSize.height == compactResting.height + 5,
-                     "a visible compact activity responds to hover without replacing its content")
-        leave(compactPulse)
-        suite.expect(compactPulse.surfaceSize == compactResting,
-                     "the compact activity returns to its original size on exit")
+        for physical in [false, true] {
+            for opensOnHover in [false, true] {
+                let compactPulse = fixture(physical: physical)
+                UserDefaults.standard.enabled = opensOnHover
+                compactPulse.compactActivity = .music
+                compactPulse.updateBounds()
+                let compactResting = compactPulse.surfaceSize
+                compactPulse.hover(true)
+                suite.expect(compactPulse.surfaceSize.height == compactResting.height + (opensOnHover ? 0 : 5)
+                             && compactPulse.hoverEmphasized == !opensOnHover,
+                             "a compact activity waits at rest for a hover opening and pulses for a click opening")
+                leave(compactPulse)
+                suite.expect(compactPulse.surfaceSize == compactResting,
+                             "the compact activity returns to its original size on exit")
+            }
+        }
         let fullscreen = fixture(physical: true)
         fullscreen.hiddenInFullscreen = true
         fullscreen.compactActivity = .music
@@ -245,10 +296,14 @@ enum NotchHoverTests {
                      "a simulated cutout hidden in full screen does not open on hover")
         for physical in [false, true] {
             let service = fixture(physical: physical)
+            let resting = service.surfaceSize
             service.hover(true)
             let initial = service.hoverWork
+            suite.expect(!service.hoverEmphasized && service.surfaceSize == resting && initial != nil,
+                         "hover opening keeps either display's island at rest instead of previewing before expansion")
             DispatchQueue.main.advance(0.20)
-            suite.expect(service.openings == 0, "passing briefly over either display's island does not open it")
+            suite.expect(service.openings == 0 && service.surfaceSize == resting,
+                         "the island stays at rest throughout the configured hover opening delay")
             service.hover(false) // A tracking exit while the pointer is still inside.
             suite.expect(service.hoverWork === initial, "duplicate tracking events preserve the original opening deadline")
             DispatchQueue.main.advance(0.06)
@@ -262,6 +317,11 @@ enum NotchHoverTests {
             DispatchQueue.main.advance(0.09)
             suite.expect(service.closures == 1 && service.hoverWork == nil,
                    "leaving either display's expanded island closes it within 190 ms")
+            // The exit reported inside started following the pointer; the next
+            // move after the island closed hands hover back to window tracking.
+            for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
+            suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                   "the first move after the hover-opened island closed releases the pointer observers")
         }
         for physical in [false, true] {
             for local in [false, true] {
@@ -450,6 +510,151 @@ enum NotchHoverTests {
         clickOpened.hover(false)
         suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                      "an island opened by a click, which leaving does not close, never follows the pointer")
+        // Passing quickly over the closed island to a display above: the last
+        // exit arrives while the pointer still touches the island's top edge.
+        do {
+            let passed = fixture()
+            UserDefaults.standard.enabled = false
+            let top = passed.windowHost!.rect
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            passed.hover(true)
+            passed.hover(false)
+            suite.expect(passed.hoverEmphasized && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                         "an exit reported at the top edge keeps the emphasis and follows the pointer")
+            follow(to: CGPoint(x: top.midX, y: top.maxY + 300))
+            suite.expect(!passed.hoverEmphasized && !passed.inside,
+                         "the first move on the display above clears the closed island's hover emphasis")
+            suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "the closed island stops following the pointer once the emphasis is gone")
+            // Fast enough, AppKit reports no exit at all after the entry.
+            let silent = fixture()
+            UserDefaults.standard.enabled = false
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            silent.hover(true)
+            suite.expect(silent.hoverEmphasized && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                         "the closed island follows the pointer while its hover emphasis shows")
+            follow(to: CGPoint(x: top.midX + 10, y: top.maxY - 2))
+            suite.expect(silent.hoverEmphasized, "moving over the island keeps its hover emphasis")
+            follow(to: CGPoint(x: top.midX, y: top.maxY + 300))
+            suite.expect(!silent.hoverEmphasized && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "an unreported exit to the display above still clears the emphasis and its observers")
+            // A notice that holds back a preview leaves the island emphasized
+            // under a resting pointer, so following goes on past the deadline.
+            let interrupted = fixture()
+            UserDefaults.standard.expands = false
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            interrupted.hover(true)
+            interrupted.notice = volume
+            DispatchQueue.main.advance(1)
+            interrupted.notice = nil
+            suite.expect(!interrupted.peeking && interrupted.hoverWork == nil && interrupted.hoverEmphasized
+                         && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                         "a preview a notice held back keeps following the emphasized island")
+            follow(to: CGPoint(x: top.midX, y: top.maxY + 300))
+            suite.expect(!interrupted.hoverEmphasized && !interrupted.inside
+                         && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "an unreported exit after the notice still clears the emphasis and its observers")
+            // A second activity that starts during a hover opening shows the
+            // picker instead, which still needs the pointer followed out.
+            let joined = fixture()
+            joined.compactActivity = .agents
+            joined.compactActivities = [.agents]
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            joined.hover(true)
+            joined.compactActivities = [.agents, .music]
+            DispatchQueue.main.advance(1)
+            suite.expect(joined.openings == 0 && joined.showsCompactActivityPicker
+                         && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                         "a picker that appears during a hover opening keeps following the pointer")
+            follow(to: CGPoint(x: top.midX, y: top.maxY + 300))
+            suite.expect(!joined.showsCompactActivityPicker && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "an unreported exit to the display above still hides that picker and releases its observers")
+        }
+        // A full opening has no hover emphasis, but still needs an uninterrupted
+        // stay. Leaving without a tracking exit must discard the old deadline.
+        for physical in [false, true] {
+            for reduced in [false, true] {
+                for local in [false, true] {
+                    let returning = fixture(physical: physical)
+                    UserDefaults.standard.delay = 0.6
+                    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduced
+                    let top = returning.windowHost!.rect
+                    let entry = CGPoint(x: top.midX, y: top.maxY - 1)
+                    let resting = returning.surfaceSize
+                    NSEvent.mouseLocation = entry
+                    returning.hover(true)
+                    let first = returning.hoverWork
+                    suite.expect(!returning.hoverEmphasized && returning.surfaceSize == resting
+                                 && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                                 "hover opening follows the pointer without emphasizing the island, including Reduce Motion")
+                    DispatchQueue.main.advance(0.4)
+                    follow(to: CGPoint(x: top.midX, y: top.maxY + 300), local: local)
+                    suite.expect(!returning.inside && first?.isCancelled == true && returning.hoverWork == nil,
+                                 "a move to the display above cancels the opening even without an AppKit tracking exit")
+                    suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "leaving a pending hover opening releases both pointer observers")
+                    DispatchQueue.main.advance(0.05)
+                    NSEvent.mouseLocation = entry
+                    returning.hover(true)
+                    suite.expect(returning.hoverWork != nil && returning.hoverWork !== first,
+                                 "returning after an unreported exit starts a fresh hover deadline")
+                    DispatchQueue.main.advance(0.16)
+                    suite.expect(returning.openings == 0 && returning.surfaceSize == resting,
+                                 "the original opening deadline cannot open an island the pointer left and reentered")
+                    DispatchQueue.main.advance(0.43)
+                    suite.expect(returning.openings == 0,
+                                 "reentry waits for the full configured delay")
+                    DispatchQueue.main.advance(0.02)
+                    suite.expect(returning.openings == 1 && returning.openedByHover
+                                 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "the fresh hover opens once and releases the pending opening's pointer observers")
+                    returning.collapse()
+                    returning.hover(true)
+                    suite.expect(returning.hoverState.suppressed && returning.hoverWork == nil
+                                 && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                                 "an explicit close under the pointer follows its departure without reopening")
+                    follow(to: CGPoint(x: top.midX, y: top.maxY + 300), local: local)
+                    suite.expect(!returning.hoverState.suppressed && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "an unreported departure rearms hover after an explicit close and releases its observers")
+                    NSEvent.mouseLocation = entry
+                    returning.hover(true)
+                    DispatchQueue.main.advance(0.59)
+                    suite.expect(returning.openings == 1, "reopening after an explicit close waits for the full hover delay")
+                    DispatchQueue.main.advance(0.02)
+                    suite.expect(returning.openings == 2 && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                                 "the first return after an explicit close opens normally even without a tracking exit")
+                }
+            }
+        }
+        // A timed capture still attached to the closed island would hear each
+        // followed move as the pointer leaving and restart its dismissal.
+        do {
+            let attached = fixture()
+            UserDefaults.standard.enabled = false
+            var previewHovered: Bool?
+            attached.captureHover = { previewHovered = $0 }
+            let top = attached.windowHost!.rect
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            attached.hover(true)
+            suite.expect(attached.hoverEmphasized && previewHovered == true
+                            && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "the closed island holding a capture keeps it paused and does not follow the pointer")
+        }
+        // Opening or peeking on hover ends the closed island's follow at once,
+        // so the next move cannot tell a page or preview the pointer left.
+        for expands in [true, false] {
+            let opening = fixture()
+            UserDefaults.standard.expands = expands
+            let top = opening.windowHost!.rect
+            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
+            opening.hover(true)
+            suite.expect(opening.hoverEmphasized == !expands && NSEvent.global.count == 1 && NSEvent.local.count == 1,
+                         "both hover modes follow the pointer before revealing content, while only the preview emphasizes it")
+            DispatchQueue.main.advance(0.26)
+            suite.expect((expands ? opening.openings == 1 : opening.peeking)
+                            && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "opening or peeking on hover drops the closed island's pointer observers")
+        }
         for disable: (Service) -> Void in [
             { $0.suspended = true }, { $0.windowHost = nil },
             { _ in UserDefaults.standard.hides = false }, { _ in UserDefaults.standard.enabled = false }
@@ -506,6 +711,54 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(0.36)
         suite.expect(adjusted.openings == 1, "the updated activation time completes normally")
 
+        for physical in [false, true] {
+            for hides in [false, true] {
+                for delay in [0.10, 0.18, 0.65, 1.5, 2.0] {
+                    let custom = fixture(physical: physical)
+                    UserDefaults.standard.hides = hides
+                    UserDefaults.standard.closeDelay = delay
+                    custom.hover(true)
+                    DispatchQueue.main.advance(0.26)
+                    leave(custom)
+                    let closing = custom.hoverWork
+                    DispatchQueue.main.advance(delay - 0.01)
+                    suite.expect(custom.closures == 0, "a hover-opened island waits for the selected closing time")
+                    custom.hover(false)
+                    suite.expect(custom.hoverWork === closing, "duplicate exits preserve a custom closing deadline")
+                    DispatchQueue.main.advance(0.02)
+                    suite.expect(custom.closures == 1 && custom.hoverWork == nil,
+                                 "the selected closing time applies to visible and hidden islands on either display")
+                }
+            }
+        }
+
+        let changedClosing = fixture()
+        changedClosing.hover(true)
+        DispatchQueue.main.advance(0.26)
+        UserDefaults.standard.closeDelay = 1.5
+        leave(changedClosing)
+        DispatchQueue.main.advance(1.0)
+        suite.expect(changedClosing.closures == 0, "a changed closing time applies on the next exit without restarting")
+        NSEvent.mouseLocation = CGPoint(x: changedClosing.geometry.screen.midX, y: changedClosing.geometry.screen.maxY)
+        changedClosing.hover(true)
+        DispatchQueue.main.advance(1.0)
+        suite.expect(changedClosing.closures == 0 && changedClosing.openings == 1,
+                     "returning during a custom closing delay cancels the close without reopening")
+
+        for protect: (Service) -> Void in [
+            { $0.running = false }, { $0.pinned = true }, { $0.keepsWorkingSurface = true }
+        ] {
+            let protected = fixture()
+            UserDefaults.standard.closeDelay = 1.5
+            protected.hover(true)
+            DispatchQueue.main.advance(0.26)
+            leave(protected)
+            protect(protected)
+            DispatchQueue.main.advance(1.51)
+            suite.expect(protected.closures == 0 && protected.hoverWork == nil,
+                         "a custom closing deadline rechecks whether the island may collapse")
+        }
+
         let active = fixture()
         active.compactActivity = .music
         active.hover(true)
@@ -526,13 +779,14 @@ enum NotchHoverTests {
 
         let preview = fixture()
         UserDefaults.standard.expands = false
+        UserDefaults.standard.closeDelay = 2.0
         preview.hover(true)
         DispatchQueue.main.advance(0.26)
         suite.expect(preview.peeking && preview.openings == 0 && preview.feedbacks == 1 && preview.hoverWork == nil,
                "preview-only mode responds promptly without expanding the panel")
         leave(preview)
         DispatchQueue.main.advance(0.13)
-        suite.expect(preview.closures == 1, "a preview closes within 130 ms of leaving")
+        suite.expect(preview.closures == 1, "a preview keeps its own closing delay when an expansion delay was saved")
 
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
@@ -546,6 +800,9 @@ enum NotchHoverTests {
             DispatchQueue.main.advance(1)
             suite.expect(protected.openings == 0 && protected.hoverWork == nil,
                    "a pending hover rechecks eligibility before opening")
+            follow(to: CGPoint(x: protected.geometry.screen.minX, y: protected.geometry.screen.minY))
+            suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+                         "an aborted hover opening releases its pointer observers once the pointer moves away")
         }
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
@@ -582,6 +839,440 @@ enum NotchHoverTests {
                "moving into a popover hanging from the island keeps a hover-opened panel")
         notificationContracts(fixture: fixture, leave: leave, expect: expect)
         trackNoticeContracts(fixture: fixture, expect: expect)
+        musicStripContracts(fixture: fixture, leave: leave, expect: expect)
+        musicStripClickContracts(fixture: fixture, leave: leave, expect: expect)
+        musicStripCapsuleSizingContracts(fixture: fixture, leave: leave, expect: expect)
+    }
+
+    /// The production capsule sizing branch must measure the same song the
+    /// view shows through a nameless reading, without lending that hold to copies.
+    private static func musicStripCapsuleSizingContracts(fixture: (Bool) -> Service, leave: (Service) -> Void,
+                                                         expect: (Bool, String) -> Void) {
+        let music = NotchMusicService.shared
+        defer { music.playback = nil; music.reset() }
+        let service = fixture(false)
+        UserDefaults.standard.enabled = false
+        service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                          menuBarHeight: 24, compactSideRoom: 500, silhouette: .capsule)
+        service.compactActivity = .music
+        service.updateBounds()
+        let title = "A considerably longer song title whose name must keep its width"
+        let context = NotchPlaybackContext(pid: 42, revision: UUID())
+        func reading(_ title: String?, pid: Int32 = 42, context: NotchPlaybackContext?, playing: Bool = false) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: title == nil ? nil : "Artist", album: nil,
+                                                          artworkData: nil, appBundleIdentifier: "org.example.player", appPID: pid),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: playing ? 1 : 0, sampledAt: Date(),
+                          canSeek: false, commandContext: context, canSendCommandsDirectly: true)
+        }
+        func size(_ title: String?, geometry: NotchGeometry? = nil) -> CGSize {
+            NotchCapsuleLayout.musicSurface(title: title, geometry: geometry ?? service.geometry)
+        }
+        func holdSong() {
+            music.playback = reading(title, context: context, playing: true)
+            service.presentedMusic = NotchCompactMusicSnapshot(title: title)
+            service.hoverMusicStrip(.bars, entered: true)
+            service.activateMusicStrip()
+        }
+        music.playback = reading(title, context: context, playing: true)
+        service.hover(true)
+        service.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        let before = service.capsuleStripSize(for: .music, companion: nil)
+        expect(service.musicStripNamesSong && before == size(title),
+               "a named capsule measures its live song before a pause")
+        holdSong()
+        music.playback = reading(title, context: context)
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == context && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == before,
+               "the paused song's named reading needs no stand-in and keeps the capsule's width")
+
+        music.playback = reading(nil, context: nil)
+        service.endMusicStripSong(music.playback)
+        let shown = service.musicStripStandIn(for: music.playback)
+        expect(shown?.playback.track.title == title
+               && service.capsuleStripSize(for: .music, companion: nil) == size(shown?.playback.track.title)
+               && service.capsuleStripSize(for: .music, companion: nil) == before,
+               "a nameless reading keeps the held title's width, so the capsule's ends stay under the pointer")
+
+        let copy = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                 menuBarHeight: 20, compactSideRoom: 200, silhouette: .capsule)
+        let fallback = FeatureStrings.radialMenu(L10n.shared.language).mediaNowPlaying
+        expect(service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size(nil, geometry: copy),
+               "another display's capsule ignores the pointer's request to name the song")
+        service.capsuleMusicTitleShown = true
+        expect(service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size(fallback, geometry: copy),
+               "a copy naming a new reading uses its own geometry and live title, never the pointer's held song")
+        service.heldMusic = NotchCompactMusicSnapshot(title: "Previous song")
+        expect(service.capsuleStripSize(for: .music, companion: nil) == size("Previous song")
+               && service.capsuleStripSize(for: .music, companion: nil, geometry: copy) == size("Previous song", geometry: copy),
+               "a song held for its notice takes precedence on both the island and its copies")
+        service.heldMusic = nil
+        service.capsuleMusicTitleShown = false
+
+        music.playback = reading("Next", context: NotchPlaybackContext(pid: 42, revision: UUID()))
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == size("Next"),
+               "the next named song replaces the hold and supplies the capsule's width")
+        holdSong()
+        music.playback = reading(nil, pid: 43, context: nil)
+        service.endMusicStripSong(music.playback)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && service.capsuleStripSize(for: .music, companion: nil) == size(fallback),
+               "another player's nameless reading never borrows the previous player's title or width")
+        holdSong()
+        music.playback = reading(nil, context: nil)
+        service.endMusicStripSong(music.playback)
+        leave(service)
+        expect(service.musicStripHeldSong == nil && service.musicStripStandIn(for: music.playback) == nil
+               && !service.musicStripNamesSong && service.capsuleStripSize(for: .music, companion: nil) == size(nil),
+               "leaving the island releases the held song and the width requested by hover")
+    }
+
+    /// A click on the bars while they show the button plays or pauses the
+    /// song in place. Anywhere else, or for a player that cannot take the
+    /// command, the strip opens the island as before.
+    private static func musicStripClickContracts(fixture: (Bool) -> Service, leave: (Service) -> Void,
+                                                 expect: (Bool, String) -> Void) {
+        let context = NotchPlaybackContext(pid: 42, revision: UUID())
+        func song(playing: Bool = true, direct: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: "Song", artist: "Artist", album: nil, artworkData: nil,
+                                                          appBundleIdentifier: "org.example.player", appPID: 42),
+                          isPlaying: playing, elapsed: 0, duration: 200, rate: playing ? 1 : 0, sampledAt: Date(),
+                          canSeek: false, commandContext: context, canSendCommandsDirectly: direct)
+        }
+        let music = NotchMusicService.shared
+        defer { music.playback = nil; music.reset() }
+        func strip(_ playback: NotchPlayback = song()) -> Service {
+            let service = fixture(true)
+            UserDefaults.standard.enabled = false
+            service.compactActivity = .music
+            service.updateBounds()
+            music.reset()
+            music.playback = playback
+            service.hover(true)
+            return service
+        }
+        let cover = strip()
+        cover.hoverMusicStrip(.cover, entered: true)
+        cover.activateMusicStrip()
+        expect(cover.openedActivities == [.music] && music.sent.isEmpty && !cover.musicStripShowsControl,
+               "a click on the cover still opens the island on the song")
+
+        let bars = strip()
+        bars.hoverMusicStrip(.bars, entered: true)
+        expect(bars.musicStripShowsControl, "resting on the bars shows the button for a player that takes commands")
+        bars.activateMusicStrip()
+        expect(bars.openedActivities.isEmpty && music.sent == [context] && bars.musicStripRequest == false
+               && bars.musicStripHeldSong == context,
+               "a click on the button pauses in place, shows the paused word at once, and keeps the song while the pointer stays")
+        bars.activateMusicStrip()
+        expect(music.sent == [context, context] && bars.musicStripRequest == true && bars.musicStripHeldSong == context,
+               "a second click before the player answers asks for the state after the first, and the song stays meanwhile")
+        DispatchQueue.main.advance(1.6)
+        expect(bars.musicStripRequest == nil, "a player that never answers gets its own word back after a moment")
+        bars.activateMusicStrip()
+        let syncsBeforeLeaving = bars.menuSpaceSyncs
+        leave(bars)
+        expect(bars.musicStripHeldSong == nil && bars.musicStripPointer == nil && !bars.musicStripShowsControl,
+               "leaving the island lets a song paused from the button go, as any paused song does")
+        expect(bars.menuSpaceSyncs > syncsBeforeLeaving, "and the menus' room follows the strip that goes with it")
+
+        // A player can drop the song's name for a moment and give it back as a new recording.
+        func reading(_ title: String?, pid: Int32 = 42, context: NotchPlaybackContext?) -> NotchPlayback {
+            NotchPlayback(track: RadialNowPlayingSnapshot(title: title, artist: title == nil ? nil : "Artist", album: nil,
+                                                          artworkData: nil, appBundleIdentifier: "org.example.player",
+                                                          appPID: pid),
+                          isPlaying: false, elapsed: 0, duration: 200, rate: 0, sampledAt: Date(), canSeek: false,
+                          commandContext: context)
+        }
+        let blanking = strip()
+        blanking.presentedMusic = NotchCompactMusicSnapshot(title: "Song")
+        blanking.hoverMusicStrip(.bars, entered: true)
+        blanking.activateMusicStrip()
+        let refreshesBefore = blanking.refreshes
+        expect(blanking.musicStripStandIn(for: music.playback) == nil, "a reading with its name needs no stand-in")
+        music.playback = reading(nil, context: nil)
+        blanking.endMusicStripSong(music.playback)
+        expect(blanking.musicStripHeldSong == context && blanking.refreshes == refreshesBefore,
+               "a reading from the held song's player without its name keeps the song held")
+        expect(blanking.musicStripStandIn(for: music.playback) == NotchCompactMusicSnapshot(title: "Song"),
+               "and the strip keeps showing the held song whole meanwhile")
+        expect(blanking.musicStripStandIn(for: reading(nil, pid: 43, context: nil)) == nil,
+               "another player's reading without a name gets no stand-in")
+        music.playback = song()
+        expect(!NotchPlayback.sameRecording(reading(nil, context: nil), reading(nil, pid: 43, context: nil))
+               && NotchPlayback.sameRecording(reading(nil, context: nil), reading(nil, context: nil))
+               && !NotchPlayback.sameRecording(song(), reading(nil, context: nil)),
+               "readings without a name are told apart by their player, so another player's reaches the hold")
+        let returned = NotchPlaybackContext(pid: 42, revision: UUID())
+        blanking.endMusicStripSong(reading("Song", context: returned))
+        expect(blanking.musicStripHeldSong == returned, "the same song back as a new recording keeps its hold")
+        blanking.endMusicStripSong(reading("Other", context: NotchPlaybackContext(pid: 42, revision: UUID())))
+        expect(blanking.musicStripHeldSong == nil && blanking.refreshes == refreshesBefore + 1,
+               "another song from the same player ends the hold")
+        let replaced = strip()
+        replaced.hoverMusicStrip(.bars, entered: true)
+        replaced.activateMusicStrip()
+        replaced.endMusicStripSong(reading(nil, pid: 43, context: nil))
+        expect(replaced.musicStripHeldSong == nil, "another player's reading without a name ends it too")
+
+        let slow = strip(song(direct: false))
+        slow.hoverMusicStrip(.bars, entered: true)
+        slow.activateMusicStrip()
+        expect(music.sent == [context] && slow.musicStripRequest == nil && slow.musicStripHeldSong == context,
+               "a player reached another way pauses too, but waits for its own word")
+        music.performs = false
+        music.commandPending = true
+        expect(slow.musicStripShowsControl, "a command still on its way keeps the button")
+        music.accepts = false
+        slow.activateMusicStrip()
+        expect(slow.openedActivities.isEmpty, "and a click meanwhile never opens the island instead")
+        expect(slow.toggleMusicStripSong(), "VoiceOver's play or pause waits for it too, rather than opening the page")
+
+        // Between songs the player takes no command, though it still looks able to.
+        let gap = strip()
+        music.accepts = false
+        gap.hoverMusicStrip(.bars, entered: true)
+        expect(gap.musicStripShowsControl && !gap.toggleMusicStripSong() && gap.musicStripHeldSong == nil
+               && gap.musicStripRequest == nil,
+               "a command the player refuses holds no song and asks for nothing, so VoiceOver opens the page instead")
+        gap.activateMusicStrip()
+        expect(gap.openedActivities.isEmpty && gap.musicStripHeldSong == nil, "and a click on the button stays a no-op")
+
+        let refused = strip()
+        music.performs = false
+        refused.hoverMusicStrip(.bars, entered: true)
+        refused.activateMusicStrip()
+        expect(!refused.musicStripShowsControl && refused.openedActivities == [.music] && music.sent.isEmpty,
+               "a player that cannot take the command keeps its bars, and a click opens its page")
+
+        let skipping = strip()
+        skipping.heldMusic = NotchCompactMusicSnapshot(title: "Old")
+        skipping.hoverMusicStrip(.bars, entered: true)
+        expect(!skipping.musicStripShowsControl && !skipping.toggleMusicStripSong() && music.sent.isEmpty,
+               "the song a skip left on the strip has no button, so a click never reaches the next song")
+
+        let stillBars = strip()
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        stillBars.hover(true)
+        stillBars.hoverMusicStrip(.bars, entered: true)
+        let followedBefore = !NSEvent.global.isEmpty
+        stillBars.activateMusicStrip()
+        expect(!followedBefore && stillBars.musicStripHeldSong == context && !NSEvent.global.isEmpty,
+               "with Reduce Motion, a song paused from the button keeps the pointer followed until it leaves")
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
+
+        let away = strip()
+        away.inside = false
+        expect(away.toggleMusicStripSong() && away.musicStripHeldSong == nil && music.sent == [context],
+               "playing or pausing with no pointer on the island, as VoiceOver does, lets a paused song go")
+
+        let empty = strip()
+        music.playback = nil
+        expect(!empty.toggleMusicStripSong() && music.sent.isEmpty, "nothing playing leaves nothing to toggle")
+    }
+
+    /// The closed music strip names its song for a pointer resting on its
+    /// cover and keeps it named while the pointer stays on the island. It
+    /// answers the pointer only where hovering never opens the island.
+    private static func musicStripContracts(fixture: (Bool) -> Service, leave: (Service) -> Void,
+                                            expect: (Bool, String) -> Void) {
+        func strip(_ physical: Bool, capsule: Bool = false) -> Service {
+            let service = fixture(physical)
+            if capsule {
+                service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                                 menuBarHeight: 22, compactSideRoom: 64, silhouette: .capsule)
+            }
+            UserDefaults.standard.enabled = false
+            service.compactActivity = .music
+            service.updateBounds()
+            return service
+        }
+        for (physical, capsule) in [(false, false), (true, false), (false, true)] {
+            let named = strip(physical, capsule: capsule)
+            named.hover(true)
+            expect(named.musicStripAnswers(.cover) && named.musicStripAnswers(.bars),
+                   "the music strip of an island opened by a click answers the pointer")
+            named.hoverMusicStrip(.cover, entered: true)
+            let refreshes = named.refreshes
+            DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay - 0.01)
+            expect(!named.musicStripNamed && named.refreshes == refreshes,
+                   "a pass over the cover on the way elsewhere leaves the song unnamed")
+            DispatchQueue.main.advance(0.02)
+            expect(named.musicStripNamed && named.musicStripFitsInPlace && named.musicNamingWork == nil
+                   && (capsule ? named.capsuleMusicRefreshes == 1 : named.refreshes == refreshes + 1),
+                   "resting on the cover names the song, fitting the strip in place")
+            named.hoverMusicStrip(.bars, entered: true)
+            named.hoverMusicStrip(.cover, entered: false)
+            expect(named.musicStripNamed && named.musicStripPointer == .bars,
+                   "the song stays named while the pointer moves on to the bars, whatever order the reports take")
+            named.hoverMusicStrip(.bars, entered: false)
+            expect(named.musicStripPointer == nil && named.musicStripNamed,
+                   "leaving the bars for the camera keeps the name and drops the button")
+            let beforeLeaving = named.refreshes
+            leave(named)
+            expect(!named.musicStripNamed && named.musicStripPointer == nil && named.refreshes == beforeLeaving + 1,
+                   "leaving the island takes the name back in the same refresh as the emphasis")
+        }
+
+        // Without the emphasis, only the name going back calls for a refresh.
+        let still = strip(true)
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        still.hover(true)
+        still.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        let namedRefreshes = still.refreshes
+        leave(still)
+        expect(!still.hoverEmphasized && !still.musicStripNamed && still.refreshes == namedRefreshes + 1,
+               "with Reduce Motion, leaving still fits the strip back to its cover and bars")
+        // A pass up through the top edge, or a name narrowing past a still
+        // pointer, can leave AppKit's exit unreported.
+        let unreported = strip(true)
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
+        unreported.hover(true)
+        unreported.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        expect(unreported.musicStripNamed && !NSEvent.global.isEmpty && !NSEvent.local.isEmpty,
+               "with Reduce Motion, the pointer is still followed while the strip names its song")
+        NSEvent.mouseLocation = CGPoint(x: unreported.geometry.screen.minX, y: unreported.geometry.screen.minY)
+        NSEvent.global.values.forEach { $0(NSEvent()) }
+        expect(!unreported.inside && !unreported.musicStripNamed && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
+               "so the next move off the island takes the name back, and following ends with it")
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
+
+        let passing = strip(true)
+        passing.hover(true)
+        passing.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(0.1)
+        passing.hoverMusicStrip(.cover, entered: false)
+        DispatchQueue.main.advance(1)
+        expect(!passing.musicStripNamed && passing.musicNamingWork == nil,
+               "leaving the cover before the moment passes keeps the song unnamed")
+        passing.hoverMusicStrip(.cover, entered: true)
+        leave(passing)
+        DispatchQueue.main.advance(1)
+        expect(!passing.musicStripNamed && passing.musicNamingWork == nil && passing.musicStripPointer == nil,
+               "leaving the island from the cover keeps the song unnamed")
+
+        // SwiftUI can report the cover before the window reports the pointer.
+        let early = strip(true)
+        early.inside = false
+        early.hoverMusicStrip(.cover, entered: true)
+        early.hover(true)
+        expect(early.musicStripPointer == .cover && early.musicNamingWork != nil,
+               "the window reporting the pointer after the cover keeps the cover's report")
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        expect(early.musicStripNamed, "and the song is named after the same moment")
+
+        let stale = strip(true)
+        stale.musicStripNamed = true
+        stale.hover(true)
+        expect(!stale.musicStripNamed, "coming back onto the island starts from the cover and bars")
+
+        let unknown = strip(true)
+        unknown.hover(true)
+        unknown.hoverMusicStrip(.cover, entered: true)
+        unknown.windowHost?.rect = .zero
+        NSEvent.mouseLocation = CGPoint(x: unknown.geometry.screen.minX, y: unknown.geometry.screen.minY)
+        unknown.inside = false
+        DispatchQueue.main.advance(1)
+        expect(!unknown.musicStripNamed, "a pointer no longer on the island never gets the song named")
+
+        for (opens, expands, hides) in [(true, true, false), (true, true, true)] {
+            let opening = strip(true)
+            UserDefaults.standard.enabled = opens
+            UserDefaults.standard.expands = expands
+            UserDefaults.standard.hides = hides
+            opening.hoverMusicStrip(.cover, entered: true)
+            opening.hoverMusicStrip(.bars, entered: true)
+            expect(!opening.musicStripAnswers(.cover) && !opening.musicStripAnswers(.bars)
+                   && opening.musicStripPointer == nil && opening.musicNamingWork == nil,
+                   "an island that opens or appears on hover leaves its strip to that opening")
+        }
+        let preview = strip(true)
+        UserDefaults.standard.enabled = true
+        UserDefaults.standard.expands = false
+        expect(preview.musicStripAnswers(.cover) && preview.musicStripAnswers(.bars),
+               "an island that only previews on hover keeps its strip's answers")
+        for block: (Service) -> Void in [{ $0.expanded = true }, { $0.peeking = true }, { $0.dragPlaceholder = true },
+                                         { $0.captureControls = true }, { $0.compactActivity = .timer },
+                                         { $0.hiddenInFullscreen = true },
+                                         { $0.notice = NotchNotice(event: .volume, title: "Volume", detail: "50%",
+                                                                   symbol: "speaker.wave.2.fill", level: 0.5) }] {
+            let other = strip(true)
+            block(other)
+            expect(!other.musicStripAnswers(.cover) && !other.musicStripAnswers(.bars),
+                   "anything else on the island takes the strip's place for the pointer")
+        }
+        for opens in [false, true] {
+            let picking = strip(true)
+            UserDefaults.standard.enabled = opens
+            picking.compactActivities = [.music, .timer]
+            picking.hover(true)
+            picking.hoverMusicStrip(.cover, entered: true)
+            DispatchQueue.main.advance(1)
+            expect(picking.showsCompactActivityPicker && !picking.musicStripNamed && picking.musicStripPointer == nil,
+                   "the strip at the top of the activity picker has no room to name the song")
+            picking.hoverMusicStrip(.bars, entered: true)
+            expect(picking.musicStripPointer == .bars && picking.musicStripAnswers(.bars),
+                   "but its bars still become the button, even where hover would otherwise open the island")
+        }
+
+        // Where the menus leave a capsule no wings, a preview opens on hover.
+        let crowded = strip(false, capsule: true)
+        UserDefaults.standard.enabled = true
+        UserDefaults.standard.expands = false
+        expect(crowded.musicStripAnswers(.cover) && crowded.musicStripAnswers(.bars),
+               "precondition: a capsule with wings keeps its strip's answers while previews open on hover")
+        crowded.geometry.compactSideRoom = 30
+        crowded.updateBounds()
+        expect(crowded.compactActivityGeometry.compactActivityWingWidth == 0
+               && !crowded.musicStripAnswers(.cover) && !crowded.musicStripAnswers(.bars),
+               "a capsule without wings leaves its strip to the preview that opens over it")
+
+        // A capsule names a new song for a moment. Only a rest on its cover
+        // keeps it named after that, as at any other time.
+        let starting = strip(false, capsule: true)
+        starting.hover(true)
+        starting.nameCapsuleSong()
+        expect(starting.capsuleMusicTitleShown && starting.musicTitleWork != nil, "precondition: a new song is named")
+        DispatchQueue.main.advance(4.01)
+        expect(!starting.capsuleMusicTitleShown && !starting.musicStripNamed && starting.musicTitleWork == nil,
+               "a pointer elsewhere on the capsule lets the name go after its moment")
+        let resting = strip(false, capsule: true)
+        resting.hover(true)
+        resting.nameCapsuleSong()
+        resting.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(4.01)
+        expect(!resting.capsuleMusicTitleShown && resting.musicStripNamesSong,
+               "a pointer resting on the cover keeps the song named when its moment ends")
+        leave(resting)
+        expect(!resting.musicStripNamed, "leaving takes the name back")
+        let unattended = strip(false, capsule: true)
+        unattended.nameCapsuleSong()
+        DispatchQueue.main.advance(4.01)
+        expect(!unattended.capsuleMusicTitleShown && !unattended.musicStripNamed,
+               "with no pointer on it, the capsule lets the name go after its moment")
+
+        // The song a skip held goes back to the live one, which a named strip fits.
+        let releasing = strip(true)
+        releasing.hover(true)
+        releasing.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        releasing.heldMusic = NotchCompactMusicSnapshot(title: "Old")
+        releasing.musicStripFitsInPlace = false
+        let beforeRelease = releasing.refreshes
+        releasing.releaseTrackHold()
+        expect(releasing.heldMusic == nil && releasing.musicStripFitsInPlace && releasing.refreshes == beforeRelease + 1,
+               "a strip naming the song a skip held fits the live song's name in place")
+        let unnamed = strip(true)
+        unnamed.heldMusic = NotchCompactMusicSnapshot(title: "Old")
+        let beforePlain = unnamed.refreshes
+        unnamed.releaseTrackHold()
+        expect(unnamed.heldMusic == nil && unnamed.refreshes == beforePlain && !unnamed.musicStripFitsInPlace,
+               "an unnamed strip takes the live song with no refresh of its own")
     }
 
     /// A new song's notice waits for playback to settle, and the compact
@@ -895,6 +1586,15 @@ enum NotchHoverTests {
         leave(interrupted)
         DispatchQueue.main.advance(0.2)
         expect(interrupted.closures == 0 && interrupted.notice == nil, "leaving afterwards has nothing left to close")
+
+        // A new reading of the same level only fits its width; another notice
+        // takes its place the usual way.
+        let reading = fixture(false)
+        let full = NotchNotice(event: .volume, title: "Volume", detail: "100%", symbol: "speaker.wave.3.fill", level: 1)
+        let bright = NotchNotice(event: .brightness, title: "Brightness", detail: "100%", symbol: "sun.max.fill", level: 1)
+        expect(reading.show(volume) && !reading.noticeFitsInPlace, "a level shown on its own arrives the usual way")
+        expect(reading.show(full) && reading.noticeFitsInPlace, "a new reading of the same level eases to its width in place")
+        expect(reading.show(bright) && !reading.noticeFitsInPlace, "another kind of notice replaces it the usual way")
 
         // A burst keeps the banner's width, so the island does not resize
         // with each message and a banner held near its end stays in reach.

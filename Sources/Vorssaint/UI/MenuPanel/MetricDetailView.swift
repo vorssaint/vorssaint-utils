@@ -151,6 +151,7 @@ struct MetricDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.monitorInterval) private var monitorInterval = 2
+    @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     let kind: MetricDetailKind
     @State private var processRows: [ProcessUsage] = []
     @State private var processRowsLoading = false
@@ -220,36 +221,39 @@ struct MetricDetailView: View {
     private var graph: some View {
         switch kind {
         case .cpu:
-            historyGraph(monitor.snapshot.cpuHistory, color: summaryColor, maxValue: 1)
+            historyGraph(monitor.snapshot.cpuHistory, color: summaryColor)
         case .gpu:
-            historyGraph(monitor.snapshot.gpuHistory, color: summaryColor, maxValue: 1)
+            historyGraph(monitor.snapshot.gpuHistory, color: summaryColor)
         case .memory:
             historyGraph(MonitorMemoryMetric.current.history(in: monitor.snapshot),
-                         color: summaryColor,
-                         maxValue: 1)
+                         color: summaryColor)
         case .network:
             networkGraph
         case .disk:
             diskGraph
         case .battery:
             if PowerSampler.hasInternalBattery {
-                historyGraph(monitor.snapshot.batteryHistory, color: summaryColor, maxValue: 1)
+                historyGraph(monitor.snapshot.batteryHistory, color: summaryColor)
             }
         case .power:
-            historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor)
+            let peak = MetricFormat.graphCeiling(monitor.snapshot.systemPowerHistory.max() ?? 0, unitStep: 1000)
+            historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor, maxValue: peak,
+                         ceilingLabel: MetricFormat.watts(peak))
         case .fan, .connectedDevices:
             EmptyView()
         }
     }
 
     @ViewBuilder
-    private func historyGraph(_ values: [Double], color: Color, maxValue: Double? = nil) -> some View {
+    private func historyGraph(_ values: [Double], color: Color, maxValue: Double = 1,
+                              ceilingLabel: String = MetricFormat.percent(1)) -> some View {
         if values.count >= 2 {
             Sparkline(values: values,
                       color: color,
                       maxValue: maxValue,
                       showsZeroBaseline: true)
                 .frame(height: 38)
+                .graphCeilingLabel(ceilingLabel)
         }
     }
 
@@ -258,7 +262,9 @@ struct MetricDetailView: View {
         let down = monitor.snapshot.netDownHistory
         let up = monitor.snapshot.netUpHistory
         if down.count >= 2 || up.count >= 2 {
-            let peak = max(down.max() ?? 0, up.max() ?? 0, 1)
+            let inBits = speedUnit == .bits
+            let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
+                                                        inBits: inBits)
             ZStack {
                 Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: up,
@@ -267,6 +273,7 @@ struct MetricDetailView: View {
                           fillOpacity: 0.08)
             }
             .frame(height: 38)
+            .graphCeilingLabel(MetricFormat.networkRate(peak, inBits: inBits))
         }
     }
 
@@ -275,7 +282,7 @@ struct MetricDetailView: View {
         let read = monitor.snapshot.diskReadHistory
         let write = monitor.snapshot.diskWriteHistory
         if read.count >= 2 || write.count >= 2 {
-            let peak = max(read.max() ?? 0, write.max() ?? 0, 1)
+            let peak = MetricFormat.graphCeiling(max(read.max() ?? 0, write.max() ?? 0, 1), unitStep: 1024)
             ZStack {
                 Sparkline(values: read, color: summaryColor, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: write,
@@ -284,6 +291,7 @@ struct MetricDetailView: View {
                           fillOpacity: 0.08)
             }
             .frame(height: 38)
+            .graphCeilingLabel(MetricFormat.bytesPerSec(peak))
         }
     }
 
@@ -393,9 +401,9 @@ struct MetricDetailView: View {
         case .network:
             return [
                 row(l10n.s.networkDownload,
-                    snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
+                    snapshot.netDownBytesPerSec.map { MetricFormat.networkRate($0) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkUpload,
-                    snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSec) ?? l10n.s.networkMeasuring),
+                    snapshot.netUpBytesPerSec.map { MetricFormat.networkRate($0) } ?? l10n.s.networkMeasuring),
                 row(l10n.s.networkThisSession, sessionNetworkText(snapshot)),
             ]
         case .disk:
@@ -489,7 +497,7 @@ struct MetricDetailView: View {
             guard let used = memoryValue, let total = snapshot.memoryTotal, total > 0 else { return "-" }
             return MetricFormat.percent(Double(used) / Double(total))
         case .network:
-            return snapshot.netDownBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-"
+            return snapshot.netDownBytesPerSec.map { MetricFormat.networkRateCompact($0) } ?? "-"
         case .disk:
             return primaryDisk(from: snapshot.disk).map { MetricFormat.percent($0.usedFraction) } ?? "-"
         case .battery:
@@ -521,13 +529,16 @@ struct MetricDetailView: View {
             guard let used = memoryValue, let total = snapshot.memoryTotal else { return l10n.s.memoryPressure }
             return "\(formatMemory(used)) / \(formatMemory(total))"
         case .network:
-            return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map(MetricFormat.bytesPerSecCompact) ?? "-")"
+            return "\(l10n.s.networkUpload) \(snapshot.netUpBytesPerSec.map { MetricFormat.networkRateCompact($0) } ?? "-")"
         case .disk:
             guard let disk = primaryDisk(from: snapshot.disk) else { return l10n.s.diskNoDisks }
             return "\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)"
         case .battery:
             if PowerSampler.hasInternalBattery {
-                return (snapshot.power?.isCharging ?? false) ? l10n.s.powerCharging : l10n.s.powerOnBattery
+                return powerStateText(BatteryPowerSupport.state(
+                    isCharging: snapshot.power?.isCharging ?? false,
+                    externalConnected: snapshot.power?.externalConnected ?? false,
+                    hasBattery: true))
             }
             return PeripheralBatterySupport.sorted(snapshot.peripheralBatteries).first?.name
                 ?? l10n.s.peripheralBatteryNoDevices
@@ -711,7 +722,7 @@ struct MetricDetailView: View {
         case .network:
             let down = row.networkDownBytesPerSec ?? 0
             let up = row.networkUpBytesPerSec ?? 0
-            return "↓\(MetricFormat.bytesPerSecCompact(down)) ↑\(MetricFormat.bytesPerSecCompact(up))"
+            return "↓\(MetricFormat.networkRateCompact(down)) ↑\(MetricFormat.networkRateCompact(up))"
         default:
             return String(format: "%.1f%%", locale: MetricFormat.locale, row.value)
         }
@@ -777,6 +788,15 @@ struct MetricDetailView: View {
         if power.externalConnected { return l10n.s.powerPluggedIn }
         if power.hasBattery { return l10n.s.powerOnBattery }
         return l10n.s.powerUnavailable
+    }
+
+    private func powerStateText(_ state: BatteryPowerSupport.State) -> String {
+        switch state {
+        case .charging: return l10n.s.powerCharging
+        case .externalPower: return l10n.s.powerPluggedIn
+        case .onBattery: return l10n.s.powerOnBattery
+        case .unavailable: return l10n.s.powerUnavailable
+        }
     }
 
     private func mbps(_ value: Double) -> String {

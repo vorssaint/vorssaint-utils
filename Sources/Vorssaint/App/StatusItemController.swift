@@ -36,6 +36,7 @@ final class StatusItemController {
     /// it. Recovery leaves such an item alone.
     private(set) var mainItemHiddenByChoice = false
     private var heldMicBadgeActive: Bool?
+    private var heldKeepAwakeSignal: Bool?
     /// A settings reply already waiting for the next turn of the run loop.
     private var settingsSyncScheduled = false
     /// How many readings in a row each metric has failed to render, so an
@@ -59,7 +60,6 @@ final class StatusItemController {
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let clipboardPreviewAutosaveName = "VorssaintClipboardPreview"
-    private static let maxPlacementGeneration = 10_000
     private static let emptyStatusImage = NSImage()
 
     /// One separate menu bar item: a metric, or a metric with its temperature
@@ -314,17 +314,34 @@ final class StatusItemController {
         heldMicBadgeActive ?? currentMicBadgeActive
     }
 
-    /// Keeps the variable-width mic badge unchanged while any status item is
-    /// anchoring an open panel. The current state is rendered after it closes.
+    private var currentKeepAwakeSignal: Bool {
+        MenuBarSpacingSupport.keepAwakeSignals(active: KeepAwakeManager.shared.isActive,
+                                               tint: .current, style: .current)
+    }
+
+    /// Whether a running Keep Awake session brings back the glyph the
+    /// metrics option hides. Held with the mic badge while a panel is open.
+    private var keepAwakeSignal: Bool {
+        heldKeepAwakeSignal ?? currentKeepAwakeSignal
+    }
+
+    /// Keeps the variable-width mic badge, and whether Keep Awake brings the
+    /// hidden glyph back, unchanged while any status item is anchoring an
+    /// open panel: either one would resize or show an item and move the
+    /// panel with it. The current state is rendered after it closes.
     func setMicBadgeHeld(_ held: Bool) {
         if held {
             guard heldMicBadgeActive == nil else { return }
             heldMicBadgeActive = currentMicBadgeActive
+            heldKeepAwakeSignal = currentKeepAwakeSignal
             return
         }
         guard heldMicBadgeActive != nil else { return }
         heldMicBadgeActive = nil
-        updateIconAppearance()
+        heldKeepAwakeSignal = nil
+        // The title's leading space follows the glyph, so the whole refresh
+        // runs, not just the icon; refresh() ends with updateIconAppearance().
+        refresh()
     }
 
     /// Reflects keep-awake state and an available update in the icon. Updates
@@ -354,7 +371,7 @@ final class StatusItemController {
             separateMetrics: separateMetrics,
             metricsEnabled: MenuBarMetric.anyEnabled(in: defaults),
             renderedTitleLength: button.attributedTitle.length,
-            mustShowForSignal: signal)
+            mustShowForSignal: signal || keepAwakeSignal)
         // In the separate-items mode the metrics are their own clickable
         // items, so hiding means the whole main item steps aside instead of
         // just its image (which is all that item has). With Dynamic Island
@@ -365,7 +382,7 @@ final class StatusItemController {
                 separateMetrics: separateMetrics,
                 metricItemsShown: renderedMetricItemCount,
                 renderedTitleLength: button.attributedTitle.length,
-                mustShowForSignal: signal)
+                mustShowForSignal: signal || keepAwakeSignal)
         mainItemHiddenByChoice = mainItemHidden
         let keepAwakeActive = KeepAwakeManager.shared.isActive
 
@@ -517,7 +534,7 @@ final class StatusItemController {
                     separateMetrics: separateMetrics,
                     metricsEnabled: !metrics.isEmpty,
                     renderedTitleLength: 1,
-                    mustShowForSignal: signal)
+                    mustShowForSignal: signal || keepAwakeSignal)
             let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
             full.append(title)
             let stacked = full.string.contains("\n")

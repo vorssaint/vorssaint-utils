@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import ImageIO
 import SwiftUI
 
 /// On-demand inspector for the selected clipboard entry. It keeps the full
@@ -14,7 +15,10 @@ struct ClipboardEntryPreviewSidebar: View {
     var onClose: () -> Void
     @State private var draft = ""
     @State private var editingEntryID: UUID?
+    /// Laid out off the main thread for the entry it was made from.
+    @State private var prettyJSON: (entry: ClipboardHistoryEntry, text: String)?
     @FocusState private var editorFocused: Bool
+    @State private var recognizingEntryID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -24,7 +28,7 @@ struct ClipboardEntryPreviewSidebar: View {
                 if editingEntryID == entry.id {
                     textEditor(entry)
                 } else if entry.kind == .text {
-                    ClipboardTextPreview(text: entry.text)
+                    textPreview(entry)
                 } else {
                     contentScrollView(entry)
                 }
@@ -40,6 +44,13 @@ struct ClipboardEntryPreviewSidebar: View {
             }
         }
         .onDisappear { cancelEditing() }
+        .task(id: entry) {
+            guard let entry, entry.kind == .text else { return }
+            let text = entry.text
+            let pretty = await Task.detached(priority: .userInitiated) { ClipboardJSONFormat.pretty(text) }.value
+            guard !Task.isCancelled else { return }
+            prettyJSON = pretty.map { (entry, $0) }
+        }
     }
 
     private var sidebarHeader: some View {
@@ -60,6 +71,18 @@ struct ClipboardEntryPreviewSidebar: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
+    }
+
+    /// One text view for every text entry: JSON laid out after the entry
+    /// appears swaps its text and font in place instead of a new view. The
+    /// layout depends only on the text, so a pin or a refreshed copy of the
+    /// same entry keeps it.
+    private func textPreview(_ entry: ClipboardHistoryEntry) -> ClipboardTextPreview {
+        guard let pretty = prettyJSON, pretty.entry.id == entry.id, pretty.entry.text == entry.text else {
+            return ClipboardTextPreview(text: entry.text)
+        }
+        return ClipboardTextPreview(text: pretty.text,
+                                    font: .monospacedSystemFont(ofSize: 11.5, weight: .regular))
     }
 
     private func contentScrollView(_ entry: ClipboardHistoryEntry) -> some View {
@@ -268,6 +291,12 @@ struct ClipboardEntryPreviewSidebar: View {
                         beginEditing(entry)
                     }
                 }
+                if AppFeature.screenOCR.isAvailable, let url = imageURL(entry) {
+                    Button(FeatureStrings.screenshot(l10n.language).copyTextButton) {
+                        copyText(in: url, of: entry)
+                    }
+                    .disabled(recognizingEntryID == entry.id)
+                }
                 Button(text.copy) {
                     ClipboardHistoryService.shared.copyOnlyQuickEntry(entry)
                 }
@@ -277,6 +306,58 @@ struct ClipboardEntryPreviewSidebar: View {
         .controlSize(.mini)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
+    }
+
+    /// The picture an image entry or a single copied image file holds.
+    private func imageURL(_ entry: ClipboardHistoryEntry) -> URL? {
+        if entry.kind == .image, let name = entry.imageFile {
+            return ClipboardImageStore.directory?.appendingPathComponent(name)
+        }
+        guard entry.kind == .files, entry.filePaths.count == 1,
+              ClipboardImageStore.isImageFile(atPath: entry.filePaths[0]) else { return nil }
+        return URL(fileURLWithPath: entry.filePaths[0])
+    }
+
+    /// Screen OCR's recognition and answer, on a picture already in the
+    /// history. It runs only when asked and its text is never stored with
+    /// the entry; the copy itself lands in the history like any other.
+    private func copyText(in url: URL, of entry: ClipboardHistoryEntry) {
+        recognizingEntryID = entry.id
+        let languages = MediaSupport.recognitionLanguages(for: l10n.language.rawValue)
+        let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
+        let strings = l10n.s
+        Task { @MainActor in
+            let outcome = await Task.detached(priority: .userInitiated) { () -> ScreenTextService.Outcome in
+                // Full size, as Screen OCR reads its capture, so small text
+                // survives; only a picture past the area bound is scaled down.
+                guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                      let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                      let width = (properties[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue,
+                      let height = (properties[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue
+                else { return .empty }
+                let maxPixelSize = ClipboardImageRecognition.decodeMaxPixelSize(width: width, height: height)
+                let options = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                               kCGImageSourceCreateThumbnailWithTransform: true,
+                               kCGImageSourceThumbnailMaxPixelSize: maxPixelSize] as CFDictionary
+                guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return .empty }
+                return ScreenTextService.outcome(for: image, detectQRCodes: false,
+                                                 removeLineBreaks: removeLineBreaks,
+                                                 fallbackLanguages: languages)
+            }.value
+            // A recognition started later, or anything copied meanwhile, is
+            // newer than this answer, and Screen OCR turned off drops it.
+            let isLatest = recognizingEntryID == entry.id
+            if isLatest { recognizingEntryID = nil }
+            guard isLatest, pasteboardChangeCount == NSPasteboard.general.changeCount,
+                  AppFeature.screenOCR.isAvailable else { return }
+            if case .text(let recognized) = outcome {
+                ScreenTextService.copyToPasteboard(recognized)
+                QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+            } else {
+                QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
+            }
+        }
     }
 
     private func beginEditing(_ entry: ClipboardHistoryEntry) {

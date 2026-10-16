@@ -16,6 +16,7 @@ struct UpdatePreviewView: View {
     var onCancel: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @State private var skipNextTime = false
 
     private var release: ReleaseNotes {
         // The release body is the changelog section without its `## [..]` header;
@@ -46,13 +47,23 @@ struct UpdatePreviewView: View {
 
             Divider()
 
-            HStack {
+            HStack(spacing: 12) {
+                Toggle(FeatureStrings.whatsNew(l10n.language).skipPreviewCheckbox, isOn: $skipNextTime)
+                    .toggleStyle(.checkbox)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
                 Button(l10n.s.uninstallerCancel) { onCancel() }
                     .keyboardShortcut(.cancelAction)
-                Spacer()
-                Button(l10n.s.updateInstallButton) { onUpdate() }
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                Button(l10n.s.updateInstallButton) {
+                    // Saved only on Update: ticking the box and then cancelling
+                    // must not turn the next update into a silent install.
+                    if skipNextTime {
+                        UserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
+                    }
+                    onUpdate()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
             .padding(16)
         }
@@ -184,7 +195,7 @@ struct UpdateSupportIntroView: View {
             }
             .padding(16)
         }
-        .frame(width: 560, height: 400)
+        .frame(width: 560, height: 420)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
@@ -192,6 +203,14 @@ struct UpdateSupportIntroView: View {
 private struct UpdateSupportContent: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var donateThanksText: String {
+        let thanks = l10n.s.donateThanks
+        return colorScheme == .dark
+            ? thanks.replacingOccurrences(of: "🖤", with: "🤍")
+            : thanks
+    }
 
     var body: some View {
         VStack(spacing: 13) {
@@ -225,9 +244,24 @@ private struct UpdateSupportContent: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
 
-            Text(l10n.s.donateThanks)
+            Text(donateThanksText)
                 .font(.caption)
                 .foregroundStyle(.tertiary)
+
+            Button {
+                openURL(AppInfo.repositoryURL)
+            } label: {
+                Label(l10n.s.supportIntroStarHint, systemImage: "star")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: 440)
+            .padding(.top, 4)
+            .help(l10n.s.supportIntroStarButton)
+            .accessibilityLabel(l10n.s.supportIntroStarButton)
         }
     }
 }

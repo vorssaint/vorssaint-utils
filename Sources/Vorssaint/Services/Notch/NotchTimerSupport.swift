@@ -117,7 +117,7 @@ struct NotchTimerSession: Equatable {
         switch mode {
         case .timer:
             phase = .timer
-            duration = Double(min(180, max(1, minutes))) * 60
+            duration = Double(NotchTimerSupport.timerMinutes(minutes)) * 60
             anchor = now + duration
         case .pomodoro:
             phase = .focus
@@ -171,6 +171,14 @@ struct NotchTimerSession: Equatable {
 }
 
 enum NotchTimerSupport {
+    /// Hiding the countdown never disables the session or its completion
+    /// alerts, and a finished timer shows in the closed island until it is
+    /// dismissed. The expanded timer page remains available.
+    static func showsActivity(_ session: NotchTimerSession, in defaults: UserDefaults = .standard) -> Bool {
+        session.hasSession && isEnabled(in: defaults)
+            && (session.completed || !defaults.bool(forKey: DefaultsKey.notchHideTimerCountdown))
+    }
+
     static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchTimerSoundEnabled) as? Bool ?? true
     }
@@ -182,26 +190,34 @@ enum NotchTimerSupport {
     }
 
     /// The modes read as three words in a row, the current one underlined,
-    /// each as wide as its text, so the three fit the narrowest island in
-    /// every language where equal segments would not.
+    /// each as wide as its text, where a full top row leaves them room;
+    /// beside a camera they are a menu named by the current one, its chevron
+    /// `menuSpacing` from the name. The test measures both in every language.
     enum ModePicker {
         static let height: CGFloat = 24
         static let spacing: CGFloat = 14
         static let labelSize: CGFloat = 12
         static let labelPadding: CGFloat = 4
+        static let menuSpacing: CGFloat = 3
+        /// macOS 15 draws Japanese kana about 4% wider than macOS 26, so the
+        /// stopwatch's name needs about 0.74 of its size beside the widest
+        /// camera there.
+        static let menuMinimumScale: CGFloat = 0.7
     }
 
-    /// The start capsule beside the mode row; the test measures both against the
-    /// width the wide layout starts at, in every language.
+    /// The start capsule in the top row; the test measures it against a side
+    /// beside the camera, with the pin, in every language.
     enum StartButton {
-        static let labelSize: CGFloat = 14
-        static let padding: CGFloat = 18
+        static let labelSize: CGFloat = 12
+        static let padding: CGFloat = 10
     }
 
     static let timerLimit: TimeInterval = 180 * 60
     /// A stopwatch keeps counting; its clock saturates at the widest reading
     /// the surface fits, two hour digits.
     static let stopwatchLimit: TimeInterval = 100 * 3600 - 1
+
+    static func timerMinutes(_ value: Int) -> Int { min(180, max(1, value)) }
 
     static func savedMode(in defaults: UserDefaults = .standard) -> NotchTimerMode {
         NotchTimerMode(rawValue: defaults.string(forKey: DefaultsKey.notchTimerMode) ?? "") ?? .timer

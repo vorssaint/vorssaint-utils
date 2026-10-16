@@ -9,7 +9,8 @@ import SwiftUI
 /// takes the title's side and the event keeps its dot and clock.
 struct NotchCalendarStrip: View {
     @ObservedObject var service: NotchService
-    /// Another display's strip, when the island shows on every display.
+    /// Where the island draws it: its own strip as of the last update, or
+    /// another display's when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
@@ -19,7 +20,13 @@ struct NotchCalendarStrip: View {
     private var usesFullRow: Bool { geometry.compactActivityUsesFooter || geometry.compactActivityWingWidth == 0 }
 
     var body: some View {
-        if let countdown = calendar.countdown {
+        // An event ending moves the countdown on, or clears it, before the
+        // strip has left.
+        NotchStripHold(calendar.countdown, shows: service.compactActivity == .calendar) { content($0) }
+    }
+
+    @ViewBuilder private func content(_ countdown: NotchCalendarCountdown?) -> some View {
+        if let countdown {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let displayTitle = Self.displayTitle(countdown.event, untitled: text.untitled)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
@@ -28,7 +35,7 @@ struct NotchCalendarStrip: View {
                         paired(countdown, companion: companion, title: displayTitle, remaining: remaining,
                                now: context.date)
                     } else {
-                        Button { service.openActivity(.calendar) } label: {
+                        Button { service.openCountdownEvent() } label: {
                             Group {
                                 if usesFullRow {
                                     fullRow(countdown, title: displayTitle, remaining: remaining)
@@ -126,7 +133,7 @@ struct NotchCalendarStrip: View {
             .accessibilityLabel(NotchCompanionMark.label(companion, language: l10n.language))
             .accessibilityHint(FeatureStrings.notch(l10n.language).open)
             Color.clear.frame(width: geometry.compactActivityCameraGap)
-            Button { service.openActivity(.calendar) } label: {
+            Button { service.openCountdownEvent() } label: {
                 Self.clockMark(countdown, remaining: remaining)
                     .padding(.trailing, footer ? rowInset : geometry.compactActivityEdgeInset(boxHeight: 9, radius: 0))
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,

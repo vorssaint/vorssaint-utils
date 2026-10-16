@@ -140,24 +140,20 @@ struct PowerSection: View {
             peripheralBatteryRows
         case .system:
             if pwrSystem, let watts = power?.systemWatts {
-                if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
-                    HStack(spacing: 8) {
-                        row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
-                            label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
-                            visible: $pwrSystem, editing: false)
-                            .fixedSize(horizontal: true, vertical: false)
-                        Sparkline(values: monitor.snapshot.systemPowerHistory,
-                                  color: PanelMetricColor.orange(for: colorScheme),
-                                  showsZeroBaseline: true)
-                            .frame(height: 26)
-                        if editing {
-                            PanelInlineHideButton(isVisible: $pwrSystem)
-                        }
-                    }
-                } else {
+                VStack(alignment: .leading, spacing: 6) {
                     row(icon: "bolt.fill", color: PanelMetricColor.orange(for: colorScheme),
                         label: l10n.s.powerSystem, value: MetricFormat.watts(watts),
                         visible: $pwrSystem, editing: editing)
+                    if showGraph, monitor.snapshot.systemPowerHistory.count >= 2 {
+                        let peak = MetricFormat.graphCeiling(monitor.snapshot.systemPowerHistory.max() ?? 0,
+                                                             unitStep: 1000)
+                        Sparkline(values: monitor.snapshot.systemPowerHistory,
+                                  color: PanelMetricColor.orange(for: colorScheme),
+                                  maxValue: peak,
+                                  showsZeroBaseline: true)
+                            .frame(height: 30)
+                            .graphCeilingLabel(MetricFormat.watts(peak))
+                    }
                 }
             } else if editing && !pwrSystem {
                 PanelHiddenItemRow(title: l10n.s.powerSystem,
@@ -222,12 +218,23 @@ struct PowerSection: View {
         Text(text).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.secondary)
     }
 
+    /// External power earns the bolt whether or not a charge is running, so a
+    /// Mac held at a limit is not drawn as one on its own battery.
+    private var batteryUsageSymbol: String {
+        switch BatteryPowerSupport.state(isCharging: monitor.snapshot.power?.isCharging ?? false,
+                                         externalConnected: monitor.snapshot.power?.externalConnected ?? false,
+                                         hasBattery: monitor.snapshot.power?.hasBattery ?? true) {
+        case .charging, .externalPower: return "bolt.fill"
+        case .onBattery, .unavailable: return "battery.100"
+        }
+    }
+
     @ViewBuilder
     private func batteryUsageRow(editing: Bool) -> some View {
         if let charge = monitor.snapshot.power?.chargePercent {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    Image(systemName: (monitor.snapshot.power?.isCharging ?? false) ? "bolt.fill" : "battery.100")
+                    Image(systemName: batteryUsageSymbol)
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                         .frame(width: 10)
@@ -251,7 +258,8 @@ struct PowerSection: View {
                               color: PanelMetricColor.green(for: colorScheme),
                               maxValue: 1,
                               showsZeroBaseline: true)
-                        .frame(height: 22)
+                        .frame(height: 30)
+                        .graphCeilingLabel(MetricFormat.percent(1))
                 }
                 EnergyAppsBreakdown()
             }

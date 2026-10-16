@@ -24,6 +24,14 @@ struct NotchPartialDownload: Equatable {
     let resourceID: String?
     let modified: Date
     var contentURL: URL? = nil
+    var source: NotchDownloadSource? = nil
+}
+
+/// The original partial itself, including Safari's wrapper directory. The
+/// payload can move or be extracted without changing which transfer ended.
+struct NotchDownloadSource: Hashable {
+    let url: URL
+    let identity: String
 }
 
 /// Capture native progress values once before validating paths on the file queue.
@@ -86,7 +94,9 @@ struct NotchDownloadPublication {
         }
         let completed = progress.isFinished && file != nil && file != initialFile
             && NotchDownloadSupport.expectedURL(for: current) == nil
-        return NotchDownloadItem(id: current.path, url: current, name: current.lastPathComponent,
+        // Safari publishes its .download folder. Name the file it becomes.
+        return NotchDownloadItem(id: current.path, url: current,
+            name: (NotchDownloadSupport.expectedURL(for: current) ?? current).lastPathComponent,
             receivedBytes: completed ? file?.bytes : progress.isFile ? max(0, progress.completedUnitCount) : nil,
             fraction: completed ? 1 : progress.isFinished ? nil : NotchDownloadSupport.fraction(
                 completed: progress.completedUnitCount, total: progress.totalUnitCount,
@@ -142,7 +152,7 @@ enum NotchDownloadSupport {
                 bytes: payloadValues.isRegularFile == true ? Int64(payloadValues.fileSize ?? 0) : 0,
                 resourceID: NotchDownloadSupport.fileIdentity(at: contentURL ?? url),
                 modified: payloadValues.contentModificationDate ?? .distantPast,
-                contentURL: contentURL)
+                contentURL: contentURL, source: partialSource(at: url))
         }
         // The main queue merges, sorts and compares this list on every
         // progress tick, so a crowded folder hands it only its newest entries.
@@ -266,6 +276,16 @@ enum NotchDownloadSupport {
         fileSnapshot(at: url)?.identity
     }
 
+    static func partialSource(at url: URL) -> NotchDownloadSource? {
+        guard expectedURL(for: url) != nil else { return nil }
+        var info = stat()
+        guard url.withUnsafeFileSystemRepresentation({ path in
+            path.map { lstat($0, &info) == 0 } ?? false
+        }), [S_IFREG, S_IFDIR].contains(info.st_mode & S_IFMT) else { return nil }
+        return NotchDownloadSource(url: url.standardizedFileURL,
+                                   identity: "\(info.st_dev):\(info.st_ino)")
+    }
+
     static func fileSnapshot(at url: URL) -> FileSnapshot? {
         guard url.isFileURL else { return nil }
         var info = stat()
@@ -275,6 +295,25 @@ enum NotchDownloadSupport {
         return FileSnapshot(identity: "\(info.st_dev):\(info.st_ino)", bytes: info.st_size,
                             modifiedSeconds: info.st_mtimespec.tv_sec,
                             modifiedNanoseconds: info.st_mtimespec.tv_nsec)
+    }
+
+    /// Browsers tell the Dock about each finished download with its final
+    /// path. Safari moves the file out of its .download folder just before,
+    /// often too quickly for a folder scan to see the folder at all, and an
+    /// archive it opens arrives as the folder it held.
+    static let finishedNotification = Notification.Name("com.apple.DownloadFileFinished")
+
+    static func announcedItem(atPath path: String, folder: URL) -> NotchDownloadItem? {
+        let announced = URL(fileURLWithPath: path)
+        guard path.hasPrefix("/"),
+              isDirectChild(announced.resolvingSymlinksInPath(), of: folder.resolvingSymlinksInPath()) else { return nil }
+        let url = folder.appendingPathComponent(announced.lastPathComponent).standardizedFileURL
+        guard expectedURL(for: url) == nil, let values = try? url.resourceValues(forKeys: keys),
+              values.isSymbolicLink != true,
+              values.isRegularFile == true || values.isDirectory == true else { return nil }
+        return NotchDownloadItem(id: url.path, url: url, name: url.lastPathComponent,
+            receivedBytes: values.fileSize.map(Int64.init), fraction: 1, completed: true,
+            active: false, date: Date())
     }
 
     static func didFinish(_ partial: NotchPartialDownload, at finalURL: URL,

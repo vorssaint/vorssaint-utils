@@ -237,6 +237,15 @@ enum ShelfInteractionSupport {
     static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool) -> Bool {
         removeAfterDrop && !dragIncludesPinned
     }
+
+    /// The picture a tile menu can open in the screenshot editor. The editor
+    /// takes one picture, so the menu must act on a single image file.
+    static func editableImage(in urls: [URL]) -> URL? {
+        guard urls.count == 1, let url = urls.first,
+              UTType(filenameExtension: url.pathExtension.lowercased())?.conforms(to: .image) == true
+        else { return nil }
+        return url
+    }
 }
 
 /// Types accepted by the native shelf drop targets.
@@ -798,6 +807,24 @@ enum ShelfPersistenceSupport {
     static func containsKeptFile(under path: String, keptPaths: Set<String>) -> Bool {
         let path = URL(fileURLWithPath: path).standardizedFileURL.path
         return keptPaths.contains(path) || keptPaths.contains { $0.hasPrefix(path + "/") }
+    }
+
+    /// A file another feature made for the shelf, written owner-only into its
+    /// own folder in the store the way received promises are. It keeps its
+    /// name beside another of the same name, and the startup sweep and
+    /// `ShelfFilePromiseTransfer.discard` treat it like any received file.
+    /// Anything but a plain file name is refused.
+    static func writeGeneratedFile(_ data: Data, named name: String, in store: URL,
+                                   container: URL? = PrivateFileStore.containerURL) -> URL? {
+        guard !name.isEmpty, name != ".", name != "..", !name.contains("/") else { return nil }
+        let directory = store.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        guard PrivateFileStore.createDirectory(at: directory, container: container) else { return nil }
+        let url = directory.appendingPathComponent(name)
+        guard PrivateFileStore.write(data, to: url) else {
+            try? FileManager.default.removeItem(at: directory)
+            return nil
+        }
+        return url
     }
 
     static func discardablePayloadPaths(candidatePaths: [String],

@@ -33,12 +33,15 @@ final class NotchDownloadService: ObservableObject {
     @Published private(set) var folderName: String?
     @Published private(set) var folderUnavailable = false
     var onArrival: ((NotchDownloadItem) -> Void)?
+    /// A download went away unfinished: cancelled or failed.
+    var onFailure: (() -> Void)?
 
     private var folder: URL?
     private var securityScope = false
     private var directorySource: DispatchSourceFileSystemObject?
     private var fileSources: [URL: DispatchSourceFileSystemObject] = [:]
     private var subscriber: Any?
+    private var announcements: NSObjectProtocol?
     private var progressObserver: NotchDownloadProgressObserver?
     private var progressItems: [NotchDownloadItem] = []
     private var folderItems: [NotchDownloadItem] = []
@@ -187,6 +190,8 @@ final class NotchDownloadService: ObservableObject {
         progressItems = []
         if let subscriber { Progress.removeSubscriber(subscriber) }
         subscriber = nil
+        if let announcements { DistributedNotificationCenter.default().removeObserver(announcements) }
+        announcements = nil
         if let folder, securityScope {
             // Let an already-running file read finish before releasing its scope.
             queue.async { folder.stopAccessingSecurityScopedResource() }
@@ -235,6 +240,19 @@ final class NotchDownloadService: ObservableObject {
                 }
             }
         }
+        announcements = DistributedNotificationCenter.default().addObserver(
+            forName: NotchDownloadSupport.finishedNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.generation == requested, let folder = self.folder,
+                  let path = note.object as? String else { return }
+            self.queue.async { [weak self] in
+                let item = NotchDownloadSupport.announcedItem(atPath: path, folder: folder)
+                DispatchQueue.main.async {
+                    guard let self, self.generation == requested, let item else { return }
+                    self.recordCompletion(item)
+                    self.refreshItems()
+                }
+            }
+        }
         scheduleScan()
     }
 
@@ -272,6 +290,7 @@ final class NotchDownloadService: ObservableObject {
         scanning = true
         let id = generation
         let previous = partials
+        let observer = progressObserver
         queue.async { [weak self] in
             let current = NotchDownloadSupport.scanFolder(folder)
             let completed = previous.values.compactMap { old -> NotchDownloadItem? in
@@ -285,6 +304,17 @@ final class NotchDownloadService: ObservableObject {
                     name: old.expectedURL.lastPathComponent, receivedBytes: Int64(values.fileSize ?? 0),
                     fraction: 1, completed: true, active: false, date: Date())
             }
+            // A partial gone with no file in its place and no other partial
+            // taking it over did not finish.
+            let failed = current.map { current in
+                previous.values.filter { old in
+                    current.partials[old.url] == nil
+                        && !current.partials.values.contains { $0.expectedURL == old.expectedURL }
+                        && !FileManager.default.fileExists(atPath: old.url.path)
+                        && !FileManager.default.fileExists(atPath: old.expectedURL.path)
+                        && observer?.didFinish(old) != true
+                }
+            } ?? []
             DispatchQueue.main.async {
                 guard let self, self.generation == id else { return }
                 self.scanning = false
@@ -300,6 +330,17 @@ final class NotchDownloadService: ObservableObject {
                     self.fileSources[url] = self.watch(url, directory: false)
                 }
                 completed.forEach(self.recordCompletion)
+                if !failed.isEmpty {
+                    // The publisher may finish just after its partial vanishes.
+                    // Wait for its evidence, never for an unrelated arrival.
+                    self.queue.asyncAfter(deadline: .now() + 2) { [weak self] in
+                        let unfinished = failed.contains { observer?.didFinish($0) != true }
+                        DispatchQueue.main.async {
+                            guard let self, self.generation == id, unfinished else { return }
+                            self.onFailure?()
+                        }
+                    }
+                }
                 self.progressObserver?.requestRefresh()
                 self.refreshItems()
                 if self.rescan { self.rescan = false; self.scheduleScan() }

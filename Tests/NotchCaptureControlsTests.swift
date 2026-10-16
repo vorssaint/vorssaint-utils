@@ -71,9 +71,22 @@ extension NotchPresentationRefreshContract {
         suite.expect(timedCloseCount == 0 && timed.captureID != nil && timed.captureContent == true,
                      "capture controls leave a timed preview owned by its existing dismissal timer")
         timed.endCaptureControls()
+        let bar = Service()
+        bar.showingCommandBar = true
+        bar.presentCaptureControls(CaptureOptions(), cancel: {})
+        suite.expect(!bar.showingCommandBar && !bar.expanded && bar.commandBarClosings == 1,
+                     "capture controls close a Command Bar open in the island")
+        bar.endCaptureControls()
         NSEvent.monitorRemovals = 0
 
         let idle = begin()
+        var surfaceUpdates: [(CGRect, CGFloat)] = []
+        idle.captureControls?.onCaptureControlsSurfaceChange = { surfaceUpdates.append(($0, $1)) }
+        idle.refreshPresentation(animated: false)
+        let compactSurfaceBottom = idle.geometry.floatingDrop + idle.surfaceSize.height
+        suite.expect(surfaceUpdates.last?.0 == idle.geometry.screen
+               && surfaceUpdates.last?.1 == compactSurfaceBottom,
+               "compact capture controls publish their bottom edge to the selection overlay")
         for _ in 0..<8 {
             DispatchQueue.main.advance(0.5)
             move(idle, inside: false)
@@ -87,6 +100,10 @@ extension NotchPresentationRefreshContract {
         suite.expect(idle.captureControlsCollapsed, "a brief pass over the compact target does not open controls")
         DispatchQueue.main.advance(0.1)
         suite.expect(!idle.captureControlsCollapsed, "a deliberate hover opens the controls")
+        let openSurfaceBottom = idle.geometry.floatingDrop + idle.surfaceSize.height
+        suite.expect(surfaceUpdates.last?.1 == openSurfaceBottom
+               && openSurfaceBottom > compactSurfaceBottom,
+               "opening capture controls republishes their larger bottom edge")
 
         move(idle, inside: true)
         suite.expect(idle.panel?.acceptsMouseMovedEvents == true && idle.panel?.ignoresMouseEvents == false,
@@ -104,6 +121,8 @@ extension NotchPresentationRefreshContract {
         DispatchQueue.main.advance(0.1)
         suite.expect(idle.captureControlsCollapsed && idle.captureControls != nil,
                "leaving the controls closes them soon, however the pointer moves, without cancelling the capture")
+        suite.expect(surfaceUpdates.last?.1 == compactSurfaceBottom,
+               "leaving capture controls republishes their compact bottom edge")
 
         idle.windowHost?.activate?()
         suite.expect(!idle.captureControlsCollapsed, "the compact activation target opens capture controls")
@@ -181,6 +200,19 @@ extension NotchPresentationRefreshContract {
         suite.expect(oldDeadline != nil && !replaced.captureControlsCollapsed,
                "even a delivered stale callback cannot collapse a replacement session")
         replaced.endCaptureControls()
+
+        let dropped = begin()
+        dropped.geometry = NotchGeometry(
+            screen: dropped.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+            silhouette: .capsule, capsuleFit: NotchCapsuleFit(width: 0, height: 0, drop: 12))
+        var droppedSurface: (CGRect, CGFloat)?
+        dropped.captureControls?.onCaptureControlsSurfaceChange = { droppedSurface = ($0, $1) }
+        dropped.refreshPresentation(animated: false)
+        suite.expect(dropped.geometry.floatingDrop > 0
+               && droppedSurface?.0 == dropped.geometry.screen
+               && droppedSurface?.1 == dropped.geometry.floatingDrop + dropped.surfaceSize.height,
+               "a lowered capsule publishes its drop plus height so it cannot cover the full-screen action")
+        dropped.endCaptureControls()
 
         let resting = begin(pointerInside: true)
         DispatchQueue.main.advance(1)

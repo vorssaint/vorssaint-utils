@@ -36,6 +36,8 @@ struct NotchEditorStrings {
     let activationTime: String
     let activationTimeHint: String
     let activationTimeFormat: String
+    let closeTime: String
+    let closeTimeHint: String
     let enableFeatureFormat: String
     let enableSettingFormat: String
     let showPageFormat: String
@@ -65,6 +67,7 @@ struct NotchEditorStrings {
     let downloadsSummary: String
     let scratchpadSummary: String
     let agentsSummary: String
+    let watchSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -88,6 +91,7 @@ struct NotchEditorStrings {
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
+        case .watch: return watchSummary
         }
     }
 }
@@ -128,6 +132,8 @@ extension FeatureStrings {
             activationTime: "Activation time",
             activationTimeHint: "Keep the pointer over the island for this long to open it.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Closing time",
+            closeTimeHint: "Wait this long after the pointer leaves the island before closing it.",
             enableFeatureFormat: "Enable “%@” in Features.",
             enableSettingFormat: "Enable “%@” in its settings.",
             showPageFormat: "Show “%@” on the Content tab.",
@@ -156,7 +162,8 @@ extension FeatureStrings {
             cameraSummary: "A mirror to check yourself before a call.",
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
-            agentsSummary: "Claude Code and Codex usage, limits and costs."
+            agentsSummary: "Claude Code, Codex, OpenCode and GitHub Copilot usage, limits and costs.",
+            watchSummary: "Any part of a window, read live, with an alert when it changes."
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -191,6 +198,8 @@ extension FeatureStrings {
             activationTime: "Tempo de ativação",
             activationTimeHint: "Mantenha o ponteiro sobre a ilha por esse tempo para abrir.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Tempo de fechamento",
+            closeTimeHint: "Aguarde esse tempo depois que o ponteiro sair da ilha antes de fechá-la.",
             enableFeatureFormat: "Ative “%@” em Recursos.",
             enableSettingFormat: "Ative “%@” nas configurações do recurso.",
             showPageFormat: "Mostre “%@” na aba Conteúdo.",
@@ -219,7 +228,8 @@ extension FeatureStrings {
             cameraSummary: "Um espelho para se ver antes de uma chamada.",
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
-            agentsSummary: "Uso, limites e custos do Claude Code e do Codex."
+            agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode e do GitHub Copilot.",
+            watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar."
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -254,6 +264,8 @@ extension FeatureStrings {
             activationTime: "Tiempo de activación",
             activationTimeHint: "Mantén el puntero sobre la isla durante este tiempo para abrirla.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Tiempo de cierre",
+            closeTimeHint: "Espera este tiempo después de que el puntero salga de la isla antes de cerrarla.",
             enableFeatureFormat: "Activa “%@” en Funciones.",
             enableSettingFormat: "Activa “%@” en sus ajustes.",
             showPageFormat: "Muestra “%@” en la pestaña Contenido.",
@@ -282,7 +294,8 @@ extension FeatureStrings {
             cameraSummary: "Un espejo para verte antes de una llamada.",
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
-            agentsSummary: "Uso, límites y costes de Claude Code y Codex."
+            agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode y GitHub Copilot.",
+            watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie."
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -317,6 +330,8 @@ extension FeatureStrings {
             activationTime: "Čas aktivácie",
             activationTimeHint: "Podržte kurzor nad Dynamic Island takto dlho, aby sa otvoril.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Čas zatvorenia",
+            closeTimeHint: "Po odchode kurzora z Dynamic Island počkajte takto dlho, kým sa zatvorí.",
             enableFeatureFormat: "Zapnite „%@“ vo Funkciách.",
             enableSettingFormat: "Zapnite „%@“ v jeho nastaveniach.",
             showPageFormat: "Zobrazte „%@“ na karte Obsah.",
@@ -345,7 +360,8 @@ extension FeatureStrings {
             cameraSummary: "Zrkadlo, v ktorom sa pred hovorom skontrolujete.",
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
-            agentsSummary: "Využitie, limity a náklady Claude Code a Codexu."
+            agentsSummary: "Využitie, limity a náklady Claude Code, Codexu, OpenCode a GitHub Copilot.",
+            watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení."
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -380,6 +396,8 @@ extension FeatureStrings {
             activationTime: "Aktivierungszeit",
             activationTimeHint: "Halte den Zeiger so lange über der Insel, um sie zu öffnen.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Schließzeit",
+            closeTimeHint: "Wartet nach dem Verlassen der Insel mit dem Zeiger so lange, bevor sie sich schließt.",
             enableFeatureFormat: "Aktiviere „%@“ unter Funktionen.",
             enableSettingFormat: "Aktiviere „%@“ in den zugehörigen Einstellungen.",
             showPageFormat: "Blende „%@“ im Tab Inhalt ein.",
@@ -408,7 +426,8 @@ extension FeatureStrings {
             cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
-            agentsSummary: "Nutzung, Limits und Kosten von Claude Code und Codex."
+            agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode und GitHub Copilot.",
+            watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen."
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -443,6 +462,8 @@ extension FeatureStrings {
             activationTime: "Délai d’activation",
             activationTimeHint: "Laissez le pointeur sur l’île pendant cette durée pour l’ouvrir.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Délai de fermeture",
+            closeTimeHint: "Après que le pointeur a quitté l’île, attendre cette durée avant de la fermer.",
             enableFeatureFormat: "Activez « %@ » dans Fonctionnalités.",
             enableSettingFormat: "Activez « %@ » dans ses réglages.",
             showPageFormat: "Affichez « %@ » dans l’onglet Contenu.",
@@ -471,7 +492,8 @@ extension FeatureStrings {
             cameraSummary: "Un miroir pour vous voir avant un appel.",
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
-            agentsSummary: "Utilisation, limites et coûts de Claude Code et Codex."
+            agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode et GitHub Copilot.",
+            watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change."
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -506,6 +528,8 @@ extension FeatureStrings {
             activationTime: "Tempo di attivazione",
             activationTimeHint: "Mantieni il puntatore sull’isola per questo tempo per aprirla.",
             activationTimeFormat: "%.2f s",
+            closeTime: "Tempo di chiusura",
+            closeTimeHint: "Dopo che il puntatore lascia l’isola, attendi questo tempo prima di chiuderla.",
             enableFeatureFormat: "Attiva “%@” in Funzioni.",
             enableSettingFormat: "Attiva “%@” nelle relative impostazioni.",
             showPageFormat: "Mostra “%@” nella scheda Contenuto.",
@@ -534,7 +558,8 @@ extension FeatureStrings {
             cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
-            agentsSummary: "Uso, limiti e costi di Claude Code e Codex."
+            agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode e GitHub Copilot.",
+            watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia."
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -569,6 +594,8 @@ extension FeatureStrings {
             activationTime: "Время активации",
             activationTimeHint: "Удерживайте указатель над островом в течение этого времени, чтобы открыть его.",
             activationTimeFormat: "%.2f с",
+            closeTime: "Время закрытия",
+            closeTimeHint: "После того как указатель покинет остров, ждать столько времени перед закрытием.",
             enableFeatureFormat: "Включите «%@» в разделе функций.",
             enableSettingFormat: "Включите «%@» в соответствующих настройках.",
             showPageFormat: "Покажите «%@» на вкладке содержимого.",
@@ -597,7 +624,8 @@ extension FeatureStrings {
             cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
-            agentsSummary: "Использование, лимиты и стоимость Claude Code и Codex."
+            agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode и GitHub Copilot.",
+            watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях."
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -632,6 +660,8 @@ extension FeatureStrings {
             activationTime: "Etkinleştirme süresi",
             activationTimeHint: "Açmak için imleci bu süre boyunca adanın üzerinde tutun.",
             activationTimeFormat: "%.2f sn",
+            closeTime: "Kapanma süresi",
+            closeTimeHint: "İmleç adadan ayrıldıktan sonra kapatmadan önce bu süre kadar bekleyin.",
             enableFeatureFormat: "Özellikler’de “%@” özelliğini etkinleştirin.",
             enableSettingFormat: "İlgili ayarlarda “%@” seçeneğini etkinleştirin.",
             showPageFormat: "İçerik sekmesinde “%@” sayfasını gösterin.",
@@ -660,7 +690,8 @@ extension FeatureStrings {
             cameraSummary: "Aramadan önce kendinize bakmak için bir ayna.",
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
-            agentsSummary: "Claude Code ve Codex kullanımı, sınırları ve maliyetleri."
+            agentsSummary: "Claude Code, Codex, GitHub Copilot ve OpenCode kullanımı, sınırları ve maliyetleri.",
+            watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir."
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -695,6 +726,8 @@ extension FeatureStrings {
             activationTime: "開くまでの時間",
             activationTimeHint: "島の上にポインタをこの時間置くと開きます。",
             activationTimeFormat: "%.2f 秒",
+            closeTime: "閉じるまでの時間",
+            closeTimeHint: "ポインタが島から離れてからこの時間が経つと閉じます。",
             enableFeatureFormat: "機能で「%@」を有効にしてください。",
             enableSettingFormat: "該当する設定で「%@」を有効にしてください。",
             showPageFormat: "コンテンツタブで「%@」を表示してください。",
@@ -723,7 +756,8 @@ extension FeatureStrings {
             cameraSummary: "通話前に身だしなみを確認できるミラー。",
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
-            agentsSummary: "Claude CodeとCodexの使用量、上限、コスト。"
+            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilotの使用量、上限、コスト。",
+            watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。"
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -758,6 +792,8 @@ extension FeatureStrings {
             activationTime: "활성화 시간",
             activationTimeHint: "이 시간 동안 섬 위에 포인터를 두면 열립니다.",
             activationTimeFormat: "%.2f초",
+            closeTime: "닫힘 시간",
+            closeTimeHint: "포인터가 섬을 벗어난 후 이 시간이 지나면 닫힙니다.",
             enableFeatureFormat: "기능에서 “%@”을(를) 활성화하세요.",
             enableSettingFormat: "해당 설정에서 “%@”을(를) 활성화하세요.",
             showPageFormat: "콘텐츠 탭에서 “%@”을(를) 표시하세요.",
@@ -786,7 +822,8 @@ extension FeatureStrings {
             cameraSummary: "통화 전에 모습을 확인하는 거울.",
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
-            agentsSummary: "Claude Code와 Codex의 사용량, 한도, 비용."
+            agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot의 사용량, 한도, 비용.",
+            watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다."
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -821,13 +858,15 @@ extension FeatureStrings {
             activationTime: "激活时间",
             activationTimeHint: "将指针在岛上停留此时长即可打开。",
             activationTimeFormat: "%.2f 秒",
+            closeTime: "关闭时间",
+            closeTimeHint: "指针离开岛后等待此时长再关闭。",
             enableFeatureFormat: "在功能中启用“%@”。",
             enableSettingFormat: "在相应设置中启用“%@”。",
             showPageFormat: "在内容标签页中显示“%@”。",
             keyboardLightUnavailable: "此 Mac 无法控制键盘背光。",
             appPanelHint: "选择在任意显示器上点击菜单栏的 Vorssaint 图标时打开面板的位置。",
             hideMenuBarIcon: "隐藏菜单栏图标",
-            hideMenuBarIconHint: "设置和应用面板可从 Dynamic Island 打开。关闭 Dynamic Island、在全屏模式下隐藏它，或有更新就绪或麦克风静音时，图标会自动回来。",
+            hideMenuBarIconHint: "设置和 App 面板可从 Dynamic Island 打开。关闭 Dynamic Island、在全屏模式下隐藏它，或有更新就绪或麦克风静音时，图标会自动回来。",
             sections: "分区",
             sectionsHint: "拖动以排序。取消勾选某个分区即可在岛上隐藏它。",
             preview: "预览",
@@ -836,9 +875,9 @@ extension FeatureStrings {
             cameraPreview: "摄像头只会在岛内开启。",
             noOptions: "此分区没有可设置的选项。",
             controlsSummary: "播放、音量、亮度和你的快捷操作。",
-            mixerSummary: "每个应用的音量，以及声音从哪里播放。",
+            mixerSummary: "每个 App 的音量，以及声音从哪里播放。",
             musicSummary: "正在播放的歌曲及其控制。",
-            clipboardSummary: "最近复制的内容，随时再次粘贴。",
+            clipboardSummary: "最近拷贝的内容，随时再次粘贴。",
             capturesSummary: "最近的截图和录屏。",
             filesSummary: "存放拖到岛上的文件的架子。",
             systemSummary: "CPU、内存、磁盘、网络和电池一目了然。",
@@ -849,7 +888,8 @@ extension FeatureStrings {
             cameraSummary: "通话前照一照的镜子。",
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限额和费用。"
+            agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限额和费用。",
+            watchSummary: "实时读取窗口的任意部分，变化时提醒你。"
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -884,6 +924,8 @@ extension FeatureStrings {
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒",
+            closeTime: "關閉時間",
+            closeTimeHint: "指標離開島後等待此時間再關閉。",
             enableFeatureFormat: "在功能中啟用「%@」。",
             enableSettingFormat: "在對應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
@@ -912,7 +954,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
+            agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -947,6 +990,8 @@ extension FeatureStrings {
             activationTime: "啟用時間",
             activationTimeHint: "將指標停留在島上達此時間即可開啟。",
             activationTimeFormat: "%.2f 秒",
+            closeTime: "關閉時間",
+            closeTimeHint: "指標離開島後等待此時間再關閉。",
             enableFeatureFormat: "在功能中啟用「%@」。",
             enableSettingFormat: "在相應設定中啟用「%@」。",
             showPageFormat: "在內容標籤頁中顯示「%@」。",
@@ -975,7 +1020,8 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code 和 Codex 的用量、限額和費用。"
+            agentsSummary: "Claude Code、Codex、OpenCode 和 GitHub Copilot 的用量、限額和費用。",
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1010,6 +1056,8 @@ extension FeatureStrings {
             activationTime: "Час активації",
             activationTimeHint: "Тримайте вказівник над острівцем стільки часу, щоб відкрити його.",
             activationTimeFormat: "%.2f с",
+            closeTime: "Час закриття",
+            closeTimeHint: "Після того як вказівник покине острівець, чекати стільки часу перед закриттям.",
             enableFeatureFormat: "Увімкніть «%@» у Функціях.",
             enableSettingFormat: "Увімкніть «%@» у налаштуваннях функції.",
             showPageFormat: "Покажіть «%@» на вкладці Вміст.",
@@ -1038,7 +1086,8 @@ extension FeatureStrings {
             cameraSummary: "Дзеркало, щоб перевірити себе перед викликом.",
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
-            agentsSummary: "Використання Claude Code і Codex, ліміти й витрати."
+            agentsSummary: "Використання Claude Code, Codex, OpenCode і GitHub Copilot, ліміти й витрати.",
+            watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни."
         )
         }
     }

@@ -61,6 +61,14 @@ enum SelfTest {
             warnings.append("symbolic hotkey table unavailable; shortcut conflicts fall back to the plist")
         }
 
+        // Per-app AirPlay drives private AVFoundation routing objects (the
+        // default shared output context and the picker and renderer bindings).
+        // When an update removes one, the mixer quietly stops offering AirPlay
+        // on the systems it is offered on.
+        if #available(macOS 27, *), !AirPlayRouteManager.shared.isAvailable {
+            warnings.append("AirPlay routing unavailable; the mixer does not offer AirPlay")
+        }
+
         // Network counters should be readable and never run backwards.
         let net1 = NetworkSampler.readCounters()
         let net2 = NetworkSampler.readCounters()

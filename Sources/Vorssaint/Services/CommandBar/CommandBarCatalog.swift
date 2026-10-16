@@ -388,17 +388,22 @@ enum CommandBarCatalog {
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
                 run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            // Counted when the bar lists it: a copy made before confirming is kept.
+            let recentIDs = ClipboardHistoryService.shared.recentEntriesSnapshot
             entries.append(CommandBarEntry(
                 id: "action.clipboardClearRecent",
                 title: clipboard.clearRecent,
                 subtitle: area(.clipboardHistory),
                 keywords: [clipboard.title, ClipboardFeatureStrings.enUS.title,
-                           ClipboardFeatureStrings.enUS.clearRecent].joined(separator: " "),
+                           ClipboardFeatureStrings.enUS.clearRecent,
+                           clipboard.recent, ClipboardFeatureStrings.enUS.recent,
+                           clipboard.clearRecentKeywords,
+                           ClipboardFeatureStrings.enUS.clearRecentKeywords].joined(separator: " "),
                 icon: .symbol("trash"),
                 trouble: canUseHistory ? nil
                     : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
-                confirmationPrompt: clipboard.clearRecent,
-                run: { _ in ClipboardHistoryService.shared.clearRecent() }))
+                confirmationPrompt: String(format: clipboard.clearRecentConfirmFormat, recentIDs.count),
+                run: { _ in ClipboardHistoryService.shared.clearRecent(recentIDs) }))
         }
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
@@ -512,9 +517,9 @@ enum CommandBarCatalog {
                 subtitle: enabled
                     ? String(format: bar.argumentRangeFormat, 0, 100)
                     : area(.brightness),
-                // The Displays page name doubles as a synonym, so the words
-                // of both surfaces land here.
-                keywords: FeatureStrings.brightness(language).pageTitle,
+                // The Displays page name and the everyday word for the screen
+                // both find this row, so "screen 40" still sets brightness.
+                keywords: FeatureStrings.brightness(language).pageTitle + " " + bar.brightnessKeywords,
                 icon: .symbol("sun.max"),
                 trouble: enabled ? nil
                     : .needsSetup(featureTitle: FeatureStrings.brightness(language).pageTitle,
@@ -980,7 +985,7 @@ enum CommandBarCatalog {
                 id: "app.\(app.id)",
                 // Two copies of one app need two rows, so the row is keyed by
                 // where it lives; what the person named stays with the app.
-                stableKey: app.bundleID.map { "app.bundle.\($0)" } ?? "app.\(app.id)",
+                stableKey: CommandBarRowShortcuts.appKey(bundleID: app.bundleID, path: app.id),
                 title: app.name,
                 subtitle: bar.kindApp,
                 keywords: keywords,
@@ -1187,14 +1192,22 @@ enum CommandBarCatalog {
 
         if let battery = cachedBattery {
             let value = "\(battery.percent)%"
-            let detail = battery.isCharging
-                ? bar.answerBatteryCharging
-                : (battery.isOnBattery ? bar.answerBatteryLabel : bar.answerBatteryPlugged)
+            // The row said "Plugged" beside a battery drawn without its bolt;
+            // text and icon now answer from the same reading.
+            let state = BatteryPowerSupport.state(isCharging: battery.isCharging,
+                                                  externalConnected: battery.isOnExternalPower,
+                                                  hasBattery: true)
+            let detail: String
+            switch state {
+            case .charging: detail = bar.answerBatteryCharging
+            case .externalPower: detail = bar.answerBatteryPlugged
+            case .onBattery, .unavailable: detail = bar.answerBatteryLabel
+            }
             entries.append(CommandBarEntry(
                 id: "answer.battery",
                 title: bar.answerBatteryLabel,
                 subtitle: detail,
-                icon: .symbol(battery.isCharging ? "battery.100.bolt" : "battery.75"),
+                icon: .symbol(state == .onBattery ? "battery.75" : "battery.100.bolt"),
                 answerValue: value,
                 countsUsage: false,
                 run: { _ in copyAnswer(value) }))
@@ -1304,6 +1317,7 @@ enum CommandBarCatalog {
     private static func copyAnswer(_ value: String) {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
+            NSPasteboard.general.declareVorssaintSource()
             return NSPasteboard.general.setString(value, forType: .string)
         }, then: { copied in
             QuickToolHUD.show(icon: copied ? "doc.on.doc" : "exclamationmark.circle",
@@ -1493,7 +1507,15 @@ enum CommandBarCatalog {
     ///
     /// Everything here is offered only when it would actually do something —
     /// a link row only for a link, a case row only when the case would change.
+    ///
+    /// `text` is the trimmed selection. `exactly` is the selection as the app
+    /// holds it, with its spaces and line breaks. The case rows type over that
+    /// selection, so they change `exactly` and keep those spaces and breaks.
+    /// `typesOver` is false where typed letters would not reach the selection;
+    /// then the case rows are not offered.
     static func selectionEntries(_ text: String,
+                                 exactly selected: String? = nil,
+                                 typesOver: Bool = true,
                                  bar: CommandBarFeatureStrings,
                                  useInSearch: @escaping (String) -> Void) -> [CommandBarEntry] {
         guard !text.isEmpty else { return [] }
@@ -1537,7 +1559,8 @@ enum CommandBarCatalog {
 
         // Retyping a whole document would be slower than doing it by hand, and
         // the case rows only earn their place when the case would change.
-        if text.count <= 5_000 {
+        let replacement = selected ?? text
+        if typesOver, replacement.count <= 5_000 {
             let cases: [(String, String, String, (String) -> String)] = [
                 ("selection.upper", bar.selectionUpper, "textformat.size.larger",
                  { $0.localizedUppercase }),
@@ -1554,7 +1577,7 @@ enum CommandBarCatalog {
                     subtitle: kind,
                     icon: .symbol(symbol),
                     trouble: Permissions.shared.accessibility ? nil : .needsPermission,
-                    run: { _ in typeAtCursor(transform(text)) }))
+                    run: { _ in typeAtCursor(transform(replacement)) }))
             }
         }
 

@@ -14,13 +14,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -53,11 +55,24 @@ struct NotchAgentsView: View {
                         grid(rows, now: context.date)
                     }
                 }
+                // The period drives several cards, so it sits in the island's
+                // top row, beside the camera, while any of them shows.
+                .notchBand(leading: {
+                    if rows.joined().contains(where: { $0.card.followsPeriod }) { periodMenu }
+                })
             }
         }
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear { usage.pageDidAppear() }
+    }
+
+    private var periodMenu: some View {
+        NotchMenuButton(title: text.period(chosenPeriod), items: AgentPeriod.allCases.map { option in
+            NotchMenuItem(title: text.period(option), checked: option == chosenPeriod) { period = option.rawValue }
+        }, cornerRadius: 9) {
+            NotchBandMenuLabel(title: text.period(chosenPeriod))
+        }
     }
 
     private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
@@ -82,7 +97,7 @@ struct NotchAgentsView: View {
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: $period, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
@@ -192,8 +207,9 @@ private struct NotchAgentLimitsCard: View {
                     .lineLimit(1)
                     .layoutPriority(1)
                 Group {
-                    if let resets = window.resetsAt {
-                        Label(countdown(to: resets), systemImage: "arrow.clockwise")
+                    if let resets = AgentLimitSupport.displayedReset(window, now: now) {
+                        Label((window.estimatedResetsAt == nil ? "" : "≈ ") + countdown(to: resets),
+                              systemImage: "arrow.clockwise")
                             .labelStyle(NotchAgentInlineLabel())
                             .foregroundStyle(.secondary)
                     }
@@ -236,8 +252,9 @@ private struct NotchAgentLimitsCard: View {
     private func help(_ window: AgentLimitWindow) -> String {
         var parts = [label(window), text.usedShare(AgentFormat.percent(window.usedFraction)),
                      text.left(AgentFormat.percent(window.remainingFraction))]
-        if let resets = window.resetsAt {
+        if let resets = AgentLimitSupport.displayedReset(window, now: now) {
             parts.append(resets.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale)))
+            if window.estimatedResetsAt != nil { parts.append(text.estimated) }
         }
         if let observed = snapshot.limits[provider]?.observedAt, now.timeIntervalSince(observed) > 600 {
             parts.append(text.updated(observed.formatted(.relative(presentation: .named).locale(locale))))
@@ -245,8 +262,8 @@ private struct NotchAgentLimitsCard: View {
         return parts.joined(separator: " · ")
     }
 
-    /// Without a recent reading from the Claude app, the session still starts
-    /// and ends on the hour of its first request, so the window itself is known.
+    /// Without a recent reading from the Claude app, the session still ends
+    /// five hours after its first request, so the window itself is known.
     @ViewBuilder private var estimate: some View {
         if provider == .claude, let block = snapshot.claudeBlock {
             let length = block.end.timeIntervalSince(block.start)
@@ -272,6 +289,43 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
+        } else if provider == .opencode {
+            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+            if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
+                let costText: String = {
+                    if todayUsage.unpriced > 0 {
+                        return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
+                    }
+                    return AgentFormat.cost(todayUsage.cost)
+                }()
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        Text(costText)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                    }
+                    .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+                    HStack(spacing: 4) {
+                        Text(AgentFormat.tokens(todayUsage.tokens.total))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.secondary)
+                        if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
+                            Text("· " + text.cached(AgentFormat.percent(rate)))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
@@ -315,19 +369,21 @@ private struct NotchAgentInlineLabel: LabelStyle {
 
 // MARK: Spending
 
+/// The period it covers is chosen in the island's top row, which the trend,
+/// models and projects follow too; the plan multiples take its place here.
 private struct NotchAgentSpendCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
-    @Binding var period: String
+    let period: AgentPeriod
     let text: NotchAgentStrings
 
-    private var chosen: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
-
     var body: some View {
-        let usage = snapshot.usage(chosen)
+        let usage = snapshot.usage(period)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
-                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) { periodMenu }
+                NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
+                    if period == .month { multiples(usage) }
+                }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
                         .font(.system(size: 22, weight: .medium, design: .rounded))
@@ -340,7 +396,6 @@ private struct NotchAgentSpendCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
-                    if chosen == .month { multiples(usage) }
                 }
                 .help(usage.fullyPriced ? text.valueNote : text.unpriced)
                 split(usage)
@@ -351,18 +406,6 @@ private struct NotchAgentSpendCard: View {
                     .minimumScaleFactor(0.85)
                     .help(text.saved(AgentFormat.cost(usage.total.savings)))
             }
-        }
-    }
-
-    private var periodMenu: some View {
-        NotchMenuButton(title: text.period(chosen), items: AgentPeriod.allCases.map { option in
-            NotchMenuItem(title: text.period(option), checked: option == chosen) { period = option.rawValue }
-        }) {
-            Text("\(text.period(chosen)) \(Image(systemName: "chevron.down"))")
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .contentShape(Rectangle())
         }
     }
 
@@ -524,7 +567,9 @@ private struct NotchAgentTrendCard: View {
 
     private func caption(byCost: Bool) -> String {
         if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost)
+            // A pointed-at bar reads its tokens beside its cost.
+            let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
+            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
         }
         return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }

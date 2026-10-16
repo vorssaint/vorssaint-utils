@@ -458,7 +458,7 @@ extension MouseButtonFeatureStrings {
         addButton: "添加按键或侧滚轮",
         captureWaiting: "现在请按下额外按键或转动侧滚轮。",
         captureCancel: "取消",
-        captureBlind: "Vorssaint 目前无法监视鼠标。",
+        captureBlind: "Vorssaint 目前无法监听鼠标。",
         captureUnsupported: "该输入无法设置快捷键。请使用额外按键或侧滚轮方向。",
         captureWheel: "该按键已用于打开径向菜单。请换一个，或先在那里释放它。",
         captureExists: "该按键或方向已在下方列表中。",

@@ -25,6 +25,8 @@ enum MixerOutputAdjustmentContract {
         static var afterVolumeWrite: (() -> Void)?
         static var volume: Float32? = 0.2
         static var muted: Bool? = false
+        /// The level a volume write lands on. Nil leaves the reading alone.
+        static var accepts: ((Float32) -> Float32)?
     }
 
     static func run(_ suite: TestSuite) {
@@ -36,6 +38,7 @@ enum MixerOutputAdjustmentContract {
             Hardware.afterVolumeWrite = nil
             Hardware.volume = 0.2
             Hardware.muted = false
+            Hardware.accepts = nil
             let mixer = Mixer()
             mixer.selectOutput(1, volume: 0.2, muted: false)
             return mixer
@@ -48,6 +51,32 @@ enum MixerOutputAdjustmentContract {
         }
 
         var mixer = make()
+        Hardware.volume = 0.02
+        var zeroResult: Bool?
+        mixer.requestOutputStep(level: { $0 - 0.1 }) { zeroResult = $0 }
+        finish(mixer)
+        suite.expect(Hardware.writes == [.init(device: 1, volume: 0, muted: nil),
+                                         .init(device: 1, volume: nil, muted: true)]
+                     && mixer.systemOutputVolume == 0 && mixer.systemOutputMuted == true && zeroResult == true,
+                     "a volume key that reaches or crosses zero mutes the output")
+        Hardware.volume = 0
+        Hardware.muted = true
+        Hardware.writes = []
+        mixer.requestOutputStep(level: { $0 + 0.1 })
+        finish(mixer)
+        suite.expect(Hardware.writes.last?.muted == false
+                     && mixer.systemOutputVolume == 0.1 && mixer.systemOutputMuted == false,
+                     "the next positive volume key unmutes an output muted at zero")
+
+        mixer = make()
+        Hardware.muted = nil
+        mixer.selectOutput(1, volume: 0.2, muted: nil)
+        mixer.requestOutputAdjustment(volume: 0)
+        finish(mixer)
+        suite.expect(Hardware.writes == [.init(device: 1, volume: 0, muted: nil)],
+                     "zero volume on an output without mute writes only the volume")
+
+        mixer = make()
         var completions: [Bool] = []
         mixer.requestOutputAdjustment(volume: 0.3) { completions.append($0) }
         mixer.requestOutputAdjustment(volume: 0.5) { completions.append($0) }
@@ -186,6 +215,101 @@ enum MixerOutputAdjustmentContract {
         suite.expect(Hardware.writes.first?.volume.map { ($0 * 10).rounded() } == 1
                      && mixer.systemOutputMuted == false,
                      "a key on a muted output steps up from silence and unmutes")
+
+        // An output that takes only a few levels, like USB speakers that step
+        // in 3 dB: a write lands on the nearest one, so a key's step can come
+        // back to the level it started from.
+        let coarseLevels: [Float32] = [0, 0.05, 0.12, 0.2, 0.3, 0.45, 0.65, 1]
+        func coarse(_ value: Float32) -> Float32 {
+            coarseLevels.min { abs($0 - value) < abs($1 - value) }!
+        }
+        func press(_ mixer: Mixer, _ delta: Double, times: Int) -> [Float32?] {
+            (0..<times).map { _ in
+                mixer.requestOutputStep(level: step(delta))
+                finish(mixer)
+                return Hardware.volume
+            }
+        }
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        suite.expect(press(mixer, 1.0 / 16, times: 4) == [0.3, 0.45, 0.45, 0.65],
+                     "volume up climbs an output that rounds a single step back to its level")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 1
+        suite.expect(press(mixer, -1.0 / 16, times: 3) == [1, 1, 0.65],
+                     "volume down leaves full volume on an output whose top step is wider than a key's")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        _ = press(mixer, 1.0 / 16, times: 1)
+        Hardware.volume = 0.05
+        Hardware.writes = []
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [1125],
+                     "a key steps from a level the output moved to on its own, not from a step it rounded back")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        _ = press(mixer, 1.0 / 16, times: 1)
+        mixer.requestOutputAdjustment(volume: 0.3)
+        finish(mixer)
+        Hardware.writes = []
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625],
+                     "a direct level change starts the next key from that level")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        _ = press(mixer, 1.0 / 16, times: 1)
+        mixer.readSnapshot(volume: 0.3, muted: false)
+        suite.expect(press(mixer, 1.0 / 16, times: 1) == [0.45],
+                     "the reading right after a step the output rounded back keeps the next key going")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(press(mixer, -1.0 / 16, times: 1) == [0.2],
+                     "a key back the other way after a step the output rounded back steps from the output's level")
+
+        mixer = make()
+        Hardware.accepts = { $0 }
+        Hardware.volume = 0.5
+        _ = press(mixer, 1.0 / 16, times: 1)
+        mixer.readSnapshot(volume: 0.5625, muted: false)
+        Hardware.volume = 0.5
+        Hardware.writes = []
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(Hardware.writes.compactMap(\.volume) == [0.5625],
+                     "a step the output took carries nothing over after another control returns it to where the key started")
+
+        mixer = make()
+        Hardware.accepts = { $0 }
+        Hardware.volume = 0.5
+        _ = press(mixer, 1.0 / 16, times: 1)
+        _ = mixer.setCurrentOutputVolume(0.5)
+        Hardware.writes = []
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(Hardware.writes.compactMap(\.volume) == [0.5625],
+                     "a level set from the menu bar before the step's own reading starts the next key from that level")
+
+        mixer = make()
+        Hardware.accepts = coarse
+        Hardware.volume = 0.3
+        Hardware.succeeds = false
+        _ = press(mixer, 1.0 / 16, times: 1)
+        Hardware.succeeds = true
+        Hardware.writes = []
+        _ = press(mixer, 1.0 / 16, times: 1)
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 10000).rounded() } == [3625],
+                     "a step the output refused carries nothing over to the next key")
 
         // A level of zero also throws the mute switch, as the system's own
         // keys and the Control Center slider do, because the bottom of the
@@ -389,6 +513,69 @@ enum MixerOutputAdjustmentContract {
         finish(mixer)
         suite.expect(Hardware.writes.isEmpty && completions == [false],
                      "an output without software volume leaves the key to the system")
+
+        mixer = make()
+        completions = []
+        Hardware.muted = true
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        suite.expect(mixer.systemOutputMuted == false && Hardware.writes.isEmpty,
+                     "the mute key waits for the output's own reading before toggling")
+        finish(mixer)
+        suite.expect(Hardware.writes == [.init(device: 1, volume: nil, muted: false)] && completions == [true],
+                     "the mute key toggles the device's state, not a stale reading from before sleep")
+
+        mixer = make()
+        completions = []
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        finish(mixer)
+        suite.expect(mixer.systemOutputMuted == false && completions == [true, true],
+                     "two quick mute presses cancel out instead of both reading the same state")
+
+        mixer = make()
+        completions = []
+        Hardware.muted = true
+        Hardware.volume = 0.02
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.requestOutputStep(level: step(0.01)) { completions.append($0) }
+        finish(mixer)
+        suite.expect(Hardware.writes.compactMap(\.volume).map { ($0 * 100).rounded() } == [3]
+                     && mixer.systemOutputMuted == false && completions == [true, true],
+                     "a volume key right after an unmuting press steps from the level the same read fetched")
+
+        mixer = make()
+        completions = []
+        Hardware.volume = nil
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.requestOutputStep(level: step(0.1)) { completions.append($0) }
+        finish(mixer)
+        suite.expect(completions.count == 2 && completions.filter { $0 }.count == 1 && mixer.systemOutputMuted == true,
+                     "an output with mute but no software volume still toggles mute and leaves volume to the system")
+
+        mixer = make()
+        completions = []
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.requestOutputStep(level: step(0.1)) { completions.append($0) }
+        Hardware.device = 2
+        finish(mixer)
+        suite.expect(Hardware.writes.isEmpty && completions == [false, true] && mixer.listenerRefreshes == 1,
+                     "a mute key for an output that is no longer the default goes back to the system while its volume keys settle")
+
+        mixer = make()
+        completions = []
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.halQueue.runOne()
+        Hardware.device = 2
+        Hardware.volume = 0.4
+        Hardware.muted = true
+        mixer.selectOutput(2, volume: 0.4, muted: true)
+        mixer.requestOutputMuteToggle { completions.append($0) }
+        mixer.requestOutputStep(level: step(0.1)) { completions.append($0) }
+        finish(mixer)
+        suite.expect(Hardware.writes.contains { $0.device == 2 && $0.muted == false }
+                     && Hardware.writes.contains { $0.device == 2 && $0.volume == 0.5 }
+                     && completions == [true, true, true],
+                     "an old mute read cannot swallow the new output's mute and volume keys")
 
         mixer = make()
         completions = []

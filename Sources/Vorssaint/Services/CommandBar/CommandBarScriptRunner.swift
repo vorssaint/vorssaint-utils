@@ -77,7 +77,11 @@ final class CommandBarScriptRunner {
         execute(link: link, argument: argument)
     }
 
+    /// A run waits out its debounce or is going.
+    var isAwaiting: Bool { pendingWorkItem != nil || !inFlight.isEmpty }
+
     private func execute(link: CommandBarLink, argument: String) {
+        pendingWorkItem = nil
         let cacheKey = key(link.id, argument)
         let runGeneration = generation
         let path = (link.destination as NSString).expandingTildeInPath

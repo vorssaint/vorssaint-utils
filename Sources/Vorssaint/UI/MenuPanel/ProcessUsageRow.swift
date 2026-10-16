@@ -9,7 +9,28 @@ struct ProcessUsageRow: View {
     var iconSize: CGFloat = 15
     var leadingPadding: CGFloat = 0
 
+    @Environment(\.notchPresentation) private var inNotch
+    @ObservedObject private var l10n = L10n.shared
+
     var body: some View {
+        Group {
+            if AppFeature.killProcess.isAvailable {
+                activatableContent
+                    .contextMenu {
+                        Button(FeatureStrings.killProcess(l10n.language).forceKillButton,
+                               role: .destructive) {
+                            ProcessUsageService.shared.confirmForceQuit(row, inNotch: inNotch)
+                        }
+                        .disabled(!ProcessUsageService.shared.canForceQuit(row))
+                    }
+            } else {
+                activatableContent
+            }
+        }
+        .help(row.name)
+    }
+
+    private var activatableContent: some View {
         Group {
             if ProcessUsageService.shared.canActivate(row) {
                 Button {
@@ -22,7 +43,6 @@ struct ProcessUsageRow: View {
                 content
             }
         }
-        .help(row.name)
     }
 
     private var content: some View {

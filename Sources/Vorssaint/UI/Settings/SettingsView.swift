@@ -60,6 +60,9 @@ struct SettingsView: View {
     @State private var directoryCache = SettingsDirectoryCache()
     @State private var collapsedSectionIDs: Set<Int> = []
     @State private var navigationFromSidebar = false
+    /// The row just picked in the sidebar, until the router has taken it.
+    @State private var sidebarPick: SettingsSidebarItem.ID?
+    @State private var columnVisibility = NavigationSplitViewVisibility.all
     @FocusState private var sidebarSearchFocused: Bool
 
     private struct SearchResultsSnapshot: Equatable {
@@ -99,22 +102,32 @@ struct SettingsView: View {
     private var sidebarSelection: Binding<SettingsSidebarItem.ID?> {
         Binding(
             get: {
-                SettingsSidebarSupport.selection(for: router.destination, in: sidebarItems,
-                                                 preferredID: router.sidebarFeature.map { .feature($0) })
+                sidebarPick ?? SettingsSidebarSupport.selection(
+                    for: router.destination, in: sidebarItems,
+                    preferredID: router.sidebarFeature.map { .feature($0) })
             },
+            // The list sets its selection during a view update, where the
+            // router must not publish, so the pick is routed once it ends.
             set: { selectedID in
                 guard let selectedID,
-                      let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
-                let feature: AppFeature?
-                if case .feature(let selectedFeature) = selectedID {
-                    feature = selectedFeature
-                } else {
-                    feature = nil
-                }
-                navigationFromSidebar = true
-                router.request(item.destination, sidebarFeature: feature)
+                      sidebarItems.contains(where: { $0.id == selectedID }) else { return }
+                sidebarPick = selectedID
             }
         )
+    }
+
+    private func routeSidebarPick(_ selectedID: SettingsSidebarItem.ID?) {
+        guard let selectedID else { return }
+        sidebarPick = nil
+        guard let item = sidebarItems.first(where: { $0.id == selectedID }) else { return }
+        let feature: AppFeature?
+        if case .feature(let selectedFeature) = selectedID {
+            feature = selectedFeature
+        } else {
+            feature = nil
+        }
+        navigationFromSidebar = true
+        router.request(item.destination, sidebarFeature: feature)
     }
 
     var body: some View {
@@ -131,7 +144,7 @@ struct SettingsView: View {
                     isAvailable: { features.isAvailable($0) }))
         }()
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar(searchResults: searchResults)
                 .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
         } detail: {
@@ -152,6 +165,19 @@ struct SettingsView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
+            // SwiftUI adds its sidebar button only to windows it creates, and
+            // this one is AppKit's. Without it, a sidebar dragged shut could
+            // only be dragged back from a one-point strip at the window's
+            // edge, and a full-screen window could only peek at it.
+            ToolbarItem(placement: .navigation) {
+                let strings = SettingsNavigationStrings.localized(l10n.language)
+                let title = sidebarShown ? strings.hideSidebar : strings.showSidebar
+                Button(action: toggleSidebar) {
+                    Label(title, systemImage: "sidebar.left")
+                }
+                .keyboardShortcut("s", modifiers: [.control, .command])
+                .help(title)
+            }
             ToolbarItemGroup(placement: .navigation) {
                 let strings = SettingsNavigationStrings.localized(l10n.language)
                 Button {
@@ -226,6 +252,18 @@ struct SettingsView: View {
         !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// A sidebar dragged shut reports `.detailOnly` here as well.
+    private var sidebarShown: Bool { columnVisibility != .detailOnly }
+
+    private func toggleSidebar() {
+        let next: NavigationSplitViewVisibility = sidebarShown ? .detailOnly : .all
+        if NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            columnVisibility = next
+        } else {
+            withAnimation { columnVisibility = next }
+        }
+    }
+
     @ViewBuilder
     private func sidebarList(searchResults: SearchResultsSnapshot) -> some View {
         ScrollViewReader { proxy in
@@ -237,6 +275,7 @@ struct SettingsView: View {
                 }
             }
             .listStyle(.sidebar)
+            .onChange(of: sidebarPick) { _, selectedID in routeSidebarPick(selectedID) }
             .onChange(of: activeSearchIndex) { _, index in
                 guard let index, searchResults.items.indices.contains(index) else { return }
                 let id = searchResults.items[index].id
@@ -537,6 +576,7 @@ struct SettingsView: View {
         case .features: FeatureHubSettings()
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
+        case .notchMascot: NotchMascotSettings()
         case .radialMenu: RadialMenuSettings()
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings(focus: router.destination.sectionAnchor)
@@ -578,6 +618,8 @@ struct UpdatesView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
+    @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
+    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -593,6 +635,16 @@ struct UpdatesView: View {
                     }
                 SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                let whatsNew = FeatureStrings.whatsNew(l10n.language)
+                Toggle(whatsNew.showPreviewToggle, isOn: $showReleaseNotesFirst)
+                if showWhatsNewAfter {
+                    SettingsCaptionText(whatsNew.showPreviewCaption)
+                }
+            }
+
+            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
 
             statusRow
 
@@ -872,6 +924,14 @@ struct ReleaseNotesSettings: View {
 struct SupportSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var donateThanksText: String {
+        let thanks = l10n.s.donateThanks
+        return colorScheme == .dark
+            ? thanks.replacingOccurrences(of: "🖤", with: "🤍")
+            : thanks
+    }
 
     var body: some View {
         ScrollView {
@@ -970,7 +1030,7 @@ struct SupportSettings: View {
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.45))
                 )
 
-                Text(l10n.s.donateThanks)
+                Text(donateThanksText)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

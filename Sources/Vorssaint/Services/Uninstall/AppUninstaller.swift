@@ -248,6 +248,7 @@ final class AppUninstaller: ObservableObject {
 
         let allowedPaths = allowedRemovalPaths
         let targetURL = target?.url
+        let targetBundleID = target?.bundleID
         let expectedTargetIdentity = targetFileIdentity
         let expectedInfoIdentity = targetInfoIdentity
         let candidateBundleIDs = Set(chosen.compactMap(\.ownerBundleID))
@@ -376,6 +377,9 @@ final class AppUninstaller: ObservableObject {
                 guard let self, self.phase == .removing else { return }
                 self.items = []
                 self.phase = .done(freed: freed, failed: failed)
+                if let targetURL {
+                    Self.removeCommandBarState(ofRemovedAppAt: targetURL, bundleID: targetBundleID)
+                }
             }
         }
     }
@@ -442,6 +446,29 @@ final class AppUninstaller: ObservableObject {
             removeSelected()
         } else {
             phase = .done(freed: homebrewRemovalSize, failed: [])
+            Self.removeCommandBarState(ofRemovedAppAt: targetURL, bundleID: target?.bundleID)
+        }
+    }
+
+    /// A remaining copy keeps the preferences shared under its bundle ID.
+    /// Only apps with shared preferences need the folder and Spotlight scan;
+    /// path-specific state can go without it, even while the bar is disabled.
+    private static func removeCommandBarState(ofRemovedAppAt url: URL, bundleID: String?) {
+        let bundleIDs: Set<String> = bundleID.map {
+            CommandBarService.shared.hasStoredApplicationState(bundleID: $0) ? [$0] : []
+        } ?? []
+        DispatchQueue.global(qos: .utility).async {
+            guard UninstallerSupport.isConfirmedAbsent(at: url) else { return }
+            let remaining: Set<String> = bundleIDs.isEmpty ? [] : Set(InstalledApps.installedApplications(
+                includeSystemApplications: true,
+                spotlightPaths: CommandBarService.spotlightApplicationPaths())
+                .compactMap(\.bundleID))
+            DispatchQueue.main.async {
+                // A reinstall while the scan was pending must keep its state.
+                guard UninstallerSupport.isConfirmedAbsent(at: url) else { return }
+                CommandBarService.shared.removeApplicationState(
+                    bundleIDs: bundleIDs, urls: [url], remainingBundleIDs: remaining)
+            }
         }
     }
 

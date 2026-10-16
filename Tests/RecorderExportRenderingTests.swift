@@ -18,7 +18,7 @@ enum RecorderExportRenderingTests {
             }
             done.signal()
         }
-        suite.expect(done.wait(timeout: .now() + 90) == .success,
+        suite.expect(done.wait(timeout: .now() + 300) == .success,
                      "export regression finishes within its deadline")
     }
 
@@ -235,6 +235,48 @@ enum RecorderExportRenderingTests {
         } else {
             suite.expect(false, "copied GIF data decodes from its native pasteboard type")
         }
+        let longFolder = folder.appendingPathComponent("long-gif-source")
+        try FileManager.default.createDirectory(at: longFolder, withIntermediateDirectories: true)
+        let longTake = RecorderTakeStore.Take(id: UUID(), folder: longFolder)
+        try await writePhaseVideo(to: longTake.videoURL, seconds: 30)
+        let longURL = folder.appendingPathComponent("thirty-seconds.gif")
+        var longDocument = RecorderEditDocument(gifFrameRate: 15)
+        longDocument.backdrop = ""
+        longDocument.showsPointer = false
+        longDocument.zoomEnabled = false
+        let scratchBefore = Set((try? FileManager.default.contentsOfDirectory(
+            atPath: RecorderGIFWorkspace.root.path)) ?? [])
+        let longFailure = await RecorderExporter().export(take: longTake, document: longDocument,
+            output: .gif, to: longURL, progress: { _ in })
+        suite.expect(longFailure == nil, "30-second GIF at 15 fps exports beyond the old 20-second cap")
+        if let source = CGImageSourceCreateWithURL(longURL as CFURL, nil) {
+            suite.expect(CGImageSourceGetCount(source) == 450,
+                         "long production GIF retains all 450 frames")
+            var duration = 0.0
+            for index in 0..<CGImageSourceGetCount(source) {
+                let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as NSDictionary?
+                let gif = properties?[kCGImagePropertyGIFDictionary] as? NSDictionary
+                duration += (gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue ?? 0
+            }
+            suite.expectClose(duration, 30, "long production GIF keeps its playback duration", tol: 0.005)
+            let first = CGImageSourceCreateImageAtIndex(source, 0, nil).map(meanRGB)
+            let last = CGImageSourceCreateImageAtIndex(source, 449, nil).map(meanRGB)
+            suite.expect(first.map { $0.red > $0.green * 2 && $0.red > $0.blue * 2 } == true
+                    && last.map { $0.red > 100 && $0.green > 100 && $0.blue > 100 } == true,
+                         "long GIF includes its opening and closing source phases")
+        } else { suite.expect(false, "long production GIF decodes") }
+        suite.expect(RecorderGIFClipboard.publish(fileURL: longURL, to: pasteboard),
+                     "long GIF copies through the production clipboard helper")
+        if let copied = pasteboard.data(forType: nativeGIFType),
+           let source = CGImageSourceCreateWithData(copied as CFData, nil) {
+            suite.expect(CGImageSourceGetCount(source) == 450,
+                         "clipboard retains all frames of the long GIF")
+        } else { suite.expect(false, "long copied GIF decodes") }
+        try await stillClipStaysCompact(suite, folder: folder)
+        let scratchAfter = Set((try? FileManager.default.contentsOfDirectory(
+            atPath: RecorderGIFWorkspace.root.path)) ?? [])
+        suite.expect(scratchAfter.subtracting(scratchBefore).isEmpty,
+                     "completed GIF export leaves no scratch workspace")
         let invalidURL = folder.appendingPathComponent("not-a-gif.gif")
         try Data("not a gif".utf8).write(to: invalidURL)
         pasteboard.clearContents()
@@ -252,6 +294,9 @@ enum RecorderExportRenderingTests {
             try? FileManager.default.removeItem(at: gifCopy)
             try FileManager.default.copyItem(at: gifTake.videoURL, to: sourceCopy)
             try FileManager.default.copyItem(at: gifURL, to: gifCopy)
+            let longCopy = artifactDirectory.appendingPathComponent("thirty-seconds.gif")
+            try? FileManager.default.removeItem(at: longCopy)
+            try FileManager.default.copyItem(at: longURL, to: longCopy)
         }
         // Esc while the GIF is still taking frames: the saved GIF stays and
         // nothing hidden is left beside it.
@@ -269,6 +314,19 @@ enum RecorderExportRenderingTests {
         let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: cancelFolder.path)) ?? []
         suite.expect(leftovers == ["saved.gif"],
                      "cancelled GIF export leaves nothing beside the destination \(leftovers)")
+        let scratchCancelled = Set((try? FileManager.default.contentsOfDirectory(
+            atPath: RecorderGIFWorkspace.root.path)) ?? [])
+        suite.expect(scratchCancelled.subtracting(scratchBefore).isEmpty,
+                     "cancelled GIF export removes its scratch workspace")
+        let missingFolder = folder.appendingPathComponent("missing-destination", isDirectory: true)
+        let failedGIF = await RecorderExporter().export(take: gifTake, document: gifDocument,
+            output: .gif, to: missingFolder.appendingPathComponent("failed.gif"), progress: { _ in })
+        suite.expect(failedGIF == .writeFailed && !FileManager.default.fileExists(atPath: missingFolder.path),
+                     "failed GIF publication reports the error without creating a destination folder")
+        let scratchFailed = Set((try? FileManager.default.contentsOfDirectory(
+            atPath: RecorderGIFWorkspace.root.path)) ?? [])
+        suite.expect(scratchFailed.subtracting(scratchBefore).isEmpty,
+                     "failed GIF export removes its completed scratch file")
         let destination = folder.appendingPathComponent("preserved.mp4")
         let original = Data("previous export".utf8)
         try original.write(to: destination)
@@ -278,6 +336,56 @@ enum RecorderExportRenderingTests {
                                              output: .video, to: destination, progress: { _ in })
         suite.expect(failure == .cancelled && (try? Data(contentsOf: destination)) == original,
                      "cancelled retimed export preserves the existing destination")
+    }
+
+    /// A still gradient with a small moving square, saved through the
+    /// production exporter and compared with the same decoded frames through
+    /// one multi-image ImageIO destination, the encoder used before chunking.
+    private static func stillClipStaysCompact(_ suite: TestSuite, folder: URL) async throws {
+        let stillFolder = folder.appendingPathComponent("still-gif-source")
+        try FileManager.default.createDirectory(at: stillFolder, withIntermediateDirectories: true)
+        let take = RecorderTakeStore.Take(id: UUID(), folder: stillFolder)
+        try await writePhaseVideo(to: take.videoURL, movingSquare: true)
+        var document = RecorderEditDocument()
+        document.backdrop = ""
+        document.showsPointer = false
+        document.zoomEnabled = false
+        let url = folder.appendingPathComponent("still.gif")
+        let failure = await RecorderExporter().export(take: take, document: document, output: .gif,
+                                                      to: url, progress: { _ in })
+        guard failure == nil, let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let size = (try? Data(contentsOf: url))?.count else {
+            suite.expect(false, "still production GIF exports")
+            return
+        }
+        let count = CGImageSourceGetCount(source)
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: take.videoURL))
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        generator.maximumSize = CGSize(width: 128, height: 128)
+        let reference = NSMutableData()
+        guard count > 1, let sink = CGImageDestinationCreateWithData(
+            reference as CFMutableData, "com.compuserve.gif" as CFString, count, nil) else {
+            suite.expect(false, "still production GIF has frames to compare")
+            return
+        }
+        for index in 0..<count {
+            let time = CMTime(seconds: Double(index) / Double(document.resolvedGIFFrameRate),
+                              preferredTimescale: 600)
+            guard let frame = try? await generator.image(at: time).image else { continue }
+            CGImageDestinationAddImage(sink, frame, nil)
+        }
+        guard CGImageDestinationFinalize(sink) else {
+            suite.expect(false, "still reference GIF encodes")
+            return
+        }
+        // Both runs are ImageIO's multi-image encoder on the same frames, so
+        // they should match to a few header bytes; 25% absorbs decoding
+        // differences between the edit timeline and the plain asset. Encoding
+        // each frame alone measured 2.8x on the trimmed fixture.
+        suite.expect(size <= reference.length * 5 / 4,
+                     "a mostly still GIF stays as compact as the single encoder (\(size) vs \(reference.length))")
     }
 
     private static func readAudio(_ url: URL) async throws -> [Float] {
@@ -319,7 +427,8 @@ enum RecorderExportRenderingTests {
         return sqrt(samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(samples.count))
     }
 
-    private static func writePhaseVideo(to url: URL) async throws {
+    private static func writePhaseVideo(to url: URL, seconds: Int = 2,
+                                        movingSquare: Bool = false) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 128, AVVideoHeightKey: 128,
@@ -332,7 +441,7 @@ enum RecorderExportRenderingTests {
         writer.add(input)
         writer.startWriting()
         writer.startSession(atSourceTime: .zero)
-        for frame in 0..<120 {
+        for frame in 0..<(seconds * 60) {
             while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 1_000_000) }
             var maybe: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(nil, adapter.pixelBufferPool!, &maybe)
@@ -343,7 +452,16 @@ enum RecorderExportRenderingTests {
             for y in 0..<128 { for x in 0..<128 {
                 let value: UInt8 = ((x / 4 + y / 4) % 2 == 0) ? 0 : 255
                 let offset = y * stride + x * 4
-                switch frame / 30 {
+                if movingSquare {
+                    // A still gradient; a white square moves one point per frame.
+                    let inSquare = (frame..<(frame + 12)).contains(x) && (40..<52).contains(y)
+                    pointer[offset] = inSquare ? 255 : UInt8(x * 2)
+                    pointer[offset + 1] = inSquare ? 255 : UInt8(y * 2)
+                    pointer[offset + 2] = inSquare ? 255 : 64
+                    pointer[offset + 3] = 255
+                    continue
+                }
+                switch frame / (seconds * 15) {
                 case 0: pointer[offset] = 0; pointer[offset + 1] = 0; pointer[offset + 2] = value
                 case 1: pointer[offset] = 0; pointer[offset + 1] = value; pointer[offset + 2] = 0
                 case 2: pointer[offset] = value; pointer[offset + 1] = 0; pointer[offset + 2] = 0

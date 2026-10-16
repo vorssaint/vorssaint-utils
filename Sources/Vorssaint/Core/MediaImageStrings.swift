@@ -792,7 +792,7 @@ extension MediaImageConverterStrings {
         backgroundWhite: "白色",
         backgroundBlack: "黑色",
         preserveDate: "保留原始修改日期",
-        saveInSubfolder: "保存到“Converted”子文件夹",
+        saveInSubfolder: "存储到“Converted”子文件夹",
         moreOptions: "更多选项",
         tooLarge: "这些尺寸太大，无法安全处理。请选择更小的尺寸。",
         copySummary: "拷贝摘要",
