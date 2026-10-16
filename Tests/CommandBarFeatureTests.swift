@@ -1768,6 +1768,9 @@ enum CommandBarFeatureTests {
         suite.expect(dated("today + 10 days") == "August 7, 2026"
                 && dated("today - 10 days") == "July 18, 2026",
                "a plain sign decides the direction")
+        suite.expect(dated("in -9223372036854775808 days") == nil
+                && dated("-9223372036854775808 days ago") == nil,
+               "the smallest whole number is out of range, not a crash")
         suite.expect(dated("3 days") == nil && dated("2+2") == nil && dated("100 km to mi") == nil,
                "without a direction it is not a question, and a sum is not a date")
         suite.expect(CommandBarDates.evaluate("in 3 weeks", now: tuesday, calendar: gregorian,
