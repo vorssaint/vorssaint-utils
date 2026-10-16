@@ -768,25 +768,7 @@ final class RadialMenuService: ObservableObject {
         // The same beat the quick panel gives screen-touching tools, so the
         // wheel is really gone before anything captures or presents.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            switch tool {
-            case .screenshot: ScreenshotService.shared.capture()
-            case .screenRecorder: ScreenRecorderService.shared.toggle()
-            case .colorPicker: ColorSamplerService.shared.pick()
-            case .screenOCR: ScreenTextService.shared.capture()
-            case .micMute: MicMuteService.shared.toggle()
-            case .clipboardHistory: ClipboardHistoryService.shared.showHistoryWindow()
-            case .quickLauncher: QuickLauncherService.shared.show()
-            case .cameraPreview: CameraPreviewService.shared.show()
-            case .scratchpad: ScratchpadService.shared.show()
-            case .shelf: ShelfService.shared.summon()
-            case .cleaner: Self.openSettings(at: .cleaner)
-            case .uninstaller: Self.openSettings(at: .uninstaller)
-            case .appUpdates:
-                AppUpdatesService.shared.check()
-                Self.openSettings(at: .appUpdates)
-            case .cleaningMode: CleaningModeManager.shared.activate()
-            case .keepAwake: KeepAwakeManager.shared.toggle()
-            }
+            AppToolLauncher.run(tool)
         }
     }
 
