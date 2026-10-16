@@ -461,6 +461,16 @@ MUTATIONS = [
      "let mappingLabel = \"\\(superKeyStrings.sourceLabel(superKeySource)) \\(keyCaps)\"",
      "let mappingLabel = modifierCaption",
      "the panel Super key link reads the key and its key caps without the verb"),
+    ("an output level the labels show as 0% stays unmuted", "mixer",
+     "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+     "                let mutes = MixerRoutingSupport.mutesOutput(atVolume: value)\n",
+     "                let mutes = value == 0\n",
+     "a coarse key step from a reading a hair above one step lands on 0% and mutes"),
+    ("the panel and command bar leave a zero level unmuted", "mixer",
+     "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+     "        setOutputMuted(MixerRoutingSupport.mutesOutput(atVolume: level), for: device)\n",
+     "        if level > 0 { setOutputMuted(false, for: device) }\n",
+     "the command bar's volume 0 mutes the output"),
 ]
 
 

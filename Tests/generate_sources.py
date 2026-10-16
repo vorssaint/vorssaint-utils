@@ -660,14 +660,14 @@ def main():
           + "var controlRefreshes: [AudioObjectID] = []\nvar listenerRefreshes = 0\n"
           + "static let outputControlListenerCallback: AudioObjectPropertyListenerProc = { _, _, _, _ in noErr }\n"
           + "var listenerClient: UnsafeMutableRawPointer? { nil }\n"
-          + "static func defaultOutputDeviceID() -> AudioObjectID { Hardware.device }\n"
+          + "static func defaultOutputDeviceID() -> AudioObjectID? { Hardware.device }\n"
           + "static func setOutputVolume(_ value: Float, for device: AudioObjectID) -> Bool {\n"
           + "Hardware.writes.append(.init(device: device, volume: value, muted: nil))\n"
           + "if let accepts = Hardware.accepts { Hardware.volume = accepts(value) }\n"
           + "let after = Hardware.afterVolumeWrite; Hardware.afterVolumeWrite = nil; after?()\nreturn Hardware.succeeds\n}\n"
-          + "static func setOutputMuted(_ value: Bool, for device: AudioObjectID) -> Bool {\n"
+          + "@discardableResult static func setOutputMuted(_ value: Bool, for device: AudioObjectID) -> Bool {\n"
+          + "guard Hardware.muted != nil else { return false }\n"
           + "Hardware.writes.append(.init(device: device, volume: nil, muted: value)); return Hardware.succeeds\n}\n"
-          + "static func setSystemOutputVolume(_ volume: Double) -> Bool { setOutputVolume(Float(volume), for: Hardware.device) }\n"
           + "func scheduleListenerRefresh() { listenerRefreshes += 1 }\n"
           + "func scheduleOutputControlRefresh(for device: AudioObjectID) { controlRefreshes.append(device) }\n"
           + "func selectOutput(_ device: AudioObjectID?, volume: Double?, muted: Bool?) {\n"
@@ -681,7 +681,7 @@ def main():
               "    private func roundedBackStepLevel(", "    private func rememberOutputStep(",
               "    private func isCurrentOutputAdjustment(", "    private var hasCurrentOutputAdjustment:",
               "    private func applyOutputControls(", "    private func drainOutputAdjustment(",
-              "    func setCurrentOutputVolume("])
+              "    func setCurrentOutputVolume(", "    static func setSystemOutputVolume("])
           + "}\n}\n")
     write("MixerHeadphonesDisconnect.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerHeadphonesDisconnectContract.Mixer {\n"

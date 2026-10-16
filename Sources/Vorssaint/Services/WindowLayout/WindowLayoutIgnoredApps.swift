@@ -42,14 +42,14 @@ final class WindowLayoutIgnoredApps: ObservableObject {
         Self.matches(bundleID: bundleID, executablePath: executablePath(), apps: apps)
     }
 
-    static func contains(_ bundleID: String?, in apps: [String]) -> Bool {
-        guard let bundleID else { return false }
-        return apps.contains(bundleID)
-    }
-
-    static func matches(bundleID: String?, executablePath: String?, apps: [String]) -> Bool {
-        contains(MouseAppExceptionSupport.identity(bundleID: bundleID,
-                                                   executablePath: executablePath),
-                 in: apps)
+    /// A program listed by its path is matched by that path even when it
+    /// reports a bundle identifier, as Java's launcher does (issue #1009). The
+    /// path is read only while the list names one.
+    static func matches(bundleID: String?, executablePath: @autoclosure () -> String?, apps: [String]) -> Bool {
+        MouseAppExceptionSupport.identities(
+            bundleID: bundleID,
+            executablePath: executablePath(),
+            readsPath: apps.contains(where: MouseAppExceptionSupport.isExecutablePathIdentity))
+            .contains(where: apps.contains)
     }
 }

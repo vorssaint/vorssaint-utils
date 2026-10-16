@@ -77,7 +77,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLockSounds) private var lockSounds = false
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
-    @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = true
+    @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
     @AppStorage(DefaultsKey.notchCameraFitWidth) private var cameraFitWidth = 0.0

@@ -246,7 +246,7 @@ struct NotchMusicView: View {
         VStack(spacing: 0) {
             head(corner: !band.besideCamera && (showsLyrics || showsQueue)) {
                 Button { RadialNowPlayingApplication.open(playback.track) } label: {
-                    NotchArtwork(image: service.artwork, size: NotchLayout.musicArtworkSize)
+                    NotchArtwork(image: service.artwork, size: NotchLayout.musicArtworkSize, source: playback.track)
                         .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.94)
                         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playback.isPlaying)
                 }
@@ -729,7 +729,7 @@ struct NotchMusicControlsView: View {
                 if isIdle, NotchPreferredPlayer.open() { return }
                 notch.select(.music)
             } label: {
-                NotchArtwork(image: music.artwork, size: max(40, height - 24))
+                NotchArtwork(image: music.artwork, size: max(40, height - 24), source: music.playback?.track)
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 16))
             .accessibilityLabel(idleOpens ? openTitle : text.mediaNowPlaying)

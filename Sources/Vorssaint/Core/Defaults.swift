@@ -1413,7 +1413,7 @@ enum Defaults {
         DefaultsKey.notchControlOrder: "",
         DefaultsKey.notchSize: NotchSize.spacious.rawValue,
         DefaultsKey.notchOutlineEnabled: false,
-        DefaultsKey.notchHideMenuBarGap: true,
+        DefaultsKey.notchHideMenuBarGap: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
         DefaultsKey.notchCameraFitWidth: 0.0,

@@ -2875,6 +2875,33 @@ enum PointerInputFeatureTests {
                                                       executablePath: "/opt/other/bin/java"),
                     exceptions: ["/opt/game/runtime/bin/java"]),
                "a listed program path excepts that program and no other")
+        // Java's launcher carries an Info.plist of its own, so a running JVM
+        // reports a bundle identifier, the same one for every Java program:
+        // measured on this Mac, Temurin 25's java reports net.java.openjdk.java.
+        // A runtime picked by its path is told apart by that path alone, so
+        // while a list names a path a program answers to its file as well.
+        suite.expect(MouseAppExceptionSupport.identities(bundleID: "net.java.openjdk.java",
+                                                         executablePath: "/opt/game/runtime/bin/java",
+                                                         readsPath: true)
+                == ["net.java.openjdk.java", "/opt/game/runtime/bin/java"],
+               "a program that reports a bundle identifier also answers to its file while a list names a path")
+        suite.expect(MouseAppExceptionSupport.identities(bundleID: nil,
+                                                         executablePath: "/opt/game/runtime/bin/java",
+                                                         readsPath: true) == ["/opt/game/runtime/bin/java"]
+                && MouseAppExceptionSupport.identities(bundleID: nil, executablePath: "java", readsPath: true).isEmpty
+                && MouseAppExceptionSupport.identities(bundleID: nil, executablePath: nil, readsPath: true).isEmpty,
+               "a program with no bundle identifier answers to its file, and to nothing without an absolute path")
+        var programPathWasRead = false
+        suite.expect(MouseAppExceptionSupport.identities(
+                    bundleID: "com.example.modeler",
+                    executablePath: { programPathWasRead = true; return "/Applications/Modeler.app/Contents/MacOS/Modeler" }(),
+                    readsPath: false) == ["com.example.modeler"]
+                && MouseAppExceptionSupport.identities(
+                    bundleID: nil,
+                    executablePath: { programPathWasRead = true; return "/opt/game/runtime/bin/java" }(),
+                    readsPath: false).isEmpty
+                && !programPathWasRead,
+               "a program's path is not even read while no list names a path: this runs under the event taps")
         suite.expect(InstalledApps.name(for: "/opt/game/runtime/bin/java") == "java",
                "a listed program path is shown by its file name, not the whole path")
 
@@ -3198,8 +3225,8 @@ enum PointerInputFeatureTests {
         for (index, line) in matcherLines.enumerated()
         where !line.trimmingCharacters(in: .whitespaces).hasPrefix("//")
                 && line.contains("executableURL") && line.contains(".path") {
-            if line.contains("MouseAppExceptionSupport.identity(")
-                || (index > 0 && matcherLines[index - 1].contains("MouseAppExceptionSupport.identity(")) {
+            if line.contains("MouseAppExceptionSupport.identities(")
+                || (index > 0 && matcherLines[index - 1].contains("MouseAppExceptionSupport.identities(")) {
                 resolvedMatchSites.append("MouseAppExceptions.swift:\(index + 1)")
             } else {
                 rawMatchSites.append("MouseAppExceptions.swift:\(index + 1)")
@@ -3365,6 +3392,32 @@ enum PointerInputFeatureTests {
             queryWithoutMain("empty-list")
             suite.expect(!verdictWithoutMain(CGPoint(x: -20_010, y: -20_010)),
                    "an empty list stands nothing down")
+
+            // A listed path is matched against the program running that file
+            // whatever bundle identifier it reports: Java's launcher carries an
+            // Info.plist of its own, so a running JVM reports one that every
+            // Java program shares (issue #1009). The app in front stands in for
+            // that program here, with its own file listed and its identifier
+            // on no list.
+            if let front = NSWorkspace.shared.frontmostApplication,
+               front.bundleIdentifier != nil,
+               let frontPath = MouseAppExceptionSupport.executablePathIdentity(front.executableURL?.path) {
+                arguments[MouseExceptionScope.navigation.defaultsKey] = [frontPath]
+                arguments[MouseExceptionScope.smoothScroll.defaultsKey] = [frontPath]
+                arguments[MouseExceptionScope.middleClick.defaultsKey] = ["/opt/game/runtime/bin/java"]
+                defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+                exceptions.reload()
+                let offScreen = CGPoint(x: -30_000, y: -30_000)
+                suite.expect(exceptions.excludesPointerTarget(.navigation, at: offScreen)
+                        && exceptions.excludesActionTarget(.navigation, at: offScreen),
+                       "an app listed by the path of its file is left alone although it reports a bundle identifier")
+                suite.expect(!exceptions.excludesActionTarget(.middleClick, at: offScreen),
+                       "a listed path leaves alone only the program running that file")
+                exceptions.setSourceTracking(true, for: .smoothScroll)
+                suite.expect(exceptions.runningScopes.contains(.smoothScroll),
+                       "an app listed by the path of its file is found among the running apps")
+                exceptions.setSourceTracking(false, for: .smoothScroll)
+            }
         }
 
         for language in AppLanguage.allCases {

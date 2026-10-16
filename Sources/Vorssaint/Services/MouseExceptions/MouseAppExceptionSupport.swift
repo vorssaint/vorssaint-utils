@@ -164,12 +164,30 @@ enum MouseAppExceptionSupport {
         return URL(fileURLWithPath: path).resolvingSymlinksInPath().path
     }
 
-    /// What an app answers to: its bundle identifier when it has one, and the
-    /// file being run when it does not. Ordinary apps are unaffected — they
-    /// keep answering to the identifier they always did, and the path is not
-    /// even looked at for them: this runs under the event taps.
+    /// The one identity a running program is listed by when it is picked from
+    /// the programs that are open: its bundle identifier when it has one, and
+    /// the file being run when it does not. Matching asks `identities`, which
+    /// also counts a listed path.
     static func identity(bundleID: String?, executablePath: @autoclosure () -> String?) -> String? {
         bundleID ?? executablePathIdentity(executablePath())
+    }
+
+    /// Everything a running program answers to on a list: its bundle
+    /// identifier when it has one, and the file being run while a list names a
+    /// program by its path. Java's launcher carries an Info.plist of its own,
+    /// so a running JVM reports a bundle identifier, the same one for every
+    /// Java program (measured on this Mac: net.java.openjdk.java for Temurin
+    /// 25). A runtime picked by its path (issue #1009) is told apart by that
+    /// path alone. The path is not even looked at while no list names one:
+    /// this runs under the event taps.
+    static func identities(bundleID: String?,
+                           executablePath: @autoclosure () -> String?,
+                           readsPath: Bool) -> [String] {
+        var identities = bundleID.map { [$0] } ?? []
+        if readsPath, let path = executablePathIdentity(executablePath()) {
+            identities.append(path)
+        }
+        return identities
     }
 
     /// What a picked file will be reported as once it runs, which is what the

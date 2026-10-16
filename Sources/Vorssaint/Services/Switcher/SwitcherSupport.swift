@@ -609,6 +609,29 @@ enum SwitcherSupport {
         Dictionary(pairs, uniquingKeysWith: { first, _ in first })
     }
 
+    /// The running apps the window walk can map windows to. Entries with a
+    /// non-positive pid are dropped: the workspace list reports some apps
+    /// (Xcode's Device Hub) as -1 while the process owning their windows is
+    /// absent from it, so such an entry has no windows, no icon and nothing to
+    /// activate (issue #2960). A window owner missing from the list is looked up
+    /// by pid instead, and only a regular app is admitted so helper processes
+    /// stay out.
+    static func usableApps<App>(_ apps: [App],
+                                windowOwnerPIDs: [pid_t],
+                                pid: (App) -> pid_t,
+                                isRegular: (App) -> Bool,
+                                resolve: (pid_t) -> App?) -> [App] {
+        var usable = apps.filter { pid($0) > 0 }
+        var known = Set(usable.map(pid))
+        for owner in windowOwnerPIDs where owner > 0 && !known.contains(owner) {
+            known.insert(owner)
+            if let app = resolve(owner), pid(app) == owner, isRegular(app) {
+                usable.append(app)
+            }
+        }
+        return usable
+    }
+
     static func usesIconRowLayout(iconRowMode: Bool, simpleMode: Bool) -> Bool {
         iconRowMode || simpleMode
     }
