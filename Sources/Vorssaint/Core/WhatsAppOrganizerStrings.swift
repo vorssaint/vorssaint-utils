@@ -40,6 +40,7 @@ struct WhatsAppOrganizerStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .tr: return .tr
         case .ru: return .ru
@@ -121,6 +122,39 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Organización de WhatsApp",
         notificationFormat: "%1$d archivos organizados. %2$d descargas duplicadas gestionadas. %3$d fallidos.",
         privacyNote: "Para reconocer duplicados exactos, los bytes del archivo solo se leen localmente mientras se calcula una huella criptográfica. El contenido y los chats nunca se guardan ni se envían."
+    )
+
+    static let ca = WhatsAppOrganizerStrings(
+        title: "Organització automàtica",
+        experimental: "Experimental",
+        description: "Mou les baixades estables de WhatsApp a una carpeta específica i detecta les baixades repetides exactes.",
+        enabled: "Organitzar automàticament",
+        enabledCaption: "WhatsApp pot tornar a descarregar un fitxer mogut. Vorssaint no pot impedir aquesta descàrrega, però sí detectar i descartar una nova còpia idèntica.",
+        destination: "Carpeta de destinació",
+        chooseFolder: "Triar…",
+        useDefault: "Utilitzar Baixades/WhatsApp",
+        invalidDestination: "Tria una carpeta diferent de la mateixa carpeta Baixades.",
+        organization: "Estructura de carpetes",
+        flat: "Sense subcarpetes",
+        byType: "Per tipus de fitxer",
+        byMonth: "Per any i mes",
+        delay: "Esperar abans de moure",
+        minutesFormat: "%d minuts",
+        duplicateAction: "Si es torna a descarregar el mateix fitxer",
+        trashDuplicate: "Enviar la nova còpia a la Paperera",
+        keepBoth: "Conservar ambdues còpies",
+        replaceExisting: "Substituir la còpia organitzada",
+        duplicateCaption: "Els duplicats es confirmen amb una empremta SHA-256 privada. La còpia organitzada es torna a comprovar abans de descartar-ne una altra.",
+        organizeNow: "Organitzar ara els fitxers disponibles",
+        undo: "Desfer l’última organització",
+        waiting: "Supervisant Baixades",
+        working: "Organitzant fitxers de WhatsApp…",
+        resultFormat: "%1$d moguts · %2$d duplicats · %3$d amb errors",
+        lastRunFormat: "Darrera organització %@: %d moguts · %d duplicats · %d amb errors",
+        neverRun: "Encara no s’ha fet cap organització.",
+        notificationTitle: "Organització de WhatsApp",
+        notificationFormat: "%1$d fitxers organitzats. %2$d baixades duplicades gestionades. %3$d amb errors.",
+        privacyNote: "Per reconèixer duplicats exactes, els bytes del fitxer només es llegeixen localment mentre es calcula una empremta criptogràfica. El contingut i els xats mai es desen ni s’envien."
     )
 
     static let sk = WhatsAppOrganizerStrings(

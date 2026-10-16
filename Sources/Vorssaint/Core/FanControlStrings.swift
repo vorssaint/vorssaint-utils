@@ -57,6 +57,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -300,6 +301,52 @@ extension FanControlFeatureStrings {
         hottestGPU: "GPU más caliente",
         helperUnavailable: "El controlador protegido de los ventiladores no está disponible. Permite Vorssaint en Ítems de inicio e inténtalo de nuevo.",
         resumeAfterRestart: "Reanudar tras reiniciar o salir del reposo"
+    )
+
+    static let ca = FanControlFeatureStrings(
+        title: "Control dels ventiladors",
+        hubDescription: "Control manual o mitjançant corbes de temperatura amb RPM actuals i objectiu",
+        showInPanel: "Mostrar el control dels ventiladors al tauler",
+        settingsCaption: "Afegeix velocitats manuals i corbes de temperatura al tauler de la barra de menús.",
+        fanNameFormat: "Ventilador %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Permetre el control dels ventiladors",
+        approvalCaption: "Permet Vorssaint a Elements d’inici per utilitzar el controlador protegit dels ventiladors.",
+        openSettings: "Obrir Ajustos del Sistema",
+        noFans: "Aquest Mac no té cap ventilador controlable.",
+        unsupported: "El control dels ventiladors no està disponible en aquest Mac.",
+        alreadyControlled: "Un altre procés està controlant els ventiladors. Torna’ls primer al control del sistema.",
+        failed: "Els ventiladors han tornat al control del sistema perquè no s’ha pogut verificar el control sol·licitat.",
+        safetyCaption: "El control roman actiu fins que tornis a Sistema. Es restableix automàticament si l’app es desconnecta, el Mac entra en repòs, fallen les lectures dels sensors o augmenta la pressió tèrmica.",
+        safetyStopped: "S’ha tornat al control del sistema perquè s’ha interromput el control dels ventiladors.",
+        menuBarTitle: "Velocitat dels ventiladors",
+        systemControl: "Sistema",
+        manualControl: "Manual",
+        customCurve: "Corba",
+        mode: "Mode de control",
+        coolingIntensity: "Velocitat dels ventiladors",
+        currentRPMFormat: "Actual: %d RPM",
+        targetRPMFormat: "Objectiu: %d RPM",
+        applyManual: "Aplicar el control manual",
+        applyCurve: "Aplicar la corba",
+        returnToSystem: "Utilitzar el control del sistema",
+        temperatureUnavailable: "El sensor de temperatura seleccionat ha deixat de respondre. El control dels ventiladors ha tornat a Sistema.",
+        curveUnavailable: "Un dels sensors de temperatura seleccionats no està disponible en aquest Mac.",
+        sensor: "Sensor de temperatura",
+        temperature: "Temperatura",
+        fanSpeed: "Velocitat",
+        addPoint: "Afegir un punt",
+        addSensor: "Afegir un sensor",
+        removePoint: "Eliminar el punt",
+        removeSensor: "Eliminar el sensor",
+        curveGraph: "Corba de temperatura i velocitat",
+        averageSoC: "Mitjana del SoC",
+        hottestSoC: "SoC més calent",
+        averageCPU: "Mitjana de la CPU",
+        hottestCPU: "CPU més calenta",
+        hottestGPU: "GPU més calenta",
+        helperUnavailable: "El controlador protegit dels ventiladors no està disponible. Permet Vorssaint a Elements d’inici i torna-ho a provar.",
+        resumeAfterRestart: "Reprendre després de reiniciar o de sortir del repòs"
     )
 
     static let sk = FanControlFeatureStrings(

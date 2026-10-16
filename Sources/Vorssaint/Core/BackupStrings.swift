@@ -28,6 +28,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -140,6 +141,20 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "Esta copia no contiene ajustes de Dynamic Island. Se conservarán los ajustes de esta Mac. Para copiarlos desde la otra Mac, exporta de nuevo con Vorssaint 3.4 o posterior. Se importarán los demás ajustes y la app se reiniciará.",
         importAction: "Importar y reiniciar",
         invalidFile: "Este archivo no es una copia de seguridad válida de Vorssaint."
+    )
+
+    static let ca = BackupFeatureStrings(
+        title: "Còpia de seguretat",
+        description: "Porta la teva configuració a un altre Mac: exporta totes les preferències a un fitxer i importa-les-hi. El text de les notes de l’Esborrany, l’historial del porta-retalls, els elements del prestatge i els permisos del sistema no surten mai d’aquest Mac.",
+        exportButton: "Exportar els ajustos…",
+        importButton: "Importar els ajustos…",
+        exported: "Còpia desada",
+        exportFailed: "No s’ha pogut desar la còpia.",
+        importConfirmTitle: "Vols importar aquests ajustos?",
+        importConfirmBody: "Els ajustos actuals se substituiran pels del fitxer i l’app es reiniciarà. No es modificarà res més d’aquest Mac.",
+        importMissingIslandBody: "Aquesta còpia no conté ajustos de la Dynamic Island. Es mantindran els ajustos d’aquest Mac. Per copiar-los des de l’altre Mac, torna a exportar amb el Vorssaint 3.4 o posterior. S’importarà la resta d’ajustos i l’app es reiniciarà.",
+        importAction: "Importar i reiniciar",
+        invalidFile: "Aquest fitxer no és una còpia de seguretat vàlida del Vorssaint."
     )
 
     static let sk = BackupFeatureStrings(

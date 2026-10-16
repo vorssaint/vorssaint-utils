@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -39,6 +40,7 @@ extension WindowLayoutIgnoredAppsStrings {
     static let tr = WindowLayoutIgnoredAppsStrings(sectionTitle: "Yoksayılacak uygulamalar", listTitle: "Bu uygulamalarda duraklat", addButton: "Uygulama ekle…", removeButton: "Kaldır", caption: "Bu uygulamalardan biri odaktayken Pencere yerleşimi fare veya klavye girdisini kullanmaz.")
     static let ru = WindowLayoutIgnoredAppsStrings(sectionTitle: "Игнорируемые приложения", listTitle: "Приостанавливать в этих приложениях", addButton: "Добавить приложение…", removeButton: "Удалить", caption: "Раскладка окон не использует мышь или клавиатуру, пока одно из этих приложений в фокусе.")
     static let es = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignorar apps", listTitle: "Pausar en estas apps", addButton: "Añadir app…", removeButton: "Quitar", caption: "Diseño de ventanas no usa el ratón ni el teclado mientras una de estas apps tiene el foco.")
+    static let ca = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignorar apps", listTitle: "Pausar en aquestes apps", addButton: "Afegir una app…", removeButton: "Eliminar", caption: "La disposició de finestres no utilitza el ratolí ni el teclat mentre una d’aquestes apps té el focus.")
     static let sk = WindowLayoutIgnoredAppsStrings(sectionTitle: "Ignorované aplikácie", listTitle: "Pozastaviť v týchto aplikáciách", addButton: "Pridať aplikáciu…", removeButton: "Odstrániť", caption: "Rozloženie okien nepoužíva vstup z myši ani klávesnice, kým je jedna z týchto aplikácií v popredí.")
     static let de = WindowLayoutIgnoredAppsStrings(sectionTitle: "Apps ignorieren", listTitle: "In diesen Apps pausieren", addButton: "App hinzufügen…", removeButton: "Entfernen", caption: "Fensterlayout verwendet keine Maus- oder Tastatureingaben, solange eine dieser Apps fokussiert ist.")
     static let fr = WindowLayoutIgnoredAppsStrings(sectionTitle: "Apps à ignorer", listTitle: "Mettre en pause dans ces apps", addButton: "Ajouter une app…", removeButton: "Retirer", caption: "Disposition des fenêtres n’utilise ni la souris ni le clavier tant que l’une de ces apps est active.")

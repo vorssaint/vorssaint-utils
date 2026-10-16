@@ -50,6 +50,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -238,6 +239,41 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "Ese botón ya tiene un atajo. Elige otro.",
         spacesFollowsDragLabel: "Los Espacios siguen el arrastre",
         spacesFollowsDragCaption: "Arrastrar a la derecha trae el Espacio de la izquierda, igual que un deslizamiento en el trackpad lo lleva con tus dedos."
+    )
+
+    static let ca = MouseButtonFeatureStrings(
+        pageTitle: "Dreceres als botons del ratolí",
+        hubDescription: "Els botons addicionals i les direccions de la roda lateral premen una combinació de tecles que tu triïs.",
+        enableLabel: "Utilitzar botons addicionals com a dreceres",
+        enableCaption: "Cada botó addicional o direcció de la roda lateral pot prémer una combinació de tecles per tu. Mentre té una drecera assignada, deixa de fer la seva acció anterior.",
+        addButton: "Afegir un botó o roda lateral",
+        captureWaiting: "Ara prem un botó addicional o mou la roda lateral.",
+        captureCancel: "Cancel·lar",
+        captureBlind: "Vorssaint no pot detectar el ratolí ara mateix.",
+        captureUnsupported: "Aquesta entrada no admet cap drecera. Utilitza un botó addicional o una direcció de la roda lateral.",
+        captureWheel: "Aquest botó ja obre el menú radial. Tria’n un altre o allibera’l allà primer.",
+        captureExists: "Aquest botó o direcció ja és a la llista de sota.",
+        captureHint: "Si no passa res, és possible que el programari propi del ratolí ja estigui utilitzant aquest control.",
+        backButtonName: "Botó lateral d’enrere",
+        forwardButtonName: "Botó lateral d’endavant",
+        otherButtonFormat: "Botó %d",
+        setShortcutButton: "Definir drecera",
+        removeButton: "Eliminar",
+        emptyCaption: "Encara no hi ha cap drecera. Afegeix un botó o una direcció de la roda lateral.",
+        rowWheelNote: "Aquest botó ara obre el menú radial, per la qual cosa la drecera queda en espera.",
+        manageButton: "Configurar…",
+        panelCaption: "Els botons addicionals i les direccions de la roda lateral premen les combinacions de tecles que tu triïs.",
+        sideWheelLeftName: "Roda lateral cap a l’esquerra",
+        sideWheelRightName: "Roda lateral cap a la dreta",
+        spacesEnableLabel: "Canviar d’espai arrossegant un botó",
+        spacesEnableCaption: "Mantingues premut el botó triat i arrossega: cap a l’esquerra o cap a la dreta canvia d’espai, cap amunt obre el Mission Control i cap avall obre l’App Exposé. Un clic curt continua fent el mateix de sempre.",
+        spacesPickButton: "Triar un botó",
+        spacesShortcutsOffNote: "Les dreceres de teclat del Mission Control estan desactivades a Ajustos del Sistema, de manera que aquest gest no pot fer res.",
+        spacesCaptureWaiting: "Ara prem un botó addicional.",
+        spacesCaptureUnsupported: "Aquesta entrada no es pot mantenir premuda per arrossegar. Utilitza un botó addicional.",
+        spacesCaptureExists: "Aquest botó ja té una drecera. Tria’n un altre.",
+        spacesFollowsDragLabel: "Els espais segueixen l’arrossegament",
+        spacesFollowsDragCaption: "Arrossegar cap a la dreta porta l’espai de l’esquerra, tal com un lliscament al trackpad l’arrossega juntament amb els dits."
     )
 
     static let sk = MouseButtonFeatureStrings(

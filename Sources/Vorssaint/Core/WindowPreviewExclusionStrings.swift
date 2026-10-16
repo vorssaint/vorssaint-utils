@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -72,6 +73,14 @@ extension WindowPreviewExclusionStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         caption: "Las miniaturas de las ventanas se detienen mientras una de estas apps está en primer plano."
+    )
+
+    static let ca = WindowPreviewExclusionStrings(
+        sectionTitle: "Miniatures de finestres",
+        listTitle: "Pausar en aquestes apps",
+        addButton: "Afegir una app…",
+        removeButton: "Eliminar",
+        caption: "Les miniatures de les finestres s’aturen mentre una d’aquestes apps està en primer pla."
     )
 
     static let sk = WindowPreviewExclusionStrings(

@@ -50,6 +50,7 @@ struct WhatsAppDownloadStrings {
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .tr: return .tr
         case .ru: return .ru
@@ -150,6 +151,49 @@ extension WhatsAppDownloadStrings {
         notificationTitle: "Limpieza de WhatsApp",
         notificationFormat: "%1$d archivos (%2$@) movidos a la Papelera. %3$d fallidos.",
         scanFailed: "No se pudo analizar Descargas. Comprueba Archivos y carpetas en Ajustes del Sistema.",
+        manageButton: "Gestionar…"
+    )
+
+    static let ca = WhatsAppDownloadStrings(
+        title: "Baixades de WhatsApp",
+        hubDescription: "Manté sota control els fitxers de WhatsApp a Baixades",
+        intro: "Troba els fitxers que macOS confirma que provenen de WhatsApp. Mai llegeix el seu contingut ni els teus xats.",
+        automatic: "Netejar automàticament",
+        automaticCaption: "Comprova un cop al dia i envia a la Paperera els fitxers seleccionats que superin el termini.",
+        folder: "Carpeta supervisada",
+        accessReady: "Baixades està accessible",
+        accessDenied: "Vorssaint no pot accedir a Baixades. Permet l’accés a Fitxers i carpetes.",
+        fileTypes: "Tipus de fitxer",
+        allTypes: "Tots",
+        image: "Imatges",
+        video: "Vídeos",
+        audio: "Àudios i notes de veu",
+        document: "Documents",
+        archive: "Arxius comprimits",
+        other: "Altres",
+        retention: "Conservar durant",
+        retentionCaption: "Els fitxers editats recentment tornen a esperar el termini sencer.",
+        daysFormat: "%d dies",
+        manualIntro: "Analitza quan vulguis. La selecció inicial respecta els teus tipus i antiguitat, però pots revisar tots els fitxers confirmats.",
+        noFiles: "No s’han trobat fitxers confirmats de WhatsApp a Baixades.",
+        resultsFormat: "%1$d fitxers confirmats · %2$@",
+        selectRules: "Seleccionar segons les meves regles",
+        cleanSelectedFormat: "Moure %1$d a la Paperera · %2$@",
+        keep: "Conservar",
+        manageAgain: "Tornar a gestionar",
+        activity: "Activitat",
+        neverRun: "Encara no s’ha fet cap neteja.",
+        lastRunFormat: "Darrera neteja %@: %d fitxers · %@ · %d amb errors",
+        nextRunFormat: "Propera comprovació automàtica %@.",
+        firstTitle: "Què fem amb els fitxers existents?",
+        firstMessageFormat: "%d fitxers existents ja compleixen les teves regles. Tria si l’automatització pot gestionar-los o només les baixades futures.",
+        futureOnly: "Només baixades futures",
+        includeExisting: "Incloure els existents",
+        trashNote: "Els fitxers es mouen a la Paperera i es poden recuperar fins que la buidis.",
+        localNote: "Només es consulten metadades locals. Vorssaint mai llegeix els xats ni el contingut dels fitxers.",
+        notificationTitle: "Neteja de WhatsApp",
+        notificationFormat: "%1$d fitxers (%2$@) moguts a la Paperera. %3$d amb errors.",
+        scanFailed: "No s’ha pogut analitzar Baixades. Comprova Fitxers i carpetes als Ajustos del Sistema.",
         manageButton: "Gestionar…"
     )
 
@@ -523,6 +567,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: es.lastRunFormat, nextRunFormat: es.nextRunFormat,
             firstMessageFormat: es.firstMessageFormat, localNote: es.localNote,
             notificationFormat: es.notificationFormat, scanFailed: es.scanFailed, manageButton: es.manageButton)
+        case .ca: return OperationalStrings(
+            automaticCaption: ca.automaticCaption, retentionCaption: ca.retentionCaption,
+            manualIntro: ca.manualIntro, resultsFormat: ca.resultsFormat,
+            selectRules: ca.selectRules, cleanSelectedFormat: ca.cleanSelectedFormat,
+            lastRunFormat: ca.lastRunFormat, nextRunFormat: ca.nextRunFormat,
+            firstMessageFormat: ca.firstMessageFormat, localNote: ca.localNote,
+            notificationFormat: ca.notificationFormat, scanFailed: ca.scanFailed, manageButton: ca.manageButton)
         case .sk: return OperationalStrings(
             automaticCaption: sk.automaticCaption, retentionCaption: sk.retentionCaption,
             manualIntro: sk.manualIntro, resultsFormat: sk.resultsFormat,

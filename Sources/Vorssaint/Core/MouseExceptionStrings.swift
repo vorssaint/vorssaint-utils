@@ -39,6 +39,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -127,6 +128,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "En estas apps pasar el puntero no cambia el foco ni trae la ventana al frente.",
         captionSuperKey: "Mientras alguna de estas apps esté abierta, incluso en segundo plano, Super Key se pausa y la tecla elegida funciona normalmente.",
         pausedSuperKey: "En pausa mientras una app seleccionada esté abierta"
+    )
+
+    static let ca = MouseExceptionStrings(
+        listTitle: "Apps excloses",
+        addButton: "Afegir una app…",
+        removeButton: "Eliminar",
+        captionSmoothScroll: "En aquestes apps la roda manté els passos habituals, per a les apps que la interpreten a la seva manera, com ara eines de 3D i disseny.",
+        captionLinearScroll: "En aquestes apps la roda manté el ritme que li dóna macOS, per a jocs i eines 3D que compten els passos pel seu compte.",
+        captionScrollDirection: "En aquestes apps la roda manté el sentit que li dóna macOS.",
+        captionNavigation: "En aquestes apps els botons laterals continuen fent allò que ja feien.",
+        captionButtonShortcuts: "En aquestes apps els botons addicionals es mantenen inactius i la pulsació arriba a l’app.",
+        captionMiddleClick: "En aquestes apps el clic amb tres dits continua sent un clic normal.",
+        captionFocusFollowsMouse: "En aquestes apps passar el punter per sobre no canvia el focus ni porta la finestra al primer pla.",
+        captionSuperKey: "Mentre qualsevol d’aquestes apps estigui oberta, fins i tot en segon pla, Super Key es posa en pausa i la tecla triada funciona amb normalitat.",
+        pausedSuperKey: "En pausa mentre hi hagi una app seleccionada oberta"
     )
 
     static let sk = MouseExceptionStrings(

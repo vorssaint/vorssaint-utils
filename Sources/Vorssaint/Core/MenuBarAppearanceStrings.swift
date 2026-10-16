@@ -24,6 +24,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -102,6 +103,19 @@ extension MenuBarAppearanceStrings {
         highColor: "Color alto",
         mediumFrom: "Medio desde",
         highFrom: "Alto desde"
+    )
+
+    static let ca = MenuBarAppearanceStrings(
+        label: "Visualització de l’ús",
+        values: "Valors",
+        bars: "Barres",
+        caption: "Les barres mostren l’ús de CPU, GPU, memòria i disc. Les altres lectures continuen sent numèriques.",
+        customize: "Colors i límits de les barres",
+        normalColor: "Color normal",
+        mediumColor: "Color mitjà",
+        highColor: "Color alt",
+        mediumFrom: "Mitjà a partir de",
+        highFrom: "Alt a partir de"
     )
 
     static let sk = MenuBarAppearanceStrings(

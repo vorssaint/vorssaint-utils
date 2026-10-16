@@ -64,6 +64,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -337,6 +338,57 @@ extension AppUpdateStrings {
         removeRule: "Eliminar",
         rulesHint: "Omitir una versión no oculta versiones posteriores. Tras eliminar una exclusión, usa Buscar ahora para actualizar la lista.",
         noVisibleUpdates: "No hay actualizaciones fuera de tus reglas"
+    )
+
+    static let ca = AppUpdateStrings(
+        pageTitle: "Actualitzacions d’apps",
+        hubDescription: "Troba i instal·la actualitzacions de les teves apps",
+        caption: "Cerca versions més recents de les apps d’aquest Mac i t’ajuda a completar cada actualització des del seu origen.",
+        panelCaption: "Mira quines apps tenen una versió més recent",
+        checkNow: "Cercar ara",
+        checking: "Cercant",
+        lastCheckFormat: "Darrera cerca: %@",
+        neverChecked: "Encara no s’ha cercat",
+        upToDate: "No s’han trobat actualitzacions",
+        partialUpToDate: "No s’han trobat actualitzacions en aquesta comprovació parcial",
+        coverageNote: "Comprova les fonts originals de les apps instal·lades i un catàleg públic. Cada actualització s’instal·la des de la seva font original.",
+        selectAll: "Seleccionar-ho tot",
+        clearSelection: "Desmarcar",
+        updateSelectedFormat: "Actualitzar %d",
+        updateOne: "Actualitzar",
+        openAppStore: "Obrir l’App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Obre l’App Store, on s’instal·la aquesta actualització",
+        frequencyLabel: "Cercar en segon pla",
+        frequencyOff: "Desactivat",
+        frequencyDaily: "Cada dia",
+        frequencyWeekly: "Cada setmana",
+        nextCheckFormat: "Propera cerca: %@",
+        notifyToggle: "Avisa’m quan una app tingui una actualització",
+        includeStoreToggle: "Incloure apps de l’App Store",
+        includeStoreCaption: "Consulta les versions de la botiga fent servir la regió d’aquest Mac. Apple instal·la aquestes actualitzacions.",
+        packageMissing: "Homebrew no està instal·lat, de manera que encara no es poden actualitzar apps des d’aquí.",
+        notificationBodyFormat: "%@ apps tenen una versió més recent.",
+        notificationBodyOne: "Una app té una versió més recent.",
+        showInPanel: "Mostrar al tauler",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Fonts",
+        includeHomebrewToggle: "Incloure apps de Homebrew",
+        onlineBadge: "En línia",
+        openApp: "Obrir",
+        openAppHint: "Obre l’app perquè el seu propi actualitzador pugui acabar",
+        includeOnlineToggle: "Incloure altres apps instal·lades",
+        includeOnlineCaption: "Consulta directament els desenvolupadors quan és possible i complementa la cerca amb un catàleg públic. La pròpia app instal·la l’actualització.",
+        incompleteCheck: "Comprovació incompleta",
+        onlineUnavailable: "No s’ha pogut completar la comprovació en línia. La resta de resultats continuen visibles.",
+        skipVersionFormat: "Ometre la versió %@",
+        excludeApp: "No comprovar aquesta app",
+        rulesTitle: "Regles d’actualització",
+        skippedVersionFormat: "Versió %@ omesa",
+        excludedApp: "No es comprova fins que s’elimini aquesta regla",
+        removeRule: "Eliminar la regla",
+        rulesHint: "Ometre una versió no oculta versions posteriors. Després d’eliminar una exclusió, prem “Cercar ara” per actualitzar la llista.",
+        noVisibleUpdates: "No hi ha actualitzacions fora de les teves regles"
     )
 
     static let sk = AppUpdateStrings(

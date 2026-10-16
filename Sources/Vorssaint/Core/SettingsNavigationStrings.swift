@@ -26,6 +26,9 @@ struct SettingsNavigationStrings {
         case .es:
             return Self(go: "Ir", back: "Atrás", forward: "Adelante",
                         showSidebar: "Mostrar barra lateral", hideSidebar: "Ocultar barra lateral")
+        case .ca:
+            return Self(go: "Ves", back: "Enrere", forward: "Endavant",
+                        showSidebar: "Mostrar la barra lateral", hideSidebar: "Ocultar la barra lateral")
         case .sk:
             return Self(go: "Prejsť", back: "Späť", forward: "Vpred",
                         showSidebar: "Zobraziť postranný panel", hideSidebar: "Skryť postranný panel")

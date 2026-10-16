@@ -18,6 +18,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -66,6 +67,13 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Añadir app…",
         removeButton: "Quitar",
         caption: "Nada de lo que copies en estas apps se guarda en el historial."
+    )
+
+    static let ca = ClipboardIgnoredAppsStrings(
+        listTitle: "Apps que s’ometen",
+        addButton: "Afegir una app…",
+        removeButton: "Eliminar",
+        caption: "Res del que copiis en aquestes apps es desarà a l’historial."
     )
 
     static let sk = ClipboardIgnoredAppsStrings(

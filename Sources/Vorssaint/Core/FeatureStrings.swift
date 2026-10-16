@@ -11,6 +11,7 @@ enum FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -31,6 +32,7 @@ enum FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -51,6 +53,7 @@ enum FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -71,6 +74,7 @@ enum FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -91,6 +95,7 @@ enum FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -127,6 +132,7 @@ struct MixerFeatureStrings {
     static let tr = MixerFeatureStrings(hideInactiveApps: "Etkin olmayan uygulamaları gizle", pin: "En üste sabitle", unpin: "Sabitlemeyi kaldır", moveUp: "Yukarı taşı", moveDown: "Aşağı taşı", pinFirst: "Başa sabitle", moveLeft: "Sola taşı", moveRight: "Sağa taşı", arrange: "Sıralamak için Command tuşunu basılı tutup sürükleyin", actions: "Eylemler")
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
     static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
+    static let ca = MixerFeatureStrings(hideInactiveApps: "Ocultar les apps inactives", pin: "Fixar a dalt", unpin: "Desfixar", moveUp: "Moure cap amunt", moveDown: "Moure cap avall", pinFirst: "Fixar al principi", moveLeft: "Moure a l’esquerra", moveRight: "Moure a la dreta", arrange: "Mantén premut Command i arrossega per reordenar", actions: "Accions")
     static let sk = MixerFeatureStrings(hideInactiveApps: "Skryť neaktívne aplikácie", pin: "Pripnúť navrch", unpin: "Odopnúť", moveUp: "Presunúť nahor", moveDown: "Presunúť nadol", pinFirst: "Pripnúť dopredu", moveLeft: "Presunúť doľava", moveRight: "Presunúť doprava", arrange: "Podržte Command a presuňte myšou pre zmenu poradia", actions: "Akcie")
     static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
     static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
@@ -399,6 +405,15 @@ struct SettingsCategoryStrings {
         utilities: "Utilidades",
         app: "App",
         appManagement: "Gestión de apps"
+    )
+
+    static let ca = SettingsCategoryStrings(
+        essentials: "Essencials",
+        windowsControls: "Finestres i controls",
+        files: "Fitxers",
+        utilities: "Utilitats",
+        app: "App",
+        appManagement: "Gestió d’apps"
     )
 
     static let sk = SettingsCategoryStrings(
@@ -861,6 +876,71 @@ struct ClipboardFeatureStrings {
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
         historyLayoutList: "Lista"
+    )
+
+    static let ca = ClipboardFeatureStrings(
+        title: "Portapapers",
+        enable: "Desar l’historial del portapapers",
+        caption: "Desa el text copiat per reutilitzar-lo més tard. Tot es queda en local i es pot esborrar quan vulguis.",
+        localNote: "Tot es queda en aquest Mac. Els elements massa grans s’ignoren.",
+        skipSensitive: "Ometre el text que sembli confidencial",
+        skipSensitiveCaption: "Evita desar cadenes curtes sense espais que semblin contrasenyes, testimonis o claus.",
+        limit: "Límit",
+        limitUnlimited: "Sense límit",
+        showInPanel: "Mostrar al tauler",
+        shortcut: "Drecera de l’historial",
+        shortcutCaption: "Obre una finestra ràpida amb cerca, elements fixats i dreceres ⌘1 a ⌘9 per enganxar a l’app anterior.",
+        shortcutHint: "Fes clic en una fila per enganxar-la a l’app anterior. ⌘+clic en selecciona diverses; ⌘C copia sense enganxar.",
+        clickRowShortcut: "Clic a la fila",
+        commandClickShortcut: "⌘ Clic",
+        pinned: "Fixats",
+        recent: "Recents",
+        pin: "Fixar",
+        unpin: "Desfixar",
+        clearRecent: "Netejar no fixats",
+        clearRecentKeywords: "Netejar recents",
+        empty: "No hi ha cap text desat",
+        disabled: "Activa l’historial per començar a desar el text copiat.",
+        search: "Cercar text copiat",
+        copy: "Copiar",
+        copied: "Copiat",
+        delete: "Eliminar l’element",
+        selectMultiple: "Afegir a la pila",
+        unselectMultiple: "Treure de la pila",
+        selectShortcutAction: "Seleccionar",
+        pasteSelectedFormat: "Enganxar %d",
+        copySelectedFormat: "Copiar %d",
+        clearSelection: "Netejar la selecció",
+        moveUp: "Pujar",
+        moveDown: "Baixar",
+        noResults: "Sense resultats",
+        active: "Desant nou text",
+        includeImagesFiles: "Desar també imatges i fitxers copiats",
+        includeImagesFilesCaption: "Les imatges entren a l’historial i els fitxers es recorden com a enllaços a la seva ubicació. Fixa’ls i enganxa’ls com qualsevol text.",
+        imageEntryLabel: "Imatge",
+        fileCountFormat: "%d fitxers",
+        pasteImageAsFile: "Enganxar imatges copiades com a fitxers",
+        pasteImageAsFileCaption: "Amb el Finder actiu, ⌘V desa una imatge copiada com a PNG a la carpeta actual.",
+        previewLabel: "Previsualització",
+        edit: "Editar",
+        cancel: "Cancel·lar",
+        save: "Desar",
+        autoClearEnable: "Buidar el portapapers automàticament al cap de",
+        autoClearSecondsSuffix: "segons",
+        autoClearOnSleep: "Buidar el portapapers en suspendre el Mac",
+        autoClearOnDisplaySleep: "Buidar el portapapers en apagar-se la pantalla",
+        autoClearOnScreenLock: "Buidar el portapapers en bloquejar la pantalla",
+        autoClearCaption: "Només es buida el portapapers del sistema. Els elements desats continuen a l’historial.",
+        deleteSelectedFormat: "Eliminar %d",
+        menuBarPreview: "Mostrar l’última còpia a la barra de menús",
+        menuBarPreviewCaption: "Mostra una previsualització abreujada de l’última còpia al costat de la icona. Fes clic per obrir l’historial.",
+        menuBarPreviewLength: "Longitud de la previsualització",
+        menuBarPreviewLengthSuffix: "caràcters",
+        clearRecentConfirmFormat: "Vols netejar els no fixats (%d)?",
+        clearRecentConfirmMessage: "Els elements fixats es conserven, i també el que copiïs després. No es pot desfer.",
+        historyLayout: "Disposició de l’historial",
+        historyLayoutCards: "Targetes",
+        historyLayoutList: "Llista"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -1941,6 +2021,99 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extragrande"
     )
 
+    static let ca = WindowLayoutFeatureStrings(
+        title: "Disposició de finestres",
+        caption: "Organitza finestres en zones de la pantalla o mou-les i canvia’n la mida amb el trackpad o el ratolí.",
+        showInPanel: "Mostrar al tauler",
+        gestureSection: "Arrossegament de finestres",
+        gestureEnable: "Moure i redimensionar en arrossegar",
+        gestureCaption: "Al trackpad o ratolí, mantén premudes les tecles indicades i arrossega des de qualsevol punt d’una finestra.",
+        gestureModifiers: "Tecles per moure",
+        gestureMove: "Arrossega per moure",
+        gestureResize: "Afegeix Majúscules i arrossega per canviar la mida",
+        gestureResizeHint: "El punt inicial tria la vora o el cantó. Amb ratolí, arrossegar amb el botó dret també canvia la mida.",
+        gestureRaiseWindow: "Portar al davant la finestra arrossegada",
+        shortcuts: "Dreceres",
+        shortcutsCaption: "Fes servir dreceres globals per organitzar la finestra activa sense obrir el tauler.",
+        permissionCaption: "Utilitza l’Accessibilitat només per moure i canviar la mida de les finestres.",
+        noWindow: "No s’ha trobat cap finestra activa.",
+        missingPermission: "Concedeix permís d’Accessibilitat per moure finestres.",
+        failed: "No s’ha pogut moure aquesta finestra.",
+        done: "Finestra organitzada.",
+        restored: "Finestra restaurada.",
+        noRestore: "No hi ha cap disposició anterior per restaurar.",
+        target: "Finestra activa",
+        halves: "Meitats",
+        thirds: "Terços",
+        quarterRows: "Files d’1/4",
+        quarterColumns: "Columnes d’1/4",
+        sixths: "Sisens",
+        corners: "Cantons",
+        other: "Accions",
+        leftHalf: "Esquerra",
+        rightHalf: "Dreta",
+        topHalf: "A dalt",
+        bottomHalf: "A baix",
+        centerHalf: "Meitat centrada",
+        leftThird: "1/3 esquerra",
+        centerThird: "1/3 centre",
+        rightThird: "1/3 dreta",
+        leftTwoThirds: "2/3 esquerra",
+        rightTwoThirds: "2/3 dreta",
+        centerTwoThirds: "2/3 centre",
+        topThird: "1/3 a dalt",
+        middleThird: "1/3 al mig",
+        bottomThird: "1/3 a baix",
+        topTwoThirds: "2/3 a dalt",
+        bottomTwoThirds: "2/3 a baix",
+        topQuarter: "1/4 a dalt",
+        upperMiddleQuarter: "1/4 mig superior",
+        lowerMiddleQuarter: "1/4 mig inferior",
+        bottomQuarter: "1/4 a baix",
+        leftQuarter: "1/4 esquerra",
+        leftMiddleQuarter: "1/4 mig esquerre",
+        rightMiddleQuarter: "1/4 mig dret",
+        rightQuarter: "1/4 dreta",
+        topLeftSixth: "1/6 a dalt a l’esquerra",
+        topCenterSixth: "1/6 a dalt al centre",
+        topRightSixth: "1/6 a dalt a la dreta",
+        bottomLeftSixth: "1/6 a baix a l’esquerra",
+        bottomCenterSixth: "1/6 a baix al centre",
+        bottomRightSixth: "1/6 a baix a la dreta",
+        topLeft: "A dalt a l’esquerra",
+        topRight: "A dalt a la dreta",
+        bottomLeft: "A baix a l’esquerra",
+        bottomRight: "A baix a la dreta",
+        maximize: "Maximitzar",
+        center: "Centrar",
+        nextDisplay: "Pantalla següent",
+        restore: "Restaurar",
+        fullScreen: "Pantalla completa",
+        previousDisplay: "Pantalla anterior",
+        edgeSnapEnable: "Ajustar finestres a les vores de la pantalla",
+        edgeSnapCaption: "Activa-ho i arrossega la barra de títol d’una finestra fins a una de les àrees ressaltades de sota. Fes clic en una àrea per triar on es col·loca la finestra.",
+        edgeSnapSystemConflict: "macOS fa servir les mateixes vores. Desactiva l’ajust de finestres a Escriptori i Dock perquè Vorssaint en prengui el control.",
+        edgeSnapOpenSystemSettings: "Obrir Escriptori i Dock",
+        edgeSnapWaitingForSystem: "Activat a Vorssaint. Funcionarà tan bon punt es desactivi l’ajust de finestres de macOS.",
+        edgeSnapUseCorner: "Utilitzar aquest cantó",
+        edgeSnapUseEdge: "Utilitzar aquesta vora",
+        edgeSnapAreasOnEdge: "Àrees en aquesta vora",
+        marginMaximize: "Maximitzar amb marge",
+        marginPerEdge: "Marge per vora",
+        gapsSection: "Espaiat",
+        gapsCaption: "Espai entre finestres ajustades i entre les finestres i la vora de la pantalla.",
+        windowGap: "Espai entre finestres",
+        screenGap: "Espai fins a la vora de la pantalla",
+        sideRepeatCycle: "Repetir Esquerra o Dreta alterna les mides",
+        sideRepeatCycleCaption: "Meitat, després dos terços i un terç a la mateixa pantalla. Si està desactivat i hi ha més d’una pantalla, la repetició mou la finestra a la pantalla següent d’aquest costat.",
+        gapNone: "Cap",
+        gapTiny: "Diminut",
+        gapSmall: "Petit",
+        gapMedium: "Mitjà",
+        gapLarge: "Gran",
+        gapExtraLarge: "Extra gran"
+    )
+
     static let sk = WindowLayoutFeatureStrings(
         title: "Rozloženie okien",
         caption: "Usporiadajte okná do oblastí obrazovky alebo ich presúvajte a meňte im veľkosť trackpadom či myšou.",
@@ -2893,6 +3066,41 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Temperatura por encima de",
         batteryTemperatureTitle: "Batería caliente",
         batteryTemperatureBodyFormat: "La batería llegó a %@."
+    )
+
+    static let ca = MonitorAlertFeatureStrings(
+        section: "Alertes",
+        caption: "Les alertes apareixen quan s’assoleixen els límits triats. L’ús de CPU i les alertes de temperatura ignoren els pics de menys d’uns 12 segons. L’ajust de repetició només limita la repetició de la mateixa alerta.",
+        notificationsDenied: "Les notificacions de Vorssaint estan desactivades als Ajustos del Sistema, per la qual cosa les alertes no apareixen.",
+        cpu: "CPU alta",
+        cpuTemperature: "Temperatura de CPU alta",
+        memory: "Pressió de memòria crítica",
+        disk: "Poc espai al disc",
+        battery: "Bateria baixa",
+        cpuThreshold: "CPU per sobre de",
+        cpuTemperatureThreshold: "Temperatura per sobre de",
+        diskThreshold: "Espai lliure per sota de",
+        batteryThreshold: "Bateria per sota de",
+        cooldown: "Repetir la mateixa alerta al cap de",
+        cooldown2: "2 minuts",
+        cooldown5: "5 minuts",
+        cooldown15: "15 minuts",
+        cooldown30: "30 minuts",
+        cooldown60: "1 hora",
+        cpuTitle: "CPU alta",
+        cpuBodyFormat: "La CPU ha estat per sobre del %d%% durant uns segons.",
+        cpuTemperatureTitle: "CPU calenta",
+        cpuTemperatureBodyFormat: "La CPU ha arribat a %@.",
+        memoryTitle: "Memòria crítica",
+        memoryBody: "La pressió de memòria ha assolit el nivell crític.",
+        diskTitle: "Poc espai al disc",
+        diskBodyFormat: "%@ té menys del %d%% lliure.",
+        batteryTitle: "Bateria baixa",
+        batteryBodyFormat: "La bateria està al %d%%.",
+        batteryTemperature: "Temperatura de la bateria alta",
+        batteryTemperatureThreshold: "Temperatura per sobre de",
+        batteryTemperatureTitle: "Bateria calenta",
+        batteryTemperatureBodyFormat: "La bateria ha arribat a %@."
     )
 
     static let sk = MonitorAlertFeatureStrings(

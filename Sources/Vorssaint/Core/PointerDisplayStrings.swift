@@ -12,6 +12,7 @@ struct PointerDisplayStrings {
         case .tr: return .init(title: "İşaretçiyi sonraki ekrana taşı", caption: "İşaretçiyi sonraki ekranın ortasına götürür.")
         case .ru: return .init(title: "Переместить указатель на следующий дисплей", caption: "Ставит указатель в центр следующего дисплея.")
         case .es: return .init(title: "Mover puntero a la siguiente pantalla", caption: "Coloca el puntero en el centro de la siguiente pantalla.")
+        case .ca: return .init(title: "Moure el punter a la pantalla següent", caption: "Col·loca el punter al centre de la pantalla següent.")
         case .sk: return .init(title: "Presunúť kurzor na ďalší displej", caption: "Umiestni kurzor do stredu ďalšieho displeja.")
         case .de: return .init(title: "Zeiger auf nächstes Display bewegen", caption: "Setzt den Zeiger in die Mitte des nächsten Displays.")
         case .fr: return .init(title: "Déplacer le pointeur vers l’écran suivant", caption: "Place le pointeur au centre de l’écran suivant.")

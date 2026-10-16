@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -261,6 +262,45 @@ extension BrightnessFeatureStrings {
         islandPromptTitle: "¿Mostrar el brillo en el Dynamic Island?",
         islandPromptMessage: "El Dynamic Island solo muestra los cambios de brillo cuando “Controlar las pantallas” está activado en los ajustes de Pantallas.",
         islandPromptKeepOff: "Mantener desactivado"
+    )
+
+    static let ca = BrightnessFeatureStrings(
+        pageTitle: "Pantalles",
+        hubDescription: "Controls de brillantor i alimentació per a cada pantalla",
+        enable: "Controlar les pantalles",
+        enableCaption: "Controls de brillantor i d’encesa o apagada per a la pantalla integrada i els monitors externs, aquí i al tauler de la barra de menús.",
+        externalCaption: "Els monitors externs s’ajusten mitjançant el mateix protocol que els seus propis botons. Quan la connexió no pot transmetre aquest protocol, com passa amb els adaptadors HDMI, el control enfosqueix la imatge perquè l’ajust de brillantor funcioni igualment.",
+        noDisplays: "No s’ha trobat cap pantalla.",
+        displayOff: "Apagada",
+        turnOffDisplay: "Apagar la pantalla",
+        turnOnDisplay: "Encendre la pantalla",
+        lastDisplayCaption: "Com a mínim una pantalla ha de romandre encesa.",
+        switchUnavailable: "L’encesa i apagada de pantalles no està disponible en aquest Mac.",
+        switchFailed: "No s’ha pogut canviar l’estat d’aquesta pantalla.",
+        openLidToEnable: "Obre la tapa per encendre la pantalla integrada.",
+        keysToggle: "Les tecles de brillantor segueixen el punter",
+        keysCaption: "Les tecles de brillantor del teclat modifiquen la pantalla on hi ha el punter.",
+        keyStep: "Passos de les tecles de brillantor",
+        keyStepCaption: "Passos més petits amb cada pulsació de les tecles de brillantor i de les dreceres de brillantor de pantalla.",
+        keyStepStandard: "Estàndard",
+        keyStepHalf: "Mig pas",
+        keyStepQuarter: "Un quart de pas",
+        osdToggle: "Mostrar la brillantor en ajustar-la",
+        osdCaption: "Mostra el percentatge de brillantor en fer servir les tecles o els controls lliscants de brillantor.",
+        displayBrightnessShortcuts: "Utilitzar dreceres per a la brillantor de la pantalla",
+        displayBrightnessShortcutCaption: "Les dreceres ajusten la pantalla principal o la pantalla sota el punter quan el seguiment del punter està activat.",
+        displayBrightnessDecrease: "Reduir la brillantor de la pantalla",
+        displayBrightnessIncrease: "Augmentar la brillantor de la pantalla",
+        keyboardLight: "Llum del teclat",
+        keyboardLightCaption: "Activa o desactiva la retroil·luminació del teclat.",
+        keyboardBrightnessShortcuts: "Utilitzar dreceres per a la brillantor del teclat",
+        keyboardBrightnessDecrease: "Reduir la brillantor del teclat",
+        keyboardBrightnessIncrease: "Augmentar la brillantor del teclat",
+        softwareDimming: "Enfosquir la imatge",
+        extendedDimming: "Atenuació addicional",
+        islandPromptTitle: "Vols mostrar la brillantor a la Dynamic Island?",
+        islandPromptMessage: "La Dynamic Island només mostra els canvis de brillantor quan “Controlar les pantalles” està activat als ajustos de Pantalles.",
+        islandPromptKeepOff: "Mantenir desactivat"
     )
 
     static let sk = BrightnessFeatureStrings(

@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -216,6 +217,38 @@ extension FeedbackStrings {
         commandFeature: "Sugerir una función",
         commandSubtitle: "Enviar comentarios",
         diagnosticsChannelLabel: "Canal de actualización"
+    )
+
+    static let ca = FeedbackStrings(
+        sectionTitle: "Comentaris",
+        sectionCaption: "Envia un informe d’error o una idea directament a qui manté Vorssaint.",
+        openButton: "Enviar comentaris",
+        windowTitle: "Enviar comentaris",
+        bugTitle: "Error",
+        featureTitle: "Idea de funció",
+        messageLabel: "Què vols compartir?",
+        bugPlaceholder: "Explica què ha passat i què esperaves.",
+        featurePlaceholder: "Descriu la idea i com ajudaria.",
+        charactersFormat: "%d de 2000 caràcters",
+        includeDiagnostics: "Incloure dades tècniques",
+        includeDiagnosticsCaption: "Afegeix només les dades tècniques que es mostren a continuació. No inclou registres.",
+        whatSentTitle: "Què s’enviarà",
+        whatSentBasic: "La categoria seleccionada i el text superior.",
+        whatSentDiagnostics: "Les dades tècniques indicades a sota.",
+        privacyNote: "No s’inclouen nom, compte, correu, identificador del dispositiu, registres, captures, fitxers ni portapapers. La teva IP pública es processa temporalment per protegir contra abusos i no s’adjunta al comentari.",
+        retentionNote: "Després del lliurament, el text roman en canals privats de suport fins que el responsable l’elimini. Una còpia no lliurada s’elimina definitivament al cap de 7 dies.",
+        sendButton: "Enviar comentaris",
+        sending: "S’està enviant…",
+        sentTitle: "Comentaris enviats",
+        sentCaption: "Gràcies. No s’ha enviat cap informació de contacte, per la qual cosa no rebràs una resposta directa.",
+        unavailableError: "No s’ha pogut connectar. Comprova la connexió a internet i torna-ho a provar.",
+        rateLimitError: "Massa enviaments des d’aquesta xarxa. Torna-ho a provar més tard.",
+        genericError: "No s’han pogut enviar els comentaris ara mateix.",
+        done: "Fet",
+        commandBug: "Informar d’un error",
+        commandFeature: "Sugerir una funció",
+        commandSubtitle: "Enviar comentaris",
+        diagnosticsChannelLabel: "Canal d’actualització"
     )
 
     static let sk = FeedbackStrings(

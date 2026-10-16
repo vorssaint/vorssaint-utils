@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -321,6 +322,53 @@ extension ScratchpadFeatureStrings {
         markLink: "Enlace",
         formatMarks: "Formato",
         textSize: "Tamaño del texto"
+    )
+
+    static let ca = ScratchpadFeatureStrings(
+        pageTitle: "Esborrany",
+        hubDescription: "Blocs flotants amb pestanyes per a notes ràpides",
+        panelCaption: "Notes ràpides en pestanyes separades",
+        openButton: "Obrir l’esborrany",
+        placeholder: "Escriu qualsevol cosa. Es desa automàticament.",
+        copyAll: "Copiar-ho tot",
+        copied: "Copiat",
+        exportAction: "Desar com a fitxer",
+        exportFailed: "No s’ha pogut desar el fitxer",
+        loadFailed: "No s’han pogut obrir les notes. S’han mantingut sense canvis.",
+        saveFailed: "No s’han pogut desar les notes. Copia-les a un altre lloc abans de sortir.",
+        clearAction: "Netejar",
+        retentionTitle: "Netejar automàticament",
+        retentionNever: "Mai",
+        retentionDay: "Després d’un dia sense ús",
+        retentionWeek: "Després d’una setmana sense ús",
+        retentionMonth: "Després d’un mes sense ús",
+        retentionCaption: "El bloc es buida quan el text passa aquest temps sense canvis.",
+        closeOnClickOutside: "Tancar en fer clic a fora",
+        keepOpen: "Mantenir obert",
+        backgroundOpacity: "Fons de l’esborrany",
+        backgroundTranslucent: "Translúcid",
+        backgroundOpaque: "Opac",
+        newPad: "Nou esborrany",
+        padActions: "Accions de l’esborrany",
+        renamePad: "Reanomenar l’esborrany",
+        closePad: "Tancar l’esborrany",
+        saveName: "Desar",
+        cancel: "Cancel·lar",
+        deletePadMessageFormat: "Vols eliminar “%@” i tot el seu contingut?",
+        padLimitFormat: "Pots desar fins a %d esborranys",
+        previewFormatting: "Previsualitzar el format",
+        editText: "Editar el text",
+        markBold: "Negreta",
+        markItalic: "Cursiva",
+        markStrikethrough: "Ratllat",
+        markHeading: "Títol",
+        markBullet: "Llista amb pics",
+        markNumbered: "Llista numerada",
+        markQuote: "Cita",
+        markCode: "Codi",
+        markLink: "Enllaç",
+        formatMarks: "Format",
+        textSize: "Mida del text"
     )
 
     static let sk = ScratchpadFeatureStrings(

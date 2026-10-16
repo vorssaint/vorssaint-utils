@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint fa servir l’automatització per moure fitxers, enviar elements a la Paperera, obrir les ordres sol·licitades i controlar la reproducció a les teves apps multimèdia.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint fa servir l’àudio de cada app per ajustar-ne el volum al mesclador, animar les barres de música a la Dynamic Island i incloure el so del Mac a les gravacions de pantalla que iniciïs. Res no surt del teu Mac.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint fa servir el Bluetooth només per consultar la bateria dels perifèrics connectats. Res no surt del teu Mac.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint enregistra el micròfon només si l’actives per a una gravació de pantalla. L’àudio es queda al teu Mac tret que triïs crear un enllaç temporal per compartir.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint mostra la càmera només a la finestra de previsualització que obris, perquè puguis comprovar com et veus abans d’una trucada. No s’enregistra res i res no surt del teu Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint consulta les metadades locals a Baixades per revisar, organitzar o enviar a la Paperera només els fitxers confirmats de WhatsApp que triïs. Neteja també cerca captures oblidades si deses les captures aquí.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint organitza les baixades confirmades de WhatsApp a la carpeta de destinació que triïs expressament. Neteja també cerca captures oblidades si deses les captures aquí.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint organitza les baixades confirmades de WhatsApp a la carpeta de destinació que triïs expressament. Neteja també cerca captures oblidades si deses les captures aquí.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint organitza les baixades confirmades de WhatsApp a la carpeta de destinació que triïs expressament. Neteja també cerca captures oblidades si deses les captures aquí.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint organitza les baixades confirmades de WhatsApp a la carpeta de destinació que triïs expressament. Neteja també cerca captures oblidades si deses les captures aquí.";
+"NSCalendarsFullAccessUsageDescription" = "Mostra les teves properes cites a la part superior de la pantalla. Els esdeveniments del calendari es queden en aquest Mac.";

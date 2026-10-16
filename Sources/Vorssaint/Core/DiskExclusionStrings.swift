@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -78,6 +79,15 @@ extension DiskExclusionStrings {
         removeButton: "Quitar",
         customPlaceholder: "Nombre del disco o volumen",
         caption: "Los discos de esta lista nunca se expulsan al expulsar todos los discos."
+    )
+
+    static let ca = DiskExclusionStrings(
+        listTitle: "Discos exclosos",
+        addButton: "Afegir un disc…",
+        otherDrive: "Un altre nom de disc…",
+        removeButton: "Eliminar",
+        customPlaceholder: "Nom del disc o volum",
+        caption: "Els discos d’aquesta llista no s’expulsen mai en expulsar tots els discos."
     )
 
     static let sk = DiskExclusionStrings(

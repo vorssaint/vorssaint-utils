@@ -26,6 +26,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -117,6 +118,19 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "Una vista previa por ventana, incluidas las minimizadas.",
         switcherLayoutIcons: "Iconos grandes",
         switcherLayoutSimple: "Lista simple"
+    )
+
+    static let ca = SettingsPageStrings(
+        energyDescription: "Mantén el Mac despert, controla les teves pantalles i estalvia bateria.",
+        monitorDescription: "Què mostren la barra de menús i el tauler sobre el Mac, i quan avisar-te.",
+        mouseDescription: "Dona noves funcions a la roda, als botons laterals i al trackpad.",
+        switcherDescription: "Canvia d’app i de finestra a la teva manera.",
+        dockTitle: "Dock",
+        dockDescription: "Mira les finestres d’una app des de la seva icona al Dock i tria què fa un clic en ella.",
+        switcherLayoutWindows: "Previsualitzacions de finestres",
+        switcherLayoutWindowsCaption: "Una previsualització per finestra, incloses les minimitzades.",
+        switcherLayoutIcons: "Icones grans",
+        switcherLayoutSimple: "Llista simple"
     )
 
     static let sk = SettingsPageStrings(

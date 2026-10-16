@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -162,6 +163,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Mostrar la app instalada en Finder",
         installedKeptDownloadBodyFormat: "%@ está lista en %@. La imagen de disco se expulsó y la descarga se conservó.",
         installingFormat: "Instalando %@…"
+    )
+
+    static let ca = DiskImageInstallerStrings(
+        title: "Instal·lador d’imatges de disc",
+        hubDescription: "Instal·la l’única app d’una imatge de disc i neteja la descàrrega",
+        useUserApplications: "Instal·lar a la carpeta Aplicacions de la teva carpeta d’inici",
+        applicationsFolder: "la carpeta Aplicacions",
+        userApplicationsFolder: "la carpeta Aplicacions de la teva carpeta d’inici",
+        promptTitle: "Vols instal·lar aquesta app?",
+        promptBodyFormat: "%@ es copiarà a %@ i s’expulsarà la imatge de disc.",
+        installButton: "Instal·lar",
+        installedTitle: "App instal·lada",
+        installedBodyFormat: "%@ està a punt a %@. La imatge de disc s’ha expulsat i la descàrrega s’ha mogut a la Paperera.",
+        installedKeepingMountBodyFormat: "%@ s’ha instal·lat a %@, però no s’ha pogut expulsar la imatge de disc. La descàrrega s’ha conservat.",
+        installedKeepingDownloadBodyFormat: "%@ s’ha instal·lat a %@ i la imatge de disc s’ha expulsat, però la descàrrega no s’ha pogut moure a la Paperera.",
+        failedTitle: "No s’ha pogut instal·lar",
+        failedBody: "No s’ha modificat res. Encara pots arrossegar l’app a Aplicacions.",
+        verificationFailedBody: "Aquest Mac no ha pogut verificar l’app, per la qual cosa no s’ha instal·lat res.",
+        alreadyInstalledBodyFormat: "%@ ja és a Aplicacions.",
+        trashDownloadOption: "Moure la descàrrega a la Paperera",
+        revealAppOption: "Mostrar l’app instal·lada al Finder",
+        installedKeptDownloadBodyFormat: "%@ està a punt a %@. La imatge de disc s’ha expulsat i la descàrrega s’ha conservat.",
+        installingFormat: "Instal·lant %@…"
     )
 
     static let sk = DiskImageInstallerStrings(

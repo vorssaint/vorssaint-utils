@@ -19,6 +19,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -72,6 +73,14 @@ extension MouseClickDebounceStrings {
         moreOptions: "Más opciones",
         windowLabel: "Intervalo del filtro",
         windowCaption: "Un clic repetido dentro de este intervalo se considera una repetición accidental."
+    )
+
+    static let ca = MouseClickDebounceStrings(
+        title: "Filtre de clics",
+        caption: "Ignora els clics addicionals ràpids de botons desgastats sense alentir els clics normals.",
+        moreOptions: "Més opcions",
+        windowLabel: "Interval del filtre",
+        windowCaption: "Un clic repetit dins d’aquest interval es considera una repetició accidental."
     )
 
     static let sk = MouseClickDebounceStrings(

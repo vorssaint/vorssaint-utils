@@ -42,6 +42,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -195,6 +196,34 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Iniciar el salvapantallas",
         screenSaverCaption: "Empieza al momento, en todas las pantallas.",
         actionFailed: "No se pudo completar."
+    )
+
+    static let ca = QuickToggleFeatureStrings(
+        pageTitle: "Accions ràpides",
+        hubDescription: "Accions d’un sol clic com ara el mode fosc i la Paperera",
+        panelCaption: "Accions del sistema d’un sol clic al tauler de la barra de menús i al tauler ràpid.",
+        darkModeToDark: "Canviar al mode fosc",
+        darkModeToLight: "Canviar al mode clar",
+        darkModeCaption: "Canvia l’aspecte de tot el sistema.",
+        emptyTrashTitle: "Buidar la Paperera",
+        emptyTrashCaption: "Elimina tot el que hi ha a la Paperera.",
+        emptyTrashConfirmTitle: "Vols buidar la Paperera?",
+        emptyTrashConfirmMessage: "S’eliminaran tots els elements de la Paperera. Aquesta acció no es pot desfer.",
+        emptyTrashConfirmButton: "Buidar la Paperera",
+        ejectTitle: "Expulsar tots els discos",
+        ejectCaption: "Expulsa de manera segura tots els discos externs.",
+        hiddenFilesShow: "Mostrar els fitxers ocults",
+        hiddenFilesHide: "Ocultar els fitxers ocults",
+        desktopIconsHide: "Ocultar les icones de l’escriptori",
+        desktopIconsShow: "Mostrar les icones de l’escriptori",
+        finderRestartCaption: "El Finder es reiniciarà per aplicar el canvi.",
+        lockScreenTitle: "Bloquejar la pantalla",
+        lockScreenCaption: "Demana la contrasenya per tornar-hi.",
+        displayOffTitle: "Apagar la pantalla",
+        displayOffCaption: "El Mac continua funcionant amb la pantalla apagada.",
+        screenSaverTitle: "Iniciar l’estalvi de pantalla",
+        screenSaverCaption: "S’inicia immediatament, a totes les pantalles.",
+        actionFailed: "No s’ha pogut completar."
     )
 
     static let sk = QuickToggleFeatureStrings(

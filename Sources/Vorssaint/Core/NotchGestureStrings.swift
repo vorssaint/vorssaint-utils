@@ -24,6 +24,10 @@ extension FeatureStrings {
             title: "Gestos del Dynamic Island",
             description: "Abre y cierra el Dynamic Island al desplazarte y desliza para cambiar de canción.",
             hint: "Desplázate hacia abajo para abrir. Hacia arriba sobre la fila superior para cerrar. Desliza a los lados sobre la música para cambiar de pista. Las listas conservan su desplazamiento.")
+        case .ca: return NotchGestureStrings(
+            title: "Gestos de la Dynamic Island",
+            description: "Obre i tanca la Dynamic Island en desplaçar-te i llisca per canviar de cançó.",
+            hint: "Desplaça’t cap avall per obrir. Cap amunt sobre la fila superior per tancar. Llisca als costats sobre la música per canviar de pista. Les llistes conserven el seu propi desplaçament.")
         case .sk: return NotchGestureStrings(
             title: "Gestá Dynamic Island",
             description: "Otvorte a zatvorte Dynamic Island posúvaním a potiahnutím zmeňte skladbu.",
