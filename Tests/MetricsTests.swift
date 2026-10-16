@@ -124,6 +124,7 @@ struct MetricsTests {
                 UtilitiesFeatureTests.run(suite)
                 QuickTogglesAlertTests.run(suite)
                 PortManagerRefreshTests.run(suite)
+                HerdrStatusTests.run(suite)
             }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
