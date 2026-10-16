@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AVFoundation
 import SwiftUI
 
 struct NotchCameraView: View {
@@ -12,9 +13,9 @@ struct NotchCameraView: View {
     var body: some View {
         Group {
             if service.isEmbeddedPresented {
-                // The preview takes the whole page, with its stop button over the image.
-                CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: true,
-                                  onStop: service.hideEmbedded)
+                // The preview takes the whole page; its camera picker and stop
+                // button sit in the island's top row, clear of the image.
+                CameraPreviewView(size: NotchLayout.cameraPreviewSize(in: size), showsCameraMenu: false)
             } else {
                 HStack(spacing: 16) {
                     Image(systemName: "web.camera").font(.system(size: 30, weight: .light))
@@ -33,5 +34,51 @@ struct NotchCameraView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onDisappear { service.hideEmbedded() }
+    }
+}
+
+/// The camera the mirror shows, in the island's top row while it runs with
+/// more than one camera around: the current one's name, cut short beside the
+/// camera, over a native menu of them all.
+struct NotchCameraChooser: View {
+    @ObservedObject private var service = CameraPreviewService.shared
+    @ObservedObject private var l10n = L10n.shared
+    private var strings: CameraPreviewFeatureStrings { FeatureStrings.cameraPreview(l10n.language) }
+
+    private var current: String {
+        service.devices.first { $0.uniqueID == service.selectedDeviceID }?.localizedName ?? strings.cameraMenuLabel
+    }
+
+    var body: some View {
+        if service.isEmbeddedPresented, service.state == .running, service.session != nil, service.devices.count > 1 {
+            NotchMenuButton(title: strings.cameraMenuLabel, items: service.devices.map { device in
+                NotchMenuItem(title: device.localizedName, checked: device.uniqueID == service.selectedDeviceID) {
+                    service.selectCamera(device)
+                }
+            }, cornerRadius: 9) {
+                NotchBandMenuLabel(title: current)
+            }
+            .help(current)
+            .accessibilityValue(current)
+        }
+    }
+}
+
+/// Stops the mirror from the island's top row: a glyph beside the camera,
+/// where a word may not fit, and the word itself across a full row.
+struct NotchCameraStopButton: View {
+    @ObservedObject private var service = CameraPreviewService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @Environment(\.notchBand) private var band
+
+    var body: some View {
+        if service.isEmbeddedPresented {
+            let title = FeatureStrings.notchActivities(l10n.language).stopCamera
+            if band.besideCamera {
+                NotchIconButton(symbol: "video.slash", title: title, action: service.hideEmbedded)
+            } else {
+                NotchPillButton(title: title, prominent: true, action: service.hideEmbedded)
+            }
+        }
     }
 }

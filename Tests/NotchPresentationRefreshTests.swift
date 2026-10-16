@@ -234,7 +234,9 @@ enum NotchPresentationRefreshContract {
         var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
-        var headerTitleWidth: CGFloat = 0
+        var expandedPageTop = NotchPageTop.row
+        var modules = NotchModule.allCases
+        var homeControls: [NotchControlItem] = []
         var expandedGeometry: NotchGeometry { geometry }
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
@@ -435,7 +437,7 @@ enum NotchPresentationRefreshContract {
         toolbar.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                           safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
-                     "a standard wide page puts its header beside the camera")
+                     "a standard wide page puts its top row beside the camera")
         toolbar.selected = .captures
         toolbar.captureActions = true
         toolbar.captureContent = true
@@ -447,14 +449,14 @@ enum NotchPresentationRefreshContract {
                      "a capture toolbar keeps a full row below the camera without losing actions to the cutout")
         toolbar.showingSections = true
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
-                     "leaving capture editing restores the compact header layout")
-        let titled = Service()
-        titled.headerTitleWidth = 108
-        suite.expect(titled.expandedGeometry.headerCameraGap == 0 && titled.expandedGeometry.headerTopInset == 42,
-                     "a page title wider than the camera's side takes the full row below it")
-        titled.headerTitleWidth = 107
-        suite.expect(titled.expandedGeometry.headerCameraGap == 210 && titled.expandedGeometry.headerTopInset == 0,
-                     "a page title that fits keeps its place beside the camera")
+                     "leaving capture editing puts the top row back beside the camera")
+        let page = Service()
+        suite.expect(page.expandedGeometry.headerCameraGap == 210 && page.expandedGeometry.headerTopInset == 0
+                     && page.expandedGeometry.pageTopInset == 36 + NotchLayout.spacing,
+                     "a page's row wraps the camera wherever each side keeps its wing, and the page starts below it")
+        page.expandedPageTop = .wrapsCamera
+        suite.expect(page.expandedGeometry.headerCameraGap == 210 && page.expandedGeometry.pageTopInset == 0,
+                     "a page that wraps the camera starts at the top of the row")
         captureControlsChecks(suite)
         let picker = Service()
         picker.expanded = false

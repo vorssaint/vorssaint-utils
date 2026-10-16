@@ -87,6 +87,24 @@ final class BrightnessService: ObservableObject {
     @Published private(set) var keyboardLightEnabled: Bool?
     @Published private(set) var displayBrightnessShortcutRegistrationFailed = false
     @Published private(set) var keyboardBrightnessShortcutRegistrationFailed = false
+    /// The display the island's brightness level shows: the one the
+    /// brightness keys last moved, or the one picked there. Nil shows the
+    /// built-in panel.
+    @Published var focusedDisplayID: CGDirectDisplayID?
+
+    /// Whether the island's brightness slider is on and shows the focused
+    /// display, so a key that moved it moves the slider.
+    var islandSliderShowsFocusedDisplay: Bool {
+        BrightnessSupport.sliderShowsFocusedDisplay(
+            controlEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled),
+            shown: displays.filter { $0.isActive && $0.method != nil }.map(\.id), focused: focusedDisplayID)
+    }
+
+    private func focusKeyDisplay(_ id: CGDirectDisplayID) {
+        guard BrightnessSupport.keyMovesFocus(islandOpen: NotchService.shared.expanded,
+                                              focused: focusedDisplayID, key: id) else { return }
+        focusedDisplayID = id
+    }
 
     enum DisplayControlFailure: Equatable {
         case unavailable
@@ -631,12 +649,13 @@ final class BrightnessService: ObservableObject {
     /// Moves one display's brightness. The published value updates on the
     /// spot for a responsive slider; the hardware write happens on the work
     /// queue, and a drag folds into one write of the newest value. A key
-    /// step passes `smooth`, so a system display eases into it.
+    /// step passes `smooth`, so a system display eases into it. A slider
+    /// that shows the level itself passes `announces: false`.
     func setBrightness(_ value: Double, for id: CGDirectDisplayID,
-                       showOSD: Bool = false, smooth: Bool = false) {
+                       showOSD: Bool = false, smooth: Bool = false, announces: Bool = true) {
         guard value.isFinite else { return }
         let clamped = min(max(value, 0), 1)
-        let shownInNotch = NotchService.shared.showBrightness(clamped)
+        let shownInNotch = announces ? NotchService.shared.showBrightness(clamped) : false
         if let index = displays.firstIndex(where: { $0.id == id }),
            displays[index].brightness != clamped {
             displays[index].brightness = clamped
@@ -1488,6 +1507,7 @@ final class BrightnessService: ObservableObject {
                       method: BrightnessDisplay.Method,
                       delta: Double,
                       showOSD: Bool) {
+        focusKeyDisplay(displayID)
         let cached = displays.first(where: { $0.id == displayID })?.brightness
         if method == .system {
             guard let current = currentSystemBrightness(for: displayID, fallback: cached) else { return }
@@ -1700,6 +1720,7 @@ final class BrightnessService: ObservableObject {
                 return leaveToSystem()
             }
             swallowedMediaKeys.insert(increases)
+            focusKeyDisplay(displayID)
             if let current = currentSystemBrightness(
                 for: displayID,
                 fallback: displays.first(where: { $0.id == displayID })?.brightness

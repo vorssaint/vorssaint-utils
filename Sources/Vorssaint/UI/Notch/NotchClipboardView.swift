@@ -5,7 +5,8 @@ import SwiftUI
 
 /// The history as a vertical list of cards, with everything the panel's list
 /// and the quick panel offer on each: paste or copy, pin, move, delete, and
-/// the recent ones cleared in one go from the search row.
+/// the recent ones cleared in one go from the island's top row, beside the
+/// search.
 struct NotchClipboardView: View {
     @ObservedObject var service: NotchService
     let size: CGSize
@@ -20,6 +21,7 @@ struct NotchClipboardView: View {
     /// of a typed search; Return uses it the way a click would.
     @State private var highlightedID: UUID?
     @FocusState private var searching: Bool
+    @State private var fieldWidth: CGFloat = 0
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: ClipboardFeatureStrings { FeatureStrings.clipboard(l10n.language) }
@@ -42,49 +44,7 @@ struct NotchClipboardView: View {
     }
 
     var body: some View {
-        VStack(spacing: NotchLayout.rowSpacing) {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField(text.search, text: $query).textFieldStyle(.plain)
-                    .font(.system(size: 12))
-                    .focused($searching)
-                    .accessibilityLabel(text.search)
-                NotchIconButton(symbol: "pin", title: text.pinned, selected: pinnedOnly) {
-                    pinnedOnly.toggle()
-                }
-                NotchIconButton(symbol: "trash", title: text.clearRecent) {
-                    let ids = history.recentEntriesSnapshot
-                    DispatchQueue.main.async {
-                        guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
-                                                         message: text.clearRecentConfirmMessage,
-                                                         action: text.clearRecent, destructive: true,
-                                                         cancel: text.cancel) else { return }
-                        history.clearRecent(ids)
-                        copiedID = nil
-                    }
-                }
-                .disabled(history.recentEntries.isEmpty)
-                NotchIconButton(symbol: "arrow.up.forward.app", title: text.title) {
-                    service.perform { history.showHistoryWindow(preferNotch: false) }
-                }
-            }
-            .padding(.horizontal, 12)
-            .frame(height: NotchLayout.clipboardSearchHeight)
-            .modifier(NotchControlSurface(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(.white.opacity(searching ? 0.34 : 0), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .animation(.easeOut(duration: 0.15), value: searching)
-            .background {
-                if !preview {
-                    ClipboardSearchKeyMonitor(active: searching) { handleSearchKey($0) }
-                        .frame(width: 0, height: 0)
-                }
-            }
-            // Typing filters the history as soon as the page opens, as in Explore.
-            .onAppear { if !preview { searching = true } }
+        VStack(spacing: 0) {
             if !enabled, history.entries.isEmpty {
                 // The panel offers the switch beside its caption; the page
                 // says why it is empty and turns the history on from here.
@@ -126,6 +86,9 @@ struct NotchClipboardView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The search and the history's own actions sit in the island's top
+        // row, so the cards start at the top of the page.
+        .notchBand(leading: { searchField }, trailing: { historyActions })
         // A new search starts from its top result instead of a row it hid,
         // and a row that leaves the list hands the highlight on the same way.
         .onChange(of: query) { _, _ in highlightedID = searchHighlight(keeping: nil) }
@@ -146,6 +109,77 @@ struct NotchClipboardView: View {
             try? await Task.sleep(for: .seconds(1.6))
             guard !Task.isCancelled else { return }
             copiedID = nil
+        }
+    }
+
+    /// The whole prompt where it fits, otherwise the plain word, and no prompt
+    /// where even that would be cut, as in the sections search.
+    private var prompt: String {
+        let font = NSFont.systemFont(ofSize: 12)
+        // The field's text sits a few points inside its frame.
+        func fits(_ prompt: String) -> Bool {
+            (prompt as NSString).size(withAttributes: [.font: font]).width + 6 <= fieldWidth
+        }
+        if fits(text.search) { return text.search }
+        return fits(l10n.s.actionSearch) ? l10n.s.actionSearch : ""
+    }
+
+    /// A capsule filling its side of the row. The page owns its focus and its
+    /// keys, so the arrows and Return still reach the cards from here.
+    private var searchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
+            TextField(prompt, text: $query).textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($searching)
+                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fieldWidth = $0 }
+                .accessibilityLabel(text.search)
+        }
+        .padding(.horizontal, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 28)
+        .modifier(NotchControlSurface(cornerRadius: 14))
+        .overlay {
+            Capsule()
+                .strokeBorder(.white.opacity(searching ? 0.34 : 0), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .animation(.easeOut(duration: 0.15), value: searching)
+        .contentShape(Capsule())
+        .onTapGesture { searching = true }
+        .background {
+            if !preview {
+                ClipboardSearchKeyMonitor(active: searching) { handleSearchKey($0) }
+                    .frame(width: 0, height: 0)
+            }
+        }
+        // Typing filters the history as soon as the page opens, as in Explore.
+        .onAppear { if !preview { searching = true } }
+        .help(text.search)
+    }
+
+    private var historyActions: some View {
+        HStack(spacing: 6) {
+            NotchIconButton(symbol: "pin", title: text.pinned, selected: pinnedOnly) {
+                pinnedOnly.toggle()
+            }
+            NotchIconButton(symbol: "trash", title: text.clearRecent) {
+                let ids = history.recentEntriesSnapshot
+                DispatchQueue.main.async {
+                    guard NSAlert.confirmAboveIsland(String(format: text.clearRecentConfirmFormat, ids.count),
+                                                     message: text.clearRecentConfirmMessage,
+                                                     action: text.clearRecent, destructive: true,
+                                                     cancel: text.cancel) else { return }
+                    history.clearRecent(ids)
+                    copiedID = nil
+                }
+            }
+            .disabled(history.recentEntries.isEmpty)
+            NotchIconButton(symbol: "arrow.up.forward.app", title: text.title) {
+                service.perform { history.showHistoryWindow(preferNotch: false) }
+            }
         }
     }
 

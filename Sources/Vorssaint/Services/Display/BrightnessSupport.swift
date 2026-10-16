@@ -8,6 +8,21 @@ import Foundation
 /// reply parsing, value scaling and the display-to-service match score. No
 /// IOKit here so the unit tests cover every byte.
 enum BrightnessSupport {
+    /// Whether the island's brightness slider is on and shows the focused
+    /// display (with none focused, the first it can show).
+    static func sliderShowsFocusedDisplay(controlEnabled: Bool, shown: [UInt32], focused: UInt32?) -> Bool {
+        guard controlEnabled else { return false }
+        guard let focused else { return !shown.isEmpty }
+        return shown.contains(focused)
+    }
+
+    /// A key moves the island's level to its display only while the island
+    /// is open, where the slider shows the move; a display picked there
+    /// outlasts keys pressed while it is closed.
+    static func keyMovesFocus(islandOpen: Bool, focused: UInt32?, key: UInt32) -> Bool {
+        islandOpen && focused != key
+    }
+
     struct DisplayTopology: Equatable {
         let online: Set<UInt32>
         let active: Set<UInt32>

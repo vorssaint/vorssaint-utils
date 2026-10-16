@@ -322,10 +322,10 @@ enum NotchActivityTests {
                 let setup = geometry.expandedSize(module: .timer)
                 let active = geometry.expandedSize(module: .timer, timerHasSession: true)
                 suite.expect(geometry.contentSize(for: setup).height
-                       == NotchLayout.timer(mode: .timer, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
-                       && geometry.contentSize(for: setup).height >= NotchLayout.timerTopRowHeight + NotchLayout.timerRowSpacing + NotchLayout.timerMinimumRulerHeight
-                       && geometry.contentSize(for: active).height >= 96 && active.height < setup.height,
-                       "timer setup has room for its mode row, ruler and start row; active controls use a shorter horizontal surface")
+                       == NotchLayout.timer(mode: .timer, hasSession: false, height: geometry.contentBudget)
+                       && geometry.contentSize(for: setup).height >= NotchLayout.timerMinimumRulerHeight
+                       && geometry.contentSize(for: active).height == NotchLayout.timerRulerHeight && active == setup,
+                       "timer setup has room for its ruler and clock, the modes and Start being in the top row; starting it keeps the island's size")
                 suite.expect(screen.contains(geometry.frame(for: setup)) && screen.contains(geometry.frame(for: active))
                        && geometry.frame(for: setup).maxY == geometry.frame(for: active).maxY,
                        "starting a timer preserves the screen's top edge and keeps both sizes on screen")
@@ -431,10 +431,10 @@ enum NotchActivityTests {
         let setup = geometry.expandedSize(module: .timer, timerMode: .pomodoro)
         let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .pomodoro)
         suite.expect(geometry.contentSize(for: setup).height
-               == NotchLayout.timer(mode: .pomodoro, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
+               == NotchLayout.timer(mode: .pomodoro, hasSession: false, height: geometry.contentBudget)
                && geometry.contentSize(for: setup).height <= geometry.contentBudget
-               && geometry.contentSize(for: active).height >= 118,
-               "the Pomodoro setup fits the strip with its readouts under the ruler, and the progress row keeps its own budget")
+               && geometry.contentSize(for: active).height == NotchLayout.timerRulerHeight && active.height < setup.height,
+               "the Pomodoro setup fits the strip with its readouts under the ruler; running, its progress is in the top row and the island shortens")
     }
 
     private static func stopwatchContracts(_ suite: TestSuite) {
@@ -560,7 +560,7 @@ enum NotchActivityTests {
             let setup = geometry.expandedSize(module: .timer, timerMode: .stopwatch)
             let active = geometry.expandedSize(module: .timer, timerHasSession: true, timerMode: .stopwatch)
             suite.expect(geometry.contentSize(for: setup).height
-                   == NotchLayout.timer(mode: .stopwatch, hasSession: false, width: geometry.contentWidth, height: geometry.contentBudget)
+                   == NotchLayout.timer(mode: .stopwatch, hasSession: false, height: geometry.contentBudget)
                    && setup.height == geometry.expandedSize(module: .timer).height,
                    "the stopwatch keeps its clock in the countdown's ruler row, so switching between them never resizes the island")
             suite.expect(active == geometry.expandedSize(module: .timer, timerHasSession: true),
@@ -568,30 +568,48 @@ enum NotchActivityTests {
         }
     }
 
-    /// The mode row sizes each label to its word. Its contract is that the
-    /// three translated modes fit the narrowest island, with a legacy scroll bar.
+    /// The modes and Start sit in the island's top row. Beside the camera of
+    /// the compact preset the modes' menu fills one side and Start shares the
+    /// other with the pin; a full row of the same width holds the three words,
+    /// the sections button and Start, in every language.
     private static func modePickerContracts(_ suite: TestSuite) {
         let layout = NotchTimerSupport.ModePicker.self
         let font = NSFont.systemFont(ofSize: layout.labelSize, weight: .medium)
-        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,
-                                     cameraWidth: 180, layout: .custom, customWidth: NotchSize.widthRange.lowerBound,
-                                     customHeight: NotchSize.heightRange.lowerBound)
-        let available = geometry.contentSize(for: geometry.expandedSize(module: .timer)).width
-            - NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-        suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0,
-               "every mode label keeps room for its underline and around its text")
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
+        let band = NotchBand(geometry: geometry, contentWidth: geometry.contentWidth)
+        let button: CGFloat = 28 + 6
+        let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 0
+        suite.expect(band.besideCamera && band.side > 0 && chevron > 0,
+               "the compact preset's top row wraps a 180-point camera")
+        suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0
+               && NotchLayout.timerStartHeight == 28,
+               "every mode label keeps room for its underline and around its text, and Start is as tall as the row's buttons")
         for language in AppLanguage.allCases {
             let text = FeatureStrings.notchActivities(language)
             let labels = [text.timer, text.pomodoro, text.stopwatch]
             suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
                    "each mode has its own name: \(language)")
-            let width = labels.reduce(0) { $0 + ($1 as NSString).size(withAttributes: [.font: font]).width + layout.labelPadding * 2 }
-                + layout.spacing * CGFloat(labels.count - 1)
-            suite.expect(width <= available, "the three modes fit the narrowest island in \(language): \(Int(width)) of \(Int(available))")
+            let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+            let menu = (widths.max() ?? 0) + layout.menuSpacing + chevron + layout.labelPadding * 2
+            suite.expect(menu <= band.side,
+                   "every mode's name names the menu beside the camera in \(language): \(Int(menu)) of \(Int(band.side))")
+            // Wider cameras still wrapped by the compact preset leave less;
+            // the name may narrow there, never lose letters.
+            let narrowest = [185.0, 208, 210, 224].map {
+                NotchBand(geometry: NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32,
+                                                  cameraWidth: $0), contentWidth: geometry.contentWidth)
+            }.filter(\.besideCamera).map(\.side).min() ?? band.side
+            let narrowed = (widths.max() ?? 0) * layout.menuMinimumScale + layout.menuSpacing + chevron + layout.labelPadding * 2
+            suite.expect(narrowed <= narrowest,
+                   "every mode's name fits beside the widest camera the compact preset wraps in \(language): \(Int(narrowed)) of \(Int(narrowest))")
             let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
             let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2
-            suite.expect(width + 12 + start <= NotchLayout.timerWideWidth,
-                   "Start sits beside the mode row from the wide layout's width on in \(language): \(Int(width + 12 + start)) of \(Int(NotchLayout.timerWideWidth))")
+            suite.expect(start + button <= band.side,
+                   "Start and the pin share a side beside the camera in \(language): \(Int(start + button)) of \(Int(band.side))")
+            let picker = widths.reduce(0) { $0 + $1 + layout.labelPadding * 2 } + layout.spacing * CGFloat(labels.count - 1)
+            suite.expect(button + picker + 12 + start + button <= geometry.contentWidth,
+                   "a full top row holds the three modes and Start in \(language): \(Int(button + picker + 12 + start + button)) of \(Int(geometry.contentWidth))")
         }
         suite.expect(NotchPomodoroOption.focus.range == 1...180
                      && NotchPomodoroOption.shortBreak.range == 1...60

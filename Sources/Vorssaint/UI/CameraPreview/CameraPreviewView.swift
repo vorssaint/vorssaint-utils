@@ -9,10 +9,9 @@ import SwiftUI
 /// anywhere else or switching to the meeting app closes it.
 struct CameraPreviewView: View {
     var size = CGSize(width: 320, height: 240)
-    var showsCameraMenu = false
-    /// The island stops its mirror from a button over the image, beside the
-    /// camera picker, so the preview can take the whole page.
-    var onStop: (() -> Void)? = nil
+    /// The picker over the image on hover. The island turns it off: its top
+    /// row holds the picker and the stop button, clear of the image.
+    var showsCameraMenu = true
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CameraPreviewService.shared
     @State private var hovering = false
@@ -69,44 +68,21 @@ struct CameraPreviewView: View {
     }
 
     private var showsMenu: Bool {
-        service.state == .running && service.session != nil
-            && (hovering || showsCameraMenu) && service.devices.count > 1
+        showsCameraMenu && hovering && service.state == .running && service.session != nil
+            && service.devices.count > 1
     }
 
     @ViewBuilder
     private var controls: some View {
-        if showsMenu || onStop != nil {
-            // A camera name too long to share the row leaves the picker its
-            // icon, so neither control is cut off at the image's edges.
+        if showsMenu {
+            // A camera name too long for the image leaves the picker its
+            // icon, so it is never cut off at the image's edges.
             ViewThatFits(in: .horizontal) {
-                controlRow(showsCameraName: true)
-                controlRow(showsCameraName: false)
+                cameraMenu(showsName: true)
+                cameraMenu(showsName: false)
             }
+            .transition(.opacity)
             .padding([.horizontal, .bottom], 10)
-        }
-    }
-
-    private func controlRow(showsCameraName: Bool) -> some View {
-        HStack(spacing: 6) {
-            if showsMenu {
-                cameraMenu(showsName: showsCameraName).transition(.opacity)
-            }
-            if let onStop {
-                Button(action: onStop) {
-                    Text(FeatureStrings.notchActivities(l10n.language).stopCamera)
-                        .font(.caption)
-                        .lineLimit(1)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(.black.opacity(0.55), in: Capsule())
-                        // Still a button over the black of a status message.
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 12, lifts: false))
-                .foregroundStyle(.white)
-                .fixedSize()
-            }
         }
     }
 
@@ -166,8 +142,6 @@ struct CameraPreviewView: View {
             extra()
         }
         .padding(.horizontal, 28)
-        // Clear of the stop button along the bottom.
-        .padding(.bottom, onStop == nil ? 0 : 30)
     }
 }
 

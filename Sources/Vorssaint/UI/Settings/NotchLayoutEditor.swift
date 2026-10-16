@@ -136,6 +136,9 @@ struct NotchLayoutEditor: View {
     private static let previewScale: CGFloat = 0.5
     private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
+    /// The width this setting gives the island, which the preview shows so
+    /// the slider moves it: lists and grids take all of it, while a page
+    /// with a size of its own, such as the player, takes less.
     private var actualWidth: CGFloat {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
     }
@@ -143,13 +146,10 @@ struct NotchLayoutEditor: View {
     /// display's menu bar.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
-        var result = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
-                                   cameraWidth: floats ? 0 : 210, layout: layout,
-                                   menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
-                                   customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
-        // The preview's header shows the title alone, with no sections button.
-        result.headerTitleWidth = NotchLayout.headerTitleWidth(text.controls, button: false)
-        return result
+        return NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
+                             cameraWidth: floats ? 0 : 210, layout: layout,
+                             menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
+                             customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }
@@ -267,7 +267,11 @@ struct NotchLayoutEditor: View {
         let shortcuts = items.filter { !$0.isLevel && $0 != .music }
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
-        let controls = NotchLayout.controls(hasCards: items.contains(.music) || !levels.isEmpty,
+        let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
+        let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
+        let bandLevels = Array(levels.prefix(inBand))
+        let belowLevels = Array(levels.dropFirst(inBand))
+        let controls = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
                                             shortcutCount: shortcuts.count, width: contentWidth, height: contentHeight)
         return Button(action: editContents) {
             Color.clear.contentShape(NotchShape.island(height: actualHeight, geometry: previewGeometry))
@@ -277,22 +281,25 @@ struct NotchLayoutEditor: View {
         .accessibilityLabel(editor.content)
         .overlay {
             VStack(spacing: NotchLayout.spacing) {
-                HStack(spacing: 0) {
-                    Text(text.controls).font(Font(NotchLayout.headerTitleFont as CTFont)).lineLimit(1)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    if previewGeometry.headerCameraGap > 0 {
-                        Color.clear.frame(width: previewGeometry.headerCameraGap)
+                // The top row, around the camera, holds the levels, after the
+                // sections button when nothing floats for that.
+                NotchBandRow(band: band) {
+                    if !configuration.actions.contains(.explore) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.55))
+                            .frame(width: 28, height: 28)
                     }
-                    Image(systemName: "ellipsis").font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35)).frame(width: 28, height: 28)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
+                    NotchBandLevels(band: band, levels: bandLevels, side: .leading) { levelRow($0) }
+                } trailing: {
+                    NotchBandLevels(band: band, levels: bandLevels, side: .trailing) { levelRow($0) }
                 }
-                .frame(height: previewGeometry.headerRowHeight)
                 VStack(spacing: NotchLayout.rowSpacing) {
                     if items.isEmpty {
                         NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
                     } else {
-                        if controls.cardRow > 0 { cards(levels, music: items.contains(.music), height: controls.cardRow) }
+                        if controls.levelRow > 0 { NotchLevelRow(levels: belowLevels) { levelRow($0) } }
+                        if controls.cardRow > 0 { musicCard(height: controls.cardRow) }
                         if controls.shortcutRows > 0 {
                             NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
                                       width: contentWidth, spacing: NotchLayout.shortcutSpacing,
@@ -317,37 +324,15 @@ struct NotchLayoutEditor: View {
         .frame(width: actualWidth, height: actualHeight)
     }
 
-    /// Playback shares the row with the levels, as on the island: two levels
-    /// fold into one slim card beside it, a single one keeps its full card.
-    private func cards(_ levels: [NotchControlItem], music: Bool, height: CGFloat) -> some View {
-        HStack(spacing: NotchLayout.rowSpacing) {
-            if music {
-                musicCard(height: height)
-                if levels.count > 1 {
-                    VStack(spacing: 6) { ForEach(levels) { levelRow($0) } }
-                        .padding(.horizontal, 12)
-                        .frame(width: 160, height: height)
-                        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
-                } else if let single = levels.first {
-                    levelCard(single, height: height, details: height >= 88).frame(width: 160)
-                }
-            } else {
-                let details = NotchLayout.levelCardsShowDetails(levels, height: height)
-                ForEach(levels) { levelCard($0, height: height, details: details).frame(maxWidth: .infinity) }
-            }
-        }
-        .frame(height: height)
-    }
-
     private func musicCard(height: CGFloat) -> some View {
         HStack(spacing: 12) {
             NotchArtwork(image: nil, size: max(40, height - 24))
+            // Nothing plays here and no transport follows, so the hint keeps
+            // its line beside the cover, as on the island.
             VStack(alignment: .leading, spacing: 2) {
                 Text(FeatureStrings.radialMenu(l10n.language).mediaNothingPlaying)
                     .font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                if height >= 84 {
-                    Text(text.musicHint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                }
+                Text(text.musicHint).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -357,37 +342,17 @@ struct NotchLayoutEditor: View {
         .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
     }
 
-    private func levelCard(_ item: NotchControlItem, height: CGFloat, details showsDevice: Bool) -> some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 7) {
-                Image(systemName: item.symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
-                if showsDevice { Text(item.title(l10n)).lineLimit(1) }
-                Spacer(minLength: 0)
-                Text(item == .volume ? "45%" : "65%").monospacedDigit()
-            }
-            .font(.system(size: 12, weight: .semibold))
-            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 22)
-                .frame(height: 28)
-            if showsDevice, item != .keyboardLight {
-                HStack(spacing: 4) {
-                    Text(l10n.s.mixerSystemOutputTitle).lineLimit(1)
-                    Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
-                }
-                .font(.system(size: 11)).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, showsDevice ? 10 : 5)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
-    }
-
+    /// A top-row level: the glyph, a slim bar and the chooser's chevron, with
+    /// no readout. Brightness has a chooser only beside a second display.
     private func levelRow(_ item: NotchControlItem) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Image(systemName: item.symbol).font(.system(size: 12, weight: .medium)).frame(width: 18, height: 18)
-            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 18).frame(height: 24)
-            Text(item == .volume ? "45%" : "65%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+            NotchMeter(value: item == .volume ? 0.45 : 0.65, height: 8).frame(height: 24)
+            if item == .volume {
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16, height: 24)
+            }
         }
         .frame(height: 28)
     }

@@ -7,9 +7,9 @@ import SwiftUI
 /// The mixer as a desk: the output and microphone faders on the left, one fader per app
 /// running sideways, pinned ones first. Every row action of the panel's list
 /// is here: the app's menu pins, moves and routes it, Command-drag reorders,
-/// a click on a level types a new one. The toolbar opens
-/// the options: where sound effects and the microphone go, the switches the
-/// panel keeps under Options, and the hidden rows.
+/// a click on a level types a new one. The island's top row holds the output
+/// and opens the options: where sound effects and the microphone go, the
+/// switches the panel keeps under Options, and the hidden rows.
 struct NotchMixerView: View {
     let size: CGSize
     @ObservedObject private var mixer = AppVolumeMixer.shared
@@ -25,7 +25,7 @@ struct NotchMixerView: View {
     @Environment(\.notchSettingsPreview) private var preview
     private static let masterWidth: CGFloat = 72
     private static let columnWidth: CGFloat = 96
-    private var faderHeight: CGFloat { max(104, size.height - 40) }
+    private var faderHeight: CGFloat { max(NotchLayout.mixerMinimumHeight, size.height) }
     /// A microphone that reports no level has nothing to fade, as in the options.
     private var showsMicrophone: Bool { input.inputVolume != nil }
     private var leadingWidth: CGFloat { showsMicrophone ? Self.masterWidth * 2 + 10 : Self.masterWidth }
@@ -42,15 +42,7 @@ struct NotchMixerView: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                NotchOutputDeviceMenu(width: size.width - 40, showsFullName: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                NotchIconButton(symbol: showingOptions ? "xmark" : "slider.horizontal.3",
-                                title: showingOptions ? l10n.s.menuClose : l10n.s.keepAwakeOptions,
-                                selected: showingOptions, action: toggleOptions)
-            }
-            .frame(height: 32)
+        Group {
             if showingOptions {
                 NotchMixerOptions(editingVolumeID: $editingVolumeID)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -69,6 +61,13 @@ struct NotchMixerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // The output and the options sit in the island's top row, beside the
+        // camera where they fit, so the faders take the whole page.
+        .notchBand(leading: { NotchOutputDeviceMenu(inBand: true) }, trailing: {
+            NotchIconButton(symbol: showingOptions ? "xmark" : "slider.horizontal.3",
+                            title: showingOptions ? l10n.s.menuClose : l10n.s.keepAwakeOptions,
+                            selected: showingOptions, action: toggleOptions)
+        })
         .onAppear { mixer.refreshApps() }
         // Escape closes the options before the island.
         .onChange(of: showingOptions) { _, showing in
@@ -200,10 +199,10 @@ private struct NotchMasterFader: View {
     private var level: Double? { mixer.systemOutputVolume.map { mixer.systemOutputMuted == true ? 0 : $0 } }
     private var muted: Bool { mixer.systemOutputMuted == true }
 
-    /// The fader already shows the level it sets, so the open header keeps
-    /// its title instead of repeating it.
+    /// The fader already shows the level it sets, so the island's top row
+    /// stays in view instead of repeating it.
     private func adjustOutput(volume: Double? = nil, muted: Bool? = nil) {
-        NotchService.shared.noteOwnVolumeAdjustment()
+        NotchService.shared.noteOwnLevelAdjustment(.volume)
         mixer.requestOutputAdjustment(volume: volume, muted: muted)
     }
 
@@ -303,7 +302,9 @@ private enum NotchMixerFaderLayout {
 private struct NotchOutputDeviceMenu: View {
     var width: CGFloat = 150
     var lines = 1
-    var showsFullName = false
+    /// In the island's top row: one line, as wide as the row leaves it, cut
+    /// short beside the camera and whole across a full row.
+    var inBand = false
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
     private var deviceName: String {
@@ -320,16 +321,9 @@ private struct NotchOutputDeviceMenu: View {
     }
 
     var body: some View {
-        if showsFullName {
-            NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: items) {
-                Text("\(current) \(Image(systemName: "chevron.down"))")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: width, minHeight: 32, alignment: .leading)
-                    .contentShape(Rectangle())
+        if inBand {
+            NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: items, cornerRadius: 9) {
+                NotchBandMenuLabel(title: current)
             }
             .help(current)
             .accessibilityValue(current)

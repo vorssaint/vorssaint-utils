@@ -95,8 +95,6 @@ enum NotchDestinationContract {
         var showingCommandBar = false
         var commandBarClosings = 0
         func commandBarDidClose() { commandBarClosings += 1 }
-        func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }
-        func bridgeMascot(from: CGFloat, opening: Bool) {}
         var sectionQuery = ""
         var sectionRow = 0
         var highlightedSection: NotchModule?

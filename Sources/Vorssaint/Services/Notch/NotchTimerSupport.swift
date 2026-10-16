@@ -190,20 +190,23 @@ enum NotchTimerSupport {
     }
 
     /// The modes read as three words in a row, the current one underlined,
-    /// each as wide as its text, so the three fit the narrowest island in
-    /// every language where equal segments would not.
+    /// each as wide as its text, where a full top row leaves them room;
+    /// beside a camera they are a menu named by the current one, its chevron
+    /// `menuSpacing` from the name. The test measures both in every language.
     enum ModePicker {
         static let height: CGFloat = 24
         static let spacing: CGFloat = 14
         static let labelSize: CGFloat = 12
         static let labelPadding: CGFloat = 4
+        static let menuSpacing: CGFloat = 3
+        static let menuMinimumScale: CGFloat = 0.75
     }
 
-    /// The start capsule beside the mode row; the test measures both against the
-    /// width the wide layout starts at, in every language.
+    /// The start capsule in the top row; the test measures it against a side
+    /// beside the camera, with the pin, in every language.
     enum StartButton {
-        static let labelSize: CGFloat = 14
-        static let padding: CGFloat = 18
+        static let labelSize: CGFloat = 12
+        static let padding: CGFloat = 10
     }
 
     static let timerLimit: TimeInterval = 180 * 60
