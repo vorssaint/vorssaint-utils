@@ -782,7 +782,7 @@ final class ScreenshotSelectionController {
                              pixelRect: CGRect?,
                              scale: CGFloat,
                              anchorRect: CGRect) {
-        panels.forEach { $0.orderOut(nil) }
+        retirePanels()
         Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 120_000_000)
@@ -815,6 +815,18 @@ final class ScreenshotSelectionController {
         finish(.cancelled)
     }
 
+    /// A panel takes every press until its window is really gone, and AppKit
+    /// fades it out after `orderOut`, so a quick click or the first scroll
+    /// after a capture landed on the leaving panel. A session never shows its
+    /// panels again, so they let go of the mouse first. Set alone, the flag
+    /// reaches the window server only with the next commit, too late for a
+    /// panel already fading, so the flush sends it before the panels leave.
+    private func retirePanels() {
+        panels.forEach { $0.ignoresMouseEvents = true }
+        CATransaction.flush()
+        panels.forEach { $0.orderOut(nil) }
+    }
+
     deinit {
         // A session that goes away without ending would otherwise leave the
         // screen marked as taken and every capture feature dead until the app
@@ -844,7 +856,7 @@ final class ScreenshotSelectionController {
         // inert before they leave the screen: whatever arrives after this
         // point finds nothing left to act on.
         markCapturePending()
-        panels.forEach { $0.orderOut(nil) }
+        retirePanels()
         panels.removeAll()
         NSCursor.arrow.set()
         let completion = completion
@@ -904,6 +916,12 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         hidesOnDeactivate = false
         acceptsMouseMovedEvents = true
+        // Live, the panel is clear, and with the controls in Dynamic Island it
+        // draws nothing over the desktop until a drag starts. Left at its
+        // default, a window hands a press on a fully transparent pixel to
+        // whatever is under it, so the desktop took the drag instead of the
+        // selection (#3005). Set explicitly, the panel takes every press.
+        ignoresMouseEvents = false
 
         // The frozen still sits in its own view UNDER the chrome: a backing
         // layer configured before the view joins a window can lose its
