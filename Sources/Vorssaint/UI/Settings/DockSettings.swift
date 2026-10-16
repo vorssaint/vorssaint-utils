@@ -12,6 +12,7 @@ struct DockSettings: View {
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
+    @AppStorage(DefaultsKey.dockPreviewMultipleWindowsOnly) private var dockPreviewMultipleWindowsOnly = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -91,6 +92,12 @@ struct DockSettings: View {
                         .onChange(of: dockPreviewCurrentSpaceOnly) { _, _ in
                             DockPreviewService.shared.syncWithPreferences()
                         }
+                }
+                // Read when a hover opens a panel, so no service resync is needed.
+                SettingsRow(symbol: "rectangle.stack", title: l10n.s.dockPreviewMultipleWindowsOnly,
+                            caption: l10n.s.dockPreviewMultipleWindowsOnlyCaption) {
+                    Toggle(l10n.s.dockPreviewMultipleWindowsOnly, isOn: $dockPreviewMultipleWindowsOnly)
+                        .labelsHidden()
                 }
                 SettingsRow(symbol: "timer", title: l10n.s.dockPreviewOpenDelay,
                             caption: l10n.s.dockPreviewOpenDelayCaption) {
