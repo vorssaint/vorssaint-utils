@@ -207,7 +207,13 @@ enum AgentUsageSummary {
     /// moves every total. The rest changes only with what the logs say.
     static func movesWithClock(_ snapshot: AgentUsageSnapshot, now: Date,
                                calendar: Calendar = .autoupdatingCurrent) -> Bool {
-        !snapshot.burnRate.isEmpty || snapshot.claudeBlock != nil || !calendar.isDate(snapshot.now, inSameDayAs: now)
+        !snapshot.burnRate.isEmpty || snapshot.claudeBlock != nil || !snapshot.live.isEmpty
+            || !calendar.isDate(snapshot.now, inSameDayAs: now)
+            || snapshot.limits.values.contains { limits in
+                limits.windows.contains { window in
+                    window.resetsAt.map { $0 > snapshot.now && $0 <= now } ?? false
+                }
+            }
     }
 
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {

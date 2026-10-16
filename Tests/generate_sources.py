@@ -1105,12 +1105,17 @@ def main():
     battery_body, next_case, _ = rest.partition("            case .batteryTime:\n")
     if not switch or not battery_case or not next_case:
         raise ValueError("Expected the battery branch in blockSegments")
-    for line in ["        let usesBars = appearance == .bars\n",
-                 "        var renderedCPU = false\n", "        var renderedGPU = false\n"]:
+    for line in ["        var renderedCPU = false\n", "        var renderedGPU = false\n"]:
         if line not in prefix:
             raise ValueError("Expected the unrelated activity state in blockSegments")
         prefix = prefix.replace(line, "")
-    battery_segments = (prefix + switch + battery_case + battery_body
+    _, agent_case, agent_rest = cases.partition("            case .claudeUsage, .codexUsage, .openCodeUsage, .copilotUsage:\n")
+    agent_body, next_agent_case, _ = agent_rest.partition("            case .cpu, .cpuTemperature:\n")
+    if not agent_case or not next_agent_case:
+        raise ValueError("Expected the configurable agent branch in blockSegments")
+    agent_body = agent_body.replace("snapshot: agents)", "snapshot: agents, defaults: ReviewDefaults.current!)")
+    agent_body = agent_body.replace("readout(for: provider)", "readout(for: provider, in: ReviewDefaults.current!)")
+    battery_segments = (prefix + switch + agent_case + agent_body + battery_case + battery_body
                         + "            }\n        }\n        return blockJoined(groups, style: style)\n    }\n#sourceLocation()\n")
     battery_warning = declaration(renderer, "    private static func batteryWarning(")
     connection = "externalConnected: power?.externalConnected ?? false)"
@@ -2007,8 +2012,8 @@ def main():
 
     write("AgentUsageEventDelivery.swift", "import Foundation\n"
           + "extension AgentUsageEventDeliveryTests {\nfinal class Host: Fixture {\n"
-          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
-                        "    private func report(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
+                     .replace("private func", "func", 1) for prefix in ["    private func report(", "    private func checkBudget("])
           + "}\n}\n")
 
     write("ScrollingTitleMotion.swift", "import Foundation\n"

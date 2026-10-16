@@ -141,7 +141,7 @@ enum MenuPanelRecoveryTests {
         func setMicBadgeHeld(_ value: Bool) { held = value }
     }
     typealias MetricDetailKind = String
-    struct MenuBarMetric { let detailKind: String }
+    struct MenuBarMetric { let detailKind: String? }
     enum Module { case system }
     enum NotchSupport {
         static func routesAppPanel() -> Bool { false }
@@ -212,6 +212,8 @@ enum MenuPanelRecoveryTests {
         }
     }
     class Fixture {
+        var settingsOpened = false
+        func openSettingsWindow() { settingsOpened = true }
         let popover = Popover()
         let statusController = StatusController()
         var popoverIsClosing = false

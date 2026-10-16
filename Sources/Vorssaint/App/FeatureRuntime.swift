@@ -368,7 +368,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .notchAgents: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
-            else { AgentUsageService.shared.stop() }
+            else { AgentUsageService.shared.syncWithPreferences() }
         },
         .notchWatch: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }

@@ -8,6 +8,8 @@ import SwiftUI
 /// visual cost before they occupy the actual menu bar.
 struct MenuBarMetricsPreview: View {
     @ObservedObject private var monitor = SystemMonitor.shared
+    @ObservedObject private var agents = AgentUsageService.shared
+    @State private var agentSettingsRevision = 0
     @AppStorage(DefaultsKey.menuBarCPU) private var cpu = false
     @AppStorage(DefaultsKey.menuBarGPU) private var gpu = false
     @AppStorage(DefaultsKey.menuBarMemory) private var memory = false
@@ -43,6 +45,7 @@ struct MenuBarMetricsPreview: View {
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
+        let _ = agentSettingsRevision
         let _ = metricOrder
         let _ = combineTemperatures
         let _ = metricAppearance
@@ -59,12 +62,12 @@ struct MenuBarMetricsPreview: View {
         let _ = networkSpeedUnit
         let _ = metricSpacing
         let metrics = activeMetrics
-        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
+        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics, agents: agents.snapshot)
         // Separate items are their own status items, which macOS seats to
         // the left of the one that was there first.
         let items = separateMetrics
             ? StatusItemController.metricStatusGroups(for: metrics, strings: l10n.s)
-                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
+                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics, agents: agents.snapshot) }
                 .filter { !$0.isEmpty }
             : []
         // The steady state of the hide option: a pending update, a running
@@ -104,6 +107,9 @@ struct MenuBarMetricsPreview: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.black.opacity(0.82))
         )
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+            agentSettingsRevision &+= 1
+        }
     }
 
     private func linesView(_ lines: [[MenuBarSegment]]) -> some View {
@@ -167,11 +173,12 @@ struct MenuBarMetricsPreview: View {
                         style: style,
                         pressure: pressure,
                         warning: warning)
-        case let .usageBarBlock(label, fraction, style, pressure):
+        case let .usageBarBlock(label, fraction, style, pressure, colorFraction):
             usageBarBlock(label: label,
                           fraction: fraction,
                           style: style,
-                          pressure: pressure)
+                          pressure: pressure,
+                          colorFraction: colorFraction)
         case let .networkBlock(down, up, style):
             let rows = networkUploadFirst ? [("↑", up), ("↓", down)] : [("↓", down), ("↑", up)]
             VStack(alignment: .trailing, spacing: -0.6) {
@@ -263,7 +270,8 @@ struct MenuBarMetricsPreview: View {
     private func usageBarBlock(label: String,
                                fraction: Double?,
                                style: MenuBarBlockStyle,
-                               pressure: MemoryPressure?) -> some View {
+                               pressure: MemoryPressure?,
+                               colorFraction: Double? = nil) -> some View {
         let size = MenuBarRenderer.usageBarSize(style: style, showsPressure: pressure != nil)
         let barWidth: CGFloat = style == .readable ? 10 : 9
         let barHeight: CGFloat = style == .readable ? 20 : 18
@@ -291,10 +299,10 @@ struct MenuBarMetricsPreview: View {
 
             ZStack(alignment: .bottom) {
                 RoundedRectangle(cornerRadius: 2.2, style: .continuous)
-                    .stroke(Color.white, lineWidth: 1.15)
+                    .stroke(colorFraction.map { usageBarColor(for: $0) } ?? Color.white, lineWidth: 1.15)
                 if let clamped, clamped > 0 {
                     RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                        .fill(usageBarColor(for: clamped))
+                        .fill(usageBarColor(for: colorFraction ?? clamped))
                         .frame(width: barWidth - 4.2,
                                height: max(1, innerHeight * clamped))
                         .padding(.bottom, 2.1)

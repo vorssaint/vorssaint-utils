@@ -7,7 +7,18 @@ import AppKit
 /// isolated preferences and readings. No status item or hardware is opened.
 enum MenuBarBatteryWarningTests {
     enum ReviewDefaults { static var current: UserDefaults! }
-    enum MenuBarMetric { case battery, batteryTemperature }
+    enum MenuBarMetric {
+        case battery, batteryTemperature, claudeUsage, codexUsage, openCodeUsage, copilotUsage
+        var agentProvider: AgentProvider? {
+            switch self {
+            case .claudeUsage: return .claude
+            case .codexUsage: return .codex
+            case .openCodeUsage: return .opencode
+            case .copilotUsage: return .copilot
+            default: return nil
+            }
+        }
+    }
     struct SystemSnapshot {
         var power: PowerReading?
         var batteryTemperature: Double?
@@ -29,7 +40,7 @@ enum MenuBarBatteryWarningTests {
         static func blockJoined(_ groups: [[MenuBarSegment]], style: MenuBarBlockStyle) -> [MenuBarSegment] {
             groups.flatMap { $0 }
         }
-        static func segments(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool) -> [MenuBarSegment] {
+        static func segments(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool, agents: AgentUsageSnapshot = AgentUsageSnapshot()) -> [MenuBarSegment] {
             overrideSegments ?? blockSegments(for: snapshot, metrics: metrics, style: style)
         }
         static func usesStackedLayout(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool) -> Bool { false }
@@ -37,9 +48,29 @@ enum MenuBarBatteryWarningTests {
         // must not be reached by this battery-only fixture.
         static func symbolAttachment(named: String, stacked: Bool, enlarged: Bool = false) -> NSAttributedString { preconditionFailure() }
         static func usageBarBlockAttachment(label: String, fraction: Double?, style: MenuBarBlockStyle,
-                                            pressure: MemoryPressure?) -> NSAttributedString { preconditionFailure() }
+                                            pressure: MemoryPressure?, colorFraction: Double? = nil) -> NSAttributedString { preconditionFailure() }
         static func networkBlockAttachment(down: String, up: String, style: MenuBarBlockStyle) -> NSAttributedString { preconditionFailure() }
         static func diskActivityBlockAttachment(read: String, write: String, style: MenuBarBlockStyle) -> NSAttributedString { preconditionFailure() }
+    }
+
+    private static func agentBars(_ suite: TestSuite, defaults: UserDefaults) {
+        defaults.set("bars", forKey: DefaultsKey.menuBarMetricAppearance)
+        defaults.set("remaining", forKey: MenuBarAgentSupport.displayKey(for: .codex))
+        var snapshot = AgentUsageSnapshot()
+        snapshot.loaded = true
+        snapshot.limits[.codex] = AgentLimits(provider: .codex, windows: [
+            AgentLimitWindow(id: "quota", kind: .session, minutes: 300, scope: nil,
+                             usedPercent: 25, resetsAt: Date().addingTimeInterval(300))
+        ], observedAt: Date(), source: .sessionLog)
+        let segments = Renderer.blockSegments(for: SystemSnapshot(), metrics: [.codexUsage], style: .dense, agents: snapshot)
+        if case let .usageBarBlock(_, fraction, _, _, colorFraction) = segments.first {
+            suite.expectClose(fraction ?? -1, 0.75, "the production bar fills with quota remaining")
+            suite.expectClose(colorFraction ?? -1, 0.25, "the production bar colors by consumed quota")
+        } else {
+            suite.expect(false, "the configured quota produces a bar segment")
+        }
+        defaults.set("values", forKey: DefaultsKey.menuBarMetricAppearance)
+        defaults.removeObject(forKey: MenuBarAgentSupport.displayKey(for: .codex))
     }
 
     static func run(_ suite: TestSuite) {
@@ -47,6 +78,7 @@ enum MenuBarBatteryWarningTests {
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         ReviewDefaults.current = defaults
+        agentBars(suite, defaults: defaults)
         defer {
             defaults.removePersistentDomain(forName: domain)
             ReviewDefaults.current = nil

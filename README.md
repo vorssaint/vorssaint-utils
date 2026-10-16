@@ -80,7 +80,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 - **System monitor.** CPU, GPU, memory, temperatures, battery health and power use, with history graphs and a view of energy-hungry apps.
 - **Fan Control (beta).** Set manual fan speeds or temperature curves and monitor live RPM.
-- **Menu bar readouts.** Put your chosen readings, usage bars, battery time or fan speed directly in the menu bar.
+- **Menu bar readouts.** Put your chosen readings, usage bars, battery time or fan speed directly in the menu bar. Pin any supported AI agent and choose its plan usage, tokens, API value or elapsed work time, even with Dynamic Island off.
 - **Network.** See live traffic, session totals and your local IP address, or run a speed test.
 - **Alerts.** Get notified about sustained CPU load, high temperatures, memory pressure, low disk space or low battery.
 

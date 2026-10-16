@@ -24,6 +24,8 @@ final class StatusItemController {
     private var metricStatusItemFocus: [String: MenuBarMetric] = [:]
     private var cancellables = Set<AnyCancellable>()
     private var titleTimer: Timer?
+    private var agentSubscription: AnyCancellable?
+    private var agentSnapshot = AgentUsageSnapshot()
     private var defaultsObserver: NSObjectProtocol?
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
@@ -213,6 +215,7 @@ final class StatusItemController {
             .store(in: &cancellables)
 
         bindClipboardPreviewIfAvailable()
+        syncAgentReadings()
 
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
@@ -237,6 +240,7 @@ final class StatusItemController {
             self.refresh()
             self.bindClipboardPreviewIfAvailable()
             self.syncClipboardPreviewItem()
+            self.syncAgentReadings()
         }
     }
 
@@ -261,6 +265,26 @@ final class StatusItemController {
             .store(in: &cancellables)
     }
 
+    /// The reader is created only after an agent is pinned. Its snapshot is
+    /// kept separately from hardware samples, so agent-only use starts no sensors.
+    private func syncAgentReadings() {
+        let enabled = !MenuBarAgentSupport.providers().isEmpty
+        if enabled, agentSubscription == nil {
+            agentSubscription = AgentUsageService.shared.$snapshot
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] snapshot in
+                    self?.agentSnapshot = snapshot
+                    self?.refresh()
+                }
+        }
+        guard enabled || agentSubscription != nil else { return }
+        AgentUsageService.shared.syncWithPreferences()
+        if !enabled {
+            agentSubscription = nil
+            agentSnapshot = AgentUsageSnapshot()
+        }
+    }
+
     deinit {
         // The controller lives for the whole process today, but tear down cleanly
         // so a future "recreate the status item" path can't leak a firing timer or
@@ -281,7 +305,7 @@ final class StatusItemController {
         let defaults = UserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
-        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
+        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.enabled(in: defaults).contains { $0.agentProvider == nil })
     }
 
     private func syncTitleTimer(keepAwakeActive: Bool,
@@ -492,7 +516,8 @@ final class StatusItemController {
             let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
                                                           metrics: metrics,
                                                           allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
+                                                          linePrefix: " ",
+                                                          agents: agentSnapshot)
             if metricsTitle.length > 0 {
                 if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                 title.append(metricsTitle)
@@ -575,8 +600,12 @@ final class StatusItemController {
         } else {
             toolTip = strings.statusIdleTooltip
         }
-        if button.toolTip != toolTip {
-            button.toolTip = toolTip
+        let agentTips = metrics.compactMap(\.agentProvider).map {
+            MenuBarAgentSupport.tooltip(for: $0, snapshot: agentSnapshot)
+        }
+        let fullToolTip = ([toolTip] + agentTips).joined(separator: "\n")
+        if button.toolTip != fullToolTip {
+            button.toolTip = fullToolTip
         }
 
         // The icon decision depends on the title just written (the glyph may
@@ -597,7 +626,8 @@ final class StatusItemController {
         for group in groups {
             let title = MenuBarRenderer.attributed(for: snapshot,
                                                    metrics: group.metrics,
-                                                   allowStacked: false)
+                                                   allowStacked: false,
+                                                   agents: agentSnapshot)
             let empties = title.length > 0 ? 0 : (metricEmptyRenders[group.id] ?? 0) + 1
             metricEmptyRenders[group.id] = empties
             guard MenuBarSpacingSupport.keepsMetricStatusItem(
@@ -634,8 +664,11 @@ final class StatusItemController {
             if button.imagePosition != .noImage {
                 button.imagePosition = .noImage
             }
-            if button.toolTip != group.title {
-                button.toolTip = group.title
+            let tooltip = group.focusMetric.agentProvider.map {
+                MenuBarAgentSupport.tooltip(for: $0, snapshot: agentSnapshot)
+            } ?? group.title
+            if button.toolTip != tooltip {
+                button.toolTip = tooltip
             }
         }
     }
@@ -688,7 +721,7 @@ final class StatusItemController {
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
             case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
-                 .fanSpeed, .connectedDevices:
+                 .fanSpeed, .connectedDevices, .claudeUsage, .codexUsage, .openCodeUsage, .copilotUsage:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,

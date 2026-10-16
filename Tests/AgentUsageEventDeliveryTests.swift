@@ -7,6 +7,13 @@ import Foundation
 /// and an event recorder. No agent logs, network or notification windows.
 enum AgentUsageEventDeliveryTests {
     enum NotchAgentSupport {
+        static var enabled = true
+        static var selected: [AgentProvider] = [.claude, .codex, .copilot]
+        static func isEnabled() -> Bool { enabled }
+        static func providers() -> [AgentProvider] { selected }
+        static func alertSpend(_ snapshot: AgentUsageSnapshot) -> Double {
+            enabled ? selected.reduce(0) { $0 + (snapshot.usage(.today).byProvider[$1]?.cost ?? 0) } : 0
+        }
         static var minimum: TimeInterval? = 10
         static var threshold: Double? = 0.2
         static var budget: Double? = 1
@@ -20,7 +27,11 @@ enum AgentUsageEventDeliveryTests {
         func send(_ event: AgentUsageEvent) { values.append(event) }
     }
 
+    final class Store { var reportsTransitions = true }
+
     class Fixture {
+        let store = Store()
+        var budgetDay: Date?
         var running = true
         var session = 1
         var readerSession = 1
@@ -39,6 +50,8 @@ enum AgentUsageEventDeliveryTests {
             suite.expect(reached, "the agent event fixture drains its delivery queue")
         }
         defer {
+            NotchAgentSupport.enabled = true
+            NotchAgentSupport.selected = [.claude, .codex, .copilot]
             NotchAgentSupport.minimum = 10
             NotchAgentSupport.threshold = 0.2
             NotchAgentSupport.budget = 1
@@ -72,13 +85,37 @@ enum AgentUsageEventDeliveryTests {
         suite.expect(host.events.values.isEmpty, "stopping without restarting still drops queued events")
         host.running = true
 
-        host.providers = [.codex]
+        NotchAgentSupport.selected = [.codex]
         host.report(finished)
         host.report(events[1])
         host.report(events[2])
         drain()
         suite.expect(host.events.values.isEmpty, "delivery still respects disabled providers")
-        host.providers = [.claude, .codex, .copilot]
+        NotchAgentSupport.selected = [.claude, .codex, .copilot]
+        NotchAgentSupport.enabled = false
+        host.report(finished)
+        drain()
+        suite.expect(host.events.values.isEmpty, "a menu-only reader cannot emit island notices")
+        NotchAgentSupport.enabled = true
+        var snapshot = AgentUsageSnapshot()
+        snapshot.loaded = true
+        snapshot.now = Date()
+        var today = AgentPeriodUsage()
+        today.byProvider[.claude] = AgentTotals(cost: 100)
+        today.byProvider[.codex] = AgentTotals(cost: 0.5)
+        snapshot.periods[.today] = today
+        NotchAgentSupport.selected = [.codex]
+        host.checkBudget(snapshot)
+        drain()
+        suite.expect(host.events.values.isEmpty && host.budgetDay == nil,
+                     "menu-only spending neither fires nor consumes the island's budget alert")
+        snapshot.periods[.today]?.byProvider[.codex]?.cost = 2
+        host.checkBudget(snapshot)
+        drain()
+        suite.expect(host.events.values == [.budgetReached(spent: 2, budget: 1)],
+                     "selected island providers still deliver their own budget crossing")
+        host.events.values.removeAll()
+        NotchAgentSupport.selected = [.claude, .codex, .copilot]
         NotchAgentSupport.minimum = 30
         host.report(finished)
         NotchAgentSupport.threshold = nil

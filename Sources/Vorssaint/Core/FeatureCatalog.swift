@@ -266,7 +266,7 @@ extension AppFeature {
         case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
-        case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notchAgents: return [DefaultsKey.notchAgentsEnabled] + AgentProvider.allCases.map { MenuBarAgentSupport.enabledKey(for: $0) }
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
         case .notch: return [DefaultsKey.notchEnabled]

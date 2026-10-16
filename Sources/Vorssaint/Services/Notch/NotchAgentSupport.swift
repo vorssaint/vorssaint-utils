@@ -79,6 +79,22 @@ enum NotchAgentSupport {
             && NotchSupport.modules(in: defaults).contains(.agents)
     }
 
+    /// Reading serves either surface. A pinned agent is an explicit opt-in,
+    /// independent of the providers selected for the island's page.
+    static func alertProviders(in defaults: UserDefaults = .standard) -> [AgentProvider] {
+        isEnabled(in: defaults) ? providers(in: defaults) : []
+    }
+
+    static func alertSpend(_ snapshot: AgentUsageSnapshot, in defaults: UserDefaults = .standard) -> Double {
+        alertProviders(in: defaults).reduce(0) { $0 + (snapshot.usage(.today).byProvider[$1]?.cost ?? 0) }
+    }
+
+    static func readingProviders(in defaults: UserDefaults = .standard) -> [AgentProvider] {
+        let island = isEnabled(in: defaults) ? providers(in: defaults) : []
+        let menuBar = MenuBarAgentSupport.providers(in: defaults)
+        return AgentProvider.allCases.filter { island.contains($0) || menuBar.contains($0) }
+    }
+
     static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
         AgentProvider.allCases.filter {
             defaults.object(forKey: key(for: $0)) as? Bool ?? true
@@ -277,6 +293,108 @@ enum NotchAgentSupport {
     static func contentHeight(_ rows: [[NotchAgentTile]]) -> CGFloat {
         guard !rows.isEmpty else { return 0 }
         return rows.map(height).reduce(0, +) + spacing * CGFloat(rows.count - 1)
+    }
+}
+
+/// Each supported agent has independent pins and readout choices. Product
+/// names and the existing agent strings cover these controls in every locale.
+enum MenuBarAgentSupport {
+    static func enabledKey(for provider: AgentProvider) -> String { "menuBarAgent.\(provider.rawValue).enabled" }
+    static func readoutKey(for provider: AgentProvider) -> String { "menuBarAgent.\(provider.rawValue).readout" }
+    static func focusKey(for provider: AgentProvider) -> String { "menuBarAgent.\(provider.rawValue).focus" }
+    static func displayKey(for provider: AgentProvider) -> String { "menuBarAgent.\(provider.rawValue).display" }
+    static func periodKey(for provider: AgentProvider) -> String { "menuBarAgent.\(provider.rawValue).period" }
+
+    static var registeredDefaults: [String: Any] {
+        AgentProvider.allCases.reduce(into: [:]) { values, provider in
+            values[enabledKey(for: provider)] = false
+            values[readoutKey(for: provider)] = defaultReadout(for: provider).rawValue
+            values[focusKey(for: provider)] = NotchAgentLimitFocus.mostUsed.rawValue
+            values[displayKey(for: provider)] = NotchAgentLimitDisplay.used.rawValue
+            values[periodKey(for: provider)] = AgentPeriod.today.rawValue
+        }
+    }
+
+    static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
+        guard AppFeature.notchAgents.isAvailable(in: defaults) else { return [] }
+        return AgentProvider.allCases.filter { defaults.bool(forKey: enabledKey(for: $0)) }
+    }
+
+    static func defaultReadout(for provider: AgentProvider) -> NotchAgentReadout {
+        provider.reportsLimits ? .limit : .tokens
+    }
+
+    static func readouts(for provider: AgentProvider) -> [NotchAgentReadout] {
+        NotchAgentReadout.allCases.filter { provider.reportsLimits || $0 != .limit }
+    }
+
+    static func readout(for provider: AgentProvider, in defaults: UserDefaults = .standard) -> NotchAgentReadout {
+        let stored = NotchAgentReadout(rawValue: defaults.string(forKey: readoutKey(for: provider)) ?? "")
+        return stored.flatMap { readouts(for: provider).contains($0) ? $0 : nil } ?? defaultReadout(for: provider)
+    }
+
+    static func focus(for provider: AgentProvider, in defaults: UserDefaults = .standard) -> NotchAgentLimitFocus {
+        NotchAgentLimitFocus(rawValue: defaults.string(forKey: focusKey(for: provider)) ?? "") ?? .mostUsed
+    }
+
+    static func display(for provider: AgentProvider, in defaults: UserDefaults = .standard) -> NotchAgentLimitDisplay {
+        NotchAgentLimitDisplay(rawValue: defaults.string(forKey: displayKey(for: provider)) ?? "") ?? .used
+    }
+
+    static func period(for provider: AgentProvider, in defaults: UserDefaults = .standard) -> AgentPeriod {
+        AgentPeriod(rawValue: defaults.string(forKey: periodKey(for: provider)) ?? "") ?? .today
+    }
+
+    static func window(for provider: AgentProvider, in snapshot: AgentUsageSnapshot,
+                       defaults: UserDefaults = .standard, now: Date = Date()) -> AgentLimitWindow? {
+        guard snapshot.loaded, var limits = snapshot.limits[provider] else { return nil }
+        limits.windows.removeAll { !$0.usedPercent.isFinite || $0.scope != nil }
+        return NotchAgentSupport.focusedLimit(limits, focus: focus(for: provider, in: defaults), now: now)
+    }
+
+    struct Reading {
+        var value = "—"
+        var fraction: Double?
+        /// Bar fill may show what is left; warning colors always mean usage.
+        var usedFraction: Double?
+    }
+
+    static func reading(for provider: AgentProvider, snapshot: AgentUsageSnapshot,
+                        defaults: UserDefaults = .standard, now: Date = Date()) -> Reading {
+        guard snapshot.loaded else { return Reading() }
+        switch readout(for: provider, in: defaults) {
+        case .limit:
+            guard let window = window(for: provider, in: snapshot, defaults: defaults, now: now) else { return Reading() }
+            let fraction = display(for: provider, in: defaults) == .used ? window.usedFraction : window.remainingFraction
+            return Reading(value: AgentFormat.percent(fraction), fraction: fraction, usedFraction: window.usedFraction)
+        case .tokens, .cost:
+            guard snapshot.seen.contains(provider) else { return Reading() }
+            let totals = snapshot.usage(period(for: provider, in: defaults)).byProvider[provider] ?? AgentTotals()
+            if readout(for: provider, in: defaults) == .tokens {
+                return Reading(value: AgentFormat.tokens(totals.tokens.output))
+            }
+            return Reading(value: totals.unpriced == 0 ? AgentFormat.cost(totals.cost) : "—")
+        case .elapsed:
+            guard let started = snapshot.working(provider).map(\.started).min() else { return Reading() }
+            return Reading(value: AgentFormat.clock(now.timeIntervalSince(started)))
+        }
+    }
+
+    static func tooltip(for provider: AgentProvider, snapshot: AgentUsageSnapshot,
+                        defaults: UserDefaults = .standard, now: Date = Date()) -> String {
+        let text = FeatureStrings.notchAgents(L10n.shared.language)
+        let readout = readout(for: provider, in: defaults)
+        let value = reading(for: provider, snapshot: snapshot, defaults: defaults, now: now).value
+        if readout == .limit {
+            guard let window = window(for: provider, in: snapshot, defaults: defaults, now: now) else {
+                return provider.displayName + " · " + text.waitingForLimits
+            }
+            let meaning = display(for: provider, in: defaults) == .used ? text.usedShare(value) : text.left(value)
+            let kind = window.kind == .session ? text.session : window.kind == .weekly ? text.weekly : text.limitsCard
+            return provider.displayName + " · " + kind + " · " + meaning
+        }
+        let span = readout == .elapsed ? text.liveCard : text.period(period(for: provider, in: defaults))
+        return provider.displayName + " · " + span + " · " + text.readout(readout) + ": " + value
     }
 }
 

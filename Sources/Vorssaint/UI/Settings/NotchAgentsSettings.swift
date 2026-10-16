@@ -51,6 +51,12 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.copilot, isOn: $copilot)
 
             Divider()
+            Text(l10n.s.monitorMenuBarSection).font(.subheadline.weight(.medium))
+            ForEach(AgentProvider.allCases) { provider in
+                MenuBarAgentSettingsRow(provider: provider)
+            }
+
+            Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
                 ForEach(orderedCards) { card in
@@ -304,5 +310,73 @@ private struct NotchAgentStripSample: View {
                                               cost: 4.56)]
         }
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
+    }
+}
+
+/// The same per-agent choices appear in Monitor and AI Agents settings.
+struct MenuBarAgentOptions: View {
+    let provider: AgentProvider
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage private var readout: String
+    @AppStorage private var focus: String
+    @AppStorage private var display: String
+    @AppStorage private var period: String
+
+    init(provider: AgentProvider) {
+        self.provider = provider
+        _readout = AppStorage(wrappedValue: MenuBarAgentSupport.defaultReadout(for: provider).rawValue,
+                              MenuBarAgentSupport.readoutKey(for: provider))
+        _focus = AppStorage(wrappedValue: "mostUsed", MenuBarAgentSupport.focusKey(for: provider))
+        _display = AppStorage(wrappedValue: "used", MenuBarAgentSupport.displayKey(for: provider))
+        _period = AppStorage(wrappedValue: "today", MenuBarAgentSupport.periodKey(for: provider))
+    }
+
+    var body: some View {
+        let text = FeatureStrings.notchAgents(l10n.language)
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsMenuRow(symbol: "gauge.with.dots.needle.33percent", title: FeatureStrings.menuBarAppearance(l10n.language).label, selection: $readout) {
+                ForEach(MenuBarAgentSupport.readouts(for: provider)) { option in
+                    Text(text.readout(option)).tag(option.rawValue)
+                }
+            }
+            if readout == NotchAgentReadout.limit.rawValue {
+                SettingsChoiceRow(symbol: "percent", title: text.limitsAs, selection: $display) {
+                    Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)
+                    Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
+                }
+                SettingsMenuRow(symbol: "clock", title: text.limitFocus, selection: $focus) {
+                    ForEach(NotchAgentLimitFocus.allCases) { focus in
+                        Text(text.limitFocus(focus)).tag(focus.rawValue)
+                    }
+                }
+            } else if readout == NotchAgentReadout.tokens.rawValue || readout == NotchAgentReadout.cost.rawValue {
+                Picker(text.trendCard, selection: $period) {
+                    ForEach(AgentPeriod.allCases) { period in Text(text.period(period)).tag(period.rawValue) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+        }
+    }
+}
+
+private struct MenuBarAgentSettingsRow: View {
+    let provider: AgentProvider
+    @AppStorage private var included: Bool
+
+    init(provider: AgentProvider) {
+        self.provider = provider
+        _included = AppStorage(wrappedValue: false, MenuBarAgentSupport.enabledKey(for: provider))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(symbol: provider.symbol, title: provider.displayName) {
+                Toggle(provider.displayName, isOn: $included).labelsHidden()
+            }
+            if included {
+                MenuBarAgentOptions(provider: provider).padding(.leading, settingsRowTextInset)
+            }
+        }
     }
 }

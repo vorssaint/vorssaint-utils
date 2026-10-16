@@ -57,6 +57,7 @@ enum AgentUsageReadTests {
     enum NotchAgentSupport {
         static let idleTurn: TimeInterval = 120
         static func dailyBudget() -> Double? { nil }
+        static func alertProviders() -> [AgentProvider] { AgentProvider.allCases }
     }
 
     class Fixture {
