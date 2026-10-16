@@ -395,6 +395,7 @@ final class FeatureRuntime: ObservableObject {
         },
         .appUpdates: { AppUpdatesService.shared.syncWithPreferences() },
         .uninstaller: { TrashAppWatcher.shared.syncWithPreferences() },
+        .herdrStatus: { HerdrStatusService.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },
