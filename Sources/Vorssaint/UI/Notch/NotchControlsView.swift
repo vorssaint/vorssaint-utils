@@ -547,10 +547,26 @@ private struct NotchCalendarTile: View {
 private struct NotchAwakeButton: View {
     @ObservedObject private var service = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.keepAwakeShutDownAfterAgents) private var shutDownAfterAgents = false
     var body: some View {
         NotchActionTile(symbol: service.isActive ? "cup.and.saucer.fill" : "cup.and.saucer",
                         title: l10n.s.keepAwakeTitle, active: service.isActive,
                         accent: .awake, action: service.toggle)
+            // A right click sets up the session to start: a length, or until AI agents finish.
+            .contextMenu {
+                ForEach(DurationPicker.choices, id: \.self) { minutes in
+                    Button(DurationPicker.title(for: minutes, l10n.s)) { service.activate(minutes: minutes) }
+                }
+                if NotchAgentSupport.isEnabled() {
+                    let agents = FeatureStrings.keepAwakeAgents(l10n.language)
+                    Divider()
+                    Section(agents.untilAgentsFinish) { KeepAwakeAgentChoices() }
+                    Toggle(agents.shutDownWhenDone, isOn: Binding(get: { shutDownAfterAgents }, set: { on in
+                        shutDownAfterAgents = on
+                        if on { KeepAwakeManager.askForShutDownPermission() }
+                    }))
+                }
+            }
     }
 }
 
