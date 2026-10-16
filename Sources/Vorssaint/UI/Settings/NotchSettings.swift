@@ -78,6 +78,8 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchSize) private var size = NotchSize.spacious.rawValue
     @AppStorage(DefaultsKey.notchOutlineEnabled) private var outlineEnabled = false
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = true
+    @AppStorage(DefaultsKey.blackMenuBar) private var blackMenuBar = false
+    @AppStorage(DefaultsKey.blackMenuBarHeight) private var blackMenuBarHeight = 0.0
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
     @AppStorage(DefaultsKey.notchCameraFitWidth) private var cameraFitWidth = 0.0
@@ -270,6 +272,18 @@ struct NotchSettings: View {
             }
             SettingsCard {
                 switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
+            }
+            SettingsCard {
+                switchRow("menubar.rectangle", text.blackMenuBar,
+                          caption: text.blackMenuBarHint, isOn: $blackMenuBar)
+                    .onChange(of: blackMenuBar) { _, _ in BlackMenuBarService.shared.syncWithPreferences() }
+                if blackMenuBar {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                        fitSlider(text.height, card: text.blackMenuBar, value: $blackMenuBarHeight,
+                                  range: BlackMenuBarService.heightRange, step: 1)
+                    }
+                    .onChange(of: blackMenuBarHeight) { _, _ in BlackMenuBarService.shared.syncWithPreferences() }
+                }
             }
             // Only a physical camera has an outline to match.
             if NotchSupport.hasNotchedDisplay {
