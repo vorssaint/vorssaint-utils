@@ -394,6 +394,8 @@ private struct MenuBarMetricTile: View {
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
+    @AppStorage(DefaultsKey.menuBarBatteryStyle) private var batteryStyle = MenuBarBatteryStyle.icon
+    @AppStorage(DefaultsKey.menuBarMetricAppearance) private var appearance = MenuBarMetricAppearance.values.rawValue
 
     init(metric: MenuBarMetric) {
         self.metric = metric
@@ -403,6 +405,11 @@ private struct MenuBarMetricTile: View {
     var body: some View {
         MonitorToken(symbol: metric.symbolName, title: metric.title(l10n.s), included: $shown,
                      options: options, optionsSummary: optionsSummary)
+    }
+
+    /// The battery's style only exists under the bars appearance.
+    private var usesBars: Bool {
+        Defaults.sanitizedMenuBarMetricAppearance(appearance) == MenuBarMetricAppearance.bars.rawValue
     }
 
     /// What the reading's option makes the menu bar show, in its own terms.
@@ -418,6 +425,8 @@ private struct MenuBarMetricTile: View {
             case DiskMenuBarStyle.used: return l10n.s.diskMenuBarUsedSpace
             default: return l10n.s.diskMenuBarUsedPercentage
             }
+        case .battery where usesBars:
+            return batteryStyle == .bar ? l10n.s.batteryMenuBarBar : l10n.s.batteryMenuBarIcon
         default: return ""
         }
     }
@@ -440,6 +449,12 @@ private struct MenuBarMetricTile: View {
                 Text(l10n.s.diskMenuBarUsedPercentage).tag(DiskMenuBarStyle.percent)
                 Text(l10n.s.diskMenuBarAvailableSpace).tag(DiskMenuBarStyle.free)
                 Text(l10n.s.diskMenuBarUsedSpace).tag(DiskMenuBarStyle.used)
+            }
+            .pickerStyle(.menu))
+        case .battery where usesBars:
+            return AnyView(Picker(l10n.s.batteryMenuBarStyleLabel, selection: $batteryStyle) {
+                Text(l10n.s.batteryMenuBarIcon).tag(MenuBarBatteryStyle.icon)
+                Text(l10n.s.batteryMenuBarBar).tag(MenuBarBatteryStyle.bar)
             }
             .pickerStyle(.menu))
         default:
