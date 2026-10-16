@@ -6,6 +6,13 @@ Tools to a radial-menu profile. The native Finder menu requires enabling the
 bundled Finder extension in macOS System Settings. The workspace also accepts
 files and folders through the system file chooser.
 
+The macOS Services entry **Open Finder Tools** accepts an explicit file selection
+from other apps. QSpace documents Services support in its customizable context
+menu; other file managers must expose macOS Services or invoke the selection URL
+scheme. This does not read another application's selection in the background.
+Only local file URLs are accepted, with the same 128-item limit as the extension.
+The QSpace/Path Finder runtime flows still need validation on those applications.
+
 ## Files and documents
 
 The workspace operates on an explicit selection and destination. Reorder the
@@ -31,6 +38,10 @@ image is the subject and the second is the replacement background.
   passed in process arguments. This is not password-protected ZIP output.
 - Paste clipboard text, Markdown, PNG images, files, aliases or ZIP archives.
   Clipboard content is read only by the selected paste action.
+- Cut and paste selected files through the existing Cut and Paste feature's
+  marks, clipboard-generation guard, move engine and progress HUD. This requires
+  enabling that feature. AirDrop opens the system recipient chooser; uninstall
+  opens the existing uninstaller with one selected application for review.
 - Preview, reveal, show information, inspect package contents, eject, share,
   trash or permanently delete. Permanent deletion starts hidden in the native
   menu and always requires confirmation in the host workspace.

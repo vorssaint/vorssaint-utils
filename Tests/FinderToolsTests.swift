@@ -1,10 +1,31 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
+import AppKit
 
 enum FinderToolsTests {
     static func run(_ suite: TestSuite) {
+        FinderCutPasteEntryContract.run(suite)
+        suite.run("Finder Services selection") {
+            let pasteboard = NSPasteboard.withUniqueName()
+            defer { pasteboard.releaseGlobally() }
+            let selected = URL(fileURLWithPath: "/tmp/quoted ' file.txt")
+            pasteboard.writeObjects([selected as NSURL])
+            suite.expect(FinderToolsPasteboardSelection.request(from: pasteboard)?.selection == [selected],
+                         "Services preserves an explicit file URL without consulting Finder")
+            pasteboard.clearContents()
+            pasteboard.setString(selected.path, forType: .string)
+            suite.expect(FinderToolsPasteboardSelection.request(from: pasteboard) == nil,
+                         "plain text paths cannot masquerade as a file selection")
+            pasteboard.clearContents()
+            pasteboard.writeObjects([URL(string: "file://remote.example/tmp/private")! as NSURL])
+            suite.expect(FinderToolsPasteboardSelection.request(from: pasteboard) == nil,
+                         "Services rejects remote file hosts")
+            pasteboard.clearContents()
+            pasteboard.writeObjects((0..<129).map { URL(fileURLWithPath: "/tmp/selection-\($0)") as NSURL })
+            suite.expect(FinderToolsPasteboardSelection.request(from: pasteboard) == nil,
+                         "Services enforces the selection count bound")
+        }
         suite.run("Finder tools selection boundary") {
             let file = URL(fileURLWithPath: "/tmp/日本語 & report.txt")
             let request = FinderToolsRequest(selection: [file], directory: nil)

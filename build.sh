@@ -458,6 +458,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Finder/FinderNewFileTemplates.swift
         Sources/Vorssaint/Services/Finder/FinderSearchTools.swift
         Sources/Vorssaint/Services/Finder/FinderToolsRequest.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsPasteboardSelection.swift
         Sources/Vorssaint/Services/Finder/FinderToolsAction.swift
         Sources/Vorssaint/Services/Finder/FinderToolsOperation.swift
         Sources/Vorssaint/Services/DocumentTools/FinderPDFTools.swift
@@ -735,6 +736,7 @@ if (( DEV )); then
     # official app, with its own permissions, preferences and login item.
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 vorssaint-dev-files" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"

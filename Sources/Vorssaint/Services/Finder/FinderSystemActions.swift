@@ -9,11 +9,13 @@ import UniformTypeIdentifiers
 final class FinderSystemActions: NSObject, QLPreviewPanelDataSource {
     private var previewURLs: [URL] = []
     private var sharingPicker: NSSharingServicePicker?
+    private var sharingService: NSSharingService?
 
     func suspend() {
         if QLPreviewPanel.sharedPreviewPanelExists(), !previewURLs.isEmpty { QLPreviewPanel.shared()?.orderOut(nil) }
         previewURLs = []
         sharingPicker = nil
+        sharingService = nil
     }
 
     func perform(_ action: FinderToolsAction, selection: [URL], destination: URL?, window: NSWindow,
@@ -81,6 +83,12 @@ final class FinderSystemActions: NSObject, QLPreviewPanelDataSource {
                 let picker = NSSharingServicePicker(items: selection)
                 sharingPicker = picker
                 picker.show(relativeTo: CGRect(x: view.bounds.midX, y: 15, width: 1, height: 1), of: view, preferredEdge: .minY)
+            case .airDrop:
+                guard let service = NSSharingService(named: .sendViaAirDrop), service.canPerform(withItems: selection) else {
+                    throw FinderFileActionError.invalidRequest("AirDrop is not available for this selection.")
+                }
+                sharingService = service
+                service.perform(withItems: selection)
             case .wallpaper:
                 guard selection.count == 1 else { throw CocoaError(.fileReadUnsupportedScheme) }
                 for screen in NSScreen.screens {

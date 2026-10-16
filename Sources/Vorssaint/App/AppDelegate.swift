@@ -59,6 +59,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         FinderToolsService.shared.open(request: request)
     }
 
+    @objc func openFinderTools(_ pasteboard: NSPasteboard, userData: String?,
+                               error: AutoreleasingUnsafeMutablePointer<NSString?>) {
+        guard let request = FinderToolsPasteboardSelection.request(from: pasteboard) else {
+            error.pointee = FinderToolsStrings.localized(L10n.shared.language).emptySelection as NSString
+            return
+        }
+        FinderToolsService.shared.open(request: request)
+    }
+
     // MARK: - Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -250,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.presentUpdateIntros()
             }
         }
+        NSApp.servicesProvider = self
     }
 
     /// Asking another app about its windows waits for that app to answer, and

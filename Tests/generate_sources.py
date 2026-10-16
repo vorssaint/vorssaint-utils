@@ -2043,6 +2043,12 @@ def main():
                         "    private func syncPolling(").replace("private func", "func", 1)
           + "}\n}\n")
 
+    write("FinderCutPasteEntry.swift", "import Foundation\n"
+          + "extension FinderCutPasteEntryContract {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    func cutFromTools(")
+          + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    func pasteFromTools(")
+          + "}\n}\n")
+
     # Same-file extensions can exercise the private AppKit content view without
     # widening the production interface or presenting an application window.
     hud = "Sources/Vorssaint/UI/QuitProtection/QuitProtectionHUD.swift"

@@ -323,6 +323,30 @@ final class FinderToolsService: ObservableObject {
     }
 
     private func openExistingTool() {
+        if action == .cutFiles || action == .pasteMovedFiles {
+            guard AppFeature.finderCutPaste.isAvailable,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.finderCutPasteEnabled) else {
+                showFeatureSettings()
+                return
+            }
+            if action == .cutFiles {
+                if !FinderCutPaste.shared.cutFromTools(selection) { error = "No files could be marked for moving." }
+            } else if let destination {
+                if !FinderCutPaste.shared.pasteFromTools(into: destination) {
+                    error = "Cut files first. The clipboard may have changed or another move is in progress."
+                }
+            }
+            return
+        }
+        if action == .uninstallApp {
+            guard AppFeature.uninstaller.isAvailable else { showFeatureSettings(); return }
+            guard selection.count == 1, AppUninstaller.shared.select(appURL: selection[0]) else {
+                error = "Select one application bundle. An uninstall may already be in progress."
+                return
+            }
+            AppToolLauncher.run(.uninstaller)
+            return
+        }
         if action == .recordAudio || action == .recordVideo {
             if let captureWindow, captureWindow.recorder.state.isBusy { captureWindow.showWindow(nil); return }
             captureWindow?.close()

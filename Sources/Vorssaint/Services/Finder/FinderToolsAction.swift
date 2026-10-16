@@ -19,21 +19,25 @@ enum FinderToolsAction: String, CaseIterable, Identifiable, Codable {
 
     case setIcon, resetIcon, defaultApplication, openWith, searchFolder, repairNames, aliasDesktop, pasteZIP
     case shareLAN, recordAudio, recordVideo
+    case cutFiles, pasteMovedFiles, airDrop, uninstallApp
 
-    var usesSystemUI: Bool { [.setIcon, .resetIcon, .defaultApplication, .openWith, .quickLook, .reveal, .info, .packageContents, .eject,
+    var usesSystemUI: Bool { [.airDrop, .setIcon, .resetIcon, .defaultApplication, .openWith, .quickLook, .reveal, .info, .packageContents, .eject,
         .extractIcon, .wallpaper, .share, .openTerminal].contains(self) }
 
     var isDocumentOutput: Bool { [.compressPDF, .diskImage, .encryptedDiskImage, .extractAudio, .pasteImage,.mergePDF, .splitPDF, .watermarkPDF, .rotateLeft, .rotateRight,
         .stitchHorizontal, .stitchVertical, .removeBackground, .replaceBackground, .recolor].contains(self) }
-    var usesExistingTool: Bool { [.recordAudio, .recordVideo, .shareLAN, .editImage, .convertImages, .convertVideo, .extractText].contains(self) }
+    var usesExistingTool: Bool { [.cutFiles, .pasteMovedFiles, .uninstallApp, .recordAudio, .recordVideo, .shareLAN, .editImage, .convertImages, .convertVideo, .extractText].contains(self) }
 
     var id: String { rawValue }
     var needsName: Bool { isDocumentOutput || self == .batchRename || self == .searchFolder || [.newFile, .newFolder, .template, .pasteText, .pasteMarkdown, .group].contains(self) }
-    var needsDestination: Bool { isDocumentOutput || [.pasteZIP, .pasteFiles, .pasteAliases,.zip, .extractIcon].contains(self) || [.newFile, .newFolder, .template, .pasteText, .pasteMarkdown, .copyTo, .moveTo, .alias, .group].contains(self) }
-    var needsSelection: Bool { ![.recordAudio, .recordVideo, .pasteZIP, .pasteImage, .pasteFiles, .pasteAliases,.newFile, .newFolder, .pasteText, .pasteMarkdown].contains(self) }
-    var changesSources: Bool { [.repairNames, .setIcon, .resetIcon, .defaultApplication, .batchRename, .trash, .permanentDelete, .hideExtension, .showExtension,.moveTo, .hide, .unhide, .lock, .unlock, .group, .flatten].contains(self) }
+    var needsDestination: Bool { isDocumentOutput || [.pasteMovedFiles, .pasteZIP, .pasteFiles, .pasteAliases,.zip, .extractIcon].contains(self) || [.newFile, .newFolder, .template, .pasteText, .pasteMarkdown, .copyTo, .moveTo, .alias, .group].contains(self) }
+    var needsSelection: Bool { ![.pasteMovedFiles, .recordAudio, .recordVideo, .pasteZIP, .pasteImage, .pasteFiles, .pasteAliases,.newFile, .newFolder, .pasteText, .pasteMarkdown].contains(self) }
+    var changesSources: Bool { [.pasteMovedFiles, .repairNames, .setIcon, .resetIcon, .defaultApplication, .batchRename, .trash, .permanentDelete, .hideExtension, .showExtension,.moveTo, .hide, .unhide, .lock, .unlock, .group, .flatten].contains(self) }
 
     func title(languageCode: String) -> String {
+        if let index = [Self.cutFiles, .pasteMovedFiles, .airDrop, .uninstallApp].firstIndex(of: self) {
+            return Self.integrationTitles(languageCode)[index]
+        }
         if self == .recordAudio || self == .recordVideo { return Self.captureTitles(languageCode)[self == .recordVideo ? 1 : 0] }
         if self == .shareLAN { return FinderLANShareStrings.localized(languageCode).title }
         let index = Self.allCases.firstIndex(of: self)!
@@ -163,6 +167,27 @@ enum FinderToolsAction: String, CaseIterable, Identifiable, Codable {
         case "zh-TW": return ["錄製麥克風", "錄製攝影機"]
         case "zh-HK": return ["錄製咪高峰", "錄製攝影機"]
         default: return captureTitles("en-US")
+        }
+    }
+}
+
+private extension FinderToolsAction {
+    static func integrationTitles(_ language: String) -> [String] {
+        switch language {
+        case "pt-BR": return ["Recortar arquivos", "Colar arquivos recortados", "AirDrop", "Desinstalar aplicativo"]
+        case "es": return ["Cortar archivos", "Pegar archivos cortados", "AirDrop", "Desinstalar aplicación"]
+        case "fr": return ["Couper les fichiers", "Coller les fichiers coupés", "AirDrop", "Désinstaller l’application"]
+        case "de": return ["Dateien ausschneiden", "Ausgeschnittene Dateien einsetzen", "AirDrop", "App deinstallieren"]
+        case "it": return ["Taglia file", "Incolla file tagliati", "AirDrop", "Disinstalla applicazione"]
+        case "tr": return ["Dosyaları Kes", "Kesilen Dosyaları Yapıştır", "AirDrop", "Uygulamayı Kaldır"]
+        case "sk": return ["Vystrihnúť súbory", "Vložiť vystrihnuté súbory", "AirDrop", "Odinštalovať aplikáciu"]
+        case "ru": return ["Вырезать файлы", "Вставить вырезанные файлы", "AirDrop", "Удалить приложение"]
+        case "uk": return ["Вирізати файли", "Вставити вирізані файли", "AirDrop", "Видалити програму"]
+        case "ja": return ["ファイルをカット", "カットしたファイルをペースト", "AirDrop", "アプリをアンインストール"]
+        case "ko": return ["파일 잘라내기", "잘라낸 파일 붙여넣기", "AirDrop", "앱 제거"]
+        case "zh-Hans": return ["剪切文件", "粘贴已剪切的文件", "AirDrop", "卸载应用"]
+        case "zh-TW", "zh-HK": return ["剪下檔案", "貼上已剪下的檔案", "AirDrop", "解除安裝應用程式"]
+        default: return ["Cut Files", "Paste Cut Files", "AirDrop", "Uninstall Application"]
         }
     }
 }

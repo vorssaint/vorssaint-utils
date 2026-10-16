@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSServices</key>
+	<array><dict>
+		<key>NSMenuItem</key><dict><key>default</key><string>Open Finder Tools</string></dict>
+		<key>NSMessage</key><string>openFinderTools</string>
+		<key>NSPortName</key><string>Vorssaint</string>
+		<key>NSSendFileTypes</key><array><string>public.item</string></array>
+		<key>NSTimeout</key><string>10000</string>
+		<key>NSRequiredContext</key><dict/>
+	</dict></array>
 	<key>CFBundleURLTypes</key>
 	<array><dict>
 		<key>CFBundleURLName</key><string>Finder file selection</string>

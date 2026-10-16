@@ -6,6 +6,7 @@ import SwiftUI
 struct FinderToolsView: View {
     @ObservedObject var service: FinderToolsService
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var cutPaste = FinderCutPaste.shared
     @State private var confirming = false
     private var text: FinderToolsStrings { .localized(l10n.language) }
 
@@ -78,6 +79,11 @@ struct FinderToolsView: View {
                             .help(service.destination?.path ?? text.chooseFolder)
                         Spacer()
                         Button(text.chooseFolder) { service.chooseDestination() }
+                    }
+                }
+                if service.action == .pasteMovedFiles {
+                    ForEach(cutPaste.marked) { item in
+                        Text(item.url.path).font(.caption).textSelection(.enabled)
                     }
                 }
                 if service.action == .openTerminal {
@@ -199,7 +205,8 @@ struct FinderToolsView: View {
                    role: service.action == .permanentDelete ? .destructive : nil) { service.run() }
             Button(text.cancel, role: .cancel) { }
         } message: {
-            Text(service.selection.map(\.lastPathComponent).joined(separator: "\n"))
+            Text((service.action == .pasteMovedFiles ? cutPaste.marked.map(\.url) : service.selection)
+                .map(\.lastPathComponent).joined(separator: "\n"))
         }
     }
 
