@@ -1573,6 +1573,9 @@ final class AppVolumeMixer: ObservableObject {
         let uid: String
         let previousVolume: Float32
         let appliedVolume: Float32
+        /// The lowering also turned the output's mute on (silence was chosen),
+        /// so handing the speakers back turns it off again.
+        var mutedByLowering = false
     }
 
     private struct LoweredOutputState {
@@ -1618,18 +1621,24 @@ final class AppVolumeMixer: ObservableObject {
         let previousVolume = outputVolume(for: nextDefault.audioObjectID)
         if setOutputVolume(volume, for: nextDefault.audioObjectID) {
             state.lastAutomaticLoweredOutputUID = nextDefaultUID
-            if let previousVolume, previousVolume > volume {
+            let muted = MixerRoutingSupport.shouldMuteOutputLoweredForDisconnect(
+                lowerToPercent: lowerToPercent,
+                currentlyMuted: outputMuted(for: nextDefault.audioObjectID))
+                && setOutputMuted(true, for: nextDefault.audioObjectID)
+            if let previousVolume, previousVolume > volume || muted {
                 state.loweredOutput = LoweredOutput(uid: nextDefaultUID,
                                                     previousVolume: previousVolume,
-                                                    appliedVolume: volume)
+                                                    appliedVolume: volume,
+                                                    mutedByLowering: muted)
             }
         }
         return state
     }
 
-    /// Puts back the volume this feature lowered, as long as it is still the
-    /// value the app set: anything else means it was changed since, and that
-    /// choice wins. Returns what is left to restore later.
+    /// Puts back the volume this feature lowered, and the mute it set at zero,
+    /// as long as the volume is still the value the app set: anything else
+    /// means it was changed since, and that choice wins. Returns what is left
+    /// to restore later.
     private static func restoringLoweredOutputVolume(_ lowered: LoweredOutput?,
                                                      in devices: [MixerOutputDevice]) -> LoweredOutput? {
         guard let lowered else { return nil }
@@ -1641,6 +1650,11 @@ final class AppVolumeMixer: ObservableObject {
             appliedVolume: Double(lowered.appliedVolume),
             currentVolume: outputVolume(for: device.audioObjectID).map(Double.init)) else { return nil }
         _ = setOutputVolume(lowered.previousVolume, for: device.audioObjectID)
+        // A mute switched off since then was someone's choice, and one this
+        // feature did not set was never its to undo.
+        if lowered.mutedByLowering, outputMuted(for: device.audioObjectID) == true {
+            setOutputMuted(false, for: device.audioObjectID)
+        }
         return nil
     }
 

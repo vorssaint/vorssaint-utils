@@ -618,6 +618,8 @@ struct UpdatesView: View {
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
     @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
+    @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
+    @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
     var body: some View {
         Section(l10n.s.updatesSection) {
@@ -633,6 +635,16 @@ struct UpdatesView: View {
                     }
                 SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                let whatsNew = FeatureStrings.whatsNew(l10n.language)
+                Toggle(whatsNew.showPreviewToggle, isOn: $showReleaseNotesFirst)
+                if showWhatsNewAfter {
+                    SettingsCaptionText(whatsNew.showPreviewCaption)
+                }
+            }
+
+            Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
 
             statusRow
 

@@ -1078,7 +1078,56 @@ enum NotchTests {
         }
     }
 
+    private static func shortcutContracts(_ suite: TestSuite) {
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchShortcutEnabled] as? Bool == false,
+               "the island shortcut ships off, so no key is taken until the user asks")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchShortcut] as? String
+                == "control+option+command:34",
+               "the default island shortcut is control option command I")
+        suite.expect(!GlobalShortcutRole.allCases.contains { $0 != .notch && $0.defaultShortcut == .notchDefault },
+               "the default island shortcut is not another feature's default")
+        func active(_ keys: Set<String>) -> Bool {
+            GlobalShortcutRole.activeRoles(isOn: { keys.contains($0) }).contains(.notch)
+        }
+        suite.expect(active([DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled])
+                && !active([DefaultsKey.notchShortcutEnabled])
+                && !active([DefaultsKey.notchEnabled]),
+               "the island shortcut is live only while both the island and its shortcut are on")
+        suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                                                     isAvailable: { $0 != .notch }).contains(.notch),
+               "an island removed in the hub does not reserve its shortcut")
+        let backupKeys = SettingsBackupSupport.exportKeys()
+        suite.expect(backupKeys.contains(DefaultsKey.notchShortcut)
+                && backupKeys.contains(DefaultsKey.notchShortcutEnabled),
+               "the island shortcut travels with the settings backup")
+        let domain = "com.vorssaint.tests.notch-shortcut-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        func holds(installed: Bool = true, island: Bool = true, shortcut: Bool = true) -> Bool {
+            defaults.set(installed, forKey: AppFeature.notch.availabilityKey)
+            defaults.set(island, forKey: DefaultsKey.notchEnabled)
+            defaults.set(shortcut, forKey: DefaultsKey.notchShortcutEnabled)
+            return NotchSupport.holdsShortcut(in: defaults)
+        }
+        suite.expect(holds(), "the island shortcut holds its key while the island and its shortcut are on")
+        suite.expect(!holds(island: false), "the island shortcut is not wanted while the island is off")
+        suite.expect(!holds(installed: false), "the island shortcut is not wanted while the island is removed in the hub")
+        suite.expect(!holds(shortcut: false), "turning the island shortcut off releases its key")
+        // The service is a singleton holding a real Carbon hotkey, so its
+        // wiring is checked in the source, like the launch hooks below.
+        let service = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                   encoding: .utf8)) ?? ""
+        suite.expect(service.contains("hotkey.onPress = { [weak self] in self?.toggleFromShortcut() }"),
+               "the island shortcut answers like a click on the island")
+        suite.expect(service.contains("guard NotchSupport.isEnabled() else { stop(); return }")
+                && service.contains("        syncShortcut()\n        if !NotchTimerSupport.isEnabled()"),
+               "every preference sync of a running island registers or releases its shortcut")
+        suite.expect(service.contains("preferenceSyncWork?.cancel(); preferenceSyncWork = nil\n        hotkey.unregister()"),
+               "stopping the island releases its shortcut")
+    }
+
     static func run(_ suite: TestSuite) {
+        shortcutContracts(suite)
         let previewStrip: CGFloat = 37
         suite.expect(NotchTranslucentTint.opacity(atDepth: previewStrip, stripHeight: previewStrip,
                                                   openness: 1, increasedContrast: false) == 1
@@ -1148,6 +1197,63 @@ enum NotchTests {
         NotchMusicExtrasTests.run(suite)
         NotchLockScreenTests.run(suite)
         NowPlayingOpenContract.run(suite)
+        NotchClipboardPageTests.run(suite)
+        for language in AppLanguage.allCases {
+            let strings = Mirror(reflecting: FeatureStrings.notchClipboardSize(language)).children.compactMap { $0.value as? String }
+            suite.expect(strings.count == 4 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },
+                         "the clipboard entry size has complete strings in \(language.rawValue)")
+        }
+        let sizeDomain = "com.vorssaint.tests.notch-clipboard-size"
+        let sizeDefaults = UserDefaults(suiteName: sizeDomain)!
+        sizeDefaults.removePersistentDomain(forName: sizeDomain)
+        defer { sizeDefaults.removePersistentDomain(forName: sizeDomain) }
+        // Existing users keep the entries they had until they choose compact ones.
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchClipboardCardSize] as? String
+                        == NotchClipboardCardSize.comfortable.rawValue,
+                     "clipboard entries are registered comfortable, the size they had before compact ones")
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .comfortable
+                     && NotchClipboardCardSize(stored: nil) == .comfortable,
+                     "clipboard entries start comfortable with nothing stored")
+        sizeDefaults.set("compact", forKey: DefaultsKey.notchClipboardCardSize)
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .compact
+                     && NotchClipboardCardSize(stored: "compact") == .compact, "the chosen entry size is read")
+        sizeDefaults.set("huge", forKey: DefaultsKey.notchClipboardCardSize)
+        suite.expect(NotchClipboardCardSize.current(in: sizeDefaults) == .comfortable
+                     && NotchClipboardCardSize(stored: "huge") == .comfortable,
+                     "an unknown entry size falls back to comfortable")
+        typealias Size = NotchClipboardCardSize
+        suite.expect(Size.openLines(for: "one line", width: 400) == 1
+                     && Size.openLines(for: "a\nb\nc", width: 400) == 3
+                     && Size.openLines(for: String(repeating: "x", count: 130), width: 400) == 3
+                     && Size.openLines(for: String(repeating: "word ", count: 1000), width: 400) == Size.maximumOpenLines
+                     && Size.openLines(for: "", width: 400) == 1,
+                     "an open entry shows its lines, counting wrapped ones, up to a limit")
+        // A Chinese, Japanese or Korean character is about twice as wide as a
+        // Latin letter: 100 of them wrap to four lines in 400 points.
+        suite.expect(Size.openLines(for: String(repeating: "漢", count: 100), width: 400) == 4
+                     && Size.openLines(for: String(repeating: "日本語のテキスト", count: 10), width: 400) == 3,
+                     "an open entry measures wide characters as drawn, not as Latin letters")
+        // The history window edits an entry's text and keeps its id.
+        let measured = UUID()
+        suite.expect(Size.openHeight(text: "short", width: 400, id: measured) == Size.openLineHeight + Size.openChrome
+                     && Size.openHeight(text: String(repeating: "x\n", count: 50), width: 400, id: measured)
+                        == CGFloat(Size.maximumOpenLines) * Size.openLineHeight + Size.openChrome
+                     && Size.openHeight(text: "short", width: 400, id: measured) == Size.openLineHeight + Size.openChrome
+                     && Size.openHeight(text: String(repeating: "漢", count: 100), width: 100, id: measured)
+                        == CGFloat(Size.maximumOpenLines) * Size.openLineHeight + Size.openChrome,
+                     "an open clipboard entry measures its text again once edited, and at each width")
+        suite.expect(Size.openHeight(text: "short", width: 400) == Size.openLineHeight + Size.openChrome
+                     && Size.openHeight(text: String(repeating: "x\n", count: 50), width: 400)
+                        == CGFloat(Size.maximumOpenLines) * Size.openLineHeight + Size.openChrome,
+                     "an open text entry is as tall as its lines, up to a limit")
+        suite.expect(Size.openHeight(aspectRatio: 1.6, width: 400) == Size.maximumOpenImage + Size.openChrome,
+                     "a wide image opens at the tallest it may")
+        suite.expect(Size.openHeight(aspectRatio: 20, width: 400) == Size.minimumOpenImage + Size.openChrome
+                     && Size.openHeight(aspectRatio: 1, width: 100) == 100 + Size.openChrome
+                     && Size.openHeight(aspectRatio: nil, width: 300) == Size.maximumOpenImage + Size.openChrome,
+                     "an open image keeps its proportions within a range, and one with none is taken as wide")
+        suite.expect(NotchLayout.clipboardCompactCardHeight < NotchLayout.clipboardCardHeight && NotchClipboardCardSize.dwell > 0,
+                     "a compact entry is shorter than an open one and opens after a pause")
         let domain = "com.vorssaint.tests.notch"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -1624,6 +1730,63 @@ enum NotchTests {
                 && NotchSupport.clipboardPasteTarget(highlighted: 9, in: [1, 2, 3]) == 1
                 && NotchSupport.clipboardPasteTarget(highlighted: 2, in: [Int]()) == nil,
                "Return pastes the highlighted or first visible clipboard entry, and nothing from an empty list")
+        // Opening the page highlights what was copied last, which is the first recent entry below any pinned ones.
+        suite.expect(NotchSupport.restingClipboardHighlight([(1, true), (2, true), (3, false), (4, false)]) == 3
+                && NotchSupport.restingClipboardHighlight([(1, true), (2, true)]) == 1
+                && NotchSupport.restingClipboardHighlight([(5, false)]) == 5
+                && NotchSupport.restingClipboardHighlight([(Int, Bool)]()) == nil,
+               "the clipboard opens on the entry copied last, not on a pinned one, and on the top pinned one when only those exist")
+        func key(_ code: UInt16, _ characters: String = "", _ modifiers: NSEvent.ModifierFlags = [],
+                 composing: Bool = false) -> NotchClipboardKey? {
+            NotchSupport.clipboardKey(keyCode: code, characters: characters, modifiers: modifiers, composing: composing)
+        }
+        suite.expect(key(126) == .move(backwards: true) && key(125) == .move(backwards: false)
+                && key(36) == .paste && key(76) == .paste,
+               "the arrow keys and Return drive the list while the search field has the focus")
+        suite.expect(key(0, "a") == .reveal && key(0, "Ab") == .reveal && key(0, "ñ") == .reveal && key(40, "ㅎ") == .reveal
+                && key(49, " ") == nil && key(48, "\t") == nil && key(51, "\u{7f}") == nil
+                && key(125, "\u{F701}") == .move(backwards: false),
+               "a typed letter shows the search field and goes on to it, while a space and control keys stay as they are")
+        // Japanese, Chinese and Korean input and the accent keys compose in
+        // the field: its keys, Return and the arrows included, are the input method's.
+        suite.expect(key(36, composing: true) == .reveal && key(125, composing: true) == .reveal
+                && key(0, "a", composing: true) == .reveal && key(36, "", .command, composing: true) == nil,
+               "every key goes on to an input method while it composes")
+        suite.expect(key(36, "", .command) == nil && key(18, "1", .command) == nil && key(0, "a", .command) == nil
+                && key(0, "a", .control) == nil && key(0, "å", .option) == nil,
+               "keys held with Command, Control or Option are left to their own shortcuts")
+        // Arrow keys carry the numeric pad and function flags, which change nothing.
+        suite.expect(key(125, "\u{F701}", [.shift, .numericPad, .function]) == nil && key(126, "", .shift) == nil
+                && key(36, "\r", .shift) == nil && key(76, "\u{3}", .shift) == nil
+                && key(0, "A", .shift) == .reveal && key(125, "\u{F701}", [.numericPad, .function]) == .move(backwards: false),
+               "Shift with an arrow or Return is left to the search field, while a capital letter still shows it")
+        // An open entry is drawn over the list from its row and stays in view
+        // without the list scrolling: up where it would pass the bottom, down
+        // to the top where its row is partly scrolled away.
+        func openOffset(_ rowTop: CGFloat, _ height: CGFloat, in visible: CGFloat) -> CGFloat {
+            NotchSupport.clipboardOpenOffset(rowTop: rowTop, rowHeight: 52, height: height, visibleHeight: visible)
+        }
+        suite.expect(openOffset(20, 120, in: 200) == 0 && openOffset(140, 120, in: 200) == -60
+                && openOffset(170, 120, in: 200) == -90 && openOffset(-20, 120, in: 200) == 20
+                && openOffset(60, 200, in: 200) == -60,
+               "an open clipboard entry stays within the list over the row it opened from")
+        // Once its row has scrolled out of the list, the open entry goes on
+        // from the row's edge with it, instead of staying over other rows.
+        suite.expect(openOffset(-52, 150, in: 300) == 52 && openOffset(-200, 150, in: 300) == 52
+                && openOffset(300, 150, in: 300) == -150 && openOffset(400, 150, in: 300) == -150,
+               "an open clipboard entry scrolls away with its row once the row has left the list")
+        // As the page opens, the list is at its top: rows 8 apart, of which
+        // the highlighted one needs 26 points in view.
+        func openingScroll(_ index: Int, in visible: CGFloat, rowHeight: CGFloat = 104) -> Int {
+            NotchSupport.clipboardOpeningScroll(index: index, rowHeight: rowHeight, spacing: 8, shown: 26,
+                                                visibleHeight: visible)
+        }
+        suite.expect(openingScroll(1, in: 180) == 0 && openingScroll(2, in: 264) == 0 && openingScroll(2, in: 250) == 0
+                && openingScroll(2, in: 172, rowHeight: 52) == 0 && openingScroll(0, in: 20) == 0,
+               "a clipboard list opens at its top while the highlighted row shows its top")
+        suite.expect(openingScroll(2, in: 249) == 1 && openingScroll(2, in: 180) == 1 && openingScroll(3, in: 264) == 1
+                && openingScroll(4, in: 264, rowHeight: 52) == 1 && openingScroll(3, in: 20) == 3,
+               "a clipboard list that must move to show the highlighted row moves by the fewest whole rows")
         suite.expect(NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: false) == 1
                && NotchSupport.steppedItem(from: nil, in: [1, 2, 3], backwards: true) == 1
                && NotchSupport.steppedItem(from: 1, in: [1, 2, 3], backwards: false) == 2

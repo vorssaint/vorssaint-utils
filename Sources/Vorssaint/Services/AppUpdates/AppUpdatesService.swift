@@ -565,10 +565,25 @@ final class AppUpdatesService: ObservableObject {
         setRule(for: item, version: nil)
     }
 
+    /// Excludes an app straight from its bundle, so one that is not in the list
+    /// (up to date, or never matched by a source) can still be left out.
+    func addExclusion(appAt url: URL) {
+        guard !isChecking,
+              let app = Self.scannedApp(at: url, includePublisherFeeds: false) else { return }
+        storeRule(bundleID: app.bundleID, name: app.name, version: nil)
+    }
+
     private func setRule(for item: AppUpdatesSupport.Item, version: String?) {
-        guard !isChecking, let bundleID = item.bundleID, !bundleID.isEmpty,
-              items.contains(item) else { return }
-        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: item.name, version: version)
+        guard !isChecking, let bundleID = item.bundleID, items.contains(item) else { return }
+        storeRule(bundleID: bundleID, name: item.name, version: version)
+    }
+
+    private func storeRule(bundleID: String, name: String, version: String?) {
+        // Same shape `decodedRules` accepts, so a rule saved now survives a reload.
+        guard !bundleID.isEmpty, bundleID.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              !bundleID.contains("/"),
+              !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        let rule = AppUpdatesSupport.UpdateRule(bundleID: bundleID, name: name, version: version)
         saveRules(rules.filter { $0.bundleID != bundleID } + [rule])
     }
 

@@ -118,7 +118,7 @@ extension Strings {
         tabAdvanced: "Avanzado",
         tabAbout: "Acerca de",
         tabReleaseNotes: "Novedades",
-        releaseNotesOnUpdateToggle: "Mostrar novedades al actualizar",
+        releaseNotesOnUpdateToggle: "Mostrar novedades después de actualizar",
         minimalWindowPreviews: "Vistas previas minimalistas",
         minimalWindowPreviewsCaption: "Oculta títulos, botones y adornos en las vistas previas del Dock y del selector. La selección sigue visible.",
         previewSizeLabel: "Tamaño de vistas previas",

@@ -661,6 +661,14 @@ enum MixerRoutingSupport {
         return abs(currentVolume - appliedVolume) < 0.005
     }
 
+    /// Level 0 is still faintly audible on some speakers (built-in MacBook Pro
+    /// speakers sit near -63 dB there), so a headphone disconnect lowered to 0
+    /// also mutes the output. An output that is already muted, or has no mute
+    /// switch, is left alone, so only a mute this feature set is undone later.
+    static func shouldMuteOutputLoweredForDisconnect(lowerToPercent: Int, currentlyMuted: Bool?) -> Bool {
+        lowerToPercent <= 0 && currentlyMuted == false
+    }
+
     /// Pro audio hosts (DAWs and live rack hosts) own their output device,
     /// clock and latency chain; the mixer's stereo-mixdown tap mutes their
     /// real output and replays it elsewhere, which silences them outright

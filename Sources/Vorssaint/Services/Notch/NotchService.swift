@@ -110,6 +110,9 @@ final class NotchService: ObservableObject {
         screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0, cameraWidth: 0)
     @Published private(set) var expanded = false
     @Published private(set) var showsKeyboardFocus = false
+    /// True when macOS refused the island's own shortcut, so Settings can say so.
+    @Published private(set) var shortcutRegistrationFailed = false
+    private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -137,6 +140,12 @@ final class NotchService: ObservableObject {
     /// the strip is where the new song first appears.
     @Published private(set) var heldMusic: NotchCompactMusicSnapshot?
     @Published private(set) var captureActions: AnyView?
+    /// The clipboard page keeps its filter here, and the top row's magnifier
+    /// asks it to open the search, so both can sit in the row and not in the page.
+    /// The filter lasts one opening, as it did while the page kept it.
+    @Published var clipboardPinnedOnly = false
+    @Published private(set) var clipboardSearchRequest = 0
+    func requestClipboardSearch() { clipboardSearchRequest += 1 }
     @Published private(set) var captureContent: AnyView?
     /// Bumped when Command-W asks the Scratchpad page to close its selected
     /// pad, so the confirmation stays in the page as it does in the floating pad.
@@ -394,7 +403,9 @@ final class NotchService: ObservableObject {
     /// follows, so passing over a display edge does not move it.
     private static let pointerFollowDelay: TimeInterval = 0.2
 
-    private init() {}
+    private init() {
+        hotkey.onPress = { [weak self] in self?.toggleFromShortcut() }
+    }
 
     private var hiddenUntilHover: Bool {
         !hiddenInFullscreen && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
@@ -1058,6 +1069,7 @@ final class NotchService: ObservableObject {
             running = true
             installObservers()
         }
+        syncShortcut()
         if !NotchTimerSupport.isEnabled() { NotchTimerService.shared.stop() }
         // A watch keeps reading while the island is away, as on the lock
         // screen, and says so with a notification if it cannot show itself.
@@ -1133,6 +1145,28 @@ final class NotchService: ObservableObject {
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
     }
 
+    /// Like a click on the closed island, the shortcut expands the capture
+    /// controls while they are up and otherwise toggles the island. The controls
+    /// cover the open page and hold collapsing off, so a plain toggle there
+    /// would mark the island open behind them.
+    func toggleFromShortcut() {
+        guard acceptsUserInteraction else { return }
+        if captureControls != nil { expandCaptureControls(); return }
+        toggle()
+    }
+
+    /// Registered whenever the island runs, including while it is away, so the
+    /// shortcut's state does not flicker with the lid or the lock screen;
+    /// `open` already refuses while the island is suspended. Any defaults write
+    /// syncs again, so it also waits while another shortcut field is recording,
+    /// as the window layout keys do.
+    private func syncShortcut() {
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.notchShortcut, fallback: .notchDefault)
+        let failed = !hotkey.sync(enabled: NotchSupport.holdsShortcut() && !ShortcutCapture.isCapturing,
+                                  shortcut: shortcut, storageKey: DefaultsKey.notchShortcut)
+        if failed != shortcutRegistrationFailed { shortcutRegistrationFailed = failed }
+    }
+
     private func refreshModules() {
         let updated = NotchSupport.modules()
         if modules != updated { modules = updated }
@@ -1147,6 +1181,8 @@ final class NotchService: ObservableObject {
 
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
+        hotkey.unregister()
+        if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
@@ -1189,6 +1225,7 @@ final class NotchService: ObservableObject {
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
         pageLayers.removeAll()
+        clipboardPinnedOnly = false
         panel?.handleScroll = nil
         gesture = NotchGestureSupport()
         sectionScroll = NotchSectionScroll()
@@ -1302,6 +1339,10 @@ final class NotchService: ObservableObject {
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
               appPanel: Bool = false, metric: MetricDetailKind? = nil, feedback: Bool = true, sections: Bool = false) {
         guard NotchSupport.isEnabled(), !suspended else { return }
+        // The capture controls cover the open page and hold collapsing off, so
+        // an island opened now would wait behind them and open by itself once
+        // they end. Like a click on the closed island, opening expands them.
+        if captureControls != nil { expandCaptureControls(); return }
         if !running || self.panel == nil { syncWithPreferences() }
         else { refreshModules() }
         guard let panel else { return }
@@ -1367,6 +1408,7 @@ final class NotchService: ObservableObject {
         let closesCommandBar = showingCommandBar
         hoverState.close(pointerInside: windowHost?.containsHover(NSEvent.mouseLocation) == true)
         pinned = false
+        clipboardPinnedOnly = false
         hoverWork?.cancel(); hoverWork = nil
         if noticeExpanded { noticeWork?.cancel(); noticeWork = nil }
         mutatePresentation(transitionContent: expanded || peeking || noticeExpanded ? .dismiss : .none) {

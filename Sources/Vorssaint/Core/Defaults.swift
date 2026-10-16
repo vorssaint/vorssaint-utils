@@ -142,6 +142,10 @@ enum DefaultsKey {
     static let autoCheckUpdates = "autoCheckUpdates"
     static let includeBetaUpdates = "includeBetaUpdates"
     static let releaseNotesOnUpdate = "releaseNotesOnUpdate" // show What's New after an update
+    static let showReleaseNotesBeforeUpdate = "showReleaseNotesBeforeUpdate" // release notes before downloading an update
+    static let whatsNewPendingVersion = "whatsNewPendingVersion" // the update the post-update window starts after
+    static let whatsNewSeenVersion = "whatsNewSeenVersion"   // last version that finished the window
+    static let whatsNewKnownFeatures = "whatsNewKnownFeatures" // comma-joined AppFeature raw values
     static let appVolumes = "appVolumes"                  // [bundle id: 0...2]
     static let appVolumesArePositions = "appVolumesArePositions" // appVolumes hold slider positions, not gains; travels with them so an older backup converts on restore
     static let appOutputDevices = "appOutputDevices"      // [bundle id: audio device UID]
@@ -152,6 +156,7 @@ enum DefaultsKey {
     static let mixerHiddenApps = "mixerHiddenApps"        // [persistence id: display name] kept out of the mixer list (issue #300)
     static let mixerLowerVolumeOnHeadphonesDisconnect = "mixerLowerVolumeOnHeadphonesDisconnect"
     static let mixerHeadphonesDisconnectVolumePercent = "mixerHeadphonesDisconnectVolumePercent"
+    static let mixerHeadphonesDisconnectSilenceAllowed = "mixerHeadphonesDisconnectSilenceAllowed" // one-time: volumes below 10% were rewritten before silence became a choice
     static let preciseVolumeRollerEnabled = "preciseVolumeRollerEnabled"
     static let soundOutputSwitcherEnabled = "soundOutputSwitcherEnabled"
     static let soundOutputSwitcherShortcut = "soundOutputSwitcherShortcut"
@@ -682,6 +687,7 @@ enum DefaultsKey {
     static let screenshotLastBlurLevel = "screenshotLastBlurLevel"
     static let screenshotLastBlurStyle = "screenshotLastBlurStyle"
     static let screenshotLastBlurTextOnly = "screenshotLastBlurTextOnly"
+    static let screenshotSpotlightDim = "screenshotSpotlightDim"
     static let screenshotLastArrowStyle = "screenshotLastArrowStyle"
     static let screenshotLastSticker = "screenshotLastSticker"
     static let screenshotAnnotationShadows = "screenshotAnnotationShadows"
@@ -885,6 +891,8 @@ enum DefaultsKey {
     static let notchCapsuleFitHeight = "notchCapsuleFitHeight"
     static let notchCapsuleFitDrop = "notchCapsuleFitDrop"
     static let notchOpenOnHover = "notchOpenOnHover"
+    static let notchShortcutEnabled = "notchShortcutEnabled"
+    static let notchShortcut = "notchShortcut"
     static let notchHideInFullscreen = "notchHideInFullscreen"
     static let notchHideUntilHover = "notchHideUntilHover"
     static let notchCoversMenus = "notchCoversMenus"
@@ -911,6 +919,7 @@ enum DefaultsKey {
     static let notchBattery = "notchBattery"
     static let notchClipboard = "notchClipboard"
     static let notchClipboardWindow = "notchClipboardWindow"
+    static let notchClipboardCardSize = "notchClipboardCardSize"
     static let notchCapture = "notchCapture"
     static let notchTrackChange = "notchTrackChange"
     // Legacy backup key. Resting content is now selected explicitly by notchIdleContent.
@@ -1274,6 +1283,7 @@ enum Defaults {
         DefaultsKey.autoCheckUpdates: true,
         DefaultsKey.includeBetaUpdates: false,
         DefaultsKey.releaseNotesOnUpdate: true,
+        DefaultsKey.showReleaseNotesBeforeUpdate: true,
         DefaultsKey.updateShowcaseIntroVersion: "",
         DefaultsKey.updateShowcaseMediaOverride: "",
         DefaultsKey.mixerShowFinder: true,
@@ -1281,6 +1291,7 @@ enum Defaults {
         DefaultsKey.mixerAppArrangement: "",
         DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect: false,
         DefaultsKey.mixerHeadphonesDisconnectVolumePercent: defaultMixerHeadphonesDisconnectVolumePercent,
+        DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed: false,
         DefaultsKey.preciseVolumeRollerEnabled: false,
         DefaultsKey.soundOutputSwitcherEnabled: false,
         DefaultsKey.soundOutputSwitcherShortcut: GlobalShortcut.soundOutputSwitcherDefault.storageValue,
@@ -1472,6 +1483,8 @@ enum Defaults {
         DefaultsKey.notchCapsuleFitHeight: 0.0,
         DefaultsKey.notchCapsuleFitDrop: 0.0,
         DefaultsKey.notchOpenOnHover: false,
+        DefaultsKey.notchShortcutEnabled: false,
+        DefaultsKey.notchShortcut: GlobalShortcut.notchDefault.storageValue,
         DefaultsKey.notchHideInFullscreen: false,
         DefaultsKey.notchHideUntilHover: false,
         DefaultsKey.notchCoversMenus: true,
@@ -1495,6 +1508,7 @@ enum Defaults {
         DefaultsKey.notchBattery: true,
         DefaultsKey.notchClipboard: true,
         DefaultsKey.notchClipboardWindow: true,
+        DefaultsKey.notchClipboardCardSize: NotchClipboardCardSize.comfortable.rawValue,
         DefaultsKey.notchCapture: true,
         DefaultsKey.notchTrackChange: true,
         DefaultsKey.notchMusicActivity: false,
@@ -1863,6 +1877,7 @@ enum Defaults {
         DefaultsKey.screenshotLastBlurLevel: ScreenshotSupport.BlurStrength.defaultLevel,
         DefaultsKey.screenshotLastBlurStyle: "pixelate",
         DefaultsKey.screenshotLastBlurTextOnly: false,
+        DefaultsKey.screenshotSpotlightDim: Double(ScreenshotSupport.defaultSpotlightDim),
         DefaultsKey.screenshotLastArrowStyle: "filled",
         DefaultsKey.screenshotLastSticker: "check",
         DefaultsKey.screenshotAnnotationShadows: false,
@@ -2624,24 +2639,31 @@ enum Defaults {
         return min(max(volume, 0), 2)
     }
 
-    /// The volume the speakers are set to when headphones disconnect. It is a
-    /// protection against a sudden blast, not a mute, so it never goes low
-    /// enough to leave the sound inaudible.
-    static let minimumMixerHeadphonesDisconnectVolumePercent = 10
+    /// The volume the speakers are set to when headphones disconnect. At zero
+    /// the lowering also turns their mute on, because the bottom of the level
+    /// range is still faintly audible on some speakers. The default stays
+    /// audible, so turning the option on does not mute them until zero is chosen.
+    static let minimumMixerHeadphonesDisconnectVolumePercent = 0
     static let defaultMixerHeadphonesDisconnectVolumePercent = 25
+    /// The stepper used to stop here. Anything stored below it comes from the
+    /// first release, where an untouched control saved 0.
+    static let legacyMixerHeadphonesDisconnectVolumeFloor = 10
 
     static func sanitizedMixerHeadphonesDisconnectVolumePercent(_ percent: Int) -> Int {
         min(max(percent, minimumMixerHeadphonesDisconnectVolumePercent), 100)
     }
 
-    /// The option shipped with a stored value of 0, so ticking the box without
-    /// touching the stepper silenced the speakers on the next disconnect. A
-    /// value below the floor becomes the sane default.
+    /// Rewrites that accidental silence once. After the marker is saved, 0 is
+    /// a choice and is left alone, including when a backup of that choice is
+    /// restored.
     static func migrateSilentHeadphonesDisconnectVolume(in defaults: UserDefaults) {
-        guard let stored = defaults.object(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) as? Int,
-              stored < minimumMixerHeadphonesDisconnectVolumePercent else { return }
-        defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
-                     forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+        guard !defaults.bool(forKey: DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed) else { return }
+        if let stored = defaults.object(forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent) as? Int,
+           stored < legacyMixerHeadphonesDisconnectVolumeFloor {
+            defaults.set(defaultMixerHeadphonesDisconnectVolumePercent,
+                         forKey: DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
+        }
+        defaults.set(true, forKey: DefaultsKey.mixerHeadphonesDisconnectSilenceAllowed)
     }
 
     /// App volumes were saved as the gain itself until the sliders followed

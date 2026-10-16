@@ -277,7 +277,12 @@ enum NotchLayout {
     static let sectionSpacing: CGFloat = 8
     /// The gallery's row indicator beside the tiles, with its gap.
     static let sectionIndicatorWidth: CGFloat = 12
+    /// The search field the clipboard page shows once it is wanted.
+    static let clipboardSearchHeight: CGFloat = 36
     static let clipboardCardHeight: CGFloat = 104
+    /// One or two lines of the entry, until the pointer rests on it.
+    static let clipboardCompactCardHeight: CGFloat = 52
+    static let clipboardCardSpacing: CGFloat = 8
     static let emptyHeight: CGFloat = 140
     /// The player as a phone's island lays it out: a small cover, the song
     /// beside it, the timeline and one row of buttons across the island,
@@ -602,6 +607,13 @@ enum NotchLayout {
         }
         return (0, min(extras, page), false)
     }}
+
+enum NotchClipboardKey: Equatable {
+    case move(backwards: Bool)
+    case paste
+    /// The key goes on to the search field, which shows to take it.
+    case reveal
+}
 
 struct NotchControlsLayout: Equatable {
     /// The levels a camera's row cannot split evenly, in a row of their own.
@@ -1632,6 +1644,57 @@ enum NotchSupport {
         return query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : ids.first
     }
 
+    /// What opening the clipboard highlights: the entry copied last. Pinned
+    /// entries sit above the recent ones, so it is the first one that is not
+    /// pinned; with only pinned entries, the top of the list.
+    static func restingClipboardHighlight<ID>(_ entries: [(ID, Bool)]) -> ID? {
+        (entries.first { !$0.1 } ?? entries.first)?.0
+    }
+
+    /// What a key does on the clipboard page, whose search field keeps the
+    /// focus while hidden. Up, Down and Return drive the list. A typed letter
+    /// shows the field and goes on to it, so its editor and any input method
+    /// get every key, and so does every key while an input method composes.
+    /// Keys held with Command, Control or Option belong to their own shortcuts,
+    /// and Shift with the arrows or Return to the field, which selects with them.
+    static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
+                             composing: Bool) -> NotchClipboardKey? {
+        guard modifiers.isDisjoint(with: [.command, .control, .option]) else { return nil }
+        guard !composing else { return .reveal }
+        switch keyCode {
+        case 125, 126: return modifiers.contains(.shift) ? nil : .move(backwards: keyCode == 126)
+        case 36, 76: return modifiers.contains(.shift) ? nil : .paste
+        default: break
+        }
+        // Function and arrow keys report private-use characters.
+        let typed = !characters.isEmpty && !characters.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && characters.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }
+        return typed ? .reveal : nil
+    }
+
+    /// How far an open clipboard entry, drawn over the list from its row's top,
+    /// moves so all of it shows: up just enough where it would pass the bottom,
+    /// down to the top where its row is partly scrolled away. It always covers
+    /// the part of its row in view, so the pointer resting there stays on it,
+    /// and once the row has left the list it never moves past the row's edge,
+    /// so it scrolls away with its row instead of staying over the others.
+    static func clipboardOpenOffset(rowTop: CGFloat, rowHeight: CGFloat, height: CGFloat,
+                                    visibleHeight: CGFloat) -> CGFloat {
+        min(rowHeight, max(-height, max(-rowTop, min(0, visibleHeight - rowTop - height))))
+    }
+
+    /// How many whole rows a clipboard list still at its top, as the page
+    /// opens, moves to bring row `index` into view: none while at least
+    /// `shown` points of that row show within `visibleHeight`, and otherwise
+    /// the fewest that show that much. Moving by whole rows keeps the row at
+    /// the list's top whole, where moving only as far as the row needs would
+    /// leave the one above it cut to its last few points.
+    static func clipboardOpeningScroll(index: Int, rowHeight: CGFloat, spacing: CGFloat, shown: CGFloat,
+                                       visibleHeight: CGFloat) -> Int {
+        let lowest = ((visibleHeight - min(shown, rowHeight)) / (rowHeight + spacing)).rounded(.down)
+        return min(max(0, index), max(0, index - Int(lowest)))
+    }
+
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
                                 calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
@@ -1689,6 +1752,11 @@ enum NotchSupport {
 
     static func usesHapticFeedback(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHapticFeedback)
+    }
+
+    /// Whether the island's own shortcut should hold its key.
+    static func holdsShortcut(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchShortcutEnabled)
     }
 
     static func modules(in defaults: UserDefaults = .standard) -> [NotchModule] {
