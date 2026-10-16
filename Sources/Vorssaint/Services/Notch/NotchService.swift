@@ -3941,6 +3941,12 @@ final class NotchService: ObservableObject {
                 self.show(NotchNotice(event: .clipboard, title: text.copied,
                                       detail: text.title, symbol: "doc.on.clipboard"))
             }.store(in: &subscriptions)
+            // A dictation app's paste, found out once it put the old
+            // clipboard back: its notice goes rather than playing out.
+            history.retractedCapture.receive(on: DispatchQueue.main).sink { [weak self] in
+                guard let self, self.notice?.event == .clipboard, !self.noticeExpanded else { return }
+                self.dismissNotice()
+            }.store(in: &subscriptions)
         }
         // The companion loves being plugged in, so it listens for the charger too.
         if NotchSupport.routes(.battery) || idleContent == .battery || NotchMascotSupport.isEnabled() { startPower() }
