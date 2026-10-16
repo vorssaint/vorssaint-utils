@@ -475,7 +475,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.muse, ".local/share/muse/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +500,11 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
+        // Muse keeps approval reviews and tool output beside each session's
+        // log, and its own view caches in hidden folders.
+        if provider == .muse {
+            return path.hasSuffix("/session.jsonl") && !path.dropFirst(prefix.count - 1).contains("/.")
+        }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -573,9 +579,9 @@ final class AgentLogCursor {
         self.path = path
         self.provider = provider
         let name = (path as NSString).lastPathComponent
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        let parent = AgentLogCursor.parent(of: path, provider: provider)
         self.parent = parent
-        tracksTurns = provider == .claude ? parent == nil : (provider == .codex ? !name.contains("_") : true)
+        tracksTurns = parent == nil && (provider == .codex ? !name.contains("_") : true)
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -656,10 +662,19 @@ final class AgentLogCursor {
     }
 
     /// Claude Code keeps a session's subagents in `<session>/subagents/`,
-    /// beside the session's own `<session>.jsonl`.
-    static func parent(of path: String) -> String? {
-        guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
-        return String(path[..<range.lowerBound]) + ".jsonl"
+    /// beside the session's own `<session>.jsonl`. Muse keeps them in
+    /// `<session>/subagent/<id>/session.jsonl`, inside the session's folder.
+    static func parent(of path: String, provider: AgentProvider) -> String? {
+        switch provider {
+        case .claude:
+            guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
+            return String(path[..<range.lowerBound]) + ".jsonl"
+        case .muse:
+            guard let range = path.range(of: "/subagent/", options: .backwards) else { return nil }
+            return String(path[..<range.lowerBound]) + "/session.jsonl"
+        default:
+            return nil
+        }
     }
 }
 
@@ -714,7 +729,7 @@ enum AgentLogReader {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            let subagent = AgentLogCursor.parent(of: url.path, provider: root.provider) != nil
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {

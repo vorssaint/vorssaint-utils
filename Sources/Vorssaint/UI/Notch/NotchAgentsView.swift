@@ -16,13 +16,15 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsMuse) private var muse = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
 
     /// Only agents that left something on this Mac get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil,
+         muse ? .muse : nil].compactMap { $0 }
             .filter(usage.snapshot.seen.contains)
     }
 
@@ -289,8 +291,9 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
-        } else if provider == .opencode {
-            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+        } else if [.opencode, .muse].contains(provider) {
+            // Agents without a plan allowance show what today used instead.
+            let todayUsage = snapshot.usage(.today).byProvider[provider]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
                 let costText: String = {
                     if todayUsage.unpriced > 0 {

@@ -121,6 +121,13 @@ enum AgentUsageReadTests {
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"token_count","rate_limits":{"plan_type":"pro","primary":{"used_percent":42,"window_minutes":300}}}}"#,
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"task_complete","duration_ms":20000}}"#
             ]),
+            (.muse, [
+                #"{"id":"meta","stream":{"kind":"session","id":"s"},"recorded_at":\#(Int(timestamp * 1_000_000)),"payload_type":"runtime.session.metadata","payload":{"kind":"metadata","record":{"workspace_root":"/tmp/example","model_id":"muse-wonder-full-1.0"}}}"#,
+                #"{"id":"start","stream":{"kind":"session","id":"s"},"recorded_at":\#(Int(timestamp * 1_000_000)),"payload_type":"runtime.session","payload":{"kind":"run","run_id":"r","event":{"kind":"started","prompt":"private"}}}"#,
+                #"{"id":"call","stream":{"kind":"session","id":"s"},"recorded_at":\#(Int(timestamp * 1_000_000)),"payload_type":"runtime.session","payload":{"kind":"run","run_id":"r","event":{"kind":"model_completed","usage":{"input_tokens":30,"output_tokens":5,"cached_tokens":20,"cache_read_tokens":20,"reasoning_tokens":2},"model":"muse-wonder-full-1.0"}}}"#,
+                #"{"id":"call","stream":{"kind":"session","id":"s"},"recorded_at":\#(Int(timestamp * 1_000_000)),"payload_type":"runtime.session","payload":{"kind":"run","run_id":"r","event":{"kind":"model_completed","usage":{"input_tokens":30,"output_tokens":5,"cached_tokens":20,"cache_read_tokens":20,"reasoning_tokens":2},"model":"muse-wonder-full-1.0"}}}"#,
+                #"{"id":"end","stream":{"kind":"session","id":"s"},"recorded_at":\#(Int(timestamp * 1_000_000)),"payload_type":"runtime.session","payload":{"kind":"run","run_id":"r","event":{"kind":"terminal","terminal":"completed","turn_duration_ms":20000}}}"#
+            ]),
             (.copilot, [
                 #"{"id":"start","timestamp":\#(timestamp),"type":"session.start","data":{"sessionId":"s","selectedModel":"gpt-6-sol","context":{"cwd":"/tmp/example"}}}"#,
                 #"{"id":"turn","timestamp":\#(timestamp),"type":"user.message","data":{"turnId":"0","content":"private"}}"#,
@@ -145,6 +152,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .muse: entries += provider.reader.parse(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -178,6 +186,7 @@ enum AgentUsageReadTests {
             suite.expect(!host.read(file.path, provider: provider), "a cancelled reading consumes no more entries")
         }
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
+        museSubagentProject(suite, folder: folder.appending(path: "muse"), now: now)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -232,6 +241,30 @@ enum AgentUsageReadTests {
                      "Copilot rescans use the same path boundary and do not duplicate live activity")
     }
 
+    /// Most Muse subagent logs leave out the folder; their usage still
+    /// belongs to the session's project.
+    private static func museSubagentProject(_ suite: TestSuite, folder: URL, now: Date) {
+        let micros = Int(now.timeIntervalSince1970 * 1_000_000)
+        let main = folder.appending(path: "s/session.jsonl")
+        let child = folder.appending(path: "s/subagent/c/session.jsonl")
+        let lines = [
+            (main, #"{"id":"m","stream":{"kind":"session","id":"s"},"recorded_at":\#(micros),"payload":{"kind":"metadata","record":{"workspace_root":"/tmp/project","model_id":"muse-wonder-full-1.0"}}}"#),
+            (child, #"{"id":"cm","stream":{"kind":"session","id":"c"},"recorded_at":\#(micros),"payload":{"kind":"metadata","record":{"model_id":"muse-spark-1.3"}}}"#
+                + "\n" + #"{"id":"cc","stream":{"kind":"session","id":"c"},"recorded_at":\#(micros),"payload":{"kind":"run","run_id":"r","event":{"kind":"model_completed","usage":{"input_tokens":4,"output_tokens":1},"model":"muse-spark-1.3"}}}"#)
+        ]
+        do {
+            for (file, text) in lines {
+                try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try Data((text + "\n").utf8).write(to: file)
+            }
+        } catch { suite.expect(false, "the Muse subagent fixture writes its logs: \(error)"); return }
+        let host = Host()
+        _ = host.read(main.path, provider: .muse)
+        suite.expect(host.read(child.path, provider: .muse)
+                        && host.store.records.first(where: { $0.session == "c" })?.project == "project",
+                     "a Muse subagent's usage counts toward its session's project")
+    }
+
     private static func startup(_ suite: TestSuite, folder: URL, cases: [(AgentProvider, [String])]) {
         defer { AgentLogReader.beforeLine = nil }
         for (provider, lines) in cases {
@@ -239,7 +272,8 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            // Muse reads only a session's own log, never what sits beside it.
+            let file = root.url.appending(path: provider == .muse ? "session/session.jsonl" : "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
