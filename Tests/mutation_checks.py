@@ -451,6 +451,16 @@ MUTATIONS = [
      "return volume.isFinite ? min(max(volume, 0), 1) : nil",
      "return volume",
      "positive infinity main gain is hidden"),
+    ("panel Super key link shows the mapping without Accessibility", "pointer-input",
+     "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+     "? (permissions.accessibility ? mappingLabel : superKeyStrings.manageButton)",
+     "? mappingLabel",
+     "the panel Super key row shows its mapping link only while the key is on with"),
+    ("panel Super key link shows the whole caption sentence", "pointer-input",
+     "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift",
+     "let mappingLabel = \"\\(superKeyStrings.sourceLabel(superKeySource)) \\(keyCaps)\"",
+     "let mappingLabel = modifierCaption",
+     "the panel Super key link reads the key and its key caps without the verb"),
 ]
 
 
