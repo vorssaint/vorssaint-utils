@@ -157,6 +157,8 @@ enum HarnessReaderContractTests {
             case .codex: right = AgentLogParser.parseCodex(data, state: &viaParser, now: now)
             case .opencode: right = AgentLogParser.parseOpenCode(data, state: &viaParser, now: now)
             case .copilot: right = AgentLogParser.parseCopilot(data, state: &viaParser, now: now)
+            // Muse arrived with the reader protocol and never had a parser entry point to match.
+            case .muse: return
             }
             suite.expect(left == right, "\(provider.rawValue) reader matches line \(index)")
             suite.expect(viaReader == viaParser, "\(provider.rawValue) reader keeps line \(index) state")

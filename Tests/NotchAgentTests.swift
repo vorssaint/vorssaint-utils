@@ -21,6 +21,7 @@ enum NotchAgentTests {
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
+        MuseAgentTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -2997,11 +2998,13 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .muse], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .muse], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .muse], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsMuse)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Muse keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3014,7 +3017,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsMuse,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3036,7 +3039,7 @@ enum NotchAgentTests {
         let spend = NotchAgentTile(card: .spend, provider: nil)
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot])
-                        == [limits, codex, trend] && !AgentProvider.copilot.reportsLimits
+                        == [limits, codex, trend] && !AgentProvider.copilot.hasCard
                         && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
                      "only agents whose local logs report plan allowances get a limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)

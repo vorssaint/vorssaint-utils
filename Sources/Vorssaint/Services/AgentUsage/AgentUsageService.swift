@@ -5,7 +5,7 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
+/// Reads Claude Code, Codex, GitHub Copilot and Muse usage from local session logs, and
 /// OpenCode usage from its database, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
@@ -439,11 +439,15 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
+        // A Muse subagent's log seldom names its folder; it works in its
+        // session's, which discovery reads first.
+        let inherited = provider == .muse ? cursor.parent.flatMap { cursors[$0]?.state.project } ?? "" : ""
         var changed = false
         let now = Date()
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
+            if !inherited.isEmpty, cursor.state.project.isEmpty { cursor.state.project = inherited }
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true

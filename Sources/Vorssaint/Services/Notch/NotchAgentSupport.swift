@@ -91,6 +91,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .muse: return DefaultsKey.notchAgentsMuse
         }
     }
 
@@ -240,7 +241,7 @@ enum NotchAgentSupport {
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider]) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
-            case .limits: return providers.filter(\.reportsLimits).map { NotchAgentTile(card: .limits, provider: $0) }
+            case .limits: return providers.filter(\.hasCard).map { NotchAgentTile(card: .limits, provider: $0) }
             // Banked resets belong to a Codex account.
             case .resets: return providers.contains(.codex) ? [NotchAgentTile(card: .resets, provider: .codex)] : []
             default: return [NotchAgentTile(card: card, provider: nil)]
