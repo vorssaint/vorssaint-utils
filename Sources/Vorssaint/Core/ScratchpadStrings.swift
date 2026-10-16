@@ -162,6 +162,8 @@ extension ScratchpadFeatureStrings {
         padLimitFormat: "Du kan ha högst %d kladdblock",
         previewFormatting: "Visa formatering",
         editText: "Redigera text",
+        taskDone: "Klar",
+        taskNotDone: "Inte klar",
         markBold: "Fet",
         markItalic: "Kursiv",
         markStrikethrough: "Genomstruken",

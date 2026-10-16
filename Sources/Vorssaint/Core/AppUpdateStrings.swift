@@ -176,6 +176,7 @@ extension AppUpdateStrings {
         skipVersionFormat: "Hoppa över version %@",
         excludeApp: "Kontrollera inte den här appen",
         rulesTitle: "Uppdateringsregler",
+        addException: "Lägg till en app som inte ska kontrolleras",
         skippedVersionFormat: "Överhoppad version %@",
         excludedApp: "Kontrolleras inte förrän regeln tas bort",
         removeRule: "Ta bort regel",

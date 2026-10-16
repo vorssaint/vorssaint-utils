@@ -243,6 +243,7 @@ extension Strings {
         switcherWindowlessAppsOff: "Visa inte",
         switcherWindowlessAppsFinder: "Endast Finder",
         switcherWindowlessAppsAll: "Alla appar",
+        switcherWindowlessAppsLockedFormat: "Alla appar som körs är åtkomliga så länge ”%@” är aktivt. Stäng av det för att välja.",
         switcherNoOpenWindow: "Inget öppet fönster",
         switcherOtherDesktop: "Andra skrivbord",
         dockPreviewName: "Dock förhandsgranska",

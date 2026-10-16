@@ -89,7 +89,7 @@ extension BackupFeatureStrings {
 
     static let sv = BackupFeatureStrings(
         title: "Säkerhetskopia",
-        description: "Ta med dina inställningar till en annan Mac: exportera alla preferenser till en fil och importera den dit. Dina Scratchpad-anteckningar, urklippshistorik, hyllobjekt och systembehörigheter lämnar aldrig denna Mac.",
+        description: "Ta med dina inställningar till en annan Mac: exportera alla preferenser till en fil och importera den dit. Dina anteckningar i Kladdblock, urklippshistorik, hyllobjekt och systembehörigheter lämnar aldrig denna Mac.",
         exportButton: "Exportera inställningar…",
         importButton: "Importera inställningar…",
         exported: "Säkerhetskopia sparad",
