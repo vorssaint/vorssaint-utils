@@ -1430,7 +1430,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource, breakReminder
 
     var preferenceKey: String {
         switch self {
@@ -1449,13 +1449,14 @@ enum NotchEvent: String, CaseIterable {
         case .battery: return DefaultsKey.notchBattery
         case .clipboard: return DefaultsKey.notchClipboard
         case .capture: return DefaultsKey.notchCapture
+        case .breakReminder: return DefaultsKey.notchBreakReminders
         }
     }
 
     var priority: Int {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
-        case .capture, .timer, .watch: return 2
+        case .capture, .breakReminder, .timer, .watch: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
         }
@@ -1469,7 +1470,7 @@ enum NotchEvent: String, CaseIterable {
         case .agents: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
-        case .capture: return 12
+        case .capture, .breakReminder: return 12
         }
     }
 }
@@ -1861,6 +1862,7 @@ enum NotchSupport {
         case .capture:
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)
+        case .breakReminder: return AppFeature.breakReminders.isAvailable(in: defaults)
         case .track: return modules(in: defaults).contains(.music)
         // A layout notice needs no feature of its own, only its own toggle.
         case .inputSource: return true

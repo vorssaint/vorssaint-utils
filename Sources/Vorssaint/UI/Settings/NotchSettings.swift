@@ -95,6 +95,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = false
     @AppStorage(DefaultsKey.notchHidesMenuBarIcon) private var hidesMenuBarIcon = false
     @AppStorage(DefaultsKey.notchKeepAwakeActivity) private var keepAwakeActivity = false
+    @AppStorage(DefaultsKey.notchBreakReminders) private var breakReminders = true
     @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
@@ -126,7 +127,7 @@ struct NotchSettings: View {
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
          String(returnHome), homeModule, String(opensActivity), String(scratchpad),
-         String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
+         String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled), String(breakReminders)]
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -563,7 +564,7 @@ struct NotchSettings: View {
                 let musicAvailable = NotchSupport.modules().contains(.music)
                 let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable,
                                  batteryAvailable || !hasBattery, accessoriesAvailable, clipboardAvailable, capturesAvailable,
-                                 musicAvailable].allSatisfy { $0 }
+                                 musicAvailable, AppFeature.breakReminders.isAvailable].allSatisfy { $0 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
                     toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: volumeAvailable,
                                reason: AppFeature.mixer.enableReason(l10n), reservesReason: reserves,
@@ -604,6 +605,11 @@ struct NotchSettings: View {
                     toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: capturesAvailable,
                                reason: pageReason(.captures, feature: .screenshot), reservesReason: reserves,
                                unavailableAction: pageAction(.captures, feature: .screenshot))
+                    toggleCard(FeatureStrings.breakReminders(l10n.language).notchToggle,
+                               symbol: AppFeature.breakReminders.symbolName, value: $breakReminders,
+                               available: AppFeature.breakReminders.isAvailable,
+                               reason: AppFeature.breakReminders.enableReason(l10n), reservesReason: reserves,
+                               unavailableAction: { AppFeature.breakReminders.showInFeatures() })
                     toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
                                reason: pageReason(.music, feature: nil), reservesReason: reserves,
                                unavailableAction: pageAction(.music, feature: nil))

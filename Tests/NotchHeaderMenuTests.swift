@@ -28,7 +28,7 @@ enum NotchHeaderMenuTests {
             action()
         }
         func openSettings() {}
-        func collapse() {}
+        func collapse(user: Bool = false) {}
         func toggleSections() {}
         func requestClipboardSearch() { searches += 1 }
         func showUpdate() {}
