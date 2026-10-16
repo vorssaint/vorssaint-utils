@@ -293,8 +293,11 @@ final class AgentUsageStore {
     /// its process ended without a word, or it waits on something outside.
     /// It waits aside for a while, since work can resume after an approval
     /// or a long command.
-    func closeIdleTurns(now: Date, after idle: TimeInterval) {
-        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle {
+    /// `keeping` stays on the island past the idle wait. Cursor's newest
+    /// transcript is still the turn in progress until it writes `turn_ended`,
+    /// even when a long step adds nothing to the file.
+    func closeIdleTurns(now: Date, after idle: TimeInterval, keeping: Set<String> = []) {
+        for (file, turn) in turns where now.timeIntervalSince(turn.lastActivity) >= idle && !keeping.contains(file) {
             turns[file] = nil
             waiting[file] = turn
         }
@@ -468,15 +471,39 @@ final class AgentUsageStore {
 /// Where each agent keeps its session logs.
 struct AgentLogRoot: Equatable {
     let provider: AgentProvider
+    let account: AgentAccount
     let url: URL
 
-    /// Canonical, because file events report real paths: a folder kept as a
-    /// link elsewhere, as dotfile setups do, would otherwise never match.
+    init(provider: AgentProvider, url: URL, account: AgentAccount? = nil) {
+        self.provider = provider
+        self.url = url
+        self.account = account ?? AgentAccount(provider: provider)
+    }
+
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
-        [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
-         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+        let fixed: [(AgentProvider, String)] = [
+            (.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
+            (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+            (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+            (.cursor, ".cursor/projects"),
+        ]
+        return fixed.map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+        } + extras(home: home, provider: .claude, prefix: ".claude-", child: "projects")
+          + extras(home: home, provider: .codex, prefix: ".codex-", child: "sessions")
+    }
+
+    /// `.claude-<slug>/projects` and `.codex-<slug>/sessions` that already exist.
+    private static func extras(home: URL, provider: AgentProvider, prefix: String, child: String) -> [AgentLogRoot] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []
+        return names.filter { $0.hasPrefix(prefix) && $0.count > prefix.count }.sorted().compactMap { name in
+            let slug = String(name.dropFirst(prefix.count))
+            guard !slug.isEmpty else { return nil }
+            let folder = home.appending(path: name).appending(path: child, directoryHint: .isDirectory)
+            var directory = ObjCBool(false)
+            guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &directory), directory.boolValue else { return nil }
+            return AgentLogRoot(provider: provider, url: URL(fileURLWithPath: filePath(folder.path), isDirectory: true),
+                                account: AgentAccount(provider: provider, slug: slug))
         }
     }
 
@@ -488,6 +515,23 @@ struct AgentLogRoot: Equatable {
         return URL(fileURLWithPath: String(cString: resolved), isDirectory: true)
     }
 
+    /// Resolves a path the way file events and discovery usually report it.
+    static func filePath(_ path: String) -> String {
+        guard let resolved = realpath(path, nil) else { return path }
+        defer { free(resolved) }
+        return normalizeResolvedPath(String(cString: resolved))
+    }
+
+    private static func normalizeResolvedPath(_ resolved: String) -> String {
+        if resolved.hasPrefix("/private/var/") {
+            return "/var/" + resolved.dropFirst("/private/var/".count)
+        }
+        if resolved.hasPrefix("/private/tmp/") {
+            return "/tmp/" + resolved.dropFirst("/private/tmp/".count)
+        }
+        return resolved
+    }
+
     var exists: Bool {
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
@@ -495,13 +539,24 @@ struct AgentLogRoot: Equatable {
 
     /// Discovery and live file events admit the same provider-specific logs.
     func accepts(_ path: String) -> Bool {
-        let prefix = url.path + "/"
+        let rootPath = Self.filePath(url.path)
+        let path = Self.filePath(path)
+        let prefix = rootPath + "/"
         guard path.hasPrefix(prefix) else { return false }
-        if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .opencode { return path == Self.filePath(url.appending(path: AgentOpenCodeReader.database).path) }
+        if provider == .cursor { return Self.cursorTranscript(path, under: prefix) }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+    }
+
+    private static func cursorTranscript(_ path: String, under prefix: String) -> Bool {
+        guard path.hasSuffix(".jsonl") else { return false }
+        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 4, parts[1] == "agent-transcripts" else { return false }
+        let file = parts[3]
+        return file.hasSuffix(".jsonl") && parts[2] == file.dropLast(".jsonl".count)
     }
 }
 
@@ -511,6 +566,10 @@ struct AgentLogRoot: Equatable {
 struct AgentSessionRegistry: Equatable {
     /// Session ids, which name their log files, with a running process.
     var running: Set<String> = []
+    /// Session ids whose process stopped because it needs input.
+    var waiting: Set<String> = []
+    /// Short labels from each waiting session record (`waitingFor`), by session id.
+    var waitingReasons: [String: String] = [:]
     /// Session ids whose recorded process no longer runs.
     var ended: Set<String> = []
     /// False when a record could not be read, as while it is being written,
@@ -535,7 +594,20 @@ struct AgentSessionRegistry: Equatable {
                 // A session run in a container or virtual machine that shares
                 // this folder names a process this Mac cannot see.
                 if let domain = json["pidDomain"] as? String, domain != "darwin" { continue }
-                if isRunning(Int32(clamping: pid)) { registry.running.insert(session) } else { registry.ended.insert(session) }
+                if isRunning(Int32(clamping: pid)) {
+                    registry.running.insert(session)
+                    // The question on screen is not written into the transcript
+                    // until it is answered. The session record says so directly.
+                    if json["status"] as? String == "waiting" {
+                        registry.waiting.insert(session)
+                        if let reason = (json["waitingFor"] as? String)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines), !reason.isEmpty {
+                            registry.waitingReasons[session] = String(reason.prefix(80))
+                        }
+                    }
+                } else {
+                    registry.ended.insert(session)
+                }
             }
         }
         // A session resumed by a new process after an old one was killed.
@@ -563,6 +635,12 @@ final class AgentLogCursor {
     var pending = Data()
     var discarding = false
     var state = AgentLogState()
+    /// Cursor question still unanswered. Not archived; Cursor transcripts are reread on launch.
+    var cursorWaiting = false
+    /// Short title of the unanswered question, when the tool named one.
+    var cursorWaitingReason: String?
+    /// The latest line is a finished reply, so the mark stays up without spinning or turning amber.
+    var cursorSettled = false
     var modified = Date.distantPast
     /// Set when the log turned out replaced, cut short or written again after
     /// part of it was read. What its old contents gave is still counted, so
@@ -609,6 +687,9 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        cursorWaiting = false
+        cursorWaitingReason = nil
+        cursorSettled = false
         fingerprinted = nil
     }
 
@@ -715,7 +796,13 @@ enum AgentLogReader {
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
             let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
-            found.append((url.path, root.provider, modified, subagent))
+            let path: String
+            if root.provider == .cursor || !root.url.path.hasPrefix("/private/") {
+                path = AgentLogRoot.filePath(url.path)
+            } else {
+                path = url.path
+            }
+            found.append((path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {
             // OpenCode keeps its database beside the snapshots, clones and
@@ -886,7 +973,7 @@ final class AgentLogWatcher {
         let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagUseCFTypes
                                              | kFSEventStreamCreateFlagWatchRoot)
         guard let created = FSEventStreamCreate(kCFAllocatorDefault, callback, &context, paths as CFArray,
-                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 1.0, flags) else {
+                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 0.25, flags) else {
             return false
         }
         FSEventStreamSetDispatchQueue(created, queue)

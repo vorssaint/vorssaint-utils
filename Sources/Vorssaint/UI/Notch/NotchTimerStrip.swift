@@ -124,7 +124,9 @@ struct NotchCompanionMark: View {
         case .agents:
             let working = Self.working
             HStack(spacing: 1) {
-                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry)) }
+                ForEach(working) { NotchAgentGlyph(provider: $0, size: Self.agentMarkSize(working.count, geometry),
+                                                   working: !usage.meterSettled.contains($0),
+                                                   waiting: usage.meterWaiting.contains($0)) }
             }
         case .calendar:
             if let countdown = calendar.countdown {

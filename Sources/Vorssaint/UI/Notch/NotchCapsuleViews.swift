@@ -384,10 +384,13 @@ struct NotchCapsuleTimerStrip: View {
 /// The working agents' marks, side by side, each in a frame wider than it.
 private struct NotchCapsuleAgentMarks: View {
     let providers: [AgentProvider]
+    var waiting: Set<AgentProvider> = []
+    var settled: Set<AgentProvider> = []
 
     var body: some View {
         HStack(spacing: 1) {
-            ForEach(providers) { NotchAgentGlyph(provider: $0, size: CapsuleLayout.agentMarkSize(working: providers.count)) }
+            ForEach(providers) { NotchAgentGlyph(provider: $0, size: CapsuleLayout.agentMarkSize(working: providers.count),
+                                                 working: !settled.contains($0), waiting: waiting.contains($0)) }
         }
     }
 }
@@ -418,7 +421,7 @@ private struct NotchCapsuleCompanionMark: View {
         case .agents:
             NotchCapsuleAgentMarks(providers: AgentProvider.allCases.filter { provider in
                 usage.snapshot.live.contains { $0.provider == provider }
-            })
+            }, waiting: usage.meterWaiting, settled: usage.meterSettled)
         case .music:
             let side = CapsuleLayout.artworkSide(geometry)
             NotchMusicCover(artwork: music.artwork, side: side, radius: side / 2)
@@ -459,7 +462,7 @@ struct NotchCapsuleAgentStrip: View {
         let working = working(live)
         NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
             HStack(spacing: CapsuleLayout.spacing) {
-                NotchCapsuleAgentMarks(providers: working)
+                NotchCapsuleAgentMarks(providers: working, waiting: usage.meterWaiting, settled: usage.meterSettled)
                 NotchAgentReadoutTimeline(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed) { date in
                     let text = reading(at: date, live: live)
                     Text(text)

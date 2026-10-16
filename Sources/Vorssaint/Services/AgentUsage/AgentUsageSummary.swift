@@ -60,6 +60,28 @@ struct AgentPeriodUsage: Equatable {
 
     /// Whether every response in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
+
+    /// Totals, models and projects for the assistants the page is showing.
+    /// Always rebuilt from `byProvider` so a focused tab never keeps another
+    /// assistant's headline cost.
+    func restricted(to providers: [AgentProvider]) -> AgentPeriodUsage {
+        guard !providers.isEmpty else { return AgentPeriodUsage() }
+        let keep = Set(providers)
+        var usage = AgentPeriodUsage()
+        for provider in providers {
+            guard let part = byProvider[provider] else { continue }
+            usage.byProvider[provider] = part
+            usage.total += part
+        }
+        let byCost = usage.fullyPriced
+        usage.models = AgentUsageSummary.sorted(models.filter { share in
+            share.provider.map(keep.contains) ?? false
+        }, byCost: byCost)
+        usage.projects = AgentUsageSummary.sorted(projects.filter { share in
+            share.provider.map(keep.contains) ?? false
+        }, byCost: byCost)
+        return usage
+    }
 }
 
 /// A day or an hour of use.
@@ -70,6 +92,16 @@ struct AgentBucket: Equatable, Identifiable {
 
     var total: AgentTotals {
         byProvider.values.reduce(into: AgentTotals()) { $0 += $1 }
+    }
+
+    func total(for providers: [AgentProvider]) -> AgentTotals {
+        providers.reduce(into: AgentTotals()) { $0 += byProvider[$1] ?? AgentTotals() }
+    }
+
+    func restricted(to providers: [AgentProvider]) -> AgentBucket {
+        AgentBucket(start: start, byProvider: Dictionary(uniqueKeysWithValues: providers.compactMap { provider in
+            byProvider[provider].map { (provider, $0) }
+        }))
     }
 }
 
@@ -170,8 +202,9 @@ enum AgentUsageSummary {
                     id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
                     .totals.add(record)
                 if !record.project.isEmpty {
-                    projects[period, default: [:]][record.project, default: AgentShare(
-                        id: record.project, name: record.project, provider: nil, totals: AgentTotals())]
+                    let projectID = record.provider.rawValue + ":" + record.project
+                    projects[period, default: [:]][projectID, default: AgentShare(
+                        id: projectID, name: record.project, provider: record.provider, totals: AgentTotals())]
                         .totals.add(record)
                 }
             }
@@ -213,7 +246,9 @@ enum AgentUsageSummary {
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
         shares.sorted {
             let left = $0.totals.weight(byCost: byCost), right = $1.totals.weight(byCost: byCost)
-            return left != right ? left > right : $0.name < $1.name
+            if left != right { return left > right }
+            if $0.name != $1.name { return $0.name < $1.name }
+            return $0.id < $1.id
         }
     }
 
@@ -390,8 +425,9 @@ final class AgentUsageSummaryCache {
             models[period, default: [:]][modelID, default: AgentShare(
                 id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
             if !record.project.isEmpty {
-                projects[period, default: [:]][record.project, default: AgentShare(
-                    id: record.project, name: record.project, provider: nil, totals: AgentTotals())].totals += delta
+                let projectID = record.provider.rawValue + ":" + record.project
+                projects[period, default: [:]][projectID, default: AgentShare(
+                    id: projectID, name: record.project, provider: record.provider, totals: AgentTotals())].totals += delta
             }
         }
     }
