@@ -67,6 +67,10 @@ enum NotchAgentSupport {
     static let budgets = [0.0, 5, 10, 25, 50, 100, 250]
     /// A turn silent for this long is not shown as working.
     static let idleTurn: TimeInterval = 10 * 60
+    /// Agents announce that they wait for you by posting this distributed
+    /// notification with "question" or "permission" as its object, as a
+    /// Claude Code hook can with `osascript`. Logs never say so.
+    static let inputNotification = Notification.Name("com.vorssaint.agent-input")
 
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && sectionShows(in: defaults)
@@ -354,5 +358,45 @@ enum AgentFormat {
         var style = Date.FormatStyle(date: .abbreviated, time: .omitted).locale(locale)
         style.timeZone = .gmt
         return date.formatted(style)
+    }
+}
+
+/// The finished notice's cash register, synthesized so no audio file ships:
+/// a drawer's clunk, then a bell struck twice.
+enum AgentAlertTone {
+    static func cashRegister(rate: Int = 44_100) -> Data {
+        let strikes: [(at: Float, gain: Float)] = [(0.07, 1), (0.14, 0.7)]
+        let partials: [(hz: Float, gain: Float)] = [(2637, 1), (3520, 0.6), (4186, 0.45), (5274, 0.3)]
+        var seed: UInt32 = 0x5EED // fixed noise, so every play sounds the same
+        var samples = [Float](repeating: 0, count: rate * 9 / 10)
+        for i in samples.indices {
+            let t = Float(i) / Float(rate)
+            seed = seed &* 1_664_525 &+ 1_013_904_223
+            let noise = Float(Int32(bitPattern: seed)) / Float(Int32.max)
+            var value: Float = 0
+            if t < 0.05 { value += (noise * 0.5 + sin(2 * .pi * 180 * t) * 0.6) * exp(-t / 0.012) }
+            for strike in strikes where t >= strike.at {
+                let u = t - strike.at
+                for partial in partials {
+                    value += strike.gain * partial.gain * 0.25 * sin(2 * .pi * partial.hz * u) * exp(-u / 0.25)
+                }
+            }
+            samples[i] = value
+        }
+        let peak = max(samples.map(abs).max() ?? 0, .leastNonzeroMagnitude)
+        return wav(samples.map { $0 / peak * 0.8 }, rate: rate)
+    }
+
+    /// 16-bit mono PCM in a RIFF container.
+    static func wav(_ samples: [Float], rate: Int) -> Data {
+        var data = Data()
+        func put<T: FixedWidthInteger>(_ value: T) { withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) } }
+        let bytes = UInt32(samples.count * 2)
+        data.append(contentsOf: Array("RIFF".utf8)); put(36 + bytes)
+        data.append(contentsOf: Array("WAVEfmt ".utf8)); put(UInt32(16)); put(UInt16(1)); put(UInt16(1))
+        put(UInt32(rate)); put(UInt32(rate * 2)); put(UInt16(2)); put(UInt16(16))
+        data.append(contentsOf: Array("data".utf8)); put(bytes)
+        for sample in samples { put(Int16(max(-1, min(1, sample)) * Float(Int16.max))) }
+        return data
     }
 }

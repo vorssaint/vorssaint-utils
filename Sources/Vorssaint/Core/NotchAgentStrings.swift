@@ -1599,3 +1599,49 @@ extension NotchAgentStrings {
         resetsCheckFailed: "無法檢查重設",
         resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
 }
+
+/// The island's notices for an agent that waits for you, and their sounds.
+struct AgentAlertStrings {
+    let questionFormat: String
+    let permissionFormat: String
+    let waiting: String
+    let sounds: String
+
+    func question(_ agent: String) -> String { String(format: questionFormat, agent) }
+    func permission(_ agent: String) -> String { String(format: permissionFormat, agent) }
+}
+
+extension FeatureStrings {
+    static func agentAlerts(_ language: AppLanguage) -> AgentAlertStrings {
+        switch language {
+        case .enUS: return AgentAlertStrings(questionFormat: "%@ has a question",
+            permissionFormat: "%@ needs your permission", waiting: "Waiting for you", sounds: "Play sounds")
+        case .ptBR: return AgentAlertStrings(questionFormat: "%@ tem uma pergunta",
+            permissionFormat: "%@ precisa da sua permissão", waiting: "Aguardando você", sounds: "Tocar sons")
+        case .tr: return AgentAlertStrings(questionFormat: "%@ bir soru soruyor",
+            permissionFormat: "%@ izninizi istiyor", waiting: "Sizi bekliyor", sounds: "Ses çal")
+        case .ru: return AgentAlertStrings(questionFormat: "У %@ есть вопрос",
+            permissionFormat: "%@ запрашивает разрешение", waiting: "Ждёт вас", sounds: "Воспроизводить звуки")
+        case .es: return AgentAlertStrings(questionFormat: "%@ tiene una pregunta",
+            permissionFormat: "%@ necesita tu permiso", waiting: "Te está esperando", sounds: "Reproducir sonidos")
+        case .sk: return AgentAlertStrings(questionFormat: "%@ má otázku",
+            permissionFormat: "%@ žiada o povolenie", waiting: "Čaká na vás", sounds: "Prehrávať zvuky")
+        case .de: return AgentAlertStrings(questionFormat: "%@ hat eine Frage",
+            permissionFormat: "%@ bittet um Erlaubnis", waiting: "Wartet auf Eingabe", sounds: "Töne abspielen")
+        case .fr: return AgentAlertStrings(questionFormat: "%@ a une question",
+            permissionFormat: "%@ demande une autorisation", waiting: "En attente de réponse", sounds: "Jouer des sons")
+        case .it: return AgentAlertStrings(questionFormat: "%@ ha una domanda",
+            permissionFormat: "%@ chiede il permesso", waiting: "Ti sta aspettando", sounds: "Riproduci suoni")
+        case .ja: return AgentAlertStrings(questionFormat: "%@から質問があります",
+            permissionFormat: "%@が許可を求めています", waiting: "入力を待っています", sounds: "サウンドを再生")
+        case .ko: return AgentAlertStrings(questionFormat: "%@에게 질문이 있습니다",
+            permissionFormat: "%@에서 권한을 요청합니다", waiting: "입력을 기다리는 중", sounds: "소리 재생")
+        case .uk: return AgentAlertStrings(questionFormat: "У %@ є запитання",
+            permissionFormat: "%@ просить дозволу", waiting: "Чекає на вас", sounds: "Відтворювати звуки")
+        case .zhHans: return AgentAlertStrings(questionFormat: "%@ 有一个问题",
+            permissionFormat: "%@ 需要你的许可", waiting: "正在等你", sounds: "播放声音")
+        case .zhTW, .zhHK: return AgentAlertStrings(questionFormat: "%@ 有一個問題",
+            permissionFormat: "%@ 需要你的許可", waiting: "正在等你", sounds: "播放聲音")
+        }
+    }
+}
