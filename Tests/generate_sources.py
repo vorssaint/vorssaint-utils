@@ -497,6 +497,13 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func copyAnswer(").replace("private static", "static", 1)
           + "}\n")
+    write("CommandBarRunScript.swift", "import Foundation\n"
+          + "extension CommandBarFeatureTests.ScriptRunHost {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    private static func runScript(").replace("private static", "static", 1)
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarScriptRunner.swift",
+                        "final class CommandBarScriptRunner {")
+          + "}\n")
     write("CommandBarSelection.swift", "import Foundation\nextension CommandBarSelectionTests {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift", "enum CommandBarText {")
           + "final class Catalog: Fixture {\n"

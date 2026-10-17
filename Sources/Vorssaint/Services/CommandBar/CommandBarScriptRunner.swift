@@ -8,9 +8,9 @@ import Foundation
 /// typed so a later keystroke never overwrites the screen with a stale
 /// answer meant for a different query.
 ///
-/// Not part of the pure-function test harness (`./build.sh --test`): the
-/// behavior here is a background process and a timer, not a calculation.
-/// Verified by hand against a real saved script link instead.
+/// The behavior here is a background process and a timer, not a
+/// calculation, so the command bar tests run a copy of it against small
+/// scripts they write instead of checking it as a pure function.
 final class CommandBarScriptRunner {
     struct Result: Equatable {
         let text: String
@@ -69,18 +69,20 @@ final class CommandBarScriptRunner {
     }
 
     /// Runs at once instead of waiting out the debounce, for the moment
-    /// Return is pressed before a result exists yet.
-    func runNow(link: CommandBarLink, argument: String) {
+    /// Return is pressed before a result exists yet. `answered` is called once
+    /// that run has a result cached, its output or the failure text, which a
+    /// run that succeeds without printing never has.
+    func runNow(link: CommandBarLink, argument: String, answered: (() -> Void)? = nil) {
         guard cachedResult(linkID: link.id, argument: argument) == nil,
               !inFlight.contains(key(link.id, argument)) else { return }
         cancelPending()
-        execute(link: link, argument: argument)
+        execute(link: link, argument: argument, answered: answered)
     }
 
     /// A run waits out its debounce or is going.
     var isAwaiting: Bool { pendingWorkItem != nil || !inFlight.isEmpty }
 
-    private func execute(link: CommandBarLink, argument: String) {
+    private func execute(link: CommandBarLink, argument: String, answered: (() -> Void)? = nil) {
         pendingWorkItem = nil
         let cacheKey = key(link.id, argument)
         let runGeneration = generation
@@ -99,6 +101,7 @@ final class CommandBarScriptRunner {
                 guard let text = text ?? (status == 0 ? nil : self.failureText) else { return }
                 self.cache[cacheKey] = Result(text: text)
                 self.onResult?()
+                answered?()
             }
         }
     }

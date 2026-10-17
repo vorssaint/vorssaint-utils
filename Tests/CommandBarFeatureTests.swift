@@ -36,6 +36,57 @@ enum CommandBarFeatureTests {
         typealias QuickToolHUD = HUD
     }
 
+    /// Runs the production `runScript` and script runner against a bar that
+    /// keeps only what a script row touches: the field, the selected row, the
+    /// mode, the saved links, and the part of its refresh that runs whichever
+    /// script the field names.
+    enum ScriptRunHost {
+        final class Defaults {
+            static let standard = Defaults()
+            var links: [CommandBarLink] = []
+            func data(forKey key: String) -> Data? {
+                key == DefaultsKey.commandBarLinks ? CommandBarLinks.encode(links) : nil
+            }
+        }
+        typealias UserDefaults = Defaults
+        enum Mode { case search, naming, argument }
+        struct Row { let id: String }
+        final class Bar {
+            static let shared = Bar()
+            let scriptRunner = CommandBarScriptRunner()
+            var queryWhenRun = ""
+            var query = "" { didSet { if query != oldValue { refresh() } } }
+            var mode = Mode.search
+            var selectedEntry: Row?
+            var prefilled: [String] = []
+            var hidden = 0
+            init() { scriptRunner.onResult = { [weak self] in self?.refresh() } }
+            func prefill(_ text: String) {
+                prefilled.append(text)
+                query = text
+            }
+            func hide() { hidden += 1 }
+            /// As the bar's refresh does: a script the field names shows its
+            /// cached answer, or runs once typing pauses when it has none.
+            func refresh() {
+                let text = query.trimmingCharacters(in: .whitespaces)
+                guard mode == .search, !text.isEmpty else { return }
+                guard let match = CommandBarLinks.matchingScriptLink(in: Defaults.standard.links, query: text) else {
+                    scriptRunner.cancelPending()
+                    return
+                }
+                if scriptRunner.cachedResult(linkID: match.link.id, argument: match.argument) != nil {
+                    scriptRunner.cancelPending()
+                } else {
+                    scriptRunner.schedule(link: match.link, argument: match.argument)
+                }
+            }
+        }
+        typealias CommandBarService = Bar
+        static var copied: [String] = []
+        static func copyAnswer(_ text: String) { copied.append(text) }
+    }
+
     /// Runs the production `applyBrightness` with two screens, one of which
     /// the brightness service cannot drive, and records where it lands.
     enum BrightnessHost {
@@ -424,6 +475,104 @@ enum CommandBarFeatureTests {
                     : shown.map(\.icon) == ["exclamationmark.circle"]
                         && shown.map(\.message) == [FeatureStrings.commandBar(L10n.shared.language).copyFailed],
                    "a copied answer shows the value only when the pasteboard took it, found \(shown)")
+        }
+        do {
+            // Scripts that note each run in a file of their own, for the
+            // production runner to run the way the bar does.
+            let folder = FileManager.default.temporaryDirectory.appending(path: "vorss-script-runs-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            func script(_ name: String, printing output: String, failing: Bool = false) -> CommandBarLink {
+                let file = folder.appending(path: UUID().uuidString)
+                let body = "#!/bin/sh\necho run >> \"$0.runs\"\n" + (output.isEmpty ? "" : "echo '\(output)'\n")
+                    + (failing ? "exit 3\n" : "")
+                FileManager.default.createFile(atPath: file.path, contents: Data(body.utf8),
+                                               attributes: [.posixPermissions: 0o755])
+                return CommandBarLink(name: name, kind: .script, destination: file.path, runsWithoutArgument: true)
+            }
+            func runs(_ link: CommandBarLink) -> Int {
+                ((try? String(contentsOfFile: link.destination + ".runs", encoding: .utf8)) ?? "")
+                    .split(separator: "\n").count
+            }
+            let bar = ScriptRunHost.Bar.shared
+            func settle() {
+                let deadline = Date().addingTimeInterval(5)
+                while bar.scriptRunner.isAwaiting && Date() < deadline {
+                    RunLoop.main.run(until: Date().addingTimeInterval(0.005))
+                }
+            }
+            // Return on a script row, then one more refresh once its run is
+            // over, as a background load landing brings. That refresh must not
+            // run anything again. `meanwhile` is what the person does while the
+            // script runs. With an empty field, as from the script's own
+            // shortcut, the selected row is whatever leads the bar.
+            func returnOnScript(_ link: CommandBarLink, typed: String, saved: [CommandBarLink],
+                                sameOpening: Bool = false, meanwhile: () -> Void = {}) {
+                if !sameOpening { bar.scriptRunner.reset() }
+                ScriptRunHost.Defaults.standard.links = saved
+                bar.mode = .search
+                bar.query = typed
+                bar.queryWhenRun = typed
+                bar.selectedEntry = ScriptRunHost.Row(id: typed.isEmpty ? "action.screenshot" : "link.\(link.id.uuidString)")
+                bar.prefilled = []
+                bar.hidden = 0
+                ScriptRunHost.copied = []
+                ScriptRunHost.runScript(link)
+                meanwhile()
+                settle()
+                bar.refresh()
+                settle()
+            }
+            for typed in ["co", ""] {
+                let place = typed.isEmpty ? "its shortcut" : "part of its name"
+                let copyPath = script("Copy Path", printing: "/tmp/notes")
+                returnOnScript(copyPath, typed: typed, saved: [copyPath])
+                let shown = CommandBarLinks.matchingScriptLink(in: [copyPath], query: bar.query)
+                let answer = shown.flatMap { bar.scriptRunner.cachedResult(linkID: $0.link.id, argument: $0.argument) }
+                suite.expect(runs(copyPath) == 1 && bar.prefilled == ["Copy Path"] && shown?.link.id == copyPath.id
+                             && answer?.text == "/tmp/notes" && ScriptRunHost.copied.isEmpty && bar.hidden == 0,
+                       "a script run from \(place) runs once, then puts its name in the field, which brings up its answer, found \(runs(copyPath)) runs and \(bar.prefilled)")
+                let toggle = script("Toggle Dark Mode", printing: "")
+                returnOnScript(toggle, typed: typed, saved: [toggle])
+                suite.expect(runs(toggle) == 1 && bar.prefilled.isEmpty && bar.query == typed,
+                       "a script run from \(place) that succeeds without printing runs once and leaves the field alone, found \(runs(toggle)) runs and \(bar.prefilled)")
+            }
+            let failing = script("Copy Path", printing: "", failing: true)
+            returnOnScript(failing, typed: "co", saved: [failing])
+            suite.expect(runs(failing) == 1 && bar.prefilled == ["Copy Path"]
+                         && bar.scriptRunner.cachedResult(linkID: failing.id, argument: "")?.text
+                            == FeatureStrings.commandBar(L10n.shared.language).scriptRunFailed,
+                   "a script that fails without printing runs once and gets its name in the field, which brings up the failure, found \(runs(failing)) runs and \(bar.prefilled)")
+            let meanwhiles: [(what: String, typed: String, left: String, action: () -> Void)] = [
+                ("the field is edited", "co", "cop", { bar.query = "cop" }),
+                ("another row is selected", "co", "co", { bar.selectedEntry = ScriptRunHost.Row(id: "app.other") }),
+                ("the bar asks for a name", "", "", { bar.mode = .naming; bar.query = "" }),
+                ("the bar asks for a value", "", "", { bar.mode = .argument; bar.query = "" }),
+            ]
+            for meanwhile in meanwhiles {
+                let copyPath = script("Copy Path", printing: "/tmp/notes")
+                returnOnScript(copyPath, typed: meanwhile.typed, saved: [copyPath], meanwhile: meanwhile.action)
+                suite.expect(runs(copyPath) == 1 && bar.prefilled.isEmpty && bar.query == meanwhile.left,
+                       "if \(meanwhile.what) while a script runs, its name stays out of the field, found \(bar.prefilled) and \"\(bar.query)\"")
+            }
+            let first = script("Deploy", printing: "staging")
+            let second = script("deploy", printing: "production")
+            returnOnScript(second, typed: "dep", saved: [first, second])
+            suite.expect(runs(first) == 0 && runs(second) == 1 && bar.prefilled.isEmpty,
+                   "of two scripts saved under the same name, only the one picked runs and the field stays as typed, found \(runs(first)) and \(runs(second)) runs")
+            let copyPath = script("Copy Path", printing: "/tmp/notes")
+            returnOnScript(copyPath, typed: "copy path", saved: [copyPath])
+            suite.expect(runs(copyPath) == 1 && bar.prefilled.isEmpty && bar.query == "copy path",
+                   "a script already named in the field runs once without touching what was typed")
+            returnOnScript(copyPath, typed: "co", saved: [copyPath], sameOpening: true)
+            suite.expect(ScriptRunHost.copied == ["/tmp/notes"] && bar.hidden == 1
+                         && bar.prefilled.isEmpty && runs(copyPath) == 1,
+                   "a script that already answered copies the answer and closes the bar")
+            var needsInput = script("Copy Path", printing: "/tmp/notes")
+            needsInput.runsWithoutArgument = false
+            returnOnScript(needsInput, typed: "co", saved: [needsInput])
+            suite.expect(bar.prefilled == ["Copy Path "] && runs(needsInput) == 0,
+                   "a script that needs input still asks for it instead of running")
         }
         for (x, expected, beeps) in [(50.0, [CGDirectDisplayID(2)], 0), (150.0, [], 1)] {
             BrightnessHost.Event.mouseLocation = NSPoint(x: x, y: 50)

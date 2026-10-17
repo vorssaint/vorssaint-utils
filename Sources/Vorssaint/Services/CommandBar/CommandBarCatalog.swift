@@ -1481,7 +1481,27 @@ enum CommandBarCatalog {
             service.hide()
             return
         }
-        service.scriptRunner.runNow(link: link, argument: argument)
+        // The answer row only comes up for text that names the script, so a
+        // row reached any other way gets the name once its run has answered.
+        // Sooner, a run that succeeds without printing would leave a field
+        // naming the script, and the next refresh would run it again. Never
+        // when that name brings up another script saved under it, which
+        // would run too.
+        let savedLinks = CommandBarLinks.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.commandBarLinks))
+        let needsName = CommandBarLinks.scriptArgument(for: link, query: typed) == nil
+            && CommandBarLinks.matchingScriptLink(in: savedLinks, query: link.name)?.link.id == link.id
+        // Whatever row is selected now. It is not the script's own row when
+        // the script ran from its shortcut or from ⌘ and a number.
+        let selected = service.selectedEntry?.id
+        service.scriptRunner.runNow(link: link, argument: argument) {
+            // Only if nothing happened since Return. An edited field, a
+            // selection that moved, or a field now asking for a name or a
+            // value must not get the script's name.
+            guard needsName, case .search = service.mode, service.selectedEntry?.id == selected,
+                  service.query.trimmingCharacters(in: .whitespaces) == typed else { return }
+            service.prefill(link.name)
+        }
     }
 
     /// The row a saved script shows once it has answered: the same shape as
