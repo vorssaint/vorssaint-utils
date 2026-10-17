@@ -121,6 +121,7 @@ private extension PanelSectionID {
     func description(_ text: GeneralSettingsStrings) -> String {
         switch self {
         case .keepAwake: return text.sectionKeepAwake
+        case .powerTimer: return FeatureStrings.powerTimer(L10n.shared.language).description
         case .brightness: return text.sectionDisplays
         case .mixer: return text.sectionMixer
         case .system: return text.sectionSystem
