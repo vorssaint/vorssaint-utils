@@ -193,6 +193,8 @@ enum NotchVolumeFeedbackTests {
             suite.expect(service.presented.isEmpty, "stopping observation cancels volume feedback")
         }
 
+        bannerChecks(suite, drain)
+
         // The command bar writes a level and then reports it, because the
         // observer can have nothing new to show for that write.
         let mixer = AppVolumeMixer()
@@ -293,5 +295,39 @@ enum NotchVolumeFeedbackTests {
         suite.expect(island.presented.count == 2 && island.notice?.level == 0.42 + 1.0 / 16,
                "a key press after the ramp reports from the level the ramp left behind")
         island.subscriptions.removeAll()
+    }
+
+    /// macOS raises its own volume banner for a level set outside the keys,
+    /// such as an AirPods swipe. The banner may leave only while the island
+    /// shows that level itself, so no change is left without feedback.
+    private static func bannerChecks(_ suite: TestSuite, _ drain: () -> Void) {
+        let mixer = AppVolumeMixer()
+        AppVolumeMixer.shared = mixer
+        let service = Service()
+        service.bindVolumeEvents()
+        drain()
+        suite.expect(!service.showsVolumeNotice, "with no change shown, macOS keeps its volume banner")
+        mixer.systemOutputVolume = 0.3 + 8.0 / 127
+        drain()
+        suite.expect(service.showsVolumeNotice, "an AirPods-sized step shows in the island, so its banner can leave")
+        service.showsSystemFeedback = false
+        suite.expect(!service.showsVolumeNotice, "an island hidden mid-notice gives the banner back")
+        service.showsSystemFeedback = true
+        service.notice = nil
+        mixer.systemOutputVolume = (mixer.systemOutputVolume ?? 0) + 0.01
+        drain()
+        suite.expect(!service.showsVolumeNotice, "a change the island rides quietly keeps macOS' banner")
+        service.showsSystemFeedback = false
+        mixer.systemOutputVolume = 0.6
+        drain()
+        suite.expect(!service.showsVolumeNotice, "a hidden island keeps macOS' banner")
+        service.showsSystemFeedback = true
+        mixer.publish(device: "speakers", volume: nil, muted: nil)
+        drain()
+        mixer.systemOutputMuted = true
+        drain()
+        suite.expect(service.notice == nil && !service.showsVolumeNotice,
+                     "an output without a readable level or mute keeps macOS' banner")
+        service.subscriptions.removeAll()
     }
 }

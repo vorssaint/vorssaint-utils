@@ -887,6 +887,7 @@ def main():
               "    func noteOwnLevelAdjustment(", "    private func ownsLevelAdjustment(",
               "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
+          + declaration(notch, "    var showsVolumeNotice: Bool {")
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
