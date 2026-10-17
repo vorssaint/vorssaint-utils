@@ -456,13 +456,15 @@ def main():
               "private final class", "final class", 1)
           + "}\n")
     paste_plain = "Sources/Vorssaint/Services/QuickTools/PastePlainService.swift"
-    write("PastePlain.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
+    write("PastePlain.swift", "import AppKit\nimport Carbon.HIToolbox\nimport UniformTypeIdentifiers\n"
           + "extension PastePlainTests {\nfinal class Service: Fixture {\n"
           + "".join(declaration(paste_plain, prefix).replace("private func", "func", 1)
                     for prefix in ["    func performPastePlain()", "    private func pastePlain(",
                                    "    static func plainText("])
           + "}\n}\nextension PastePlainTests.OriginalPasteHost {\n"
-          + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "    func pasteCurrentContents(")
+          + "".join(declaration("Sources/Vorssaint/Services/TransientPaste.swift", prefix).replace(
+              "private func", "func", 1)
+                    for prefix in ["    func pasteCurrentContents(", "    private func forwardShortcut("])
           + "}\n")
     write("URLCleanerSiteSwitch.swift", "import Foundation\n"
           + "extension RepositoryFeatureTests.URLCleanerSiteSwitchHost {\n"

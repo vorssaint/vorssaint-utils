@@ -25,14 +25,33 @@ final class TransientPaste {
     func pasteCurrentContents(willPostShortcut: (() -> Void)? = nil,
                               didPostShortcut: (() -> Void)? = nil,
                               didFail: (() -> Void)? = nil) -> Bool {
+        forwardShortcut(keyCode: kVK_ANSI_V, willPost: willPostShortcut,
+                        didPost: didPostShortcut, didFail: didFail)
+    }
+
+    /// Sends the copy shortcut to the app in front, after the same modifier
+    /// wait. The app copies its own content, with its formatting, so the
+    /// clipboard and its history get a real copy.
+    @discardableResult
+    func forwardCopy(didFail: (() -> Void)? = nil) -> Bool {
+        forwardShortcut(keyCode: kVK_ANSI_C, willPost: nil, didPost: nil, didFail: didFail)
+    }
+
+    /// Sends one Command shortcut to the app in front, after the modifier
+    /// wait. One shortcut at a time: false while another one is in progress.
+    private func forwardShortcut(keyCode: Int,
+                                 willPost: (() -> Void)?,
+                                 didPost: (() -> Void)?,
+                                 didFail: (() -> Void)?) -> Bool {
         guard Thread.isMainThread, !isPerforming else { return false }
         isPerforming = true
         GeneralPasteboardAccess.shared.async({ NSPasteboard.general.changeCount }) { changeCount in
-            Self.postPasteWhenModifiersReleased(attempt: 0,
-                                                expectedChangeCount: changeCount,
-                                                willPost: willPostShortcut,
-                                                didPost: didPostShortcut,
-                                                didFail: didFail) {
+            Self.postShortcutWhenModifiersReleased(keyCode: keyCode,
+                                                   attempt: 0,
+                                                   expectedChangeCount: changeCount,
+                                                   willPost: willPost,
+                                                   didPost: didPost,
+                                                   didFail: didFail) {
                 self.isPerforming = false
             }
         }
@@ -90,7 +109,8 @@ final class TransientPaste {
             DispatchQueue.main.async {
                 ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
                 self.pendingRestore = (snapshot, changeCount)
-                Self.postPasteWhenModifiersReleased(
+                Self.postShortcutWhenModifiersReleased(
+                    keyCode: kVK_ANSI_V,
                     attempt: 0,
                     expectedChangeCount: changeCount,
                     willPost: willPostShortcut,
@@ -143,18 +163,20 @@ final class TransientPaste {
         return snapshot
     }
 
-    private static func postPasteWhenModifiersReleased(attempt: Int,
-                                                       expectedChangeCount: Int,
-                                                       willPost: (() -> Void)?,
-                                                       didPost: (() -> Void)?,
-                                                       didFail: (() -> Void)?,
-                                                       completion: @escaping () -> Void) {
+    private static func postShortcutWhenModifiersReleased(keyCode: Int,
+                                                          attempt: Int,
+                                                          expectedChangeCount: Int,
+                                                          willPost: (() -> Void)?,
+                                                          didPost: (() -> Void)?,
+                                                          didFail: (() -> Void)?,
+                                                          completion: @escaping () -> Void) {
         let held = CGEventSource.flagsState(.combinedSessionState)
             .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
         if held.isEmpty || attempt >= 100 {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
                 // A copy made while waiting belongs to the user, not this
-                // operation. Do not paste it or delete a snippet's trigger.
+                // operation. Do not send the shortcut: a paste would paste
+                // that copy or delete a snippet's trigger.
                 // Read on the shared lane: pboard can block even for its count.
                 GeneralPasteboardAccess.shared.async({
                     NSPasteboard.general.changeCount == expectedChangeCount
@@ -164,7 +186,7 @@ final class TransientPaste {
                         completion()
                         return
                     }
-                    postPasteShortcut(willPost: willPost) { succeeded in
+                    postShortcut(keyCode: keyCode, willPost: willPost) { succeeded in
                         if succeeded {
                             didPost?()
                         } else {
@@ -177,22 +199,24 @@ final class TransientPaste {
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) {
-            postPasteWhenModifiersReleased(attempt: attempt + 1,
-                                           expectedChangeCount: expectedChangeCount,
-                                           willPost: willPost,
-                                           didPost: didPost,
-                                           didFail: didFail,
-                                           completion: completion)
+            postShortcutWhenModifiersReleased(keyCode: keyCode,
+                                              attempt: attempt + 1,
+                                              expectedChangeCount: expectedChangeCount,
+                                              willPost: willPost,
+                                              didPost: didPost,
+                                              didFail: didFail,
+                                              completion: completion)
         }
     }
 
-    private static func postPasteShortcut(willPost: (() -> Void)?,
-                                          completion: @escaping (Bool) -> Void) {
+    private static func postShortcut(keyCode: Int,
+                                     willPost: (() -> Void)?,
+                                     completion: @escaping (Bool) -> Void) {
         guard let keyDown = CGEvent(keyboardEventSource: nil,
-                                    virtualKey: CGKeyCode(kVK_ANSI_V),
+                                    virtualKey: CGKeyCode(keyCode),
                                     keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: CGKeyCode(kVK_ANSI_V),
+                                  virtualKey: CGKeyCode(keyCode),
                                   keyDown: false)
         else {
             completion(false)

@@ -90,6 +90,7 @@ enum DefaultsKey {
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
     static let superKeyExceptions = "superKeyExceptions"
+    static let selectionBarExceptions = "selectionBarExceptions"
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
@@ -135,6 +136,9 @@ enum DefaultsKey {
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
+    static let selectionBarEnabled = "selectionBarEnabled"  // a small bar of actions appears next to text selected with the mouse
+    static let selectionBarActions = "selectionBarActions"  // ids of the tools kept on the selection bar
+    static let selectionBarDoubleClickEnabled = "selectionBarDoubleClickEnabled"  // a double or triple click also opens the bar
     static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
@@ -1247,6 +1251,7 @@ enum Defaults {
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.superKeyExceptions: [String](),
+        DefaultsKey.selectionBarExceptions: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",
@@ -1280,6 +1285,9 @@ enum Defaults {
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
         DefaultsKey.spacesOrderEnabled: false,
+        DefaultsKey.selectionBarEnabled: false,
+        DefaultsKey.selectionBarActions: SelectionBarSupport.actionIDs,
+        DefaultsKey.selectionBarDoubleClickEnabled: true,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
         DefaultsKey.previewSize: "normal",

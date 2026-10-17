@@ -39,10 +39,14 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.selectionBarEnabled) private var selectionBarEnabled = false
+    @AppStorage(DefaultsKey.selectionBarDoubleClickEnabled) private var selectionBarDoubleClickEnabled = true
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
     @State private var smoothScrollMoreOptionsExpanded = false
+    @State private var selectionBarTools = SelectionBarSupport.enabledActionIDs(
+        UserDefaults.standard.stringArray(forKey: DefaultsKey.selectionBarActions))
 
     private var mouseClickDebounceText: MouseClickDebounceStrings {
         FeatureStrings.mouseClickDebounce(l10n.language)
@@ -98,6 +102,10 @@ struct MouseSettings: View {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
+                if AppFeature.selectionBar.isAvailable {
+                    selectionBarCard
+                        .settingsSectionAnchor(.selectionBar, cornerRadius: 16)
+                }
                 if accessibilityNoteVisible {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -119,7 +127,7 @@ struct MouseSettings: View {
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
         [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
-         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
+         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick, .selectionBar]
             .filter(\.isAvailable)
     }
 
@@ -137,6 +145,7 @@ struct MouseSettings: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
         case .middleClick: return middleClickEnabled
+        case .selectionBar: return selectionBarEnabled
         default: return false
         }
     }
@@ -503,6 +512,58 @@ struct MouseSettings: View {
         }
     }
 
+    private var selectionBarCard: some View {
+        let text = FeatureStrings.selectionBar(l10n.language)
+        return SettingsCard {
+            SettingsRow(symbol: AppFeature.selectionBar.symbolName, title: text.title, caption: text.caption) {
+                Toggle(text.title, isOn: $selectionBarEnabled)
+                    .labelsHidden()
+                    .onChange(of: selectionBarEnabled) { _, enabled in
+                        SelectionBarService.shared.syncWithPreferences()
+                        if enabled { permissions.requestAccessibility() }
+                    }
+            }
+            if selectionBarEnabled {
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(text.doubleClick, isOn: $selectionBarDoubleClickEnabled)
+                        Text(text.tools)
+                            .font(.subheadline.weight(.medium))
+                        ForEach(SelectionBarTools.offered(language: l10n.language), id: \.id) { tool in
+                            Toggle(isOn: selectionBarToolBinding(tool.id)) {
+                                Label {
+                                    Text(tool.title)
+                                } icon: {
+                                    // One width for every icon, so a text glyph
+                                    // and a symbol start the title at one place.
+                                    SelectionBarToolIcon(symbol: tool.symbol, glyph: tool.glyph)
+                                        .frame(width: 18)
+                                }
+                            }
+                            .toggleStyle(.checkbox)
+                        }
+                    }
+                    .padding(.top, 6)
+                } label: {
+                    Text(mouseClickDebounceText.moreOptions)
+                        .font(.subheadline.weight(.medium))
+                }
+                .padding(.leading, settingsRowTextInset)
+                MouseExceptionsList(scope: .selectionBar)
+            }
+        }
+    }
+
+    private func selectionBarToolBinding(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { selectionBarTools.contains(id) },
+            set: { on in
+                if on { selectionBarTools.insert(id) } else { selectionBarTools.remove(id) }
+                UserDefaults.standard.set(SelectionBarSupport.actionIDs.filter(selectionBarTools.contains),
+                                          forKey: DefaultsKey.selectionBarActions)
+            })
+    }
+
     private func tapChip(_ fingers: Int, title: String, symbol: String) -> some View {
         let selected = middleClickTapFingers == fingers
         return Button {
@@ -549,6 +610,7 @@ struct MouseSettings: View {
                 && AppFeature.mouseButtonShortcuts.isAvailable)
             || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
+            || (selectionBarEnabled && AppFeature.selectionBar.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
 

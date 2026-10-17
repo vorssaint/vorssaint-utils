@@ -17,6 +17,7 @@ enum MouseExceptionScope: String, CaseIterable {
     case buttonShortcuts
     case middleClick
     case superKey
+    case selectionBar
 
     var defaultsKey: String {
         switch self {
@@ -28,6 +29,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .buttonShortcuts: return DefaultsKey.mouseButtonExceptions
         case .middleClick: return DefaultsKey.middleClickExceptions
         case .superKey: return DefaultsKey.superKeyExceptions
+        case .selectionBar: return DefaultsKey.selectionBarExceptions
         }
     }
 
@@ -43,6 +45,7 @@ enum MouseExceptionScope: String, CaseIterable {
         case .buttonShortcuts: return .mouseButtonShortcuts
         case .middleClick: return .middleClick
         case .superKey: return .superKey
+        case .selectionBar: return .selectionBar
         }
     }
 }

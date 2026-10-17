@@ -1023,6 +1023,7 @@ extension AppFeature {
         case .superKey: return FeatureStrings.superKey(L10n.shared.language).pageTitle
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).title
+        case .selectionBar: return FeatureStrings.selectionBar(L10n.shared.language).title
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
@@ -1107,6 +1108,7 @@ extension AppFeature {
         case .superKey: return FeatureStrings.superKey(L10n.shared.language).hubDescription
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).caption
+        case .selectionBar: return FeatureStrings.selectionBar(L10n.shared.language).caption
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste

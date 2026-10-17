@@ -245,6 +245,9 @@ enum SettingsDirectory {
                                          [FeatureStrings.mouseClickDebounce(language).title,
                                           FeatureStrings.mouseClickDebounce(language).windowLabel,
                                           "debounce"]),
+                                        (.selectionBar,
+                                         [FeatureStrings.selectionBar(language).title,
+                                          "selection", "selected text"]),
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
