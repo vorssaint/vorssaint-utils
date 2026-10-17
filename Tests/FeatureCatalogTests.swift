@@ -942,6 +942,16 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.fanCount(from: 1.5) == nil
                 && FanControlPolicy.fanCount(from: .nan) == nil,
                "fan discovery accepts only a small integral hardware count")
+        suite.expect(FanControlPolicy.menuBarLines(for: [2_306.4, 2_513.6]) == ["2306", "2514"]
+                && FanControlPolicy.menuBarValue(for: [2_306.4, 2_513.6]) == "2306/2514"
+                && FanControlPolicy.menuBarLines(for: []) == nil
+                && FanControlPolicy.menuBarLines(for: [1_200, .nan]) == nil,
+               "menu bar fan readings round per fan and refuse invalid readings")
+        suite.expect(FanControlPolicy.menuBarStacksFans([1_200, 2_400], stacked: true)
+                && !FanControlPolicy.menuBarStacksFans([1_200, 2_400], stacked: false)
+                && !FanControlPolicy.menuBarStacksFans([1_200], stacked: true)
+                && !FanControlPolicy.menuBarStacksFans([1_200, 2_400, 3_600], stacked: true),
+               "fans stack in the menu bar only when the option is on and the block has a line per fan")
         suite.expect(FanControlPolicy.validBounds(minimum: 1_200, maximum: 5_800)
                 && !FanControlPolicy.validBounds(minimum: -1, maximum: 5_800)
                 && !FanControlPolicy.validBounds(minimum: 5_800, maximum: 5_800)
