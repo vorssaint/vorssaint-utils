@@ -622,12 +622,76 @@ enum NotchRestingBattery {
         case .none: return .white.opacity(0.9)
         }
     }
+}
 
-    /// The icon empties with the charge, as the menu bar's does.
-    static func symbol(for power: PowerReading) -> String {
-        BatteryPowerSupport.menuBarSymbol(percent: power.chargePercent ?? 100,
-                                          isCharging: power.isCharging,
-                                          externalConnected: power.externalConnected)
+/// The resting battery: the outline, a fill as wide as the charge, and on
+/// the adapter Apple's charging bolt, which grows in when it connects and
+/// shrinks away when it leaves. SF Symbols has no glyph with a partial level
+/// and a bolt, so the fill and the bolt are drawn over the empty outline.
+struct NotchBatteryIcon: View {
+    /// The outline the fill and the bolt are drawn over, also what the
+    /// capsule measures to centre the icon.
+    static let baseSymbol = "battery.0"
+
+    /// How much of the battery to fill, from 0 to 1.
+    let fraction: Double
+    let bolt: Bool
+    let size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(power: PowerReading, size: CGFloat) {
+        fraction = BatteryPowerSupport.fillFraction(percent: power.chargePercent ?? 100)
+        bolt = BatteryPowerSupport.showsBolt(isCharging: power.isCharging,
+                                             externalConnected: power.externalConnected)
+        self.size = size
+    }
+
+    var body: some View {
+        Image(systemName: Self.baseSymbol).font(.system(size: size))
+            .overlay {
+                GeometryReader { proxy in
+                    let w = proxy.size.width, h = proxy.size.height
+                    // Where `battery.100` draws its fill inside the outline.
+                    let fill = 0.594 * w * fraction
+                    RoundedRectangle(cornerRadius: size * 0.08)
+                        .frame(width: fill, height: 0.482 * h)
+                        .position(x: 0.153 * w + fill / 2, y: h / 2)
+                    if bolt {
+                        // The bolt spans the outline's height, as in `battery.100.bolt`.
+                        let box = CGRect(x: 0.0706 * w, y: 0.086 * h, width: 0.847 * w, height: 0.815 * h)
+                        ZStack {
+                            // Apple clears 1 point around the bolt, through the fill and the outline.
+                            NotchBatteryBolt().stroke(style: StrokeStyle(lineWidth: size / 6, lineJoin: .round))
+                                .blendMode(.destinationOut)
+                            NotchBatteryBolt().stroke(style: StrokeStyle(lineWidth: size * 0.03, lineJoin: .round))
+                                .background(NotchBatteryBolt())
+                        }
+                        .frame(width: box.width, height: box.height)
+                        .position(x: box.midX, y: box.midY)
+                        // The spring stays on the bolt, so a reading that also
+                        // moves the charge does not bounce the fill.
+                        .transition(reduceMotion ? .identity : .scale.combined(with: .opacity)
+                            .animation(.spring(response: 0.35, dampingFraction: 0.6)))
+                    }
+                }
+            }
+            .compositingGroup()
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: fraction)
+            // The percent beside it speaks for the charge; `battery.0` would read as empty.
+            .accessibilityHidden(true)
+    }
+}
+
+/// The bolt of `battery.100.bolt`, traced from the glyph, in the frame of the
+/// battery outline.
+struct NotchBatteryBolt: Shape {
+    func path(in rect: CGRect) -> Path {
+        let points: [CGPoint] = [CGPoint(x: 0.510, y: 0), CGPoint(x: 0.471, y: 0.417), CGPoint(x: 0.591, y: 0.417),
+                                 CGPoint(x: 0.389, y: 1), CGPoint(x: 0.433, y: 0.583), CGPoint(x: 0.308, y: 0.583)]
+        var path = Path()
+        path.addLines(points.map { CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height) })
+        path.closeSubpath()
+        return path
     }
 }
 
@@ -652,8 +716,6 @@ struct NotchRestingStrip: View {
         NotchRestingBattery.tint(for: service.power, tint: lowBatteryTint, threshold: lowBatteryThreshold,
                                  early: earlyBatteryWarning, earlyThreshold: earlyBatteryThreshold)
     }
-
-    private var batterySymbol: String { NotchRestingBattery.symbol(for: service.power) }
 
     /// Centre battery content inside the wing's visible area, past its curved shoulder.
     private var restingBatteryInset: CGFloat {
@@ -685,7 +747,7 @@ struct NotchRestingStrip: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 5))
                             }
                         case .battery:
-                            Image(systemName: batterySymbol).font(.system(size: 12))
+                            NotchBatteryIcon(power: service.power, size: 12)
                                 .foregroundStyle(batteryTint)
                                 .padding(.leading, restingBatteryInset)
                         case .agents:
