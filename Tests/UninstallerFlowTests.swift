@@ -91,10 +91,6 @@ enum UninstallerFlowTests {
             collects += 1
             return [Leftover(url: appURL)]
         }
-        static func applicationIdentityMatches(_ url: URL, appIdentity: UninstallerSupport.FileIdentity?, infoIdentity: UninstallerSupport.FileIdentity?) -> Bool {
-            UninstallerSupport.fileIdentity(at: url) == appIdentity
-                && UninstallerSupport.fileIdentity(at: url.appendingPathComponent("Contents/Info.plist")) == infoIdentity
-        }
         func removeSelected() { if !items.isEmpty { phase = .removing } }
         func finishRemovalAfterHomebrew(package: Package) {}
     }
@@ -274,6 +270,10 @@ enum UninstallerFlowTests {
             suite.expect(uninstaller.refusal == UninstallerSupport.RefusedApp(name: "Link", refusal: .link)
                          && uninstaller.phase == .empty && uninstaller.target == nil,
                          "a refused selection keeps the empty state and records why")
+            uninstaller.reset()
+            suite.expect(uninstaller.refusal == nil, "a reset drops the last refusal")
+            suite.expect(!uninstaller.select(appURL: link) && uninstaller.refusal != nil,
+                         "the symlink is refused again before another app is chosen")
             service.beginUninstallReview(appURL: b, entryID: "b")
             suite.expect(uninstaller.refusal == nil, "an accepted selection clears the last refusal")
             service.mode = .uninstallHomebrewConfirm(entryID: "b")

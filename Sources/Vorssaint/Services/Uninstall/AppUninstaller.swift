@@ -189,7 +189,7 @@ final class AppUninstaller: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, !cancellation.isCancelled,
                       self.phase == .scanning, self.target?.url == selectedURL else { return }
-                guard Self.applicationIdentityMatches(
+                guard UninstallerSupport.applicationIdentityMatches(
                     selectedURL, appIdentity: selectedIdentity,
                     infoIdentity: selectedInfoIdentity) else {
                     self.reset()
@@ -200,7 +200,7 @@ final class AppUninstaller: ObservableObject {
                     // while this scan was running — never show A's files under B.
                     guard let self, !cancellation.isCancelled,
                           self.phase == .scanning, self.target?.url == selectedURL else { return }
-                    guard Self.applicationIdentityMatches(
+                    guard UninstallerSupport.applicationIdentityMatches(
                         selectedURL, appIdentity: selectedIdentity,
                         infoIdentity: selectedInfoIdentity) else {
                         self.reset()
@@ -281,7 +281,7 @@ final class AppUninstaller: ObservableObject {
             var stubborn: [Leftover] = []
             var failed: [Leftover] = []
             let targetIsOriginal = targetURL.map {
-                Self.applicationIdentityMatches(
+                UninstallerSupport.applicationIdentityMatches(
                     $0, appIdentity: expectedTargetIdentity,
                     infoIdentity: expectedInfoIdentity)
             } ?? false
@@ -908,18 +908,6 @@ final class AppUninstaller: ObservableObject {
             path.hasPrefix($0.path + "/")
         }) else { return false }
         return UninstallerSupport.removalPathIsSafe(url, within: root)
-    }
-
-    private static func applicationIdentityMatches(
-        _ url: URL,
-        appIdentity: UninstallerSupport.FileIdentity?,
-        infoIdentity: UninstallerSupport.FileIdentity?
-    ) -> Bool {
-        guard let appIdentity, let infoIdentity,
-              UninstallerSupport.fileIdentity(at: url) == appIdentity else { return false }
-        let infoURL = UninstallerSupport.infoPlistURL(in: url)
-        return UninstallerSupport.fileIdentity(at: infoURL) == infoIdentity
-            && UninstallerSupport.removalPathIsSafe(infoURL, within: url)
     }
 
     private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {

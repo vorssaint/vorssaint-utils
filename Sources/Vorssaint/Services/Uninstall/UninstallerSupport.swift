@@ -218,8 +218,8 @@ enum UninstallerSupport {
     }
 
     /// The bundle a wrapper's WrappedBundle link names. Bundle follows only a
-    /// relative link to an app inside the Wrapper folder, so nothing else
-    /// counts as a wrapper here either.
+    /// relative link to an app inside the Wrapper folder, and only with a
+    /// lowercase .app, so nothing else counts as a wrapper here either.
     static func wrappedBundleURL(in appURL: URL) -> URL? {
         let link = appURL.appendingPathComponent("WrappedBundle")
         guard isSymbolicLink(link),
@@ -228,8 +228,23 @@ enum UninstallerSupport {
         let wrapper = appURL.appendingPathComponent("Wrapper", isDirectory: true).standardizedFileURL
         let bundle = appURL.appendingPathComponent(destination, isDirectory: true).standardizedFileURL
         guard bundle.path.hasPrefix(wrapper.path + "/"),
-              bundle.pathExtension.lowercased() == "app" else { return nil }
+              bundle.pathExtension == "app" else { return nil }
         return bundle
+    }
+
+    /// Whether the app at url is still the one a selection verified: the same
+    /// bundle and the same Info.plist, found the way the selection found it,
+    /// so a wrapper stays selected once its scan ends.
+    static func applicationIdentityMatches(
+        _ url: URL,
+        appIdentity: FileIdentity?,
+        infoIdentity: FileIdentity?
+    ) -> Bool {
+        guard let appIdentity, let infoIdentity,
+              fileIdentity(at: url) == appIdentity else { return false }
+        let infoURL = infoPlistURL(in: url)
+        return fileIdentity(at: infoURL) == infoIdentity
+            && removalPathIsSafe(infoURL, within: url)
     }
 
     /// The name the uninstaller shows for an app, without its extension.
