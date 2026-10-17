@@ -321,6 +321,8 @@ enum SettingsDirectory {
                                         (.finderRename,
                                          [FeatureStrings.finderRename(language).enableLabel]),
                                        ]),
+                SettingsDirectoryItem(page: .duplicateFinder, title: FeatureStrings.duplicateFinder(language).title, icon: "doc.on.doc",
+                                      keywords: [FeatureStrings.duplicateFinder(language).scan, FeatureStrings.duplicateFinder(language).preview]),
                 SettingsDirectoryItem(page: .shelf, title: s.shelfName, icon: "tray.full",
                                       keywords: [s.shelfEnable, s.shelfDropZoneToggle, s.shelfEdgeToggle,
                                                  s.shelfClearOnClose, s.shelfShortcutFinderSelection,

@@ -193,6 +193,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             }
             .store(in: &cancellables)
 
+        FeatureRuntime.shared.$revision
+            .dropFirst()
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.installMainMenu() }
+            .store(in: &cancellables)
+
         // Keep the menu titles in step with the in-app language.
         L10n.shared.$language
             .dropFirst()
@@ -298,6 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        DuplicateFinderWindow.closeExisting()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -1534,6 +1541,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         aboutItem.target = self
         menu.addItem(aboutItem)
 
+        if AppFeature.duplicateFinder.isAvailable {
+            let item = NSMenuItem(title: FeatureStrings.duplicateFinder(L10n.shared.language).title,
+                                  action: #selector(menuOpenDuplicateFinder), keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+
         if AppFeature.uninstaller.isAvailable {
             let uninstallItem = NSMenuItem(title: strings.uninstallerMenuItem,
                                            action: #selector(menuOpenUninstaller), keyEquivalent: "")
@@ -1580,6 +1594,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuOpenSettings() {
         openSettingsWindow()
+    }
+
+    @objc private func menuOpenDuplicateFinder() {
+        DuplicateFinderWindow.show()
     }
 
     @objc private func menuOpenUninstaller() {
@@ -1689,6 +1707,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         windowMenu.addItem(.separator())
         windowMenu.addItem(NSMenuItem(title: strings.menuClose,
                                       action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"))
+
+        if AppFeature.duplicateFinder.isAvailable {
+            let item = NSMenuItem(title: FeatureStrings.duplicateFinder(L10n.shared.language).title,
+                                  action: #selector(menuOpenDuplicateFinder), keyEquivalent: "")
+            item.target = self
+            appMenu.insertItem(item, at: 0)
+        }
 
         NSApp.mainMenu = mainMenu
         NSApp.windowsMenu = windowMenu

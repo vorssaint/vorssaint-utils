@@ -275,6 +275,9 @@ final class FeatureRuntime: ObservableObject {
             // off does not.
             ClipboardAutoClearService.shared.syncWithPreferences()
         },
+        .duplicateFinder: {
+            if !AppFeature.duplicateFinder.isAvailable { DuplicateFinderWindow.closeExisting() }
+        },
         .mediaTools: {
             NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }

@@ -250,6 +250,9 @@ if (( TEST )); then
     TEST_OBJECT_DIR="build/objects/tests"
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
+        Sources/Vorssaint/Services/DuplicateFinder/DuplicateFinderSupport.swift
+        Sources/Vorssaint/Services/DuplicateFinder/DuplicateFinderSession.swift
+        Sources/Vorssaint/Core/DuplicateFinderStrings.swift
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
