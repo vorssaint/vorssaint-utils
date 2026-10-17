@@ -819,11 +819,15 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        guard usage.loaded else { return nil }
-        let providers = NotchAgentSupport.providers().filter(usage.seen.contains)
+        let enabled = NotchAgentSupport.providers()
+        // Added Codex accounts have cards before, or without, any log.
+        let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
+        guard usage.loaded || !accounts.isEmpty else { return nil }
+        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty) }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers), width: width))
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts),
+            width: width))
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -3874,6 +3878,17 @@ final class NotchService: ObservableObject {
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
+                }.store(in: &subscriptions)
+            // An added or removed Codex account adds or removes a card.
+            CodexProfileLimitsService.shared.$states
+                .map { $0.map(\.id) }
+                .removeDuplicates()
+                .dropFirst()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.selected == .agents else { return }
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {

@@ -585,18 +585,16 @@ enum NotchActivityTests {
         suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0
                && NotchLayout.timerStartHeight == 28,
                "every mode label keeps room for its underline and around its text, and Start is as tall as the row's buttons")
-        // System font metrics shift a point or two between SDKs (local macOS
-        // 26 vs CI Xcode 16.2), so the fit checks below allow that noise
-        // while still catching a name that truly overflows its side.
-        let fontSlack: CGFloat = 4
         for language in AppLanguage.allCases {
-             let text = FeatureStrings.notchActivities(language)
-             let labels = [text.timer, text.pomodoro, text.stopwatch]
-             suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
-                    "each mode has its own name: \(language)")
-             let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
-             let menu = (widths.max() ?? 0) + layout.menuSpacing + chevron + layout.labelPadding * 2
-            suite.expect(menu <= band.side + fontSlack,
+            let text = FeatureStrings.notchActivities(language)
+            let labels = [text.timer, text.pomodoro, text.stopwatch]
+            suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
+                   "each mode has its own name: \(language)")
+            let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+            // Full size on macOS 26; macOS 15 draws Japanese kana wider, and
+            // the stopwatch's name narrows there by a few percent.
+            let menu = (widths.max() ?? 0) * 0.95 + layout.menuSpacing + chevron + layout.labelPadding * 2
+            suite.expect(menu <= band.side,
                    "every mode's name names the menu beside the camera in \(language): \(Int(menu)) of \(Int(band.side))")
             // Wider cameras still wrapped by the compact preset leave less;
             // the name may narrow there, never lose letters.
@@ -605,7 +603,7 @@ enum NotchActivityTests {
                                                   cameraWidth: $0), contentWidth: geometry.contentWidth)
             }.filter(\.besideCamera).map(\.side).min() ?? band.side
             let narrowed = (widths.max() ?? 0) * layout.menuMinimumScale + layout.menuSpacing + chevron + layout.labelPadding * 2
-            suite.expect(narrowed <= narrowest + fontSlack,
+            suite.expect(narrowed <= narrowest,
                    "every mode's name fits beside the widest camera the compact preset wraps in \(language): \(Int(narrowed)) of \(Int(narrowest))")
             let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
             let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2

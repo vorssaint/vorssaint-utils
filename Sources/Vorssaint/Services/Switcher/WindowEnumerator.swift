@@ -260,7 +260,27 @@ enum WindowEnumerator {
             guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { return nil }
             return (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value
         })
-        let runningApps = snapshot.runningApps
+        let windowOwnerPIDs = raw.compactMap { info -> pid_t? in
+            guard (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0 else { return nil }
+            return (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+        }
+        let runningApps = SwitcherSupport.usableApps(
+            snapshot.runningApps,
+            windowOwnerPIDs: windowOwnerPIDs,
+            pid: \.pid,
+            isRegular: \.isRegular,
+            // Runs off main; NSRunningApplication(processIdentifier:) is thread-safe.
+            resolve: { pid in
+                guard let app = NSRunningApplication(processIdentifier: pid),
+                      !app.isTerminated else { return nil }
+                return AppSnapshot(pid: pid,
+                                   bundleIdentifier: app.bundleIdentifier,
+                                   localizedName: app.localizedName,
+                                   isRegular: app.activationPolicy == .regular,
+                                   isHidden: app.isHidden,
+                                   bundlePath: app.bundleURL?.path,
+                                   executablePath: app.executableURL?.path)
+            })
         let hiddenAppPIDs = Set(runningApps.lazy
             .filter { $0.isHidden }
             .map(\.pid))

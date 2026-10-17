@@ -34,15 +34,20 @@ struct NotchView: View {
             }
             .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
             .foregroundStyle(.white)
-            // The window server leaves Liquid Glass out of its hit test, so a
-            // click or a wheel over empty glass would reach the window behind:
-            // the page stops scrolling between cards and the island loses
-            // focus. A fill too faint to see keeps the surface in this window,
-            // as the black backdrop does.
+            // The window server leaves SwiftUI content that ignores hit tests
+            // out of its own hit test unless it is fully opaque. The backdrop
+            // ignores them (allowsHitTesting(false) in NotchSurfaceBackground),
+            // and open glass has no opaque black beneath it, so a click or a
+            // wheel over empty glass would reach the window behind: the page
+            // stops scrolling between cards and the island loses focus. A fill
+            // too faint to see takes hit tests and keeps the surface in this
+            // window, as the opaque black of a black island does.
             .background(shape.offset(x: service.surfaceShift).fill(Color.black.opacity(0.01)))
             .contentShape(shape.offset(x: service.surfaceShift))
             // The backdrop is a separate, non-interactive hosting view. Claim
-            // empty space here so clicks and wheel events stay in this window.
+            // empty space here so SwiftUI keeps the taps that land on it. This
+            // draws nothing, so it does not hold a click in this window at the
+            // window server; the fill above does.
             .onTapGesture { }
             .onChange(of: reduceTransparency) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }

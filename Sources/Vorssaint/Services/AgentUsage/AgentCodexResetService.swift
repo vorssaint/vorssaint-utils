@@ -61,7 +61,7 @@ final class AgentCodexResetService: ObservableObject {
         let apps = Self.apps()
         let known = shellPath
         queue.async { [weak self] in
-            let path = searchingShell && known == nil ? Self.loginShellPath() : known
+            let path = searchingShell && known == nil ? AgentCodexServer.loginShellPath() : known
             let result: Result<AgentCodexResetSummary, AgentCodexServer.Failure>
             if let executable = Self.executable(apps: apps, searchPath: path) {
                 result = AgentCodexServer.check(executable, environment: AgentCodexServer.environment(for: executable,
@@ -143,9 +143,5 @@ final class AgentCodexResetService: ObservableObject {
     private static func executable(apps: [URL], searchPath: String?) -> URL? {
         AgentCodexServer.executable(apps: apps, home: FileManager.default.homeDirectoryForCurrentUser,
                                     searchPath: searchPath)
-    }
-
-    private static func loginShellPath() -> String? {
-        HomebrewEnvironment.loginShellExports(shellPath: HomebrewCommandBuilder.currentShellPath)["PATH"]
     }
 }

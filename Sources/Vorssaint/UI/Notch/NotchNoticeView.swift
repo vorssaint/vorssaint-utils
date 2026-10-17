@@ -144,7 +144,7 @@ private struct NotchTrackArtwork: View {
     @ObservedObject private var music = NotchMusicService.shared
     let size: CGFloat
 
-    var body: some View { NotchArtwork(image: music.artwork, size: size) }
+    var body: some View { NotchArtwork(image: music.artwork, size: size, source: music.playback?.track) }
 }
 
 /// Level feedback occupies the header while the current page stays usable.

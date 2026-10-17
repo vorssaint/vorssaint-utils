@@ -21,8 +21,22 @@ struct CodexReader: AgentHarnessReader {
         let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
         switch json["type"] as? String {
         case "session_meta":
-            if let id = payload["id"] as? String, !id.isEmpty { state.session = AgentLogParser.native(id) }
+            // History copied from another thread repeats that thread's
+            // metadata; only the first line describes this log's own thread.
+            let id = payload["id"] as? String ?? ""
+            if !id.isEmpty { state.codexTotalsSession = AgentLogParser.native(id) }
+            guard !state.codexHeaderRead else { return [] }
+            state.codexHeaderRead = true
+            if !id.isEmpty { state.session = AgentLogParser.native(id) }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = AgentLogParser.projectName(cwd) }
+            // Subagents, reviews and memory tasks Codex starts itself name
+            // `subagent` or `internal`; a person's thread names its client.
+            let source = payload["source"] as? [String: Any]
+            state.codexSubagent = source?["subagent"] != nil || source?["internal"] != nil
+            // A subagent's session is the thread a person started, however
+            // deep it runs; its parent thread stands in when that is missing.
+            let root = payload["session_id"] as? String ?? payload["parent_thread_id"] as? String ?? ""
+            if state.codexSubagent, !root.isEmpty, root != state.session { state.codexRoot = AgentLogParser.native(root) }
             return []
         case "turn_context":
             if let model = payload["model"] as? String, !model.isEmpty { state.model = AgentLogParser.native(model) }
@@ -75,7 +89,7 @@ struct CodexReader: AgentHarnessReader {
                                             output: max(0, total.output - previous.output),
                                             reasoning: max(0, total.reasoning - previous.reasoning))
                     }
-                    let key = "codex:\(state.session):total:\(total.total)"
+                    let key = "codex:\(state.codexTotalsSession):total:\(total.total)"
                     entries.append(codexUsage(delta, key: key, date: date, state: state))
                 }
                 state.lastTotal = total

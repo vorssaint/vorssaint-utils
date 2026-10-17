@@ -551,6 +551,41 @@ enum SwitcherModelFeatureTests {
                    frontmostBundleIdentifier: nil,
                    excludedBundleIdentifiers: ["com.example.focused"]),
                "window preview capture continues away from chosen apps or without a foreground app")
+        let programPath = "/Users/tester/Games/emulator/bin/emulator"
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: nil,
+            frontmostExecutablePath: programPath,
+            excludedBundleIdentifiers: ["com.example.focused", programPath]),
+               "window preview capture pauses while a listed program that is not an app is in front")
+        suite.expect(!SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: nil,
+            frontmostExecutablePath: "/Users/tester/bin/other",
+            excludedBundleIdentifiers: [programPath]),
+               "a listed path pauses only that program")
+        // A JVM that AWT registers reports the bundle identifier of Java's
+        // launcher, the same for every program that runtime runs, so the
+        // runtime picked is told apart by its path.
+        let javaPath = "/Users/tester/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java"
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "net.java.openjdk.java",
+            frontmostExecutablePath: javaPath,
+            excludedBundleIdentifiers: [javaPath])
+               && !SwitcherSupport.shouldPausePreviewCapture(
+                   frontmostBundleIdentifier: "net.java.openjdk.java",
+                   frontmostExecutablePath: "/Users/tester/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home/bin/java",
+                   excludedBundleIdentifiers: [javaPath]),
+               "a Java runtime listed by its path pauses although it reports Java's bundle identifier, and no other runtime does")
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.focused",
+            frontmostExecutablePath: "/Applications/Focused.app/Contents/MacOS/Focused",
+            excludedBundleIdentifiers: ["com.example.focused", javaPath]),
+               "an app on the list still pauses by its bundle identifier while the list also names a program by its path")
+        var appPathWasRead = false
+        _ = SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.other",
+            frontmostExecutablePath: { appPathWasRead = true; return "/Applications/Other.app/Contents/MacOS/Other" }(),
+            excludedBundleIdentifiers: ["com.example.focused"])
+        suite.expect(!appPathWasRead, "an app's path is not read while no program is listed by its path")
         suite.expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
                "a window whose only Space is not visible is parked on a hidden Space")
         suite.expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
@@ -3095,6 +3130,36 @@ enum SwitcherModelFeatureTests {
                "memory menu bar style defaults to percent")
         suite.expect(registeredDefaults[DefaultsKey.monitorPwrTimeRemaining] as? Bool == true,
                "battery time is shown in the Power panel by default")
+        suite.expect(registeredDefaults[DefaultsKey.monitorPwrPeripherals] as? Bool == false,
+               "peripheral batteries stay out of the Power card until turned on")
+        let peripheralsSuite = "com.vorssaint.tests.powerPeripherals.\(UUID().uuidString)"
+        if let peripheralsDefaults = UserDefaults(suiteName: peripheralsSuite) {
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "an update with the menu bar item off starts no peripheral reads in Power")
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(!peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "turning on the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            peripheralsDefaults.set(true, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "an update keeps peripheral batteries in Power for menu bar users")
+            peripheralsDefaults.set(false, forKey: DefaultsKey.menuBarPeripheralBattery)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.bool(forKey: DefaultsKey.monitorPwrPeripherals),
+                   "hiding the menu bar item later leaves the Power choice alone")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+            Defaults.migratePowerPeripheralsVisibility(in: peripheralsDefaults)
+            suite.expect(peripheralsDefaults.object(forKey: DefaultsKey.monitorPwrPeripherals) as? Bool == false,
+                   "a fresh install keeps peripheral batteries out of Power")
+            peripheralsDefaults.removePersistentDomain(forName: peripheralsSuite)
+        } else {
+            suite.expect(false, "peripheral visibility migration has isolated preferences")
+        }
         suite.expect(registeredDefaults[DefaultsKey.windowLayoutShortcutsEnabled] as? Bool == false,
                "window layout shortcuts stay off until enabled")
         suite.expect(registeredDefaults[DefaultsKey.windowEdgeSnapEnabled] as? Bool == false,
@@ -3115,14 +3180,37 @@ enum SwitcherModelFeatureTests {
                "window gestures do not change app focus unless requested")
         suite.expect(registeredDefaults[DefaultsKey.windowLayoutIgnoredApps] as? [String] == [],
                "window layout ignores no apps by default")
-        suite.expect(WindowLayoutIgnoredApps.contains("com.example.game", in: ["com.example.game"])
-                && !WindowLayoutIgnoredApps.contains("com.example.editor", in: ["com.example.game"])
-                && !WindowLayoutIgnoredApps.contains(nil, in: ["com.example.game"]),
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: "com.example.game", executablePath: nil,
+                                               apps: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.matches(bundleID: "com.example.editor", executablePath: nil,
+                                                    apps: ["com.example.game"])
+                && !WindowLayoutIgnoredApps.matches(bundleID: nil, executablePath: nil,
+                                                    apps: ["com.example.game"]),
                "window layout only pauses for the focused app on its list")
         suite.expect(WindowLayoutIgnoredApps.matches(bundleID: nil,
                                                executablePath: "/Applications/Game",
                                                apps: ["/Applications/Game"]),
                "window layout pauses for a focused executable without a bundle identifier")
+        // Java's launcher carries an Info.plist of its own, and a JVM that AWT
+        // registers reports a bundle identifier that every Java program on
+        // that runtime shares (issue #1009). The runtime that was picked is
+        // told apart by its path.
+        let ignoredRuntime = "/Users/tester/Library/Application Support/PrismLauncher/java/java-runtime-gamma/bin/java"
+        suite.expect(WindowLayoutIgnoredApps.matches(bundleID: "net.java.openjdk.java",
+                                               executablePath: ignoredRuntime,
+                                               apps: [ignoredRuntime])
+                && !WindowLayoutIgnoredApps.matches(
+                    bundleID: "net.java.openjdk.java",
+                    executablePath: "/Users/tester/Library/Application Support/PrismLauncher/java/jre-legacy/bin/java",
+                    apps: [ignoredRuntime]),
+               "window layout pauses for a Java runtime listed by its path although it reports Java's bundle "
+                   + "identifier, and for no other runtime")
+        var ignoredPathWasRead = false
+        _ = WindowLayoutIgnoredApps.matches(bundleID: "com.example.editor",
+                                            executablePath: { ignoredPathWasRead = true; return ignoredRuntime }(),
+                                            apps: ["com.example.game"])
+        suite.expect(!ignoredPathWasRead,
+               "window layout reads the focused program's path only while a program is listed by its path")
         let assignedLayoutShortcutKeys = [
             DefaultsKey.windowLayoutShortcutLeft,
             DefaultsKey.windowLayoutShortcutRight,
@@ -3770,6 +3858,23 @@ enum SwitcherModelFeatureTests {
         suite.expect(!PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
                 && PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps),
                "an app on the switcher's list pauses only switcher captures")
+        let javaRuntime = "/Users/tester/Library/Application Support/minecraft/runtime/java-runtime-delta/bin/java"
+        previewDefaults.lists[DefaultsKey.switcherPreviewExcludedApps] = ["com.example.game", javaRuntime]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(
+            bundleIdentifier: nil, executableURL: URL(fileURLWithPath: javaRuntime))
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
+               "a game's Java runtime on the switcher's list pauses switcher captures while it is in front")
+        // A game on LWJGL 2 (Minecraft 1.12.2 and older) starts AWT, which
+        // registers the JVM under the bundle identifier of Java's launcher.
+        let legacyRuntime = "/Users/tester/Library/Application Support/minecraft/runtime/jre-legacy/bin/java"
+        previewDefaults.lists[DefaultsKey.switcherPreviewExcludedApps] = ["com.example.game", legacyRuntime]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(
+            bundleIdentifier: "net.java.openjdk.cmd", executableURL: URL(fileURLWithPath: legacyRuntime))
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
+               "a legacy game's Java runtime on the switcher's list pauses switcher captures while it is in front, "
+                   + "though AWT registered it under Java's bundle identifier")
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
         // Grave and J print the cap the active keyboard layout carries, not the
@@ -4791,6 +4896,31 @@ enum SwitcherModelFeatureTests {
                                                                       (pid_t(2048), "other")])
         suite.expect(repeatedProcessValues == [1678: "first", 2048: "other"],
                "window enumeration keeps the first value when the system repeats a process")
+        struct UsableApp: Equatable { let pid: pid_t; let isRegular: Bool }
+        func usable(_ apps: [UsableApp], owners: [pid_t],
+                    known: [pid_t: UsableApp] = [:]) -> [UsableApp] {
+            SwitcherSupport.usableApps(apps, windowOwnerPIDs: owners,
+                                       pid: \.pid, isRegular: \.isRegular,
+                                       resolve: { known[$0] })
+        }
+        let deviceHub = UsableApp(pid: 2836, isRegular: true)
+        suite.expect(usable([UsableApp(pid: -1, isRegular: true), UsableApp(pid: 0, isRegular: true)],
+                            owners: []).isEmpty,
+               "switcher apps drop workspace entries with a non-positive process id")
+        suite.expect(usable([UsableApp(pid: -1, isRegular: true)], owners: [2836, 2836],
+                            known: [2836: deviceHub]) == [deviceHub],
+               "switcher apps resolve a window owner missing from the workspace list once")
+        suite.expect(usable([], owners: [4000]).isEmpty,
+               "switcher apps ignore a window owner that cannot be resolved")
+        suite.expect(usable([], owners: [4001], known: [4001: UsableApp(pid: 4001, isRegular: false)]).isEmpty,
+               "switcher apps keep non-regular helper owners excluded")
+        suite.expect(usable([], owners: [-1, 0, 2836], known: [-1: UsableApp(pid: -1, isRegular: true),
+                                                                0: UsableApp(pid: 0, isRegular: true),
+                                                                2836: UsableApp(pid: 5000, isRegular: true)]).isEmpty,
+               "switcher apps never resolve a non-positive owner or an app answering for another pid")
+        suite.expect(usable([deviceHub], owners: [2836], known: [2836: UsableApp(pid: 2836, isRegular: false)])
+                       == [deviceHub],
+               "switcher apps do not resolve an owner the workspace list already holds")
         let groupedSwitcherItems = [
             SwitcherItem.window(id: 1, title: "One", appName: "Alpha", pid: 101,
                                 isOnScreen: true, frame: .zero),
@@ -6570,7 +6700,7 @@ extension SwitcherModelFeatureTests {
             func stringArray(forKey key: String) -> [String]? { lists[key] }
         }
         final class NSWorkspace {
-            struct App { let bundleIdentifier: String? }
+            struct App { let bundleIdentifier: String?; var executableURL: URL? = nil }
             static let shared = NSWorkspace()
             var frontmostApplication: App?
         }

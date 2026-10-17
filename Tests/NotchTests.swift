@@ -718,11 +718,11 @@ enum NotchTests {
         }
     }
 
-    /// Cover the menu bar even when it ends below the camera's safe area.
+    /// By default the island is the housing macOS reports; covering the menu bar below it is opt-in.
     private static func physicalStripContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
         for safeTop: CGFloat in [24, 32, 37.5, 40] {
-            for barHeight: CGFloat in [24, 32, 33, 37, 38, 40, 64] {
+            for barHeight: CGFloat in [24, 32, 33, 37, 38, 39, 40, 64] {
                 let geometry = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
                                              menuBarHeight: barHeight, compactSideRoom: 100)
                 let strips = [geometry.restingSize(showsContent: false), geometry.restingSize(showsContent: true),
@@ -730,17 +730,22 @@ enum NotchTests {
                               geometry.noticeSize(wingWidth: 190), geometry.compactMusicGeometry.compactActivitySize,
                               geometry.compactTimerGeometry(showsDownloads: true).compactActivitySize]
                 for size in strips {
-                    suite.expect(size.height == max(safeTop, barHeight) && size.height == geometry.stripHeight
-                           && geometry.frame(for: size).minY <= screen.maxY - barHeight,
-                           "every physical strip covers the bar's bottom edge without leaving a wallpaper seam")
+                    suite.expect(size.height == safeTop && size.height == geometry.stripHeight,
+                           "every physical strip is exactly as tall as the cutout, so it never reaches below the notch")
                 }
                 suite.expect(geometry.menuBarHeight == max(safeTop, barHeight),
                        "the bar's own height remains available for measuring menu space")
-                let original = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
-                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: false)
-                suite.expect(original.collapsed.height == safeTop && original.bareCutout.height == safeTop
-                       && original.menuBarHeight == max(safeTop, barHeight),
-                       "turning gap hiding off restores the physical cutout height without losing the measured menu bar")
+                let covering = NotchGeometry(screen: screen, safeAreaTop: safeTop, cameraWidth: 179,
+                                             menuBarHeight: barHeight, compactSideRoom: 100, hideMenuBarGap: true)
+                let covered = [covering.restingSize(showsContent: false), covering.restingSize(showsContent: true),
+                               covering.collapsed, covering.bareCutout, covering.notice,
+                               covering.noticeSize(wingWidth: 190), covering.compactMusicGeometry.compactActivitySize,
+                               covering.compactTimerGeometry(showsDownloads: true).compactActivitySize]
+                for size in covered {
+                    suite.expect(size.height == max(safeTop, barHeight) && size.height == covering.stripHeight
+                           && covering.frame(for: size).minY <= screen.maxY - barHeight,
+                           "hiding the gap covers the bar's bottom edge without leaving a wallpaper seam")
+                }
             }
         }
         for silhouette in NotchSilhouette.allCases {
@@ -773,14 +778,14 @@ enum NotchTests {
         let fitted = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                    menuBarHeight: 33, compactSideRoom: 100,
                                    cameraFit: NotchCameraFit(width: 2, height: 0.5))
-        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 33,
-               "without a fit the island covers the housing and reaches the measured menu bar's bottom")
-        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 33.5,
-               "a fit widens and lengthens the island after matching the menu bar")
+        suite.expect(reported.cameraWidth == 179 && reported.cameraHeight == 32,
+               "without a fit the island matches the housing macOS reports")
+        suite.expect(fitted.cameraWidth == 181 && fitted.cameraHeight == 32.5,
+               "a fit widens and lengthens the camera housing the island covers")
         let strips = [fitted.restingSize(showsContent: false), fitted.restingSize(showsContent: true), fitted.collapsed,
                       fitted.notice, fitted.noticeSize(wingWidth: 190), fitted.compactMusicGeometry.compactActivitySize,
                       fitted.compactTimerGeometry(showsDownloads: true).compactActivitySize]
-        suite.expect(strips.allSatisfy { $0.height == 33.5 && $0.height == fitted.stripHeight },
+        suite.expect(strips.allSatisfy { $0.height == 32.5 && $0.height == fitted.stripHeight },
                "every strip beside the camera, the volume and brightness notice included, follows the fitted height")
         suite.expect(fitted.restingSize(showsContent: false).width == 181
                && fitted.noticeCameraGap == 181 && fitted.musicCameraGap == 181,
@@ -843,10 +848,10 @@ enum NotchTests {
         let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                      menuBarHeight: 33, compactSideRoom: 100, outline: true)
         suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
-               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 33 + room),
+               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
                "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
         suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
-                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 33 + room },
+                      outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
                "every strip beside the camera keeps its line clear of the housing")
         suite.expect(!outlined.hasSameMenuBar(as: bare), "turning the outline on measures the menus again for the wider island")
         suite.expect(outlined.bareCutout == bare.restingSize(showsContent: false)
@@ -1438,8 +1443,8 @@ enum NotchTests {
                "a new island starts spacious and opens by click")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideUntilHover), "hidden hover is opt-in")
         suite.expect(!defaults.bool(forKey: DefaultsKey.notchOutlineEnabled), "the island outline is opt-in")
-        suite.expect(defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
-                     "the island hides the gap below a physical notch by default")
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchHideMenuBarGap),
+                     "the island matches the physical notch's height unless covering the gap below it is chosen")
         suite.expect(defaults.double(forKey: DefaultsKey.notchHoverDelay) == 0.25,
                "hover activation defaults to a deliberate quarter-second pause")
         for value in [0.10, 0.25, 0.65, 1.0] {

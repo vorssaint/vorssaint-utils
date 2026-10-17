@@ -241,11 +241,18 @@ struct NotchPillButton: View {
 struct NotchArtwork: View {
     let image: NSImage?
     let size: CGFloat
+    /// A player that sends no cover, as Firefox and Zen do, shows its own
+    /// icon in its place, so the song still says where it plays.
+    var source: RadialNowPlayingSnapshot? = nil
 
     var body: some View {
         Group {
             if let image {
                 Image(nsImage: image).resizable().scaledToFill()
+            } else if let icon = source.flatMap(RadialNowPlayingApplication.icon(for:)) {
+                Color.black.overlay {
+                    Image(nsImage: icon).resizable().interpolation(.high).scaledToFit().padding(size * 0.14)
+                }
             } else {
                 Color.black.overlay {
                     Image(systemName: "music.note")
