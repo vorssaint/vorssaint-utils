@@ -232,6 +232,13 @@ enum CommandBarUnits {
         formatter.numberFormatter.locale = locale
         formatter.numberFormatter.maximumFractionDigits = fractionDigits(for: measurement.value)
         formatter.numberFormatter.minimumFractionDigits = 0
+        // Four decimals would print a millionth as "0", which reads as a
+        // wrong answer, so a tiny value keeps its significant digits instead.
+        let magnitude = abs(measurement.value)
+        if magnitude != 0, magnitude < 0.001 {
+            formatter.numberFormatter.usesSignificantDigits = true
+            formatter.numberFormatter.maximumSignificantDigits = 4
+        }
         return formatter.string(from: measurement)
     }
 
