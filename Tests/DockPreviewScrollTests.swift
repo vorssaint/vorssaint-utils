@@ -160,10 +160,17 @@ enum DockPreviewScrollTests {
                     return
                 }
                 action()
-                settle()
-                let clip = scroll.contentView.bounds
                 let start = DockPreviewSupport.panelPadding
                     + CGFloat(expectedIndex) * (extent + DockPreviewSupport.cardSpacing)
+                // The reveal is an animated scroll, so a busy machine can need
+                // more than one settle; wait for it, up to a bound, before judging.
+                var clip = scroll.contentView.bounds
+                let revealDeadline = Date().addingTimeInterval(2)
+                repeat {
+                    settle()
+                    clip = scroll.contentView.bounds
+                } while !(start >= clip.minX - 0.5 && start + extent <= clip.maxX + 0.5)
+                    && Date() < revealDeadline
                 suite.expect(model.selectedWindowID == model.windows[expectedIndex].windowID,
                              "\(name): navigation selects window \(expectedIndex + 1)")
                 suite.expect(start >= clip.minX - 0.5 && start + extent <= clip.maxX + 0.5,
