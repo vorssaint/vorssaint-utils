@@ -401,6 +401,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/GlobalShortcut.swift
         Sources/Vorssaint/Core/SymbolicHotKeys.swift
         Sources/Vorssaint/Services/SystemShortcutTakeoverSupport.swift
+        Sources/Vorssaint/UI/AppLocalizedView.swift
         Sources/Vorssaint/Core/Localization.swift
         Sources/Vorssaint/Core/Localizations/Strings+*.swift
         Sources/Vorssaint/Core/FeatureStrings.swift
@@ -566,6 +567,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Cleaner/CleanerSchedule.swift
         Sources/Vorssaint/Services/Uninstall/UninstallerSupport.swift
         Sources/Vorssaint/Services/ManagedDownloads/WhatsAppDownloadSupport.swift
+        Sources/Vorssaint/Core/MenuBarOrganizerStrings.swift
+        Sources/Vorssaint/Services/MenuBarOrganizer/MenuBarOrganizerSupport.swift
         Sources/Vorssaint/Core/SecureInputSupport.swift
         Tests/*.swift
         build/generated-tests/*.swift
@@ -599,6 +602,10 @@ if (( ! DEV )); then
 fi
 APP_OBJECT_DIR="build/objects/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
+# The Menu Bar Organizer reaches its private macOS 27 API through Objective-C,
+# where the runtime lookups and exception guards live.
+clang -fobjc-arc -fblocks -target "$TARGET" -isysroot "$SDK" -c \
+    Sources/MenuBarVisibilityBridge/MenuBarVisibilityBridge.m -o build/menu-bar-visibility.o
 APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
 write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
 # Without -j the driver compiles one file at a time, and without batch mode
@@ -609,7 +616,7 @@ swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysc
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
     "${BUILD_VARIANT_FLAGS[@]}" \
-    "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
+    -I Sources/MenuBarVisibilityBridge "${APP_SOURCES[@]}" build/menu-bar-visibility.o -o "build/$EXECUTABLE"
 
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \

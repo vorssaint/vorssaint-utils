@@ -12,6 +12,7 @@ struct BatteryTimeFeatureStrings {
 extension FeatureStrings {
     static func batteryTime(_ language: AppLanguage) -> BatteryTimeFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -119,5 +120,13 @@ extension BatteryTimeFeatureStrings {
         title: "Залишок часу роботи від акумулятора",
         systemEstimate: "Системна оцінка",
         calculating: "Обчислення…"
+    )
+}
+
+extension BatteryTimeFeatureStrings {
+    static let ar = BatteryTimeFeatureStrings(
+        title: "الوقت المتبقي للبطارية",
+        systemEstimate: "تقدير النظام",
+        calculating: "جارٍ الحساب…"
     )
 }

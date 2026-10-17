@@ -19,6 +19,7 @@ struct MenuBarAppearanceStrings {
 extension FeatureStrings {
     static func menuBarAppearance(_ language: AppLanguage) -> MenuBarAppearanceStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -231,5 +232,20 @@ extension MenuBarAppearanceStrings {
         highColor: "Високий колір",
         mediumFrom: "Середній від",
         highFrom: "Високий від"
+    )
+}
+
+extension MenuBarAppearanceStrings {
+    static let ar = MenuBarAppearanceStrings(
+        label: "عرض الاستخدام",
+        values: "قيم",
+        bars: "أشرطة",
+        caption: "تنطبق الأشرطة على استخدام المعالج والرسوميات والذاكرة والقرص. تبقى القراءات الأخرى رقمية.",
+        customize: "ألوان الأشرطة وحدودها",
+        normalColor: "اللون العادي",
+        mediumColor: "لون المستوى المتوسط",
+        highColor: "لون المستوى المرتفع",
+        mediumFrom: "المتوسط يبدأ من",
+        highFrom: "المرتفع يبدأ من"
     )
 }

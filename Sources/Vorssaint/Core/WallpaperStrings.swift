@@ -34,6 +34,7 @@ struct WallpaperFeatureStrings {
 extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -440,5 +441,33 @@ extension WallpaperFeatureStrings {
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
         nextPage: "下一頁"
+    )
+}
+
+extension WallpaperFeatureStrings {
+    static let ar = WallpaperFeatureStrings(
+        pageTitle: "خلفية سطح المكتب",
+        hubDescription: "اختيار خلفية ثابتة دون فتح إعدادات النظام",
+        panelDescription: "اختيار خلفية ثابتة دون فتح إعدادات النظام.",
+        filterAll: "الكل",
+        filterOwn: "صورك",
+        filterApple: "Apple",
+        applyAllDisplays: "الإظهار على كل المساحات",
+        addImage: "إضافة صورة",
+        addFolder: "إضافة مجلد",
+        removeAdded: "إزالة",
+        doneRemoving: "تم",
+        sourceUnavailable: "غير متاح",
+        addImagePrompt: "اختر صورًا للاحتفاظ بها في قائمة خلفيات Vorssaint",
+        addFolderPrompt: "اختر مجلد صور للاحتفاظ به في قائمة خلفيات Vorssaint",
+        openSystemSettings: "فتح إعدادات خلفية الشاشة",
+        emptyAll: "لم يُعثر على خلفيات",
+        emptyOwn: "لم تُضف صورًا بعد",
+        emptyApple: "لم يُعثر على صور Apple ثابتة",
+        downloading: "جارٍ التنزيل…",
+        downloadFailed: "تعذر تنزيل الخلفية",
+        applyFailed: "تعذر تعيين الخلفية",
+        previousPage: "السابق",
+        nextPage: "التالي"
     )
 }

@@ -10,6 +10,11 @@ struct NotchMirrorView: View {
     @ObservedObject var mirror: NotchMirrorModel
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         content
             .frame(width: mirror.size.width, height: mirror.size.height, alignment: .top)
             .foregroundStyle(.white)

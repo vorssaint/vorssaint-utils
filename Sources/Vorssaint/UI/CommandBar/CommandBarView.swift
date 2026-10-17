@@ -131,6 +131,11 @@ struct CommandBarView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             searchBar
             if let warning = service.uninstallWarning {
@@ -203,6 +208,7 @@ struct CommandBarView: View {
         .onChange(of: service.query) { _, query in
             if !query.isEmpty, service.presentation == .droplet { CommandBarDroplet.shared.hurry() }
         }
+
     }
 
     /// Only the copy on screen asks for the keyboard: a hidden copy taking it

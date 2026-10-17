@@ -14,6 +14,7 @@ struct MouseClickDebounceStrings {
 extension FeatureStrings {
     static func mouseClickDebounce(_ language: AppLanguage) -> MouseClickDebounceStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -151,5 +152,15 @@ extension MouseClickDebounceStrings {
         moreOptions: "Більше опцій",
         windowLabel: "Фільтрувати вікно",
         windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
+    )
+}
+
+extension MouseClickDebounceStrings {
+    static let ar = MouseClickDebounceStrings(
+        title: "تصفية النقرات الزائدة",
+        caption: "يتجاهل النقرات الزائدة السريعة من أزرار الماوس البالية دون إبطاء النقرات العادية.",
+        moreOptions: "خيارات إضافية",
+        windowLabel: "مدة التصفية",
+        windowCaption: "تُعد النقرة المكررة خلال هذا الفاصل تكرارًا غير مقصود."
     )
 }

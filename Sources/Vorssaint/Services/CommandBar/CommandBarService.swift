@@ -3579,9 +3579,9 @@ final class CommandBarService: ObservableObject {
                 return nil
             case kVK_LeftArrow:
                 // Handed back untouched when the field has text in it.
-                return self.moveCategory(-1) ? nil : event
+                return self.moveCategory(L10n.shared.language.horizontalNavigationStep(-1)) ? nil : event
             case kVK_RightArrow:
-                return self.moveCategory(1) ? nil : event
+                return self.moveCategory(L10n.shared.language.horizontalNavigationStep(1)) ? nil : event
             case kVK_Tab:
                 self.completeSelection()
                 return nil

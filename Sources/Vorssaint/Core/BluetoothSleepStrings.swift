@@ -19,6 +19,7 @@ struct BluetoothSleepStrings {
 extension FeatureStrings {
     static func bluetoothSleep(_ language: AppLanguage) -> BluetoothSleepStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -186,5 +187,17 @@ extension BluetoothSleepStrings {
         restoreToggle: "Ввімкнути Bluetooth назад, коли Mac прокидається",
         restoreCaption: "Лише коли Vorssaint сам його вимкнув.",
         unsupported: "На цьому Mac немає Bluetooth-контролера."
+    )
+}
+
+extension BluetoothSleepStrings {
+    static let ar = BluetoothSleepStrings(
+        pageTitle: "Bluetooth أثناء السكون",
+        hubDescription: "يوقف Bluetooth أثناء سكون الـMac لمنع اتصال سماعات الرأس الموجودة في الحقيبة به.",
+        enable: "إيقاف Bluetooth عند سكون الـMac",
+        enableCaption: "إذا كان Bluetooth متوقفًا قبل السكون، فسيبقى متوقفًا عند الاستيقاظ.",
+        restoreToggle: "تشغيل Bluetooth مجددًا عند استيقاظ الـMac",
+        restoreCaption: "فقط إذا كان Vorssaint هو من أوقفه.",
+        unsupported: "لا يحتوي هذا الـMac على وحدة Bluetooth."
     )
 }

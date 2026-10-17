@@ -47,6 +47,7 @@ struct KeepAwakeDisplaySleepStrings {
 extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -67,6 +68,7 @@ extension FeatureStrings {
 
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -490,5 +492,36 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Будь-яка",
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
+    )
+}
+
+extension KeepAwakeDisplaySleepStrings {
+    static let ar = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "السماح بسكون الشاشة",
+        allowDisplaySleepCaption: "يبقي الـMac مستيقظًا بينما تتبع الشاشة مؤقت السكون المعتاد."
+    )
+}
+
+extension KeepAwakeAutomationStrings {
+    static let ar = KeepAwakeAutomationStrings(
+        automationSection: "الأتمتة",
+        automationCaption: "يبدأ عندما يكون أي شرط محدد نشطًا.",
+        automationOff: "إيقاف",
+        externalDisplayToggle: "شاشة خارجية",
+        externalDisplayActive: "نشط أثناء اتصال شاشة خارجية",
+        powerToggle: "الطاقة",
+        powerActive: "نشط عند الاتصال بالطاقة",
+        runningAppsToggle: "التطبيقات",
+        runningAppsActive: "نشط أثناء تشغيل تطبيق محدد",
+        runningAppsListTitle: "التطبيقات المحددة",
+        runningAppsAddButton: "إضافة تطبيق…",
+        runningAppsRemoveButton: "إزالة",
+        runningAppsListCaption: "يبدأ إبقاء الاستيقاظ عندما يكون أي من هذه التطبيقات مفتوحًا، حتى في الخلفية.",
+        automationActive: "نشط بسبب تحقق شرط تلقائي",
+        pauseWhenLockedToggle: "إيقاف مؤقت أثناء قفل الـMac",
+        pauseWhenLockedCaption: "يتبع قواعد السكون المعتادة أثناء القفل ويستأنف المدة المتبقية بعد إلغاء القفل.",
+        matchAny: "أي شرط",
+        matchAll: "الكل",
+        automationCaptionAll: "يبدأ فقط عندما تكون جميع الشروط المحددة نشطة."
     )
 }

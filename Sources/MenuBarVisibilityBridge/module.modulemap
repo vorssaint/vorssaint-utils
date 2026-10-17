@@ -1,0 +1,4 @@
+module MenuBarVisibilityBridge {
+    header "include/MenuBarVisibilityBridge.h"
+    export *
+}

@@ -1482,7 +1482,8 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if let step = ClipboardHistoryNavigation.step(keyCode: event.keyCode, modifiers: modifiers,
-                                                          key: key, layout: self.quickLayout) {
+                                                          key: key, layout: self.quickLayout,
+                                                          rightToLeft: L10n.shared.language.isRightToLeft) {
                 self.moveQuickSelection(step)
                 return nil
             }

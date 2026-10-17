@@ -409,10 +409,10 @@ final class QuickLauncherService: ObservableObject {
             activateSelection()
             return nil
         case kVK_LeftArrow:
-            moveSelection(.left, flow: flow)
+            moveSelection(L10n.shared.language.isRightToLeft ? .right : .left, flow: flow)
             return nil
         case kVK_RightArrow:
-            moveSelection(.right, flow: flow)
+            moveSelection(L10n.shared.language.isRightToLeft ? .left : .right, flow: flow)
             return nil
         case kVK_UpArrow:
             moveSelection(.up, flow: flow)

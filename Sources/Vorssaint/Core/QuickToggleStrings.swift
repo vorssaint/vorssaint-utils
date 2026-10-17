@@ -37,6 +37,7 @@ struct QuickToggleFeatureStrings {
 extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -474,5 +475,35 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Запустити зберігач екрана",
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
         actionFailed: "Не вдалося завершити."
+    )
+}
+
+extension QuickToggleFeatureStrings {
+    static let ar = QuickToggleFeatureStrings(
+        pageTitle: "المفاتيح السريعة",
+        hubDescription: "إجراءات بنقرة واحدة مثل الوضع الداكن وسلة المهملات",
+        panelCaption: "إجراءات نظام بنقرة واحدة في لوحة شريط القوائم واللوحة السريعة.",
+        darkModeToDark: "التبديل إلى الوضع الداكن",
+        darkModeToLight: "التبديل إلى الوضع الفاتح",
+        darkModeCaption: "يغيّر مظهر النظام كله.",
+        emptyTrashTitle: "إفراغ سلة المهملات",
+        emptyTrashCaption: "يزيل كل شيء من سلة المهملات.",
+        emptyTrashConfirmTitle: "إفراغ سلة المهملات؟",
+        emptyTrashConfirmMessage: "ستُزال كل العناصر من سلة المهملات. لا يمكن التراجع عن هذا.",
+        emptyTrashConfirmButton: "إفراغ سلة المهملات",
+        ejectTitle: "إخراج جميع الأقراص",
+        ejectCaption: "يُخرج كل الأقراص الخارجية بأمان.",
+        hiddenFilesShow: "إظهار الملفات المخفية",
+        hiddenFilesHide: "إخفاء الملفات المخفية",
+        desktopIconsHide: "إخفاء أيقونات سطح المكتب",
+        desktopIconsShow: "إظهار أيقونات سطح المكتب",
+        finderRestartCaption: "يُعاد تشغيل Finder لتطبيقه.",
+        lockScreenTitle: "قفل الشاشة",
+        lockScreenCaption: "يطلب كلمة المرور للعودة.",
+        displayOffTitle: "إيقاف الشاشة",
+        displayOffCaption: "يستمر الـMac بالعمل والشاشة متوقفة.",
+        screenSaverTitle: "بدء شاشة التوقف",
+        screenSaverCaption: "تبدأ فورًا على كل الشاشات.",
+        actionFailed: "تعذر الإكمال."
     )
 }

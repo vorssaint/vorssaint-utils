@@ -25,6 +25,23 @@ struct NotchFilesStrings {
 extension FeatureStrings {
     static func notchFiles(_ language: AppLanguage) -> NotchFilesStrings {
         switch language {
+        case .ar: return NotchFilesStrings(
+            archive: "إنشاء ZIP",
+            archiveHint: "يُحفظ كل عنصر محدد كملف ZIP مستقل. تبقى الأصول كما هي.",
+            saved: "محفوظ",
+            downloadsTitle: "التنزيلات",
+            downloadsDescription: "شاهد وصول الملفات إلى مجلد تختاره داخل الجزيرة الديناميكية مباشرة.",
+            downloadsHint: "اختر مجلد تنزيلات المتصفح. تتم مراقبة هذا المجلد فقط.",
+            chooseFolder: "اختيار مجلد…",
+            folderUnavailable: "هذا المجلد غير متاح. اختره مجددًا لاستعادة الوصول.",
+            waiting: "لا توجد ملفات في هذا المجلد",
+            inProgress: "جارٍ التنزيل",
+            totalUnknown: "الحجم الإجمالي غير متاح",
+            completed: "اكتمل التنزيل",
+            clearFolder: "نسيان المجلد",
+            optimizeMedia: "تحسين الوسائط",
+            optimizeDropHint: "اسحب صورًا أو فيديو واحدًا إلى الجزيرة، ثم أسقطه على تحسين الوسائط لاختيار طريقة حفظ نسخة.",
+            resumeMedia: "العودة إلى الوسائط")
         case .enUS: return NotchFilesStrings(
             archive: "Create ZIP",
             archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",

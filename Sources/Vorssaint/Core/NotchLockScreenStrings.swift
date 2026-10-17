@@ -17,6 +17,13 @@ struct NotchLockScreenStrings {
 extension FeatureStrings {
     static func notchLockScreen(_ language: AppLanguage) -> NotchLockScreenStrings {
         switch language {
+        case .ar: return NotchLockScreenStrings(
+            title: "شاشة القفل",
+            show: "الإظهار على شاشة القفل",
+            showHint: "تظهر الموسيقى وأنشطة الجزيرة الديناميكية، مثل المؤقت والوكلاء والتنزيلات والحدث القادم، فوق حقل كلمة المرور. يمكن لأي شخص يرى شاشتك قراءتها.",
+            sounds: "أصوات القفل وإلغاء القفل",
+            soundsHint: "تشغيل صوت قفل macOS عند قفل الـMac وإلغاء قفله.",
+            working: "جارٍ العمل")
         case .enUS: return NotchLockScreenStrings(
             title: "Lock Screen",
             show: "Show on the Lock Screen",

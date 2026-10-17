@@ -34,6 +34,10 @@ enum SwitcherModelFeatureTests {
                      "zero scrolling preserves the selection")
         suite.expect(navigation.selectionDelta(for: event(1, horizontal: -3)) == 1,
                      "horizontal scrolling uses the dominant axis")
+        suite.expect(navigation.selectionDelta(for: event(1, horizontal: -3), rightToLeft: true) == -1,
+                     "horizontal scrolling follows the mirrored RTL app order")
+        suite.expect(navigation.selectionDelta(for: event(-3), rightToLeft: true) == 1,
+                     "RTL preserves vertical scrolling order")
         let step = Int32(SwitcherScrollNavigation.gestureStep)
         suite.expect(navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began)) == 0,
                      "a gesture below the threshold preserves the selection")
@@ -43,6 +47,9 @@ enum SwitcherModelFeatureTests {
                      "trackpad momentum does not change the selection")
         suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began)) == -1,
                      "a horizontal trackpad gesture changes the selection")
+        suite.expect(navigation.selectionDelta(for: event(0, horizontal: step, continuous: true, phase: .began),
+                                              rightToLeft: true) == 1,
+                     "a horizontal trackpad gesture follows RTL app order")
         _ = navigation.selectionDelta(for: event(-step / 2, continuous: true, phase: .began))
         suite.expect(navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == 0
                      && navigation.selectionDelta(for: event(step / 2, continuous: true, phase: .changed)) == -1,

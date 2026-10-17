@@ -8,6 +8,11 @@ struct DockPreviewPanelView: View {
     @ObservedObject var service: DockPreviewService
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         DockPreviewPanelContent(
             windows: service.windows,
             previews: service.previews,
@@ -35,6 +40,7 @@ struct DockPreviewPanelView: View {
             onUpdateDrag: service.updateWindowDrag,
             onEndDrag: service.endWindowDrag
         )
+
     }
 }
 
@@ -42,6 +48,11 @@ struct DockPreviewPinnedPanelView: View {
     @ObservedObject var panel: DockPreviewPinnedPanel
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         DockPreviewPanelContent(
             windows: panel.windows,
             previews: panel.previews,
@@ -71,6 +82,7 @@ struct DockPreviewPinnedPanelView: View {
             onUpdateDrag: {},
             onEndDrag: { _ in }
         )
+
     }
 }
 

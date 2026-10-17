@@ -23,6 +23,7 @@ struct BackupFeatureStrings {
 extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -252,5 +253,21 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "呢份備份冇 Dynamic Island 設定。呢部 Mac 上嘅相關設定會保留。想從另一部 Mac 複製呢啲設定,請用 Vorssaint 3.4 或更新版本重新匯出。其他設定會匯入,之後 App 會重新啟動。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+}
+
+extension BackupFeatureStrings {
+    static let ar = BackupFeatureStrings(
+        title: "النسخ الاحتياطي",
+        description: "انقل إعداداتك إلى Mac آخر: صدّر التفضيلات إلى ملف ثم استوردها هناك. تبقى ملاحظات المفكرة وسجل الحافظة وعناصر الرف وأذونات النظام على هذا الـMac.",
+        exportButton: "تصدير الإعدادات…",
+        importButton: "استيراد الإعدادات…",
+        exported: "تم حفظ النسخة الاحتياطية",
+        exportFailed: "تعذر حفظ النسخة الاحتياطية.",
+        importConfirmTitle: "استيراد هذه الإعدادات؟",
+        importConfirmBody: "ستُستبدل إعداداتك الحالية بإعدادات الملف ثم يُعاد تشغيل التطبيق. لن يتغير أي شيء آخر على هذا الـMac.",
+        importMissingIslandBody: "لا تحتوي هذه النسخة على إعدادات الجزيرة الديناميكية. ستُحفظ إعداداتها الحالية على هذا الـMac. أعد التصدير باستخدام Vorssaint 3.4 أو أحدث على الجهاز الآخر لنسخها. ستُستورد الإعدادات الأخرى ثم يُعاد تشغيل التطبيق.",
+        importAction: "استيراد وإعادة التشغيل",
+        invalidFile: "هذا الملف ليس نسخة احتياطية صالحة لـVorssaint."
     )
 }

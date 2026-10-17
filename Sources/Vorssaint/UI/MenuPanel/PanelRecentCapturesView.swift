@@ -200,10 +200,16 @@ struct RecentCapturesWindowView: View {
     var onClose: () -> Void
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         RecentCapturesView(onClose: onClose)
             .padding(14)
             .frame(width: 440)
             .background(HUDBackdrop(cornerRadius: 18, contrast: .high))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
     }
 }

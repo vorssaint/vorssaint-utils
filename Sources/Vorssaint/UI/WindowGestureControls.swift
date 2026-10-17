@@ -26,6 +26,8 @@ struct WindowEdgeSnapZonePicker: View {
                         height: compact ? 36 : 50)
             }
             .padding(compact ? 5 : 7)
+            // This is a map of physical screen edges, including left/right targets.
+            .environment(\.layoutDirection, .leftToRight)
             .frame(width: compact ? 258 : 340)
             .background(
                 RoundedRectangle(cornerRadius: compact ? 9 : 12, style: .continuous)
