@@ -105,6 +105,7 @@ struct MetricsTests {
                 CommandBarSelectionTests.run(suite)
             }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
+            ("notch-gestures", { NotchGestureTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
