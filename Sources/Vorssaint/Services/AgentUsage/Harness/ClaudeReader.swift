@@ -3,9 +3,9 @@
 
 import Foundation
 
-/// Reads Claude Code session logs. A prompt opens a turn, a reply records
-/// its usage ahead of the turn it continues, and an interruption, a local
-/// command's output or a turn-ending tool result closes the turn again.
+/// Reads Claude Code session logs. A prompt opens a turn, a reply keeps it
+/// going and records its usage, and an interruption, a local command's
+/// output or a turn-ending tool result closes the turn again.
 struct ClaudeReader: AgentHarnessReader {
     var provider: AgentProvider { .claude }
 

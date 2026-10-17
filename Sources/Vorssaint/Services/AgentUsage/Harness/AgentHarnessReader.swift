@@ -3,16 +3,15 @@
 
 import Foundation
 
-/// One harness's line parser. Each agent owns the storage its logs keep and
-/// the shape only its lines parse into, so adding a harness is a new type
-/// here rather than another case across the service.
+/// One harness's log line parser, chosen by `AgentProvider.reader`. What it
+/// carries from line to line lives in the shared `AgentLogState`.
 protocol AgentHarnessReader {
     /// The provider this reader parses for.
     var provider: AgentProvider { get }
     /// What one log line says, reduced to the facts the island keeps.
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry]
-    /// True when the first pass streams the whole history instead of only
-    /// what was appended, as cumulative counters require.
+    /// True when a log's first reading goes through `readCopilotHistory`,
+    /// which passes on only Copilot's event lines; only Copilot sets it.
     var readsFullHistoryFirst: Bool { get }
 }
 
