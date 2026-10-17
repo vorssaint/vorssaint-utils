@@ -912,6 +912,11 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         isOpaque = frozenImage != nil
         backgroundColor = frozenImage == nil ? .clear : .black
         hasShadow = false
+        // A frame change on this visible shielding window is scaled by the
+        // window server around the window's centre. The dim, and the still
+        // under it, then sit inside the display for a fraction of a second
+        // instead of covering its width and height.
+        animationBehavior = .none
         level = NSWindow.Level(rawValue: Int(CGShieldingWindowLevel()))
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         hidesOnDeactivate = false
@@ -945,7 +950,23 @@ private final class ScreenshotOverlayPanel: OverlayPanel {
         view.autoresizingMask = [.width, .height]
         container.addSubview(view)
         overlayViewStorage = view
+        container.autoresizingMask = [.width, .height]
         contentView = container
+    }
+
+    /// Tool chrome lives in hosting views whose ideal size is a small bar.
+    /// Accepting that size pulls this window in from every edge.
+    override func setFrame(_ frameRect: NSRect, display displayFlag: Bool) {
+        super.setFrame(Self.frameCoveringScreen(screenFrame, insteadOf: frameRect), display: displayFlag)
+    }
+
+    private static func frameCoveringScreen(_ screen: NSRect, insteadOf requested: NSRect) -> NSRect {
+        guard !screen.isEmpty else { return requested }
+        let drifted = abs(requested.width - screen.width) > 1
+            || abs(requested.height - screen.height) > 1
+            || abs(requested.minX - screen.minX) > 1
+            || abs(requested.minY - screen.minY) > 1
+        return drifted ? screen : requested
     }
 
     /// New pixels for a tool that needs its own photograph, without the
@@ -1733,6 +1754,18 @@ private final class PassThroughHostingView<Content: View>: NSHostingView<Content
     /// Capture actions remain clickable while the Dynamic Island panel owns
     /// key focus. Keep that policy attached to the interactive host itself so
     /// a caller cannot accidentally forget one half of the setup.
+    required init(rootView: Content) {
+        super.init(rootView: rootView)
+        // Default sizing tracks the SwiftUI ideal size with constraints. On
+        // this full-screen window those constraints are the guide's, so
+        // choosing screenshot, recording or the eyedropper shrinks the dim
+        // inside the display. Frames assigned in layout() have to stick.
+        sizingOptions = []
+        safeAreaRegions = []
+        translatesAutoresizingMaskIntoConstraints = true
+    }
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
     convenience init(interactiveRootView rootView: Content) {
         self.init(rootView: rootView)
         passesThrough = false
@@ -2018,9 +2051,10 @@ private struct UnifiedCaptureGuideContent: View {
         let hovered = hoveredTool == tool
         let title = tool.settingsTitle(l10n.s, language: l10n.language)
         return Button {
-            withAnimation(.easeOut(duration: 0.16)) {
-                options.select(tool)
-            }
+            // Animating this publishes the new tool through the hosting view
+            // that fills the display. That view then asks the window to adopt
+            // the bar's size, and the window server scales the request.
+            options.select(tool)
         } label: {
             VStack(spacing: 3) {
                 HStack(spacing: 6) {
