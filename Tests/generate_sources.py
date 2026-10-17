@@ -488,6 +488,31 @@ def main():
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func copyAnswer(").replace("private static", "static", 1)
           + "}\n")
+    scroll_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
+    scroll_catalog = "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift"
+    write("ScrollDirectionControls.swift", "import Foundation\nimport SwiftUI\n"
+          + "extension AppFeature {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift", "    func hubTitle(")
+          + "}\n"
+          + "extension ScrollDirectionControlsTests.Panel {\n"
+          + declaration(scroll_panel, "    private var scrollDirectionEnabled:")
+              .replace("private var", "var", 1)
+          + declaration(scroll_panel, "    private func scrollDirectionBinding(")
+              .replace("private func", "func", 1)
+          + declaration(scroll_panel, "    private func requestAccessibilityIfNeeded(")
+              .replace("private func", "func", 1)
+          + "}\nextension ScrollDirectionControlsTests.Catalog {\n"
+          + declaration(scroll_catalog, "    static func groupTitle(")
+          + declaration(scroll_catalog, "    static func toggleEntries(")
+              .replace("guard feature.isAvailable else", "guard feature.isAvailable(in: UserDefaults.standard) else")
+          + "}\n"
+          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "struct SettingsDirectoryItem:")
+          + "extension ScrollDirectionControlsTests.Directory {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "    static func sections(")
+              .replace("SuperKeyService.shared.source", ".capsLock")
+          + "}\nextension ScrollDirectionControlsTests.Direction {\n"
+          + declaration("Sources/Vorssaint/Services/ScrollWheelSupport.swift", "    static func applyDirection(")
+          + "}\n")
     write("CommandBarSelection.swift", "import Foundation\nextension CommandBarSelectionTests {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift", "enum CommandBarText {")
           + "final class Catalog: Fixture {\n"

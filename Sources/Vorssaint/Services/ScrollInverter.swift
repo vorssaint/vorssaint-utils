@@ -5,8 +5,8 @@ import AppKit
 import Combine
 import CoreGraphics
 
-/// Rewrites mouse wheel events only, leaving the trackpad on macOS natural
-/// scrolling: a modifying tap at the HID level (before the window server
+/// Reverses mouse wheels and trackpad gestures independently using a modifying
+/// tap at the HID level (before the window server
 /// derives pixel deltas from the wheel ticks), appended at the tail. It caps
 /// every event at one notch for linear scrolling, redirects modifier-held
 /// vertical ticks when requested and flips the selected axis deltas; any of
@@ -202,15 +202,29 @@ final class ScrollInverter: ObservableObject {
             lastGesturePhaseTimestamp = timestamp
         }
 
-        guard ScrollWheelSupport.isMouseWheel(traits,
-                                              secondsSinceLastGesturePhase: secondsSinceGesturePhase)
-        else { return Unmanaged.passUnretained(event) }
+        let isMouseWheel = ScrollWheelSupport.isMouseWheel(traits,
+            secondsSinceLastGesturePhase: secondsSinceGesturePhase)
 
         let defaults = UserDefaults.standard
         let direction = ScrollDirectionPreferences(defaults: defaults)
         let directionApplies = direction.isEnabled
             && !MouseAppExceptions.shared.excludesPointerTarget(
                 .scrollDirection, at: event.location, sourceProcessID: sourceProcessID)
+        // Touch gestures (including momentum and transition frames) only get
+        // their own axis settings. Wheel caps and modifier redirection never
+        // alter them, and Control-scroll keeps macOS's native zoom behavior.
+        if !isMouseWheel {
+            linearCarryVertical = 0
+            linearCarryHorizontal = 0
+            if directionApplies, !event.flags.contains(.maskControl) {
+                ScrollWheelSupport.applyDirection(
+                    to: event, isContinuous: true,
+                    invertVertical: direction.invertTrackpadVertical,
+                    invertHorizontal: direction.invertTrackpadHorizontal,
+                    horizontalModifier: nil, updatesHID: true)
+            }
+            return Unmanaged.passUnretained(event)
+        }
         // Control-wheel is native zoom. Only the explicit Control-to-horizontal
         // shortcut turns it into scrolling; a direction exception or one of
         // our own windows leaves it as zoom too.

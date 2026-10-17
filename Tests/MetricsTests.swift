@@ -36,6 +36,7 @@ struct MetricsTests {
             }),
             ("scroll-modifier", { ScrollHorizontalModifierTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
+            ("scroll-controls", { ScrollDirectionControlsTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)

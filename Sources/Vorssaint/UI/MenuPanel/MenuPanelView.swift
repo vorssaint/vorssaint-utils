@@ -1183,6 +1183,8 @@ struct QuickControlsSection: View {
     @ObservedObject private var shelf = ShelfService.shared
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
+    @AppStorage(DefaultsKey.scrollInverterTrackpadEnabled) private var invertTrackpadVertical = false
+    @AppStorage(DefaultsKey.scrollInverterTrackpadHorizontalEnabled) private var invertTrackpadHorizontal = false
     @AppStorage(DefaultsKey.focusFollowsMouseEnabled) private var focusFollowsMouseEnabled = false
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
     @AppStorage(DefaultsKey.switcherEnabled) private var switcherEnabled = true
@@ -1447,21 +1449,31 @@ struct QuickControlsSection: View {
     private func itemView(_ item: ControlPanelItem, editing: Bool) -> some View {
         switch item {
         case .mouseScroll:
-            PanelToggleRow(title: l10n.s.invertMouseScroll,
-                           caption: caption(l10n.s.invertMouseScrollCaption,
-                                            needsAccessibility: scrollDirectionEnabled),
-                           systemImage: "computermouse",
-                           isOn: scrollDirectionBinding,
-                           isEditing: editing,
-                           showsDragHandle: true,
-                           visibility: $showScroll,
-                           needsAttention: scrollDirectionEnabled && !permissions.accessibility,
-                           permissionButtonTitle: l10n.s.permissionRequest,
-                           permissionAction: accessibilityPermissionAction(scrollDirectionEnabled))
-                .onChange(of: scrollDirectionEnabled) { _, enabled in
-                    ScrollInverter.shared.syncWithPreferences()
-                    requestAccessibilityIfNeeded(enabled)
+            // One saved layout item still owns the whole feature. Outside
+            // edit mode each axis uses the same switch row as other controls.
+            if editing {
+                PanelToggleRow(title: l10n.s.invertMouseScroll,
+                               caption: l10n.s.invertMouseScrollCaption,
+                               systemImage: "computermouse",
+                               isOn: .constant(scrollDirectionEnabled),
+                               isEditing: true,
+                               showsDragHandle: true,
+                               visibility: $showScroll)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(ScrollDirectionSetting.allCases) { setting in
+                        let binding = scrollDirectionBinding(for: setting)
+                        PanelToggleRow(title: setting.title(l10n.s),
+                                       caption: caption(l10n.s.invertMouseScrollCaption,
+                                                        needsAccessibility: binding.wrappedValue),
+                                       systemImage: setting.symbolName,
+                                       isOn: binding,
+                                       needsAttention: binding.wrappedValue && !permissions.accessibility,
+                                       permissionButtonTitle: l10n.s.permissionRequest,
+                                       permissionAction: accessibilityPermissionAction(binding.wrappedValue))
+                    }
                 }
+            }
         case .linearScroll:
             PanelToggleRow(title: l10n.s.linearScrollName,
                            caption: caption(l10n.s.linearScrollCaption,
@@ -1969,15 +1981,23 @@ struct QuickControlsSection: View {
     }
 
     private var scrollDirectionEnabled: Bool {
-        invertVertical || invertHorizontal
+        invertVertical || invertHorizontal || invertTrackpadVertical || invertTrackpadHorizontal
     }
 
-    private var scrollDirectionBinding: Binding<Bool> {
-        Binding {
-            scrollDirectionEnabled
+    private func scrollDirectionBinding(for setting: ScrollDirectionSetting) -> Binding<Bool> {
+        let binding: Binding<Bool>
+        switch setting {
+        case .mouseVertical: binding = $invertVertical
+        case .mouseHorizontal: binding = $invertHorizontal
+        case .trackpadVertical: binding = $invertTrackpadVertical
+        case .trackpadHorizontal: binding = $invertTrackpadHorizontal
+        }
+        return Binding {
+            binding.wrappedValue
         } set: { enabled in
-            invertVertical = enabled
-            invertHorizontal = enabled
+            binding.wrappedValue = enabled
+            ScrollInverter.shared.syncWithPreferences()
+            requestAccessibilityIfNeeded(enabled)
         }
     }
 

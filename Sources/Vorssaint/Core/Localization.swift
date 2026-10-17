@@ -331,6 +331,8 @@ struct Strings {
     let scrollSection: String
     let invertMouseScroll: String
     let invertMouseScrollCaption: String
+    let scrollMouseLabel: String
+    let scrollTrackpadLabel: String
     let scrollTrackpadNote: String
     let scrollActiveNow: String
     let mouseNavigationActiveNow: String
@@ -1467,10 +1469,12 @@ extension Strings {
         dimScreenOnLidCloseCaption: "Escurece a tela quando a tampa fecha e restaura o brilho quando ela abre.",
 
         scrollSection: "Rolagem",
-        invertMouseScroll: "Inverter rolagem do mouse",
-        invertMouseScrollCaption: "Inverte a direção da roda do mouse.",
-        scrollTrackpadNote: "O trackpad não muda: continua com a rolagem natural do macOS.",
-        scrollActiveNow: "Invertendo a rolagem do mouse agora",
+        invertMouseScroll: "Inverter rolagem",
+        invertMouseScrollCaption: "Inverta a rolagem do mouse e do trackpad de forma independente.",
+        scrollMouseLabel: "Mouse",
+        scrollTrackpadLabel: "Trackpad",
+        scrollTrackpadNote: "Inverta a rolagem do mouse e do trackpad de forma independente.",
+        scrollActiveNow: "Inversão de rolagem ativa",
         mouseNavigationActiveNow: "Botões laterais ativos agora",
         smoothScrollName: "Rolagem suave",
         smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
@@ -2567,10 +2571,12 @@ extension Strings {
         dimScreenOnLidCloseCaption: "Dims the display when the lid closes and brings the brightness back when it opens.",
 
         scrollSection: "Scrolling",
-        invertMouseScroll: "Invert mouse scrolling",
-        invertMouseScrollCaption: "Reverses the mouse wheel direction.",
-        scrollTrackpadNote: "The trackpad is untouched: it keeps macOS natural scrolling.",
-        scrollActiveNow: "Inverting mouse scrolling right now",
+        invertMouseScroll: "Reverse scrolling",
+        invertMouseScrollCaption: "Reverse mouse and trackpad scrolling independently.",
+        scrollMouseLabel: "Mouse",
+        scrollTrackpadLabel: "Trackpad",
+        scrollTrackpadNote: "Reverse mouse and trackpad scrolling independently.",
+        scrollActiveNow: "Scroll reversal active",
         mouseNavigationActiveNow: "Side buttons active right now",
         smoothScrollName: "Smooth scrolling",
         smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",

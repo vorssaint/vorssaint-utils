@@ -3,6 +3,48 @@
 
 import Foundation
 import CoreGraphics
+import Darwin
+
+/// The same four settings are offered in Settings, Quick Controls and Command
+/// Bar. Keep their keys, names and durable action IDs together.
+enum ScrollDirectionSetting: CaseIterable, Hashable, Identifiable {
+    case mouseVertical, mouseHorizontal, trackpadVertical, trackpadHorizontal
+
+    var id: Self { self }
+
+    var defaultsKey: String {
+        switch self {
+        case .mouseVertical: return DefaultsKey.scrollInverterEnabled
+        case .mouseHorizontal: return DefaultsKey.scrollInverterHorizontalEnabled
+        case .trackpadVertical: return DefaultsKey.scrollInverterTrackpadEnabled
+        case .trackpadHorizontal: return DefaultsKey.scrollInverterTrackpadHorizontalEnabled
+        }
+    }
+
+    var commandID: String {
+        switch self {
+        case .mouseVertical: return "toggle.scrollInverter.vertical"
+        case .mouseHorizontal: return "toggle.scrollInverter.horizontal"
+        case .trackpadVertical: return "toggle.scrollInverter.trackpad.vertical"
+        case .trackpadHorizontal: return "toggle.scrollInverter.trackpad.horizontal"
+        }
+    }
+
+    var isTrackpad: Bool { self == .trackpadVertical || self == .trackpadHorizontal }
+    var isVertical: Bool { self == .mouseVertical || self == .trackpadVertical }
+    var symbolName: String { isTrackpad ? "hand.draw" : "computermouse" }
+
+    func title(_ strings: Strings) -> String {
+        let device = isTrackpad ? strings.scrollTrackpadLabel : strings.scrollMouseLabel
+        let axis = isVertical ? strings.invertVerticalScroll : strings.invertHorizontalScroll
+        return "\(device) · \(axis)"
+    }
+
+    static func searchKeywords(_ strings: Strings) -> [String] {
+        allCases.map { $0.title(strings) }
+            + [strings.scrollMouseLabel, strings.scrollTrackpadLabel, strings.scrollTrackpadNote]
+    }
+}
 
 enum ScrollHorizontalModifier: String, CaseIterable {
     case shift, option, control, command
@@ -26,15 +68,23 @@ enum ScrollHorizontalModifier: String, CaseIterable {
 struct ScrollDirectionPreferences {
     let invertVertical: Bool
     let invertHorizontal: Bool
+    let invertTrackpadVertical: Bool
+    let invertTrackpadHorizontal: Bool
     let horizontalModifier: ScrollHorizontalModifier?
 
-    var isEnabled: Bool { invertVertical || invertHorizontal || horizontalModifier != nil }
+    var isEnabled: Bool {
+        invertVertical || invertHorizontal || invertTrackpadVertical || invertTrackpadHorizontal
+            || horizontalModifier != nil
+    }
 
     init(isAvailable: (AppFeature) -> Bool,
          boolFor: (String) -> Bool,
          stringFor: (String) -> String?) {
         invertVertical = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterEnabled)
         invertHorizontal = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterHorizontalEnabled)
+        invertTrackpadVertical = isAvailable(.scrollInverter) && boolFor(DefaultsKey.scrollInverterTrackpadEnabled)
+        invertTrackpadHorizontal = isAvailable(.scrollInverter)
+            && boolFor(DefaultsKey.scrollInverterTrackpadHorizontalEnabled)
         horizontalModifier = isAvailable(.scrollHorizontal) && boolFor(DefaultsKey.scrollHorizontalEnabled)
             ? ScrollHorizontalModifier(storageValue: stringFor(DefaultsKey.scrollHorizontalModifier)) : nil
     }
@@ -153,6 +203,7 @@ enum ScrollWheelSupport {
     static func applyDirection(to event: CGEvent, isContinuous: Bool,
                                invertVertical: Bool, invertHorizontal: Bool,
                                horizontalModifier: ScrollHorizontalModifier?,
+                               updatesHID: Bool = false,
                                targetsOwnWindow: @autoclosure () -> Bool = false) {
         let redirected = event.getIntegerValueField(.eventSourceUserData) == horizontalRedirectTag
             || (horizontalModifier.map {
@@ -177,6 +228,13 @@ enum ScrollWheelSupport {
             invertVertical: invertVertical,
             invertHorizontal: invertHorizontal
         )
+        // Some apps read the attached HID scroll data during momentum. Keep
+        // it in agreement with Quartz rather than reversing only the finger
+        // phase. Synthetic events may have no HID payload at all.
+        // Only the touch path opts into the new HID behavior. Wheel-only
+        // linear caps and modifier redirection retain their existing path.
+        let hidScroll = updatesHID && isContinuous && (plan.vertical || plan.horizontal)
+            ? ScrollHIDDirection.capture(event) : nil
         if plan.vertical {
             event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: -verticalLine)
             // A zero whole-line field cannot reconstruct a high-resolution tick.
@@ -192,6 +250,7 @@ enum ScrollWheelSupport {
                 event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -horizontalFixedPoint)
             }
         }
+        hidScroll?.reverse(vertical: plan.vertical, horizontal: plan.horizontal)
     }
 
     /// The list is front to back in Quartz coordinates. Do not restrict layers:
@@ -240,6 +299,46 @@ enum ScrollWheelSupport {
                 && (shiftRedirectsVertically ? invertHorizontal : invertVertical),
             horizontal: hasHorizontalMovement && invertHorizontal
         )
+    }
+}
+
+/// Optional macOS SPI, resolved once so a missing symbol leaves Quartz
+/// reversal available. IOHIDFloat is a Double on the app's 64-bit target.
+private enum ScrollHIDDirection {
+    private typealias CopyEvent = @convention(c) (CGEvent) -> Unmanaged<CFTypeRef>?
+    private typealias GetFloat = @convention(c) (CFTypeRef, UInt32) -> Double
+    private typealias SetFloat = @convention(c) (CFTypeRef, UInt32, Double) -> Void
+    private static let process = dlopen(nil, RTLD_LAZY)
+    private static let copyEvent: CopyEvent? = symbol("CGEventCopyIOHIDEvent")
+    private static let getFloat: GetFloat? = symbol("IOHIDEventGetFloatValue")
+    private static let setFloat: SetFloat? = symbol("IOHIDEventSetFloatValue")
+
+    private static func symbol<T>(_ name: String) -> T? {
+        guard let process, let address = dlsym(process, name) else { return nil }
+        return unsafeBitCast(address, to: T.self)
+    }
+
+    // Scroll event type 6, with X at offset 0 and Y at offset 1.
+    private static let scrollX: UInt32 = 6 << 16
+    private static let scrollY = scrollX | 1
+
+    struct Snapshot {
+        let event: CFTypeRef
+        let x: Double
+        let y: Double
+
+        func reverse(vertical: Bool, horizontal: Bool) {
+            // Write the captured values after Quartz writes so field setters
+            // cannot overwrite them or cause a second reversal.
+            if vertical { setFloat?(event, scrollY, -y) }
+            if horizontal { setFloat?(event, scrollX, -x) }
+        }
+    }
+
+    static func capture(_ event: CGEvent) -> Snapshot? {
+        guard let copyEvent, let getFloat, setFloat != nil,
+              let hidEvent = copyEvent(event)?.takeRetainedValue() else { return nil }
+        return Snapshot(event: hidEvent, x: getFloat(hidEvent, scrollX), y: getFloat(hidEvent, scrollY))
     }
 }
 

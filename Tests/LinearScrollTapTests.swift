@@ -167,6 +167,110 @@ enum LinearScrollTapTests {
         trackpad.setIntegerValueField(.scrollWheelEventScrollPhase, value: 1)
         suite.expect(deliver(trackpad)?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 40,
                      "a trackpad gesture passes through untouched")
+        independentDirections(suite, defaults: defaults)
+    }
+
+    private static func independentDirections(_ suite: TestSuite, defaults: Foundation.UserDefaults) {
+        // Exercise the actual callback across every independent device/axis
+        // choice, keeping linear scrolling and wheel redirection engaged.
+        for mouseVertical in [false, true] {
+            for mouseHorizontal in [false, true] {
+                for trackpadVertical in [false, true] {
+                    for trackpadHorizontal in [false, true] {
+                        defaults.set(mouseVertical, forKey: DefaultsKey.scrollInverterEnabled)
+                        defaults.set(mouseHorizontal, forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+                        defaults.set(trackpadVertical, forKey: DefaultsKey.scrollInverterTrackpadEnabled)
+                        defaults.set(trackpadHorizontal, forKey: DefaultsKey.scrollInverterTrackpadHorizontalEnabled)
+                        defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
+                        defaults.set(true, forKey: DefaultsKey.linearScrollEnabled)
+                        defaults.set(true, forKey: AppFeature.scrollHorizontal.availabilityKey)
+                        defaults.set(true, forKey: DefaultsKey.scrollHorizontalEnabled)
+                        defaults.set("option", forKey: DefaultsKey.scrollHorizontalModifier)
+                        let preferences = ScrollDirectionPreferences(defaults: defaults)
+                        suite.expect(preferences.invertTrackpadVertical == trackpadVertical
+                            && preferences.invertTrackpadHorizontal == trackpadHorizontal,
+                            "trackpad preferences stay independent of mouse axes")
+                        let inverter = Inverter()
+                        for phase in [Int64(1), 2, 4, 8] {
+                            let event = twoAxisTouch(scrollPhase: phase)
+                            _ = inverter.handle(type: .scrollWheel, event: event)
+                            suite.expect(verticalLine(event) == (trackpadVertical ? -2 : 2)
+                                && verticalFixed(event) == (trackpadVertical ? -2.5 : 2.5)
+                                && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+                                    == (trackpadVertical ? -25 : 25)
+                                && event.getIntegerValueField(.scrollWheelEventDeltaAxis2)
+                                    == (trackpadHorizontal ? -1 : 1)
+                                && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2)
+                                    == (trackpadHorizontal ? -1.25 : 1.25)
+                                && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis2)
+                                    == (trackpadHorizontal ? -12 : 12),
+                                "touch events reverse only selected trackpad axes and retain fractional deltas")
+                            suite.expect(event.flags == .maskAlternate
+                                && event.getIntegerValueField(.scrollWheelEventScrollPhase) == phase,
+                                "trackpad modifiers and gesture phases reach the app intact")
+                        }
+                        // Lifted fingers and the phaseless handoff keep the
+                        // trackpad's choice; a discrete wheel overrides that history.
+                        for momentum in [Int64(1), 2, 3] {
+                            let event = twoAxisTouch(momentumPhase: momentum)
+                            _ = inverter.handle(type: .scrollWheel, event: event)
+                            suite.expect(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+                                    == (trackpadVertical ? -25 : 25),
+                                "momentum keeps the same trackpad reversal as finger scrolling")
+                        }
+                        let transition = twoAxisTouch()
+                        transition.setIntegerValueField(.scrollWheelEventScrollCount, value: 1)
+                        _ = inverter.handle(type: .scrollWheel, event: transition)
+                        suite.expect(transition.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+                                == (trackpadVertical ? -25 : 25),
+                            "a phaseless gesture transition retains the trackpad direction")
+                        let mouse = wheel(line: 4, fixed: 4, point: 40)
+                        _ = inverter.handle(type: .scrollWheel, event: mouse)
+                        suite.expect(verticalLine(mouse) == (mouseVertical ? -3 : 3),
+                            "switching from trackpad momentum to a wheel uses the mouse direction and linear cap")
+                        let sideways = wheel(line: 4, fixed: 4, point: 40, flags: .maskAlternate)
+                        _ = inverter.handle(type: .scrollWheel, event: sideways)
+                        suite.expect(sideways.getIntegerValueField(.scrollWheelEventDeltaAxis2)
+                                == (mouseHorizontal ? -3 : 3),
+                            "redirected mouse wheels use the mouse horizontal choice")
+                    }
+                }
+            }
+        }
+
+        func untouched(_ event: CGEvent, message: String) {
+            _ = Inverter().handle(type: .scrollWheel, event: event)
+            suite.expect(verticalLine(event) == 2 && verticalFixed(event) == 2.5
+                && event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 25, message)
+        }
+        Exceptions.shared.excepted = [.scrollDirection]
+        untouched(twoAxisTouch(scrollPhase: 1), message: "direction exclusions also preserve trackpad scrolling")
+        Exceptions.shared.excepted = []
+        let zoom = twoAxisTouch(scrollPhase: 1)
+        zoom.flags = .maskControl
+        untouched(zoom, message: "Control-trackpad zoom keeps its native direction")
+        let synthetic = twoAxisTouch(scrollPhase: 1)
+        synthetic.setIntegerValueField(.eventSourceUserData, value: ScrollWheelSupport.syntheticTag)
+        untouched(synthetic, message: "synthetic glide events are never reversed twice")
+        defaults.set(false, forKey: AppFeature.scrollInverter.availabilityKey)
+        untouched(twoAxisTouch(scrollPhase: 1), message: "removing inversion stops trackpad reversal even with linear scrolling active")
+
+        defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.scrollInverterEnabled)
+        defaults.set(false, forKey: DefaultsKey.scrollInverterHorizontalEnabled)
+        defaults.set(false, forKey: DefaultsKey.scrollHorizontalEnabled)
+        suite.expect(ScrollDirectionPreferences(defaults: defaults).isEnabled,
+                     "trackpad-only reversal keeps the direction tap alive")
+    }
+
+    private static func twoAxisTouch(scrollPhase: Int64 = 0, momentumPhase: Int64 = 0) -> CGEvent {
+        let event = wheel(continuous: true, line: 2, fixed: 2.5, point: 25, flags: .maskAlternate)
+        event.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: 1)
+        event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: 1.25)
+        event.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: 12)
+        event.setIntegerValueField(.scrollWheelEventScrollPhase, value: scrollPhase)
+        event.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase)
+        return event
     }
 
     private static func verticalLine(_ event: CGEvent) -> Int64 {

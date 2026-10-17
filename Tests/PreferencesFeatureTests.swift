@@ -13,6 +13,12 @@ import VMStatisticsCompat
 
 enum PreferencesFeatureTests {
     static func run(_ suite: TestSuite) {
+        let trackpadKeys = [DefaultsKey.scrollInverterTrackpadEnabled,
+                            DefaultsKey.scrollInverterTrackpadHorizontalEnabled]
+        suite.expect(trackpadKeys.allSatisfy { SettingsBackupSupport.exportKeys().contains($0) },
+                     "both trackpad directions travel in settings backups")
+        suite.expect(trackpadKeys.allSatisfy { Defaults.registeredDefaults[$0] as? Bool == false },
+                     "upgrading leaves trackpad scrolling unchanged until requested")
         // MARK: Registered defaults
 
         let registeredDefaults = Defaults.registeredDefaults
