@@ -1597,51 +1597,8 @@ enum PointerInputFeatureTests {
                    && Defaults.sanitizedMiddleClickTapFingers(2) == 0
                    && Defaults.sanitizedMiddleClickTapFingers(-1) == 0,
                "any other tap finger count means off")
-        suite.expect(MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                exceededFingerCount: false, buttonPressedDuring: false,
-                                                positionUnavailable: false, systemDragGestureEnabled: false,
-                                                tapFingers: 3),
-               "a quick still three-finger tap fires")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 3, secondsSinceLastKeyDown: 0.1),
-               "stray trackpad contact while typing never fires a middle click")
-        suite.expect(MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                exceededFingerCount: false, buttonPressedDuring: false,
-                                                positionUnavailable: false, systemDragGestureEnabled: false,
-                                                tapFingers: 3, secondsSinceLastKeyDown: 1.0),
-               "tap to middle click resumes after keyboard activity settles")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.2, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 3),
-               "a swipe never fires the tap")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.8, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 3),
-               "resting fingers never fire the tap")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: true,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 3),
-               "a physical click during the touch belongs to the press path")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: true, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 3),
-               "extra fingers cancel the tap")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: true, systemDragGestureEnabled: false,
-                                                 tapFingers: 3),
-               "unreadable touch positions stand the tap down")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: true,
-                                                 tapFingers: 3),
-               "three-finger tap stands down while the system drag gesture owns it")
+        // The tap's own rules are judged by the gesture recognizer, which owns
+        // every multi-finger tap; see TrackpadGestureTests.
         suite.expect(MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: true, middleClickTapFingers: 0) == 4
                 && MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: true, middleClickTapFingers: 3) == 4
                 && MiddleClickSupport.radialMenuTapFingers(radialMenuWantsTap: false, middleClickTapFingers: 0) == 0,
@@ -1696,16 +1653,6 @@ enum PointerInputFeatureTests {
         suite.expect(RadialMenuSupport.sanitizedProfiles([forwardWheel, savedCopy]).map(\.mouseButton)
                 == [RadialMenuMouseTrigger.forward.rawValue, RadialMenuMouseTrigger.off.rawValue],
                "a button saved on two wheels stays on the first, the only one it ever opened")
-        suite.expect(MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.01,
-                                                exceededFingerCount: false, buttonPressedDuring: false,
-                                                positionUnavailable: false, systemDragGestureEnabled: true,
-                                                tapFingers: 4),
-               "four-finger tap stays available alongside the system drag gesture")
-        suite.expect(!MiddleClickSupport.tapShouldFire(duration: 0.15, maxMovement: 0.01, maxSpreadChange: 0.2,
-                                                 exceededFingerCount: false, buttonPressedDuring: false,
-                                                 positionUnavailable: false, systemDragGestureEnabled: false,
-                                                 tapFingers: 4),
-               "a pinch or spread never fires the tap even with a still centroid")
 
         // MARK: Cut and paste move progress (issue #168)
 
@@ -3729,6 +3676,7 @@ enum PointerInputFeatureTests {
                          "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
                          "Sources/Vorssaint/Services/Finder/FinderRenameService.swift",
                          "Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceService.swift",
+                         "Sources/Vorssaint/Services/Trackpad/TrackpadGestureService.swift",
                          "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift",
                          "Sources/Vorssaint/Services/ShortcutRecordingTap.swift",
                          "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift",
@@ -3760,6 +3708,7 @@ enum PointerInputFeatureTests {
             if tapOwner.contains("MouseNavigation")
                 || tapOwner.contains("MouseButtonShortcut")
                 || tapOwner.contains("MiddleClick")
+                || tapOwner.contains("TrackpadGesture")
                 || tapOwner.contains("QuitProtection")
                 || tapOwner.contains("RadialMenu")
                 || tapOwner.contains("ShortcutRecordingTap") {
@@ -3800,7 +3749,8 @@ enum PointerInputFeatureTests {
         suite.expect(pointerTapSource.contains("qualityOfService = .userInteractive"),
                "the pointer thread is scheduled as input work")
         for pointerTapOwner in ["Sources/Vorssaint/Services/ScrollInverter.swift",
-                                "Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift"] {
+                                "Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift",
+                                "Sources/Vorssaint/Services/Trackpad/TrackpadGestureService.swift"] {
             let source = (try? String(contentsOfFile: pointerTapOwner, encoding: .utf8)) ?? ""
             let code = source.components(separatedBy: "\n")
                 .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
@@ -4085,22 +4035,17 @@ private final class PointerInputTestClock {
     }
 }
 
-/// Runs the production lifecycle and notification callbacks with IOKit,
-/// MultitouchSupport and the event tap replaced by doubles.
+/// Runs the trackpad contact reader's production lifecycle and notification
+/// callbacks with IOKit and MultitouchSupport replaced by doubles, and the
+/// middle click's quick-controls caption that reports its warning.
 enum MiddleClickTrackpadContract {
-    static let middleClickContactCallback = "contact"
+    static let trackpadContactCallback = "contact"
     enum Multitouch {
         static var devices: CFArray?
         static func deviceList() -> CFArray? { devices }
         static func register(_ device: UnsafeMutableRawPointer, _ callback: String?) {}
         static func start(_ device: UnsafeMutableRawPointer) {}
         static func stop(_ device: UnsafeMutableRawPointer) {}
-    }
-    enum PointerTapRunLoop {
-        static func remove(_ source: CFRunLoopSource, invalidating port: Int?) {}
-    }
-    enum EventTap {
-        static func tapEnable(tap: Int, enable: Bool) {}
     }
     enum Workspace {
         static let shared = WorkspaceState()
@@ -4155,27 +4100,14 @@ enum MiddleClickTrackpadContract {
         }
     }
     class Fixture {
-        typealias CFMachPort = Int
-        typealias CGEvent = EventTap
         typealias NSWorkspace = Workspace
-        typealias MiddleClickService = Service
+        typealias TrackpadTouchService = Service
         var deviceList: CFArray?
         var touchDeviceMissing = false
-        var isRunning = false
-        var tap: Int? = 1
-        var runLoopSource: CFRunLoopSource?
+        var isListening = true
         var observers: [Any] = []
         var hotplugPort: Int?
         var hotplugIterators: [io_iterator_t] = []
-        let tapStateLock = NSLock()
-        let stateLock = NSLock()
-        var lastTransformEnd: TimeInterval?
-        var suppressedButtonSequence = false
-        var fingerCount = 0
-        var lastFrameUptime: TimeInterval = 0
-        var fingerCountSince: TimeInterval = 0
-        func releaseHeldMiddleButton() {}
-        func resetTapCandidateLocked() {}
     }
 
     static func run(_ suite: TestSuite) {
@@ -4186,7 +4118,7 @@ enum MiddleClickTrackpadContract {
         service.installHotplugObserver()
         service.installHotplugObserver()
         suite.expect(service.touchDeviceMissing,
-                     "a started middle click without a touch device tells Settings the trackpad cannot be read")
+                     "a trackpad reader started without a touch device tells Settings the trackpad cannot be read")
         suite.expect(Set(IO.registrations.map(\.notification))
                         == [kIOFirstMatchNotification, kIOTerminatedNotification] && IO.calls == 2,
                      "one observer is armed for arrivals and one for removals, without duplicate registration")
@@ -4211,7 +4143,7 @@ enum MiddleClickTrackpadContract {
         service.stop()
         delayed.callback(delayed.context, delayed.iterator)
         suite.expect(!service.touchDeviceMissing && service.deviceList == nil,
-                     "pausing middle click clears the warning and ignores queued device callbacks")
+                     "releasing the last reader clears the warning and ignores queued device callbacks")
         suite.expect(IO.released == [1, 2] && IO.destroyedPorts == 1
                         && service.hotplugPort == nil && service.hotplugIterators.isEmpty,
                      "stopping releases both notification iterators and their port")

@@ -721,104 +721,12 @@ final class RadialMenuService: ObservableObject {
 
     // MARK: - Actions
 
+    /// Slices run through the runner gestures share, with the wheel's center
+    /// as the anchor and Accessibility asked once, in context.
     private func run(_ item: RadialMenuItem) {
-        switch item.kind {
-        case .app:
-            let url = URL(fileURLWithPath: (item.payload as NSString).expandingTildeInPath)
-            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
-                if error != nil { DispatchQueue.main.async { NSSound.beep() } }
-            }
-        case .file:
-            let path = (item.payload as NSString).expandingTildeInPath
-            guard FileManager.default.fileExists(atPath: path) else {
-                NSSound.beep()
-                return
-            }
-            NSWorkspace.shared.open(URL(fileURLWithPath: path))
-        case .url:
-            if let normalized = RadialMenuSupport.normalizedURL(item.payload),
-               let url = URL(string: normalized) {
-                NSWorkspace.shared.open(url)
-            }
-        case .shortcut:
-            if let shortcut = GlobalShortcut(storageValue: item.payload) {
-                postWhenModifiersReleased(attempt: 0) { Self.postShortcut(shortcut) }
-            }
-        case .media:
-            if let key = item.mediaKey {
-                if key == .nowPlaying {
-                    RadialNowPlayingService.shared.presentDetails(at: wheelCenter)
-                } else {
-                    postWhenModifiersReleased(attempt: 0) { Self.postMediaKey(key) }
-                }
-            }
-        case .tool:
-            if let tool = item.tool { run(tool) }
-        case .quickToggle:
-            if let action = item.quickToggle { run(action) }
-        case .windowLayout:
-            if let action = item.windowLayoutAction { run(action) }
-        case .submenu:
-            break
-        }
-    }
-
-    private func run(_ tool: RadialMenuTool) {
-        guard tool.isRunnable() else { return }
-        // The same beat the quick panel gives screen-touching tools, so the
-        // wheel is really gone before anything captures or presents.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            switch tool {
-            case .screenshot: ScreenshotService.shared.capture()
-            case .screenRecorder: ScreenRecorderService.shared.toggle()
-            case .colorPicker: ColorSamplerService.shared.pick()
-            case .screenOCR: ScreenTextService.shared.capture()
-            case .micMute: MicMuteService.shared.toggle()
-            case .clipboardHistory: ClipboardHistoryService.shared.showHistoryWindow()
-            case .quickLauncher: QuickLauncherService.shared.show()
-            case .cameraPreview: CameraPreviewService.shared.show()
-            case .scratchpad: ScratchpadService.shared.show()
-            case .shelf: ShelfService.shared.summon()
-            case .cleaner: Self.openSettings(at: .cleaner)
-            case .uninstaller: Self.openSettings(at: .uninstaller)
-            case .appUpdates:
-                AppUpdatesService.shared.check()
-                Self.openSettings(at: .appUpdates)
-            case .cleaningMode: CleaningModeManager.shared.activate()
-            case .keepAwake: KeepAwakeManager.shared.toggle()
-            }
-        }
-    }
-
-    private static func openSettings(at page: SettingsPage) {
-        SettingsRouter.shared.page = page
-        appDelegate()?.openSettingsWindow()
-    }
-
-    private func run(_ action: RadialMenuQuickToggle) {
-        guard AppFeature.quickToggles.isAvailable else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            let toggles = QuickTogglesService.shared
-            switch action {
-            case .darkMode: toggles.toggleDarkMode()
-            case .emptyTrash: toggles.emptyTrash()
-            case .ejectDisks: toggles.ejectAllDisks()
-            case .hiddenFiles: toggles.toggleHiddenFiles()
-            case .desktopIcons: toggles.toggleDesktopIcons()
-            case .lockScreen: toggles.lockScreen()
-            case .displayOff: toggles.turnDisplayOff()
-            case .screenSaver: toggles.startScreenSaver()
-            }
-        }
-    }
-
-    private func run(_ action: WindowLayoutAction) {
-        guard AppFeature.windowLayout.isAvailable, ensureAccessibilityPermission() else { return }
-        // Let the non-activating wheel disappear before resolving the window
-        // that was active behind it, matching the delay used by visual tools.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            if case .failure = WindowLayoutService.shared.apply(action) { NSSound.beep() }
-        }
+        TriggerActionRunner.run(item, context: TriggerActionRunner.Context(
+            anchor: wheelCenter,
+            ensureAccessibility: { [weak self] in self?.ensureAccessibilityPermission() ?? false }))
     }
 
     // MARK: - Accessibility-gated actions (asked once and in context)
@@ -834,64 +742,6 @@ final class RadialMenuService: ObservableObject {
             return false
         }
         return true
-    }
-
-    /// Waits for the summoning chord to leave the keyboard before posting, or
-    /// the synthetic key merges with the still-held modifiers (checked every
-    /// 15 ms for up to ~1.5 s, with an extra beat once clean).
-    private func postWhenModifiersReleased(attempt: Int, then post: @escaping () -> Void) {
-        guard ensureAccessibilityPermission() else { return }
-        let held = CGEventSource.flagsState(.combinedSessionState)
-            .intersection([.maskCommand, .maskAlternate, .maskShift, .maskControl])
-        if held.isEmpty || attempt >= 100 {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.06, execute: post)
-            return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.015) { [weak self] in
-            self?.postWhenModifiersReleased(attempt: attempt + 1, then: post)
-        }
-    }
-
-    private static func postShortcut(_ shortcut: GlobalShortcut) {
-        guard let keyDown = CGEvent(keyboardEventSource: nil,
-                                    virtualKey: CGKeyCode(shortcut.keyCode), keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: nil,
-                                  virtualKey: CGKeyCode(shortcut.keyCode), keyDown: false)
-        else { return }
-        // The flags a real press carries, so a shortcut on an arrow or an F
-        // key is recognised beyond the app in front as well (issue #401).
-        keyDown.flags = shortcut.syntheticEventFlags
-        keyUp.flags = shortcut.syntheticEventFlags
-        keyDown.post(tap: .cghidEventTap)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-            keyUp.post(tap: .cghidEventTap)
-        }
-    }
-
-    /// Posts the aux-button pair the physical media keys produce, so whatever
-    /// player owns the media keys reacts exactly as if F8 was pressed.
-    private static func postMediaKey(_ key: RadialMenuMediaKey) {
-        guard let auxKeyType = key.auxKeyType else { return }
-        postAuxKey(auxKeyType, down: true)
-        postAuxKey(auxKeyType, down: false)
-    }
-
-    private static func postAuxKey(_ type: Int32, down: Bool) {
-        let stateFlags: NSEvent.ModifierFlags = down
-            ? NSEvent.ModifierFlags(rawValue: 0xA00)
-            : NSEvent.ModifierFlags(rawValue: 0xB00)
-        let data1 = (Int(type) << 16) | ((down ? 0xA : 0xB) << 8)
-        guard let event = NSEvent.otherEvent(with: .systemDefined,
-                                             location: .zero,
-                                             modifierFlags: stateFlags,
-                                             timestamp: ProcessInfo.processInfo.systemUptime,
-                                             windowNumber: 0,
-                                             context: nil,
-                                             subtype: 8,
-                                             data1: data1,
-                                             data2: -1)
-        else { return }
-        event.cgEvent?.post(tap: .cghidEventTap)
     }
 
     // MARK: - Panel
