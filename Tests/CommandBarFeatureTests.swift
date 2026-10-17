@@ -1013,6 +1013,50 @@ enum CommandBarFeatureTests {
                "the little words alone convert nothing")
         suite.expect(units("safari to dock") == nil, "plain words are not units")
         suite.expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
+        // How a French, Russian or Swiss Mac writes the same number.
+        func groupedUnits(_ input: String, decimal: String, grouping: String) -> Double? {
+            CommandBarUnits.convert(input, decimalSeparator: decimal, groupingSeparator: grouping,
+                                    locale: Locale(identifier: "en_US"))?.value
+        }
+        let kilometres = CommandBarUnits.convert("1234.5 km to mi", decimalSeparator: ".", groupingSeparator: ",",
+                                                 locale: Locale(identifier: "en_US"))?.value
+        suite.expect(kilometres != nil
+                && groupedUnits("1\u{202F}234,5 km to mi", decimal: ",", grouping: "\u{202F}") == kilometres
+                && groupedUnits("1\u{00A0}234,5 km to mi", decimal: ",", grouping: "\u{00A0}") == kilometres
+                && groupedUnits("1'234.5 km to mi", decimal: ".", grouping: "'") == kilometres,
+               "thousands grouped with a space or an apostrophe convert like the plain number")
+        suite.expect(groupedUnits("123 45 km to mi", decimal: ",", grouping: "\u{202F}") == nil
+                && groupedUnits("1234 567 km to mi", decimal: ",", grouping: "\u{202F}") == nil
+                && groupedUnits("0 234 km to mi", decimal: ",", grouping: "\u{202F}") == nil,
+               "only groups that look the part are joined")
+        // A French Mac writes a narrow no-break space between the groups, but
+        // what its owner types there is a plain one.
+        suite.expect(unitValue("1234567.5 m to km") != nil
+                && groupedUnits("1 234,5 km to mi", decimal: ",", grouping: "\u{202F}") == kilometres
+                && groupedUnits("1 234,5km to mi", decimal: ",", grouping: "\u{202F}") == kilometres
+                && groupedUnits("1 234 567,5 m to km", decimal: ",", grouping: "\u{202F}")
+                    == unitValue("1234567.5 m to km"),
+               "a typed space groups thousands like the one the Mac writes")
+        // On a Swiss Mac "1'000 km to m" answers "1'000'000 m", and the answer
+        // has to read back.
+        suite.expect(unitValue("1234567 m to km") != nil && unitValue("1000000 m to km") != nil
+                && groupedUnits("1'234'567 m to km", decimal: ".", grouping: "'") == unitValue("1234567 m to km")
+                && groupedUnits("1'000'000 m to km", decimal: ".", grouping: "'") == unitValue("1000000 m to km")
+                && groupedUnits("1'234.5km to mi", decimal: ".", grouping: "'") == kilometres,
+               "an apostrophe groups every three digits, with or without a space before the unit")
+        suite.expect(groupedUnits("1'23 km to mi", decimal: ".", grouping: "'") == nil
+                && groupedUnits("0'234 km to mi", decimal: ".", grouping: "'") == nil,
+               "an apostrophe that does not group thousands is refused")
+        // A Swiss Mac may write one apostrophe where its keyboard types the
+        // other, and a minus stays in front of the groups.
+        suite.expect(groupedUnits("1’234.5 km to mi", decimal: ".", grouping: "'") == kilometres
+                && groupedUnits("1'234.5 km to mi", decimal: ".", grouping: "\u{2019}") == kilometres
+                && groupedUnits("1’234.5 km to mi", decimal: ".", grouping: "\u{2019}") == kilometres
+                && groupedUnits("-1'234.5 km to mi", decimal: ".", grouping: "'") == kilometres.map { -$0 },
+               "either apostrophe groups thousands, after a minus too")
+        suite.expect(groupedUnits("1'234.5'6 km to mi", decimal: ".", grouping: "'") == nil
+                && groupedUnits("1 234,5 678 km to mi", decimal: ",", grouping: "\u{202F}") == nil,
+               "grouping stops where the decimals start")
         suite.expect(units("minutes to read the article") == nil,
                "a sentence that happens to contain a unit word stays a search")
         suite.expect(CommandBarUnits.convert("1,5 m to cm",
