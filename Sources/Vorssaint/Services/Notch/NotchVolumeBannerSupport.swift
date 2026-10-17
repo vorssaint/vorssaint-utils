@@ -11,10 +11,8 @@ enum NotchVolumeBannerSupport {
     static let host = "com.apple.MenuBarAgent"
     static let identifier = "volume-system-banner"
 
-    /// Reads the identifier only while the island shows volume, so other
-    /// windows the menu bar creates cost no accessibility call.
-    static func hides(showsVolume: Bool, identifier: @autoclosure () -> String?) -> Bool {
-        showsVolume && identifier() == self.identifier
+    static func isBanner(_ identifier: String?) -> Bool {
+        identifier == self.identifier
     }
 
     static func isOffScreen(_ frame: CGRect, screens: [CGRect]) -> Bool {

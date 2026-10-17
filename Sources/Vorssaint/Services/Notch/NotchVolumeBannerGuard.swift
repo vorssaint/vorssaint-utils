@@ -12,6 +12,13 @@ final class NotchVolumeBannerGuard {
     private var pid: pid_t?
     private var running = false
     private var workspaceObservers: [NSObjectProtocol] = []
+    /// Every question to the menu bar waits for it to answer, up to a tenth
+    /// of a second while it rebuilds for another app. Those waits stay here,
+    /// off the main thread.
+    private let queue = DispatchQueue(label: "com.vorssaint.notch-volume-banner", qos: .userInteractive)
+    /// A move still on the queue when the guard stops sees a newer value and
+    /// puts its banner back.
+    private var generation = 0
     /// The banner this guard moved, and where macOS had placed it.
     private var hidden: (window: AXUIElement, origin: CGPoint)?
     private let notifications = [kAXCreatedNotification, kAXWindowCreatedNotification, kAXWindowMovedNotification]
@@ -31,10 +38,13 @@ final class NotchVolumeBannerGuard {
 
     func stop() {
         running = false
+        generation &+= 1
         workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         workspaceObservers.removeAll()
         detach()
-        restore()
+        guard let hidden else { return }
+        self.hidden = nil
+        queue.async { Self.restore(hidden.window, to: hidden.origin) }
     }
 
     private func attach() {
@@ -47,7 +57,7 @@ final class NotchVolumeBannerGuard {
         var created: AXObserver?
         let callback: AXObserverCallback = { _, element, _, context in
             guard let context else { return }
-            Unmanaged<NotchVolumeBannerGuard>.fromOpaque(context).takeUnretainedValue().hide(element)
+            Unmanaged<NotchVolumeBannerGuard>.fromOpaque(context).takeUnretainedValue().noticed(element)
         }
         guard AXObserverCreate(nextPID, callback, &created) == .success, let created else { return }
         let app = AXUIElementCreateApplication(nextPID)
@@ -71,28 +81,42 @@ final class NotchVolumeBannerGuard {
         pid = nil
     }
 
-    /// Moves within the notification itself. The banner is created already
-    /// in place and draws a few hundredths of a second later, so it never
-    /// reaches the screen. A banner the menu bar places again is moved again.
-    private func hide(_ element: AXUIElement) {
+    /// Decides without asking the menu bar anything, so a hidden island costs
+    /// no call at all. The banner is created already in place and draws a few
+    /// hundredths of a second later, so the move lands before it shows.
+    private func noticed(_ element: AXUIElement) {
+        guard running, NotchSupport.routes(.volume), NotchService.shared.showsSystemFeedback else { return }
+        let requested = generation
+        queue.async { [weak self] in
+            guard let origin = Self.hide(element) else { return }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if self.generation == requested {
+                    self.hidden = (element, origin)
+                } else {
+                    self.queue.async { Self.restore(element, to: origin) }
+                }
+            }
+        }
+    }
+
+    /// Where macOS had placed the banner, once it is out of sight. A banner
+    /// the menu bar places again is moved again.
+    private static func hide(_ element: AXUIElement) -> CGPoint? {
         AXUIElementSetMessagingTimeout(element, 0.1)
-        let showsVolume = NotchSupport.routes(.volume) && NotchService.shared.showsSystemFeedback
-        guard NotchVolumeBannerSupport.hides(showsVolume: showsVolume,
-                                             identifier: Self.string(element, kAXIdentifierAttribute)),
-              let frame = Self.frame(element),
-              let away = NotchVolumeBannerSupport.hiddenOrigin(for: frame, screens: Self.screens()),
-              Self.move(element, to: away) else { return }
-        hidden = (element, frame.origin)
+        guard NotchVolumeBannerSupport.isBanner(string(element, kAXIdentifierAttribute)),
+              let frame = frame(element),
+              let away = NotchVolumeBannerSupport.hiddenOrigin(for: frame, screens: screens()),
+              move(element, to: away) else { return nil }
+        return frame.origin
     }
 
     /// A banner still on its way out comes back, so a press macOS handles
     /// while the island cannot show volume is not left without feedback.
-    private func restore() {
-        guard let hidden else { return }
-        self.hidden = nil
-        guard let frame = Self.frame(hidden.window),
-              NotchVolumeBannerSupport.isOffScreen(frame, screens: Self.screens()) else { return }
-        _ = Self.move(hidden.window, to: hidden.origin)
+    private static func restore(_ window: AXUIElement, to origin: CGPoint) {
+        AXUIElementSetMessagingTimeout(window, 0.1)
+        guard let frame = frame(window), NotchVolumeBannerSupport.isOffScreen(frame, screens: screens()) else { return }
+        _ = move(window, to: origin)
     }
 
     private static func screens() -> [CGRect] {
