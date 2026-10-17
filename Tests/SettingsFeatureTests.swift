@@ -274,6 +274,95 @@ enum SettingsFeatureTests {
                "the clipboard window size stays on the display where it was chosen")
         suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
                "the apps that pause window layout travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.monitorAlertHighCharge)
+                && backupKeys.contains(DefaultsKey.monitorAlertHighChargePercent),
+               "the high-charge enable and threshold preferences travel with settings backups")
+        let portableHighCharge = SettingsBackupSupport.payload(appVersion: "integration") { key in
+            switch key {
+            case DefaultsKey.monitorAlertHighCharge: return true
+            case DefaultsKey.monitorAlertHighChargePercent: return 90
+            default: return nil
+            }
+        }
+        var restoredHighCharge: [String: Any]?
+        if let data = try? PropertyListSerialization.data(fromPropertyList: portableHighCharge,
+                                                          format: .xml, options: 0),
+           let parsed = try? PropertyListSerialization.propertyList(from: data,
+                                                                     options: [], format: nil) as? [String: Any] {
+            restoredHighCharge = SettingsBackupSupport.sanitizedSettings(from: parsed)
+        }
+        suite.expect(restoredHighCharge?[DefaultsKey.monitorAlertHighCharge] as? Bool == true
+                && restoredHighCharge?[DefaultsKey.monitorAlertHighChargePercent] as? Int == 90,
+               "a concrete portable backup round-trips an enabled 90-percent high-charge reminder")
+        let oldAlertBackup: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [DefaultsKey.monitorAlertBattery: true],
+        ]
+        let oldAlertSettings = SettingsBackupSupport.sanitizedSettings(from: oldAlertBackup) ?? [:]
+        suite.expect(oldAlertSettings[DefaultsKey.monitorAlertHighCharge] == nil
+                && oldAlertSettings[DefaultsKey.monitorAlertHighChargePercent] == nil
+                && Defaults.registeredDefaults[DefaultsKey.monitorAlertHighCharge] as? Bool == false
+                && Defaults.registeredDefaults[DefaultsKey.monitorAlertHighChargePercent] as? Int == 80,
+               "a backup from before the reminder restores through its off and 80-percent defaults")
+        let highChargeBackupKeys = backupKeys.filter { $0.localizedCaseInsensitiveContains("highcharge") }
+        suite.expect(Set(highChargeBackupKeys) == Set([DefaultsKey.monitorAlertHighCharge,
+                                                      DefaultsKey.monitorAlertHighChargePercent]),
+               "only the reminder preference and threshold travel, never gate sessions or delivery attempts")
+
+        let injectedMachinePaths: [String: Any] = [
+            SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
+            SettingsBackupSupport.settingsKey: [
+                DefaultsKey.recorderSaveFolder: "/Users/source/Movies",
+                DefaultsKey.screenshotSaveFolder: "/Users/source/Pictures",
+                DefaultsKey.musicBlockReplacementPath: "/Applications/Source Player.app",
+            ],
+        ]
+        let sanitizedMachinePaths = SettingsBackupSupport.sanitizedSettings(from: injectedMachinePaths) ?? [:]
+        let clearOnImport = SettingsBackupSupport.keysToClear(whenImporting: sanitizedMachinePaths)
+        suite.expect(sanitizedMachinePaths.isEmpty
+                && !clearOnImport.contains(DefaultsKey.recorderSaveFolder)
+                && !clearOnImport.contains(DefaultsKey.screenshotSaveFolder)
+                && !clearOnImport.contains(DefaultsKey.musicBlockReplacementPath),
+               "injected machine paths are dropped without clearing the receiving Mac's own paths")
+        suite.expect(backupKeys.contains(DefaultsKey.notchMascotEnabled)
+                && backupKeys.contains(AppFeature.notchMascot.availabilityKey)
+                && !backupKeys.contains(DefaultsKey.notchMascotBetaInstalled),
+               "companion choices and availability travel while its one-time beta migration marker stays local")
+
+        let monitorAlertsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorAlertsControls.swift",
+            encoding: .utf8)) ?? ""
+        let monitorAlertServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift",
+            encoding: .utf8)) ?? ""
+        let highChargeToken = monitorAlertsSource.range(of: "alertToken(text.highCharge")
+        let tokenGroupEnd = monitorAlertsSource.range(of: ".monitorTokenGroup()")
+        let firstTestAction = monitorAlertsSource.range(of: "Button(text.sendTest)")
+        let testOutsideTokenOptions: Bool
+        if let highChargeToken, let tokenGroupEnd, let firstTestAction {
+            testOutsideTokenOptions = highChargeToken.lowerBound < tokenGroupEnd.lowerBound
+                && tokenGroupEnd.lowerBound < firstTestAction.lowerBound
+        } else {
+            testOutsideTokenOptions = false
+        }
+        suite.expect(monitorAlertsSource.contains("alertToken(text.highCharge")
+                && monitorAlertsSource.contains("Toggle(text.highCharge")
+                && monitorAlertsSource.components(separatedBy: "Button(text.sendTest)").count == 3
+                && testOutsideTokenOptions
+                && monitorAlertsSource.contains("private func sendHighChargeTest()")
+                && monitorAlertsSource.contains("testAuthorizationUnavailable = result == .authorizationUnavailable")
+                && monitorAlertsSource.contains("testAuthorizationUnavailable || (notificationsDenied && anyAlertEnabled)"),
+               "both monitor alert surfaces offer high-charge controls and an independent test action")
+        let testAction = monitorAlertServiceSource
+            .components(separatedBy: "static func sendHighChargeTest").dropFirst().first?
+            .components(separatedBy: "private func send(").first ?? ""
+        suite.expect(testAction.contains("Notifier.requestPermission { _ in")
+                && testAction.contains("Notifier.postIfAuthorized("),
+               "the test alert reads the real post-prompt authorization outcome")
+        suite.expect(testAction.contains("completion: completion")
+                && !testAction.contains("UserDefaults")
+                && !testAction.contains("highChargeGate"),
+               "the test alert reports denial without touching defaults or the real session gate")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
                "per-app switcher rules travel with the settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.finderPasteImageAsFile] as? Bool == false

@@ -580,6 +580,7 @@ enum NotchActivityTests {
         let button: CGFloat = 28 + 6
         let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 0
+        func points(_ value: CGFloat) -> String { String(format: "%.3f", Double(value)) }
         suite.expect(band.besideCamera && band.side > 0 && chevron > 0,
                "the compact preset's top row wraps a 180-point camera")
         suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0
@@ -591,27 +592,54 @@ enum NotchActivityTests {
             suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
                    "each mode has its own name: \(language)")
             let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
-            // Full size on macOS 26; macOS 15 draws Japanese kana wider, and
-            // the stopwatch's name narrows there by a few percent.
-            let menu = (widths.max() ?? 0) * 0.95 + layout.menuSpacing + chevron + layout.labelPadding * 2
+            let longest = widths.indices.max { widths[$0] < widths[$1] } ?? 0
+            let labelWidth = widths[longest]
+            let menuPadding = layout.menuLabelPadding * 2
+            let menu = labelWidth + layout.menuSpacing + chevron + menuPadding
+            let components = "locale=\(language.rawValue), labels=\(labels.joined(separator: " | ")), "
+                + "longest=\(labels[longest]), label=\(points(labelWidth)), "
+                + "chevron=\(points(chevron)), padding=\(points(menuPadding)), spacing=\(points(layout.menuSpacing))"
             suite.expect(menu <= band.side,
-                   "every mode's name names the menu beside the camera in \(language): \(Int(menu)) of \(Int(band.side))")
+                   "every mode's name names the menu beside the camera: \(components), "
+                       + "camera=180.000, natural=\(points(menu)), available=\(points(band.side))")
             // Wider cameras still wrapped by the compact preset leave less;
             // the name may narrow there, never lose letters.
-            let narrowest = [185.0, 208, 210, 224].map {
-                NotchBand(geometry: NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32,
-                                                  cameraWidth: $0), contentWidth: geometry.contentWidth)
-            }.filter(\.besideCamera).map(\.side).min() ?? band.side
-            let narrowed = (widths.max() ?? 0) * layout.menuMinimumScale + layout.menuSpacing + chevron + layout.labelPadding * 2
-            suite.expect(narrowed <= narrowest,
-                   "every mode's name fits beside the widest camera the compact preset wraps in \(language): \(Int(narrowed)) of \(Int(narrowest))")
+            let cameraWidths: [CGFloat] = [185, 208, 210, 224]
+            let cameraCases = cameraWidths.compactMap { camera -> (camera: CGFloat, side: CGFloat)? in
+                let candidate = NotchBand(geometry: NotchGeometry(
+                    screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32,
+                    cameraWidth: camera), contentWidth: geometry.contentWidth)
+                return candidate.besideCamera ? (camera, candidate.side) : nil
+            }
+            let cases = cameraCases.map { "\(points($0.camera)):\(points($0.side))" }.joined(separator: ",")
+            guard let narrowest = cameraCases.min(by: { $0.side < $1.side }) else {
+                suite.expect(false, "the compact preset wraps the wide cameras: \(components), wrapped-cameras=\(cases)")
+                continue
+            }
+            suite.expect(cameraCases.count == cameraWidths.count && narrowest.camera == 224 && narrowest.side > 0,
+                   "the compact preset wraps every wide camera and 224 points is limiting: \(components), "
+                       + "limiting-camera=\(points(narrowest.camera)), available=\(points(narrowest.side)), wrapped-cameras=\(cases)")
+            let narrowestSide = narrowest.side
+            let narrowed = labelWidth * layout.menuMinimumScale + layout.menuSpacing + chevron + menuPadding
+            suite.expect(narrowed <= narrowestSide,
+                   "every mode's name fits beside the widest camera the compact preset wraps: \(components), "
+                       + "camera=\(points(narrowest.camera)), scale=\(points(layout.menuMinimumScale)), "
+                       + "scaled=\(points(narrowed)), available=\(points(narrowestSide))")
+            print("TIMER MODE MENU FIT \(components), camera=180.000, natural=\(points(menu)), "
+                + "available=\(points(band.side)), scale=\(points(layout.menuMinimumScale)), "
+                + "scaled=\(points(narrowed)), limiting-camera=\(points(narrowest.camera)), "
+                + "limiting-available=\(points(narrowestSide)), wrapped-cameras=\(cases)")
             let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
             let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2
             suite.expect(start + button <= band.side,
-                   "Start and the pin share a side beside the camera in \(language): \(Int(start + button)) of \(Int(band.side))")
+                   "Start and the pin share a side beside the camera in \(language.rawValue): "
+                       + "camera=180.000, start=\(points(start)), button=\(points(button)), "
+                       + "total=\(points(start + button)), available=\(points(band.side))")
             let picker = widths.reduce(0) { $0 + $1 + layout.labelPadding * 2 } + layout.spacing * CGFloat(labels.count - 1)
             suite.expect(button + picker + 12 + start + button <= geometry.contentWidth,
-                   "a full top row holds the three modes and Start in \(language): \(Int(button + picker + 12 + start + button)) of \(Int(geometry.contentWidth))")
+                   "a full top row holds the three modes and Start in \(language.rawValue): "
+                       + "picker=\(points(picker)), start=\(points(start)), button=\(points(button)), "
+                       + "total=\(points(button + picker + 12 + start + button)), available=\(points(geometry.contentWidth))")
         }
         suite.expect(NotchPomodoroOption.focus.range == 1...180
                      && NotchPomodoroOption.shortBreak.range == 1...60

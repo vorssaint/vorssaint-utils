@@ -113,7 +113,7 @@ struct NotchTimerView: View {
                     .font(.system(size: 9, weight: .semibold))
             }
             .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, NotchTimerSupport.ModePicker.labelPadding)
+            .padding(.horizontal, NotchTimerSupport.ModePicker.menuLabelPadding)
             .frame(height: 28)
             .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
