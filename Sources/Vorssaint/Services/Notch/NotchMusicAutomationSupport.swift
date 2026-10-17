@@ -72,7 +72,10 @@ private final class MusicDictionaryReader: NSObject, XMLParserDelegate {
     private var seenPosition = false
     private var seenShuffle = false
     private var seenShuffleAllowed = false
-    private let names: Set<String> = ["playpause", "play", "pause", "next track", "previous track"]
+    private let names: Set<String> = [
+        "playpause", "play", "pause", "next track", "previous track",
+        "back track", "fast forward", "rewind", "resume",
+    ]
     /// Players call it "shuffling" or "shuffle enabled". A read-only
     /// "shuffling enabled" says whether shuffle is offered at all.
     private let shuffleNames: Set<String> = ["shuffling", "shuffle enabled"]
