@@ -2875,11 +2875,12 @@ enum PointerInputFeatureTests {
                                                       executablePath: "/opt/other/bin/java"),
                     exceptions: ["/opt/game/runtime/bin/java"]),
                "a listed program path excepts that program and no other")
-        // Java's launcher carries an Info.plist of its own, so a running JVM
-        // reports a bundle identifier, the same one for every Java program:
-        // measured on this Mac, Temurin 25's java reports net.java.openjdk.java.
-        // A runtime picked by its path is told apart by that path alone, so
-        // while a list names a path a program answers to its file as well.
+        // Java's launcher carries an Info.plist of its own, and a JVM that AWT
+        // registers reports its bundle identifier, the same one for every Java
+        // program that runtime runs: measured on this Mac, an AWT program on
+        // Temurin 25 reports net.java.openjdk.java. A runtime picked by its
+        // path is told apart by that path alone, so while a list names a path
+        // a program answers to its file as well.
         suite.expect(MouseAppExceptionSupport.identities(bundleID: "net.java.openjdk.java",
                                                          executablePath: "/opt/game/runtime/bin/java",
                                                          readsPath: true)
@@ -3297,6 +3298,44 @@ enum PointerInputFeatureTests {
                 in: [frontWindow], at: CGPoint(x: 380, y: 380), ownProcessID: 9) == nil,
                "a pointer outside every window resolves to nothing")
 
+        // Launchpad is drawn by the Dock above every app window (issue #3135).
+        // Only the window server's hit test tells a surface that takes the
+        // event from the Dock's screen-wide window, which lets it through.
+        let launchpadSurface = MouseAppExceptionSupport.Window(
+            frame: CGRect(x: 0, y: 0, width: 400, height: 400), layer: 27, processID: 11, number: 40)
+        let coveredWindow = MouseAppExceptionSupport.Window(
+            frame: CGRect(x: 0, y: 0, width: 400, height: 400), layer: 0, processID: 5, number: 41)
+        let ownSurface = MouseAppExceptionSupport.Window(
+            frame: CGRect(x: 0, y: 0, width: 400, height: 400), layer: 25, processID: 9, number: 42)
+        suite.expect(MouseAppExceptionSupport.pointerSurface(
+                in: [coveredWindow, launchpadSurface], receivingWindowID: 40, ownProcessID: 9) == launchpadSurface,
+               "a system surface the window server hands the event to is the pointer's surface")
+        suite.expect(MouseAppExceptionSupport.pointerSurface(
+                in: [launchpadSurface, coveredWindow], receivingWindowID: 41, ownProcessID: 9) == nil,
+               "a surface the event passes through, like the Dock's screen-wide window, is no surface")
+        suite.expect(MouseAppExceptionSupport.pointerSurface(
+                in: [ownSurface, coveredWindow], receivingWindowID: 42, ownProcessID: 9) == nil
+                && MouseAppExceptionSupport.pointerSurface(
+                    in: [launchpadSurface], receivingWindowID: nil, ownProcessID: 9) == nil
+                && MouseAppExceptionSupport.pointerSurface(
+                    in: [MouseAppExceptionSupport.Window(frame: launchpadSurface.frame, layer: 27, processID: 11)],
+                    receivingWindowID: 0, ownProcessID: 9) == nil
+                && MouseAppExceptionSupport.pointerSurface(
+                    in: [launchpadSurface], receivingWindowID: 43, ownProcessID: 9) == nil,
+               "this app's own window, no hit, a window without a number and one missing from the list are never a surface")
+        suite.expect(MouseAppExceptionSupport.surfaceIdentities(["com.apple.dock"])
+                    == ["com.apple.dock", "com.apple.launchpad.launcher"]
+                && MouseAppExceptionSupport.surfaceIdentities(["com.apple.notificationcenterui"])
+                    == ["com.apple.notificationcenterui"]
+                && MouseAppExceptionSupport.surfaceIdentities([]).isEmpty,
+               "the Dock's surfaces also answer to Launchpad, which only asks the Dock to draw its grid")
+        suite.expect(MouseAppExceptionSupport.windows(from: [[
+                    kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 10, "Height": 10],
+                    kCGWindowLayer as String: 20,
+                    kCGWindowOwnerPID as String: 11,
+                    kCGWindowNumber as String: 77]]).first?.number == 77,
+               "a listed window keeps the number the hit test names it by")
+
         suite.expect(MouseAppExceptionSupport.cacheHolds(region: frontWindow.frame, resolvedPoint: pointer,
                                                    resolvedAt: 10, point: CGPoint(x: 120, y: 120), now: 10.2),
                "a fresh answer keeps serving while the pointer stays inside its window")
@@ -3395,10 +3434,10 @@ enum PointerInputFeatureTests {
 
             // A listed path is matched against the program running that file
             // whatever bundle identifier it reports: Java's launcher carries an
-            // Info.plist of its own, so a running JVM reports one that every
-            // Java program shares (issue #1009). The app in front stands in for
-            // that program here, with its own file listed and its identifier
-            // on no list.
+            // Info.plist of its own, and a JVM that AWT registers reports one
+            // that every Java program on that runtime shares (issue #1009). The
+            // app in front stands in for that program here, with its own file
+            // listed and its identifier on no list.
             if let front = NSWorkspace.shared.frontmostApplication,
                front.bundleIdentifier != nil,
                let frontPath = MouseAppExceptionSupport.executablePathIdentity(front.executableURL?.path) {
@@ -3418,6 +3457,124 @@ enum PointerInputFeatureTests {
                        "an app listed by the path of its file is found among the running apps")
                 exceptions.setSourceTracking(false, for: .smoothScroll)
             }
+        }
+
+        // The same rule through MouseAppExceptions itself, with the window
+        // list, the window server's hit test and the running apps stubbed
+        // (issue #3135).
+        do {
+            let defaults = UserDefaults.standard
+            let savedArguments = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
+            defer { defaults.setVolatileDomain(savedArguments, forName: UserDefaults.argumentDomain) }
+            func setLists(_ list: [String]) {
+                var arguments = savedArguments
+                for scope in MouseExceptionScope.allCases { arguments[scope.defaultsKey] = list }
+                defaults.setVolatileDomain(arguments, forName: UserDefaults.argumentDomain)
+            }
+            let point = CGPoint(x: 100, y: 100)
+            let screen = CGRect(x: 0, y: 0, width: 400, height: 400)
+            let ownProcessID = Int32(getpid())
+            // Process 13 stands for the window server, which is no app. This
+            // app has an identity, so only the own-window rule keeps it out.
+            var owners: [Int32: String] = [11: "com.apple.dock", 5: "com.example.modeler"]
+            owners[ownProcessID] = "com.example.vorssaint"
+            let identities = owners
+            let launchpad = MouseAppExceptionSupport.Window(frame: screen, layer: 27, processID: 11, number: 40)
+            let app = MouseAppExceptionSupport.Window(frame: screen, layer: 0, processID: 5, number: 41)
+            let dock = MouseAppExceptionSupport.Window(frame: screen, layer: 20, processID: 11, number: 44)
+            let menuBar = MouseAppExceptionSupport.Window(frame: screen, layer: 24, processID: 13, number: 45)
+            let ownPanel = MouseAppExceptionSupport.Window(frame: screen, layer: 25,
+                                                           processID: ownProcessID, number: 46)
+
+            /// A fresh instance per case, so no answer is served from the last one.
+            func excluded(_ list: [String], _ windows: [MouseAppExceptionSupport.Window],
+                          hit: CGWindowID, action: Bool = false) -> (verdict: Bool, lookups: Int) {
+                setLists(list)
+                var lookups = 0
+                let exceptions = MouseAppExceptions(
+                    uptime: PointerInputTestClock().read,
+                    onScreenWindows: { lookups += 1; return windows },
+                    receivingWindow: { _ in lookups += 1; return hit },
+                    identitiesForProcess: { identities[$0].map { [$0] } ?? [] })
+                let verdict = action
+                    ? exceptions.excludesActionTarget(.buttonShortcuts, at: point)
+                    : exceptions.excludesPointerTarget(.smoothScroll, at: point)
+                return (verdict, lookups)
+            }
+            suite.expect(excluded(["com.apple.dock"], [launchpad, app], hit: 40).verdict
+                    && excluded(["com.apple.launchpad.launcher"], [launchpad, app], hit: 40).verdict,
+                   "a listed Launchpad or Dock leaves the wheel alone over Launchpad with an app window behind it")
+            suite.expect(!excluded(["com.example.modeler"], [launchpad, app], hit: 40).verdict,
+                   "the app window hidden behind Launchpad gets no wheel, so its entry does not apply there")
+            suite.expect(!excluded(["com.example.other"], [launchpad, app], hit: 40).verdict,
+                   "a surface nobody listed leaves the feature running")
+            suite.expect(excluded(["com.apple.dock"], [launchpad, app], hit: 40, action: true).verdict,
+                   "the button shortcuts ask about the same surface")
+            suite.expect(!excluded(["com.apple.dock"], [dock, app], hit: 41).verdict
+                    && excluded(["com.example.modeler"], [dock, app], hit: 41).verdict,
+                   "where the Dock's screen-wide window lets the event through, the app window answers as before")
+            suite.expect(excluded(["com.example.modeler"], [menuBar, app], hit: 45).verdict
+                    && excluded(["com.example.modeler"], [ownPanel, app], hit: 46).verdict,
+                   "a surface no app owns, or one of this app's windows, leaves the usual answer in place")
+            let empty = excluded([], [launchpad, app], hit: 40)
+            suite.expect(!empty.verdict && empty.lookups == 0,
+                   "an empty list stands nothing down and never asks the window server")
+
+            // The Dock's window spans the screen but takes events over the Dock
+            // only, so the hit test at its center finds the app window instead.
+            setLists(["com.apple.dock"])
+            let mainExceptions = MouseAppExceptions(
+                uptime: PointerInputTestClock().read,
+                onScreenWindows: { [dock, app] },
+                receivingWindow: { $0 == point ? 44 : 41 },
+                identitiesForProcess: { identities[$0].map { [$0] } ?? [] })
+            let overDockOnMain = mainExceptions.excludesPointerTarget(.smoothScroll, at: point)
+            suite.expect(overDockOnMain
+                    && !mainExceptions.excludesPointerTarget(.smoothScroll, at: CGPoint(x: 101, y: 100)),
+                   "the Dock's answer only holds at its spot, since the Dock takes less than its rectangle")
+
+            /// Runs the queries on a thread of their own, as the pointer tap
+            /// does, with the main thread held so no refresh lands meanwhile.
+            func onPointerThread(_ queries: @escaping () -> [Bool]) -> [Bool] {
+                var verdicts: [Bool] = []
+                let answered = DispatchGroup()
+                answered.enter()
+                Thread {
+                    verdicts = queries()
+                    answered.leave()
+                }.start()
+                guard answered.wait(timeout: .now() + 2) == .success else { return [] }
+                RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.05))
+                return verdicts
+            }
+            // The pointer thread never waits for the main one. With the covered
+            // app listed, only the surface's own answer leaves the feature on:
+            // the covered app or an unknown answer would both stand it down.
+            setLists(["com.example.modeler"])
+            let launchpadClock = PointerInputTestClock()
+            let overLaunchpad = MouseAppExceptions(
+                uptime: launchpadClock.read,
+                onScreenWindows: { [launchpad, app] },
+                receivingWindow: { _ in 40 },
+                identitiesForProcess: { identities[$0].map { [$0] } ?? [] })
+            let launchpadOnMain = overLaunchpad.excludesPointerTarget(.scrollDirection, at: point)
+            launchpadClock.advance(by: MouseAppExceptionSupport.resolveLifetime)
+            suite.expect(!launchpadOnMain && onPointerThread {
+                    [point, CGPoint(x: 150, y: 120)].map { overLaunchpad.excludesPointerTarget(.scrollDirection, at: $0) }
+                } == [false, false],
+                   "the pointer thread keeps serving Launchpad's aged answer anywhere inside it, at rest or moving")
+            // Unlisted, only an unknown answer stands the feature down there.
+            setLists(["com.example.other"])
+            let overDock = MouseAppExceptions(
+                uptime: PointerInputTestClock().read,
+                onScreenWindows: { [dock, app] },
+                receivingWindow: { $0 == point ? 44 : 41 },
+                identitiesForProcess: { identities[$0].map { [$0] } ?? [] })
+            let dockOnMain = overDock.excludesPointerTarget(.scrollDirection, at: point)
+            suite.expect(!dockOnMain && onPointerThread {
+                    [overDock.excludesPointerTarget(.scrollDirection, at: CGPoint(x: 150, y: 120))]
+                } == [true],
+                   "off the Dock the pointer thread keeps hands off until main answers, never handing the app the Dock's answer")
         }
 
         for language in AppLanguage.allCases {

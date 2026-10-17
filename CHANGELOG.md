@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-After updating, What's New shows the changes for the features you use. The window switcher offers column limits and clearer app filtering. The screenshot editor adds Spotlight, canvas expansion and pasted image layers, and screenshots copy text. Recordings export longer GIFs and isolate window audio, and mixer sliders follow perceived loudness. Dynamic Island matches the notch's height again, opens to a cleaner layout and with a keyboard shortcut, can find covers for Firefox-based browsers, starts its clipboard page on the last copy and improves lyrics, companion playback and keyboard focus. The scratchpad reads task lists, App Updates can leave any app out, and windows moved with the modifier drag snap to screen edges. AI Agents supports OpenCode 2, reads Claude's limits through Claude Code, follows separate Codex accounts and keeps Claude renewal estimates safer. Command Bar opens and searches faster. Clipboard history leaves sensitive-text guessing off by default. Cleaning Mode keeps input taps suspended, alongside fixes for window selection, microphone volume, clipboard pastes, display brightness, recording, app updates, Homebrew installs, volume keys, mouse navigation, Dock instances and M4 Pro temperatures.
+After updating, What's New shows the changes for the features you use. The window switcher offers column limits and clearer app filtering. The screenshot editor adds Spotlight, canvas expansion and pasted image layers, and screenshots copy text. Recordings export longer GIFs and isolate window audio, and mixer sliders follow perceived loudness. Dynamic Island matches the notch's height again, opens to a cleaner layout and with a keyboard shortcut, can find covers for Firefox-based browsers, starts its clipboard page on the last copy and improves lyrics, companion playback and keyboard focus. The scratchpad reads task lists, App Updates can leave any app out, and windows moved with the modifier drag snap to screen edges. AI Agents supports OpenCode 2, reads Claude's limits through Claude Code, follows separate Codex accounts and keeps Claude renewal estimates safer. Command Bar opens and searches faster. Clipboard history leaves sensitive-text guessing off by default. Cleaning Mode keeps input taps suspended, alongside fixes for microphone volume, clipboard pastes, display brightness, recording, app updates, Homebrew installs, volume keys, mouse navigation, Launchpad scrolling, Dock instances, Codex activity and M4 Pro temperatures.
 
 ### Added
 - Dynamic Island can show the keyboard input source when it changes. Command Bar's temporary layout switches stay quiet. Settings → Dynamic Island → Activity → Indicators.
@@ -59,11 +59,11 @@ After updating, What's New shows the changes for the features you use. The windo
 - Command Bar resolves February 29 without a year to the next valid occurrence and rejects impossible dates such as April 31.
 - Volume keys keep moving on outputs that only take coarse volume steps.
 - Dock clicks and Dock Preview act on the right instance when an app runs as several processes.
-- Choosing a window in the window switcher, Dock Preview or Command Bar brings only that window forward instead of every window of its app.
 - Window switcher and Dock Preview can pause thumbnails in programs that are not apps, such as the Java that runs Minecraft, and mouse features and Window Layout recognize such a program added by its path.
 - CPU temperature on Apple M4 Pro reads its hottest cores, so alerts and fan curves react in time.
 - Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.
 - AI Agents follows OpenCode 2, including databases upgraded from OpenCode 1 and the cost of compactions.
+- AI Agents keeps showing a Codex conversation as working after one of its messages is edited, and counts its automatic reviews and subagents as part of it instead of separate tasks.
 - Command Bar finds the tools Xcode keeps inside its bundle, such as Simulator, Instruments and Device Hub, and the uninstaller refuses apps that live inside another app.
 - Audio controls no longer crash with microphones that report an invalid volume, such as the Insta360 Link 2C Pro.
 - The island scratchpad's shortcut opens and closes it every time and places the caret while a Vorssaint window is in front.
@@ -75,9 +75,10 @@ After updating, What's New shows the changes for the features you use. The windo
 - The mixer treats Studio Pro 8 as a DAW, like Studio One, and leaves its audio routing alone.
 - The window switcher lists apps that macOS reports without a process ID, such as Xcode's Device Hub, with their windows instead of an empty entry.
 - With the capture controls in Dynamic Island and the screen not frozen, a selection drag that starts on the desktop draws a selection.
+- Mouse features now leave Launchpad alone when Launchpad or the Dock is listed under Apps to leave alone.
 
 ### Contributors
-Thanks to @2-Chengs, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @akune, @Alpaka05, @beckhauser, @benjcrich, @capozz03, @carltonking, @chadfidev, @claude, @COMEBACKISREAL, @cprecioso, @DanyRodier, @DigitalWestern, @eioz, @EugeneCarldotme, @fandiyi047, @galpressman, @georgeat8, @gustavoramalho, @Hackmodford, @Hongsheng-Y, @iancenry, @JeanBaeez, @JoeC-Dev, @jonathanrparis, @joshrad-dev, @juanra, @kit101, @LechTheMitch, @Likheet, @luantedesco, @ManuLorenzzo, @Mohamed-Elshesheny, @mohammadhprp, @morhaf-ko, @Narangor, @nateships, @ncesar, @npcmail010, @oecer, @oskarsss, @PerretWilliam, @PHSM22, @PratikPawar1401, @RoccoRakete, @samanyudas, @schematicdnb, @skiner68, @thitiwats, @Timothy-ZhangYF, @tyfoan, @unfilet, @voljumet, @webuildfabian, @Werkezeugs, @ywu73 and @zhanghk2001.
+Thanks to @2-Chengs, @AB-boi, @Acronyxxx, @Adridot, @ahmedabdullah-o, @akune, @Alpaka05, @beckhauser, @benjcrich, @capozz03, @carltonking, @chadfidev, @claude, @COMEBACKISREAL, @cprecioso, @DanyRodier, @DigitalWestern, @eioz, @EugeneCarldotme, @fandiyi047, @georgeat8, @gustavoramalho, @Hackmodford, @Hongsheng-Y, @iancenry, @JeanBaeez, @JoeC-Dev, @jonathanrparis, @joshrad-dev, @juanra, @kit101, @LechTheMitch, @Likheet, @luantedesco, @ManuLorenzzo, @Mohamed-Elshesheny, @mohammadhprp, @morhaf-ko, @Narangor, @nateships, @ncesar, @noctisyuan123-lgtm, @npcmail010, @oecer, @oskarsss, @PerretWilliam, @PHSM22, @PratikPawar1401, @RoccoRakete, @samanyudas, @thitiwats, @Timothy-ZhangYF, @tyfoan, @unfilet, @voljumet, @webuildfabian, @Werkezeugs, @xftvl, @yuzu-octopus, @ywu73 and @zhanghk2001.
 
 ## [3.4.1] - 2026-10-08
 
