@@ -23,9 +23,12 @@ struct AgentTotals: Equatable {
     var requests = 0
     /// Responses from a model without a known price, left out of `cost`.
     var unpriced = 0
+    /// Kiro's credits, which its plan covers, so they add no `cost`.
+    var credits = 0.0
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
+        credits += record.credits
         requests += max(0, record.requests)
         savings += record.savings
         if let price = record.cost { cost += price } else { unpriced += 1 }
@@ -37,11 +40,19 @@ struct AgentTotals: Equatable {
         lhs.savings += rhs.savings
         lhs.requests += rhs.requests
         lhs.unpriced += rhs.unpriced
+        lhs.credits += rhs.credits
     }
 
     /// Cost when every response had a price, tokens otherwise, so shares
     /// and bars never compare dollars with token counts.
     func weight(byCost: Bool) -> Double { byCost ? cost : Double(tokens.total) }
+
+    /// How much was used, for the cards that compare use rather than money.
+    /// Kiro's credits cost nothing within its plan, but they are use: only
+    /// to set their bars beside dollars are they valued at the add-on price.
+    func use(byCost: Bool) -> Double {
+        byCost ? cost + credits * AgentKiroServer.addOnPrice : Double(tokens.total)
+    }
 }
 
 /// One row of a breakdown: a model or a project.
@@ -54,6 +65,9 @@ struct AgentShare: Equatable, Identifiable {
 
 struct AgentPeriodUsage: Equatable {
     var total = AgentTotals()
+    /// `total` without what accounts charged on top, like Kiro's overage:
+    /// the work done, which is what every card but Spending shows.
+    var work = AgentTotals()
     var byProvider: [AgentProvider: AgentTotals] = [:]
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
@@ -144,14 +158,17 @@ enum AgentUsageSummary {
             if record.provider == .claude, record.date > now.addingTimeInterval(-blockHistory), record.date <= now {
                 claude.append(record)
             }
-            if record.date >= recent, record.date <= now {
+            let charge = record.isAccountCharge
+            if record.date >= recent, record.date <= now, !charge {
                 snapshot.burnRate[record.provider, default: AgentTotals()].add(record)
             }
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
-            days[day].byProvider[record.provider, default: AgentTotals()].add(record)
-            if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
-                hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
+            if !charge {
+                days[day].byProvider[record.provider, default: AgentTotals()].add(record)
+                if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
+                    hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
+                }
             }
             // One name per model string, not per response: the history can
             // hold tens of thousands of them.
@@ -166,6 +183,8 @@ enum AgentUsageSummary {
             for period in AgentPeriod.allCases where day > lastDay - period.days {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
+                guard !charge else { continue }
+                periods[period, default: AgentPeriodUsage()].work.add(record)
                 models[period, default: [:]][modelID, default: AgentShare(
                     id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())]
                     .totals.add(record)
@@ -188,6 +207,7 @@ enum AgentUsageSummary {
             let scale = 3600 / burnWindow
             rate.cost *= scale
             rate.savings *= scale
+            rate.credits *= scale
             rate.tokens = AgentTokens(input: Int(Double(rate.tokens.input) * scale),
                                       cacheWrite: Int(Double(rate.tokens.cacheWrite) * scale),
                                       cacheRead: Int(Double(rate.tokens.cacheRead) * scale),
@@ -212,7 +232,7 @@ enum AgentUsageSummary {
 
     static func sorted(_ shares: [AgentShare], byCost: Bool) -> [AgentShare] {
         shares.sorted {
-            let left = $0.totals.weight(byCost: byCost), right = $1.totals.weight(byCost: byCost)
+            let left = $0.totals.use(byCost: byCost), right = $1.totals.use(byCost: byCost)
             return left != right ? left > right : $0.name < $1.name
         }
     }
@@ -338,7 +358,7 @@ final class AgentUsageSummaryCache {
             guard isRecent(record, now: now) else { recentPositions.remove(position); continue }
             guard record.date <= now else { continue }
             if record.provider == .claude { claude.append(record) }
-            if record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow) {
+            if record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow), !record.isAccountCharge {
                 result.burnRate[record.provider, default: AgentTotals()].add(record)
             }
         }
@@ -348,6 +368,7 @@ final class AgentUsageSummaryCache {
             result.burnRate[provider]!.tokens += total.tokens
             result.burnRate[provider]!.cost *= 2
             result.burnRate[provider]!.savings *= 2
+            result.burnRate[provider]!.credits *= 2
         }
         result.claudeBlock = AgentUsageSummary.currentBlock(claude, now: now)
         return result
@@ -376,10 +397,14 @@ final class AgentUsageSummaryCache {
             delta.savings -= previous.savings
             delta.requests -= previous.requests
             delta.unpriced -= previous.cost == nil ? 1 : 0
+            delta.credits -= previous.credits
         }
-        history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
-        if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
-            history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
+        let charge = record.isAccountCharge
+        if !charge {
+            history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
+            if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
+                history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
+            }
         }
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
@@ -387,6 +412,8 @@ final class AgentUsageSummaryCache {
         for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
+            guard !charge else { continue }
+            history!.periods[period]!.work += delta
             models[period, default: [:]][modelID, default: AgentShare(
                 id: modelID, name: name.isEmpty ? "?" : name, provider: record.provider, totals: AgentTotals())].totals += delta
             if !record.project.isEmpty {
@@ -408,7 +435,11 @@ enum AgentLimitSupport {
     static func current(_ window: AgentLimitWindow, at now: Date) -> AgentLimitWindow {
         guard let resets = window.resetsAt, resets <= now else { return window }
         return AgentLimitWindow(id: window.id, kind: window.kind, minutes: window.minutes,
-                                scope: window.scope, usedPercent: 0, resetsAt: nil)
+                                scope: window.scope, usedPercent: 0, resetsAt: nil,
+                                credits: window.credits.map {
+                                    AgentCredits(used: 0, limit: $0.limit, overage: 0,
+                                                 overageRate: $0.overageRate, overageCharges: 0)
+                                })
     }
 
     /// Once an estimate has passed, the countdown is unknown until another

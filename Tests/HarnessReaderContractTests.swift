@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        kiroGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -102,5 +103,56 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func kiroGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let reader = AgentProvider.kiro.reader
+        let began = Date(timeIntervalSince1970: 1_790_088_000)
+        let header = line(#"{"type":"kiro.session","session":"sess_k","workspace":"/Users/me/code/app","model":"claude-sonnet-5"}"#)
+        suite.expect(reader.parse(header, state: &state, now: now).isEmpty
+                        && state.session == "sess_k" && state.project == "app" && state.model == "claude-sonnet-5",
+                     "a Kiro session header names the session, project and model")
+        let prompt = line(#"{"id":"u","timestamp":"2026-09-22T14:40:00.000Z","payload":{"type":"user","content":[{"kind":"text","data":"private"}]}}"#)
+        suite.expect(reader.parse(prompt, state: &state, now: now).isEmpty,
+                     "a Kiro prompt alone opens no turn; its turn start does")
+        let start = line(#"{"id":"s","timestamp":"2026-09-22T14:40:00.000Z","payload":{"type":"turn_start","executionId":"e1"}}"#)
+        suite.expect(reader.parse(start, state: &state, now: now)
+                        == [.turnBegan(began), .turnContext(model: "claude-sonnet-5", project: "app")],
+                     "a Kiro turn start opens its turn with its context")
+        let reasoning = line(#"{"id":"r","timestamp":"2026-09-22T14:40:05.000Z","payload":{"type":"assistant","operationType":"Reasoning","content":"private","reasoningModelId":"qdev::claude-opus-5.5"}}"#)
+        suite.expect(reader.parse(reasoning, state: &state, now: now)
+                        == [.turnContext(model: "claude-opus-5.5", project: "app"),
+                            .turnActive(began.addingTimeInterval(5))],
+                     "a Kiro reply names the model without its backend prefix")
+        let summary = line(#"{"id":"m","timestamp":"2026-09-22T14:40:20.000Z","payload":{"type":"usage_summary","promptTurnSummaries":[{"unit":"credit","unitPlural":"credits","usage":1.5,"usedTools":["read"]}],"elapsedTime":20000,"status":"success","executionId":"e1","requestIds":["a","b"]}}"#)
+        let record = AgentUsageRecord(provider: .kiro, date: began.addingTimeInterval(20), model: "claude-opus-5.5",
+                                      project: "app", session: "sess_k", requests: 2, tokens: AgentTokens(),
+                                      cost: 0, savings: 0, reportedCost: true, credits: 1.5)
+        suite.expect(reader.parse(summary, state: &state, now: now)
+                        == [.usage(key: "kiro:sess_k:e1", record: record, billable: AgentBillable(isAggregate: true))],
+                     "a Kiro usage summary records its requests at no cost: the plan covers its credits")
+        let empty = line(#"{"id":"z","timestamp":"2026-09-22T14:40:20.000Z","payload":{"type":"usage_summary","promptTurnSummaries":[],"status":"aborted","executionId":"e0"}}"#)
+        suite.expect(reader.parse(empty, state: &state, now: now).isEmpty,
+                     "a Kiro summary without credits or requests records nothing")
+        let end = line(#"{"id":"t","timestamp":"2026-09-22T14:40:21.000Z","payload":{"type":"turn_end","stopReason":"end_turn","executionId":"e1"}}"#)
+        suite.expect(reader.parse(end, state: &state, now: now)
+                        == [.turnEnded(began.addingTimeInterval(21), completed: true, duration: nil)] && !state.turnOpen,
+                     "a Kiro turn end finishes its turn")
+        _ = reader.parse(start, state: &state, now: now)
+        let cancelled = line(#"{"id":"c","timestamp":"2026-09-22T14:40:30.000Z","payload":{"type":"turn_end","stopReason":"cancelled"}}"#)
+        suite.expect(reader.parse(cancelled, state: &state, now: now)
+                        == [.turnEnded(began.addingTimeInterval(30), completed: false, duration: nil)],
+                     "a cancelled Kiro turn ends unfinished")
+        var legacy = AgentLogState()
+        let turn = line(#"{"type":"kiro.legacy_turn","session":"old","cwd":"/Users/me/code/cli","end":"2026-09-22T12:01:00.000Z","model":"claude-sonnet-5","credits":0.5,"requests":3}"#)
+        guard case .usage(let key, let old, _)? = reader.parse(turn, state: &legacy, now: now).first else {
+            suite.expect(false, "an older Kiro session's turn records its usage")
+            return
+        }
+        suite.expect(key == "kiro:old:2026-09-22T12:01:00.000Z" && old.project == "cli" && old.requests == 3
+                        && old.cost == 0 && old.credits == 0.5 && old.reportedCost && old.tokens == AgentTokens(),
+                     "an older Kiro session's turn is recorded under its end time")
     }
 }

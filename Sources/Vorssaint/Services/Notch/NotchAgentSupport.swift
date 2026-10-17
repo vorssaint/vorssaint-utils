@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .kiro: return DefaultsKey.notchAgentsKiro
         }
     }
 
@@ -349,9 +350,30 @@ enum AgentFormat {
         return rounded.formatted(.number.precision(.fractionLength(0...digits)).locale(locale))
     }
 
-    static func percent(_ fraction: Double, locale: Locale = .autoupdatingCurrent) -> String {
-        let value = fraction.isFinite ? min(1, max(0, fraction)) : 0
+    /// Kept below 100% unless `capped` is off, as for credits spent past
+    /// their limit.
+    static func percent(_ fraction: Double, capped: Bool = true, locale: Locale = .autoupdatingCurrent) -> String {
+        let value = fraction.isFinite ? min(capped ? 1 : .greatestFiniteMagnitude, max(0, fraction)) : 0
         return value.formatted(.percent.precision(.fractionLength(0)).locale(locale))
+    }
+
+    /// Use in the unit it was counted in: dollars or tokens, and Kiro's
+    /// credits beside them, never priced, since its plan covers them.
+    static func use(_ totals: AgentTotals, byCost: Bool, credits format: (String) -> String,
+                    locale: Locale = .autoupdatingCurrent) -> String {
+        let measured = byCost ? cost(totals.cost, locale: locale) : tokens(totals.tokens.total, locale: locale)
+        guard totals.credits > 0 else { return measured }
+        let counted = format(credits(totals.credits, locale: locale))
+        let other = byCost ? totals.cost > 0 : totals.tokens.total > 0
+        return other ? measured + " · " + counted : counted
+    }
+
+    /// Whole credits from a hundred on, as Kiro bills them in fractions:
+    /// "1,045", "12.5".
+    static func credits(_ value: Double, locale: Locale = .autoupdatingCurrent) -> String {
+        let value = value.isFinite ? max(0, value) : 0
+        return value.formatted(.number.precision(.fractionLength(0...(value >= 100 ? 0 : 1)))
+            .grouping(.automatic).locale(locale))
     }
 
     /// "4m 12s", "1h 05m", "2d 3h", in the app's language.

@@ -12,6 +12,7 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .kiro: return Color(red: 0.56, green: 0.27, blue: 1.0)
         }
     }
 }
@@ -208,7 +209,7 @@ struct NotchAgentBars: View {
     @Binding var hovered: Date?
 
     var body: some View {
-        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.weight(byCost: byCost) ?? 0 } }
+        let values = buckets.map { bucket in providers.map { bucket.byProvider[$0]?.use(byCost: byCost) ?? 0 } }
         let peak = max(values.map { $0.reduce(0, +) }.max() ?? 0, .leastNonzeroMagnitude)
         GeometryReader { proxy in
             let count = CGFloat(max(1, buckets.count))
@@ -252,6 +253,7 @@ struct NotchAgentHeatmap: View {
     let days: [AgentBucket]
     let byCost: Bool
     @Binding var hovered: Date?
+    var tint: Color = .white
     var calendar: Calendar = .autoupdatingCurrent
     static let spacing: CGFloat = 2.5
 
@@ -274,9 +276,9 @@ struct NotchAgentHeatmap: View {
                     VStack(spacing: spacing) {
                         ForEach(0..<7, id: \.self) { row in
                             if let day = week[row] {
-                                let value = day.total.weight(byCost: byCost)
+                                let value = day.total.use(byCost: byCost)
                                 RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
-                                    .fill(.white.opacity(opacity(value, levels: levels)))
+                                    .fill(tint.opacity(opacity(value, levels: levels)))
                                     .overlay {
                                         if hovered == day.start || calendar.isDateInToday(day.start) {
                                             RoundedRectangle(cornerRadius: min(2.5, cell / 3), style: .continuous)
@@ -318,7 +320,7 @@ struct NotchAgentHeatmap: View {
 
     /// Quartiles of the active days, so one heavy day does not wash out the rest.
     private var thresholds: [Double] {
-        let values = days.map { $0.total.weight(byCost: byCost) }.filter { $0 > 0 }.sorted()
+        let values = days.map { $0.total.use(byCost: byCost) }.filter { $0 > 0 }.sorted()
         guard !values.isEmpty else { return [] }
         return [0.25, 0.5, 0.75].map { values[min(values.count - 1, Int(Double(values.count) * $0))] }
     }
@@ -375,6 +377,8 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        // Kiro CLI.app keeps the bundle identifier of Amazon Q, its predecessor.
+        case .kiro: return ["com.amazon.codewhisperer"]
         }
     }
 
@@ -389,7 +393,7 @@ private extension AgentProvider {
         case .codex: return ["chatgptTemplate"]
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
-        case .copilot: return []
+        case .copilot, .kiro: return []
         }
     }
 }
