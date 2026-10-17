@@ -96,6 +96,11 @@ enum MediaFailure: Equatable {
     case gifTooLong(maxSeconds: Int)
     case targetTooSmall
     case watermarkUnavailable
+    case notDownloaded
+    case notWritable
+    case notEnoughSpace
+    case pdfProtected(MediaPDFCompressor.Protection)
+    case notSmaller(originalBytes: Int64, outputBytes: Int64)
     case cancelled
     case failed(String)
 }
@@ -235,6 +240,13 @@ final class MediaService: ObservableObject {
         }
     }
 
+    func compressPDF(inputURL: URL, outputURL: URL, options: MediaPDFOptions) {
+        run(.pdfCompressor) { [weak self] id, token in
+            try self?.compressPDFWork(inputURL: inputURL, outputURL: outputURL, options: options,
+                                      operationID: id, token: token)
+        }
+    }
+
     private func run(_ tool: MediaTool,
                      _ work: @escaping (UUID, MediaCancellationToken) throws -> Void) {
         let id = UUID()
@@ -320,58 +332,26 @@ final class MediaService: ObservableObject {
                               token: MediaCancellationToken) throws {
         let outSize = MediaSupport.scaledVideoSize(source: displaySize,
                                                    maxDimension: options.maxDimension)
-        let preset = avconvertPreset(codec: options.codec,
-                                     maxDimension: max(Int(outSize.width), Int(outSize.height)),
-                                     quality: options.quality)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/avconvert")
-        process.arguments = [
-            "--source", inputURL.path,
-            "--preset", preset,
-            "--output", stagedOutputURL.path,
-            "--replace",
-            "--progress",
-            // Deliberately not the reader's region: these are arguments for
-            // a tool that reads a decimal point, and a comma would break the
-            // trim in every country that writes numbers that way.
-            "--start", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.start),
-            "--duration", String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), trim.duration),
-        ]
-        if options.quality >= 0.82 {
-            process.arguments?.append("--multiPass")
-        }
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        var log = ""
-        let logLock = NSLock()
-        pipe.fileHandleForReading.readabilityHandler = { handle in
-            let data = handle.availableData
-            guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
-            logLock.lock()
-            log.append(chunk)
-            if log.count > 8_000 { log.removeFirst(log.count - 8_000) }
-            logLock.unlock()
-        }
-        defer {
-            pipe.fileHandleForReading.readabilityHandler = nil
-            if process.isRunning { process.terminate() }
-        }
-        try launch(process: process, operationID: operationID, token: token)
-        while process.isRunning {
-            try checkCancellation(token)
-            let elapsed = Date().timeIntervalSince(started)
-            let estimate = max(1, trim.duration * 0.75)
-            publish(.running(progress: min(0.95, elapsed / estimate), message: "video"), operationID: operationID)
-            Thread.sleep(forTimeInterval: 0.08)
-        }
-        if token.isCancelled {
+        let preset = MediaVideoEncoder.avconvertPreset(codec: options.codec,
+                                                       maxDimension: max(Int(outSize.width), Int(outSize.height)),
+                                                       quality: options.quality)
+        let arguments = MediaVideoEncoder.avconvertArguments(
+            input: inputURL, output: stagedOutputURL, preset: preset, trim: trim,
+            multiPass: MediaVideoEncoder.wantsMultiPass(quality: options.quality))
+        do {
+            try MediaVideoEncoder.run(
+                arguments: arguments,
+                launch: { try launch(process: $0, operationID: operationID, token: token) },
+                isCancelled: { token.isCancelled },
+                tick: {
+                    let elapsed = Date().timeIntervalSince(started)
+                    let estimate = max(1, trim.duration * 0.75)
+                    publish(.running(progress: min(0.95, elapsed / estimate), message: "video"),
+                            operationID: operationID)
+                })
+        } catch MediaVideoEncoder.RunError.cancelled {
             throw MediaFailureBox(.cancelled)
-        }
-        guard process.terminationStatus == 0 else {
-            logLock.lock()
-            let message = log.trimmingCharacters(in: .whitespacesAndNewlines)
-            logLock.unlock()
+        } catch MediaVideoEncoder.RunError.failed(let message) {
             throw MediaFailureBox(.failed(message.isEmpty ? "avconvert failed." : message))
         }
     }
@@ -692,18 +672,17 @@ final class MediaService: ObservableObject {
             try writePDF(image: image, outputURL: outputURL,
                          quality: MediaSupport.sanitizedQuality(options.quality))
         } else {
-            let type = typeIdentifier(for: options.format)
+            let type = MediaImageEncoder.typeIdentifier(for: options.format)
             guard let destination = CGImageDestinationCreateWithURL(outputURL as CFURL, type as CFString, 1, nil) else {
                 throw MediaFailureBox(.unsupported)
             }
-            var outputProperties: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: MediaSupport.sanitizedQuality(options.quality),
-            ]
-            if !options.stripMetadata {
-                outputProperties.merge(sanitizedImageProperties(properties, image: image)) { current, _ in current }
+            let metadata = options.stripMetadata
+                ? [:] : MediaImageEncoder.sanitizedImageProperties(properties, image: image)
+            guard MediaImageEncoder.write(image, to: destination,
+                                          quality: MediaSupport.sanitizedQuality(options.quality),
+                                          properties: metadata) else {
+                throw MediaFailureBox(.unsupported)
             }
-            CGImageDestinationAddImage(destination, image, outputProperties as CFDictionary)
-            guard CGImageDestinationFinalize(destination) else { throw MediaFailureBox(.unsupported) }
         }
     }
 
@@ -754,6 +733,70 @@ final class MediaService: ObservableObject {
                                  elapsed: Date().timeIntervalSince(started),
                                  text: text)
         publish(.completed(result), operationID: operationID)
+    }
+
+    /// Rewrites a PDF through the shared engine into a staged copy next to
+    /// the output, and installs it only when it is worth keeping. PDFKit's
+    /// write cannot be interrupted: a cancel shows at once, and the finished
+    /// write is discarded because the commit refuses a cancelled operation.
+    private func compressPDFWork(inputURL: URL, outputURL: URL, options: MediaPDFOptions,
+                                 operationID: UUID, token: MediaCancellationToken) throws {
+        let started = Date()
+        // Opening a file whose contents live in iCloud would download it.
+        guard ClipboardOptimizerFileSupport.isAvailableLocally(inputURL) else {
+            throw MediaFailureBox(.notDownloaded)
+        }
+        let originalBytes = fileSize(inputURL)
+        let stagedOutputURL: URL
+        do {
+            stagedOutputURL = try stagedOutput(inputURL: inputURL, outputURL: outputURL)
+        } catch let failure as MediaFailureBox {
+            throw failure
+        } catch {
+            throw MediaFailureBox(.notWritable)
+        }
+        defer { MediaSupport.discardStagedOutput(stagedOutputURL) }
+        let free = (try? stagedOutputURL.deletingLastPathComponent()
+            .resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
+            .volumeAvailableCapacityForImportantUsage
+        guard ClipboardOptimizerFileSupport.hasRoom(freeBytes: free, sourceBytes: originalBytes) else {
+            throw MediaFailureBox(.notEnoughSpace)
+        }
+        publish(.running(progress: 0.1, message: "pdf"), operationID: operationID)
+        do {
+            try MediaPDFCompressor.rewrite(source: inputURL, to: stagedOutputURL, settings: options.settings,
+                                           filterName: "Vorssaint PDF compressor",
+                                           scratchDirectory: stagedOutputURL.deletingLastPathComponent(),
+                                           isCancelled: { token.isCancelled })
+        } catch let failure as MediaPDFCompressor.Failure {
+            throw MediaFailureBox(Self.mediaFailure(for: failure))
+        }
+        try checkCancellation(token)
+        publish(.running(progress: 0.9, message: "pdf"), operationID: operationID)
+        let outputBytes = fileSize(stagedOutputURL)
+        guard ClipboardImageOptimizerSupport.shouldReplace(originalBytes: Int(clamping: originalBytes),
+                                                           encodedBytes: Int(clamping: outputBytes)) else {
+            throw MediaFailureBox(.notSmaller(originalBytes: originalBytes, outputBytes: outputBytes))
+        }
+        try commit(stagedOutputURL, at: outputURL, operationID: operationID, token: token)
+        MediaSupport.makeVisibleIfNeeded(outputURL)
+        let result = MediaResult(tool: .pdfCompressor,
+                                 inputURL: inputURL,
+                                 outputURL: outputURL,
+                                 originalBytes: originalBytes,
+                                 outputBytes: fileSize(outputURL),
+                                 elapsed: Date().timeIntervalSince(started),
+                                 text: nil)
+        publish(.completed(result), operationID: operationID)
+    }
+
+    static func mediaFailure(for failure: MediaPDFCompressor.Failure) -> MediaFailure {
+        switch failure {
+        case .unreadable, .empty: return .unsupported
+        case let .protected(protection): return .pdfProtected(protection)
+        case .cancelled: return .cancelled
+        case .filter, .incompleteOutput: return .failed("")
+        }
     }
 
     /// A dropped file that does not fit the selected tool: surface the same
@@ -982,26 +1025,6 @@ final class MediaService: ObservableObject {
         }
     }
 
-    private func avconvertPreset(codec: MediaVideoCodec, maxDimension: Int, quality: Double) -> String {
-        let quality = MediaSupport.sanitizedQuality(quality)
-        if quality < 0.4 {
-            return "PresetLowQuality"
-        }
-        if codec == .hevc {
-            if quality >= 0.82 { return "PresetHEVCHighestQuality" }
-            if maxDimension <= 1920 { return "PresetHEVC1920x1080" }
-            if maxDimension <= 3840 { return "PresetHEVC3840x2160" }
-            return "PresetHEVCHighestQuality"
-        }
-        if quality >= 0.82 { return "PresetHighestQuality" }
-        if quality < 0.58 { return "PresetMediumQuality" }
-        if maxDimension <= 640 { return "Preset640x480" }
-        if maxDimension <= 960 { return "Preset960x540" }
-        if maxDimension <= 1280 { return "Preset1280x720" }
-        if maxDimension <= 1920 { return "Preset1920x1080" }
-        return "PresetHighestQuality"
-    }
-
     private func seconds(_ value: Double) -> CMTime {
         CMTime(seconds: value, preferredTimescale: 600)
     }
@@ -1103,14 +1126,6 @@ final class MediaService: ObservableObject {
         return try result.get()
     }
 
-    private func sanitizedImageProperties(_ properties: [CFString: Any], image: CGImage) -> [CFString: Any] {
-        var clean = properties
-        clean.removeValue(forKey: kCGImagePropertyOrientation)
-        clean[kCGImagePropertyPixelWidth] = image.width
-        clean[kCGImagePropertyPixelHeight] = image.height
-        return clean
-    }
-
     /// CGImageDestination accepts com.adobe.pdf but ignores the lossy quality,
     /// embedding the bitmap losslessly. Re-encoding as JPEG at the chosen
     /// quality and drawing that image into a PDF context makes Quartz embed
@@ -1136,15 +1151,6 @@ final class MediaService: ObservableObject {
         pdf.draw(encoded, in: mediaBox)
         pdf.endPDFPage()
         pdf.closePDF()
-    }
-
-    private func typeIdentifier(for format: MediaImageFormat) -> String {
-        switch format {
-        case .jpeg: return UTType.jpeg.identifier
-        case .heic: return UTType.heic.identifier
-        case .png: return UTType.png.identifier
-        case .pdf: return UTType.pdf.identifier
-        }
     }
 
     private func fileSize(_ url: URL) -> Int64 {

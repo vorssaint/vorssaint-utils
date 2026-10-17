@@ -18,6 +18,10 @@ final class TransientPaste {
     private var restoreWork: DispatchWorkItem?
     private var isPerforming = false
 
+    /// Main thread only. True while a paste is running or its restore is
+    /// still pending, so pasteboard watchers leave the swap alone.
+    var isBusy: Bool { isPerforming || pendingRestore != nil }
+
     /// Forwards a paste of non-text content without reading promised data,
     /// taking a snapshot or changing the clipboard. It shares the modifier
     /// wait and shortcut handoff used by a temporary text paste.
