@@ -5819,6 +5819,11 @@ enum SwitcherModelFeatureTests {
         suite.expect(activateBody.contains("sourcePID: sourcePID, retrySourcePID: retrySourcePID,")
                && activateBody.contains("sourcePID: retrySourcePID, state: retryState,"),
                "focus retry guards use the handoff source while staging keeps the session source")
+        // Issue #1503: unhiding an app that is not hidden raises every one of
+        // its windows, so the only unhide on the way to a window is guarded.
+        suite.expect(activateBody.components(separatedBy: ".unhide()").count == 2
+               && activateBody.contains("if app.isHidden { app.unhide() }"),
+               "activating a selection unhides its app only when the app is hidden")
         suite.expect(activatorCode.contains("activate(item, retry: retry, handoffSourcePID: handoffSourcePID)"),
                "activation by pid forwards its source only as a handoff")
         let dockPreviewActivationCode = ((try? String(
