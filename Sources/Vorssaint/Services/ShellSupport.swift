@@ -167,10 +167,16 @@ enum Sudoers {
         // SSO-enrolled Macs (name@company.com, #915) and the old validation
         // rejected it before the password prompt could even appear.
         let rule = SudoersSupport.clamshellRule(uid: getuid())
-        // Clear any earlier-named rule first, then write and validate the new one
-        // (a failed check rolls back). Same password prompt either way.
+
+        // Remove legacy rule files before installing new one.
         let legacy = legacyRulePaths.joined(separator: " ")
-        let command = "mkdir -p /etc/sudoers.d && chmod 0755 /etc/sudoers.d && rm -f \(legacy) && echo '\(rule)' > \(rulePath) && chmod 0440 \(rulePath) && /usr/sbin/visudo -c -f \(rulePath) || { rm -f \(rulePath); exit 1; }"
+
+        // Encode the rule to base64 so we avoid any shell-quoting pitfalls.
+        // The command decodes it on the target machine, writes it atomically,
+        // validates it with visudo, and removes the file if validation fails.
+        let ruleB64 = Data(rule.utf8).base64EncodedString()
+        let command = "/bin/sh -c \"mkdir -p /etc/sudoers.d && chmod 0755 /etc/sudoers.d && rm -f \(legacy) && echo \(ruleB64) | /usr/bin/base64 -D > \(rulePath) && chmod 0440 \(rulePath) && /usr/sbin/visudo -c -f \(rulePath) || { rm -f \(rulePath); exit 1; }\""
+
         AdminShell.run(command, prompt: L10n.shared.s.adminPromptSudoersInstall) { ok in
             completion(ok && isConfigured())
         }
