@@ -158,6 +158,9 @@ enum AgentLogParser {
 
     // MARK: OpenCode
 
+    /// OpenCode starts the next step the moment a step's tools return, so
+    /// a turn that goes this long without one after a step ended has stopped,
+    /// as when a permission was rejected or a question dismissed.
     static let openCodeSettle: TimeInterval = 30
 
     static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {

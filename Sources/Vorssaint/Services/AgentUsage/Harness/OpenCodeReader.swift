@@ -10,9 +10,6 @@ import Foundation
 struct OpenCodeReader: AgentHarnessReader {
     var provider: AgentProvider { .opencode }
 
-    /// OpenCode starts the next step the moment a step's tools return, so
-    /// a turn that goes this long without one after a step ended has stopped,
-    /// as when a permission was rejected or a question dismissed.
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         guard AgentLogParser.contains(line, #""role":""#) || AgentLogParser.contains(line, #""type":"reset""#) else { return [] }
         guard let json = AgentLogParser.object(line) else { return [] }

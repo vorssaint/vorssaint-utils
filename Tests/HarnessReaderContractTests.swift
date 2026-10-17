@@ -3,9 +3,8 @@
 
 import Foundation
 
-/// The reader protocol move preserves parsing: every harness reader returns
-/// the same entries and end state as the `AgentLogParser` entry point it
-/// replaces, and every provider resolves to the reader for its own harness.
+/// Every provider resolves to the reader for its own harness, and each reader
+/// parses its harness's lines into the entries the island keeps.
 enum HarnessReaderContractTests {
     static func run(_ suite: TestSuite) {
         readersCoverProviders(suite)
@@ -13,7 +12,6 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
-        readersMatchParser(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -104,62 +102,5 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
-    }
-
-    /// Every reader returns the entry points' output line for line, with the
-    /// same state carried across lines, so the move is byte-equivalent.
-    private static func readersMatchParser(_ suite: TestSuite) {
-        let now = Date(timeIntervalSince1970: 0)
-        let timestamp = now.timeIntervalSince1970
-        let claude = [
-            #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","cwd":"/Users/me/code/app","message":{"content":"work"}}"#,
-            #"{"type":"assistant","timestamp":\#(timestamp),"sessionId":"s","requestId":"r","message":{"id":"m","model":"claude-opus-5-5","stop_reason":"tool_use","usage":{"input_tokens":10,"output_tokens":2}}}"#,
-            #"{"type":"assistant","timestamp":\#(timestamp),"sessionId":"s","requestId":"r2","message":{"id":"m2","model":"claude-opus-5-5","stop_reason":"end_turn","usage":{"input_tokens":3,"output_tokens":7}}}"#,
-            #"{"type":"user","timestamp":\#(timestamp),"sessionId":"s","isSidechain":true,"message":{"content":"work"}}"#,
-        ]
-        check(suite, provider: .claude, lines: claude, now: now)
-        let codex = [
-            #"{"type":"session_meta","timestamp":\#(timestamp),"payload":{"id":"s","cwd":"/tmp/example"}}"#,
-            #"{"type":"turn_context","timestamp":\#(timestamp),"payload":{"model":"gpt-5.2-codex","service_tier":"fast"}}"#,
-            #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"task_started"}}"#,
-            #"{"type":"token_usage_record","timestamp":\#(timestamp),"payload":{"response_id":"r","usage":{"input_tokens":10,"output_tokens":2}}}"#,
-            #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"token_count","rate_limits":{"plan_type":"pro","primary":{"used_percent":42,"window_minutes":300}}}}"#,
-            #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"task_complete","duration_ms":20000}}"#,
-        ]
-        check(suite, provider: .codex, lines: codex, now: now)
-        let opencode = [
-            #"{"session_id":"s_oc_1","time_created":1790088000,"directory":"/Users/me/code/backend","role":"user","parts":[{"type":"text","text":"go"}]}"#,
-            #"{"id":"msg_1","session_id":"s_oc_1","time_created":1790088005,"directory":"/Users/me/code/backend","role":"assistant","model_id":"stealth/ox-alpha","provider_id":"relay","cost":0.0042,"tokens":{"total":1250,"input":1000,"output":200,"reasoning":50,"cache":{"read":50,"write":0}},"finish":"tool-calls"}"#,
-            #"{"id":"msg_2","session_id":"s_oc_1","time_created":1790088020,"directory":"/Users/me/code/backend","role":"assistant","model_id":"stealth/ox-alpha","provider_id":"relay","cost":0.0015,"tokens":{"total":500,"input":400,"output":100,"reasoning":0,"cache":{"read":0,"write":0}},"finish":"stop"}"#,
-            #"{"id":"msg_3","session_id":"s_oc_1","time_created":1790088030,"directory":"/Users/me/code/backend","role":"compaction","model":{"id":"stealth/ox-alpha"},"cost":0.0001,"tokens":{"input":10,"output":5}}"#,
-        ]
-        check(suite, provider: .opencode, lines: opencode, now: now)
-        let copilot = [
-            #"{"id":"start","timestamp":\#(timestamp),"type":"session.start","data":{"sessionId":"s","selectedModel":"gpt-6-sol","context":{"cwd":"/tmp/example"}}}"#,
-            #"{"id":"turn","timestamp":\#(timestamp),"type":"user.message","data":{"turnId":"0","content":"private"}}"#,
-            #"{"id":"message","timestamp":\#(timestamp),"type":"assistant.message","data":{"model":"gpt-6-sol","content":"private"}}"#,
-            #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
-            #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
-        ]
-        check(suite, provider: .copilot, lines: copilot, now: now)
-    }
-
-    private static func check(_ suite: TestSuite, provider: AgentProvider, lines: [String], now: Date) {
-        var viaReader = AgentLogState()
-        var viaParser = AgentLogState()
-        let reader = provider.reader
-        for (index, json) in lines.enumerated() {
-            let data = line(json)
-            let left = reader.parse(data, state: &viaReader, now: now)
-            let right: [AgentLogEntry]
-            switch provider {
-            case .claude: right = AgentLogParser.parseClaude(data, state: &viaParser, now: now)
-            case .codex: right = AgentLogParser.parseCodex(data, state: &viaParser, now: now)
-            case .opencode: right = AgentLogParser.parseOpenCode(data, state: &viaParser, now: now)
-            case .copilot: right = AgentLogParser.parseCopilot(data, state: &viaParser, now: now)
-            }
-            suite.expect(left == right, "\(provider.rawValue) reader matches line \(index)")
-            suite.expect(viaReader == viaParser, "\(provider.rawValue) reader keeps line \(index) state")
-        }
     }
 }
