@@ -567,7 +567,7 @@ struct SettingsView: View {
         case .general:
             if let anchor = router.destination.sectionAnchor,
                [.panelConfiguration, .mixer, .soundOutputSwitcher,
-                .audioPriority, .musicBlocking].contains(anchor),
+                .audioPriority].contains(anchor),
                sidebarItems.contains(where: { $0.destination == router.destination }) {
                 GeneralToolSettings(anchor: anchor)
             } else {
@@ -592,6 +592,7 @@ struct SettingsView: View {
         case .uninstaller: UninstallerView()
         case .killProcess: KillProcessView()
         case .portManager: PortManagerView()
+        case .appLaunchBlock: AppLaunchBlockSettings()
         case .urlCleaner: URLCleanerSettings()
         case .cleaner: CleanerSettings()
         case .homebrew: HomebrewSettings()

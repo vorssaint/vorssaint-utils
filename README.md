@@ -74,7 +74,6 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Per app output.** Play music through speakers while a call uses your headset.
 - **Output switcher.** Switch audio outputs with a shortcut and lower the volume when headphones disconnect.
 - **Microphone tools.** Choose a preferred input, adjust its level on supported devices, and mute all microphones with one shortcut.
-- **Music app blocker.** Prevent unwanted Music launches after detected playback-button presses. Requires Accessibility.
 
 ### Know what your Mac is doing
 
@@ -160,6 +159,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Uninstaller.** Remove apps and review their related caches, preferences and helpers before moving them to the Trash.
 - **Homebrew manager.** Search, install and remove formulae and casks without opening a terminal.
 - **Port manager.** Find processes listening on network ports and stop them with Kill Process when installed.
+- **Block apps from opening.** Quit chosen apps as soon as they open, and stop playback-button presses from opening Music. The Music protection requires Accessibility.
 
 ### Energy and display
 

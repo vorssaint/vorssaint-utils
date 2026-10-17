@@ -272,7 +272,8 @@ enum CommandBarCatalog {
             // would flip is a guess, and a guess here changes the person's Mac.
             guard feature.enabledKeys.count == 1,
                   let key = feature.enabledKeys.first else { return [] }
-            let name = feature.hubTitle(s, hub: hub)
+            // The switch covers only the Music half of its feature.
+            let name = feature == .musicBlock ? s.musicBlockTitle : feature.hubTitle(s, hub: hub)
             return [entry(for: feature,
                           key: key,
                           name: name,

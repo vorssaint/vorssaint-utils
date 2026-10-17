@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, appLaunchBlock, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -19,7 +19,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case panelConfiguration
     case mixer
     case audioPriority
-    case musicBlocking
     case keepAwake
     case brightness
     case extraBrightness
@@ -59,8 +58,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
 
     var page: SettingsPage {
         switch self {
-        case .panelConfiguration, .mixer, .audioPriority, .musicBlocking,
-             .soundOutputSwitcher:
+        case .panelConfiguration, .mixer, .audioPriority, .soundOutputSwitcher:
             return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
         case .scrollDirection, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
@@ -333,8 +331,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.general, sectionAnchor: .audioPriority)
         case .micMute:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)
-        case .musicBlock:
-            return FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
+        case .musicBlock: return FeatureSettingsDestination(.appLaunchBlock)
 
         case .keepAwake:
             return FeatureSettingsDestination(.energy, sectionAnchor: .keepAwake)
@@ -419,6 +416,7 @@ enum FeatureVisibilitySupport {
         case .uninstaller: return [.uninstaller]
         case .killProcess: return [.killProcess]
         case .portManager: return [.portManager]
+        case .appLaunchBlock: return [.musicBlock]
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
