@@ -2813,6 +2813,10 @@ enum NotchTests {
                "invalid internal positions cannot be serialized into adapter input")
     }
     private static func calendarContracts(_ suite: TestSuite) {
+        suite.expect(!NotchCalendarSupport.notesCanExpand(fullHeight: 36, shownHeight: 36, expanded: false)
+                     && NotchCalendarSupport.notesCanExpand(fullHeight: 48, shownHeight: 36, expanded: false)
+                     && NotchCalendarSupport.notesCanExpand(fullHeight: 36, shownHeight: 36, expanded: true),
+                     "event notes offer expansion only when clamped content is hidden and remain collapsible")
         let entitlements = NSDictionary(contentsOfFile: "Resources/Vorssaint.entitlements") as? [String: Any]
         let info = NSDictionary(contentsOfFile: "Resources/Info.plist") as? [String: Any]
         suite.expect(entitlements?["com.apple.security.personal-information.calendars"] as? Bool == true

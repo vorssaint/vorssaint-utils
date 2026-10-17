@@ -26,6 +26,7 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     /// How a countdown chosen from the event's menu remembers it; see
     /// `NotchCalendarSupport.countdownKey`.
     var countdownKey = ""
+    var notes = ""
 }
 
 /// What the closed island counts down to: an event's start or, while the
@@ -54,6 +55,10 @@ struct NotchCalendarChoice: Equatable, Identifiable, Sendable {
 
 enum NotchCalendarSupport {
     static let countdownLeadTime: TimeInterval = 60 * 60
+
+    static func notesCanExpand(fullHeight: CGFloat, shownHeight: CGFloat, expanded: Bool) -> Bool {
+        expanded || fullHeight > shownHeight + 1
+    }
 
     static func monthDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
         guard let month = calendar.dateInterval(of: .month, for: date) else { return [] }
