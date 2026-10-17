@@ -558,6 +558,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchLowBatteryStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
+        Sources/Vorssaint/Services/CleaningMode/CleaningOverlayScreens.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
         Sources/Vorssaint/Services/Display/LidDimmingSupport.swift

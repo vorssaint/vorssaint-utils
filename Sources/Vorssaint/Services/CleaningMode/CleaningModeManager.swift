@@ -356,7 +356,12 @@ final class CleaningModeManager: ObservableObject {
     // MARK: - Overlay
 
     private func showOverlays() {
-        let frames = NSScreen.screens.map(\.frame)
+        let displays = NSScreen.screens.map { screen in
+            CleaningDisplay(frame: screen.frame, isBuiltIn: Self.isBuiltIn(screen))
+        }
+        let frames = CleaningOverlayScreens.frames(
+            for: displays,
+            builtInOnly: UserDefaults.standard.bool(forKey: DefaultsKey.cleaningModeBuiltInOnly))
         let targetFrames = frames.isEmpty
             ? [NSRect(x: 0, y: 0, width: 800, height: 600)]
             : frames
@@ -370,6 +375,12 @@ final class CleaningModeManager: ObservableObject {
             return makeOverlay(frame: frame)
         }
         reusable.forEach { $0.orderOut(nil) }
+    }
+
+    private static func isBuiltIn(_ screen: NSScreen) -> Bool {
+        guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+        else { return false }
+        return CGDisplayIsBuiltin(CGDirectDisplayID(number.uint32Value)) != 0
     }
 
     private func makeOverlay(frame: NSRect) -> NSPanel {

@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Fare ve izleme dörtgeni çalışmaya devam eder",
         cleaningKeepScreenVisibleToggle: "Ekranı görünür tut",
         cleaningKeepScreenVisibleCaption: "İçeriği karartmak yerine ekranın köşesinde göze çarpmayan bir gösterge gösterir.",
+        cleaningBuiltInOnlyToggle: "Yalnızca yerleşik ekranı kapla",
+        cleaningBuiltInOnlyCaption: "Klavye kilitliyken harici ekranlar kullanılabilir kalır. Yerleşik ekran bağlı değilse tüm ekranlar kaplanır.",
         cleaningStartNow: "Klavyeyi şimdi kilitle",
         cleaningNeedsAxTitle: "Erişilebilirlik gerekli",
         cleaningNeedsAxBody: "Klavyeyi güvenle kilitlemek için Vorssaint’in Erişilebilirlik iznine ihtiyacı var. Sistem Ayarları’ndan izin ver ve tekrar dene.",

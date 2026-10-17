@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Myš a trackpad fungujú ďalej",
         cleaningKeepScreenVisibleToggle: "Ponechať obrazovku viditeľnú",
         cleaningKeepScreenVisibleCaption: "Zobrazí nenápadný indikátor v rohu obrazovky namiesto zatmenia obsahu.",
+        cleaningBuiltInOnlyToggle: "Zakryť iba vstavaný displej",
+        cleaningBuiltInOnlyCaption: "Externé displeje zostanú použiteľné, kým je klávesnica zamknutá. Ak nie je pripojený vstavaný displej, zakryjú sa všetky displeje.",
         cleaningStartNow: "Uzamknúť klávesnicu teraz",
         cleaningNeedsAxTitle: "Potrebná je Prístupnosť",
         cleaningNeedsAxBody: "Na bezpečné uzamknutie klávesnice potrebuje Vorssaint povolenie Prístupnosť. Udeľte ho v Systémových nastaveniach a skúste to znova.",

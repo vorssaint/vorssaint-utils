@@ -885,6 +885,8 @@ extension Strings {
         cleaningOverlayMouseHint: "滑鼠和觸控板仍可使用",
         cleaningKeepScreenVisibleToggle: "保持螢幕可見",
         cleaningKeepScreenVisibleCaption: "在螢幕角落顯示小巧的指示條，而不調暗螢幕內容。",
+        cleaningBuiltInOnlyToggle: "只遮蓋內置顯示器",
+        cleaningBuiltInOnlyCaption: "鍵盤鎖定期間，外接顯示器仍可正常使用。未連接內置顯示器時，會遮蓋所有顯示器。",
         cleaningStartNow: "立即鎖定鍵盤",
         cleaningNeedsAxTitle: "需要輔助使用",
         cleaningNeedsAxBody: "為安全鎖定鍵盤，Vorssaint 需要輔助使用權限。請在「系統設定」中允許後重試。",

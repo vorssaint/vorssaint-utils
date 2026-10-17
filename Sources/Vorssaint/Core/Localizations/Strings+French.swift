@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Votre souris et votre trackpad fonctionnent toujours",
         cleaningKeepScreenVisibleToggle: "Garder l’écran visible",
         cleaningKeepScreenVisibleCaption: "Affiche un indicateur discret dans un coin de l’écran sans masquer le contenu.",
+        cleaningBuiltInOnlyToggle: "Couvrir uniquement l’écran intégré",
+        cleaningBuiltInOnlyCaption: "Laisse les écrans externes utilisables pendant que le clavier est verrouillé. Sans écran intégré connecté, tous les écrans sont couverts.",
         cleaningStartNow: "Verrouiller le clavier maintenant",
         cleaningNeedsAxTitle: "Accessibilité requise",
         cleaningNeedsAxBody: "Pour verrouiller le clavier en toute sécurité, Vorssaint a besoin de l’autorisation Accessibilité. Accordez-la dans les Réglages Système et réessayez.",

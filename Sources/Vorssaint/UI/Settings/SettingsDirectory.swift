@@ -403,7 +403,7 @@ enum SettingsDirectory {
                                         (.wallpaper,
                                          [FeatureStrings.wallpaper(language).pageTitle]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
-                                        (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
+                                        (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle, s.cleaningBuiltInOnlyToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,
                                        title: FeatureStrings.screenshot(language).screenCaptureTitle,

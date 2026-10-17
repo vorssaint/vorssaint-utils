@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Maus und Trackpad funktionieren weiterhin",
         cleaningKeepScreenVisibleToggle: "Bildschirm sichtbar lassen",
         cleaningKeepScreenVisibleCaption: "Zeigt einen dezenten Hinweis in der Bildschirmecke an, anstatt Inhalte abzudunkeln.",
+        cleaningBuiltInOnlyToggle: "Nur das eingebaute Display abdecken",
+        cleaningBuiltInOnlyCaption: "Lässt externe Displays nutzbar, während die Tastatur gesperrt ist. Ist kein eingebautes Display angeschlossen, werden alle Displays abgedeckt.",
         cleaningStartNow: "Tastatur jetzt sperren",
         cleaningNeedsAxTitle: "Bedienungshilfen erforderlich",
         cleaningNeedsAxBody: "Um die Tastatur sicher zu sperren, benötigt Vorssaint die Berechtigung für Bedienungshilfen. Erteile sie in den Systemeinstellungen und versuche es erneut.",

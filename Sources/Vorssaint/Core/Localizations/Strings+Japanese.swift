@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "マウスとトラックパッドはそのまま使えます",
         cleaningKeepScreenVisibleToggle: "画面を表示したままにする",
         cleaningKeepScreenVisibleCaption: "画面を暗くせず、画面の隅に控えめなインジケータを表示します。",
+        cleaningBuiltInOnlyToggle: "内蔵ディスプレイだけを覆う",
+        cleaningBuiltInOnlyCaption: "キーボードのロック中も外部ディスプレイは使えます。内蔵ディスプレイが接続されていない場合は、すべてのディスプレイを覆います。",
         cleaningStartNow: "今すぐキーボードをロック",
         cleaningNeedsAxTitle: "アクセシビリティが必要です",
         cleaningNeedsAxBody: "キーボードを安全にロックするには、Vorssaint にアクセシビリティのアクセス権が必要です。システム設定で許可して、もう一度お試しください。",

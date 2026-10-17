@@ -1080,6 +1080,8 @@ struct Strings {
     let cleaningOverlayMouseHint: String
     let cleaningKeepScreenVisibleToggle: String
     let cleaningKeepScreenVisibleCaption: String
+    let cleaningBuiltInOnlyToggle: String
+    let cleaningBuiltInOnlyCaption: String
     let cleaningStartNow: String
     let cleaningNeedsAxTitle: String
     let cleaningNeedsAxBody: String
@@ -2187,6 +2189,8 @@ extension Strings {
         cleaningOverlayMouseHint: "O mouse e o trackpad continuam funcionando",
         cleaningKeepScreenVisibleToggle: "Manter a tela visível",
         cleaningKeepScreenVisibleCaption: "Exibe um indicador discreto no canto da tela em vez de escurecer o conteúdo.",
+        cleaningBuiltInOnlyToggle: "Cobrir só a tela integrada",
+        cleaningBuiltInOnlyCaption: "Bloqueia apenas a tela do Mac. Os monitores externos continuam utilizáveis. Sem tela integrada, todas são cobertas.",
         cleaningStartNow: "Bloquear teclado agora",
         cleaningNeedsAxTitle: "Precisa de Acessibilidade",
         cleaningNeedsAxBody: "Para bloquear o teclado com segurança, o Vorssaint precisa da permissão de Acessibilidade. Conceda em Ajustes do Sistema e tente de novo.",
@@ -3287,6 +3291,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Your mouse and trackpad still work",
         cleaningKeepScreenVisibleToggle: "Keep screen visible",
         cleaningKeepScreenVisibleCaption: "Shows a discreet indicator in the corner of the screen instead of blacking out content.",
+        cleaningBuiltInOnlyToggle: "Only cover the built-in display",
+        cleaningBuiltInOnlyCaption: "Leaves external displays usable while the keyboard is locked. With no built-in display connected, every display is covered.",
         cleaningStartNow: "Lock keyboard now",
         cleaningNeedsAxTitle: "Accessibility needed",
         cleaningNeedsAxBody: "To lock the keyboard safely, Vorssaint needs Accessibility permission. Grant it in System Settings and try again.",

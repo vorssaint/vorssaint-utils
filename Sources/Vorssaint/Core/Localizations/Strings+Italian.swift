@@ -884,6 +884,8 @@ extension Strings {
         cleaningOverlayMouseHint: "Mouse e trackpad continuano a funzionare",
         cleaningKeepScreenVisibleToggle: "Mantieni lo schermo visibile",
         cleaningKeepScreenVisibleCaption: "Mostra un indicatore discreto nell’angolo dello schermo anziché oscurare i contenuti.",
+        cleaningBuiltInOnlyToggle: "Copri solo il display integrato",
+        cleaningBuiltInOnlyCaption: "Lascia utilizzabili i display esterni mentre la tastiera è bloccata. Se non c’è un display integrato collegato, vengono coperti tutti i display.",
         cleaningStartNow: "Blocca la tastiera ora",
         cleaningNeedsAxTitle: "Serve l’Accessibilità",
         cleaningNeedsAxBody: "Per bloccare la tastiera in sicurezza, Vorssaint ha bisogno dell’autorizzazione di Accessibilità. Concedila in Impostazioni di Sistema e riprova.",
