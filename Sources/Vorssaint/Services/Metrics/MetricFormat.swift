@@ -173,7 +173,14 @@ enum MetricFormat {
     /// Bytes (raw) → "0", "8" for B; one decimal under 10, none at or above.
     private static func number(_ value: Double, unit: String) -> String {
         if unit == "B" { return String(format: "%.0f", locale: Self.locale, value) }
-        return value < 10 ? String(format: "%.1f", locale: Self.locale, value) : String(format: "%.0f", locale: Self.locale, value)
+        return shownUnderTen(value) ? String(format: "%.1f", locale: Self.locale, value)
+            : String(format: "%.0f", locale: Self.locale, value)
+    }
+
+    /// Whether a value still reads under ten once printed with one decimal, so
+    /// 9.96 is shown as "10" like its siblings rather than "10.0".
+    private static func shownUnderTen(_ value: Double) -> Bool {
+        (value * 10).rounded() < 100
     }
 
     /// A whole quantity of bytes, e.g. "1.2 GB". Used for session totals.
@@ -186,14 +193,16 @@ enum MetricFormat {
         let units = ["B", "KB", "MB", "GB", "TB", "PB"]
         var value = max(0, Double(bytes))
         var index = 0
-        while value >= 1000, index < units.count - 1 {
+        // Promote on the number as printed, so 999.6 GB reads "1.0 TB" rather
+        // than "1000 GB". Under ten the decimal is kept and can never print as 1000.
+        while value.rounded() >= 1000, index < units.count - 1 {
             value /= 1000
             index += 1
         }
         if units[index] == "B" {
             return String(format: "%.0f B", locale: Self.locale, value)
         }
-        return value < 10 ? String(format: "%.1f %@", locale: Self.locale, value, units[index])
+        return shownUnderTen(value) ? String(format: "%.1f %@", locale: Self.locale, value, units[index])
             : String(format: "%.0f %@", locale: Self.locale, value, units[index])
     }
 
@@ -201,7 +210,11 @@ enum MetricFormat {
         let units = ["B", "KB", "MB", "GB", "TB", "PB"]
         var value = max(0, Double(bytes))
         var index = 0
-        while value >= 1000, index < units.count - 1 {
+        // Promote on the number as printed: terabytes and above keep two
+        // decimals, so 999.996 TB reads "1.00 PB" while 999.7 TB stays put.
+        while index < units.count - 1 {
+            let places = index >= 4 ? 100.0 : 1
+            guard (value * places).rounded() / places >= 1000 else { break }
             value /= 1000
             index += 1
         }
@@ -212,7 +225,7 @@ enum MetricFormat {
         if unit == "TB" || unit == "PB" {
             return String(format: "%.2f %@", locale: Self.locale, value, unit)
         }
-        return value < 10 ? String(format: "%.1f %@", locale: Self.locale, value, unit)
+        return shownUnderTen(value) ? String(format: "%.1f %@", locale: Self.locale, value, unit)
             : String(format: "%.0f %@", locale: Self.locale, value, unit)
     }
 
