@@ -26,6 +26,20 @@ enum SettingsFeatureTests {
             renamePattern: MediaImageRenamePattern("{name}-{index}"))
         // MARK: Settings backup
 
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint", "--export-settings", "out.plist"])
+                == .export(path: "out.plist")
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--import-settings", "./-in.plist"])
+                == .import(path: "./-in.plist"),
+               "the backup flags take the file that follows them")
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint", "--import-settings"])
+                == .missingFile(flag: "--import-settings")
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--export-settings", "--selftest"])
+                == .missingFile(flag: "--export-settings"),
+               "a backup flag without a file is reported rather than treated as one")
+        suite.expect(SettingsBackupSupport.command(in: ["Vorssaint"]) == nil
+                && SettingsBackupSupport.command(in: ["Vorssaint", "--selftest"]) == nil,
+               "a normal launch is not a backup command")
+
         let backupKeys = SettingsBackupSupport.exportKeys()
         let marginBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
             key == DefaultsKey.windowLayoutMarginPercent ? 12.0 : nil
