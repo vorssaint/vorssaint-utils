@@ -23,6 +23,59 @@ enum MixerFeatureTests {
                 && !unavailable.devices && !unavailable.processes,
                "output switcher alone watches devices without starting per-app mixer taps")
 
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: 1, precise: false, maximum: 1), 0.55,
+                          "one wheel notch up raises the slider by 5%")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: -2, precise: false, maximum: 1), 0.4,
+                          "wheel notches down lower the slider")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: 10, precise: true, maximum: 1), 0.55,
+                          "trackpad point deltas move 0.5% per point")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.98, delta: 5, precise: false, maximum: 1), 1,
+                          "scrolling up stops at the slider maximum")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 1.9, delta: 5, precise: false, maximum: 2), 2,
+                          "an app slider scrolls into boost up to its maximum")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.02, delta: -5, precise: false, maximum: 1), 0,
+                          "scrolling down stops at silence")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: 0, precise: false, maximum: 1), 0.5,
+                          "a zero scroll delta changes nothing")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: .nan, precise: false, maximum: 1), 0.5,
+                          "a NaN scroll delta changes nothing")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: .infinity, precise: false, maximum: 1), 0.5,
+                          "an infinite scroll delta changes nothing")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: .nan, delta: 2, precise: false, maximum: 1), 0.1,
+                          "a level that is not a number restarts from silence")
+
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 1.5, delta: 0, precise: false, maximum: 1), 1,
+                          "a zero scroll delta still clamps a stale level to the maximum")
+        suite.expectClose(MixerRoutingSupport.scrolledVolume(from: 0.5, delta: 1, precise: false, maximum: 0), 0.5,
+                          "a slider without a range ignores the scroll")
+        do {
+            typealias Gesture = MixerRoutingSupport.ScrollGesture
+            var g = Gesture()
+            suite.expect(g.decide(.wheel, inside: true, enabled: true) == .apply, "a wheel notch over a slider applies")
+            suite.expect(g.decide(.wheel, inside: false, enabled: true) == .pass, "a wheel notch elsewhere passes")
+            suite.expect(g.decide(.wheel, inside: true, enabled: false) == .pass,
+                         "a wheel notch over a disabled slider passes to the panel")
+            g = Gesture()
+            suite.expect(g.decide(.began, inside: false, enabled: true) == .pass, "a gesture begun off the slider passes")
+            suite.expect(g.decide(.changed, inside: true, enabled: true) == .pass,
+                         "fingers drifting over a slider mid-gesture do not move it")
+            suite.expect(g.decide(.ended, inside: true, enabled: true) == .pass, "the foreign gesture ends untouched")
+            suite.expect(g.decide(.momentum, inside: true, enabled: true) == .pass,
+                         "panel momentum over a slider is not swallowed")
+            g = Gesture()
+            suite.expect(g.decide(.began, inside: true, enabled: true) == .apply, "a gesture begun on the slider applies")
+            suite.expect(g.decide(.changed, inside: false, enabled: true) == .apply,
+                         "the gesture stays with the slider after leaving it")
+            suite.expect(g.decide(.ended, inside: false, enabled: true) == .apply, "the owned gesture ends with the slider")
+            suite.expect(g.decide(.momentum, inside: false, enabled: true) == .consume,
+                         "momentum of an owned gesture is swallowed without moving the volume")
+            suite.expect(g.decide(.momentumEnded, inside: false, enabled: true) == .consume, "the momentum end is swallowed")
+            suite.expect(g.decide(.momentum, inside: true, enabled: true) == .pass, "later momentum is not owned")
+            g = Gesture()
+            suite.expect(g.decide(.began, inside: true, enabled: false) == .pass,
+                         "a gesture begun on a disabled slider passes to the panel")
+            suite.expect(g.decide(.changed, inside: true, enabled: true) == .pass, "and stays with the panel")
+        }
         suite.expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
