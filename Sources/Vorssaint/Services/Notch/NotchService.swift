@@ -1824,6 +1824,7 @@ final class NotchService: ObservableObject {
             case .calendar: select(.calendar)
             case .commandBar: perform { CommandBarService.shared.show() }
             case .scratchpad: openScratchpad()
+            case .desktopIcons: QuickTogglesService.shared.toggleDesktopIcons()
             case .volume, .brightness, .keyboardLight: select(.controls)
             }
         }
