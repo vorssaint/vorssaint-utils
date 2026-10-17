@@ -790,6 +790,9 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
     static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
     static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+    static let windowLayoutShortcutIncreaseSize = "windowLayoutShortcutIncreaseSize"
+    static let windowLayoutShortcutDecreaseSize = "windowLayoutShortcutDecreaseSize"
+    static let windowLayoutResizeStep = "windowLayoutResizeStep"
 
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
@@ -1640,6 +1643,7 @@ enum Defaults {
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
+        DefaultsKey.windowLayoutResizeStep: WindowLayoutResizeStep.defaultPercent,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
@@ -1959,6 +1963,8 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutIncreaseSize: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutDecreaseSize: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 
     static func register() {

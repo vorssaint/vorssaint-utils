@@ -1475,6 +1475,9 @@ struct WindowLayoutFeatureStrings {
     let gapMedium: String
     let gapLarge: String
     let gapExtraLarge: String
+    var increaseSize: String = "Increase size"
+    var decreaseSize: String = "Decrease size"
+    var resizeStep: String = "Resize step"
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
