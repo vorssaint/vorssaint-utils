@@ -478,6 +478,11 @@ private struct DiskImageInstallProgressView: View {
     let message: String
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         HStack(spacing: 12) {
             Image(nsImage: icon)
                 .resizable()
@@ -502,6 +507,7 @@ private struct DiskImageInstallProgressView: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message)
+
     }
 }
 

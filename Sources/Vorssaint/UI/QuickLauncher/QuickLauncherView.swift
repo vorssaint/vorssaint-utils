@@ -29,6 +29,11 @@ struct QuickLauncherView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             // In the notch the island's top row holds the customize toggle,
             // and with a utility open the way back and the utility's name, so
@@ -95,6 +100,7 @@ struct QuickLauncherView: View {
         .onChange(of: colorFormat) { _, _ in
             launcher.refreshPanelLayout()
         }
+
     }
 
     /// The utility runs right here inside the launcher; its own close button

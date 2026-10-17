@@ -138,6 +138,33 @@ struct NotchMascotStrings {
 extension FeatureStrings {
     static func notchMascot(_ language: AppLanguage) -> NotchMascotStrings {
         switch language {
+        case .ar: return NotchMascotStrings(
+            title: "الرفيق",
+            hint: "صديق صغير يعيش في الجزيرة الديناميكية. يستريح عندما لا يُعرض شيء آخر ويظهر فوق الموسيقى والأنشطة ليحييك ويتفاعل مع الأحداث.",
+            visits: "الظهور من حين لآخر",
+            visitsHint: "يمر عبر الجزيرة كل بضع دقائق بحركة قصيرة.",
+            style: "النمط", minimal: "بسيط", robot: "روبوت",
+            shape: "الشكل", ball: "كرة", egg: "بيضة", squircle: "مربع مستدير", pill: "كبسولة",
+            color: "اللون", pearl: "لؤلؤي", mint: "نعناعي", peach: "خوخي", lilac: "ليلكي", lemon: "ليموني", rose: "وردي",
+            commandBar: "شريط الأوامر في الجزيرة",
+            commandBarHint: "بالاختصار، يخرج شريط الأوامر من الجزيرة بوجه الرفيق. يتفاعل أثناء بحثك.",
+            opensAs: "الفتح كـ", droplet: "قطرة", openIsland: "جزيرة مفتوحة",
+            preview: "معاينة الرفيق", previewHint: "انقر لرؤية تفاعله.",
+            side: "جانب الكاميرا", left: "اليسار", right: "اليمين",
+            frequency: "معدل الظهور", rare: "نادرًا", normal: "أحيانًا", frequent: "كثيرًا",
+            sky: "سماوي",
+            hubDescription: "صديق صغير في الجزيرة الديناميكية يحييك أحيانًا ويتفاعل مع ما يحدث على الـMac.",
+            appearance: "المظهر", behavior: "السلوك",
+            reactions: "التفاعل مع الأحداث",
+            reactionsHint: "يظهر ليتفاعل مع الموسيقى والمؤقتات والتنزيلات ولقطات الشاشة والميكروفون وإبقاء الاستيقاظ وغيرها.",
+            hidesWhenIdle: "الإخفاء عند الخمول",
+            hidesWhenIdleHint: "بعد نصف دقيقة دون نشاط، يقفز إلى داخل الجزيرة وتعود لحجمها المعتاد. تعيده الزيارات والتفاعلات.",
+            sayHi: "إلقاء التحية", sayHiHint: "يعرض زيارة في الجزيرة الديناميكية الآن.",
+            momentsTitle: "شاهد تفاعله",
+            visitMoment: "زيارة", timerStarted: "بدأ المؤقت", downloadFailed: "فشل التنزيل", unlocked: "أُلغي قفل الـMac",
+            petTip: "أبقِ المؤشر عليه لمداعبته. عندما تتركه، يغفو حتى تعود.",
+            livesInIsland: "يعيش الرفيق في الجزيرة الديناميكية.",
+            keywords: "تميمة رفيق صديق شخصية")
         case .enUS: return NotchMascotStrings(
             title: "Companion",
             hint: "A little friend who lives in the Dynamic Island. It rests there when nothing else is showing, and comes out over music and activities to say hello and react to what happens.",

@@ -18,6 +18,7 @@ struct CPUCoreFeatureStrings {
 extension FeatureStrings {
     static func cpuCores(_ language: AppLanguage) -> CPUCoreFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -187,5 +188,18 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "節能核心",
         apps: "正使用 CPU 的 App",
         perCore: "每個核心"
+    )
+}
+
+extension CPUCoreFeatureStrings {
+    static let ar = CPUCoreFeatureStrings(
+        title: "أنوية المعالج المنطقية",
+        coreFormat: "النواة %d",
+        hint: "يمثل كل شريط نواة منطقية واحدة. يوضح ارتفاع التعبئة نسبة الاستخدام، وليس الأداء المتبقي.",
+        superCores: "فائقة",
+        performanceCores: "الأداء",
+        efficiencyCores: "الكفاءة",
+        apps: "التطبيقات التي تستخدم المعالج",
+        perCore: "لكل نواة"
     )
 }

@@ -705,7 +705,7 @@ final class AppSwitcher: ObservableObject {
         switch type {
         case .scrollWheel:
             guard sessionActive else { return Unmanaged.passUnretained(event) }
-            let delta = scrollNavigation.selectionDelta(for: event)
+            let delta = scrollNavigation.selectionDelta(for: event, rightToLeft: L10n.shared.language.isRightToLeft)
             if delta != 0 {
                 // Moving the row must not select the card under a stationary pointer.
                 hoverAnchor = NSEvent.mouseLocation
@@ -827,9 +827,9 @@ final class AppSwitcher: ObservableObject {
                 advanceWindowInSelectedApp(by: delta)
             }
         case KeyCode.rightArrow:
-            advanceSelection(by: 1)
+            advanceSelection(by: L10n.shared.language.horizontalNavigationStep(1))
         case KeyCode.leftArrow:
-            advanceSelection(by: -1)
+            advanceSelection(by: L10n.shared.language.horizontalNavigationStep(-1))
         case KeyCode.downArrow:
             moveSelection(by: grid.columns)
         case KeyCode.upArrow:

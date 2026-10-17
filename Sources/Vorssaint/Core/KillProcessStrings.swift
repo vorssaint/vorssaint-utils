@@ -42,6 +42,7 @@ struct KillProcessFeatureStrings {
 extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -554,5 +555,40 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "Не вдалося завершити процес",
         killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
         adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
+    )
+}
+
+extension KillProcessFeatureStrings {
+    static let ar = KillProcessFeatureStrings(
+        pageTitle: "إنهاء العمليات",
+        browseSubtitle: "استعراض وإنهاء",
+        hubDescription: "البحث في العمليات الجارية وفرض إنهائها أو إعادة تشغيلها أو إنهاء أشجار العمليات",
+        searchPlaceholder: "تصفية بالاسم",
+        columnProcess: "العملية",
+        columnCPU: "CPU",
+        columnMemory: "الذاكرة",
+        columnPID: "PID",
+        groupToggle: "تجميع العمليات المرتبطة",
+        groupCaption: "يجمع العمليات المساعدة ضمن التطبيق المسؤول عنها.",
+        commandBarToggle: "إظهار في شريط الأوامر",
+        commandBarCaption: "يضيف العمليات الجارية إلى شريط الأوامر لتجدها وتنهيها دون فتح الإعدادات.",
+        refreshTooltip: "تحديث",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "العمليات: %d",
+        killButton: "إنهاء",
+        forceKillButton: "إنهاء قسري",
+        killAllFormat: "إنهاء جميع عمليات “%@”",
+        killTreeButton: "إنهاء شجرة العمليات",
+        restartButton: "إعادة التشغيل",
+        copyPID: "نسخ PID",
+        copyPath: "نسخ المسار",
+        emptyStateTitle: "لم يُعثر على عمليات",
+        confirmKillFormat: "إنهاء %@؟",
+        confirmForceKillFormat: "إنهاء %@ قسريًا؟",
+        confirmKillAllFormat: "إنهاء جميع عمليات “%@”؟",
+        confirmKillTreeFormat: "إنهاء %@ وجميع عملياته الفرعية؟",
+        killFailedTitle: "تعذر إنهاء العملية",
+        killFailedMessage: "قد تكون العملية انتهت بالفعل أو تتطلب صلاحيات إضافية.",
+        adminPromptFormat: "يحتاج Vorssaint إلى صلاحية المسؤول لإنهاء “%@”."
     )
 }

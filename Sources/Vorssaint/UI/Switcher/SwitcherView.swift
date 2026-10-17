@@ -56,6 +56,11 @@ struct SwitcherView: View {
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         if SwitcherSupport.usesIconRowLayout(iconRowMode: iconRowMode,
                                              simpleMode: simpleMode),
            !switcher.windows.isEmpty {
@@ -63,6 +68,7 @@ struct SwitcherView: View {
         } else {
             standardPanel
         }
+
     }
 
     private var standardPanel: some View {
@@ -647,7 +653,8 @@ struct SwitcherView: View {
 
     private func iconRowOverflowOffset(tileWidth: CGFloat) -> CGFloat {
         let first = switcher.iconRowFirstVisibleIndex
-        return -CGFloat(first) * (tileWidth + SwitcherIconRowLayout.spacing)
+        let direction: CGFloat = l10n.language.isRightToLeft ? 1 : -1
+        return direction * CGFloat(first) * (tileWidth + SwitcherIconRowLayout.spacing)
     }
 
     private var selectedWindow: SwitcherItem? {

@@ -66,6 +66,8 @@ Choose individual features or start with a preset. Uninstalled features stop loa
 
 Reorder or hide panel sections, choose a compact layout, and export settings to another Mac. The app supports more than a dozen languages.
 
+Arabic includes a right-to-left interface. Choose العربية in General settings to use translated panels, mirrored navigation and a native settings toolbar that follows the reading direction.
+
 ## Everything it does
 
 ### Sound

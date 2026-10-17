@@ -59,6 +59,36 @@ struct NotchWatchStrings {
 extension FeatureStrings {
     static func notchWatch(_ language: AppLanguage) -> NotchWatchStrings {
         switch language {
+        case .ar: return NotchWatchStrings(
+            title: "المتابعة",
+            description: "حوّل أي جزء من أي نافذة إلى نشاط مباشر في الجزيرة الديناميكية، مع تنبيه عند تغيره أو انتهائه أو إظهاره ما تنتظره.",
+            setupHint: "اختر جزءًا من نافذة، مثل شريط تقدم أو حالة بناء أو نتيجة. تقرؤه الجزيرة وتخبرك عند تغيره.",
+            choose: "اختيار منطقة",
+            chooseAgain: "اختيار منطقة أخرى",
+            purpose: "اختر ما تتابعه",
+            stop: "إيقاف المتابعة",
+            watchAgain: "المتابعة مجددًا",
+            permissionHint: "تقرأ المتابعة المنطقة المختارة على الـMac، لذا تحتاج تسجيل الشاشة. لا يغادر شيء هذا الـMac.",
+            allowAccess: "السماح بتسجيل الشاشة",
+            tellMe: "إشعاري",
+            changes: "عندما يتغير",
+            settles: "عندما يتوقف عن التغير",
+            contains: "عندما يعرض",
+            reaches: "عندما يصل العدد إلى",
+            settlesHint: "بعد التغير، يجب أن يبقى ثابتًا لمدة 30 ثانية.",
+            textPlaceholder: "نص، مثل تم",
+            numberPlaceholder: "عدد، مثل 100",
+            noText: "بلا نص",
+            inIsland: "إظهار في الجزيرة",
+            automatic: "تلقائي",
+            hidden: "النافذة مخفية. تستمر المتابعة عند عودتها.",
+            changedNotice: "تغير المحتوى",
+            settledNotice: "توقف عن التغير",
+            showsFormat: "يعرض %@",
+            reachedFormat: "وصل إلى %@",
+            closedNotice: "أُغلقت النافذة",
+            sinceFormat: "المتابعة منذ %@",
+            sound: "تشغيل صوت")
         case .enUS: return NotchWatchStrings(
             title: "Watch",
             description: "Turn any part of any window into a live activity in the Dynamic Island, with an alert when it changes, finishes or shows what you are waiting for.",

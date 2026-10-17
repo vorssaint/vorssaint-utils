@@ -163,6 +163,11 @@ struct NotchLockScreenPlayer: View {
     private var accent: Color { music.artworkTint?.color ?? .white }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         let shown = model.showsMusic(music.playback)
         ZStack {
             if shown, let playback = music.playback {
@@ -310,6 +315,11 @@ struct NotchLockScreenActivities: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let items = available(at: context.date)
             ViewThatFits(in: .horizontal) {

@@ -14,6 +14,7 @@ struct MonitorLayoutFeatureStrings {
 extension FeatureStrings {
     static func monitorLayout(_ language: AppLanguage) -> MonitorLayoutFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -107,5 +108,12 @@ extension MonitorLayoutFeatureStrings {
     static let uk = MonitorLayoutFeatureStrings(
         shared: "Показники та сповіщення",
         networkSpeedUnit: "Одиниця швидкості мережі"
+    )
+}
+
+extension MonitorLayoutFeatureStrings {
+    static let ar = MonitorLayoutFeatureStrings(
+        shared: "القراءات والتنبيهات",
+        networkSpeedUnit: "وحدة سرعة الشبكة"
     )
 }

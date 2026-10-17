@@ -84,6 +84,8 @@ struct ShortcutRecorderButton: NSViewRepresentable {
         button.invalidAction = invalidAction
         button.captureAction = captureAction
         button.isEnabled = isEnabled
+        // Shortcut glyphs keep their keyboard order in an Arabic interface.
+        button.userInterfaceLayoutDirection = .leftToRight
         button.refreshTitle()
     }
 }

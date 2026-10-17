@@ -32,6 +32,11 @@ struct ClipboardQuickPanelView: View {
     }
 
     var body: some View {
+        AppLocalizedView { localizedContent }
+    }
+
+    @ViewBuilder
+    private var localizedContent: some View {
         VStack(spacing: 0) {
             toolbar
             Divider()
@@ -70,6 +75,7 @@ struct ClipboardQuickPanelView: View {
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
         }
+
     }
 
     private var toolbar: some View {

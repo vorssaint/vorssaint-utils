@@ -13,6 +13,7 @@ struct ClipboardIgnoredAppsStrings {
 extension FeatureStrings {
     static func clipboardIgnoredApps(_ language: AppLanguage) -> ClipboardIgnoredAppsStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -135,5 +136,14 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
+    )
+}
+
+extension ClipboardIgnoredAppsStrings {
+    static let ar = ClipboardIgnoredAppsStrings(
+        listTitle: "التطبيقات المستثناة",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        caption: "لن يُحفظ ما تنسخه في هذه التطبيقات في السجل."
     )
 }

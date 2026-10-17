@@ -19,6 +19,7 @@ struct CameraPreviewFeatureStrings {
 extension FeatureStrings {
     static func cameraPreview(_ language: AppLanguage) -> CameraPreviewFeatureStrings {
         switch language {
+        case .ar: return .ar
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -216,5 +217,19 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "Камеру не виявлено",
         permName: "Камера",
         permExplain: "Показує вашу камеру лише у вікні попереднього перегляду, щоб ви могли перевірити, як виглядаєте перед дзвінком. Нічого не записується та не залишає ваш Mac."
+    )
+}
+
+extension CameraPreviewFeatureStrings {
+    static let ar = CameraPreviewFeatureStrings(
+        pageTitle: "معاينة الكاميرا",
+        hubDescription: "يفتح مرآة عائمة باستخدام الكاميرا",
+        panelCaption: "تحقق من مظهرك قبل المكالمة",
+        openButton: "فتح المعاينة",
+        cameraMenuLabel: "الكاميرا",
+        deniedMessage: "الوصول إلى كاميرا Vorssaint متوقف في إعدادات النظام.",
+        noCameraMessage: "لم يُعثر على كاميرا",
+        permName: "الكاميرا",
+        permExplain: "يعرض الكاميرا في نافذة المعاينة فقط لتتحقق من مظهرك قبل المكالمة. لا يُسجَّل شيء ولا يغادر هذا الـMac."
     )
 }
