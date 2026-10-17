@@ -47,6 +47,20 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    screenshot_editor = "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift"
+    write("ScreenshotArrowEditing.swift", "import AppKit\nextension ScreenshotArrowEditingTests {\n"
+          + "final class Model: Fixture {\n"
+          + "".join(declaration(screenshot_editor, prefix).replace("private func", "func", 1)
+                    for prefix in ["    private func beginSelectDrag(", "    private func continueSelectDrag(",
+                                   "    func selectedAnnotationOwns(", "    func hitTest("])
+          + "}\n}\n")
+    write("ScreenshotCustomColor.swift", "import AppKit\nextension ScreenshotCustomColorTests {\n"
+          + "final class Model: Fixture {\n"
+          + "".join(declaration(screenshot_editor, prefix).replace("private func", "func", 1)
+                    for prefix in ["    var activeCustomColor:", "    func pickPresetColor(",
+                                   "    func pickCustomColor(", "    func beginColorPanelSession()",
+                                   "    private func applyStyleToSelection()"])
+          + "}\n}\n")
     recorder = "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift"
     write("RecorderPreparation.swift", "import Foundation\nextension RecorderPreparationTests {\n"
           + "final class Service: Fixture {\n"
@@ -1492,6 +1506,7 @@ def main():
           + "}\nstruct Bar {\nlet model: Model\n"
           + "".join(declaration(editor_view, prefix).replace("private var", "var", 1)
                     for prefix in ["    private var showsColorControls:",
+                                   "    private var selectedAnnotation:",
                                    "    private var showsSpotlightControls:",
                                    "    private var spotlightDimValue:"])
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
