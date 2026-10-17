@@ -1391,6 +1391,90 @@ enum AppManagementFeatureTests {
         suite.expect(windowRole(layer: Int(CGWindowLevelForKey(.desktopWindow)), beforeQuit: true) == .unrelated,
                "a window at the desktop's level does not keep its app running")
 
+        // The whole check over a window list, as the service runs it, with the
+        // responsibility and Space lookups faked and counted.
+        let appPID: pid_t = 100
+        let helperPID: pid_t = 200
+        let otherAppPID: pid_t = 300
+        func listedWindow(owner: pid_t = appPID,
+                          id: CGWindowID = 1,
+                          layer: Int = 0,
+                          width: Double = 600,
+                          height: Double = 400,
+                          isOnScreen: Bool = true,
+                          title: String = "Document") -> [String: Any] {
+            var window: [String: Any] = [
+                kCGWindowOwnerPID as String: NSNumber(value: owner),
+                kCGWindowNumber as String: NSNumber(value: id),
+                kCGWindowLayer as String: NSNumber(value: layer),
+                kCGWindowAlpha as String: NSNumber(value: 1.0),
+                kCGWindowBounds as String: ["X": NSNumber(value: 0.0), "Y": NSNumber(value: 0.0),
+                                            "Width": NSNumber(value: width), "Height": NSNumber(value: height)],
+                kCGWindowName as String: title,
+            ]
+            // The window server leaves the key out for a window off screen.
+            if isOnScreen { window[kCGWindowIsOnscreen as String] = NSNumber(value: true) }
+            return window
+        }
+        func windowListCheck(_ windows: [[String: Any]],
+                             beforeQuit: Bool = true,
+                             drawingForApp: Set<pid_t> = [],
+                             windowSpaces: [CGWindowID: [UInt64]] = [:],
+                             visibleSpaces: Set<UInt64>? = [3])
+            -> (keepsApp: Bool, drawLookups: [pid_t], spaceLookups: Int) {
+            var drawLookups: [pid_t] = []
+            var spaceLookups = 0
+            let keepsApp = AutoQuitSupport.windowListHasUserWindow(
+                windows,
+                pid: appPID,
+                countsEverythingShown: beforeQuit,
+                processDrawsForApp: { drawLookups.append($0); return drawingForApp.contains($0) },
+                visibleSpaces: { spaceLookups += 1; return visibleSpaces },
+                windowSpaces: { windowSpaces[$0] ?? [] })
+            return (keepsApp, drawLookups, spaceLookups)
+        }
+        let ownWindowCheck = windowListCheck([listedWindow()])
+        suite.expect(ownWindowCheck.keepsApp && ownWindowCheck.drawLookups.isEmpty
+                && ownWindowCheck.spaceLookups == 0,
+               "the app's own window on screen keeps it running without asking about helpers or Spaces")
+        let openPanelCheck = windowListCheck([listedWindow(owner: helperPID, width: 880, height: 448)],
+                                             drawingForApp: [helperPID])
+        suite.expect(openPanelCheck.keepsApp && openPanelCheck.drawLookups == [helperPID],
+               "a helper's window on screen keeps the app running when the helper draws for it (#1869)")
+        suite.expect(!windowListCheck([listedWindow(owner: helperPID, width: 880, height: 448)]).keepsApp,
+               "another process's window on screen does not keep the app running when it does not draw for it")
+        let helperBeforeEligibility = windowListCheck([listedWindow(owner: helperPID)],
+                                                      beforeQuit: false,
+                                                      drawingForApp: [helperPID])
+        suite.expect(!helperBeforeEligibility.keepsApp && helperBeforeEligibility.drawLookups.isEmpty,
+               "deciding whether an app had a window never reads another process's windows")
+        let repeatedHelperCheck = windowListCheck([
+            listedWindow(owner: helperPID, id: 1),
+            listedWindow(owner: otherAppPID, id: 2),
+            listedWindow(owner: helperPID, id: 3),
+        ])
+        suite.expect(!repeatedHelperCheck.keepsApp && repeatedHelperCheck.drawLookups == [helperPID, otherAppPID],
+               "each other process is asked once per check whether it draws for the app")
+        let otherAppOffScreen = windowListCheck([listedWindow(owner: otherAppPID, id: 7, isOnScreen: false)],
+                                                windowSpaces: [7: [4]])
+        suite.expect(!otherAppOffScreen.keepsApp && otherAppOffScreen.spaceLookups == 0,
+               "another app's normal window on another Space never keeps this app running")
+        suite.expect(windowListCheck([listedWindow(id: 7, isOnScreen: false)], windowSpaces: [7: [4]]).keepsApp,
+               "the app's own window on another Space keeps it running")
+        let hiddenWindowsCheck = windowListCheck([
+            listedWindow(id: 7, isOnScreen: false),
+            listedWindow(id: 8, isOnScreen: false),
+        ], windowSpaces: [7: [3], 8: [3]])
+        suite.expect(!hiddenWindowsCheck.keepsApp && hiddenWindowsCheck.spaceLookups == 1,
+               "windows the app hid on the Space in front let it quit, and the Spaces showing are asked once")
+        suite.expect(!windowListCheck([listedWindow(layer: statusLayer, width: 220, height: 24)]).keepsApp
+                && !windowListCheck([listedWindow(owner: helperPID, layer: statusLayer, width: 220, height: 24)],
+                                    drawingForApp: [helperPID]).keepsApp,
+               "a wide menu bar item does not keep its app running")
+        suite.expect(!windowListCheck([listedWindow(layer: floatingLayer)], beforeQuit: false).keepsApp
+                && windowListCheck([listedWindow(layer: floatingLayer)]).keepsApp,
+               "a floating panel on screen counts only in the check before a quit")
+
         suite.expect(AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 0,
                                                      listedWindows: 0,
                                                      foundUserWindow: true,
@@ -1496,10 +1580,19 @@ enum AppManagementFeatureTests {
                "AutoQuit close checks remain offsets from one origin: missing \(missingCloseCheckOffsetCode)")
         // The check before a quit counts everything the app and the helpers
         // drawing for it show on screen, while the refresh that makes an app
-        // eligible keeps reading normal windows only (pinned above).
+        // eligible keeps reading normal windows only (pinned above). The
+        // decision runs in `windowListHasUserWindow` (tested above); these are
+        // the system lookups the service hands it.
         let shownWindowCode = [
             "if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid, countsEverythingShown: true) {",
-            "drawsForApp[ownerPID] = Self.process(ownerPID, drawsFor: pid)",
+            // The refresh's call pinned above relies on this default.
+            "private func hasWindowServerUserWindow(pid: pid_t, countsEverythingShown: Bool = false) -> Bool? {",
+            "guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],",
+            "kCGNullWindowID) as? [[String: Any]] else { return nil }",
+            "countsEverythingShown: countsEverythingShown,",
+            "processDrawsForApp: { Self.process($0, drawsFor: pid) },",
+            "visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },",
+            "windowSpaces: { SpaceWindowBridge.spaces(of: $0) })",
             "guard ResponsibleProcess.owner(of: processID) == appPID else { return false }",
             "return NSRunningApplication(processIdentifier: processID)?.activationPolicy != .regular",
         ]

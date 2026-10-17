@@ -607,59 +607,18 @@ final class AutoQuitService: ObservableObject {
     /// a window record here. Those do not count. A window sitting on another
     /// Space does. The check before a quit also counts whatever else the app
     /// shows on screen (`countsEverythingShown`); see
-    /// `AutoQuitSupport.windowServerWindowRole`.
+    /// `AutoQuitSupport.windowServerWindowRole`. The decision itself is
+    /// `AutoQuitSupport.windowListHasUserWindow`.
     private func hasWindowServerUserWindow(pid: pid_t, countsEverythingShown: Bool = false) -> Bool? {
         guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]] else { return nil }
-
-        var visibleSpaces: Set<UInt64>?
-        var askedForVisibleSpaces = false
-        // One answer per process: every window of a process shares it.
-        var drawsForApp: [pid_t: Bool] = [:]
-
-        for window in info {
-            guard let ownerPID = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-                  ownerPID == pid || countsEverythingShown,
-                  let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue,
-                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
-                  let width = (bounds["Width"] as? NSNumber)?.doubleValue,
-                  let height = (bounds["Height"] as? NSNumber)?.doubleValue else { continue }
-            let isOnScreen = (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue
-                ?? (window[kCGWindowIsOnscreen as String] as? Bool)
-                ?? false
-            let role = AutoQuitSupport.windowServerWindowRole(
-                layer: layer,
-                alpha: (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
-                width: width,
-                height: height,
-                isOnScreen: isOnScreen,
-                isAppsOwnWindow: ownerPID == pid,
-                countsEverythingShown: countsEverythingShown)
-            if role == .shownOnScreen {
-                if ownerPID == pid { return true }
-                if drawsForApp[ownerPID] == nil {
-                    drawsForApp[ownerPID] = Self.process(ownerPID, drawsFor: pid)
-                }
-                if drawsForApp[ownerPID] == true { return true }
-                continue
-            }
-            guard role == .normalWindowOffScreen,
-                  let windowID = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value else { continue }
-            // Asked once per check, and only when there is an off-screen window
-            // to judge: the common case never pays for it.
-            if !askedForVisibleSpaces {
-                visibleSpaces = SpaceWindowBridge.topology()?.visibleSpaces
-                askedForVisibleSpaces = true
-            }
-            let title = window[kCGWindowName as String] as? String ?? ""
-            if AutoQuitSupport.offscreenWindowKeepsAppAlive(
-                windowSpaces: SpaceWindowBridge.spaces(of: CGWindowID(windowID)),
-                visibleSpaces: visibleSpaces,
-                hasTitle: !title.isEmpty) {
-                return true
-            }
-        }
-        return false
+        return AutoQuitSupport.windowListHasUserWindow(
+            info,
+            pid: pid,
+            countsEverythingShown: countsEverythingShown,
+            processDrawsForApp: { Self.process($0, drawsFor: pid) },
+            visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },
+            windowSpaces: { SpaceWindowBridge.spaces(of: $0) })
     }
 
     /// Whether another process's window is this app's own interface drawn
