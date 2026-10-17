@@ -540,7 +540,7 @@ extension Strings {
         extraBrightnessName: "Додаткова яскравість",
         extraBrightnessCaption: "Використовує запас HDR дисплея, щоб перевищити максимальну яскравість. Споживає більше заряду акумулятора, і Mac може нагріватися.",
         extraBrightnessLevelLabel: "Інтенсивність",
-        extraBrightnessUnsupported: "Доступно лише на XDR-дисплеях, наприклад у MacBook Pro 14 та 16 дюймів.",
+        extraBrightnessUnsupported: "Доступно на XDR-дисплеях, наприклад у MacBook Pro 14 та 16 дюймів, і на зовнішніх дисплеях з увімкненим HDR.",
         shelfHotkeyLabel: "Клавіатурне скорочення",
         shelfOpenNow: "Відкрити зараз",
         shelfNoPermission: "Дозволів не потрібно.",

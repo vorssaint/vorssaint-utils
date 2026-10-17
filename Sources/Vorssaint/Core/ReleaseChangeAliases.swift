@@ -111,6 +111,7 @@ enum ReleaseChangeAliases {
             "brightness overlay", "brightness panel"]
         case .extraBrightness: return ["extra brightness", "xdr"]
         case .bluetoothSleep: return ["bluetooth on sleep", "bluetooth power", "bluetooth off during sleep"]
+        case .hdrControl: return ["hdr toggle", "hdr switch", "high dynamic range", "hdr"]
         case .quickLauncher: return ["quick panel", "quick launcher"]
         case .quickToggles: return ["quick toggles"]
         case .colorPicker: return ["color picker"]

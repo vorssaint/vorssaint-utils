@@ -556,7 +556,7 @@ extension Strings {
         extraBrightnessName: "Ekstra parlaklık",
         extraBrightnessCaption: "Ekranın HDR payını kullanarak en yüksek parlaklığın ötesine geçer. Daha çok pil harcar ve Mac ısınabilir.",
         extraBrightnessLevelLabel: "Yoğunluk",
-        extraBrightnessUnsupported: "Yalnızca 14 ve 16 inç MacBook Pro gibi XDR ekranlarda kullanılabilir.",
+        extraBrightnessUnsupported: "14 ve 16 inç MacBook Pro gibi XDR ekranlarda ve HDR’si açık harici ekranlarda kullanılabilir.",
         shelfHotkeyLabel: "Kısayol",
         shelfOpenNow: "Şimdi aç",
         shelfNoPermission: "İzin gerektirmez.",

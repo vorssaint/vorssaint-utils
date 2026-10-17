@@ -513,6 +513,14 @@ final class BrightnessService: ObservableObject {
              showOSD: UserDefaults.standard.bool(forKey: DefaultsKey.brightnessOSDEnabled))
     }
 
+    /// Hands a key step on the boosted display to Extra brightness, whose
+    /// scale runs past 100 %; false leaves it to the hardware. A property so
+    /// the stepping logic stays testable without the boost.
+    private lazy var boostKeyStep: (CGDirectDisplayID, Double, Bool) -> Bool = { [weak self] id, delta, showOSD in
+        guard let display = self?.displays.first(where: { $0.id == id }) else { return false }
+        return ExtraBrightnessService.shared.handleKeyStep(delta: delta, for: display, showOSD: showOSD)
+    }
+
     /// Read at each press, like the other key options.
     private var keyStep: BrightnessSupport.KeyStep {
         .sanitized(UserDefaults.standard.string(forKey: DefaultsKey.brightnessKeyStep))
@@ -1508,6 +1516,9 @@ final class BrightnessService: ObservableObject {
                       delta: Double,
                       showOSD: Bool) {
         focusKeyDisplay(displayID)
+        // On the boosted display the keys walk the slider's whole scale,
+        // into and out of the boost past 100 %.
+        if boostKeyStep(displayID, delta, showOSD) { return }
         let cached = displays.first(where: { $0.id == displayID })?.brightness
         if method == .system {
             guard let current = currentSystemBrightness(for: displayID, fallback: cached) else { return }

@@ -65,6 +65,111 @@ enum ExtraBrightnessSupport {
         return potentialEDR > capabilityFloor || isXDRPanelName(localizedName)
     }
 
+    /// Whether an external display can exceed its SDR white. An SDR monitor
+    /// reports a potential headroom of 1.0; one running in HDR mode reports
+    /// its peak over SDR white (4.27 on a Dell AW3423DW at 100 Hz). External
+    /// panels never fake EDR by dimming, but the same floor keeps a display
+    /// with marginal headroom out.
+    static func isSupportedExternal(potentialEDR: Double) -> Bool {
+        potentialEDR > capabilityFloor
+    }
+
+    /// One screen as the target choice sees it.
+    struct Candidate: Equatable {
+        let id: UInt32
+        let isBuiltin: Bool
+        let isSupported: Bool
+    }
+
+    /// The display the boost goes to: a supported built-in XDR panel first,
+    /// as before, otherwise the first supported external display. One overlay
+    /// serves one display.
+    static func boostTarget(_ candidates: [Candidate]) -> UInt32? {
+        candidates.first { $0.isBuiltin && $0.isSupported }?.id
+            ?? candidates.first { !$0.isBuiltin && $0.isSupported }?.id
+    }
+
+    /// External HDR monitors publish no sustainable full-screen level and
+    /// most limit full-field brightness on their own (OLED ABL), so the boost
+    /// stays modest: at most twice SDR white, never past half of the
+    /// display's potential headroom, and reached once macOS grants that much.
+    static let externalMaxBonus: Double = 1.0
+
+    static func externalReference(potentialEDR: Double) -> (referenceEDR: Double, bonus: Double) {
+        let bonus = min(externalMaxBonus, max((potentialEDR - 1) / 2, 0))
+        return (1 + bonus, bonus)
+    }
+
+    // MARK: - Brightness slider past 100 %
+
+    /// The brightness slider of the boosted display runs past 100 % into the
+    /// boost, and its percent is the real luminance multiple of SDR white
+    /// (EDR values are linear): 168 % is 1.68 times as bright, never a level.
+    /// Above the snap the boost is on; between 100 % and it the slider rests
+    /// at full hardware brightness without a boost.
+    static let sliderBoostSnap: Double = 1.02
+
+    /// The brightest the boost gets on a display: the top of its curve, but
+    /// no more than the headroom macOS grants it (or, before any grant was
+    /// seen, the headroom it could grant).
+    static func boostCeiling(reference: (referenceEDR: Double, bonus: Double),
+                             grantedEDR: Double) -> Double {
+        max(1, min(1 + reference.bonus, grantedEDR))
+    }
+
+    /// The factor a stored level renders once the grant is in place, the same
+    /// arithmetic as `renderFactor` for an engaged display.
+    static func factor(forLevel level: Int, grantedEDR: Double,
+                       reference: (referenceEDR: Double, bonus: Double)) -> Double {
+        min(boostFactor(level: Double(level) / 100, maxEDR: grantedEDR, reference: reference),
+            max(grantedEDR, 1))
+    }
+
+    /// The stored level (1...100) that renders `factor` under that grant.
+    /// Fine levels matter here: a floor would snap small boosts back up and
+    /// leave a key press nowhere to go below it.
+    static func level(forFactor factor: Double, grantedEDR: Double,
+                      reference: (referenceEDR: Double, bonus: Double)) -> Int {
+        let granted = min(max(grantedEDR, 0) / reference.referenceEDR, 1)
+        let span = reference.bonus * granted
+        guard span > 0 else { return 100 }
+        return min(max(Int(((factor - 1) / span * 100).rounded()), 1), 100)
+    }
+
+    enum SliderTarget: Equatable {
+        /// Hardware brightness 0...1, boost off.
+        case hardware(Double)
+        /// Hardware at full, boost on at this stored level.
+        case boost(level: Int)
+    }
+
+    static func sliderTarget(position: Double, grantedEDR: Double,
+                             reference: (referenceEDR: Double, bonus: Double)) -> SliderTarget {
+        guard position > sliderBoostSnap else { return .hardware(min(max(position, 0), 1)) }
+        return .boost(level: level(forFactor: position, grantedEDR: grantedEDR, reference: reference))
+    }
+
+    static func sliderPosition(hardware: Double, boostEnabled: Bool, level: Int, grantedEDR: Double,
+                               reference: (referenceEDR: Double, bonus: Double)) -> Double {
+        guard boostEnabled else { return min(max(hardware, 0), 1) }
+        return min(factor(forLevel: level, grantedEDR: grantedEDR, reference: reference),
+                   boostCeiling(reference: reference, grantedEDR: grantedEDR))
+    }
+
+    /// Where a brightness key press moves the boosted display's slider, or
+    /// nil when it is a plain hardware step (below 100 % and not reaching
+    /// past it). A step that crosses 100 % stops there once, so the boost
+    /// never starts or ends by surprise in the middle of a held key.
+    static func keyStepPosition(from position: Double, delta: Double, ceiling: Double,
+                                boostEnabled: Bool) -> Double? {
+        let full = 1.0
+        let inBoost = boostEnabled && position > full
+        if !inBoost, delta < 0 || position < full - 0.001 { return nil }
+        let next = min(max(position + delta, 0), max(ceiling, full))
+        if inBoost, next <= sliderBoostSnap { return full }
+        return next
+    }
+
     /// The 2021 and 2023 M1/M2 MacBook Pro panels reference 500 nits in SDR;
     /// the M3 generation onwards references 600 (the reference is the panel's
     /// 1600 nit peak over its SDR maximum). The pair per generation is

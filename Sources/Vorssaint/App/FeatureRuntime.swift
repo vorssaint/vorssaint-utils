@@ -316,6 +316,7 @@ final class FeatureRuntime: ObservableObject {
         .brightness: { BrightnessService.shared.syncWithPreferences() },
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
         .bluetoothSleep: { BluetoothSleepService.shared.syncWithPreferences() },
+        .hdrControl: { HDRControlService.shared.syncWithPreferences() },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
         .colorPicker: {
             ScreenCaptureService.shared.syncWithPreferences()
@@ -426,6 +427,9 @@ extension AppFeature {
         case .fanControl:
             return FanControlHardware.hasControllableFan
                 ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
+        case .hdrControl:
+            return HDRControlService.isSupported
+                ? nil : FeatureStrings.hdrControl(L10n.shared.language).unsupported
         default:
             return nil
         }

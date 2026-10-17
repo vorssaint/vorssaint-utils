@@ -326,6 +326,82 @@ enum AppManagementFeatureTests {
         suite.expect(!ExtraBrightnessSupport.isXDRPanelName("Built-in Liquid Retina Display")
                && !ExtraBrightnessSupport.isXDRPanelName("Built-in Retina Display"),
                "generic built-in panel names do not qualify by name")
+
+        // External HDR displays (an AW3423DW reports 4.27 with HDR on, 1.0 off).
+        suite.expect(ExtraBrightnessSupport.isSupportedExternal(potentialEDR: 4.27)
+               && !ExtraBrightnessSupport.isSupportedExternal(potentialEDR: 1.0)
+               && !ExtraBrightnessSupport.isSupportedExternal(potentialEDR: 2.0),
+               "an external display qualifies only with real HDR headroom")
+        typealias Candidate = ExtraBrightnessSupport.Candidate
+        suite.expect(ExtraBrightnessSupport.boostTarget([
+                    Candidate(id: 3, isBuiltin: false, isSupported: true),
+                    Candidate(id: 1, isBuiltin: true, isSupported: true)]) == 1
+               && ExtraBrightnessSupport.boostTarget([
+                    Candidate(id: 1, isBuiltin: true, isSupported: false),
+                    Candidate(id: 3, isBuiltin: false, isSupported: true)]) == 3
+               && ExtraBrightnessSupport.boostTarget([
+                    Candidate(id: 3, isBuiltin: false, isSupported: false)]) == nil,
+               "the built-in XDR panel keeps the boost; an HDR external takes it otherwise")
+        let external = ExtraBrightnessSupport.externalReference(potentialEDR: 4.27)
+        suite.expect(external.bonus == 1.0 && external.referenceEDR == 2.0,
+               "a 1000 nit HDR monitor tops out at twice SDR white")
+        suite.expect(abs(ExtraBrightnessSupport.externalReference(potentialEDR: 2.5).bonus - 0.75) < 0.0001,
+               "a monitor with little headroom gets at most half of it")
+        suite.expect(ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 4.27, potentialEDR: 4.27,
+                                                         reference: external) == 2.0
+               && ExtraBrightnessSupport.renderFactor(level: 1, currentEDR: 1.2, potentialEDR: 4.27,
+                                                      reference: external) == 1.2,
+               "the external boost reaches twice SDR white, never past the headroom granted so far")
+
+        // The brightness slider past 100 %: its percent is real luminance.
+        suite.expect(abs(ExtraBrightnessSupport.boostCeiling(reference: external, grantedEDR: 1.68) - 1.68) < 0.0001
+               && ExtraBrightnessSupport.boostCeiling(reference: external, grantedEDR: 4.27) == 2.0
+               && ExtraBrightnessSupport.boostCeiling(reference: external, grantedEDR: 0.9) == 1.0,
+               "the slider tops out at the luminance macOS grants (168 % on an AW3423DW), at most the curve's top")
+        let mid = ExtraBrightnessSupport.level(forFactor: 1.4, grantedEDR: 1.68, reference: external)
+        suite.expect(abs(ExtraBrightnessSupport.factor(forLevel: mid, grantedEDR: 1.68, reference: external) - 1.4) < 0.01,
+               "a slider position of 140 % renders 1.4 times SDR white")
+        suite.expect(ExtraBrightnessSupport.sliderTarget(position: 0.6, grantedEDR: 1.68, reference: external)
+                    == .hardware(0.6)
+               && ExtraBrightnessSupport.sliderTarget(position: 1.01, grantedEDR: 1.68, reference: external)
+                    == .hardware(1.0),
+               "up to 100 % the slider is hardware brightness with the boost off")
+        if case .boost(let level) = ExtraBrightnessSupport.sliderTarget(position: 1.68, grantedEDR: 1.68,
+                                                                        reference: external) {
+            suite.expect(abs(ExtraBrightnessSupport.factor(forLevel: level, grantedEDR: 1.68, reference: external)
+                             - 1.68) < 0.01,
+                   "the slider's top renders the full granted luminance")
+        } else {
+            suite.expect(false, "past 100 % the slider turns the boost on")
+        }
+        suite.expect(ExtraBrightnessSupport.sliderPosition(hardware: 0.7, boostEnabled: false, level: 100,
+                                                           grantedEDR: 1.68, reference: external) == 0.7
+               && abs(ExtraBrightnessSupport.sliderPosition(hardware: 1, boostEnabled: true, level: 100,
+                                                            grantedEDR: 1.68, reference: external) - 1.68) < 0.0001,
+               "the slider shows hardware brightness, or the boost's luminance while it is on")
+        suite.expect(ExtraBrightnessSupport.keyStepPosition(from: 0.5, delta: 0.0625, ceiling: 2, boostEnabled: false) == nil
+               && ExtraBrightnessSupport.keyStepPosition(from: 1.0, delta: -0.0625, ceiling: 2, boostEnabled: false) == nil,
+               "below 100 %, and stepping down from it, the keys stay on the hardware")
+        suite.expect(ExtraBrightnessSupport.keyStepPosition(from: 1.0, delta: 0.0625, ceiling: 2, boostEnabled: false) == 1.0625
+               && ExtraBrightnessSupport.keyStepPosition(from: 1.98, delta: 0.0625, ceiling: 2, boostEnabled: true) == 2.0,
+               "from full brightness the keys step into the boost, up to its ceiling")
+        suite.expect(ExtraBrightnessSupport.keyStepPosition(from: 1.0625, delta: -0.0625, ceiling: 2, boostEnabled: true) == 1.0
+               && ExtraBrightnessSupport.keyStepPosition(from: 1.04, delta: -0.25, ceiling: 2, boostEnabled: true) == 1.0,
+               "stepping down out of the boost stops once at 100 % before the hardware dims")
+        suite.expect(abs((ExtraBrightnessSupport.keyStepPosition(from: 1.04, delta: -0.015625, ceiling: 2,
+                                                                 boostEnabled: true) ?? 0) - 1.024375) < 0.0001
+               && ExtraBrightnessSupport.keyStepPosition(from: 1.01, delta: -0.015625, ceiling: 2,
+                                                         boostEnabled: true) == 1.0,
+               "fine steps leave a small boost instead of getting stuck just above 100 %")
+        suite.expect(ExtraBrightnessSupport.level(forFactor: 1.04, grantedEDR: 4.27, reference: external) == 4,
+               "a small boost keeps its own fine level")
+        suite.expect(BrightnessSupport.wholePercent(1.68, maximum: 2) == 168
+               && BrightnessSupport.wholePercent(1.68) == 100
+               && BrightnessSupport.filledBrightnessSegments(1.68) == 16
+               && BrightnessSupport.boostBrightnessSegments(1.5, maximum: 2) == 8
+               && BrightnessSupport.boostBrightnessSegments(1.0, maximum: 2) == 0
+               && BrightnessSupport.boostBrightnessSegments(1.5, maximum: 1) == 0,
+               "past 100 % the overlay bar stays full and the boost fills it again")
         suite.expect(abs(ExtraBrightnessSupport.rampedFactor(previous: 1.0, target: 1.48) - 1.03) < 0.0001,
                "the factor climbs one small step per tick")
         suite.expect(ExtraBrightnessSupport.rampedFactor(previous: 1.46, target: 1.48) == 1.48,

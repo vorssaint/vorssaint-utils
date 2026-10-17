@@ -605,10 +605,18 @@ enum BrightnessSupport {
         return min(Int((clamped * 16).rounded(.up)), 16)
     }
 
+    /// Past 100 % on a boosted display the bar stays full and the boost fills
+    /// it a second time, from 100 % up to the boost's ceiling.
+    static func boostBrightnessSegments(_ brightness: Double, maximum: Double) -> Int {
+        guard maximum > 1, brightness > 1 else { return 0 }
+        let fraction = min((brightness - 1) / (maximum - 1), 1)
+        return min(Int((fraction * 16).rounded(.up)), 16)
+    }
+
     /// Whole percentage used by the brightness overlay.
-    static func wholePercent(_ brightness: Double) -> Int {
+    static func wholePercent(_ brightness: Double, maximum: Double = 1) -> Int {
         guard brightness.isFinite else { return 0 }
-        return Int((min(max(brightness, 0), 1) * 100).rounded())
+        return Int((min(max(brightness, 0), max(maximum, 1)) * 100).rounded())
     }
 
     /// DDC value to the 0...1 slider scale.

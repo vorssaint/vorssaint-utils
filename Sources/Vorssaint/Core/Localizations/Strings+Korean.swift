@@ -557,7 +557,7 @@ extension Strings {
         extraBrightnessName: "추가 밝기",
         extraBrightnessCaption: "디스플레이의 HDR 여유를 사용해 최대 밝기를 넘깁니다. 배터리 소모가 늘고 Mac이 뜨거워질 수 있습니다.",
         extraBrightnessLevelLabel: "강도",
-        extraBrightnessUnsupported: "14인치 및 16인치 MacBook Pro 등의 XDR 디스플레이에서만 사용할 수 있습니다.",
+        extraBrightnessUnsupported: "14인치 및 16인치 MacBook Pro 등의 XDR 디스플레이와 HDR을 켠 외장 디스플레이에서 사용할 수 있습니다.",
         shelfHotkeyLabel: "단축키",
         shelfOpenNow: "지금 열기",
         shelfNoPermission: "권한이 필요하지 않습니다.",

@@ -2312,11 +2312,13 @@ final class NotchService: ObservableObject {
         if notice == nil { refreshPresentation() }
     }
 
-    func showBrightness(_ level: Double) -> Bool {
+    func showBrightness(_ level: Double, maximum: Double = 1) -> Bool {
         let text = FeatureStrings.notch(L10n.shared.language)
+        // Past 100 % on a boosted display the percent reads the luminance
+        // and the bar stays full.
         return show(NotchNotice(event: .brightness, title: text.brightness,
-                                detail: "\(BrightnessSupport.wholePercent(level))%",
-                                symbol: "sun.max.fill", level: level))
+                                detail: "\(BrightnessSupport.wholePercent(level, maximum: maximum))%",
+                                symbol: "sun.max.fill", level: min(max(level, 0), 1)))
     }
 
     @discardableResult

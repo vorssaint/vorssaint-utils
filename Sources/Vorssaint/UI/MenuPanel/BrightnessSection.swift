@@ -9,6 +9,7 @@ import SwiftUI
 struct BrightnessSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
+    @ObservedObject private var extraBrightness = ExtraBrightnessService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
@@ -50,10 +51,6 @@ struct BrightnessSection: View {
                             service.syncWithPreferences()
                         }
                 }
-                if AppFeature.extraBrightness.isAvailable {
-                    Divider()
-                    ExtraBrightnessPanelToggle()
-                }
                 Divider()
                 optionsDisclosure
             }
@@ -61,6 +58,7 @@ struct BrightnessSection: View {
             .onAppear {
                 service.refresh()
                 service.refreshKeyboardLight()
+                extraBrightness.syncWithPreferences()
             }
         }
     }
@@ -127,7 +125,7 @@ struct BrightnessSection: View {
                     .truncationMode(.middle)
                 Spacer(minLength: 4)
                 if display.isActive, display.method != nil {
-                    Text("\(Int((display.brightness * 100).rounded()))%")
+                    Text("\(extraBrightness.sliderPercent(for: display))%")
                         .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                         .foregroundStyle(.secondary)
                 } else if !display.isActive {
@@ -138,7 +136,8 @@ struct BrightnessSection: View {
                 DisplayPowerButton(display: display, compact: true)
             }
             if display.isActive, display.method != nil {
-                Slider(value: brightnessBinding(display), in: 0...1)
+                Slider(value: brightnessBinding(display),
+                       in: 0...extraBrightness.sliderUpperBound(for: display))
                     .controlSize(.small)
                     .disabled(service.isDisplayPending(display.id))
                     .accessibilityLabel(display.name)
@@ -178,26 +177,10 @@ struct BrightnessSection: View {
     }
 
     private func brightnessBinding(_ display: BrightnessDisplay) -> Binding<Double> {
-        Binding(get: { display.brightness },
-                set: { service.setBrightness($0, for: display.id,
-                                             showOSD: brightnessOSDEnabled) })
-    }
-}
-
-private struct ExtraBrightnessPanelToggle: View {
-    @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var service = ExtraBrightnessService.shared
-    @AppStorage(DefaultsKey.extraBrightnessEnabled) private var enabled = false
-
-    var body: some View {
-        Toggle(l10n.s.extraBrightnessName, isOn: $enabled)
-            .font(.system(size: 10.5, weight: .medium))
-            .toggleStyle(.switch)
-            .controlSize(.mini)
-            .disabled(!service.supported && !enabled)
-            .help(service.supported ? l10n.s.extraBrightnessCaption : l10n.s.extraBrightnessUnsupported)
-            .onChange(of: enabled) { _, _ in service.syncWithPreferences() }
-            .onAppear { service.syncWithPreferences() }
+        // Past 100 % on the boosted display, as on the Energy page.
+        Binding(get: { extraBrightness.sliderPosition(for: display) },
+                set: { extraBrightness.setSliderPosition($0, for: display,
+                                                         showOSD: brightnessOSDEnabled) })
     }
 }
 

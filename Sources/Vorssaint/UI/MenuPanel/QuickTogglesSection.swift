@@ -71,6 +71,7 @@ struct QuickTogglesList: View {
     @ObservedObject private var toggles = QuickTogglesService.shared
     @ObservedObject private var micMute = MicMuteService.shared
     @ObservedObject private var brightness = BrightnessService.shared
+    @ObservedObject private var hdr = HDRControlService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.panelToggleDarkMode) private var showDarkMode = true
     @AppStorage(DefaultsKey.panelToggleKeyboardLight) private var showKeyboardLight = true
@@ -82,6 +83,7 @@ struct QuickTogglesList: View {
     @AppStorage(DefaultsKey.panelToggleLockScreen) private var showLockScreen = true
     @AppStorage(DefaultsKey.panelToggleDisplayOff) private var showDisplayOff = true
     @AppStorage(DefaultsKey.panelToggleScreenSaver) private var showScreenSaver = true
+    @AppStorage(DefaultsKey.panelToggleHDR) private var showHDR = true
     @AppStorage(DefaultsKey.panelToggleOrder) private var toggleOrderRaw = ""
 
     let editing: Bool
@@ -104,6 +106,7 @@ struct QuickTogglesList: View {
         .onAppear {
             toggles.refreshPermissionStates()
             brightness.refreshKeyboardLight()
+            hdr.refresh()
         }
     }
 
@@ -115,7 +118,8 @@ struct QuickTogglesList: View {
                     DefaultsKey.panelToggleEmptyTrash,
                     DefaultsKey.panelToggleEjectDisks, DefaultsKey.panelToggleHiddenFiles,
                     DefaultsKey.panelToggleDesktopIcons, DefaultsKey.panelToggleLockScreen,
-                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver] {
+                    DefaultsKey.panelToggleDisplayOff, DefaultsKey.panelToggleScreenSaver,
+                    DefaultsKey.panelToggleHDR] {
             defaults.set(true, forKey: key)
         }
     }
@@ -139,6 +143,8 @@ struct QuickTogglesList: View {
         orderedItems.filter {
             $0.feature.isAvailable
                 && ($0 != .keyboardLight || brightness.keyboardLightEnabled != nil)
+                // Only while the switches are on and a display can run HDR.
+                && ($0 != .hdr || (hdr.isActive && !hdr.displays.isEmpty))
                 && (editing || isVisible($0))
         }
     }
@@ -159,6 +165,7 @@ struct QuickTogglesList: View {
         case .lockScreen: return $showLockScreen
         case .displayOff: return $showDisplayOff
         case .screenSaver: return $showScreenSaver
+        case .hdr: return $showHDR
         }
     }
 
@@ -294,6 +301,21 @@ struct QuickTogglesList: View {
                                         QuickTogglesService.shared.startScreenSaver()
                                     }
                                 })
+        case .hdr:
+            let hdrStrings = FeatureStrings.hdrControl(l10n.language)
+            let failed = hdr.displays.contains { hdr.failedIDs.contains($0.id) }
+            PanelToggleRow(title: hdrStrings.tileTitle,
+                           caption: failed ? hdrStrings.failedNote
+                               : HDRControlSupport.quickToggleCaption(hdr.displays),
+                           systemImage: "sparkles.rectangle.stack",
+                           isOn: Binding(
+                               get: { HDRControlSupport.quickToggleIsOn(hdr.displays) },
+                               set: { _ in hdr.toggleAll() }
+                           ),
+                           isEditing: editing,
+                           showsDragHandle: true,
+                           visibility: visibilityBinding(item))
+                .disabled(!hdr.workingIDs.isEmpty)
         }
     }
 

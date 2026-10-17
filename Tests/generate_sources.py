@@ -230,6 +230,7 @@ def main():
           + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
               "    private struct Route", "    private enum DDCProbe"])
           + "final class Service: Fixture {\n"
+          + "var boostKeyStep: (CGDirectDisplayID, Double, Bool) -> Bool = { _, _, _ in false }\n"
           + declaration(brightness, "    private func step(").replace("private ", "", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)

@@ -9,12 +9,16 @@ enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // Case order is the default panel order: the appearance switch leads
     // because it is the tab's headline action (issue request).
     case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
-         lockScreen, displayOff, screenSaver
+         lockScreen, displayOff, screenSaver, hdr
 
     var id: String { rawValue }
 
     var feature: AppFeature {
-        self == .micMute ? .micMute : .quickToggles
+        switch self {
+        case .micMute: return .micMute
+        case .hdr: return .hdrControl
+        default: return .quickToggles
+        }
     }
 }
 
@@ -379,8 +383,7 @@ final class QuickTogglesService: ObservableObject {
     /// guarded like the lock above. Stable across many macOS releases; if it
     /// ever leaves, toggleDarkMode degrades to a visible failure.
     private static let appearanceTheme: (get: AppearanceGet, set: AppearanceSet)? = {
-        let path = "/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight"
-        guard let handle = dlopen(path, RTLD_LAZY),
+        guard let handle = SkyLight.handle,
               let getSymbol = dlsym(handle, "SLSGetAppearanceThemeLegacy"),
               let setSymbol = dlsym(handle, "SLSSetAppearanceThemeLegacy") else { return nil }
         return (unsafeBitCast(getSymbol, to: AppearanceGet.self),
