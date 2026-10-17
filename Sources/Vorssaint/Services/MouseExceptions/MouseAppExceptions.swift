@@ -15,7 +15,9 @@ import CoreGraphics
 ///
 /// The app is resolved from the window under the pointer, which is where
 /// macOS delivers both the wheel and the click, and falls back to the app in
-/// front when the pointer is over no window of its own. Resolving asks the
+/// front when the pointer is over no window of its own. A surface, a window
+/// above the app band that takes the event there such as Launchpad, a menu or
+/// a banner, answers in place of the app window it covers. Resolving asks the
 /// window server, so the answer is cached until the pointer leaves that
 /// window; with every list empty, which is the normal case, nothing is
 /// resolved at all and the taps cost exactly what they always did.
@@ -60,9 +62,18 @@ final class MouseAppExceptions: ObservableObject {
 
     private static let ownProcessID = Int32(getpid())
     private let uptime: () -> TimeInterval
+    private let onScreenWindows: () -> [MouseAppExceptionSupport.Window]
+    private let receivingWindow: (CGPoint) -> CGWindowID?
+    private let identitiesForProcess: ((Int32) -> [String])?
 
-    init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+    init(uptime: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         onScreenWindows: @escaping () -> [MouseAppExceptionSupport.Window] = WindowServerSupport.onScreenWindows,
+         receivingWindow: @escaping (CGPoint) -> CGWindowID? = WindowServerSupport.receivingWindow(at:),
+         identitiesForProcess: ((Int32) -> [String])? = nil) {
         self.uptime = uptime
+        self.onScreenWindows = onScreenWindows
+        self.receivingWindow = receivingWindow
+        self.identitiesForProcess = identitiesForProcess
         reload()
     }
 
@@ -244,8 +255,9 @@ final class MouseAppExceptions: ObservableObject {
     // MARK: - Resolving
 
     /// What the app that owns the window under the pointer answers to, falling
-    /// back to the app in front when the pointer is over none. `known` is false
-    /// only on the pointer thread, which never waits for the main one.
+    /// back to the app in front when the pointer is over none. A surface that
+    /// takes the event there answers in place of both. `known` is false only
+    /// on the pointer thread, which never waits for the main one.
     private func pointerIdentity(at point: CGPoint) -> (known: Bool, identities: [String]) {
         let now = uptime()
         // The pointer thread must return even while the main thread is busy.
@@ -281,15 +293,37 @@ final class MouseAppExceptions: ObservableObject {
         }
         if answer.settled { return (answer.known, answer.identities) }
 
-        let window = MouseAppExceptionSupport.pointerWindow(in: WindowServerSupport.onScreenWindows(),
-                                                            at: point,
-                                                            ownProcessID: Self.ownProcessID)
-        let app = window.map { NSRunningApplication(processIdentifier: $0.processID) }
-            ?? NSWorkspace.shared.frontmostApplication
-        let resolved = identities(for: app)
+        let windows = onScreenWindows()
+        let surface = MouseAppExceptionSupport.pointerSurface(in: windows,
+                                                              receivingWindowID: receivingWindow(point),
+                                                              ownProcessID: Self.ownProcessID)
+        // A surface no app owns, such as the menu bar the window server draws
+        // for the app in front, names nobody, so the usual answer stands.
+        let surfaceIdentities = surface.map {
+            MouseAppExceptionSupport.surfaceIdentities(identities(forProcess: $0.processID))
+        } ?? []
+        let resolved: [String]
+        let region: CGRect?
+        if let surface, !surfaceIdentities.isEmpty {
+            // A surface may take less than its rectangle: the Dock's spans the
+            // screen and takes events over the Dock only. One that also takes
+            // them at its center, as Launchpad and menus do, is taken to fill
+            // its rectangle and is cached like a window; any other answers for
+            // its exact spot only, like an answer of nothing.
+            resolved = surfaceIdentities
+            let center = CGPoint(x: surface.frame.midX, y: surface.frame.midY)
+            region = receivingWindow(center) == surface.number ? surface.frame : nil
+        } else {
+            let window = MouseAppExceptionSupport.pointerWindow(in: windows,
+                                                                at: point,
+                                                                ownProcessID: Self.ownProcessID)
+            resolved = window.map { identities(forProcess: $0.processID) }
+                ?? identities(for: NSWorkspace.shared.frontmostApplication)
+            region = window?.frame
+        }
         lock.withLock {
             cachedIdentities = resolved
-            cachedRegion = window?.frame
+            cachedRegion = region
             cachedPoint = point
             cachedAt = now
         }
@@ -297,14 +331,19 @@ final class MouseAppExceptions: ObservableObject {
     }
 
     /// While a list names a program by its path, a program answers to the
-    /// file being run as well as to its bundle identifier, so a game started
-    /// from a launcher can be named at all (issue #1009), even though Java's
-    /// launcher reports an identifier of its own.
+    /// file being run as well as to its bundle identifier, so a Java runtime
+    /// picked by its path (issue #1009) is matched even when AWT registered
+    /// the JVM under the identifier of Java's launcher.
     private func identities(for app: NSRunningApplication?) -> [String] {
         guard let app else { return [] }
         return MouseAppExceptionSupport.identities(bundleID: app.bundleIdentifier,
                                                    executablePath: app.executableURL?.path,
                                                    readsPath: lock.withLock { listsNamePath })
+    }
+
+    private func identities(forProcess processID: Int32) -> [String] {
+        if let identitiesForProcess { return identitiesForProcess(processID) }
+        return identities(for: NSRunningApplication(processIdentifier: processID))
     }
 
     private func invalidateCache() {

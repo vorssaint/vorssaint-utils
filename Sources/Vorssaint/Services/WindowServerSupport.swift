@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Darwin
 import Foundation
@@ -40,6 +41,19 @@ enum WindowServerSupport {
     /// The same list, reduced to what a pointer lookup needs.
     static func onScreenWindows() -> [MouseAppExceptionSupport.Window] {
         MouseAppExceptionSupport.windows(from: onScreenWindowInfo())
+    }
+
+    /// The window a click at `point` would reach, found the way AppKit routes
+    /// clicks: the window server's own hit test, which skips input-transparent
+    /// overlays and the parts of a window that let events through, such as
+    /// the Dock's screen-wide window away from the Dock. `point` is in
+    /// CoreGraphics coordinates, origin top-left. Main thread only.
+    static func receivingWindow(at point: CGPoint) -> CGWindowID? {
+        guard let primary = NSScreen.screens.first else { return nil }
+        let cocoaPoint = CGPoint(x: point.x, y: primary.frame.maxY - point.y)
+        let number = NSWindow.windowNumber(at: cocoaPoint, belowWindowWithWindowNumber: 0)
+        guard number > 0 else { return nil }
+        return CGWindowID(exactly: number)
     }
 
     static func bounds(from window: [String: Any]) -> CGRect? {
