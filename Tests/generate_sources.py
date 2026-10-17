@@ -888,6 +888,7 @@ def main():
               "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
           + declaration(notch, "    var showsVolumeNotice: Bool {")
+          + declaration(notch, "    var coversVolumeNotice: Bool {")
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"

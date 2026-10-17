@@ -13,7 +13,7 @@ final class NotchVolumeBannerGuard {
     private var pid: pid_t?
     private var running = false
     private var workspaceObservers: [NSObjectProtocol] = []
-    private var noticeWatch: AnyCancellable?
+    private var islandWatch: AnyCancellable?
     /// Every question to the menu bar waits for it to answer, up to a tenth
     /// of a second while it rebuilds for another app. Those waits stay here,
     /// off the main thread.
@@ -36,14 +36,28 @@ final class NotchVolumeBannerGuard {
                 })
             }
         }
-        if noticeWatch == nil {
+        if islandWatch == nil {
             // A change's banner and the island's notice arrive in either
             // order, so a banner already up leaves once the notice shows.
-            noticeWatch = NotchService.shared.$notice
-                .map { $0?.event == .volume }
+            // Once something covers the island or takes the notice's place,
+            // the banners come back, so changes made under the cover still
+            // show. A notice that simply ends leaves its banner to expire,
+            // since the menu bar is fading it out by then. Published values
+            // arrive before they land, so the island is read a turn later.
+            islandWatch = NotchService.shared.volumeNoticeChanges
+                .receive(on: DispatchQueue.main)
+                .map { _ -> IslandVolume in
+                    let island = NotchService.shared
+                    return island.showsVolumeNotice ? .shown : island.coversVolumeNotice ? .covered : .quiet
+                }
                 .removeDuplicates()
-                .filter { $0 }
-                .sink { [weak self] _ in self?.scan() }
+                .sink { [weak self] state in
+                    switch state {
+                    case .shown: self?.scan()
+                    case .covered: self?.restoreHidden()
+                    case .quiet: break
+                    }
+                }
         }
         attach()
     }
@@ -52,10 +66,16 @@ final class NotchVolumeBannerGuard {
     /// which is fine: the menu bar places each new banner in view itself.
     func stop() {
         running = false
-        noticeWatch = nil
+        islandWatch = nil
         workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         workspaceObservers.removeAll()
         detach()
+        restoreHidden()
+    }
+
+    private enum IslandVolume { case shown, covered, quiet }
+
+    private func restoreHidden() {
         let banners = hidden
         hidden.removeAll()
         guard !banners.isEmpty else { return }

@@ -1047,6 +1047,28 @@ final class NotchService: ObservableObject {
         showsSystemFeedback && notice?.event == .volume && captureControls == nil && !dragPlaceholder
             && !showingCommandBar
     }
+    /// Something keeps the island from showing a volume level: a cover,
+    /// even one that cleared the notice as it opened, a hidden island, or
+    /// another notice in the volume notice's place. A notice that has simply
+    /// ended is none of these.
+    var coversVolumeNotice: Bool {
+        !showsVolumeNotice && (notice != nil || !showsSystemFeedback || captureControls != nil || dragPlaceholder
+            || showingCommandBar)
+    }
+    /// Every published value the two answers above depend on. Opening and
+    /// peeking also decide whether the island waits for the pointer. Each
+    /// value arrives before its change lands.
+    var volumeNoticeChanges: AnyPublisher<Void, Never> {
+        Publishers.MergeMany([
+            $notice.map { _ in () }.eraseToAnyPublisher(),
+            $showingCommandBar.map { _ in () }.eraseToAnyPublisher(),
+            $captureControls.map { _ in () }.eraseToAnyPublisher(),
+            $dragPlaceholder.map { _ in () }.eraseToAnyPublisher(),
+            $hiddenInFullscreen.map { _ in () }.eraseToAnyPublisher(),
+            $expanded.map { _ in () }.eraseToAnyPublisher(),
+            $peeking.map { _ in () }.eraseToAnyPublisher()
+        ]).eraseToAnyPublisher()
+    }
 
     var protectedWindowIDs: Set<CGWindowID> {
         islandWindowIDs.subtracting(captureVisibleWindowIDs)
