@@ -12,6 +12,9 @@ struct NotchNotice: Equatable {
     let detail: String
     let symbol: String
     var level: Double? = nil
+    /// The other displays' levels, when a brightness key moved every display:
+    /// each gets its own meter under the aimed display's.
+    var linkedLevels: [Double] = []
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
@@ -2312,11 +2315,12 @@ final class NotchService: ObservableObject {
         if notice == nil { refreshPresentation() }
     }
 
-    func showBrightness(_ level: Double) -> Bool {
+    func showBrightness(_ level: Double, linked: [Double] = []) -> Bool {
         let text = FeatureStrings.notch(L10n.shared.language)
         return show(NotchNotice(event: .brightness, title: text.brightness,
-                                detail: "\(BrightnessSupport.wholePercent(level))%",
-                                symbol: "sun.max.fill", level: level))
+                                detail: ([level] + linked).map { "\(BrightnessSupport.wholePercent($0))%" }
+                                    .joined(separator: " · "),
+                                symbol: "sun.max.fill", level: level, linkedLevels: linked))
     }
 
     @discardableResult

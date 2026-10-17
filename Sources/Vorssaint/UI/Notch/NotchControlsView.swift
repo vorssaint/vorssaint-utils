@@ -277,7 +277,11 @@ struct NotchLevelRow<Level: View>: View {
 private struct NotchBrightnessControls: View {
     @ObservedObject private var service = BrightnessService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.brightnessKeysAllDisplays) private var keysMoveAll = false
     private var displays: [BrightnessDisplay] { service.displays.filter { $0.isActive && $0.method != nil } }
+    /// With the keys moving two displays together, both sliders show at once,
+    /// so a key moves both and either can still be set on its own.
+    private var linkedPair: Bool { keysMoveAll && displays.count == 2 }
     /// The display the brightness keys last moved, or the one picked here,
     /// so a key press moves this slider.
     private var display: BrightnessDisplay? {
@@ -285,6 +289,30 @@ private struct NotchBrightnessControls: View {
     }
 
     var body: some View {
+        if linkedPair {
+            VStack(spacing: 2) {
+                ForEach(displays, id: \.id) { linkedRow($0) }
+            }
+            .frame(height: 28)
+            .onAppear { service.refresh() }
+        } else {
+            single
+        }
+    }
+
+    private func linkedRow(_ display: BrightnessDisplay) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
+                .font(.system(size: 9, weight: .medium)).frame(width: 18)
+            NotchLevelSlider(value: Binding(get: { display.brightness }, set: {
+                service.setBrightness($0, for: display.id, announces: false)
+            }), label: display.name, trackThickness: 4, easesChanges: true)
+                .frame(height: 13)
+        }
+        .help(display.name)
+    }
+
+    private var single: some View {
         HStack(spacing: 6) {
             glyph
             slider

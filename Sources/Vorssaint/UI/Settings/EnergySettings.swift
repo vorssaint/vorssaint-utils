@@ -17,6 +17,7 @@ struct EnergySettings: View {
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
     @AppStorage(DefaultsKey.brightnessKeysEnabled) private var brightnessKeysEnabled = false
+    @AppStorage(DefaultsKey.brightnessKeysAllDisplays) private var brightnessKeysAllDisplays = false
     @AppStorage(DefaultsKey.brightnessOSDEnabled) private var brightnessOSDEnabled = false
     @AppStorage(DefaultsKey.brightnessKeyStep)
     private var brightnessKeyStep = BrightnessSupport.KeyStep.standard.rawValue
@@ -333,6 +334,15 @@ struct EnergySettings: View {
                                     BrightnessService.shared.syncWithPreferences()
                                 }
                         }
+                        SettingsRow(symbol: "display.2", title: strings.allDisplaysToggle,
+                                    caption: strings.allDisplaysCaption) {
+                            Toggle(strings.allDisplaysToggle, isOn: $brightnessKeysAllDisplays)
+                                .labelsHidden()
+                                .onChange(of: brightnessKeysAllDisplays) { _, isOn in
+                                    if isOn { Permissions.shared.requestAccessibility() }
+                                    BrightnessService.shared.syncWithPreferences()
+                                }
+                        }
                         SettingsRow(symbol: "sun.min", title: strings.keyStep, caption: strings.keyStepCaption) {
                             Picker(strings.keyStep, selection: brightnessKeyStepBinding) {
                                 Text(strings.keyStepStandard).tag(BrightnessSupport.KeyStep.standard)
@@ -353,7 +363,7 @@ struct EnergySettings: View {
                                     }
                             }
                         }
-                        if brightnessKeysEnabled || brightnessOSDEnabled
+                        if brightnessKeysEnabled || brightnessKeysAllDisplays || brightnessOSDEnabled
                             || BrightnessSupport.KeyStep.sanitized(brightnessKeyStep) != .standard,
                            !permissions.accessibility {
                             PermissionRow(kind: .accessibility)

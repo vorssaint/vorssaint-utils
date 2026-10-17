@@ -125,7 +125,7 @@ struct NotchNoticeView: View {
                 .lineLimit(NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight))
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } else if let level = notice.level {
-            NotchMeter(value: level, height: 5, tint: tint)
+            NotchMeters(levels: [level] + notice.linkedLevels, height: 5, tint: tint)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
                 .transaction { $0.disablesAnimations = false }
         } else {
@@ -155,7 +155,7 @@ struct NotchExpandedLevelView: View {
         HStack(spacing: 8) {
             Image(systemName: notice.symbol)
                 .frame(width: 18)
-            NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
+            NotchMeters(levels: [notice.level ?? 0] + notice.linkedLevels, height: 5, tint: .white)
                 .frame(maxWidth: 96)
             Text(notice.detail)
                 .monospacedDigit()

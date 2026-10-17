@@ -231,6 +231,8 @@ def main():
               "    private struct Route", "    private enum DDCProbe"])
           + "final class Service: Fixture {\n"
           + declaration(brightness, "    private func step(").replace("private ", "", 1)
+          + declaration(brightness, "    private func stepKeyPress(").replace("private ", "", 1)
+          + declaration(brightness, "    private func moveLinkedDisplays(").replace("private ", "", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
           + "}\n}\n")

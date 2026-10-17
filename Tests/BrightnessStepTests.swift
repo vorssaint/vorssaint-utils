@@ -49,6 +49,13 @@ enum BrightnessStepTests {
         enum Method: Equatable { case system, ddc, gamma }
         let id: UInt32
         var brightness: Double
+        var isActive = true
+        var method: Method? = .system
+    }
+    final class UserDefaults {
+        static let standard = UserDefaults()
+        var allDisplays = false
+        func bool(forKey key: String) -> Bool { key == DefaultsKey.brightnessKeysAllDisplays && allDisplays }
     }
 
     class Fixture {
@@ -57,10 +64,22 @@ enum BrightnessStepTests {
         let stateLock = NSLock()
         let workQueue = Queue()
         var displays: [BrightnessDisplay] = []
+        var pendingDisplayIDs = Set<UInt32>()
+        var stepped: [(id: UInt32, showOSD: Bool)] = []
         var levelKnownAt: [UInt32: Date] = [:]
         var ddcPendingSteps: [UInt32: Double] = [:]
         var focusedDisplayID: UInt32?
         func focusKeyDisplay(_ id: UInt32) { focusedDisplayID = id }
+        var keyLinkLead: (id: UInt32, level: Double)?
+        var keyLinks: [UInt32: BrightnessSupport.KeyLink] = [:]
+        var linkedWrites: [(id: UInt32, level: Double, announces: Bool)] = []
+        var announced: [[Double]] = []
+        func announceLinkedLevels(_ level: Double, _ linked: [Double]) { announced.append([level] + linked) }
+        func setBrightness(_ value: Double, for id: UInt32, showOSD: Bool = false,
+                           smooth: Bool = false, announces: Bool = true) {
+            linkedWrites.append((id, value, announces))
+            if let index = displays.firstIndex(where: { $0.id == id }) { displays[index].brightness = value }
+        }
         var reply: (current: UInt16, maximum: UInt16) = (0, 100)
         var routes: [UInt32: Route] = [:]
         var committed: [Double] = []
@@ -75,6 +94,7 @@ enum BrightnessStepTests {
         func commitStep(from current: Double, delta: Double, to displayID: UInt32,
                         method: BrightnessDisplay.Method, showOSD: Bool) {
             committed.append(current + delta)
+            stepped.append((displayID, showOSD))
         }
         func ddcProbeLuminance(for id: UInt32, service: CFTypeRef) -> DDCProbe {
             .replied(current: reply.current, maximum: reply.maximum)
@@ -185,5 +205,73 @@ enum BrightnessStepTests {
         BrightnessBridge.setBrightnessSmooth = smoothCall
         suite.expect(missing.written && missing.calls == ["set 0.5625"],
                      "a system without the easing call gets the level directly")
+
+        // Brightness keys moving every display: the press steps the display
+        // it is aimed at, with its overlay, and the others follow that step.
+        func keyPress(allDisplays: Bool) -> Service {
+            let linked = Service()
+            linked.displays = [BrightnessDisplay(id: 1, brightness: 0.5),
+                               BrightnessDisplay(id: 2, brightness: 0.25, method: .gamma),
+                               BrightnessDisplay(id: 3, brightness: 0.75, isActive: false),
+                               BrightnessDisplay(id: 4, brightness: 0.75),
+                               BrightnessDisplay(id: 5, brightness: 0.75, method: nil)]
+            linked.pendingDisplayIDs = [4]
+            UserDefaults.standard.allDisplays = allDisplays
+            linked.stepKeyPress(1, method: .system, delta: 0.0625, showOSD: true)
+            UserDefaults.standard.allDisplays = false
+            return linked
+        }
+        let single = keyPress(allDisplays: false)
+        suite.expect(single.stepped.map(\.id) == [1] && single.committed == [0.5625],
+                     "a key press moves only the display it is aimed at by default")
+        let every = keyPress(allDisplays: true)
+        suite.expect(every.stepped.map(\.id) == [1] && every.stepped.map(\.showOSD) == [true]
+                     && every.committed == [0.5625],
+                     "with all displays linked, the press steps the aimed display and its overlay stays there")
+
+        // The others follow the aimed display's step, keeping their gap to it.
+        func near(_ a: Double?, _ b: Double) -> Bool { a.map { abs($0 - b) < 0.000_001 } == true }
+        let link = Service()
+        link.displays = [BrightnessDisplay(id: 1, brightness: 0.5),
+                         BrightnessDisplay(id: 2, brightness: 0.6, method: .ddc),
+                         BrightnessDisplay(id: 3, brightness: 0.75, isActive: false),
+                         BrightnessDisplay(id: 4, brightness: 0.75),
+                         BrightnessDisplay(id: 5, brightness: 0.75, method: nil)]
+        link.pendingDisplayIDs = [4]
+        func linkedPress(_ delta: Double) {
+            let before = link.displays[0].brightness
+            let after = BrightnessSupport.steppedBrightness(before, delta: delta)
+            link.displays[0].brightness = after
+            link.moveLinkedDisplays(after: 1, from: before, to: after)
+        }
+        UserDefaults.standard.allDisplays = true
+        linkedPress(0.0625)
+        suite.expect(link.linkedWrites.map(\.id) == [2] && near(link.displays[1].brightness, 0.6625)
+                     && link.linkedWrites.allSatisfy { !$0.announces },
+                     "a linked display follows the aimed one by the same amount, and only an active, settled one does")
+        suite.expect(link.announced.count == 1 && near(link.announced.first?.first, 0.5625)
+                     && near(link.announced.first?.last, 0.6625),
+                     "the island's notice shows the aimed display's level and each linked display's")
+        for _ in 0..<7 { linkedPress(0.0625) }
+        suite.expect(near(link.displays[0].brightness, 1) && near(link.displays[1].brightness, 1),
+                     "a linked display stops at 100% while the aimed one catches up")
+        linkedPress(-0.0625)
+        linkedPress(-0.0625)
+        suite.expect(near(link.displays[0].brightness, 0.875) && near(link.displays[1].brightness, 0.975),
+                     "the gap 100% squeezed comes back on the way down")
+        link.displays[1].brightness = 0.5
+        linkedPress(-0.0625)
+        suite.expect(near(link.displays[1].brightness, 0.4375),
+                     "a linked display moved by hand keeps the new gap it shows")
+        link.displays[0].brightness = 0.3
+        linkedPress(0.0625)
+        suite.expect(near(link.displays[1].brightness, 0.5),
+                     "moving the aimed display by hand sets new gaps from where both sit")
+        UserDefaults.standard.allDisplays = false
+        let writes = link.linkedWrites.count
+        linkedPress(0.0625)
+        suite.expect(link.linkedWrites.count == writes && link.keyLinks.isEmpty && link.keyLinkLead == nil
+                     && link.announced.count == 12,
+                     "with the keys moving one display, the others stay put and the gaps are forgotten")
     }
 }

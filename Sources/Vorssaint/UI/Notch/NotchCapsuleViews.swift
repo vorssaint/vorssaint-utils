@@ -110,7 +110,7 @@ struct NotchCapsuleNoticeView: View {
     private func levelRow(_ level: Double) -> some View {
         HStack(spacing: CapsuleLayout.spacing) {
             NotchCapsuleSymbol(name: notice.symbol, tint: tint)
-            NotchMeter(value: level, height: CapsuleLayout.meterHeight, tint: tint)
+            NotchMeters(levels: [level] + notice.linkedLevels, height: CapsuleLayout.meterHeight, tint: tint)
                 .frame(width: CapsuleLayout.meterWidth)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
             Text(notice.detail)

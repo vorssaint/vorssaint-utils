@@ -531,12 +531,38 @@ enum BrightnessSupport {
     }
 
     /// Plain brightness key presses reach the system unless this app answers
-    /// them: to follow the pointer, to show its own overlay or the island in
-    /// place of the system's, or to take a finer step. Only then is their
-    /// keystroke tap worth it.
+    /// them: to follow the pointer, to move every display, to show its own
+    /// overlay or the island in place of the system's, or to take a finer
+    /// step. Only then is their keystroke tap worth it.
     static func answersPlainBrightnessKeys(followsPointer: Bool, overlayReplacesNative: Bool,
-                                           finerSteps: Bool) -> Bool {
-        followsPointer || overlayReplacesNative || finerSteps
+                                           finerSteps: Bool, allDisplays: Bool = false) -> Bool {
+        followsPointer || allDisplays || overlayReplacesNative || finerSteps
+    }
+
+    /// How a display linked to the brightness keys follows the display a
+    /// press is aimed at: the gap it keeps to that display, and the level the
+    /// keys last gave it.
+    struct KeyLink: Equatable {
+        let offset: Double
+        let level: Double
+    }
+
+    /// Two levels closer than this are the same one: a system read comes back
+    /// as a Float and a monitor rounds to its own steps.
+    static let keyLinkTolerance = 0.01
+
+    static func keyLinkHolds(_ remembered: Double?, current: Double) -> Bool {
+        guard let remembered else { return false }
+        return abs(current - remembered) < keyLinkTolerance
+    }
+
+    /// The gap a linked display keeps to the aimed display. While it still
+    /// sits where the keys left it, the remembered gap holds even if 0% or
+    /// 100% squeezed it, so the gap comes back on the way out. Once it was
+    /// moved some other way, the gap it shows now is the one to keep.
+    static func keyLinkOffset(_ link: KeyLink?, current: Double, aimedLevel: Double) -> Double {
+        if let link, keyLinkHolds(link.level, current: current) { return link.offset }
+        return current - aimedLevel
     }
 
     /// The display a plain brightness key moves: the one under the pointer
@@ -579,10 +605,13 @@ enum BrightnessSupport {
     /// press the pointer routes to any other display (an Apple pipeline
     /// external monitor, or any display in clamshell mode) has to be stepped
     /// here or it lands on the wrong screen. The built-in panel keeps the
-    /// native handling and its animation unless the overlay replaces it.
+    /// native handling and its animation unless the overlay replaces it, or
+    /// the keys move every display: the system would only ever move its own.
     static func stepsSystemRoutedDisplay(followsPointer: Bool,
                                          displayIsBuiltIn: Bool,
-                                         overlayReplacesNative: Bool) -> Bool {
+                                         overlayReplacesNative: Bool,
+                                         allDisplays: Bool = false) -> Bool {
+        if allDisplays { return true }
         if followsPointer, !displayIsBuiltIn { return true }
         return overlayReplacesNative
     }

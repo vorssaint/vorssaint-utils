@@ -545,6 +545,7 @@ extension AppFeature {
                 return boolFor(DefaultsKey.preciseVolumeRollerEnabled)
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
+                    || boolFor(DefaultsKey.brightnessKeysAllDisplays)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
                     || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
             case (.monitorCPU, .notifications):
