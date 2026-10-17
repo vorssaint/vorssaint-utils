@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, diskAnalyzer
 
     var id: String { rawValue }
 
@@ -582,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .diskAnalyzer: return .diskAnalyzer
         }
     }
 }
@@ -618,6 +619,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityDiskAnalyzer) private var showDiskAnalyzer = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -782,6 +784,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .diskAnalyzer: return showDiskAnalyzer
         }
     }
 
@@ -1026,6 +1029,19 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .diskAnalyzer:
+            UtilityActionButton(title: FeatureStrings.diskAnalyzer(l10n.language).title,
+                                caption: FeatureStrings.diskAnalyzer(l10n.language).panelCaption,
+                                systemImage: AppFeature.diskAnalyzer.symbolName,
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showDiskAnalyzer,
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                        DiskAnalyzerWindowController.shared.show()
+                                    }
+                                })
         }
     }
 
@@ -1103,6 +1119,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showDiskAnalyzer = true
     }
 
     private func grantAccessibility() {
