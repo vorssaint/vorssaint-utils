@@ -86,6 +86,17 @@ enum SpaceHopSupport {
         return windowTags & hiddenWithAppTag != 0
     }
 
+    /// The windows a window query's answer tags as hidden with their app. A
+    /// window missing from the answer no longer exists, so it is never one.
+    /// Every live window carries some tag, so an answer without any is one
+    /// the server withheld, as `CGSGetWindowTags` does for other apps on
+    /// macOS 27. Nil then keeps callers on their earlier behavior instead of
+    /// dropping every window of a hidden app.
+    static func windowsHiddenWithApp(windowTags: [CGWindowID: UInt64]) -> Set<CGWindowID>? {
+        guard windowTags.values.contains(where: { $0 != 0 }) else { return nil }
+        return Set(windowTags.filter { isHiddenWithApp(windowTags: $0.value) }.keys)
+    }
+
     /// How many "move a space" presses take the user from the visible Space to
     /// `target`. Positive means move right, negative means move left. Returns
     /// nil when the target is already visible, cannot be found, or sits

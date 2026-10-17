@@ -612,6 +612,31 @@ enum SwitcherModelFeatureTests {
         suite.expect(!SpaceHopSupport.isHiddenWithApp(windowTags: windowTags([0, 9, 19, 22, 32, 45]))
                && !SpaceHopSupport.isHiddenWithApp(windowTags: windowTags([0, 9, 13, 19, 22, 32, 45])),
                "a window its app closed, or one still open, does not count as hidden along with the app")
+        // Tags read on macOS 27.2: a window hidden with its app (1), the same
+        // window once the app was shown again (2), a window the app closed
+        // before the hide (3), and Safari's surface kept out of cycling (4).
+        let hiddenAppAnswer: [CGWindowID: UInt64] = [1: 0x208100480201, 2: 0x200100482201,
+                                                     3: 0x200100480201, 4: 0x1400C0001]
+        suite.expect(SpaceHopSupport.windowsHiddenWithApp(windowTags: hiddenAppAnswer) == [1],
+               "of a window query's answer only the window hidden with its app counts, not a closed, shown or helper one")
+        // Every window read on macOS 27.2 carried some tag, so rows of zeros,
+        // or no rows, mean the server withheld the answer.
+        suite.expect(SpaceHopSupport.windowsHiddenWithApp(windowTags: [1: 0, 2: 0]) == nil
+               && SpaceHopSupport.windowsHiddenWithApp(windowTags: [:]) == nil,
+               "an answer without any tag keeps the earlier rule instead of dropping every window of a hidden app")
+        // The bridge's window query cannot run here, so its answer must go
+        // through that filter, and only on macOS 26 and later.
+        let hiddenWithAppBody = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "static func windowsHiddenWithApp(among windowIDs: [CGWindowID]) -> Set<CGWindowID>? {\n")
+            .dropFirst().first?
+            .components(separatedBy: "\n    }\n").first?
+            .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
+        suite.expect(hiddenWithAppBody == [
+            "guard #available(macOS 26.0, *), let tags = windowTags(of: windowIDs) else { return nil }",
+            "return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)"],
+               "the bridge reads windows hidden with their app through the tested filter, only from macOS 26")
         // Tags of another app's windows on macOS 27.2: one that opts out of
         // cycling, Safari's 517×132 auxiliary surface, and an ordinary window.
         suite.expect(SpaceHopSupport.isExcludedFromWindowCycle(windowTags: windowTags([0, 9, 13, 18, 19, 22, 32, 45]))

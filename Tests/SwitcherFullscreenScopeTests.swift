@@ -57,7 +57,7 @@ enum SwitcherFullscreenScopeTests {
             init(_ windows: [(id: CGWindowID, tags: UInt64)]) { self.windows = windows }
         }
         struct WindowQuery {
-            let query: (UInt32, CFArray, Int32) -> Unmanaged<CFTypeRef>?
+            let query: (UInt32, CFArray, UInt64) -> Unmanaged<CFTypeRef>?
             let windows: (CFTypeRef) -> Unmanaged<CFTypeRef>?
             let advance: (CFTypeRef) -> Bool
             let windowID: (CFTypeRef) -> UInt32

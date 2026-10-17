@@ -210,8 +210,10 @@ enum SpaceWindowBridge {
 
     // MARK: - Window tags
 
+    // The last argument is a set of options, not a window count. Bit 0 asks
+    // for titles, which nothing here reads.
     private typealias WindowQueryFunction =
-        @convention(c) (ConnectionID, CFArray, Int32) -> Unmanaged<CFTypeRef>?
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Unmanaged<CFTypeRef>?
     private typealias WindowQueryResultFunction = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
     private typealias IteratorAdvanceFunction = @convention(c) (CFTypeRef) -> Bool
     private typealias IteratorWindowIDFunction = @convention(c) (CFTypeRef) -> UInt32
@@ -248,7 +250,7 @@ enum SpaceWindowBridge {
         // An empty list would answer with unrelated windows.
         guard !windowIDs.isEmpty else { return [:] }
         guard let query = windowQuery.query(connection, windowIDs.map { NSNumber(value: $0) } as CFArray,
-                                            Int32(clamping: windowIDs.count))?.takeRetainedValue(),
+                                            0)?.takeRetainedValue(),
               let iterator = windowQuery.windows(query)?.takeRetainedValue()
         else { return nil }
         var tags: [CGWindowID: UInt64] = [:]
@@ -266,12 +268,12 @@ enum SpaceWindowBridge {
     }
 
     /// The windows among `windowIDs` that the window server hid along with
-    /// their app. Nil when the window query is missing, and before macOS 26,
-    /// where the tag has not been observed, so callers keep their earlier
-    /// behavior.
+    /// their app. Nil when the window query is missing or answers without any
+    /// tag, and before macOS 26, where the tag has not been observed, so
+    /// callers keep their earlier behavior.
     static func windowsHiddenWithApp(among windowIDs: [CGWindowID]) -> Set<CGWindowID>? {
         guard #available(macOS 26.0, *), let tags = windowTags(of: windowIDs) else { return nil }
-        return Set(tags.filter { SpaceHopSupport.isHiddenWithApp(windowTags: $0.value) }.keys)
+        return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)
     }
 
     // MARK: - Fronting a specific window
