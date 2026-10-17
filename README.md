@@ -129,6 +129,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
 - **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
+- **Browser picker.** Choose the browser, or a Chrome, Edge, Firefox or Zen profile, for each link you click, or send sites to one automatically.
 - **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
 
 ### Everyday tools
