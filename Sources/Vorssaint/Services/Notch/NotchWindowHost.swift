@@ -1088,11 +1088,15 @@ private final class NotchCanvas: NSView {
     }
 
     func setActivationArea(_ rect: CGRect, title: String, willPress: @escaping () -> Void, activate: @escaping () -> Void) {
-        activationRect = rect
         activationButton.isHidden = rect.isEmpty
         activationButton.setAccessibilityLabel(title)
         activationButton.willPress = willPress
         activationButton.activate = activate
+        // Every refresh hands the area over again, mostly unchanged. Laying
+        // out then would also run SwiftUI's pending update right here, inside
+        // the refresh, instead of once when the frame is drawn.
+        guard rect != activationRect else { return }
+        activationRect = rect
         needsLayout = true
         layoutSubtreeIfNeeded()
     }

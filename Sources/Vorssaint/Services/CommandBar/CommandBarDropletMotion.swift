@@ -52,6 +52,13 @@ struct CommandBarDropletMotion: Equatable {
     static let rewindLength: TimeInterval = 0.2
     private static let rate: Double = 120
 
+    /// How long a pick waits, once the bar has closed, before it runs: until
+    /// the drop rising back ends at `climbEnds`, or about a frame when nothing
+    /// rises, so the close is committed first.
+    static func runDelay(climbEnds: CFTimeInterval?, now: CFTimeInterval) -> TimeInterval {
+        max(1.0 / 60, (climbEnds ?? now) - now)
+    }
+
     /// The frame on screen `elapsed` seconds into the motion.
     func frameIndex(at elapsed: TimeInterval) -> Int {
         guard duration > 0 else { return 0 }
