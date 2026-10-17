@@ -551,21 +551,41 @@ enum SwitcherModelFeatureTests {
                    frontmostBundleIdentifier: nil,
                    excludedBundleIdentifiers: ["com.example.focused"]),
                "window preview capture continues away from chosen apps or without a foreground app")
-        let javaPath = "/Users/tester/Library/Application Support/minecraft/runtime/java-runtime-delta/bin/java"
+        let programPath = "/Users/tester/Games/emulator/bin/emulator"
         suite.expect(SwitcherSupport.shouldPausePreviewCapture(
             frontmostBundleIdentifier: nil,
-            frontmostExecutablePath: javaPath,
-            excludedBundleIdentifiers: ["com.example.focused", javaPath]),
+            frontmostExecutablePath: programPath,
+            excludedBundleIdentifiers: ["com.example.focused", programPath]),
                "window preview capture pauses while a listed program that is not an app is in front")
         suite.expect(!SwitcherSupport.shouldPausePreviewCapture(
             frontmostBundleIdentifier: nil,
             frontmostExecutablePath: "/Users/tester/bin/other",
+            excludedBundleIdentifiers: [programPath]),
+               "a listed path pauses only that program")
+        // A JVM that AWT registers reports the bundle identifier of Java's
+        // launcher, the same for every program that runtime runs, so the
+        // runtime picked is told apart by its path.
+        let javaPath = "/Users/tester/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home/bin/java"
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "net.java.openjdk.java",
+            frontmostExecutablePath: javaPath,
             excludedBundleIdentifiers: [javaPath])
                && !SwitcherSupport.shouldPausePreviewCapture(
-                   frontmostBundleIdentifier: "com.example.other",
-                   frontmostExecutablePath: javaPath,
+                   frontmostBundleIdentifier: "net.java.openjdk.java",
+                   frontmostExecutablePath: "/Users/tester/Library/Java/JavaVirtualMachines/zulu-21.jdk/Contents/Home/bin/java",
                    excludedBundleIdentifiers: [javaPath]),
-               "a listed path pauses only that program, never an app answering to its own bundle identifier")
+               "a Java runtime listed by its path pauses although it reports Java's bundle identifier, and no other runtime does")
+        suite.expect(SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.focused",
+            frontmostExecutablePath: "/Applications/Focused.app/Contents/MacOS/Focused",
+            excludedBundleIdentifiers: ["com.example.focused", javaPath]),
+               "an app on the list still pauses by its bundle identifier while the list also names a program by its path")
+        var appPathWasRead = false
+        _ = SwitcherSupport.shouldPausePreviewCapture(
+            frontmostBundleIdentifier: "com.example.other",
+            frontmostExecutablePath: { appPathWasRead = true; return "/Applications/Other.app/Contents/MacOS/Other" }(),
+            excludedBundleIdentifiers: ["com.example.focused"])
+        suite.expect(!appPathWasRead, "an app's path is not read while no program is listed by its path")
         suite.expect(SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [4], visibleSpaces: [3]),
                "a window whose only Space is not visible is parked on a hidden Space")
         suite.expect(!SpaceHopSupport.isParkedOnHiddenSpace(windowSpaces: [3], visibleSpaces: [3]),
@@ -3171,9 +3191,10 @@ enum SwitcherModelFeatureTests {
                                                executablePath: "/Applications/Game",
                                                apps: ["/Applications/Game"]),
                "window layout pauses for a focused executable without a bundle identifier")
-        // Java's launcher carries an Info.plist of its own, so a running JVM
-        // reports a bundle identifier that every Java program shares (issue
-        // #1009). The runtime that was picked is told apart by its path.
+        // Java's launcher carries an Info.plist of its own, and a JVM that AWT
+        // registers reports a bundle identifier that every Java program on
+        // that runtime shares (issue #1009). The runtime that was picked is
+        // told apart by its path.
         let ignoredRuntime = "/Users/tester/Library/Application Support/PrismLauncher/java/java-runtime-gamma/bin/java"
         suite.expect(WindowLayoutIgnoredApps.matches(bundleID: "net.java.openjdk.java",
                                                executablePath: ignoredRuntime,
@@ -3844,6 +3865,16 @@ enum SwitcherModelFeatureTests {
         suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
                 && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
                "a game's Java runtime on the switcher's list pauses switcher captures while it is in front")
+        // A game on LWJGL 2 (Minecraft 1.12.2 and older) starts AWT, which
+        // registers the JVM under the bundle identifier of Java's launcher.
+        let legacyRuntime = "/Users/tester/Library/Application Support/minecraft/runtime/jre-legacy/bin/java"
+        previewDefaults.lists[DefaultsKey.switcherPreviewExcludedApps] = ["com.example.game", legacyRuntime]
+        PreviewProvider.NSWorkspace.shared.frontmostApplication = .init(
+            bundleIdentifier: "net.java.openjdk.cmd", executableURL: URL(fileURLWithPath: legacyRuntime))
+        suite.expect(PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps)
+                && !PreviewProvider.captureIsPaused(excludedAppsKey: DefaultsKey.windowPreviewExcludedApps),
+               "a legacy game's Java runtime on the switcher's list pauses switcher captures while it is in front, "
+                   + "though AWT registered it under Java's bundle identifier")
         let defaultSwitcherHints = SwitcherSupport.shortcutHints(for: .switcherDefault,
                                                                  windowShortcut: .switcherWindowDefault)
         // Grave and J print the cap the active keyboard layout carries, not the

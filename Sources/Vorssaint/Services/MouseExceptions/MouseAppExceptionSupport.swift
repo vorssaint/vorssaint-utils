@@ -57,12 +57,14 @@ enum MouseAppExceptionSupport {
         let layer: Int
         let alpha: Double
         let processID: Int32
+        let number: CGWindowID
 
-        init(frame: CGRect, layer: Int, alpha: Double = 1, processID: Int32) {
+        init(frame: CGRect, layer: Int, alpha: Double = 1, processID: Int32, number: CGWindowID = 0) {
             self.frame = frame
             self.layer = layer
             self.alpha = alpha
             self.processID = processID
+            self.number = number
         }
     }
 
@@ -79,22 +81,26 @@ enum MouseAppExceptionSupport {
             return Window(frame: CGRect(x: x, y: y, width: width, height: height),
                           layer: layer,
                           alpha: (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1,
-                          processID: pid)
+                          processID: pid,
+                          number: (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value ?? 0)
         }
     }
 
     /// Ordinary windows sit at layer 0 and an app's floating panels at 3;
-    /// both belong to the app the user is working in. Above that is the
-    /// system's own furniture (Dock, menu bar, notifications) and below it
-    /// are windows that live under every real one, so neither ever gets the
-    /// wheel while an app window is there to take it.
+    /// both belong to the app the user is working in. Below that are windows
+    /// that live under every real one, so they never get the wheel while an
+    /// app window is there to take it. Above it sit the system's furniture
+    /// (Dock, menu bar, notifications) and overlays such as menus, whose
+    /// windows can span more than they take, so a rectangle alone cannot tell
+    /// where they take events: such a window answers only where the window
+    /// server hands it the event (`pointerSurface`).
     static let appWindowLayers = 0...3
 
     /// How long a resolved window keeps answering without asking the window
-    /// server again. Measured on this Mac: one lookup costs about 190 us
-    /// while re-checking the rectangle it produced costs about 2 ns, so a
-    /// wheel spinning inside a single window pays the lookup twice a second
-    /// instead of on every event.
+    /// server again. Measured on this Mac: the window list costs about 190 us
+    /// and each hit test about 0.1 ms, while re-checking the rectangle a
+    /// lookup produced costs about 2 ns, so a wheel spinning inside a single
+    /// window pays the lookup twice a second instead of on every event.
     static let resolveLifetime: TimeInterval = 0.5
 
     /// The window a click or a wheel would reach at `point`. The list arrives
@@ -110,6 +116,40 @@ enum MouseAppExceptionSupport {
                 && window.processID != ownProcessID
                 && window.frame.contains(point)
         }
+    }
+
+    /// The surface that takes the event at the pointer, when one does:
+    /// another process's window above the app band that the window server
+    /// hands the click or the wheel to, such as a menu, a banner or
+    /// Launchpad. It answers instead of the app window it covers, which gets
+    /// nothing. Launchpad is the case people meet: the Dock draws it over
+    /// every app window, and the layer rule in `pointerWindow` named the app
+    /// hidden behind it (issue #3135). The window server's own hit test
+    /// decides which window that is, not a rectangle, since the Dock's window
+    /// spans the whole screen and lets everything outside the Dock through. A
+    /// window of this app is never a surface, as above.
+    static func pointerSurface(in windows: [Window],
+                               receivingWindowID: CGWindowID?,
+                               ownProcessID: Int32) -> Window? {
+        guard let receivingWindowID, receivingWindowID != 0 else { return nil }
+        return windows.first { window in
+            window.number == receivingWindowID
+                && window.layer > appWindowLayers.upperBound
+                && window.processID != ownProcessID
+        }
+    }
+
+    static let dockBundleID = "com.apple.dock"
+    /// Launchpad.app only asks the Dock to show the grid, which the Dock
+    /// draws itself, so a listed Launchpad stands for every Dock surface: the
+    /// grid, and also the Dock's bar, its stacks and anything else it draws.
+    /// The grid's layer could tell it apart, but that layer has been measured
+    /// on one macOS version only.
+    static let launchpadBundleID = "com.apple.launchpad.launcher"
+
+    /// What a surface answers to: its owner, plus Launchpad for the Dock.
+    static func surfaceIdentities(_ ownerIdentities: [String]) -> [String] {
+        ownerIdentities.contains(dockBundleID) ? ownerIdentities + [launchpadBundleID] : ownerIdentities
     }
 
     /// Whether the previous answer still applies. A window answers while the
@@ -141,8 +181,8 @@ enum MouseAppExceptionSupport {
         return exceptions.contains(bundleID)
     }
 
-    /// A program that is not packaged as an app has no bundle identifier at
-    /// all — the Java process a game launcher starts is the one people ask
+    /// A program that is not packaged as an app can have no bundle identifier
+    /// at all — the Java process a game launcher starts is the one people ask
     /// about (issue #1009) — so the path of the file being run stands in as
     /// its identity. A stored path is told apart from a bundle identifier by
     /// its leading slash, which a bundle identifier never has, so one list
@@ -175,11 +215,13 @@ enum MouseAppExceptionSupport {
     /// Everything a running program answers to on a list: its bundle
     /// identifier when it has one, and the file being run while a list names a
     /// program by its path. Java's launcher carries an Info.plist of its own,
-    /// so a running JVM reports a bundle identifier, the same one for every
-    /// Java program (measured on this Mac: net.java.openjdk.java for Temurin
-    /// 25). A runtime picked by its path (issue #1009) is told apart by that
-    /// path alone. The path is not even looked at while no list names one:
-    /// this runs under the event taps.
+    /// and a JVM reports its identifier once AWT registers the app, the same
+    /// one for every Java program that runtime runs (measured on this Mac:
+    /// net.java.openjdk.java for an AWT program on Temurin 25). A JVM started
+    /// with -XstartOnFirstThread, as Minecraft 1.13 and later is on macOS,
+    /// skips that registration and reports none. A runtime picked by its path
+    /// (issue #1009) is told apart by that path alone. The path is not even
+    /// looked at while no list names one: this runs under the event taps.
     static func identities(bundleID: String?,
                            executablePath: @autoclosure () -> String?,
                            readsPath: Bool) -> [String] {

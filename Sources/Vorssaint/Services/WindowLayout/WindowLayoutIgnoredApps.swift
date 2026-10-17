@@ -43,8 +43,8 @@ final class WindowLayoutIgnoredApps: ObservableObject {
     }
 
     /// A program listed by its path is matched by that path even when it
-    /// reports a bundle identifier, as Java's launcher does (issue #1009). The
-    /// path is read only while the list names one.
+    /// reports a bundle identifier, as a JVM does once AWT registers it
+    /// (issue #1009). The path is read only while the list names one.
     static func matches(bundleID: String?, executablePath: @autoclosure () -> String?, apps: [String]) -> Bool {
         MouseAppExceptionSupport.identities(
             bundleID: bundleID,
