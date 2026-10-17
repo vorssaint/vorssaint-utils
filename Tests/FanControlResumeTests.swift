@@ -41,6 +41,9 @@ enum FanControlResumeContract {
         var events: [String] = []
         func refreshAccessState() {}
         func applyConfiguration(_ configuration: FanControlConfiguration) { applied.append(configuration) }
+        func applyConfiguration(_ configuration: FanControlConfiguration, resumeAttempt: Int?) {
+            applied.append(configuration)
+        }
         func restoreAutomatic() { events.append("restore") }
         func restoreAutomatic(supersedingCurrentRequest: Bool) { events.append("restore superseding") }
         func restoreThenUnregister() { events.append("unregister") }

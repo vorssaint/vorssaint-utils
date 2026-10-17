@@ -36,6 +36,10 @@ enum FeatureCatalogTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
+        func near(_ actual: Double?, _ expected: Double, tolerance: Double = 0.001) -> Bool {
+            guard let actual else { return false }
+            return abs(actual - expected) <= tolerance
+        }
         // MARK: Cleaning-mode unlock gesture
 
         let escapeKeyCode: Int64 = 53
@@ -987,6 +991,7 @@ enum FeatureCatalogTests {
         suite.expect(FanControlPolicy.validConfiguration(.manual(level: 0))
                 && FanControlPolicy.validConfiguration(.manual(level: 100))
                 && FanControlPolicy.validConfiguration(.curve([defaultCurve]))
+                && FanControlPolicy.validConfiguration(.adaptive())
                 && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
                                                              temperature: 40) == 0
                 && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
@@ -996,6 +1001,345 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.interpolatedCoolingLevel(points: defaultCurve.points,
                                                              temperature: 80) == 100,
                "the default curve starts at 50 degrees, reaches maximum at 70 and rounds safely up")
+
+        let adaptiveFans = [
+            FanControlFanReading(index: 0, actualRPM: 2_100,
+                                 minimumRPM: 1_500, maximumRPM: 5_500,
+                                 targetRPM: 2_100, isManuallyControlled: true),
+            FanControlFanReading(index: 1, actualRPM: 2_100,
+                                 minimumRPM: 1_500, maximumRPM: 5_500,
+                                 targetRPM: 2_100, isManuallyControlled: true),
+        ]
+        // The shape tests keep a fixed tuning, so retuning the presets leaves them alone.
+        let reference = FanControlAdaptiveSettings(sweetSpotLevel: 15, maximumLevel: 100,
+                                                   rampStartTemperature: 55,
+                                                   maximumTemperature: 90)
+        func tuned(_ sweetSpot: Int, _ maximum: Int,
+                   _ rampStart: Int = 55, _ maximumTemperature: Int = 90) -> FanControlAdaptiveSettings {
+            FanControlAdaptiveSettings(sweetSpotLevel: sweetSpot, maximumLevel: maximum,
+                                       rampStartTemperature: rampStart,
+                                       maximumTemperature: maximumTemperature)
+        }
+        let legacyQuiet = tuned(10, 80, 60, 95)
+        suite.expect(near(FanControlAdaptivePolicy.baseLevel(temperature: 40, settings: reference), 0)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 45, settings: reference), 0)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 50, settings: reference), 0.075)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 55, settings: reference), 0.15)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 72.5, settings: reference), 0.575)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 90, settings: reference), 1)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 95, settings: reference), 1),
+               "adaptive control idles at the fan minimum, reaches the sweet spot at 55 and the maximum at 90 degrees")
+        suite.expect(FanControlAdaptiveProfile.allCases.allSatisfy {
+                        FanControlPolicy.validConfiguration(.adaptive($0.settings))
+                            && FanControlAdaptiveProfile(matching: $0.settings) == $0
+                    }
+                && FanControlAdaptiveProfile(matching: tuned(20, 80)) == nil
+                && !FanControlPolicy.validConfiguration(.adaptive(tuned(80, 80)))
+                && !FanControlPolicy.validConfiguration(.adaptive(tuned(15, 105)))
+                && !FanControlPolicy.validConfiguration(.adaptive(tuned(15, 100, 55, 62)))
+                && !FanControlPolicy.validConfiguration(.adaptive(tuned(15, 100, 55, 101)))
+                && FanControlAdaptivePolicy.normalized(tuned(80, 80)) == .balanced
+                && FanControlAdaptivePolicy.normalized(tuned(20, 80)) == tuned(20, 80),
+               "adaptive profiles are valid tunings, and a tuning the fans or the chip cannot honor is refused")
+        suite.expect(near(FanControlAdaptivePolicy.baseLevel(temperature: 60,
+                                                             settings: tuned(20, 80, 60, 95)), 0.2)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 77.5,
+                                                           settings: tuned(20, 80, 60, 95)), 0.5)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 95,
+                                                           settings: tuned(20, 80, 60, 95)), 0.8)
+                && near(FanControlAdaptivePolicy.baseLevel(temperature: 50,
+                                                           settings: tuned(20, 80, 60, 95)), 0),
+               "adaptive tuning moves the sweet spot, the maximum and both thresholds")
+        suite.expect(FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                       fraction: 0.15) == 2_100
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_200, maximum: 6_000,
+                                                     fraction: 0.15) == 1_920
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                     fraction: 0) == 1_500
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                     fraction: 1) == 5_500
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                     fraction: 1.01) == nil
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                     fraction: -0.01) == nil
+                && FanControlPolicy.coolingTargetRPM(minimum: 1_500, maximum: 5_500,
+                                                     fraction: .nan) == nil,
+               "an adaptive level maps onto each fan's own range and can never leave it")
+        let startTarget = FanControlAdaptiveController().nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 60)],
+            settings: tuned(20, 80, 60, 95),
+            now: 0
+        )
+        suite.expect(near(startTarget, 0.2),
+                     "adaptive controller holds the configured sweet spot at the start temperature")
+        let sensorPriorityTarget = FanControlAdaptiveController().nextLevel(
+            temperatures: [
+                .init(source: .hottestSoC, celsius: 66),
+                .init(source: .averageCPU, celsius: 55),
+            ],
+            settings: reference, now: 0
+        )
+        suite.expect(near(sensorPriorityTarget, 0.15),
+                     "adaptive control follows CPU Core Average while the hottest sensor stays within its usual spread")
+        let hotspotReadings: [FanControlTemperatureReading] = [
+            .init(source: .hottestSoC, celsius: 85),
+            .init(source: .averageCPU, celsius: 55),
+        ]
+        suite.expect(near(FanControlAdaptiveController().nextLevel(temperatures: hotspotReadings,
+                                                                    settings: reference, now: 0), 0.575)
+                && FanControlAdaptivePolicy.hotspotLeads(hotspotReadings, settings: reference)
+                && !FanControlAdaptivePolicy.hotspotLeads([
+                    .init(source: .hottestSoC, celsius: 66),
+                    .init(source: .averageCPU, celsius: 55),
+                ], settings: reference)
+                && !FanControlAdaptivePolicy.hotspotLeads([
+                    .init(source: .averageCPU, celsius: 85),
+                ], settings: reference),
+               "adaptive control answers a hotspot far above the CPU Core Average and can tell when it leads")
+        func guardedLevel(_ temperature: Double, hotspot: Double?,
+                          settings: FanControlAdaptiveSettings = reference) -> Double? {
+            FanControlAdaptivePolicy.baseLevel(temperature: temperature,
+                                               hotspotTemperature: hotspot,
+                                               settings: settings)
+        }
+        suite.expect(near(guardedLevel(55, hotspot: 69), 0.15)
+                && near(guardedLevel(55, hotspot: 70), 0.15)
+                && near(guardedLevel(55, hotspot: 85), 0.575)
+                && near(guardedLevel(55, hotspot: 100), 1)
+                && near(guardedLevel(55, hotspot: 120), 1)
+                && near(guardedLevel(90, hotspot: 60), 1)
+                && near(guardedLevel(60, hotspot: 61), 0.15 + 0.85 * 5 / 35)
+                && near(guardedLevel(40, hotspot: 69), 0)
+                && near(guardedLevel(50, hotspot: 69), 0.075),
+               "the hotspot guard starts fifteen degrees above the ramp, only ever raises the level and leaves the quiet range alone")
+        suite.expect(near(guardedLevel(50, hotspot: 96, settings: tuned(15, 100, 92, 100)), 0.575)
+                && near(guardedLevel(50, hotspot: 100, settings: legacyQuiet), 0.8)
+                && near(guardedLevel(50, hotspot: 87.5, settings: legacyQuiet), 0.45)
+                && near(guardedLevel(55, hotspot: .nan), 0.15)
+                && near(guardedLevel(55, hotspot: 200), 0.15),
+               "the hotspot guard reaches the maximum by 100 degrees whatever the thresholds and ignores an implausible reading")
+        suite.expect(FanControlAdaptivePolicy.hotspotTemperature(from: [
+                        .init(source: .averageCPU, celsius: 95),
+                        .init(source: .averageSoC, celsius: 95),
+                        .init(source: .hottestCPU, celsius: 71),
+                        .init(source: .hottestGPU, celsius: 78),
+                        .init(source: .hottestSoC, celsius: 78),
+                    ]) == 78
+                && FanControlAdaptivePolicy.hotspotTemperature(from: [
+                    .init(source: .hottestGPU, celsius: 200),
+                    .init(source: .hottestCPU, celsius: 64),
+                ]) == 64
+                && FanControlAdaptivePolicy.hotspotTemperature(from: [
+                    .init(source: .averageCPU, celsius: 70),
+                ]) == nil,
+               "the hotspot is the hottest chip sensor and ignores averages and implausible readings")
+        let legacyAdaptiveJSON = #"{"curves":[],"manualLevel":100,"mode":"adaptive"}"#
+        let decodedLegacyAdaptive = legacyAdaptiveJSON.data(using: .utf8)
+            .flatMap { try? JSONDecoder().decode(FanControlConfiguration.self, from: $0) }
+        suite.expect(decodedLegacyAdaptive == .adaptive(.balanced),
+                     "a configuration stored without adaptive tuning decodes with the balanced profile")
+        let adaptiveController = FanControlAdaptiveController()
+        let lowTarget = adaptiveController.nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 40)],
+            settings: reference, now: 0
+        )
+        let fastRiseTarget = adaptiveController.nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 65)],
+            settings: reference, now: 1
+        )
+        suite.expect(lowTarget == 0
+                && fastRiseTarget == 0,
+               "adaptive control ignores a short CPU temperature spike")
+        let urgentController = FanControlAdaptiveController()
+        _ = urgentController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 40)], settings: reference, now: 0)
+        let urgentAverage = urgentController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 91)], settings: reference, now: 1)
+        urgentController.reset()
+        _ = urgentController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 40),
+                           .init(source: .hottestCPU, celsius: 50)], settings: reference, now: 0)
+        let belowUrgentHotspot = urgentController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 40),
+                           .init(source: .hottestCPU, celsius: 99)], settings: reference, now: 1)
+        let urgentHotspot = urgentController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 40),
+                           .init(source: .hottestCPU, celsius: 100)], settings: reference, now: 2)
+        suite.expect(urgentAverage == 1
+                && (belowUrgentHotspot ?? 1) < 0.1
+                && urgentHotspot == 1,
+               "readings that already call for the maximum speed skip the filters and the ramp")
+
+        let adaptiveSnapshot = FanControlSnapshot(
+            fans: adaptiveFans,
+            isCooling: true,
+            endsAt: nil,
+            stopReason: nil,
+            coolingLevel: nil,
+            configuration: .adaptive(),
+            temperatures: [.init(source: .hottestSoC, celsius: 55)]
+        )
+        var history = FanControlHistory(capacity: 2)
+        history.append(snapshot: adaptiveSnapshot, timestamp: 10)
+        var warmerSnapshot = adaptiveSnapshot
+        warmerSnapshot.temperatures = [.init(source: .hottestSoC, celsius: 60)]
+        warmerSnapshot.fans = adaptiveFans.map {
+            FanControlFanReading(index: $0.index, actualRPM: 2_050,
+                                 minimumRPM: $0.minimumRPM, maximumRPM: $0.maximumRPM,
+                                 targetRPM: 2_250, isManuallyControlled: true)
+        }
+        history.append(snapshot: warmerSnapshot, timestamp: 11)
+        history.append(snapshot: warmerSnapshot, timestamp: 12)
+        suite.expect(history.samples.count == 2
+                && history.samples.first?.timestamp == 11
+                && history.samples.last?.temperature == 60
+                && history.samples.last?.actualRPM == 2_050,
+               "adaptive history keeps a bounded temperature and RPM window")
+        var systemSnapshot = warmerSnapshot
+        systemSnapshot.configuration = FanControlConfiguration(mode: .system,
+                                                               manualLevel: 100,
+                                                               curves: [])
+        history.append(snapshot: systemSnapshot, timestamp: 13)
+        suite.expect(history.samples.count == 2,
+                     "adaptive history ignores snapshots outside adaptive cooling")
+        adaptiveController.reset()
+        let warmTarget = adaptiveController.nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 85)],
+            settings: reference, now: 0
+        )
+        let coolingTarget = adaptiveController.nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 40)],
+            settings: reference, now: 1
+        )
+        suite.expect(near(warmTarget, 0.15 + 0.85 * 30 / 35)
+                && near(coolingTarget, 0.15 + 0.85 * 30 / 35 - 0.015),
+               "adaptive control lowers the fans gradually to avoid audible oscillation")
+        // A running control is retuned in place: a lower maximum is approached
+        // at the fall rate instead of being dropped onto.
+        var retunedSettings = legacyQuiet
+        retunedSettings.sensitivity = .standard
+        let retunedTarget = adaptiveController.nextLevel(
+            temperatures: [.init(source: .hottestSoC, celsius: 85)],
+            settings: retunedSettings,
+            now: 2
+        )
+        suite.expect(near(retunedTarget, 0.15 + 0.85 * 30 / 35 - 0.03),
+                     "retuning a running adaptive control ramps to the new settings")
+        // Ticks are never exactly one second apart. Falling by less than the write
+        // deadband per tick must not stall the descent.
+        let jitterController = FanControlAdaptiveController()
+        var jitterUptime = 0.0
+        _ = jitterController.nextLevel(
+            temperatures: [.init(source: .averageCPU, celsius: 85)],
+            settings: reference, now: jitterUptime
+        )
+        var jitterTarget: Double?
+        for _ in 0..<40 {
+            jitterUptime += 0.6
+            jitterTarget = jitterController.nextLevel(
+                temperatures: [.init(source: .averageCPU, celsius: 40)],
+                settings: reference, now: jitterUptime
+            )
+        }
+        suite.expect((jitterTarget ?? .infinity) < 0.55,
+                     "adaptive control keeps lowering the fans when a tick moves less than the write deadband")
+        let evenTicks = FanControlAdaptiveController()
+        let sparseTicks = FanControlAdaptiveController()
+        for (index, uptime) in [0.0, 1.0, 2.0].enumerated() {
+            _ = evenTicks.nextLevel(
+                temperatures: [.init(source: .averageCPU, celsius: index == 0 ? 40 : 80)],
+                settings: reference, now: uptime
+            )
+        }
+        for (index, uptime) in [0.0, 2.0].enumerated() {
+            _ = sparseTicks.nextLevel(
+                temperatures: [.init(source: .averageCPU, celsius: index == 0 ? 40 : 80)],
+                settings: reference, now: uptime
+            )
+        }
+        suite.expect(near(evenTicks.filteredTemperature,
+                          sparseTicks.filteredTemperature ?? .nan, tolerance: 1e-9),
+                     "the adaptive temperature filter follows elapsed time, not the number of ticks")
+        let risingFilter = FanControlAdaptiveController()
+        let fallingFilter = FanControlAdaptiveController()
+        _ = risingFilter.nextLevel(temperatures: [.init(source: .averageCPU, celsius: 50)], settings: reference, now: 0)
+        _ = risingFilter.nextLevel(temperatures: [.init(source: .averageCPU, celsius: 70)], settings: reference, now: 5)
+        _ = fallingFilter.nextLevel(temperatures: [.init(source: .averageCPU, celsius: 70)], settings: reference, now: 0)
+        _ = fallingFilter.nextLevel(temperatures: [.init(source: .averageCPU, celsius: 50)], settings: reference, now: 5)
+        suite.expect((risingFilter.filteredTemperature ?? 0) - 50
+                        > 70 - (fallingFilter.filteredTemperature ?? 0) + 1,
+                     "the adaptive filter follows rising heat sooner than it lets go of it")
+        func levelAfterHeat(_ sensitivity: FanControlAdaptiveSensitivity) -> Double {
+            var settings = reference
+            settings.sensitivity = sensitivity
+            let controller = FanControlAdaptiveController()
+            var level = 0.0
+            for tick in 0..<20 {
+                level = controller.nextLevel(
+                    temperatures: [.init(source: .averageCPU, celsius: tick < 5 ? 45 : 75)],
+                    settings: settings, now: Double(tick)) ?? 0
+            }
+            return level
+        }
+        suite.expect(levelAfterHeat(.relaxed) < levelAfterHeat(.standard)
+                && levelAfterHeat(.standard) < levelAfterHeat(.responsive)
+                && FanControlAdaptiveSensitivity.allCases.allSatisfy {
+                    FanControlPolicy.validConfiguration(.adaptive(
+                        FanControlAdaptiveSettings(sweetSpotLevel: 15, maximumLevel: 100,
+                                                   rampStartTemperature: 55,
+                                                   maximumTemperature: 90, sensitivity: $0)))
+                },
+               "a more responsive adaptive control follows the same heat sooner")
+        let legacySettingsJSON = #"{"curves":[],"manualLevel":100,"mode":"adaptive","adaptive":{"sweetSpotLevel":15,"maximumLevel":100,"rampStartTemperature":55,"maximumTemperature":90}}"#
+        let decodedLegacySettings = legacySettingsJSON.data(using: .utf8)
+            .flatMap { try? JSONDecoder().decode(FanControlConfiguration.self, from: $0) }
+        suite.expect(decodedLegacySettings == .adaptive(reference),
+                     "adaptive tuning stored without a sensitivity keeps the standard response")
+        func settledTarget(from start: Double, to end: Double) -> Double? {
+            let controller = FanControlAdaptiveController()
+            var uptime = 0.0
+            var target: Double?
+            for step in 0..<520 {
+                target = controller.nextLevel(
+                    temperatures: [.init(source: .averageCPU, celsius: step < 120 ? start : end)],
+                    settings: reference, now: uptime
+                )
+                uptime += 1
+            }
+            return target
+        }
+        let approachTemperatures = Array(stride(from: 60.0, through: 75.0, by: 1.0))
+        suite.expect(approachTemperatures.allSatisfy { settledTarget(from: $0, to: 95) == 1 }
+                && approachTemperatures.allSatisfy { settledTarget(from: $0, to: 40) == 0 },
+               "adaptive control settles exactly on its maximum and on the fan minimum, however it got there")
+        let wobbleController = FanControlAdaptiveController()
+        var wobbleTargets: [Double] = []
+        for tick in 0..<120 {
+            wobbleTargets.append(wobbleController.nextLevel(
+                temperatures: [.init(source: .averageCPU,
+                                     celsius: 70 + (tick.isMultiple(of: 2) ? 0.3 : -0.3))],
+                settings: reference, now: Double(tick)
+            ) ?? 0)
+        }
+        suite.expect(Set(wobbleTargets).count == 1,
+                     "adaptive control does not rewrite the fan target for sensor wobble")
+        func hotspotRun(hotTicks: Range<Int>, total: Int) -> Double? {
+            let controller = FanControlAdaptiveController()
+            var target: Double?
+            for tick in 0..<total {
+                let hot = hotTicks.contains(tick) ? 90.0 : 60.0
+                target = controller.nextLevel(
+                    temperatures: [.init(source: .averageCPU, celsius: 55),
+                                   .init(source: .hottestCPU, celsius: hot),
+                                   .init(source: .hottestSoC, celsius: hot)],
+                    settings: reference, now: Double(tick)
+                )
+            }
+            return target
+        }
+        suite.expect((hotspotRun(hotTicks: 30..<120, total: 120) ?? 0) > 0.68
+                && near(hotspotRun(hotTicks: 30..<33, total: 60), 0.15),
+               "a sustained hotspot raises the level while the average sits at the sweet spot, a brief one does not")
         let coolingTemperature = [
             FanControlTemperatureReading(source: .hottestSoC, celsius: 59),
         ]
@@ -1037,11 +1381,15 @@ enum FeatureCatalogTests {
                "stored curves reject duplicate sensors, unsafe slopes and malformed data")
         let resumedManual = FanControlConfiguration.manual(level: 100)
         let resumedCurves = FanControlConfiguration.curve([defaultCurve, cpuCurve])
+        let resumedAdaptive = FanControlConfiguration.adaptive()
         suite.expect(FanControlConfiguration.decodeResume(
                     FanControlConfiguration.encodeResume(resumedManual) ?? "") == resumedManual
                 && FanControlConfiguration.decodeResume(
                     FanControlConfiguration.encodeResume(resumedCurves) ?? "") == resumedCurves,
                "a resumed manual speed or curve comes back exactly as the user applied it")
+        suite.expect(FanControlConfiguration.decodeResume(
+                    FanControlConfiguration.encodeResume(resumedAdaptive) ?? "") == resumedAdaptive,
+               "adaptive control can resume with its algorithm instead of a stored curve")
         suite.expect(FanControlConfiguration.encodeResume(
                     FanControlConfiguration(mode: .system, manualLevel: 100, curves: [])) == nil
                 && FanControlConfiguration.encodeResume(.manual(level: 37)) == nil
