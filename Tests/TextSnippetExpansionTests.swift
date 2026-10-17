@@ -11,10 +11,13 @@ import CoreGraphics
 enum TextSnippetExpansionTests {
     static let syntheticMarker: Int64 = 1
     /// Everything the routine does, in order: "ask" when it reads the focused
-    /// field, "⌫" for each backspace, typed text as itself, "key N" for any
-    /// other key, and the stand-in paste's own steps.
+    /// field's selection, "ask text" with the range when it reads the text
+    /// before it, "⌫" for each backspace, typed text as itself, "key N" for
+    /// any other key, and the stand-in paste's own steps.
     static var log: [String] = []
     static var focusedSelection: (range: NSRange, textLength: Int)?
+    static var textBefore: String?
+    static var ownWindowIsKey = false
 
     final class CGEventSource {
         var userData: Int64 = 0
@@ -50,10 +53,17 @@ enum TextSnippetExpansionTests {
     }
 
     enum SelectedTextReader {
-        static func focusedTextSelection(processID: pid_t,
-                                         timeout: Float) -> (range: NSRange, textLength: Int)? {
+        struct FocusedTextSelection {
+            let range: NSRange
+            let textLength: Int
+            func text(in range: NSRange) -> String? {
+                log.append("ask text \(range.location)..<\(NSMaxRange(range))")
+                return textBefore
+            }
+        }
+        static func focusedTextSelection(processID: pid_t, timeout: TimeInterval) -> FocusedTextSelection? {
             log.append("ask")
-            return focusedSelection
+            return focusedSelection.map { FocusedTextSelection(range: $0.range, textLength: $0.textLength) }
         }
     }
 
@@ -73,39 +83,81 @@ enum TextSnippetExpansionTests {
     }
 
     static func run(_ suite: TestSuite) {
-        defer { log = []; focusedSelection = nil }
+        func reset() {
+            log = []
+            focusedSelection = nil
+            textBefore = nil
+            ownWindowIsKey = false
+        }
+        defer { reset() }
         let completion = (range: NSRange(location: 6, length: 2), textLength: 8)
         let deletes = { (count: Int) in Array(repeating: "⌫", count: count) }
 
-        log = []
+        reset()
         focusedSelection = completion
-        _ = postExpansion(deleteCount: 6, text: "StartEnd", trailingKeyCode: nil, trailingFlags: [])
-        suite.expect(log == ["ask"] + deletes(7) + ["StartEnd"],
+        textBefore = "gitgra"
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == ["ask", "ask text 0..<6"] + deletes(7) + ["StartEnd"],
                      "an inline completion after a typed trigger takes one more backspace (issue #1377)")
 
-        log = []
-        focusedSelection = nil
-        _ = postExpansion(deleteCount: 6, text: "StartEnd", trailingKeyCode: nil, trailingFlags: [])
+        reset()
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
         suite.expect(log == ["ask"] + deletes(6) + ["StartEnd"],
                      "a field without a completion gets exactly the trigger's backspaces")
 
-        log = []
+        reset()
+        focusedSelection = (range: NSRange(location: 6, length: 4), textLength: 31)
+        textBefore = "gitgra"
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == ["ask"] + deletes(6) + ["StartEnd"],
+                     "a selection short of the end, like a terminal's scrollback, keeps the trigger's backspaces")
+
+        reset()
+        ownWindowIsKey = true
         focusedSelection = completion
-        _ = postExpansion(deleteCount: 5, text: "test123", trailingKeyCode: CGKeyCode(kVK_Space),
-                          trailingFlags: [], trailingText: " ")
-        suite.expect(log == ["ask"] + deletes(6) + ["test123", "key \(kVK_Space)"],
+        textBefore = "gitgra"
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == deletes(6) + ["StartEnd"],
+                     "a key panel of ours, like the island's scratchpad, never asks the app behind it")
+
+        reset()
+        focusedSelection = completion
+        textBefore = "search"
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == ["ask", "ask text 0..<6"] + deletes(6) + ["StartEnd"],
+                     "a selection after text other than the typed trigger, as behind a launcher, keeps the count")
+
+        reset()
+        focusedSelection = completion
+        _ = postExpansion(deleteCount: 6, typedTrigger: "gitgra", text: "StartEnd",
+                          trailingKeyCode: nil, trailingFlags: [])
+        suite.expect(log == ["ask", "ask text 0..<6"] + deletes(6) + ["StartEnd"],
+                     "a field that gives only its selection and length, or runs out of time, keeps the count")
+
+        reset()
+        focusedSelection = completion
+        textBefore = ";test"
+        _ = postExpansion(deleteCount: 5, typedTrigger: ";test", text: "test123",
+                          trailingKeyCode: CGKeyCode(kVK_Space), trailingFlags: [], trailingText: " ")
+        suite.expect(log == ["ask", "ask text 1..<6"] + deletes(6) + ["test123", "key \(kVK_Space)"],
                      "a delimiter-completed trigger clears the completion before typing and the delimiter")
 
-        log = []
+        reset()
         focusedSelection = completion
-        _ = postExpansion(deleteCount: 5, text: "first\nsecond", trailingKeyCode: CGKeyCode(kVK_Space),
-                          trailingFlags: [], trailingText: " ")
-        suite.expect(log == ["modifiers up", "ask"] + deletes(6) + ["paste first\nsecond "],
+        textBefore = ";test"
+        _ = postExpansion(deleteCount: 5, typedTrigger: ";test", text: "first\nsecond",
+                          trailingKeyCode: CGKeyCode(kVK_Space), trailingFlags: [], trailingText: " ")
+        suite.expect(log == ["modifiers up", "ask", "ask text 1..<6"] + deletes(6) + ["paste first\nsecond "],
                      "a multi-line snippet asks the field only when its backspaces go out with the paste")
 
-        log = []
+        reset()
         focusedSelection = completion
-        _ = postExpansion(deleteCount: 0, text: "StartEnd", trailingKeyCode: nil, trailingFlags: [])
+        _ = postExpansion(deleteCount: 0, typedTrigger: "", text: "StartEnd", trailingKeyCode: nil, trailingFlags: [])
         suite.expect(log == ["StartEnd"],
                      "an insertion with no trigger to clear never asks the field or deletes")
     }

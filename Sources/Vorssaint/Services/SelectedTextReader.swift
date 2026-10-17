@@ -44,34 +44,78 @@ enum SelectedTextReader {
         return Selection(text: text, fromTextMarkers: true)
     }
 
-    /// Where the focused text in the app `processID` is selected, with that
-    /// text's length, both in the UTF-16 units Accessibility counts in. Nil
-    /// when nothing is selected or the app does not say. Blocking, and
-    /// `timeout` bounds each question asked of the app.
+    /// Where a focused text is selected, with that text's length, both in the
+    /// UTF-16 units Accessibility counts in.
+    struct FocusedTextSelection {
+        let range: NSRange
+        let textLength: Int
+        fileprivate let element: AXUIElement
+        /// The uptime the questions that found the selection had to end by.
+        fileprivate let deadline: TimeInterval
+
+        /// The same element's text within `range`, asked as that range's
+        /// string, else cut from the whole value for a field that only gives
+        /// that. Nil when it answers neither, or when the time the selection
+        /// was asked with is spent. Asked the same way, never a role.
+        func text(in range: NSRange) -> String? {
+            var cfRange = CFRange(location: range.location, length: range.length)
+            if let parameter = AXValueCreate(.cfRange, &cfRange),
+               limit(element, to: deadline),
+               let text = copyString(element, kAXStringForRangeParameterizedAttribute, parameter) {
+                return text
+            }
+            // NSString counts in UTF-16 units, like the range.
+            guard limit(element, to: deadline),
+                  let value = copyString(element, kAXValueAttribute).map({ $0 as NSString }),
+                  range.location >= 0, NSMaxRange(range) <= value.length else { return nil }
+            return value.substring(with: range)
+        }
+    }
+
+    /// The selection of the focused text in the app `processID`. Nil when
+    /// nothing is selected or the app does not say, and for this process: it
+    /// answers from its main thread, so asking it from there would only wait
+    /// out the timeout. Blocking, for at most `timeout` in all: each question,
+    /// the selection's `text(in:)` included, gets what the ones before it
+    /// left, so a slow app that answers each one just in time cannot stack
+    /// them up.
     ///
-    /// Only the selection and the length are asked, never a role: a role query
-    /// switches a Chromium app's renderers into full accessibility mode for
-    /// the rest of its life (issue #953), and this is asked of whatever app
-    /// is in front.
-    static func focusedTextSelection(processID: pid_t,
-                                     timeout: Float) -> (range: NSRange, textLength: Int)? {
-        // This process answers from its main thread, so asking it from there
-        // would only wait out the timeout.
+    /// Only the selection, its length and its text are asked, never a role: a
+    /// role query switches a Chromium app's renderers into full accessibility
+    /// mode for the rest of its life (issue #953), and this is asked of
+    /// whatever app is in front.
+    static func focusedTextSelection(processID: pid_t, timeout: TimeInterval) -> FocusedTextSelection? {
         guard AXIsProcessTrusted(), processID != ProcessInfo.processInfo.processIdentifier
         else { return nil }
+        let deadline = ProcessInfo.processInfo.systemUptime + timeout
         let app = AXUIElementCreateApplication(processID)
-        AXUIElementSetMessagingTimeout(app, timeout)
-        guard let focused = copyElement(app, kAXFocusedUIElementAttribute),
-              !CFEqual(focused, app) else { return nil }
-        AXUIElementSetMessagingTimeout(focused, timeout)
         var range = CFRange()
-        guard let rawRange = copyValue(focused, kAXSelectedTextRangeAttribute),
+        guard limit(app, to: deadline),
+              let focused = copyElement(app, kAXFocusedUIElementAttribute),
+              !CFEqual(focused, app),
+              limit(focused, to: deadline),
+              let rawRange = copyValue(focused, kAXSelectedTextRangeAttribute),
               CFGetTypeID(rawRange) == AXValueGetTypeID(),
               AXValueGetValue(rawRange as! AXValue, .cfRange, &range),
               range.length > 0,
+              limit(focused, to: deadline),
               let length = copyValue(focused, kAXNumberOfCharactersAttribute) as? Int
         else { return nil }
-        return (NSRange(location: range.location, length: range.length), length)
+        return FocusedTextSelection(range: NSRange(location: range.location, length: range.length),
+                                    textLength: length,
+                                    element: focused,
+                                    deadline: deadline)
+    }
+
+    /// Gives `element` what is left until `deadline` to answer, set on each
+    /// element asked since a timeout bounds only the element it is set on.
+    /// False once nothing is left: a zero timeout means the system default,
+    /// which is seconds.
+    private static func limit(_ element: AXUIElement, to deadline: TimeInterval) -> Bool {
+        let left = deadline - ProcessInfo.processInfo.systemUptime
+        guard left > 0 else { return false }
+        AXUIElementSetMessagingTimeout(element, Float(left))
+        return true
     }
 
     // MARK: - Accessibility reading
