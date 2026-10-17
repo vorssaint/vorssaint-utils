@@ -5,7 +5,7 @@ under GPL-3.0-or-later unless stated otherwise.
 
 ## Getting started
 
-You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+You need macOS 14 or newer, on Apple Silicon or Intel, and the Xcode Command Line Tools.
 The project builds with `build.sh`, without an Xcode project or external package
 dependencies. `Package.swift` supports editor indexing; it does not assemble or
 sign the app bundle.
@@ -21,7 +21,9 @@ cd vorssaint-utils
 To install and launch the separate Developer app, use `./build.sh --dev --install`.
 It has its own preferences and permissions and does not replace the official app.
 A plain `./build.sh` builds the optimized variant used by CI; its health check is
-`./build/Vorssaint --selftest`.
+`./build/Vorssaint --selftest`. It is a universal binary for Apple Silicon and
+Intel, while `--dev` builds only the architecture of the Mac it runs on. Set
+`VORSSAINT_ARCHS` (`arm64`, `x86_64` or both) to choose the architectures.
 
 ### Stable signing
 

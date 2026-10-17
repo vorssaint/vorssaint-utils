@@ -649,6 +649,42 @@ enum MetricsFeatureTests {
         ) == nil, "A18 Pro remains unavailable when no CPU sensor answers")
         suite.expect(TemperatureSensorSelector.platform(brandString: "Generic CPU") == .generic,
                "other processors keep the generic CPU sensor path")
+        let intelPlatform = TemperatureSensorSelector.platform(
+            brandString: "Intel(R) Core(TM) i9-9980HK CPU @ 2.40GHz")
+        suite.expect(intelPlatform == .intel && TemperatureSensorSelector.hasCPUCoreSet(platform: .intel),
+               "an Intel Mac uses its own mapped CPU sensor set")
+        // An Intel sample: per-core and die sensors, the CPU proximity sensor,
+        // the GPU, a battery cell, and the power supply on the Tp prefix.
+        let intelSensors: [(key: String, value: Double)] = [
+            ("TC0P", 48.0), ("TC0D", 61.0), ("TC1C", 64.0), ("TC2C", 66.0),
+            ("TG0P", 52.0), ("TB0T", 30.0), ("Tp0P", 45.0), ("Te05", 70.0),
+        ]
+        let intelCPUReadings = intelSensors.filter {
+            TemperatureSensorSelector.isCPUTemperatureKey($0.key, platform: .intel)
+        }
+        suite.expect(intelCPUReadings.map(\.key) == ["TC0P", "TC0D", "TC1C", "TC2C"],
+               "Intel discovery reads the TC family and leaves the power supply, GPU and battery out")
+        suite.expect(intelSensors.filter {
+            TemperatureSensorSelector.isGPUTemperatureKey($0.key, platform: .intel)
+        }.map(\.key) == ["TG0P"]
+                && !TemperatureSensorSelector.isGPUTemperatureKey("TG0P", platform: .appleM1Family)
+                && TemperatureSensorSelector.isGPUTemperatureKey("Tg0D", platform: .appleM1Family),
+               "the GPU prefix follows the platform")
+        suite.expect(intelSensors.filter {
+            TemperatureSensorSelector.isTemperatureKey($0.key, platform: .intel)
+        }.map(\.key) == ["TC0P", "TC0D", "TC1C", "TC2C", "TG0P", "TB0T"],
+               "Intel temperature discovery covers CPU, GPU and battery only")
+        suite.expect(TemperatureSensorSelector.isCPUCoreKey("TCAC", platform: .intel)
+                && TemperatureSensorSelector.isCPUCoreKey("TCXC", platform: .intel)
+                && !TemperatureSensorSelector.isCPUCoreKey("TC0P", platform: .intel)
+                && !TemperatureSensorSelector.isCPUCoreKey("TC0H", platform: .intel),
+               "Intel core keys are the per-core and die sensors, not proximity")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: intelCPUReadings, platform: .intel
+        ) ?? -1, 66.0, "Intel shows the hottest core")
+        suite.expectClose(TemperatureSensorSelector.displayedCPUTemperature(
+            readings: [("TC0P", 48.0)], platform: .intel
+        ) ?? -1, 48.0, "an Intel Mac without core sensors falls back to its proximity sensor")
         suite.expect(TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM3Family)
                 && !TemperatureSensorSelector.isCPUTemperatureKey("Tf4E", platform: .appleM4Family)
                 && TemperatureSensorSelector.isCPUTemperatureKey("Tp01", platform: .appleM4Family),
