@@ -66,7 +66,7 @@ enum RecorderFeatureTests {
         suite.expect(GlobalShortcutRole.availableRoles(isAvailable: { _ in true })
                 .contains(.screenRecorder),
                "the restored recording shortcut is visible in the shortcut editor")
-        suite.expect(AppFeature.screenRecorder.group == .tools
+        suite.expect(AppFeature.screenRecorder.group == .capture
                 && AppFeature.screenRecorder.enabledKeys.isEmpty
                 && AppFeature.screenRecorder.permissions
                     == [.screenRecording, .accessibility, .audioCapture, .microphone],

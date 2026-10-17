@@ -15,6 +15,9 @@ final class FeatureRuntime: ObservableObject {
     /// Bumped on every availability change; views observing the runtime
     /// re-read the catalog when it moves.
     @Published private(set) var revision = 0
+    private var changeHistory = FeatureChangeHistory()
+    var undoCount: Int { changeHistory.undoCount }
+    var redoCount: Int { changeHistory.redoCount }
 
     /// Every feature that came to life in THIS process: available at launch
     /// or installed later in the session. A feature uninstalled mid-session
@@ -105,6 +108,7 @@ final class FeatureRuntime: ObservableObject {
     /// intrusive features nobody picked, such as focus follows mouse.
     func setAvailable(_ features: [AppFeature], _ available: Bool,
                       enablingFirstInstalls: Bool = true) {
+        let before = configurationValues()
         var changed = false
         let firstIslandInstall = available && features.contains(.notch)
             && mayFlip(.notch, to: true)
@@ -128,7 +132,10 @@ final class FeatureRuntime: ObservableObject {
         if firstIslandInstall && AppFeature.notch.isAvailable {
             UserDefaults.standard.set(true, forKey: DefaultsKey.notchInitialExtensionsInstalled)
         }
-        if changed { finishAvailabilityChange() }
+        if changed {
+            changeHistory.record(before: before, after: configurationValues())
+            finishAvailabilityChange()
+        }
     }
 
     /// Applies a hub preset: its features become the installed set, with
@@ -137,6 +144,49 @@ final class FeatureRuntime: ObservableObject {
     /// click, settings intact.
     func apply(_ preset: FeaturePreset) {
         replaceAvailable(with: preset.features, enabling: preset.enableKeys)
+    }
+
+    private func configurationValues() -> [String: Bool] {
+        let saved = savedPreferences()
+        let keys = Set(AppFeature.allCases.flatMap(\.enabledKeys))
+            .union(AppFeature.allCases.map(\.availabilityKey))
+            .union([DefaultsKey.notchInitialExtensionsInstalled])
+        return Dictionary(uniqueKeysWithValues: keys.compactMap { key in
+            (saved[key] as? Bool).map { (key, $0) }
+        })
+    }
+
+    func undoLastFeatureChange() {
+        guard let change = changeHistory.undo() else { return }
+        applyHistoryChange(change)
+    }
+
+    func redoLastFeatureChange() {
+        guard let change = changeHistory.redo() else { return }
+        applyHistoryChange(change)
+    }
+
+    private func applyHistoryChange(_ change: FeatureChangeHistory.Change) {
+        for key in change.keys { UserDefaults.standard.set(change.values[key], forKey: key) }
+        for feature in AppFeature.allCases
+        where change.keys.contains(feature.availabilityKey)
+            || feature.enabledKeys.contains(where: change.keys.contains) {
+            if feature.isAvailable { loadedThisSession.insert(feature) }
+            Self.bindings[feature]?()
+        }
+        finishAvailabilityChange()
+    }
+
+    /// Explicitly engage a feature that is included but configured off. A
+    /// reinstall by itself continues to preserve the saved off choice.
+    func turnOn(_ feature: AppFeature) {
+        guard feature.isAvailable else { return }
+        let before = configurationValues()
+        let keys = feature == .notchLiveEqualizer ? feature.enabledKeys : feature.initialEnableKeys
+        for key in keys { UserDefaults.standard.set(true, forKey: key) }
+        Self.bindings[feature]?()
+        changeHistory.record(before: before, after: configurationValues())
+        finishAvailabilityChange()
     }
 
     /// Replaces the installed set after the first-run picker. It uses the same
@@ -396,6 +446,7 @@ final class FeatureRuntime: ObservableObject {
         .monitorNetwork: { FeatureRuntime.syncMonitor() },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
+        .connectedDevices: { FeatureRuntime.syncMonitor() },
         .fanControl: {
             SystemMonitor.shared.planDidChange()
             let defaults = UserDefaults.standard

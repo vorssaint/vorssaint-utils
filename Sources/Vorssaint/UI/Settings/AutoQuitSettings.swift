@@ -11,8 +11,8 @@ struct AutoQuitSettings: View {
     @State private var showingAppPicker = false
 
     var body: some View {
-        Form {
-            Section {
+        SettingsPageContent(feature: .autoQuit) {
+            SettingsCard {
                 Toggle(l10n.s.autoQuitEnable, isOn: $enabled)
                     .onChange(of: enabled) { _, _ in
                         AutoQuitService.shared.syncWithPreferences()
@@ -27,7 +27,7 @@ struct AutoQuitSettings: View {
                 }
             }
 
-            Section(l10n.s.autoQuitHowTitle) {
+            SettingsCard(title: l10n.s.autoQuitHowTitle) {
                 bullet("rectangle.badge.xmark", l10n.s.autoQuitStep1)
                 bullet("bolt.fill", l10n.s.autoQuitStep2)
                 Text(l10n.s.autoQuitPredictableNote)
@@ -42,7 +42,7 @@ struct AutoQuitSettings: View {
             // The exception list has one reader, the window check, and that only
             // runs while the feature does. With the switch off every edit here
             // is a no-op, so the list follows it.
-            Section(l10n.s.autoQuitExceptionsTitle) {
+            SettingsCard(title: l10n.s.autoQuitExceptionsTitle) {
                 if sortedExceptions.isEmpty {
                     Text(l10n.s.autoQuitExceptionsEmpty)
                         .font(.callout)
@@ -84,12 +84,11 @@ struct AutoQuitSettings: View {
             }
 
             if enabled, !permissions.accessibility {
-                Section(l10n.s.permissionRequired) {
+                SettingsCard(title: l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
             }
         }
-        .formStyle(.grouped)
         .sheet(isPresented: $showingAppPicker) {
             appPickerSheet
         }

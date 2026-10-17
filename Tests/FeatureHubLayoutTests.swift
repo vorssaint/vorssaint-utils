@@ -30,10 +30,9 @@ enum FeatureHubLayoutTests {
         @ViewBuilder var neverUsedCard: some View {
             if features.offersNeverUsed { Text("Never used").frame(height: 120) }
         }
-        var dynamicIslandCard: some View {
-            Text("Dynamic Island").frame(height: 900).id(FeatureGroup.dynamicIsland)
-        }
-        var presetsCard: some View { Text("Presets").frame(height: 180) }
+        let catalogQuery = ""
+        var catalogControls: some View { Text("Catalog filters").frame(height: 180) }
+        func members(in group: FeatureGroup) -> [AppFeature] { AppFeature.features(in: group) }
         func groupCard(_ group: FeatureGroup) -> some View {
             SettingsCard {
                 Text(group.rawValue)
@@ -87,16 +86,18 @@ enum FeatureHubLayoutTests {
             suite.expect(false, "the Features page draws a scroll view")
             return
         }
-        // Visit the intervening cards, as when scrolling down to Fan Control.
-        for _ in 0..<24 {
-            let bottom = max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)
-            scroll.contentView.scroll(to: NSPoint(x: 0, y: min(bottom, scroll.contentView.bounds.minY + 500)))
-            scroll.reflectScrolledClipView(scroll.contentView)
-            settle()
-        }
         func rowFrame() -> NSRect? {
             guard let row = descendant(FanRowView.self, in: host) else { return nil }
             return row.convert(row.bounds, to: host)
+        }
+        // Follow the current catalog order until Fan Control is visible,
+        // leaving the header above the viewport as in the reported failure.
+        for _ in 0..<120 {
+            if let row = rowFrame(), host.bounds.insetBy(dx: 0, dy: 100).contains(row) { break }
+            let bottom = max(0, (scroll.documentView?.frame.height ?? 0) - scroll.contentView.bounds.height)
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: min(bottom, scroll.contentView.bounds.minY + 100)))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            settle()
         }
         guard let initial = rowFrame(), host.bounds.contains(initial) else {
             suite.expect(false, "Fan Control is visible before changing availability")
@@ -115,9 +116,8 @@ enum FeatureHubLayoutTests {
             suite.expect(current.map { abs($0.midY - initial.midY) < 2 } == true,
                          "changing the restart notice preserves the visible row's position: \(String(describing: current)) vs \(initial)")
         }
-        // Uninstalling the last of three never-used features takes that offer
-        // away above the viewport too, along with the restart notice or while
-        // an earlier uninstall already shows it.
+        // The optional offer now lives in the footer. Changing it must also
+        // preserve the visible row, including when the restart notice changes.
         for (offers, restart) in [(false, true), (true, false), (false, true), (true, true), (false, true)] {
             withAnimation(.easeOut(duration: 0.22)) {
                 runtime.offersNeverUsed = offers
@@ -126,7 +126,7 @@ enum FeatureHubLayoutTests {
             settle()
             let current = rowFrame()
             suite.expect(current.map { host.bounds.contains($0) } == true,
-                         "Fan Control stays visible when the offscreen never-used offer is \(offers ? "added" : "removed")")
+                         "Fan Control stays visible when the never-used offer is \(offers ? "added" : "removed")")
             suite.expect(current.map { abs($0.midY - initial.midY) < 2 } == true,
                          "changing the never-used offer preserves the visible row's position: \(String(describing: current)) vs \(initial)")
         }

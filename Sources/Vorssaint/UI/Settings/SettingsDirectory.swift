@@ -82,49 +82,36 @@ enum SettingsDirectory {
                 guard !items.isEmpty else { return nil }
                 return SettingsSidebarSection(id: index, title: section.title, items: items)
             }
-        guard let essentials = grouped.first(where: { $0.id == 0 }) else { return grouped }
+        let allItems = grouped.flatMap(\.items)
         let categories = FeatureStrings.settingsCategories(language)
-        // Monitor keeps its tool rows, such as Fan Control, beside it.
-        let core = essentials.items.filter { item in
-            switch item.id {
-            case .page(.general), .page(.features),
-                 .setting(.panelConfiguration): return true
-            default: return item.destination.page == .monitor
+        let general: Set<SettingsSidebarItem.ID> = [.page(.general), .page(.features),
+                                                    .setting(.panelConfiguration)]
+        let core = allItems.filter { general.contains($0.id) }
+        var result = [SettingsSidebarSection(id: 0, title: categories.essentials, items: core)]
+        // One feature taxonomy and one localized alphabetical order, used by
+        // discovery, the sidebar, onboarding and shortcut headings.
+        for (index, group) in FeatureGroup.allCases.enumerated() {
+            let items = allItems.filter { item in
+                !general.contains(item.id) && SettingsSidebarSupport.feature(for: item)?.group == group
+                    && item.id != .page(.notchMascot)
+            }.sorted {
+                let comparison = $0.title.localizedStandardCompare($1.title)
+                return comparison == .orderedSame
+                    ? String(describing: $0.id) < String(describing: $1.id)
+                    : comparison == .orderedAscending
+            }
+            if !items.isEmpty {
+                result.append(SettingsSidebarSection(id: index + 10,
+                    title: group.title(language, hub: hub), items: items))
             }
         }
-        // The companion lives in the island, and its settings in a tab of the
-        // island's page rather than a row of their own.
-        let islandPages: Set<SettingsSidebarItem.ID> = [.page(.notch)]
-        let island = grouped.first(where: { $0.id == 4 })?.items.filter {
-            islandPages.contains($0.id)
-        } ?? []
-        let sound: [SettingsSidebarItem] = essentials.items.filter { item in
-            item.destination.page == .general
-                && item.destination.sectionAnchor != nil
-                && item.destination.sectionAnchor != .panelConfiguration
+        let appItems = allItems.filter {
+            !general.contains($0.id) && SettingsSidebarSupport.feature(for: $0) == nil
         }
-        let energy: [SettingsSidebarItem] = essentials.items.filter {
-            $0.destination.page == .energy
+        if !appItems.isEmpty {
+            result.append(SettingsSidebarSection(id: 1, title: categories.app, items: appItems))
         }
-        func rows(_ id: Int) -> [SettingsSidebarItem] {
-            grouped.first(where: { $0.id == id })?.items ?? []
-        }
-        let byGroup = SettingsSidebarSupport.featureGroupRows(
-            windowsControls: rows(1), utilities: rows(4).filter {
-                !islandPages.contains($0.id) && $0.id != .page(.notchMascot)
-            })
-        let featured = [
-            SettingsSidebarSection(id: 0, title: categories.essentials,
-                                   items: Array(core.prefix(3)) + island + Array(core.dropFirst(3))),
-            SettingsSidebarSection(id: 4, title: categories.utilities, items: byGroup.utilities),
-            SettingsSidebarSection(id: 6, title: hub.groupSound, items: sound + byGroup.sound),
-            SettingsSidebarSection(id: 7, title: hub.groupEnergyDisplay, items: energy),
-            SettingsSidebarSection(id: 1, title: hub.groupWindowsDock, items: byGroup.windowsDock),
-            SettingsSidebarSection(id: 8, title: hub.groupMouseKeyboard, items: byGroup.mouseKeyboard),
-            SettingsSidebarSection(id: 2, title: categories.files, items: rows(2) + byGroup.files),
-        ]
-        let remaining = grouped.filter { ![0, 1, 2, 4].contains($0.id) }
-        return [featured[0]] + featured.dropFirst().filter { !$0.items.isEmpty } + remaining
+        return result
     }
 
     static func sidebarItems(_ s: Strings,

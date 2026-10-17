@@ -39,7 +39,7 @@ enum AppFeature: String, CaseIterable {
 
 /// Hub sections, in display order.
 enum FeatureGroup: String, CaseIterable {
-    case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
+    case dynamicIsland, monitor, windowsDock, mouseKeyboard, clipboardFiles, capture, sound, energyDisplay, tools, applications
 }
 
 /// System permissions surfaced by the hub's transparency portal.
@@ -113,9 +113,12 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
-             .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
+        case .screenshot, .screenRecorder, .colorPicker, .screenOCR, .cameraPreview, .mediaTools:
+            return .capture
+        case .cleaner, .uninstaller, .homebrew, .appUpdates, .killProcess, .portManager:
+            return .applications
+        case .quickLauncher, .quickToggles, .cleaningMode, .radialMenu,
+             .scratchpad, .commandBar, .wallpaper:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -238,6 +241,10 @@ extension AppFeature {
                                  DefaultsKey.dockClickHide,
                                  DefaultsKey.dockClickCycleWindows]
         case .windowMaximizer: return [DefaultsKey.windowMaximizeEnabled]
+        case .windowLayout:
+            return [DefaultsKey.windowLayoutShortcutsEnabled, DefaultsKey.windowDirectionalEnabled,
+                    DefaultsKey.pointerDisplayEnabled, DefaultsKey.windowEdgeSnapEnabled,
+                    DefaultsKey.windowGestureEnabled]
         case .autoQuit: return [DefaultsKey.autoQuitEnabled]
         case .spacesOrder: return [DefaultsKey.spacesOrderEnabled]
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
@@ -285,7 +292,7 @@ extension AppFeature {
         case .brightness: return [DefaultsKey.brightnessControlEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
-        case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
+        case .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
@@ -300,7 +307,7 @@ extension AppFeature {
     /// audio priority, whose output and input controls work together. The
     /// live equalizer stays off: it asks for system audio recording on the
     /// first song, so only the user's own switch turns it on.
-    private var initialEnableKeys: [String] {
+    var initialEnableKeys: [String] {
         switch self {
         case .windowLayout: return [DefaultsKey.windowLayoutShortcutsEnabled]
         case .audioPriority: return enabledKeys

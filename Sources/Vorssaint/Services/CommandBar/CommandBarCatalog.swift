@@ -197,17 +197,8 @@ enum CommandBarCatalog {
 
     /// The human name of the area a feature lives in, the same words the hub
     /// uses, so a row and its heading never disagree.
-    static func groupTitle(_ group: FeatureGroup, hub: FeatureHubStrings) -> String {
-        switch group {
-        case .windowsDock: return hub.groupWindowsDock
-        case .mouseKeyboard: return hub.groupMouseKeyboard
-        case .clipboardFiles: return hub.groupClipboardFiles
-        case .sound: return hub.groupSound
-        case .energyDisplay: return hub.groupEnergyDisplay
-        case .tools: return hub.groupTools
-        case .dynamicIsland: return FeatureStrings.notch(L10n.shared.language).title
-        case .monitor: return hub.groupMonitor
-        }
+    static func groupTitle(_ group: FeatureGroup, hub: FeatureHubStrings, language: AppLanguage) -> String {
+        group.title(language, hub: hub)
     }
 
     /// Every feature that is a plain on-or-off preference becomes a row that
@@ -229,7 +220,7 @@ enum CommandBarCatalog {
             return CommandBarEntry(
                 id: id,
                 title: String(format: isOn ? bar.turnOffFormat : bar.turnOnFormat, name),
-                subtitle: groupTitle(feature.group, hub: hub),
+                subtitle: groupTitle(feature.group, hub: hub, language: language),
                 keywords: name,
                 icon: .symbol(feature.symbolName),
                 isActive: isOn,
@@ -295,7 +286,7 @@ enum CommandBarCatalog {
         func area(_ feature: AppFeature, under title: String = "") -> String {
             let hubTitle = feature.hubTitle(s, hub: hub)
             guard hubTitle == title else { return hubTitle }
-            return groupTitle(feature.group, hub: hub)
+            return groupTitle(feature.group, hub: hub, language: language)
         }
         /// A shortcut is only shown while it actually fires (its enables on),
         /// so the bar never teaches a dead combination.
@@ -346,7 +337,7 @@ enum CommandBarCatalog {
             entries.append(CommandBarEntry(
                 id: "action.recentCaptures",
                 title: recent.title,
-                subtitle: groupTitle(.tools, hub: hub),
+                subtitle: groupTitle(.tools, hub: hub, language: language),
                 keywords: [recent.screenshot, recent.recording,
                            RecentCaptureStrings.enUS.title].joined(separator: " "),
                 icon: .symbol("clock.arrow.circlepath"),
