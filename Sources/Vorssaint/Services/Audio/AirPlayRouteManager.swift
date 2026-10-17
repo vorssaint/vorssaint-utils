@@ -351,7 +351,7 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
     /// routed has played for a while, and starts again with the next sound.
     func routedAudioChanged(active: Bool) {
         dispatchPrecondition(condition: .onQueue(.main))
-        idleTimer.update(active: active, now: ProcessInfo.processInfo.systemUptime)
+        let resumesAfterPause = idleTimer.update(active: active, now: ProcessInfo.processInfo.systemUptime)
         guard active else {
             scheduleIdleCheck()
             return
@@ -359,9 +359,11 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
         idleCheck?.cancel()
         idleCheck = nil
         streamLock.lock()
-        if idleStopped {
+        if idleStopped || resumesAfterPause {
             idleStopped = false
-            // A fresh renderer: restarting a session macOS paused is not reliable.
+            // Always a fresh renderer: a session the speaker or macOS paused
+            // stays silent when the old one simply carries on.
+            stopRenderer()
             if !streams.isEmpty { startRendererIfNeeded() }
         }
         streamLock.unlock()
@@ -525,14 +527,26 @@ enum AirPlayAvailability {
 /// has said anything; a short gap between tracks does not stop it either.
 struct AirPlayIdleTimer {
     static let delay: TimeInterval = 10
+    /// A pause at least this long resumes on a fresh renderer. Paused from a
+    /// phone, the speaker pauses its own session, and the renderer that fed it
+    /// stays silent after playback resumes; only a new stream wakes it. A
+    /// shorter gap (between tracks) keeps the stream running.
+    static let freshStreamAfter: TimeInterval = 1
     private var silentSince: TimeInterval?
 
-    mutating func update(active: Bool, now: TimeInterval) {
+    /// Answers whether this report ends a pause long enough to need a fresh
+    /// renderer; repeated reports of the same state answer false.
+    @discardableResult
+    mutating func update(active: Bool, now: TimeInterval) -> Bool {
         if active {
-            silentSince = nil
-        } else if silentSince == nil {
+            defer { silentSince = nil }
+            guard let silentSince else { return false }
+            return now - silentSince >= Self.freshStreamAfter
+        }
+        if silentSince == nil {
             silentSince = now
         }
+        return false
     }
 
     /// Seconds left before the stream may stop, or nil while something plays.
