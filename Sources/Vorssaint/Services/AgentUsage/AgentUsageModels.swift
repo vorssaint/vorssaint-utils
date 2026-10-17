@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, kiro
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .kiro: return "Kiro"
         }
     }
 
@@ -25,10 +26,11 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .kiro: return "k.circle"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the provider reports a plan allowance, in its logs or when asked.
     var reportsLimits: Bool { self != .copilot }
 }
 
@@ -80,9 +82,12 @@ struct AgentUsageRecord: Equatable {
     var savings: Double
     /// Whether cost was reported directly by the provider rather than derived from list pricing.
     var reportedCost: Bool = false
+    /// Kiro's credits, which its plan's allowance covers; never part of `cost`.
+    var credits: Double = 0
 
     init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
-         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false) {
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false,
+         credits: Double = 0) {
         self.provider = provider
         self.date = date
         self.model = model
@@ -93,7 +98,12 @@ struct AgentUsageRecord: Equatable {
         self.cost = cost
         self.savings = savings
         self.reportedCost = reportedCost
+        self.credits = credits
     }
+
+    /// A charge the account reported, like Kiro's overage: spending, but no
+    /// work of a model or a project, and no day's activity of its own.
+    var isAccountCharge: Bool { provider == .kiro && session.hasPrefix(AgentKiroServer.overagePrefix) }
 }
 
 /// A usage allowance and how much of it is spent, as the provider reports it.
@@ -112,9 +122,28 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let resetsAt: Date?
     /// A presentation estimate, never a deadline for clearing usage or alerts.
     var estimatedResetsAt: Date? = nil
+    /// An allowance counted in credits, which can be spent past its limit.
+    var credits: AgentCredits? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }
+}
+
+/// A month's credits as Kiro counts them, past the limit too: there the
+/// percentage stops at 100, and the overage is billed at `overageRate`.
+struct AgentCredits: Equatable {
+    let used: Double
+    let limit: Double
+    let overage: Double
+    /// US dollars per credit past the limit.
+    let overageRate: Double
+    /// What the overage costs so far, in US dollars.
+    let overageCharges: Double
+
+    var remaining: Double { max(0, limit - used) }
+    /// Beyond 1 once the limit is passed.
+    var usedShare: Double { limit > 0 ? used / limit : 0 }
+    var isOver: Bool { overage > 0 || used > limit }
 }
 
 struct AgentLimits: Equatable {

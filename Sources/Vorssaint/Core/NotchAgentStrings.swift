@@ -97,6 +97,15 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let monthly: String
+    let creditsFormat: String
+    let overageFormat: String
+    let creditsUnavailable: String
+    let creditCountFormat: String
+    let listPriceFormat: String
+    let kiroWithinPlanFormat: String
+    let kiroOverageFormat: String
+    let streakHelpFormat: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -105,6 +114,15 @@ struct NotchAgentStrings {
     func planMultiple(_ multiple: String, plan: String) -> String { String(format: planMultipleFormat, multiple, plan) }
     func finished(_ agent: String) -> String { String(format: finishedFormat, agent) }
     func left(_ share: String) -> String { String(format: leftFormat, share) }
+    func credits(_ used: String, of limit: String) -> String { String(format: creditsFormat, used, limit) }
+    func creditCount(_ count: String) -> String { String(format: creditCountFormat, count) }
+    func listPrice(_ price: String) -> String { String(format: listPriceFormat, price) }
+    func streakHelp(_ days: String) -> String { String(format: streakHelpFormat, days) }
+    func kiroWithinPlan(_ rate: String) -> String { String(format: kiroWithinPlanFormat, rate) }
+    func kiroOverage(_ credits: String, rate: String, cost: String) -> String {
+        String(format: kiroOverageFormat, credits, rate, cost)
+    }
+    func overage(_ credits: String, cost: String) -> String { String(format: overageFormat, credits, cost) }
     func usedShare(_ share: String) -> String { String(format: usedFormat, share) }
     func updated(_ when: String) -> String { String(format: updatedFormat, when) }
     func claudeLimitsCurrent(_ when: String) -> String { String(format: claudeLimitsCurrentFormat, when) }
@@ -176,8 +194,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot and Kiro in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot and Kiro record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -203,7 +221,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ the price of %2$@",
         idle: "Idle",
         noActivity: "Nothing in this period",
-        empty: "No usage from Claude Code, Codex, OpenCode or GitHub Copilot yet. It appears here as soon as any of them works on this Mac.",
+        empty: "No usage from Claude Code, Codex, OpenCode, GitHub Copilot or Kiro yet. It appears here as soon as any of them works on this Mac.",
         loading: "Reading usage…",
         noCards: "Choose what this page shows in Dynamic Island settings.",
         unpriced: "Some models have no known price, so this is a minimum.",
@@ -267,12 +285,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        monthly: "Month",
+        creditsFormat: "%1$@ of %2$@ credits",
+        overageFormat: "%1$@ credits over · %2$@ extra",
+        creditsUnavailable: "Kiro CLI couldn’t check your credits",
+        creditCountFormat: "%@ credits",
+        listPriceFormat: "%@ a month, list price",
+        kiroWithinPlanFormat: "Kiro: credits within your plan are covered by its price. Only credits past it are billed, at %@ each.",
+        kiroOverageFormat: "Kiro: %1$@ credits past your plan this month, billed at %2$@ each: %3$@. Credits within the plan are covered by its price.",
+        streakHelpFormat: "🔥 Streak: an agent worked %@ days in a row")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode і GitHub Copilot у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode і GitHub Copilot записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode, GitHub Copilot і Kiro у Dynamic Island.",
+        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode, GitHub Copilot і Kiro записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -298,7 +325,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ від ціни %2$@",
         idle: "Неактивно",
         noActivity: "За цей період нічого немає",
-        empty: "Claude Code, Codex, OpenCode або GitHub Copilot ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
+        empty: "Claude Code, Codex, OpenCode, GitHub Copilot або Kiro ще не використовувалися. Дані з’являться тут, щойно один із них почне працювати на цьому Mac.",
         loading: "Читання даних…",
         noCards: "Виберіть, що показувати на цій сторінці в налаштуваннях Dynamic Island.",
         unpriced: "Ціна деяких моделей невідома, тому це мінімальна оцінка.",
@@ -362,12 +389,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        monthly: "Місяць",
+        creditsFormat: "%1$@ з %2$@ кредитів",
+        overageFormat: "Понад ліміт: %1$@ кредитів · %2$@ додатково",
+        creditsUnavailable: "Kiro CLI не вдалося перевірити ваші кредити",
+        creditCountFormat: "%@ кредитів",
+        listPriceFormat: "%@ на місяць, прейскурантна ціна",
+        kiroWithinPlanFormat: "Kiro: кредити в межах плану покриває його ціна. Оплачуються лише кредити понад план, по %@ за кожен.",
+        kiroOverageFormat: "Kiro: цього місяця %1$@ кредитів понад план, по %2$@ за кожен: %3$@. Кредити в межах плану покриває його ціна.",
+        streakHelpFormat: "🔥 Серія: агент працював %@ днів поспіль")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode e do GitHub Copilot.",
-        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode, do GitHub Copilot e do Kiro.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode, o GitHub Copilot e o Kiro registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -393,7 +429,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ o preço do %2$@",
         idle: "Parado",
         noActivity: "Nada neste período",
-        empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode nem do GitHub Copilot. Ele aparece aqui assim que um deles trabalhar neste Mac.",
+        empty: "Ainda não há uso do Claude Code, do Codex, do OpenCode, do GitHub Copilot nem do Kiro. Ele aparece aqui assim que um deles trabalhar neste Mac.",
         loading: "Lendo o uso…",
         noCards: "Escolha o que esta página mostra nos ajustes do Dynamic Island.",
         unpriced: "Alguns modelos não têm preço conhecido, então este é um valor mínimo.",
@@ -457,12 +493,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        monthly: "Mês",
+        creditsFormat: "%1$@ de %2$@ créditos",
+        overageFormat: "%1$@ créditos além · %2$@ extra",
+        creditsUnavailable: "O Kiro CLI não conseguiu verificar seus créditos",
+        creditCountFormat: "%@ créditos",
+        listPriceFormat: "%@ por mês, preço de tabela",
+        kiroWithinPlanFormat: "Kiro: os créditos dentro do plano estão incluídos no preço dele. Só os créditos além dele são cobrados, a %@ cada.",
+        kiroOverageFormat: "Kiro: %1$@ créditos além do plano neste mês, cobrados a %2$@ cada: %3$@. Os créditos dentro do plano estão incluídos no preço dele.",
+        streakHelpFormat: "🔥 Sequência: um agente trabalhou %@ dias seguidos")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode y GitHub Copilot.",
-        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode y GitHub Copilot registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode, GitHub Copilot y Kiro.",
+        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode, GitHub Copilot y Kiro registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -488,7 +533,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ el precio de %2$@",
         idle: "Inactivo",
         noActivity: "Nada en este periodo",
-        empty: "Aún no hay uso de Claude Code, Codex, OpenCode ni de GitHub Copilot. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
+        empty: "Aún no hay uso de Claude Code, Codex, OpenCode, GitHub Copilot ni de Kiro. Aparece aquí en cuanto cualquiera de ellos trabaje en este Mac.",
         loading: "Leyendo el uso…",
         noCards: "Elige qué muestra esta página en los ajustes del Dynamic Island.",
         unpriced: "Algunos modelos no tienen precio conocido, así que es un mínimo.",
@@ -552,12 +597,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        monthly: "Mes",
+        creditsFormat: "%1$@ de %2$@ créditos",
+        overageFormat: "%1$@ créditos de más · %2$@ extra",
+        creditsUnavailable: "Kiro CLI no pudo comprobar tus créditos",
+        creditCountFormat: "%@ créditos",
+        listPriceFormat: "%@ al mes, precio de lista",
+        kiroWithinPlanFormat: "Kiro: los créditos dentro de tu plan los cubre su precio. Solo se cobran los créditos que lo superan, a %@ cada uno.",
+        kiroOverageFormat: "Kiro: %1$@ créditos por encima de tu plan este mes, cobrados a %2$@ cada uno: %3$@. Los créditos dentro del plan los cubre su precio.",
+        streakHelpFormat: "🔥 Racha: un agente trabajó %@ días seguidos")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode a GitHub Copilot.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode a GitHub Copilot zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode, GitHub Copilot a Kiro.",
+        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode, GitHub Copilot a Kiro zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -583,7 +637,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ ceny %2$@",
         idle: "Nečinné",
         noActivity: "V tomto období nič",
-        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode ani GitHub Copilot. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
+        empty: "Zatiaľ žiadne využitie z Claude Code, Codexu, OpenCode, GitHub Copilot ani Kiro. Zobrazí sa tu hneď, ako niektorý z nich začne na tomto Macu pracovať.",
         loading: "Načítava sa využitie…",
         noCards: "V nastaveniach Dynamic Island vyberte, čo má táto stránka zobrazovať.",
         unpriced: "Pri niektorých modeloch nie je známa cena, takže ide o minimum.",
@@ -647,12 +701,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        monthly: "Mesiac",
+        creditsFormat: "%1$@ z %2$@ kreditov",
+        overageFormat: "Nad limit: %1$@ kreditov · %2$@ navyše",
+        creditsUnavailable: "Kiro CLI nemohol overiť vaše kredity",
+        creditCountFormat: "%@ kreditov",
+        listPriceFormat: "%@ mesačne, cenníková cena",
+        kiroWithinPlanFormat: "Kiro: kredity v rámci plánu pokrýva jeho cena. Účtujú sa len kredity nad plán, po %@ za každý.",
+        kiroOverageFormat: "Kiro: tento mesiac %1$@ kreditov nad plán, po %2$@ za každý: %3$@. Kredity v rámci plánu pokrýva jeho cena.",
+        streakHelpFormat: "🔥 Séria: agent pracoval %@ dní po sebe")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode und GitHub Copilot.",
-        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode und GitHub Copilot auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode, GitHub Copilot und Kiro.",
+        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode, GitHub Copilot und Kiro auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -678,7 +741,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ so viel wie %2$@",
         idle: "Inaktiv",
         noActivity: "Nichts in diesem Zeitraum",
-        empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode oder GitHub Copilot. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
+        empty: "Noch keine Nutzung von Claude Code, Codex, OpenCode, GitHub Copilot oder Kiro. Sie erscheint hier, sobald eines davon auf diesem Mac arbeitet.",
         loading: "Nutzung wird gelesen…",
         noCards: "Wähle in den Dynamic Island-Einstellungen, was diese Seite zeigt.",
         unpriced: "Für einige Modelle ist kein Preis bekannt, daher ist dies ein Mindestwert.",
@@ -742,12 +805,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        monthly: "Monat",
+        creditsFormat: "%1$@ von %2$@ Credits",
+        overageFormat: "%1$@ Credits drüber · %2$@ extra",
+        creditsUnavailable: "Kiro CLI konnte deine Credits nicht abrufen",
+        creditCountFormat: "%@ Credits",
+        listPriceFormat: "%@ pro Monat, Listenpreis",
+        kiroWithinPlanFormat: "Kiro: Credits innerhalb deines Plans deckt sein Preis ab. Nur Credits darüber werden berechnet, zu je %@.",
+        kiroOverageFormat: "Kiro: %1$@ Credits über deinem Plan in diesem Monat, zu je %2$@ berechnet: %3$@. Credits innerhalb des Plans deckt sein Preis ab.",
+        streakHelpFormat: "🔥 Serie: ein Agent hat %@ Tage in Folge gearbeitet")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode et GitHub Copilot.",
-        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode et GitHub Copilot enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode, GitHub Copilot et Kiro.",
+        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode, GitHub Copilot et Kiro enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -773,7 +845,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ le prix de %2$@",
         idle: "Inactif",
         noActivity: "Rien sur cette période",
-        empty: "Aucun usage de Claude Code, Codex, d’OpenCode ou de GitHub Copilot pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
+        empty: "Aucun usage de Claude Code, Codex, d’OpenCode, de GitHub Copilot ou de Kiro pour l’instant. Il apparaît ici dès que l’un d’eux travaille sur ce Mac.",
         loading: "Lecture de l’usage…",
         noCards: "Choisissez ce que montre cette page dans les réglages du Dynamic Island.",
         unpriced: "Certains modèles n’ont pas de prix connu, ce montant est donc un minimum.",
@@ -837,12 +909,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        monthly: "Mois",
+        creditsFormat: "%1$@ crédits sur %2$@",
+        overageFormat: "%1$@ crédits en trop · %2$@ en plus",
+        creditsUnavailable: "Kiro CLI n’a pas pu vérifier vos crédits",
+        creditCountFormat: "%@ crédits",
+        listPriceFormat: "%@ par mois, prix catalogue",
+        kiroWithinPlanFormat: "Kiro : les crédits inclus dans votre forfait sont couverts par son prix. Seuls les crédits au-delà sont facturés, %@ chacun.",
+        kiroOverageFormat: "Kiro : %1$@ crédits au-delà de votre forfait ce mois-ci, facturés %2$@ chacun : %3$@. Les crédits inclus dans le forfait sont couverts par son prix.",
+        streakHelpFormat: "🔥 Série : un agent a travaillé %@ jours d’affilée")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode e GitHub Copilot.",
-        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode, GitHub Copilot e Kiro.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode, GitHub Copilot e Kiro registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -868,7 +949,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ il prezzo di %2$@",
         idle: "Inattivo",
         noActivity: "Niente in questo periodo",
-        empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode o GitHub Copilot. Compare qui appena uno di loro lavora su questo Mac.",
+        empty: "Ancora nessun utilizzo di Claude Code, Codex, OpenCode, GitHub Copilot o Kiro. Compare qui appena uno di loro lavora su questo Mac.",
         loading: "Lettura dell’utilizzo…",
         noCards: "Scegli cosa mostra questa pagina nelle impostazioni del Dynamic Island.",
         unpriced: "Alcuni modelli non hanno un prezzo noto, quindi questo è un minimo.",
@@ -932,12 +1013,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        monthly: "Mese",
+        creditsFormat: "%1$@ di %2$@ crediti",
+        overageFormat: "%1$@ crediti oltre · %2$@ in più",
+        creditsUnavailable: "Kiro CLI non è riuscito a controllare i tuoi crediti",
+        creditCountFormat: "%@ crediti",
+        listPriceFormat: "%@ al mese, prezzo di listino",
+        kiroWithinPlanFormat: "Kiro: i crediti inclusi nel piano sono coperti dal suo prezzo. Solo i crediti oltre il piano sono addebitati, a %@ ciascuno.",
+        kiroOverageFormat: "Kiro: %1$@ crediti oltre il piano questo mese, addebitati a %2$@ ciascuno: %3$@. I crediti inclusi nel piano sono coperti dal suo prezzo.",
+        streakHelpFormat: "🔥 Serie: un agente ha lavorato %@ giorni di fila")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode и GitHub Copilot.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode и GitHub Copilot записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode, GitHub Copilot и Kiro.",
+        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode, GitHub Copilot и Kiro записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -963,7 +1053,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ от цены %2$@",
         idle: "Простой",
         noActivity: "За этот период ничего нет",
-        empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode или GitHub Copilot. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
+        empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode, GitHub Copilot или Kiro. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
         unpriced: "Для некоторых моделей цена неизвестна, поэтому это минимальная сумма.",
@@ -1027,12 +1117,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        monthly: "Месяц",
+        creditsFormat: "%1$@ из %2$@ кредитов",
+        overageFormat: "Сверх лимита: %1$@ кредитов · %2$@ доплата",
+        creditsUnavailable: "Kiro CLI не удалось проверить ваши кредиты",
+        creditCountFormat: "%@ кредитов",
+        listPriceFormat: "%@ в месяц, по прейскуранту",
+        kiroWithinPlanFormat: "Kiro: кредиты в рамках тарифа покрывает его цена. Оплачиваются только кредиты сверх тарифа, по %@ за каждый.",
+        kiroOverageFormat: "Kiro: в этом месяце %1$@ кредитов сверх тарифа, по %2$@ за каждый: %3$@. Кредиты в рамках тарифа покрывает его цена.",
+        streakHelpFormat: "🔥 Серия: агент работал %@ дней подряд")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
-        hubDescription: "Claude, Codex, GitHub Copilot ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code, Codex, GitHub Copilot ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Claude, Codex, GitHub Copilot, OpenCode ve Kiro için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
+        settingsDescription: "Claude Code, Codex, GitHub Copilot, OpenCode ve Kiro’nun bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1058,7 +1157,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ fiyatının %1$@",
         idle: "Boşta",
         noActivity: "Bu dönemde bir şey yok",
-        empty: "Henüz Claude Code, Codex, GitHub Copilot veya OpenCode kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
+        empty: "Henüz Claude Code, Codex, GitHub Copilot, OpenCode veya Kiro kullanımı yok. Herhangi biri bu Mac’te çalışır çalışmaz burada görünür.",
         loading: "Kullanım okunuyor…",
         noCards: "Bu sayfada nelerin görüneceğini Dynamic Island ayarlarından seçin.",
         unpriced: "Bazı modellerin fiyatı bilinmediğinden bu bir alt sınırdır.",
@@ -1122,12 +1221,21 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        monthly: "Ay",
+        creditsFormat: "%1$@ / %2$@ kredi",
+        overageFormat: "%1$@ kredi aşım · %2$@ ek ücret",
+        creditsUnavailable: "Kiro CLI kredilerinizi kontrol edemedi",
+        creditCountFormat: "%@ kredi",
+        listPriceFormat: "Aylık %@, liste fiyatı",
+        kiroWithinPlanFormat: "Kiro: planınızdaki krediler planın fiyatına dahildir. Yalnızca planı aşan krediler, her biri %@ olarak ücretlendirilir.",
+        kiroOverageFormat: "Kiro: bu ay planınızı %1$@ kredi aştınız, her biri %2$@: %3$@. Plandaki krediler planın fiyatına dahildir.",
+        streakHelpFormat: "🔥 Seri: bir ajan art arda %@ gün çalıştı")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
-        hubDescription: "Claude、Codex、OpenCode、GitHub Copilotのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude Code、Codex、OpenCode、GitHub CopilotがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Claude、Codex、OpenCode、GitHub Copilot、Kiroのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
+        settingsDescription: "Claude Code、Codex、OpenCode、GitHub Copilot、KiroがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -1153,7 +1261,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@の料金の%1$@",
         idle: "待機中",
         noActivity: "この期間の記録はありません",
-        empty: "Claude Code、Codex、OpenCode、GitHub Copilotの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
+        empty: "Claude Code、Codex、OpenCode、GitHub Copilot、Kiroの使用状況はまだありません。いずれかがこのMacで動作するとここに表示されます。",
         loading: "使用状況を読み込み中…",
         noCards: "このページに表示する内容はDynamic Islandの設定で選べます。",
         unpriced: "一部のモデルは料金が不明なため、最低額を表示しています。",
@@ -1217,12 +1325,21 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        monthly: "月",
+        creditsFormat: "%1$@ / %2$@ クレジット",
+        overageFormat: "%1$@ クレジット超過 · 追加 %2$@",
+        creditsUnavailable: "Kiro CLIでクレジットを確認できませんでした",
+        creditCountFormat: "%@ クレジット",
+        listPriceFormat: "月額 %@（定価）",
+        kiroWithinPlanFormat: "Kiro: プラン内のクレジットはプラン料金に含まれます。超過分のクレジットのみ、1クレジットあたり %@ で請求されます。",
+        kiroOverageFormat: "Kiro: 今月はプランを %1$@ クレジット超過し、1クレジットあたり %2$@ で %3$@ が請求されます。プラン内のクレジットはプラン料金に含まれます。",
+        streakHelpFormat: "🔥 連続記録: エージェントが %@ 日連続で作業しました")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot이 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot, Kiro의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot, Kiro가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1248,7 +1365,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 요금의 %1$@",
         idle: "대기 중",
         noActivity: "이 기간에는 기록이 없습니다",
-        empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
+        empty: "아직 Claude Code, Codex, OpenCode, GitHub Copilot, Kiro 사용량이 없습니다. 이 중 하나가 이 Mac에서 작업하면 바로 여기에 표시됩니다.",
         loading: "사용량을 읽는 중…",
         noCards: "Dynamic Island 설정에서 이 페이지에 표시할 항목을 선택하세요.",
         unpriced: "일부 모델은 가격을 알 수 없어 최소 금액으로 표시합니다.",
@@ -1312,12 +1429,21 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        monthly: "월",
+        creditsFormat: "%2$@ 크레딧 중 %1$@",
+        overageFormat: "%1$@ 크레딧 초과 · 추가 %2$@",
+        creditsUnavailable: "Kiro CLI에서 크레딧을 확인하지 못했습니다",
+        creditCountFormat: "%@ 크레딧",
+        listPriceFormat: "월 %@, 정가",
+        kiroWithinPlanFormat: "Kiro: 플랜 안의 크레딧은 플랜 요금에 포함됩니다. 플랜을 넘은 크레딧만 개당 %@에 청구됩니다.",
+        kiroOverageFormat: "Kiro: 이번 달 플랜을 %1$@ 크레딧 초과해 개당 %2$@, 총 %3$@가 청구됩니다. 플랜 안의 크레딧은 플랜 요금에 포함됩니다.",
+        streakHelpFormat: "🔥 연속 기록: 에이전트가 %@일 연속 작업했습니다")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 和 GitHub Copilot 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Kiro 的套餐额度、令牌、API 价值与正在进行的工作。",
+        settingsDescription: "读取 Claude Code、Codex、OpenCode、GitHub Copilot 和 Kiro 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1343,7 +1469,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 价格的 %1$@",
         idle: "空闲",
         noActivity: "此期间没有记录",
-        empty: "还没有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
+        empty: "还没有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Kiro 的用量。只要其中任何一个在这台 Mac 上工作，就会显示在这里。",
         loading: "正在读取用量…",
         noCards: "在 Dynamic Island 设置中选择此页面显示的内容。",
         unpriced: "部分模型价格未知，因此这是最低金额。",
@@ -1407,12 +1533,21 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        monthly: "本月",
+        creditsFormat: "%1$@ / %2$@ 积分",
+        overageFormat: "超出 %1$@ 积分 · 额外 %2$@",
+        creditsUnavailable: "Kiro CLI 无法查询你的积分",
+        creditCountFormat: "%@ 积分",
+        listPriceFormat: "每月 %@（标价）",
+        kiroWithinPlanFormat: "Kiro：套餐内的积分已包含在套餐价格中。只有超出套餐的积分才会计费，每个 %@。",
+        kiroOverageFormat: "Kiro：本月超出套餐 %1$@ 积分，每个 %2$@，共 %3$@。套餐内的积分已包含在套餐价格中。",
+        streakHelpFormat: "🔥 连续记录：智能体已连续工作 %@ 天")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Kiro 的方案額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Kiro 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1438,7 +1573,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有紀錄",
-        empty: "目前還沒有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Kiro 的用量。只要其中一個在這台 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1502,12 +1637,21 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        monthly: "本月",
+        creditsFormat: "%1$@ / %2$@ 點數",
+        overageFormat: "超出 %1$@ 點數 · 額外 %2$@",
+        creditsUnavailable: "Kiro CLI 無法查詢你的點數",
+        creditCountFormat: "%@ 點數",
+        listPriceFormat: "每月 %@（定價）",
+        kiroWithinPlanFormat: "Kiro：方案內的點數已包含在方案價格中。只有超出方案的點數才會計費，每點 %@。",
+        kiroOverageFormat: "Kiro：本月超出方案 %1$@ 點數，每點 %2$@，共 %3$@。方案內的點數已包含在方案價格中。",
+        streakHelpFormat: "🔥 連續紀錄：代理已連續工作 %@ 天")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Kiro 的計劃額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Kiro 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1533,7 +1677,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%2$@ 價格的 %1$@",
         idle: "閒置",
         noActivity: "此期間沒有記錄",
-        empty: "目前還沒有 Claude Code、Codex、OpenCode 或 GitHub Copilot 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
+        empty: "目前還沒有 Claude Code、Codex、OpenCode、GitHub Copilot 或 Kiro 的用量。只要其中一個在這部 Mac 上運作，就會顯示在這裡。",
         loading: "正在讀取用量…",
         noCards: "在 Dynamic Island 設定中選擇此頁面顯示的內容。",
         unpriced: "部分模型價格不明，因此這是最低金額。",
@@ -1597,5 +1741,14 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        monthly: "本月",
+        creditsFormat: "%1$@ / %2$@ 點數",
+        overageFormat: "超出 %1$@ 點數 · 額外 %2$@",
+        creditsUnavailable: "Kiro CLI 無法查詢你的點數",
+        creditCountFormat: "%@ 點數",
+        listPriceFormat: "每月 %@（定價）",
+        kiroWithinPlanFormat: "Kiro：計劃內的點數已包含在計劃價格中。只有超出計劃的點數才會收費，每點 %@。",
+        kiroOverageFormat: "Kiro：本月超出計劃 %1$@ 點數，每點 %2$@，共 %3$@。計劃內的點數已包含在計劃價格中。",
+        streakHelpFormat: "🔥 連續紀錄：代理已連續工作 %@ 天")
 }

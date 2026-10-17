@@ -5,14 +5,15 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
+/// Reads Claude Code, Codex, GitHub Copilot and Kiro usage from local session logs, and
 /// OpenCode usage from its database, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
 /// memory and in the app's private folder so the next launch reads only what
 /// the agents wrote meanwhile. OpenCode's stay in memory only, and its
 /// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
+/// limits through its own CLI, including use on other machines, and Kiro CLI
+/// the account's monthly credits through its own agent server. The public
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
@@ -26,6 +27,7 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    @Published private(set) var kiroAccountFailure: AgentKiroServer.Failure?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -71,6 +73,9 @@ final class AgentUsageService: ObservableObject {
     private let claudeAccountQueue = DispatchQueue(label: "com.vorssaint.claude-limits", qos: .utility)
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
+    private let kiroAccountQueue = DispatchQueue(label: "com.vorssaint.kiro-limits", qos: .utility)
+    private var kiroAccountRequest: AgentKiroServer.Request?
+    private var kiroAccountAttempted = Date.distantPast
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
 
@@ -98,6 +103,8 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    private var kiroAccountLimits: AgentLimits?
+    private var kiroPlan: AgentPlan?
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -132,6 +139,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshKiroLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -142,6 +150,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelKiroLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -177,6 +186,9 @@ final class AgentUsageService: ObservableObject {
         cancelClaudeLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
+        cancelKiroLimits()
+        kiroAccountAttempted = .distantPast
+        kiroAccountFailure = nil
         paused = false
         session += 1
         timer?.invalidate()
@@ -209,6 +221,8 @@ final class AgentUsageService: ObservableObject {
             claudeAppModified = nil
             claudeAppSamples = []
             claudeAccountLimits = nil
+            kiroAccountLimits = nil
+            kiroPlan = nil
             savedMark = nil
             lastSave = .distantPast
         }
@@ -232,6 +246,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits()
+        refreshKiroLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -288,6 +303,12 @@ final class AgentUsageService: ObservableObject {
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
+            // The last launch's reading stands until Kiro answers again; one
+            // that answered while the logs were read is newer.
+            if let saved = store.limits[.kiro], (kiroAccountLimits?.observedAt ?? .distantPast) < saved.observedAt {
+                kiroAccountLimits = saved
+            }
+            readKiroAccount(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
@@ -540,6 +561,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshKiroLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -564,6 +586,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudePlan()
             readClaudeApp(now: now)
+            readKiroAccount(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -583,12 +606,14 @@ final class AgentUsageService: ObservableObject {
         let claudePlan: AgentPlan?
         let claudeOrganization: String?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let kiroPlan: AgentPlan?
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
-               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples)
+               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeApp: claudeAppSamples,
+               kiroPlan: kiroPlan)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -597,6 +622,7 @@ final class AgentUsageService: ObservableObject {
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
+        if let kiroPlan { plans[.kiro] = kiroPlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next
@@ -791,6 +817,65 @@ final class AgentUsageService: ObservableObject {
         // Resume asks again instead of waiting out a cancelled check; with
         // none in flight, the wait after a failure still holds.
         claudeAccountAttempted = .distantPast
+    }
+
+    /// The month's credits as Kiro last answered, until the month renews.
+    /// Runs on `queue`.
+    private func readKiroAccount(now: Date) {
+        guard enabled.contains(.kiro), let current = AgentKiroServer.current(kiroAccountLimits, now: now) else {
+            store.clearLimits(.kiro)
+            if !enabled.contains(.kiro) { kiroAccountLimits = nil; kiroPlan = nil }
+            return
+        }
+        store.setLimits(current)
+    }
+
+    // Main thread. Same rhythm as Claude's check: every minute while the
+    // page shows, every five otherwise, and backing off after a failure.
+    func refreshKiroLimits(now: Date = Date()) {
+        guard running, !paused, providers.contains(.kiro), kiroAccountRequest == nil else { return }
+        let interval = AgentKiroServer.interval(after: kiroAccountFailure, pageVisible: pageVisible)
+        guard now.timeIntervalSince(kiroAccountAttempted) >= interval else { return }
+        kiroAccountAttempted = now
+        let request = AgentKiroServer.Request()
+        kiroAccountRequest = request
+        let session = self.session
+        let home = self.home
+        kiroAccountQueue.async { [weak self] in
+            let result: Result<AgentKiroServer.Summary, AgentKiroServer.Failure>
+            if let executable = AgentKiroServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                result = request.run(executable, environment: AgentCodexServer.environment(for: executable, searchPath: nil))
+            } else { result = .failure(.missing) }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.kiroAccountRequest === request else { return }
+                self.kiroAccountRequest = nil
+                switch result {
+                case .failure(let failure): self.kiroAccountFailure = failure
+                case .success(let summary):
+                    self.kiroAccountFailure = nil
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.kiro) else { return }
+                        self.kiroAccountLimits = summary.limits
+                        self.kiroPlan = summary.plan
+                        if let charge = AgentKiroServer.overage(summary.limits, recorded: self.store.records) {
+                            self.store.apply([charge], file: AgentKiroServer.accountSource, provider: .kiro,
+                                             tracksTurns: false, modified: summary.limits.observedAt)
+                        }
+                        self.readKiroAccount(now: Date())
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelKiroLimits() {
+        guard let request = kiroAccountRequest else { return }
+        request.cancel()
+        kiroAccountRequest = nil
+        kiroAccountAttempted = .distantPast
     }
 
     // MARK: Prices

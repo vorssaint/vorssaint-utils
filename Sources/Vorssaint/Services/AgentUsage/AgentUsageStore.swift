@@ -71,7 +71,8 @@ final class AgentUsageStore {
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
-                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost)
+                    tokens: old.tokens, cost: old.cost, savings: old.savings, reportedCost: old.reportedCost,
+                    credits: old.credits)
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
@@ -475,7 +476,8 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
         [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
          (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.kiro, ".kiro/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -498,6 +500,7 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .kiro { return AgentKiroLog.accepts(path.dropFirst(prefix.count)) }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -692,7 +695,8 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        // Kiro's older sessions keep a JSON document; roots admit it only there.
+        return path.hasSuffix(".jsonl") || path.hasSuffix(".json")
     }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and
@@ -758,6 +762,10 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            if root.provider == .kiro {
+                for log in AgentKiroLog.logs(in: root.url) { include(log, from: root) }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -780,6 +788,10 @@ enum AgentLogReader {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
+        if cursor.provider == .kiro, AgentKiroLog.isSnapshot(cursor.path) {
+            AgentKiroLog.readSnapshot(cursor, shouldContinue: shouldContinue, line: line)
+            return
+        }
         var info = stat()
         guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
         let size = UInt64(max(0, info.st_size))
@@ -793,6 +805,7 @@ enum AgentLogReader {
         defer { cursor.fingerprintRead() }
         guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
         defer { try? handle.close() }
+        if cursor.provider == .kiro, cursor.offset == 0 { line(AgentKiroLog.header(for: cursor.path)) }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
         while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))
