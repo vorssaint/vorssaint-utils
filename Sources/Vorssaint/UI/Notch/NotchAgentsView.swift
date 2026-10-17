@@ -12,6 +12,8 @@ struct NotchAgentsView: View {
     @Environment(\.notchSettingsPreview) private var preview
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var display = NotchAgentLimitDisplay.remaining.rawValue
+    /// The Now card opened into the list of every agent at work.
+    @State private var showsLiveList = false
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
@@ -56,6 +58,8 @@ struct NotchAgentsView: View {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
             } else if rows.isEmpty {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
+            } else if showsLiveList {
+                NotchAgentLiveList(snapshot: usage.snapshot, providers: providers, text: text) { showsLiveList = false }
             } else {
                 let rows = rows
                 TimelineView(.periodic(from: .now, by: 15)) { context in
@@ -119,7 +123,7 @@ struct NotchAgentsView: View {
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .live:
-            NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+            NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text) { showsLiveList = true }
         case .trend:
             NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
         case .models:
@@ -553,10 +557,18 @@ private struct NotchAgentLiveCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
     let text: NotchAgentStrings
+    /// Opens the list of every agent at work.
+    var open: () -> Void = {}
     @Environment(\.locale) private var locale
 
     var body: some View {
         let live = snapshot.live.filter { providers.contains($0.provider) }
+        Button(action: open) { content(live) }
+            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+    }
+
+    private func content(_ live: [AgentLiveSession]) -> some View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 7) {
                 NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
@@ -564,6 +576,9 @@ private struct NotchAgentLiveCard: View {
                     HStack(spacing: 4) {
                         if live.count > 2 { NotchAgentChip(text: "+\(live.count - 2)") }
                         if let first = live.first { NotchAgentPulse(tint: first.provider.tint, size: 5) }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundStyle(.tertiary)
                     }
                 }
                 if live.isEmpty {
@@ -581,7 +596,7 @@ private struct NotchAgentLiveCard: View {
         }
     }
 
-    private func row(_ session: AgentLiveSession, now: Date) -> some View {
+    fileprivate func row(_ session: AgentLiveSession, now: Date) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 NotchAgentGlyph(provider: session.provider, size: 9)
@@ -622,6 +637,51 @@ private struct NotchAgentLiveCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
         }
+    }
+}
+
+/// Every agent at work, opened from the Now card.
+private struct NotchAgentLiveList: View {
+    let snapshot: AgentUsageSnapshot
+    let providers: [AgentProvider]
+    let text: NotchAgentStrings
+    let close: () -> Void
+
+    var body: some View {
+        let live = snapshot.live.filter { providers.contains($0.provider) }.sorted { $0.started < $1.started }
+        let card = NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+        VStack(alignment: .leading, spacing: 8) {
+            Button(action: close) {
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.left").font(.system(size: 10, weight: .semibold))
+                    Image(systemName: NotchAgentCard.live.symbol).font(.system(size: 10, weight: .semibold))
+                    Text(text.liveCard).font(.system(size: 11, weight: .semibold))
+                    Text("\(live.count)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.white.opacity(0.9))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if live.isEmpty {
+                NotchEmptyView(symbol: NotchAgentCard.live.symbol, message: text.idle)
+            } else {
+                ScrollView {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        VStack(spacing: 6) {
+                            ForEach(live) { session in
+                                NotchAgentCardChrome { card.row(session, now: context.date) }
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+                .scrollIndicators(.automatic)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 }
 
