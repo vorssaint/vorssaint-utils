@@ -224,7 +224,7 @@ private struct NotchMasterFader: View {
             .accessibilityLabel(muted ? l10n.s.actionUnmute : l10n.s.actionMute)
             if let level {
                 NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
-                                 label: l10n.s.mixerSystemOutputTitle, vertical: true, trackThickness: 28)
+                                 label: l10n.s.mixerSystemOutputTitle, tint: .blue, vertical: true, trackThickness: 28)
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
                 NotchEditablePercent(percent: MixerRoutingSupport.displayPercent(forVolume: level), maximum: 100,
                                      editorID: "notch-system-output", editingID: $editingVolumeID,

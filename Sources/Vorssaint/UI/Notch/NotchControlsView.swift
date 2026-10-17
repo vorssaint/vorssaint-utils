@@ -70,7 +70,8 @@ struct NotchControlsView: View {
                 (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
             }
         }.buttonStyle(.plain).foregroundStyle(.secondary).font(.system(size: 11))
-        let sun = Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+        let sun = Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium))
+            .foregroundStyle(PanelMetricColor.brightness).frame(width: 18)
         return ViewThatFits(in: .horizontal) {
             HStack(spacing: 8) {
                 sun
@@ -172,7 +173,7 @@ struct NotchAudioControls: View {
         } label: {
             Image(systemName: mixer.systemOutputMuted == true ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(mixer.systemOutputMuted == true ? Color.red : Color.white)
+                .foregroundStyle(mixer.systemOutputMuted == true ? Color.red : Color.blue)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: mixer.systemOutputMuted)
                 .frame(width: 18, height: 18)
@@ -188,7 +189,8 @@ struct NotchAudioControls: View {
             // In the island's top row the volume draws as slim as the song's
             // position bar, keeping the full height to grab it by.
             NotchLevelSlider(value: Binding(get: { level }, set: { adjustOutput(volume: $0) }),
-                             label: FeatureStrings.notch(l10n.language).volume, trackThickness: 8, easesChanges: true)
+                             label: FeatureStrings.notch(l10n.language).volume, tint: .blue,
+                             trackThickness: 8, easesChanges: true)
                 .frame(height: 24)
         } else {
             Text(l10n.s.mixerOutputUnavailable).font(.system(size: 10)).foregroundStyle(.secondary)
@@ -304,7 +306,8 @@ private struct NotchBrightnessControls: View {
     /// Volume leads with its mute button; the sun keeps that button's width
     /// so both sliders start on the same line.
     private var glyph: some View {
-        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium)).frame(width: 18)
+        Image(systemName: "sun.max.fill").font(.system(size: 12, weight: .medium))
+            .foregroundStyle(PanelMetricColor.brightness).frame(width: 18)
     }
 
     private func displayItems(current: BrightnessDisplay) -> [NotchMenuItem] {
@@ -319,7 +322,8 @@ private struct NotchBrightnessControls: View {
                 // The slider shows the level it sets, so neither a reading in
                 // the row nor the system's indicator repeats it.
                 service.setBrightness($0, for: display.id, announces: false)
-            }), label: FeatureStrings.notch(l10n.language).brightness, trackThickness: 8, easesChanges: true)
+            }), label: FeatureStrings.notch(l10n.language).brightness, tint: PanelMetricColor.brightness,
+               trackThickness: 8, easesChanges: true)
                 .frame(height: 24)
         } else {
             Text(FeatureStrings.brightness(l10n.language).noDisplays)

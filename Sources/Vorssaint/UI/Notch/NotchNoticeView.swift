@@ -19,7 +19,7 @@ struct NotchNoticeView: View {
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         // The timer's notice keeps the orange its strip and page wear.
         case .timer: return .orange
-        default: return .white
+        default: return notice.levelTint
         }
     }
     /// The words of a timer's notice share its orange too.
@@ -147,6 +147,17 @@ private struct NotchTrackArtwork: View {
     var body: some View { NotchArtwork(image: music.artwork, size: size, source: music.playback?.track) }
 }
 
+extension NotchNotice {
+    /// Volume reads blue and brightness beige, in the island and its controls.
+    var levelTint: Color {
+        switch event {
+        case .volume: return .blue
+        case .brightness: return PanelMetricColor.brightness
+        default: return .white
+        }
+    }
+}
+
 /// Level feedback occupies the header while the current page stays usable.
 struct NotchExpandedLevelView: View {
     let notice: NotchNotice
@@ -157,8 +168,9 @@ struct NotchExpandedLevelView: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: notice.symbol)
+                .foregroundStyle(notice.levelTint)
                 .frame(width: 18)
-            NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
+            NotchMeter(value: notice.level ?? 0, height: 5, tint: notice.levelTint)
                 .frame(maxWidth: 96)
             if showsDetail {
                 Text(notice.detail)
