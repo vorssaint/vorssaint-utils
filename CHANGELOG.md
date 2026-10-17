@@ -11,6 +11,8 @@ After updating, What's New shows the changes for the features you use. The windo
 
 ### Added
 - Dynamic Island can show the keyboard input source when it changes. Command Bar's temporary layout switches stay quiet. Settings → Dynamic Island → Activity → Indicators.
+- The music page has a heart beside Lyrics and Up next. For Apple Music it shows whether the song is a favorite and changes it, asking once to control Music like the playback buttons do. For Spotify it shows whether the song is in Liked Songs, once "Spotify likes" is turned on in Features and your own Spotify developer app is connected in Settings → Dynamic Island → Content → Now Playing.
+- With Spotify likes connected, Up next lists Spotify's own upcoming songs, which Spotify does not share with the system.
 - The window switcher can limit how many items sit in a row and wraps the rest. Settings → Window switcher → Options → Maximum columns.
 - Screenshot previews can copy the text in a capture when Screen OCR is installed.
 - The screenshot editor's Spotlight tool dims everything outside the areas you draw. Expand canvas adds white, transparent or custom-color space, and Command-V pastes an image as a layer to move, resize and reorder.
