@@ -316,6 +316,28 @@ enum NotchCalendarSupport {
             fractionalPart: .hide(rounded: .down)).locale(locale))
     }
 
+    static let appleCalendar = "com.apple.iCal"
+    static let fantastical = "com.flexibits.fantastical2.mac"
+    /// The apps events can open in, Calendar first.
+    static let apps = [appleCalendar, fantastical]
+
+    /// The chosen app while it is installed, otherwise Calendar.
+    static func app(in defaults: UserDefaults = .standard, isInstalled: (String) -> Bool) -> String {
+        let choice = defaults.string(forKey: DefaultsKey.notchCalendarApp) ?? appleCalendar
+        return apps.contains(choice) && isInstalled(choice) ? choice : appleCalendar
+    }
+
+    /// The link the chosen app resolves to the appointment. Fantastical has
+    /// no link to one event by its EventKit identifier, so it shows the day.
+    static func eventURL(_ event: NotchCalendarEvent, app: String, calendar: Calendar = .current) -> URL? {
+        guard app == fantastical else { return eventURL(event, calendar: calendar) }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        return URL(string: "x-fantastical3://show/calendar/" + formatter.string(from: event.start))
+    }
+
     /// The link Calendar resolves to one appointment. A series shares one
     /// identifier across its occurrences, so the clicked start (UTC, or the
     /// local day for all-day events) picks the right one.
