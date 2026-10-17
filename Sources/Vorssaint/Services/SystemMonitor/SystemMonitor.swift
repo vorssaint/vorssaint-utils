@@ -147,6 +147,7 @@ final class SystemMonitor: ObservableObject {
     private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var notchVisible = false
     private var notchDetailNeeds: SystemMonitorPanelNeeds = .none
+    private var touchBarNeeds: SystemMonitorPanelNeeds = .none
     private var notchAccessoryMonitoring = false
     private var menuBarActive = false
     private var alertsActive = false
@@ -287,6 +288,20 @@ final class SystemMonitor: ObservableObject {
             self.stopTimerIfIdle()
             self.ensureTimer()
             if needs.any { self.refresh(suppressImmediateGPU: true); self.scheduleDeferredGPURefreshIfNeeded() }
+        }
+    }
+
+    /// Independent Touch Bar metrics consumer.
+    func setTouchBarNeeds(_ needs: SystemMonitorPanelNeeds) {
+        runOnMain { [weak self] in
+            guard let self, self.touchBarNeeds != needs else { return }
+            self.touchBarNeeds = needs
+            self.stopTimerIfIdle()
+            self.ensureTimer()
+            if needs.any {
+                self.refresh(suppressImmediateGPU: true)
+                self.scheduleDeferredGPURefreshIfNeeded()
+            }
         }
     }
 
@@ -481,7 +496,7 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
+    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || touchBarNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -532,7 +547,7 @@ final class SystemMonitor: ObservableObject {
     }
 
     private func currentPlan(defaults: UserDefaults) -> SamplingPlan {
-        let menuPanelNeeds = self.menuPanelNeeds.merging(notchDetailNeeds)
+        let menuPanelNeeds = self.menuPanelNeeds.merging(notchDetailNeeds).merging(touchBarNeeds)
         var plan = SamplingPlan()
         let hasInternalBattery = PowerSampler.hasInternalBattery
         let panelNeedsSystem = fullMonitorVisible || menuPanelNeeds.system

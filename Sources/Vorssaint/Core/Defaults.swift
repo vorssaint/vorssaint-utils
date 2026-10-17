@@ -947,6 +947,16 @@ enum DefaultsKey {
     static let notchHideInCaptures = "notchHideInCaptures"
     static let panelControlNotch = "panelControlNotch"
 
+    // Touch Bar controls on supported MacBook Pro models.
+    static let touchBarEnabled = "touchBarEnabled"
+    static let touchBarControlOrder = "touchBarControlOrder"
+    static let touchBarShowKeepAwake = "touchBarShowKeepAwake"
+    static let touchBarShowMicMute = "touchBarShowMicMute"
+    static let touchBarShowClipboard = "touchBarShowClipboard"
+    static let touchBarShowSystemMetrics = "touchBarShowSystemMetrics"
+    static let touchBarShowQuickLauncher = "touchBarShowQuickLauncher"
+    static let touchBarShowKillProcess = "touchBarShowKillProcess"
+
     // Radial menu: a wheel of actions on a shortcut.
     static let radialMenuEnabled = "radialMenuEnabled"
     static let radialMenuShortcut = "radialMenuShortcut"
@@ -1959,6 +1969,14 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.touchBarEnabled: false,
+        DefaultsKey.touchBarControlOrder: "",
+        DefaultsKey.touchBarShowKeepAwake: true,
+        DefaultsKey.touchBarShowMicMute: true,
+        DefaultsKey.touchBarShowClipboard: true,
+        DefaultsKey.touchBarShowSystemMetrics: true,
+        DefaultsKey.touchBarShowQuickLauncher: true,
+        DefaultsKey.touchBarShowKillProcess: true,
     ]
 
     static func register() {
