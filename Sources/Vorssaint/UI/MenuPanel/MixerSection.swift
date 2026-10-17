@@ -1048,6 +1048,14 @@ private struct MixerRow: View {
             Label(isPinned ? arrangementStrings.unpin : arrangementStrings.pin,
                   systemImage: isPinned ? "pin.slash" : "pin")
         }
+        if app.isBypassed || app.isBypassOverridden {
+            Button {
+                mixer.setMixerControl(app.isBypassed, for: app)
+            } label: {
+                Label(app.isBypassed ? arrangementStrings.controlAnyway : arrangementStrings.leaveAudioToApp,
+                      systemImage: app.isBypassed ? "slider.horizontal.3" : "arrow.uturn.backward")
+            }
+        }
     }
 
     private var volumeBinding: Binding<Double> {
