@@ -29,6 +29,15 @@ struct WallpaperFeatureStrings {
     let applyFailed: String
     let previousPage: String
     let nextPage: String
+    let autoAppearance: String
+    let lightModeTitle: String
+    let darkModeTitle: String
+    let setForLightMode: String
+    let setForDarkMode: String
+    let clearSlot: String
+    let noWallpaperSet: String
+    let appearanceHint: String
+    let chooseImage: String
 }
 
 extension FeatureStrings {
@@ -77,7 +86,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Could not download the wallpaper",
         applyFailed: "Could not set the wallpaper",
         previousPage: "Previous",
-        nextPage: "Next"
+        nextPage: "Next",
+        autoAppearance: "Switch with Light/Dark appearance",
+        lightModeTitle: "Light",
+        darkModeTitle: "Dark",
+        setForLightMode: "Set for Light Mode",
+        setForDarkMode: "Set for Dark Mode",
+        clearSlot: "Clear",
+        noWallpaperSet: "No wallpaper set",
+        appearanceHint: "Click ☀️ or 🌙 on any wallpaper to assign it",
+        chooseImage: "Choose image"
     )
 
     static let ptBR = WallpaperFeatureStrings(
@@ -103,7 +121,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Não foi possível baixar o papel de parede",
         applyFailed: "Não foi possível definir o papel de parede",
         previousPage: "Anterior",
-        nextPage: "Próximo"
+        nextPage: "Próximo",
+        autoAppearance: "Alternar com Modo Claro/Escuro",
+        lightModeTitle: "Claro",
+        darkModeTitle: "Escuro",
+        setForLightMode: "Definir para Modo Claro",
+        setForDarkMode: "Definir para Modo Escuro",
+        clearSlot: "Limpar",
+        noWallpaperSet: "Nenhum papel de parede definido",
+        appearanceHint: "Clique em ☀️ ou 🌙 em qualquer imagem para atribuir",
+        chooseImage: "Escolher imagem"
     )
 
     static let tr = WallpaperFeatureStrings(
@@ -129,7 +156,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Duvar kağıdı indirilemedi",
         applyFailed: "Duvar kağıdı ayarlanamadı",
         previousPage: "Önceki",
-        nextPage: "Sonraki"
+        nextPage: "Sonraki",
+        autoAppearance: "Açık/Koyu mod ile değiştir",
+        lightModeTitle: "Açık",
+        darkModeTitle: "Koyu",
+        setForLightMode: "Açık Mod için ayarla",
+        setForDarkMode: "Koyu Mod için ayarla",
+        clearSlot: "Temizle",
+        noWallpaperSet: "Duvar kağıdı ayarlanmadı",
+        appearanceHint: "Atamak için herhangi bir duvar kağıdında ☀️ veya 🌙 simgesine tıklayın",
+        chooseImage: "Görüntü seç"
     )
 
     static let ru = WallpaperFeatureStrings(
@@ -155,7 +191,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Не удалось загрузить обои",
         applyFailed: "Не удалось установить обои",
         previousPage: "Назад",
-        nextPage: "Далее"
+        nextPage: "Далее",
+        autoAppearance: "Переключать со светлым/темным режимом",
+        lightModeTitle: "Светлый",
+        darkModeTitle: "Темный",
+        setForLightMode: "Назначить для светлого режима",
+        setForDarkMode: "Назначить для темного режима",
+        clearSlot: "Очистить",
+        noWallpaperSet: "Обои не выбраны",
+        appearanceHint: "Нажмите ☀️ или 🌙 на любых обоях, чтобы назначить их",
+        chooseImage: "Выбрать изображение"
     )
 
     static let es = WallpaperFeatureStrings(
@@ -181,7 +226,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "No se pudo descargar el fondo",
         applyFailed: "No se pudo establecer el fondo",
         previousPage: "Anterior",
-        nextPage: "Siguiente"
+        nextPage: "Siguiente",
+        autoAppearance: "Cambiar según el modo claro/oscuro",
+        lightModeTitle: "Claro",
+        darkModeTitle: "Oscuro",
+        setForLightMode: "Asignar al modo claro",
+        setForDarkMode: "Asignar al modo oscuro",
+        clearSlot: "Borrar",
+        noWallpaperSet: "Sin fondo asignado",
+        appearanceHint: "Haz clic en ☀️ o 🌙 en cualquier fondo para asignarlo",
+        chooseImage: "Elegir imagen"
     )
     static let sk = WallpaperFeatureStrings(
         pageTitle: "Pozadie",
@@ -206,7 +260,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Pozadie sa nepodarilo stiahnuť",
         applyFailed: "Pozadie sa nepodarilo nastaviť",
         previousPage: "Predchádzajúca",
-        nextPage: "Ďalšia"
+        nextPage: "Ďalšia",
+        autoAppearance: "Prepnúť podľa svetlého/tmavého režimu",
+        lightModeTitle: "Svetlý",
+        darkModeTitle: "Tmavý",
+        setForLightMode: "Nastaviť pre svetlý režim",
+        setForDarkMode: "Nastaviť pre tmavý režim",
+        clearSlot: "Vymazať",
+        noWallpaperSet: "Tapeta nie je nastavená",
+        appearanceHint: "Kliknutím na ☀️ alebo 🌙 na ľubovoľnom pozadí ho priradíte",
+        chooseImage: "Vybrať obrázok"
     )
 
     static let de = WallpaperFeatureStrings(
@@ -232,7 +295,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Hintergrundbild konnte nicht geladen werden",
         applyFailed: "Hintergrundbild konnte nicht gesetzt werden",
         previousPage: "Zurück",
-        nextPage: "Weiter"
+        nextPage: "Weiter",
+        autoAppearance: "Mit Hell-/Dunkelmodus wechseln",
+        lightModeTitle: "Hell",
+        darkModeTitle: "Dunkel",
+        setForLightMode: "Für Hellmodus festlegen",
+        setForDarkMode: "Für Dunkelmodus festlegen",
+        clearSlot: "Löschen",
+        noWallpaperSet: "Kein Hintergrundbild festgelegt",
+        appearanceHint: "Klicke auf ☀️ oder 🌙 bei einem Bild, um es zuzuweisen",
+        chooseImage: "Bild auswählen"
     )
 
     static let fr = WallpaperFeatureStrings(
@@ -258,7 +330,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Impossible de télécharger le fond d’écran",
         applyFailed: "Impossible de définir le fond d’écran",
         previousPage: "Précédent",
-        nextPage: "Suivant"
+        nextPage: "Suivant",
+        autoAppearance: "Changer selon le mode clair/sombre",
+        lightModeTitle: "Clair",
+        darkModeTitle: "Sombre",
+        setForLightMode: "Définir pour le mode clair",
+        setForDarkMode: "Définir pour le mode sombre",
+        clearSlot: "Effacer",
+        noWallpaperSet: "Aucun fond d’écran défini",
+        appearanceHint: "Cliquez sur ☀️ ou 🌙 sur une image pour l’assigner",
+        chooseImage: "Choisir une image"
     )
 
     static let it = WallpaperFeatureStrings(
@@ -284,7 +365,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Impossibile scaricare lo sfondo",
         applyFailed: "Impossibile impostare lo sfondo",
         previousPage: "Precedente",
-        nextPage: "Successiva"
+        nextPage: "Successiva",
+        autoAppearance: "Cambia con la modalità Chiara/Scura",
+        lightModeTitle: "Chiaro",
+        darkModeTitle: "Scuro",
+        setForLightMode: "Imposta per modalità Chiara",
+        setForDarkMode: "Imposta per modalità Scura",
+        clearSlot: "Cancella",
+        noWallpaperSet: "Nessuno sfondo impostato",
+        appearanceHint: "Fai clic su ☀️ o 🌙 su qualsiasi sfondo per assegnarlo",
+        chooseImage: "Scegli immagine"
     )
 
     static let ja = WallpaperFeatureStrings(
@@ -310,7 +400,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "壁紙をダウンロードできませんでした",
         applyFailed: "壁紙を設定できませんでした",
         previousPage: "前へ",
-        nextPage: "次へ"
+        nextPage: "次へ",
+        autoAppearance: "ライト/ダークモードに合わせて切り替え",
+        lightModeTitle: "ライト",
+        darkModeTitle: "ダーク",
+        setForLightMode: "ライトモード用に設定",
+        setForDarkMode: "ダークモード用に設定",
+        clearSlot: "解除",
+        noWallpaperSet: "未設定",
+        appearanceHint: "壁紙の ☀️ または 🌙 をクリックして設定",
+        chooseImage: "画像を選択"
     )
 
     static let ko = WallpaperFeatureStrings(
@@ -336,7 +435,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "배경화면을 다운로드할 수 없습니다",
         applyFailed: "배경화면을 설정할 수 없습니다",
         previousPage: "이전",
-        nextPage: "다음"
+        nextPage: "다음",
+        autoAppearance: "라이트/다크 모드에 맞춰 전환",
+        lightModeTitle: "라이트",
+        darkModeTitle: "다크",
+        setForLightMode: "라이트 모드로 설정",
+        setForDarkMode: "다크 모드로 설정",
+        clearSlot: "지우기",
+        noWallpaperSet: "설정된 배경화면 없음",
+        appearanceHint: "배경화면의 ☀️ 또는 🌙를 클릭하여 지정",
+        chooseImage: "이미지 선택"
     )
     static let uk = WallpaperFeatureStrings(
         pageTitle: "Шпалера",
@@ -361,7 +469,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "Не вдалося завантажити шпалеру",
         applyFailed: "Не вдалося встановити шпалеру",
         previousPage: "Назад",
-        nextPage: "Далі"
+        nextPage: "Далі",
+        autoAppearance: "Перемикати за світлим/темним режимом",
+        lightModeTitle: "Світлий",
+        darkModeTitle: "Темний",
+        setForLightMode: "Встановити для світлого режиму",
+        setForDarkMode: "Встановити для темного режиму",
+        clearSlot: "Очистити",
+        noWallpaperSet: "Шпалери не вибрано",
+        appearanceHint: "Натисніть ☀️ або 🌙 на будь-якій шпалері, щоб призначити її",
+        chooseImage: "Вибрати зображення"
     )
 
     static let zhHans = WallpaperFeatureStrings(
@@ -387,7 +504,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "无法下载壁纸",
         applyFailed: "无法设置壁纸",
         previousPage: "上一页",
-        nextPage: "下一页"
+        nextPage: "下一页",
+        autoAppearance: "随浅色/深色外观切换",
+        lightModeTitle: "浅色",
+        darkModeTitle: "深色",
+        setForLightMode: "设为浅色壁纸",
+        setForDarkMode: "设为深色壁纸",
+        clearSlot: "清除",
+        noWallpaperSet: "未设置壁纸",
+        appearanceHint: "点击任意壁纸上的 ☀️ 或 🌙 即可指定",
+        chooseImage: "选择图片"
     )
 
     static let zhTW = WallpaperFeatureStrings(
@@ -413,7 +539,16 @@ extension WallpaperFeatureStrings {
         downloadFailed: "無法下載桌布",
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
-        nextPage: "下一頁"
+        nextPage: "下一頁",
+        autoAppearance: "隨淺色/深色外觀切換",
+        lightModeTitle: "淺色",
+        darkModeTitle: "深色",
+        setForLightMode: "設為淺色桌布",
+        setForDarkMode: "設為深色桌布",
+        clearSlot: "清除",
+        noWallpaperSet: "未設定桌布",
+        appearanceHint: "點擊任意桌布上的 ☀️ 或 🌙 即可指定",
+        chooseImage: "選擇圖片"
     )
 
     static let zhHK = WallpaperFeatureStrings(
@@ -439,6 +574,15 @@ extension WallpaperFeatureStrings {
         downloadFailed: "無法下載桌布",
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
-        nextPage: "下一頁"
+        nextPage: "下一頁",
+        autoAppearance: "隨淺色/深色外觀切換",
+        lightModeTitle: "淺色",
+        darkModeTitle: "深色",
+        setForLightMode: "設為淺色桌布",
+        setForDarkMode: "設為深色桌布",
+        clearSlot: "清除",
+        noWallpaperSet: "未設定桌布",
+        appearanceHint: "點擊任何桌布上嘅 ☀️ 或 🌙 即可設定",
+        chooseImage: "選擇圖片"
     )
 }

@@ -29,6 +29,10 @@ final class WallpaperService: ObservableObject {
     @Published private(set) var isDownloading = false
     // bumps when thumb generation changes so cell .task restarts
     @Published private(set) var thumbEpoch = 0
+    @Published private(set) var autoAppearanceEnabled = false
+    @Published private(set) var lightSlot: WallpaperSupport.AppearanceSlot?
+    @Published private(set) var darkSlot: WallpaperSupport.AppearanceSlot?
+    @Published private(set) var systemIsDark = false
 
     private var ownBookmarks: [Data] = []
     // folder-child paths the user hid from the gallery (files stay on disk)
@@ -45,11 +49,16 @@ final class WallpaperService: ObservableObject {
     // lock-backed copy so detached apply-all can bail if a newer apply won
     private let applyGenerationLock = NSLock()
     private var applyGeneration = UUID()
+    private var themeObserver: AnyObject?
+    private var wakeObserver: AnyObject?
+    private var lastAppliedAppearance: WallpaperSupport.AppearanceMode?
 
     private init() {
         loadBookmarks()
         loadExclusions()
         loadFilter()
+        loadAppearanceSlots()
+        loadAutoAppearance()
     }
 
     var isAvailable: Bool { AppFeature.wallpaper.isAvailable }
@@ -91,6 +100,7 @@ final class WallpaperService: ObservableObject {
 
     func syncWithPreferences() {
         if !isAvailable {
+            removeObservers()
             galleryLifecycle.endAll()
             let cancelled = UUID()
             applyToken = cancelled
@@ -111,6 +121,10 @@ final class WallpaperService: ObservableObject {
             return
         }
         WallpaperStore.migrateLegacyBackupIfNeeded()
+        updateObserver()
+        if autoAppearanceEnabled {
+            applyCurrentAppearanceWallpaperIfNeeded()
+        }
         if galleryLifecycle.isVisible { refresh(forceAppleRescan: false) }
     }
 
@@ -138,6 +152,7 @@ final class WallpaperService: ObservableObject {
     }
 
     func beginViewing(_ viewer: UUID) {
+        systemIsDark = currentSystemAppearanceIsDark
         galleryLifecycle.begin(viewer)
         refresh(forceAppleRescan: false)
     }
@@ -396,6 +411,29 @@ final class WallpaperService: ObservableObject {
         }
     }
 
+    func pickImageForSlot(_ mode: WallpaperSupport.AppearanceMode) {
+        guard isAvailable, openPanel == nil else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        let types = WallpaperSupport.imageExtensions.compactMap { UTType(filenameExtension: $0) }
+        panel.allowedContentTypes = types.isEmpty ? [.image] : types
+        panel.message = FeatureStrings.wallpaper(L10n.shared.language).chooseImage
+        present(panel) { [weak self] urls in
+            guard let self, let url = urls.first else { return }
+            self.remember(urls: [url])
+            let entry = WallpaperSupport.Entry(
+                id: url.standardizedFileURL.path,
+                imageURL: url,
+                previewURL: url,
+                title: WallpaperSupport.title(for: url),
+                source: .own
+            )
+            self.setSlot(for: mode, entry: entry)
+        }
+    }
+
     func openSystemWallpaperSettings() {
         guard let url = WallpaperSupport.systemWallpaperSettingsURL else { return }
         NSWorkspace.shared.open(url)
@@ -596,6 +634,179 @@ final class WallpaperService: ObservableObject {
                         options: [.withSecurityScope, .withoutUI, .withoutMounting],
                         relativeTo: nil,
                         bookmarkDataIsStale: &stale)
+    }
+
+    // MARK: - Light / Dark Mode Appearance Management
+
+    var currentSystemAppearanceIsDark: Bool {
+        if let dark = QuickTogglesService.shared.systemAppearanceIsDark {
+            return dark
+        }
+        return NSApplication.shared.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+    }
+
+    func setAutoAppearanceEnabled(_ enabled: Bool) {
+        autoAppearanceEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: DefaultsKey.wallpaperAutoAppearanceEnabled)
+        updateObserver()
+        if enabled {
+            systemIsDark = currentSystemAppearanceIsDark
+            applyCurrentAppearanceWallpaperIfNeeded()
+        }
+        objectWillChange.send()
+    }
+
+    func setSlot(for mode: WallpaperSupport.AppearanceMode, entry: WallpaperSupport.Entry) {
+        let bookmark: Data?
+        if entry.source == .own {
+            bookmark = fileBookmarkByPath[entry.id] ?? makeBookmark(for: entry.imageURL)
+        } else {
+            bookmark = nil
+        }
+        let slot = WallpaperSupport.AppearanceSlot(entry: entry, bookmark: bookmark)
+        switch mode {
+        case .light:
+            lightSlot = slot
+            if let data = WallpaperSupport.encodeAppearanceSlot(slot) {
+                UserDefaults.standard.set(data, forKey: DefaultsKey.wallpaperLightSlot)
+            }
+        case .dark:
+            darkSlot = slot
+            if let data = WallpaperSupport.encodeAppearanceSlot(slot) {
+                UserDefaults.standard.set(data, forKey: DefaultsKey.wallpaperDarkSlot)
+            }
+        }
+        objectWillChange.send()
+
+        systemIsDark = currentSystemAppearanceIsDark
+        if autoAppearanceEnabled {
+            let matches = (mode == .dark && systemIsDark) || (mode == .light && !systemIsDark)
+            if matches {
+                applySlot(slot)
+            }
+        }
+    }
+
+    func clearSlot(for mode: WallpaperSupport.AppearanceMode) {
+        switch mode {
+        case .light:
+            lightSlot = nil
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.wallpaperLightSlot)
+        case .dark:
+            darkSlot = nil
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.wallpaperDarkSlot)
+        }
+        objectWillChange.send()
+    }
+
+    func resolveSlotURL(_ slot: WallpaperSupport.AppearanceSlot) -> URL? {
+        if slot.isApple {
+            let url = URL(fileURLWithPath: slot.path)
+            return FileManager.default.fileExists(atPath: url.path) ? url : nil
+        }
+        if let bookmark = slot.bookmark {
+            if let resolved = resolveBookmark(bookmark) {
+                if resolved.startAccessingSecurityScopedResource() {
+                    scopedURLs.append(resolved)
+                }
+                if FileManager.default.fileExists(atPath: resolved.path) {
+                    return resolved
+                }
+            }
+        }
+        let url = URL(fileURLWithPath: slot.path)
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
+    func applySlot(_ slot: WallpaperSupport.AppearanceSlot) {
+        guard isAvailable else { return }
+        guard let url = resolveSlotURL(slot) else {
+            lastError = FeatureStrings.wallpaper(L10n.shared.language).sourceUnavailable
+            return
+        }
+        let entry = WallpaperSupport.resolveSlotEntry(from: slot, resolvedBookmarkURL: url)
+            ?? WallpaperSupport.Entry(id: slot.id,
+                                      imageURL: url,
+                                      previewURL: slot.previewURL,
+                                      title: slot.title,
+                                      source: slot.isApple ? .apple : .own)
+        apply(entry)
+    }
+
+    func applyCurrentAppearanceWallpaperIfNeeded() {
+        guard isAvailable, autoAppearanceEnabled else { return }
+        systemIsDark = currentSystemAppearanceIsDark
+        let currentMode: WallpaperSupport.AppearanceMode = systemIsDark ? .dark : .light
+        guard let targetSlot = (currentMode == .dark ? darkSlot : lightSlot) else { return }
+        guard let url = resolveSlotURL(targetSlot) else { return }
+
+        if lastAppliedAppearance == currentMode && appliedPath == url.path {
+            return
+        }
+        lastAppliedAppearance = currentMode
+        applySlot(targetSlot)
+    }
+
+    private func makeBookmark(for url: URL) -> Data? {
+        try? url.bookmarkData(options: .withSecurityScope,
+                              includingResourceValuesForKeys: nil,
+                              relativeTo: nil)
+    }
+
+    private func updateObserver() {
+        guard isAvailable && autoAppearanceEnabled else {
+            removeObservers()
+            return
+        }
+        guard themeObserver == nil else { return }
+
+        themeObserver = DistributedNotificationCenter.default().addObserver(
+            forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleAppearanceChange()
+        }
+
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleAppearanceChange()
+        }
+    }
+
+    private func removeObservers() {
+        if let obs = themeObserver {
+            DistributedNotificationCenter.default().removeObserver(obs)
+            themeObserver = nil
+        }
+        if let obs = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(obs)
+            wakeObserver = nil
+        }
+    }
+
+    private func handleAppearanceChange() {
+        guard isAvailable, autoAppearanceEnabled else { return }
+        systemIsDark = currentSystemAppearanceIsDark
+        applyCurrentAppearanceWallpaperIfNeeded()
+    }
+
+    private func loadAppearanceSlots() {
+        if let lightData = UserDefaults.standard.data(forKey: DefaultsKey.wallpaperLightSlot) {
+            lightSlot = WallpaperSupport.decodeAppearanceSlot(from: lightData)
+        }
+        if let darkData = UserDefaults.standard.data(forKey: DefaultsKey.wallpaperDarkSlot) {
+            darkSlot = WallpaperSupport.decodeAppearanceSlot(from: darkData)
+        }
+    }
+
+    private func loadAutoAppearance() {
+        autoAppearanceEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.wallpaperAutoAppearanceEnabled)
+        systemIsDark = currentSystemAppearanceIsDark
+        updateObserver()
     }
 }
 

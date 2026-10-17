@@ -270,5 +270,60 @@ enum WallpaperContract {
         ]
         suite.expect(!WallpaperSupport.patchStoreRoot(&badDisplays, imageURL: imageURL),
                      "store with a non-dict Displays value is rejected")
+
+        // Light / Dark mode appearance slots
+        suite.expect(WallpaperSupport.AppearanceMode.allCases == [.light, .dark],
+                     "appearance modes cover light and dark")
+
+        let appleEntry = WallpaperSupport.Entry(
+            id: "/System/Library/Desktop Pictures/Peak.heic",
+            imageURL: URL(fileURLWithPath: "/System/Library/Desktop Pictures/Peak.heic"),
+            previewURL: URL(fileURLWithPath: "/System/Library/Desktop Pictures/.thumbnails/Peak.heic"),
+            title: "Peak",
+            source: .apple
+        )
+        let appleSlot = WallpaperSupport.AppearanceSlot(entry: appleEntry)
+        suite.expect(appleSlot.isApple && appleSlot.title == "Peak" && appleSlot.bookmark == nil,
+                     "apple slot retains entry metadata")
+        suite.expect(appleSlot.previewURL.path == "/System/Library/Desktop Pictures/.thumbnails/Peak.heic",
+                     "apple slot uses previewURL")
+
+        let encodedApple = WallpaperSupport.encodeAppearanceSlot(appleSlot)
+        let decodedApple = encodedApple.flatMap { WallpaperSupport.decodeAppearanceSlot(from: $0) }
+        suite.expect(decodedApple != nil && decodedApple == appleSlot,
+                     "appearance slot roundtrips through encoding")
+
+        let resolvedApple = decodedApple.flatMap { WallpaperSupport.resolveSlotEntry(from: $0) }
+        suite.expect(resolvedApple?.id == appleEntry.id
+                     && resolvedApple?.source == .apple
+                     && resolvedApple?.imageURL.path == appleEntry.imageURL.path
+                     && resolvedApple?.previewURL.path == appleEntry.previewURL.path,
+                     "resolved apple slot reproduces entry")
+
+        let dummyData = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        let ownSlot = WallpaperSupport.AppearanceSlot(
+            id: "/Users/test/Pictures/sunset.jpg",
+            path: "/Users/test/Pictures/sunset.jpg",
+            previewPath: "/Users/test/Pictures/sunset.jpg",
+            title: "sunset",
+            isApple: false,
+            bookmark: dummyData
+        )
+        suite.expect(!ownSlot.isApple && ownSlot.bookmark == dummyData, "own slot preserves bookmark data")
+        let encodedOwn = WallpaperSupport.encodeAppearanceSlot(ownSlot)
+        let decodedOwn = encodedOwn.flatMap { WallpaperSupport.decodeAppearanceSlot(from: $0) }
+        suite.expect(decodedOwn != nil && decodedOwn == ownSlot,
+                     "own appearance slot roundtrips through encoding")
+
+        let resolvedOwn = decodedOwn.flatMap { WallpaperSupport.resolveSlotEntry(from: $0) }
+        suite.expect(resolvedOwn?.source == .own && resolvedOwn?.title == "sunset",
+                     "resolved own slot sets source to .own")
+
+        let customResolvedURL = URL(fileURLWithPath: "/Volumes/External/sunset.jpg")
+        let resolvedWithCustomURL = decodedOwn.flatMap {
+            WallpaperSupport.resolveSlotEntry(from: $0, resolvedBookmarkURL: customResolvedURL)
+        }
+        suite.expect(resolvedWithCustomURL?.imageURL == customResolvedURL,
+                     "resolved slot uses resolved bookmark URL when supplied")
     }
 }
