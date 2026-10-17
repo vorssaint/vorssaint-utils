@@ -880,15 +880,15 @@ enum WindowLayoutFeatureTests {
                == CGRect(x: 0, y: 486, width: 704, height: 414),
                "a corner shaves only its two interior edges")
         suite.expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
-                                         screenGap: 32)
+                                         screenInsets: ScreenGapInsets(all: 32))
                == CGRect(x: 32, y: 72, width: 688, height: 796),
                "the screen gap insets the visible frame before placement")
         suite.expect(WindowLayoutGeometry.rect(for: .maximize, current: currentWindow, visibleFrame: visibleFrame,
-                                         windowGap: 16, screenGap: 32)
+                                         windowGap: 16, screenInsets: ScreenGapInsets(all: 32))
                == CGRect(x: 32, y: 72, width: 1376, height: 796),
                "maximize respects the screen gap and ignores the window gap")
         suite.expect(WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame,
-                                         windowGap: 16, screenGap: 32)
+                                         windowGap: 16, screenInsets: ScreenGapInsets(all: 32))
                == CGRect(x: 32, y: 72, width: 680, height: 796),
                "window and screen gaps combine")
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
@@ -900,16 +900,46 @@ enum WindowLayoutFeatureTests {
                == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
                "margin maximize keeps its own margin instead of the window gap")
         suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame,
-                                         windowGap: 16, screenGap: 32)
+                                         windowGap: 16, screenInsets: ScreenGapInsets(all: 32))
                == WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow, visibleFrame: visibleFrame),
                "margin maximize keeps its plain percentage margin under a screen gap instead of compounding")
         suite.expect(WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame,
-                                         screenGap: 32)
+                                         screenInsets: ScreenGapInsets(all: 32))
                == WindowLayoutGeometry.rect(for: .center, current: currentWindow, visibleFrame: visibleFrame),
                "centering keeps the window's size under a screen gap instead of clamping to the inset frame")
-        suite.expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), screenGap: 128)
+        suite.expect(WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100), insets: ScreenGapInsets(all: 128))
                == CGRect(x: 10, y: 10, width: 80, height: 80),
                "an oversized screen gap keeps 80pt of layout space instead of inverting the frame")
+        let gapFrame = CGRect(x: 100, y: 50, width: 1000, height: 600)
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 16, top: 0))
+               == CGRect(x: 116, y: 66, width: 968, height: 584),
+               "a top override of 0 removes only the top gap")
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 0, bottom: 32))
+               == CGRect(x: 100, y: 82, width: 1000, height: 568),
+               "a bottom override insets only the bottom edge")
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 0, left: 8))
+               == CGRect(x: 108, y: 50, width: 992, height: 600),
+               "a left override insets only the left edge")
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 0, right: 64))
+               == CGRect(x: 100, y: 50, width: 936, height: 600),
+               "a right override insets only the right edge")
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 16, top: 1, bottom: 2, left: 4, right: 8))
+               == CGRect(x: 104, y: 52, width: 988, height: 597),
+               "all four overrides apply on their own edge")
+        suite.expect(ScreenGapInsets(all: 16) == ScreenGapInsets(all: 16, top: nil, bottom: nil, left: nil, right: nil)
+                && WindowLayoutGeometry.screenGapFrame(gapFrame, insets: ScreenGapInsets(all: 16))
+                    == gapFrame.insetBy(dx: 16, dy: 16),
+               "without overrides every edge follows the single screen gap")
+        suite.expect(WindowLayoutGeometry.screenGapFrame(gapFrame, insets: .zero) == gapFrame,
+               "no screen gap leaves the visible frame alone")
+        let tinyFrame = WindowLayoutGeometry.screenGapFrame(CGRect(x: 0, y: 0, width: 100, height: 100),
+                                                            insets: ScreenGapInsets(all: 0, top: 128, bottom: 128, left: 128, right: 0))
+        suite.expect(tinyFrame.width == 80 && tinyFrame.height == 80 && tinyFrame.minX == 20 && tinyFrame.minY == 10,
+               "oversized per-edge gaps still keep 80pt of layout space per axis")
+        suite.expect(WindowLayoutGeometry.rect(for: .maximize, current: currentWindow, visibleFrame: visibleFrame,
+                                         screenInsets: ScreenGapInsets(all: 0, top: 0, bottom: 32))
+               == CGRect(x: 0, y: 72, width: 1440, height: 828),
+               "placements take the per-edge screen gap")
         let sixthLayouts: [(WindowLayoutAction, CGRect, CGRect)] = [
             (.topLeftSixth,
              CGRect(x: 0, y: 470, width: 480, height: 430),
@@ -1225,6 +1255,38 @@ enum WindowLayoutFeatureTests {
                                                               visibleFrame: visibleFrame)
         suite.expect(marginMaximizeTarget == CGRect(x: 72, y: 83, width: 1296, height: 774),
                "window layout margin maximize keeps five percent on every usable edge")
+        let edgeGapKeys = [DefaultsKey.windowLayoutScreenGapTop, DefaultsKey.windowLayoutScreenGapBottom,
+                           DefaultsKey.windowLayoutScreenGapLeft, DefaultsKey.windowLayoutScreenGapRight]
+        suite.expect(edgeGapKeys.allSatisfy { Defaults.registeredDefaults[$0] as? Int == WindowLayoutGaps.sameAsScreenGap }
+                && Set(edgeGapKeys).isSubset(of: SettingsBackupSupport.exportKeys()),
+               "per-edge screen gaps default to following the screen gap and travel with the settings backup")
+        let insetsSuiteName = "com.vorssaint.tests.window-gap-insets"
+        if let insetsDefaults = UserDefaults(suiteName: insetsSuiteName) {
+            // Registration is process-wide, so later migration checks need it back.
+            let registrationDomain = UserDefaults.standard.volatileDomain(
+                forName: UserDefaults.registrationDomain)
+            defer {
+                insetsDefaults.removePersistentDomain(forName: insetsSuiteName)
+                UserDefaults.standard.setVolatileDomain(registrationDomain,
+                                                        forName: UserDefaults.registrationDomain)
+            }
+            insetsDefaults.removePersistentDomain(forName: insetsSuiteName)
+            insetsDefaults.register(defaults: Defaults.registeredDefaults)
+            insetsDefaults.set(16, forKey: DefaultsKey.windowLayoutScreenGap)
+            suite.expect(WindowLayoutGaps.screenInsets(in: insetsDefaults) == ScreenGapInsets(all: 16),
+                   "unset overrides (-1) follow the screen gap on every edge")
+            insetsDefaults.set(0, forKey: DefaultsKey.windowLayoutScreenGapTop)
+            suite.expect(WindowLayoutGaps.screenInsets(in: insetsDefaults) == ScreenGapInsets(all: 16, top: 0),
+                   "a top override of 0 beats a non-zero screen gap")
+            insetsDefaults.set(-5, forKey: DefaultsKey.windowLayoutScreenGapTop)
+            suite.expect(WindowLayoutGaps.screenInsets(in: insetsDefaults) == ScreenGapInsets(all: 16),
+                   "any negative stored override follows the screen gap")
+            insetsDefaults.set(999, forKey: DefaultsKey.windowLayoutScreenGapTop)
+            suite.expect(WindowLayoutGaps.screenInsets(in: insetsDefaults).top == 999,
+                   "a large override is kept as is and bounded later by the frame fit")
+        } else {
+            suite.expect(false, "a throwaway defaults suite is available for the inset resolution checks")
+        }
         suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutMarginPercent] as? Double == 5,
                "existing installations retain the five percent maximize margin")
         suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
@@ -1241,7 +1303,7 @@ enum WindowLayoutFeatureTests {
                "maximum margin stays centered on a portrait display with a negative origin")
         suite.expect(WindowLayoutGeometry.rect(for: .marginMaximize, current: currentWindow,
                                               visibleFrame: visibleFrame, windowGap: 64,
-                                              screenGap: 32, marginPercent: 10)
+                                              screenInsets: ScreenGapInsets(all: 32), marginPercent: 10)
                 == CGRect(x: 144, y: 126, width: 1152, height: 688),
                "custom maximize margin is independent of tiling gaps")
         for action in WindowLayoutAction.allCases where action != .marginMaximize {
