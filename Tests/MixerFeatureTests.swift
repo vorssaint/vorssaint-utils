@@ -1598,5 +1598,380 @@ enum MixerFeatureTests {
         suite.expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
                "a single channel is copied to the right as well as the left")
 
+        // A tooltip on a view becomes the tooltip of every control inside it: with the reorder
+        // hint on the whole row, the menu, the output and the reset buttons showed it instead of
+        // their own, and the accessibility tree described each volume slider with it. The panel
+        // lives in a file the test target does not compile, so each tooltip is followed in the
+        // source to the view it sits on, which may hold no control other than itself. A control
+        // counts when the file keeps it in a view type, a computed property or a function declared
+        // `some View`; a view held in a local `let`, an `AnyView`, a `static` member or a named
+        // container with a single control is not followed. The items of a menu do not count,
+        // because the menu shows them only once it opens. The examples come first, so a scan that stopped finding
+        // tooltips, or stopped looking behind a property, could not pass.
+        let rowWithTooltip = """
+            struct Row: View {
+                var body: some View {
+                    HStack {
+                        Button { go() } label: { Image(systemName: "speaker") }
+                        Picker("Out", selection: $output) { Text("A") }
+                    }
+                }
+            }
+            struct Rows: View {
+                var body: some View {
+                    ForEach(items) { item in
+                        Row(item: item)
+                            .padding()
+                            .help("Hold Command and drag to reorder")
+                    }
+                }
+            }
+            """
+        let groupWithTooltip = """
+            HStack {
+                Text(name)
+                Button { reset() } label: { Image(systemName: "arrow") }
+            }
+            .help("Reset")
+            """
+        let ownTooltips = """
+            struct Fader: View {
+                var body: some View { track }
+                private var track: some View { Slider(value: $value) }
+            }
+            ZStack(alignment: .bottomTrailing) {
+                Image(nsImage: icon)
+                if playing { Circle() }
+            }
+            .help("Hold Command and drag to reorder")
+            Menu { actions } label: {
+                Image(systemName: "ellipsis")
+            }
+            .menuStyle(.borderlessButton)
+            .help("Pin to Top")
+            Button {
+                reset()
+            } label: {
+                Image(systemName: "arrow")
+            }
+            .buttonStyle(.plain)
+            .help("Reset")
+            Fader()
+                // A comment with a stray ( bracket.
+                .help("Level")
+            """
+        let controlsInMembers = """
+            struct Row: View {
+                var body: some View {
+                    HStack {
+                        Text(name)
+                        outputPicker
+                    }
+                    .help("Output")
+                    HStack {
+                        Text(name)
+                        speaker(app)
+                    }
+                    .help("Mute")
+                    HStack {
+                        Text(name)
+                        self.outputPicker
+                    }
+                    .help("Self")
+                }
+                @ViewBuilder
+                private var outputPicker: some View {
+                    Picker("Out", selection: $output) { Text("A") }
+                }
+                private func speaker(_ app: App) -> some View {
+                    Button { mute(app) } label: { Image(systemName: "speaker") }
+                }
+            }
+            struct Plain: View {
+                var body: some View { outputPicker }
+                private var outputPicker: some View { Text("A") }
+            }
+            """
+        let menuItems = """
+            struct Row: View {
+                var body: some View {
+                    HStack {
+                        Menu { actions } label: { Image(systemName: "ellipsis") }
+                            .help("Pin to Top")
+                        outputPicker.help("Output")
+                    }
+                }
+                @ViewBuilder
+                private var actions: some View {
+                    Button { pin() } label: { Text("Pin") }
+                    Button { hide() } label: { Text("Hide") }
+                }
+                private var outputPicker: some View {
+                    Picker("Out", selection: $output) { Text("A") }
+                }
+                private var label: some View {
+                    Button { open() } label: { Text("Open") }
+                }
+            }
+            """
+        let otherControls = ["DatePicker", "ColorPicker", "NavigationLink", "TextEditor", "ShareLink",
+                             "DisclosureGroup", "EditButton", "PasteButton", "RenameButton"]
+        suite.expect(tooltipsCoveringControls(in: rowWithTooltip) == ["Row: \"Hold Command and drag to reorder\""]
+                     && tooltipsCoveringControls(in: groupWithTooltip) == ["HStack: \"Reset\""]
+                     && tooltipsCoveringControls(in: controlsInMembers)
+                         == ["HStack: \"Output\"", "HStack: \"Mute\"", "HStack: \"Self\""]
+                     && tooltipsCoveringControls(in: ownTooltips).isEmpty
+                     && tooltipsCoveringControls(in: menuItems).isEmpty
+                     && otherControls.allSatisfy {
+                         tooltipsCoveringControls(in: "HStack { \($0)(x) }.help(\"t\")") == ["HStack: \"t\""]
+                     }
+                     && tooltipTargets(in: ownTooltips).map { $0.head } == ["ZStack", "Menu", "Button", "Fader"]
+                     && tooltipTargets(in: menuItems).map { $0.head } == ["Menu", "outputPicker"],
+                     "the tooltip check flags a tooltip on a view that holds controls, and only that")
+        let panel = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+                                 encoding: .utf8)) ?? ""
+        let panelTooltips = tooltipTargets(in: panel)
+        suite.expect(!panelTooltips.isEmpty && tooltipsCoveringControls(in: panel).isEmpty,
+                     "no tooltip in the mixer panel covers a control it does not belong to")
+        let rowList = panel.range(of: "private var rowList: some View {").flatMap { start in
+            panel.range(of: "private func updateArrangement", range: start.upperBound..<panel.endIndex)
+                .map { String(panel[start.upperBound..<$0.lowerBound]) }
+        } ?? ""
+        let reorderHints = panelTooltips.filter { $0.tip == "arrangementStrings.arrange" }
+        suite.expect(!rowList.isEmpty && !rowList.contains(".help(")
+                     && panel.components(separatedBy: ".help(arrangementStrings.arrange)").count == 3
+                     && reorderHints.map { $0.head } == ["ZStack", "Text"]
+                     && reorderHints.first?.view.contains("ResponsibleProcess.icon(for: app.ownerPid") == true
+                     && reorderHints.last?.view.hasPrefix("Text(app.name)") == true,
+                     "the reorder hint sits on a row's icon and name, not on the whole row")
+
+    }
+
+    // MARK: - Tooltips that cover controls
+
+    /// SwiftUI controls with a tooltip and an accessibility label of their own, which a `.help`
+    /// on a view around them replaces.
+    static let tooltipCoveredControls: Set<String> = [
+        "Button", "Menu", "Picker", "Toggle", "Slider", "Stepper", "TextField", "SecureField", "TextEditor",
+        "DatePicker", "ColorPicker", "Link", "NavigationLink", "ShareLink", "DisclosureGroup", "EditButton",
+        "PasteButton", "RenameButton"]
+
+    /// Each `.help(` of a SwiftUI source: `head` is the view its modifier chain starts with,
+    /// `view` the code from that view to the tooltip, `tip` the tooltip's argument. An empty
+    /// head means the chain could not be read, which the checks count as a failure.
+    static func tooltipTargets(in source: String) -> [(head: String, view: String, tip: String)] {
+        let code = sourceBytes(source)
+        let marker = Array(".help(".utf8)
+        let closers = Array(")}]".utf8)
+        let positions = code.indices.filter { code[$0...].starts(with: marker) }
+        return positions.map { position -> (head: String, view: String, tip: String) in
+            var index = position - 1
+            var head = ""
+            walk: while index >= 0 {
+                if isSpaceByte(code[index]) {
+                    index -= 1
+                } else if closers.contains(code[index]) {
+                    // An argument list or a closure of the chain.
+                    guard let start = matchingBracket(in: code, at: index) else { break walk }
+                    index = start - 1
+                } else if code[index] == UInt8(ascii: ":") {
+                    // The label of a trailing closure, as in `} label: {`.
+                    index -= 1
+                    while index >= 0, isNameByte(code[index]) { index -= 1 }
+                } else if isNameByte(code[index]) {
+                    let end = index
+                    while index >= 0, isNameByte(code[index]) { index -= 1 }
+                    if index >= 0, code[index] == UInt8(ascii: ".") {
+                        index -= 1 // a modifier: the chain goes on before it
+                    } else {
+                        head = String(decoding: code[(index + 1)...end], as: UTF8.self)
+                        index += 1
+                        break walk
+                    }
+                } else {
+                    break walk
+                }
+            }
+            let tipStart = position + marker.count
+            let tipEnd = matchingBracket(in: code, at: tipStart - 1) ?? tipStart
+            return (head: head,
+                    view: head.isEmpty ? "" : String(decoding: code[index..<position], as: UTF8.self),
+                    tip: String(decoding: code[tipStart..<tipEnd], as: UTF8.self))
+        }
+    }
+
+    /// The tooltips of a SwiftUI source that sit on a view holding a control other than itself,
+    /// as "head: tip". The controls of the view types, computed properties and functions the source
+    /// declares count wherever they are used, so a tooltip on a whole row is caught, and so is one on
+    /// a container that keeps its control in a property; one on a view that wraps a single slider is
+    /// not. A view declared in another file counts as holding no control, and so does one held in a
+    /// local `let`, an `AnyView` or a `static` member, which the scan does not follow.
+    static func tooltipsCoveringControls(in source: String) -> [String] {
+        let views = declaredViews(in: sourceBytes(source))
+        return tooltipTargets(in: source).compactMap { target -> String? in
+            let held = controlCount(in: Array(target.view.utf8)[...], views: views)
+            let ownControl = tooltipCoveredControls.contains(target.head)
+                || controlCount(ofView: target.head, views: views, visiting: []) == 1
+            return (target.head.isEmpty || held > (ownControl ? 1 : 0)) ? "\(target.head): \(target.tip)" : nil
+        }
+    }
+
+    /// The source as bytes without its whole-line comments, so a bracket in one cannot unbalance a scan.
+    private static func sourceBytes(_ source: String) -> [UInt8] {
+        Array(source.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces).hasPrefix("//") ? "" : String($0) }
+            .joined(separator: "\n").utf8)
+    }
+
+    private static func isNameByte(_ byte: UInt8) -> Bool {
+        byte == UInt8(ascii: "_") || (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte)
+            || (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains(byte)
+            || (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte)
+    }
+
+    private static func isSpaceByte(_ byte: UInt8) -> Bool {
+        byte == UInt8(ascii: " ") || byte == UInt8(ascii: "\t") || byte == UInt8(ascii: "\n")
+            || byte == UInt8(ascii: "\r")
+    }
+
+    /// The bracket that closes the one at `start`, or that opens it when `start` holds a closing one.
+    private static func matchingBracket<Bytes: RandomAccessCollection>(in code: Bytes, at start: Int) -> Int?
+        where Bytes.Element == UInt8, Bytes.Index == Int {
+        let openers = Array("({[".utf8), closers = Array(")}]".utf8)
+        let step = closers.contains(code[start]) ? -1 : 1
+        var depth = 0
+        var index = start
+        while code.indices.contains(index) {
+            if openers.contains(code[index]) { depth += step }
+            if closers.contains(code[index]) { depth -= step }
+            if depth == 0 { return index }
+            index += step
+        }
+        return nil
+    }
+
+    /// The names a piece of code may show as views: the capitalized ones called as `Name(` or
+    /// `Name {`, and the lowercase ones that stand for a member of the view (`outputPicker`,
+    /// `speaker(app)`), which the declarations then tell apart from plain values. The items of a
+    /// `Menu` are skipped: the menu shows them only once it opens, not the view that holds it.
+    private static func viewCalls(in code: ArraySlice<UInt8>) -> [String] {
+        var names: [String] = []
+        var index = code.startIndex
+        while index < code.endIndex {
+            guard isNameByte(code[index]) else {
+                index += 1
+                continue
+            }
+            let start = index
+            while index < code.endIndex, isNameByte(code[index]) { index += 1 }
+            var next = index
+            while next < code.endIndex, code[next] == UInt8(ascii: " ") { next += 1 }
+            let name = String(decoding: code[start..<index], as: UTF8.self)
+            let opens = next < code.endIndex && (code[next] == UInt8(ascii: "(") || code[next] == UInt8(ascii: "{"))
+            let isType = (UInt8(ascii: "A")...UInt8(ascii: "Z")).contains(code[start]) && opens
+            // A lowercase name right before a colon is a label, not a member.
+            let isMember = (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(code[start])
+                && !(index < code.endIndex && code[index] == UInt8(ascii: ":"))
+            // `other.name` belongs to something else, but `self.name` is the view's own member.
+            let afterDot = start > code.startIndex && code[start - 1] == UInt8(ascii: ".")
+            let ownMember = afterDot && code[..<(start - 1)].suffix(4).elementsEqual("self".utf8)
+            guard isType || isMember, !afterDot || ownMember else { continue }
+            names.append(name)
+            if name == "Menu", isType {
+                // The title and the items come first; the `label:` closure after them is shown.
+                index = next
+                while index < code.endIndex, code[index] == UInt8(ascii: "(") || code[index] == UInt8(ascii: "{"),
+                      let close = matchingBracket(in: code, at: index) {
+                    index = close + 1
+                    while index < code.endIndex, isSpaceByte(code[index]) { index += 1 }
+                }
+            }
+        }
+        return names
+    }
+
+    private typealias Declarations = [String: [ArraySlice<UInt8>]]
+    private typealias DeclaredViews = (types: Declarations, members: Declarations)
+
+    /// The views a source declares, each with the code between its braces. The `struct` view
+    /// types are `types`, and hold all their code, members included. The computed properties
+    /// (`var name: some View`) and the functions (`func name(...) -> some View`), with or without
+    /// `@ViewBuilder`, are `members`. Members of different types can share a name, so a name
+    /// keeps every declaration.
+    private static func declaredViews(in code: [UInt8]) -> DeclaredViews {
+        let keywords = ["struct ", "var ", "func "]
+        var views: DeclaredViews = ([:], [:])
+        for start in code.indices where start == 0 || !isNameByte(code[start - 1]) {
+            guard let keyword = keywords.first(where: { code[start...].starts(with: $0.utf8) }) else { continue }
+            let nameStart = start + keyword.utf8.count
+            var nameEnd = nameStart
+            while nameEnd < code.count, isNameByte(code[nameEnd]) { nameEnd += 1 }
+            let name = String(decoding: code[nameStart..<nameEnd], as: UTF8.self)
+            let isType = keyword == "struct "
+            guard nameEnd > nameStart,
+                  let open = isType ? code[nameEnd...].firstIndex(of: UInt8(ascii: "{"))
+                                    : memberBodyStart(in: code, nameEnd: nameEnd, isFunction: keyword == "func "),
+                  let close = matchingBracket(in: code, at: open) else { continue }
+            if isType {
+                views.types[name, default: []].append(code[open...close])
+            } else {
+                views.members[name, default: []].append(code[open...close])
+            }
+        }
+        return views
+    }
+
+    /// Where the braces of a computed property or a function open, when it returns `some View`.
+    /// `nameEnd` is where its name ends in `code`.
+    private static func memberBodyStart(in code: [UInt8], nameEnd: Int, isFunction: Bool) -> Int? {
+        var index = nameEnd
+        if isFunction {
+            guard let paren = code[index...].firstIndex(of: UInt8(ascii: "(")),
+                  let close = matchingBracket(in: code, at: paren) else { return nil }
+            index = close + 1
+        }
+        guard let open = skip([isFunction ? "->" : ":", "some View"], in: code, from: index),
+              open < code.count, code[open] == UInt8(ascii: "{") else { return nil }
+        return open
+    }
+
+    /// The position after `words`, each possibly preceded by whitespace, when the code from
+    /// `start` holds them in that order, and after any whitespace that follows; nil otherwise.
+    private static func skip(_ words: [String], in code: [UInt8], from start: Int) -> Int? {
+        var index = start
+        for word in words {
+            while index < code.count, isSpaceByte(code[index]) { index += 1 }
+            guard code[index...].starts(with: word.utf8) else { return nil }
+            index += word.utf8.count
+        }
+        while index < code.count, isSpaceByte(code[index]) { index += 1 }
+        return index
+    }
+
+    /// How many controls a piece of code shows, those inside the views it uses included.
+    private static func controlCount(in code: ArraySlice<UInt8>, views: DeclaredViews,
+                                     visiting: Set<String> = []) -> Int {
+        viewCalls(in: code).reduce(0) { (total: Int, name: String) -> Int in
+            if tooltipCoveredControls.contains(name) { return total + 1 }
+            guard !visiting.contains(name) else { return total }
+            return total + (controlCount(ofView: name, views: views, visiting: visiting) ?? 0)
+        }
+    }
+
+    /// How many controls the view the source declares as `name` shows, or nil when it declares
+    /// no such view. A name declared more than once counts as its largest declaration.
+    private static func controlCount(ofView name: String, views: DeclaredViews,
+                                     visiting: Set<String>) -> Int? {
+        guard let bodies = views.types[name] ?? views.members[name] else { return nil }
+        var inner = views
+        if views.types[name] != nil {
+            // The code of a type already holds the members it declares: inside it, they are not counted twice.
+            inner.members = views.members.mapValues { declared in
+                declared.filter { member in
+                    !bodies.contains { $0.startIndex <= member.startIndex && member.endIndex <= $0.endIndex }
+                }
+            }
+        }
+        return bodies.map { controlCount(in: $0, views: inner, visiting: visiting.union([name])) }.max()
     }
 }

@@ -743,6 +743,19 @@ MUTATIONS = [
      "        setOutputMuted(MixerRoutingSupport.mutesOutput(atVolume: level), for: device)\n",
      "        if level > 0 { setOutputMuted(false, for: device) }\n",
      "the command bar's volume 0 mutes the output"),
+    ("the reorder tooltip covers a row's controls again", "mixer",
+     "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+     "                    }))\n        }\n    }\n\n    private func updateArrangement",
+     "                    }))\n                .help(FeatureStrings.mixer(l10n.language).arrange)\n"
+     "        }\n    }\n\n    private func updateArrangement",
+     "no tooltip in the mixer panel covers a control it does not belong to"),
+    ("a tooltip on a container hides the output picker it holds", "mixer",
+     "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+     "                    if !app.isBypassed {\n                        outputPicker\n                    }\n",
+     "                    if !app.isBypassed {\n"
+     "                        HStack { outputPicker }.help(l10n.s.mixerResetTooltip)\n"
+     "                    }\n",
+     "no tooltip in the mixer panel covers a control it does not belong to"),
 ]
 
 
