@@ -45,6 +45,7 @@ struct MouseButtonFeatureStrings {
 extension FeatureStrings {
     static func mouseButtons(_ language: AppLanguage) -> MouseButtonFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -98,6 +99,41 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "That button already has a shortcut. Pick another one.",
         spacesFollowsDragLabel: "Spaces follow the drag",
         spacesFollowsDragCaption: "Dragging right brings the Space on the left, the way a trackpad swipe carries it along with your fingers."
+    )
+
+    static let sv = MouseButtonFeatureStrings(
+        pageTitle: "Kortkommandon för musknappar",
+        hubDescription: "Extra knappar och riktningar på sidrullhjulet trycker ned den tangentkombination du väljer.",
+        enableLabel: "Använd extraknappar som kortkommandon",
+        enableCaption: "Varje extraknapp eller riktning på sidrullhjulet kan trycka ned en tangentkombination åt dig. När den har ett kortkommando slutar den göra det den gjorde tidigare.",
+        addButton: "Lägg till en knapp eller ett sidrullhjul",
+        captureWaiting: "Tryck nu på en extraknapp eller rulla sidrullhjulet.",
+        captureCancel: "Avbryt",
+        captureBlind: "Vorssaint kan inte övervaka musen just nu.",
+        captureUnsupported: "Den inmatningen kan inte ha ett kortkommando. Använd en extraknapp eller en riktning på sidrullhjulet.",
+        captureWheel: "Den knappen öppnar redan den radiella menyn. Välj en annan, eller frigör den där först.",
+        captureExists: "Den knappen eller riktningen finns redan i listan nedan.",
+        captureHint: "Om ingenting händer kan musens egen programvara redan använda den kontrollen.",
+        backButtonName: "Bakre sidoknapp",
+        forwardButtonName: "Främre sidoknapp",
+        otherButtonFormat: "Knapp %d",
+        setShortcutButton: "Ange kortkommando",
+        removeButton: "Ta bort",
+        emptyCaption: "Inga kortkommandon ännu. Lägg till en knapp eller en riktning på sidrullhjulet.",
+        rowWheelNote: "Den här knappen öppnar den radiella menyn nu, så kortkommandot väntar.",
+        manageButton: "Ställ in…",
+        panelCaption: "Extra knappar och riktningar på sidrullhjulet trycker ned de tangentkombinationer du väljer.",
+        sideWheelLeftName: "Sidrullhjul åt vänster",
+        sideWheelRightName: "Sidrullhjul åt höger",
+        spacesEnableLabel: "Byt Spaces genom att dra med en knapp",
+        spacesEnableCaption: "Håll ned den valda knappen och dra: åt vänster eller höger flyttar en Space, uppåt öppnar Mission Control och nedåt öppnar App Exposé. Ett kort klick gör fortfarande det som det alltid har gjort.",
+        spacesPickButton: "Välj en knapp",
+        spacesShortcutsOffNote: "Tangentbordskommandona för Mission Control är avstängda i Systeminställningar, så den här gesten har inget att begära.",
+        spacesCaptureWaiting: "Tryck nu på en extraknapp.",
+        spacesCaptureUnsupported: "Den inmatningen kan inte hållas ned vid en dragning. Använd en extraknapp.",
+        spacesCaptureExists: "Den knappen har redan ett kortkommando. Välj en annan.",
+        spacesFollowsDragLabel: "Spaces följer dragningen",
+        spacesFollowsDragCaption: "Om du drar åt höger visas Space till vänster, på samma sätt som en svepning på styrplattan för den med fingrarna."
     )
 
     static let ptBR = MouseButtonFeatureStrings(
