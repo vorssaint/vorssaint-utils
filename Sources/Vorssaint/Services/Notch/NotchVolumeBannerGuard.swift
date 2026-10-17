@@ -19,8 +19,9 @@ final class NotchVolumeBannerGuard {
     /// A move still on the queue when the guard stops sees a newer value and
     /// puts its banner back.
     private var generation = 0
-    /// The banner this guard moved, and where macOS had placed it.
-    private var hidden: (window: AXUIElement, origin: CGPoint)?
+    /// Banners this guard moved, and where macOS had placed each. A banner
+    /// per display at most, so only the latest few are kept.
+    private var hidden: [(window: AXUIElement, origin: CGPoint)] = []
     private let notifications = [kAXCreatedNotification, kAXWindowCreatedNotification, kAXWindowMovedNotification]
 
     func start() {
@@ -42,9 +43,10 @@ final class NotchVolumeBannerGuard {
         workspaceObservers.forEach { NSWorkspace.shared.notificationCenter.removeObserver($0) }
         workspaceObservers.removeAll()
         detach()
-        guard let hidden else { return }
-        self.hidden = nil
-        queue.async { Self.restore(hidden.window, to: hidden.origin) }
+        let banners = hidden
+        hidden.removeAll()
+        guard !banners.isEmpty else { return }
+        queue.async { banners.forEach { Self.restore($0.window, to: $0.origin) } }
     }
 
     private func attach() {
@@ -88,8 +90,9 @@ final class NotchVolumeBannerGuard {
 
     /// Decides without asking the menu bar anything, so a hidden island costs
     /// no call at all. Like the keys, an output without a level to read keeps
-    /// its banner, since the island has nothing to show for it. The banner is
-    /// created already in place, so at most the start of its fade-in shows.
+    /// its banner, since the island has nothing to show for it. The menu bar
+    /// places the banner as it first draws it and takes a move only after that
+    /// frame, so about a fiftieth of a second of its fade-in still shows.
     private func noticed(_ element: AXUIElement) {
         guard running, NotchSupport.routes(.volume), NotchService.shared.showsSystemFeedback,
               AppVolumeMixer.shared.systemOutputVolume != nil else { return }
@@ -99,7 +102,9 @@ final class NotchVolumeBannerGuard {
             DispatchQueue.main.async {
                 guard let self else { return }
                 if self.generation == requested {
-                    self.hidden = (element, origin)
+                    self.hidden.removeAll { CFEqual($0.window, element) }
+                    self.hidden.append((element, origin))
+                    self.hidden = Array(self.hidden.suffix(4))
                 } else {
                     self.queue.async { Self.restore(element, to: origin) }
                 }
