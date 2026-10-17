@@ -42,6 +42,7 @@ enum NotchVolumeFeedbackTests {
         var showsSystemFeedback = true
         var captureControls: Bool?
         var dragPlaceholder = false
+        var showingCommandBar = false
         var notice: NotchNotice?
         var presented: [NotchNotice] = []
         @discardableResult
@@ -321,6 +322,9 @@ enum NotchVolumeFeedbackTests {
         service.dragPlaceholder = true
         suite.expect(!service.showsVolumeNotice, "a file drop hint drawn over the notice keeps macOS' banner")
         service.dragPlaceholder = false
+        service.showingCommandBar = true
+        suite.expect(!service.showsVolumeNotice, "the Command Bar drawn over the notice keeps macOS' banner")
+        service.showingCommandBar = false
         service.notice = nil
         mixer.systemOutputVolume = (mixer.systemOutputVolume ?? 0) + 0.01
         drain()
