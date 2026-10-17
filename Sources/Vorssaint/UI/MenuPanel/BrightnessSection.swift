@@ -205,8 +205,10 @@ private struct ExtraBrightnessPanelToggle: View {
 /// slider is just as dead on the Energy page as in the panel, so the way out
 /// has to be there too.
 ///
-/// On readable DDC displays, the choice extends the slider below the panel's
-/// hardware minimum and is offered in Settings. On write-only DDC paths, it
+/// On readable DDC displays and the built-in panel, the choice extends the
+/// slider below the panel's hardware minimum and is offered in Settings. The
+/// built-in panel's keys reach that range through Accessibility, like the
+/// other brightness key options. On write-only DDC paths, it
 /// keeps the existing fallback to software control on both surfaces (issue
 /// #1589). Either choice stays visible until cleared.
 struct SoftwareDimmingButton: View {
@@ -220,12 +222,14 @@ struct SoftwareDimmingButton: View {
     private var softwareChosen: Bool { service.softwareDimmingPreferred.contains(display.id) }
     private var chosen: Bool { extendedChosen || softwareChosen }
     private var usesExtendedDimming: Bool {
-        !softwareChosen && (extendedChosen || (display.method == .ddc && display.readable))
+        !softwareChosen && (extendedChosen || display.isBuiltIn
+                            || (display.method == .ddc && display.readable))
     }
 
     private var offered: Bool {
-        guard display.isActive, !display.isBuiltIn, display.canChooseDimming else { return false }
+        guard display.isActive, display.canChooseDimming else { return false }
         if chosen { return true }
+        if display.isBuiltIn { return !compact }
         guard display.method == .ddc else { return false }
         // The panel keeps only the write-only way out; extra dimming is
         // offered in Settings and joins the panel once it is on.
@@ -236,6 +240,7 @@ struct SoftwareDimmingButton: View {
         if offered {
             Button {
                 if usesExtendedDimming {
+                    if display.isBuiltIn, !extendedChosen { Permissions.shared.requestAccessibility() }
                     service.setExtendedDimmingPreferred(!extendedChosen, for: display.id)
                 } else {
                     service.setSoftwareDimmingPreferred(!softwareChosen, for: display.id)
