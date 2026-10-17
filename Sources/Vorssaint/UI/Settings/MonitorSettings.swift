@@ -13,6 +13,7 @@ struct MonitorSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
 
+    @AppStorage(DefaultsKey.menuBarBatteryPercentage) private var batteryPercentage = true
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
@@ -104,6 +105,11 @@ struct MonitorSettings: View {
             Text(FeatureStrings.notchEditor(l10n.language).reorderHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if PowerSampler.hasInternalBattery {
+                SettingsRow(symbol: "battery.100", title: appearanceStrings.batteryPercentage) {
+                    Toggle(appearanceStrings.batteryPercentage, isOn: $batteryPercentage).labelsHidden()
+                }
+            }
         }
     }
 

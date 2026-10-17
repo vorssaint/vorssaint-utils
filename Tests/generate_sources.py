@@ -1144,7 +1144,7 @@ def main():
           + declaration(renderer, "enum MenuBarSegment {")
           + declaration(renderer, "enum MenuBarBlockStyle {")
           + "".join(declaration(spacing, prefix).replace("UserDefaults.standard", "ReviewDefaults.current!")
-                    for prefix in ["enum MenuBarMetricSpacing:", "enum MenuBarMetricAppearance:"])
+                    for prefix in ["enum MenuBarMetricSpacing:", "enum MenuBarMetricAppearance:", "enum MenuBarSpacingSupport {"])
           + "}\nextension MenuBarBatteryWarningTests.Renderer {\n"
           + (battery_segments + battery_warning).replace("private static", "static")
               .replace("UserDefaults.standard", "ReviewDefaults.current!")

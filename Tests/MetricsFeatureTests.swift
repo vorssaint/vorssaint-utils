@@ -319,6 +319,81 @@ enum MetricsFeatureTests {
         suite.expect(BatteryTimeSupport.formatted(seconds: 1e21) == nil,
                "battery time returns nil rather than trapping on an absurd input")
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.menuBarBatteryPercentage] as? Bool == true,
+                     "existing users keep the battery percentage")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarBatteryPercentage),
+                     "battery percentage visibility participates in settings backup")
+        for language in AppLanguage.allCases {
+            suite.expect(!FeatureStrings.menuBarAppearance(language).batteryPercentage.isEmpty,
+                         "battery percentage toggle is localized for \(language)")
+        }
+
+        func batteryBitmap(_ percent: Int, charging: Bool = false, plugged: Bool = false, text: Bool = false) -> NSBitmapImageRep {
+            let image = BatteryMenuBarImage.make(percent: percent, showsBolt: charging, externalConnected: plugged,
+                                                 showPercentage: text, readable: false, color: .white)
+            let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil,
+                                           pixelsWide: Int(image.size.width * 2),
+                                           pixelsHigh: Int(image.size.height * 2),
+                                           bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                                           isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0,
+                                           bitsPerPixel: 0)!
+            bitmap.size = image.size
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
+            image.draw(in: NSRect(origin: .zero, size: image.size))
+            NSGraphicsContext.restoreGraphicsState()
+            return bitmap
+        }
+        func ink(_ bitmap: NSBitmapImageRep) -> CGFloat {
+            var total: CGFloat = 0
+            for y in 0..<bitmap.pixelsHigh {
+                for x in 0..<bitmap.pixelsWide {
+                    total += bitmap.colorAt(x: x, y: y)!.alphaComponent
+                }
+            }
+            return total
+        }
+        let emptyBattery = batteryBitmap(0)
+        let halfBattery = batteryBitmap(50)
+        let fullBattery = batteryBitmap(100)
+        let emptyInk = ink(emptyBattery)
+        let halfInk = ink(halfBattery)
+        let fullInk = ink(fullBattery)
+        suite.expect(emptyInk < halfInk && halfInk < fullInk,
+                     "charge fill increases from empty to half to full")
+        suite.expect(abs((halfInk - emptyInk) / (fullInk - emptyInk) - 0.5) < 0.05,
+                     "half charge fills half the interior, rather than selecting a full battery symbol")
+        suite.expect(abs(ink(batteryBitmap(42)) - ink(batteryBitmap(43))) > 0.1,
+                     "charge fill tracks individual percentages rather than coarse steps")
+        suite.expect(ink(batteryBitmap(-10)) == emptyInk && ink(batteryBitmap(110)) == fullInk,
+                     "out-of-range charge readings clamp to the battery bounds")
+        suite.expect(ink(batteryBitmap(50, charging: true)) != halfInk,
+                     "active charging draws a bolt over the actual charge fill")
+        for percent in [0, 50, 100] {
+            let unplugged = batteryBitmap(percent).representation(using: .png, properties: [:])!
+            let paused = batteryBitmap(percent, plugged: true).representation(using: .png, properties: [:])!
+            let charging = batteryBitmap(percent, charging: true, plugged: true).representation(using: .png, properties: [:])!
+            suite.expect(unplugged != paused && paused != charging,
+                         "unplugged, paused and charging states have distinct rendered indicators")
+            suite.expect(charging == batteryBitmap(percent, charging: true).representation(using: .png, properties: [:])!,
+                         "active charging takes precedence even before the adapter flag catches up")
+        }
+        suite.expect(emptyBattery.pixelsWide == fullBattery.pixelsWide,
+                     "icon-only width stays fixed as charge changes")
+        suite.expect(batteryBitmap(0, text: true).pixelsWide == batteryBitmap(100, text: true).pixelsWide,
+                     "percentage mode reserves a stable width for all charge levels")
+        suite.expect(batteryBitmap(50, text: true).pixelsWide > halfBattery.pixelsWide,
+                     "hiding the percentage removes its reserved space")
+
+        func iconRows(_ bitmap: NSBitmapImageRep) -> Int {
+            (0..<bitmap.pixelsHigh).filter { y in
+                // Inspect only the shared left portion, excluding percentage text.
+                (0..<20).contains { x in bitmap.colorAt(x: x, y: y)!.alphaComponent > 0.5 }
+            }.count
+        }
+        suite.expect(iconRows(halfBattery) > iconRows(batteryBitmap(50, text: true)),
+                     "hiding the percentage makes the battery icon taller")
+
         expectEqual(BatteryPowerSupport.menuBarSymbol(percent: 80,
                                                       isCharging: false,
                                                       externalConnected: true),
