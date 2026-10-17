@@ -97,6 +97,24 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let atRest: String
+    let restingLayout: String
+    let restingSingle: String
+    let restingSplit: String
+    let restingCycle: String
+    let sessionLimit: String
+    let weeklyLimit: String
+    let showAtRest: String
+    let restingFocusCaption: String
+    let restingSplitCaption: String
+    let restingWordLeft: String
+    let restingWordUsed: String
+    let aiLimit: String
+    let aiLimits: String
+    let aiLimitsRotating: String
+    let restingLow: String
+    let restingAlmostOut: String
+    let restingWindowFormat: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -139,6 +157,24 @@ struct NotchAgentStrings {
         case .tokens: return readoutTokens
         case .cost: return apiValue.prefix(1).uppercased() + apiValue.dropFirst()
         case .limit: return readoutLimit
+        }
+    }
+
+    func restingWindow(_ name: String, _ reading: String) -> String { String(format: restingWindowFormat, name, reading) }
+
+    func restingLayout(_ layout: NotchAgentRestingLayout) -> String {
+        switch layout {
+        case .single: return restingSingle
+        case .split: return restingSplit
+        case .cycle: return restingCycle
+        }
+    }
+
+    func restingLabel(_ layout: NotchAgentRestingLayout) -> String {
+        switch layout {
+        case .single: return aiLimit
+        case .split: return aiLimits
+        case .cycle: return aiLimitsRotating
         }
     }
 
@@ -267,7 +303,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        atRest: "At rest",
+        restingLayout: "Layout",
+        restingSingle: "Single",
+        restingSplit: "One per side",
+        restingCycle: "Rotate",
+        sessionLimit: "Session limit",
+        weeklyLimit: "Weekly limit",
+        showAtRest: "Show at rest",
+        restingFocusCaption: "“Limit to show” picks which limit every number shows. Single shows only that one.",
+        restingSplitCaption: "One per side shows the first two. Rotate shows them all.",
+        restingWordLeft: "left",
+        restingWordUsed: "used",
+        aiLimit: "AI limit",
+        aiLimits: "AI limits",
+        aiLimitsRotating: "AI limits, rotating",
+        restingLow: "low",
+        restingAlmostOut: "almost out",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -362,7 +416,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        atRest: "У спокої",
+        restingLayout: "Розкладка",
+        restingSingle: "Один",
+        restingSplit: "По одному з боків",
+        restingCycle: "По черзі",
+        sessionLimit: "Ліміт сеансу",
+        weeklyLimit: "Тижневий ліміт",
+        showAtRest: "Показувати в спокої",
+        restingFocusCaption: "«Який ліміт показувати» вибирає ліміт для кожного числа. «Один» показує лише його.",
+        restingSplitCaption: "«По одному з боків» показує перші два. «По черзі» показує всі.",
+        restingWordLeft: "залиш.",
+        restingWordUsed: "викор.",
+        aiLimit: "Ліміт ШІ",
+        aiLimits: "Ліміти ШІ",
+        aiLimitsRotating: "Ліміти ШІ, по черзі",
+        restingLow: "мало",
+        restingAlmostOut: "майже вичерпано",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -457,7 +529,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        atRest: "Em repouso",
+        restingLayout: "Disposição",
+        restingSingle: "Único",
+        restingSplit: "Um de cada lado",
+        restingCycle: "Alternar",
+        sessionLimit: "Limite da sessão",
+        weeklyLimit: "Limite semanal",
+        showAtRest: "Mostrar em repouso",
+        restingFocusCaption: "“Limite exibido” escolhe o limite de cada número. Único mostra só esse.",
+        restingSplitCaption: "Um de cada lado mostra os dois primeiros. Alternar mostra todos.",
+        restingWordLeft: "resta",
+        restingWordUsed: "usado",
+        aiLimit: "Limite de IA",
+        aiLimits: "Limites de IA",
+        aiLimitsRotating: "Limites de IA, alternando",
+        restingLow: "baixo",
+        restingAlmostOut: "quase no fim",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -552,7 +642,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        atRest: "En reposo",
+        restingLayout: "Disposición",
+        restingSingle: "Único",
+        restingSplit: "Uno por lado",
+        restingCycle: "Alternar",
+        sessionLimit: "Límite de la sesión",
+        weeklyLimit: "Límite semanal",
+        showAtRest: "Mostrar en reposo",
+        restingFocusCaption: "“Límite a mostrar” elige el límite de cada número. Único muestra solo ese.",
+        restingSplitCaption: "Uno por lado muestra los dos primeros. Alternar los muestra todos.",
+        restingWordLeft: "queda",
+        restingWordUsed: "usado",
+        aiLimit: "Límite de IA",
+        aiLimits: "Límites de IA",
+        aiLimitsRotating: "Límites de IA, alternando",
+        restingLow: "bajo",
+        restingAlmostOut: "casi agotado",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -647,7 +755,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        atRest: "V pokoji",
+        restingLayout: "Rozloženie",
+        restingSingle: "Jeden",
+        restingSplit: "Po jednom na stranu",
+        restingCycle: "Striedať",
+        sessionLimit: "Limit relácie",
+        weeklyLimit: "Týždenný limit",
+        showAtRest: "Zobraziť v pokoji",
+        restingFocusCaption: "„Zobrazený limit“ vyberá limit pre každé číslo. Jeden zobrazí len ten.",
+        restingSplitCaption: "Po jednom na stranu zobrazí prvé dva. Striedať zobrazí všetky.",
+        restingWordLeft: "zostáva",
+        restingWordUsed: "využ.",
+        aiLimit: "Limit AI",
+        aiLimits: "Limity AI",
+        aiLimitsRotating: "Limity AI, striedanie",
+        restingLow: "nízky",
+        restingAlmostOut: "takmer vyčerpaný",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -742,7 +868,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        atRest: "In Ruhe",
+        restingLayout: "Anordnung",
+        restingSingle: "Einzeln",
+        restingSplit: "Je Seite eins",
+        restingCycle: "Wechseln",
+        sessionLimit: "Sitzungslimit",
+        weeklyLimit: "Wochenlimit",
+        showAtRest: "In Ruhe zeigen",
+        restingFocusCaption: "„Angezeigtes Limit“ wählt das Limit jeder Zahl. Einzeln zeigt nur dieses.",
+        restingSplitCaption: "Je Seite eins zeigt die ersten zwei. Wechseln zeigt alle.",
+        restingWordLeft: "übrig",
+        restingWordUsed: "genutzt",
+        aiLimit: "KI-Limit",
+        aiLimits: "KI-Limits",
+        aiLimitsRotating: "KI-Limits, wechselnd",
+        restingLow: "knapp",
+        restingAlmostOut: "fast aufgebraucht",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -837,7 +981,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        atRest: "Au repos",
+        restingLayout: "Disposition",
+        restingSingle: "Unique",
+        restingSplit: "Un de chaque côté",
+        restingCycle: "Alterner",
+        sessionLimit: "Limite de session",
+        weeklyLimit: "Limite hebdomadaire",
+        showAtRest: "Afficher au repos",
+        restingFocusCaption: "« Limite affichée » choisit la limite de chaque nombre. Unique n’affiche que celle-là.",
+        restingSplitCaption: "Un de chaque côté affiche les deux premiers. Alterner les affiche tous.",
+        restingWordLeft: "restant",
+        restingWordUsed: "utilisé",
+        aiLimit: "Limite IA",
+        aiLimits: "Limites IA",
+        aiLimitsRotating: "Limites IA, en alternance",
+        restingLow: "faible",
+        restingAlmostOut: "presque épuisée",
+        restingWindowFormat: "%1$@ : %2$@")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -932,7 +1094,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        atRest: "A riposo",
+        restingLayout: "Disposizione",
+        restingSingle: "Singolo",
+        restingSplit: "Uno per lato",
+        restingCycle: "Alterna",
+        sessionLimit: "Limite della sessione",
+        weeklyLimit: "Limite settimanale",
+        showAtRest: "Mostra a riposo",
+        restingFocusCaption: "“Limite mostrato” sceglie il limite di ogni numero. Singolo mostra solo quello.",
+        restingSplitCaption: "Uno per lato mostra i primi due. Alterna li mostra tutti.",
+        restingWordLeft: "resta",
+        restingWordUsed: "usato",
+        aiLimit: "Limite IA",
+        aiLimits: "Limiti IA",
+        aiLimitsRotating: "Limiti IA, a rotazione",
+        restingLow: "basso",
+        restingAlmostOut: "quasi esaurito",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1027,7 +1207,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        atRest: "В покое",
+        restingLayout: "Раскладка",
+        restingSingle: "Один",
+        restingSplit: "По одному с каждой стороны",
+        restingCycle: "По очереди",
+        sessionLimit: "Лимит сессии",
+        weeklyLimit: "Недельный лимит",
+        showAtRest: "Показывать в покое",
+        restingFocusCaption: "«Показ лимита» выбирает лимит для каждого числа. «Один» показывает только его.",
+        restingSplitCaption: "«По одному с каждой стороны» показывает первые два. «По очереди» показывает все.",
+        restingWordLeft: "ост.",
+        restingWordUsed: "исп.",
+        aiLimit: "Лимит ИИ",
+        aiLimits: "Лимиты ИИ",
+        aiLimitsRotating: "Лимиты ИИ, по очереди",
+        restingLow: "мало",
+        restingAlmostOut: "почти исчерпан",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1122,7 +1320,25 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        atRest: "Beklerken",
+        restingLayout: "Düzen",
+        restingSingle: "Tek",
+        restingSplit: "Her yanda bir",
+        restingCycle: "Sırayla",
+        sessionLimit: "Oturum sınırı",
+        weeklyLimit: "Haftalık sınır",
+        showAtRest: "Beklerken göster",
+        restingFocusCaption: "“Gösterilen sınır” her sayının sınırını seçer. Tek yalnızca onu gösterir.",
+        restingSplitCaption: "Her yanda bir ilk ikisini gösterir. Sırayla hepsini gösterir.",
+        restingWordLeft: "kalan",
+        restingWordUsed: "kullanılan",
+        aiLimit: "YZ sınırı",
+        aiLimits: "YZ sınırları",
+        aiLimitsRotating: "YZ sınırları, sırayla",
+        restingLow: "az",
+        restingAlmostOut: "neredeyse bitti",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1217,7 +1433,25 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        atRest: "待機中",
+        restingLayout: "レイアウト",
+        restingSingle: "1つ",
+        restingSplit: "左右に1つずつ",
+        restingCycle: "順番に表示",
+        sessionLimit: "セッションの上限",
+        weeklyLimit: "週の上限",
+        showAtRest: "待機中に表示",
+        restingFocusCaption: "「表示する上限」で各数値の上限を選びます。「1つ」ではその1つだけを表示します。",
+        restingSplitCaption: "「左右に1つずつ」は最初の2つを、「順番に表示」はすべてを表示します。",
+        restingWordLeft: "残り",
+        restingWordUsed: "使用",
+        aiLimit: "AIの上限",
+        aiLimits: "AIの上限",
+        aiLimitsRotating: "AIの上限、順番に表示",
+        restingLow: "残りわずか",
+        restingAlmostOut: "ほぼ上限",
+        restingWindowFormat: "%1$@：%2$@")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1312,7 +1546,25 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        atRest: "대기 중",
+        restingLayout: "배치",
+        restingSingle: "하나",
+        restingSplit: "양쪽에 하나씩",
+        restingCycle: "순환",
+        sessionLimit: "세션 한도",
+        weeklyLimit: "주간 한도",
+        showAtRest: "대기 중 표시",
+        restingFocusCaption: "‘표시할 한도’에서 각 숫자의 한도를 고릅니다. ‘하나’는 그 하나만 보여 줍니다.",
+        restingSplitCaption: "‘양쪽에 하나씩’은 처음 두 개를, ‘순환’은 모두를 보여 줍니다.",
+        restingWordLeft: "남음",
+        restingWordUsed: "사용",
+        aiLimit: "AI 한도",
+        aiLimits: "AI 한도",
+        aiLimitsRotating: "AI 한도, 순환",
+        restingLow: "부족",
+        restingAlmostOut: "거의 소진",
+        restingWindowFormat: "%1$@: %2$@")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1407,7 +1659,25 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        atRest: "静止时",
+        restingLayout: "布局",
+        restingSingle: "单个",
+        restingSplit: "每侧一个",
+        restingCycle: "轮流",
+        sessionLimit: "会话额度",
+        weeklyLimit: "每周额度",
+        showAtRest: "静止时显示",
+        restingFocusCaption: "“显示的额度”决定每个数字显示的额度。“单个”只显示这一项。",
+        restingSplitCaption: "“每侧一个”显示前两个，“轮流”显示全部。",
+        restingWordLeft: "剩余",
+        restingWordUsed: "已用",
+        aiLimit: "AI 额度",
+        aiLimits: "AI 额度",
+        aiLimitsRotating: "AI 额度，轮流显示",
+        restingLow: "偏低",
+        restingAlmostOut: "即将用完",
+        restingWindowFormat: "%1$@：%2$@")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1502,7 +1772,25 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        atRest: "靜止時",
+        restingLayout: "版面",
+        restingSingle: "單一",
+        restingSplit: "每側一個",
+        restingCycle: "輪流",
+        sessionLimit: "工作階段額度",
+        weeklyLimit: "每週額度",
+        showAtRest: "靜止時顯示",
+        restingFocusCaption: "「顯示的額度」決定每個數字顯示的額度。「單一」只顯示這一項。",
+        restingSplitCaption: "「每側一個」顯示前兩個，「輪流」顯示全部。",
+        restingWordLeft: "剩餘",
+        restingWordUsed: "已用",
+        aiLimit: "AI 額度",
+        aiLimits: "AI 額度",
+        aiLimitsRotating: "AI 額度，輪流顯示",
+        restingLow: "偏低",
+        restingAlmostOut: "即將用完",
+        restingWindowFormat: "%1$@：%2$@")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1597,5 +1885,23 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        atRest: "靜止時",
+        restingLayout: "版面",
+        restingSingle: "單一",
+        restingSplit: "每邊一個",
+        restingCycle: "輪流",
+        sessionLimit: "工作階段額度",
+        weeklyLimit: "每週額度",
+        showAtRest: "靜止時顯示",
+        restingFocusCaption: "「顯示的額度」決定每個數字顯示的額度。「單一」只顯示這一項。",
+        restingSplitCaption: "「每邊一個」顯示首兩個，「輪流」顯示全部。",
+        restingWordLeft: "剩餘",
+        restingWordUsed: "已用",
+        aiLimit: "AI 額度",
+        aiLimits: "AI 額度",
+        aiLimitsRotating: "AI 額度，輪流顯示",
+        restingLow: "偏低",
+        restingAlmostOut: "快將用完",
+        restingWindowFormat: "%1$@：%2$@")
 }

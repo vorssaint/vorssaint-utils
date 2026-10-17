@@ -16,6 +16,10 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
+    @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var restingLayout = NotchAgentRestingLayout.single.rawValue
+    @AppStorage(DefaultsKey.notchAgentsRestingSession) private var restingSession = true
+    @AppStorage(DefaultsKey.notchAgentsRestingWeekly) private var restingWeekly = true
+    @AppStorage(DefaultsKey.notchAgentsRestingHidden) private var restingHidden = ""
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
@@ -84,6 +88,7 @@ struct NotchAgentsSettingsControls: View {
                     Text(text.limitFocus(focus)).tag(focus.rawValue)
                 }
             }
+            restingGroup
 
             Divider()
             Text(text.liveTitle).font(.subheadline.weight(.medium))
@@ -158,6 +163,98 @@ struct NotchAgentsSettingsControls: View {
                        String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
+    }
+
+    /// Agents switched on that report a plan allowance, the ones that can rest.
+    private var restable: [AgentProvider] {
+        let on: [AgentProvider: Bool] = [.claude: claude, .codex: codex, .opencode: opencode, .copilot: copilot]
+        return AgentProvider.allCases.filter { on[$0] == true && $0.reportsLimits }
+    }
+
+    /// How the resting island shows the allowances: the layout, the windows
+    /// its meters fill, the agents that rest, and the strip as it will look.
+    @ViewBuilder private var restingGroup: some View {
+        let layout = NotchAgentRestingLayout(rawValue: restingLayout) ?? .single
+        Text(text.atRest).font(.subheadline.weight(.medium)).padding(.top, 4)
+        SettingsMenuRow(symbol: "rectangle.split.3x1", title: text.restingLayout, selection: $restingLayout) {
+            ForEach(NotchAgentRestingLayout.allCases) { option in
+                Text(text.restingLayout(option)).tag(option.rawValue)
+            }
+        }
+        restingWindowRow(text.sessionLimit, isOn: $restingSession) { tint in
+            Circle().stroke(tint, lineWidth: 1.6).frame(width: 10, height: 10)
+        }
+        .disabled(layout == .single)
+        restingWindowRow(text.weeklyLimit, isOn: $restingWeekly) { tint in
+            Capsule().fill(tint).frame(width: 12, height: 2.5)
+        }
+        .disabled(layout == .single)
+        Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
+            Text(text.restingSplitCaption).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        if !restable.isEmpty {
+            Text(text.showAtRest).font(.callout).foregroundStyle(.secondary)
+            ForEach(restable) { provider in
+                HStack(spacing: 12) {
+                    NotchAgentMark(provider: provider, size: 13)
+                        .frame(width: 26, height: 26)
+                        .background(provider.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .accessibilityHidden(true)
+                    Text(provider.displayName)
+                    Spacer(minLength: 12)
+                    Toggle(provider.displayName, isOn: restingBinding(provider)).labelsHidden().toggleStyle(.switch)
+                }
+            }
+        }
+        NotchAgentRestingSample(sample: usage.snapshot.limits.keys.contains(where: restable.contains)
+                                    ? nil : Self.sampleUsage(restable))
+            .padding(.leading, settingsRowTextInset)
+    }
+
+    private var restingHiddenSet: Set<AgentProvider> { NotchAgentSupport.parseRestingHidden(restingHidden) }
+
+    /// A window's switch, beside the shape that window takes on the island.
+    private func restingWindowRow<Chip: View>(_ title: String, isOn: Binding<Bool>,
+                                              @ViewBuilder chip: (Color) -> Chip) -> some View {
+        HStack(spacing: 12) {
+            chip(agentStatusTint(.normal))
+                .frame(width: 26, height: 26)
+                .background(.black, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .accessibilityHidden(true)
+            Text(title)
+            Spacer(minLength: 12)
+            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch)
+        }
+    }
+
+    private func restingBinding(_ provider: AgentProvider) -> Binding<Bool> {
+        Binding {
+            !restingHiddenSet.contains(provider)
+        } set: { shown in
+            var hidden = restingHiddenSet
+            if shown { hidden.remove(provider) } else { hidden.insert(provider) }
+            restingHidden = hidden.map(\.rawValue).sorted().joined(separator: ",")
+        }
+    }
+
+    /// Example allowances for the preview while no agent reports its own.
+    private static func sampleUsage(_ providers: [AgentProvider]) -> AgentUsageSnapshot {
+        let now = Date()
+        let examples: [(session: Double, weekly: Double)] = [(28, 55), (62, 20), (40, 10)]
+        var snapshot = AgentUsageSnapshot()
+        for (index, provider) in (providers.isEmpty ? [.claude] : providers).enumerated() {
+            let example = examples[index % examples.count]
+            snapshot.limits[provider] = AgentLimits(provider: provider, windows: [
+                AgentLimitWindow(id: "session", kind: .session, minutes: 300, scope: nil,
+                                 usedPercent: example.session, resetsAt: now.addingTimeInterval(3600)),
+                AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                                 usedPercent: example.weekly, resetsAt: now.addingTimeInterval(86_400))],
+                observedAt: now, source: .sessionLog)
+        }
+        return snapshot
     }
 
     private var priceCaption: String {
@@ -313,5 +410,36 @@ private struct NotchAgentStripSample: View {
                                               cost: 4.56)]
         }
         return NotchAgentSupport.stripReading(snapshot, readout: readout, display: display, focus: focus, now: now)
+    }
+}
+
+/// The resting island drawn small beside its options: the real wings around
+/// a camera, with the person's allowances or an example of them.
+private struct NotchAgentRestingSample: View {
+    let sample: AgentUsageSnapshot?
+    private static let camera: CGFloat = 64
+    private static let wing: CGFloat = 44
+    /// The wing's shoulder on a MacBook's 32-point strip.
+    private static let inset: CGFloat = 11
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ZStack(alignment: .trailing) {
+                Color.clear
+                NotchAgentRestingWing(side: .leading, sample: sample).padding(.leading, Self.inset)
+            }
+            .frame(width: Self.wing)
+            Color.clear.frame(width: Self.camera)
+            ZStack(alignment: .leading) {
+                Color.clear
+                NotchAgentRestingWing(side: .trailing, sample: sample).padding(.trailing, Self.inset)
+            }
+            .frame(width: Self.wing)
+        }
+        .foregroundStyle(.white.opacity(0.9))
+        .frame(width: Self.camera + Self.wing * 2, height: 32)
+        .background(NotchShape(attached: true, radius: 10).fill(.black))
+        .environment(\.colorScheme, .dark)
+        .accessibilityHidden(true)
     }
 }
