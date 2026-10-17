@@ -912,6 +912,8 @@ struct Strings {
     let monitorCombineTemperaturesCaption: String
     let monitorSeparateMenuBarMetrics: String
     let monitorSeparateMenuBarMetricsCaption: String
+    let monitorReverseMenuBarOrder: String
+    let monitorReverseMenuBarOrderCaption: String
     let monitorNetworkUploadFirst: String
     let monitorShowCPU: String
     let monitorShowMemory: String
@@ -2025,7 +2027,9 @@ extension Strings {
         monitorCombineTemperatures: "Combinar uso e temperatura",
         monitorCombineTemperaturesCaption: "Quando uso e temperatura do mesmo item estiverem ativos, mostra tudo em um bloco só.",
         monitorSeparateMenuBarMetrics: "Separar métricas em itens próprios",
-        monitorSeparateMenuBarMetricsCaption: "Separa os blocos ativos na barra de menus e mantém uso e temperatura juntos quando combinar estiver ativo.",
+        monitorSeparateMenuBarMetricsCaption: "Cada métrica vira um item próprio na barra de menus, que você pode arrastar com ⌘ para onde quiser. Uso e temperatura ficam juntos quando combinar estiver ativo.",
+        monitorReverseMenuBarOrder: "Inverter ordem",
+        monitorReverseMenuBarOrderCaption: "Inverte a ordem das métricas e move o ícone do Vorssaint para a outra ponta do item.",
         monitorNetworkUploadFirst: "Upload acima do download",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memória",
@@ -3125,7 +3129,9 @@ extension Strings {
         monitorCombineTemperatures: "Combine usage and temperature",
         monitorCombineTemperaturesCaption: "When usage and temperature for the same item are enabled, show them in one block.",
         monitorSeparateMenuBarMetrics: "Separate metrics into their own items",
-        monitorSeparateMenuBarMetricsCaption: "Separates active blocks in the menu bar and keeps usage and temperature together when combine is on.",
+        monitorSeparateMenuBarMetricsCaption: "Each metric becomes its own menu bar item that you can ⌘-drag into place. Usage and temperature stay together when combine is on.",
+        monitorReverseMenuBarOrder: "Reverse order",
+        monitorReverseMenuBarOrderCaption: "Flips the metric order and moves the Vorssaint icon to the other end of the item.",
         monitorNetworkUploadFirst: "Upload above download",
         monitorShowCPU: "CPU",
         monitorShowMemory: "Memory",

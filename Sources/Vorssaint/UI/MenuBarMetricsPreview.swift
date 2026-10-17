@@ -39,6 +39,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
     @AppStorage(DefaultsKey.menuBarHideIconWithMetrics) private var hideIconWithMetrics = false
+    @AppStorage(DefaultsKey.menuBarIconTrailing) private var iconTrailing = false
     @AppStorage(DefaultsKey.menuBarSeparateMetrics) private var separateMetrics = false
     @ObservedObject private var l10n = L10n.shared
 
@@ -85,12 +86,15 @@ struct MenuBarMetricsPreview: View {
             }
             if !iconHidden || !lines.isEmpty {
                 HStack(spacing: 5) {
+                    if !lines.isEmpty && iconTrailing {
+                        linesView(lines)
+                    }
                     if !iconHidden {
                         glyph
                             .frame(width: BlackHoleGlyph.pointSize.width,
                                    height: BlackHoleGlyph.pointSize.height)
                     }
-                    if !lines.isEmpty {
+                    if !lines.isEmpty && !iconTrailing {
                         linesView(lines)
                     }
                 }
