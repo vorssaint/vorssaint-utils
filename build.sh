@@ -29,12 +29,14 @@ trap 'exit 1' INT TERM HUP
 # Flags: --dev builds the local-only "Vorssaint (Developer)" variant (its own
 # bundle id, so it coexists with the official app); --install puts it in /Applications.
 DEV=0
+AD_HOC=0
 INSTALL=0
 TEST=0
 TEST_ARGS=()
 for arg in "$@"; do
     case "$arg" in
         --dev)     DEV=1 ;;
+        --ad-hoc)  AD_HOC=1 ;;
         --install) INSTALL=1 ;;
         --test)    TEST=1 ;;
         --test-suite=*) TEST=1; TEST_ARGS+=("--suite=${arg#*=}") ;;
@@ -67,6 +69,7 @@ ENTITLEMENTS="Resources/Vorssaint.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
 developer_id_identity() {
+    (( AD_HOC )) && return 0
     security find-identity -v -p codesigning 2>/dev/null \
         | grep 'Developer ID Application' \
         | head -1 \
@@ -77,6 +80,7 @@ developer_id_identity() {
 # expired one fails the build with errSecInternalComponent), and -v excludes
 # every self-signed one; ask codesign itself with a throwaway copy of /bin/echo.
 legacy_identity_installed() {
+    (( AD_HOC )) && return 1
     local probe signed=1
     # A locked keychain still lists its identities but cannot sign with them,
     # and this one is locked after every reboot; unlock it before asking.
@@ -99,7 +103,7 @@ legacy_identity_installed() {
 # up front instead of falling through to ad-hoc — setup-signing.sh is free,
 # offline and idempotent. Gating on the install rather than the variant keeps
 # this off CI, where neither ci.yml nor release.yml passes --install.
-if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
+if (( DEV || INSTALL )) && (( !AD_HOC )) && [[ -z "$(developer_id_identity)" ]] \
     && ! legacy_identity_installed; then
     echo "▸ No signing identity installed; creating the stable local one…"
     if ! ./Tools/setup-signing.sh; then
@@ -149,6 +153,20 @@ write_swift_output_file_map() {
     } > "$output_file"
 }
 
+sign_finder_extension() {
+    local extension="$1/Contents/PlugIns/VorssaintFinderTools.appex"
+    local identity="$2"
+    [[ -d "$extension" ]] || return 0
+    local options=(--force --strip-disallowed-xattrs
+        --entitlements "$extension/Contents/Resources/Signing.entitlements" --sign "$identity")
+    if [[ "${3:-0}" == "1" ]]; then
+        codesign_with_timestamp_retry "${options[@]}" --options runtime --timestamp "$extension"
+    else
+        /usr/bin/codesign "${options[@]}" "$extension"
+    fi
+    /usr/bin/codesign --verify --strict "$extension"
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
@@ -159,19 +177,22 @@ finalize_installed_bundle_after_child() {
     echo "▸ Finalizing installed signature…"
     sleep 3
     if [[ -n "$devid" ]]; then
+        sign_finder_extension "$bundle" "$devid" 1
         [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
         [[ -f "$adapter" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$devid" "$adapter"
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
-            --entitlements "$ENTITLEMENTS" --sign "$devid" "$bundle"
+            --entitlements "$bundle/Contents/Resources/Signing.entitlements" --sign "$devid" "$bundle"
     elif legacy_identity_installed; then
+        sign_finder_extension "$bundle" "$LEGACY_IDENTITY"
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign "$LEGACY_IDENTITY" "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$NOW_PLAYING_ADAPTER_ID" --sign "$LEGACY_IDENTITY" "$adapter"
         /usr/bin/codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$bundle"
     else
+        sign_finder_extension "$bundle" -
         [[ -f "$helper" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
             --identifier "$FAN_HELPER_ID" --sign - "$helper"
         [[ -f "$adapter" ]] && /usr/bin/codesign --force --strip-disallowed-xattrs \
@@ -443,6 +464,28 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift
         Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift
+        Sources/Vorssaint/Services/Finder/FinderFileActions.swift
+        Sources/Vorssaint/Services/Finder/FinderBatchTools.swift
+        Sources/Vorssaint/Services/Finder/FinderNewFileTemplates.swift
+        Sources/Vorssaint/Services/Finder/FinderSearchTools.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsRequest.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsPasteboardSelection.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsAction.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsOperation.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderPDFTools.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderDiskImageOperation.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderAudioTools.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderPresentationArchive.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderPresentationTools.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsSystemTool.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderImageTools.swift
+        Sources/Vorssaint/Services/DocumentTools/FinderDocumentExecutor.swift
+        Sources/Vorssaint/Core/FinderToolsStrings.swift
+        Sources/Vorssaint/Core/FinderLANShareStrings.swift
+        Sources/Vorssaint/Services/Finder/Sharing/FinderLANShareProtocol.swift
+        Sources/Vorssaint/Core/FinderToolsPreferences.swift
+        Sources/Vorssaint/Services/Finder/FinderToolsCategory.swift
+        Sources/Vorssaint/Services/Finder/FinderScriptOperation.swift
         Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift
         Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift
         Sources/Vorssaint/Services/InstalledApps.swift
@@ -482,6 +525,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/DiskExclusionStrings.swift
         Sources/Vorssaint/Core/SwitcherAppRulesStrings.swift
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
+        Sources/Vorssaint/Services/QuickTools/BarcodeDetector.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
@@ -611,6 +655,17 @@ swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysc
     "${BUILD_VARIANT_FLAGS[@]}" \
     "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 
+echo "▸ Compiling Finder tools extension…"
+swiftc -O -parse-as-library -application-extension -emit-executable \
+    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    Sources/FinderToolsExtension/FinderToolsExtension.swift \
+    Sources/Vorssaint/Services/Finder/FinderToolsAction.swift \
+    Sources/Vorssaint/Services/Finder/FinderToolsCategory.swift \
+    Sources/Vorssaint/Core/FinderToolsPreferences.swift \
+    Sources/Vorssaint/Core/FinderLANShareStrings.swift \
+    Sources/Vorssaint/Services/Finder/FinderToolsRequest.swift \
+    -framework AppKit -framework FinderSync -Xlinker -e -Xlinker _NSExtensionMain \
+    -o build/VorssaintFinderTools
 echo "▸ Compiling protected fan helper…"
 swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
@@ -678,6 +733,14 @@ cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+FINDER_EXTENSION="$STAGE/Contents/PlugIns/VorssaintFinderTools.appex"
+mkdir -p "$FINDER_EXTENSION/Contents/MacOS" "$FINDER_EXTENSION/Contents/Resources"
+cp build/VorssaintFinderTools "$FINDER_EXTENSION/Contents/MacOS/"
+cp Resources/FinderToolsExtension/Info.plist "$FINDER_EXTENSION/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID.finder-tools" "$FINDER_EXTENSION/Contents/Info.plist"
+for lproj in Resources/FinderToolsExtension/*.lproj(N); do
+    cp -R "$lproj" "$FINDER_EXTENSION/Contents/Resources/"
+done
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
@@ -686,6 +749,8 @@ if (( DEV )); then
     # A distinct identity so the Developer build installs and runs next to the
     # official app, with its own permissions, preferences and login item.
     /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $APP_BUNDLE_ID" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 vorssaint-dev-files" "$STAGE/Contents/Info.plist"
+    /usr/libexec/PlistBuddy -c "Set :NSServices:0:NSPortName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$STAGE/Contents/Info.plist"
     /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $EXECUTABLE" "$STAGE/Contents/Info.plist"
@@ -743,11 +808,25 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
 DEVID="$(developer_id_identity)"
+cp "$ENTITLEMENTS" "$STAGE/Contents/Resources/Signing.entitlements"
+cp Resources/FinderToolsExtension/Entitlements.plist "$FINDER_EXTENSION/Contents/Resources/Signing.entitlements"
+if [[ -n "$DEVID" ]]; then
+    FINDER_TEAM="${DEVID##*\(}"
+    FINDER_TEAM="${FINDER_TEAM%\)}"
+    if [[ "$FINDER_TEAM" =~ '^[A-Z0-9]{10}$' ]]; then
+        FINDER_GROUP="$FINDER_TEAM.$APP_BUNDLE_ID.finder-tools"
+        for bundle in "$STAGE" "$FINDER_EXTENSION"; do
+            /usr/libexec/PlistBuddy -c "Add :FinderToolsAppGroup string $FINDER_GROUP" "$bundle/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c 'Add :com.apple.security.application-groups array' "$bundle/Contents/Resources/Signing.entitlements"
+            /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups:0 string $FINDER_GROUP" "$bundle/Contents/Resources/Signing.entitlements"
+        done
+    fi
+fi
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
         codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
-            --entitlements "$ENTITLEMENTS" --sign "$DEVID" "$target"
+            --entitlements "$target/Contents/Resources/Signing.entitlements" --sign "$DEVID" "$target"
     elif legacy_identity_installed; then
         codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$target"
     else
@@ -789,10 +868,13 @@ sign_bundle() {
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
+        sign_finder_extension "$bundle" "$DEVID" 1
     elif legacy_identity_installed; then
         echo "  signing with legacy self-signed identity: $LEGACY_IDENTITY"
+        sign_finder_extension "$bundle" "$LEGACY_IDENTITY"
     else
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
+        sign_finder_extension "$bundle" -
     fi
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
@@ -803,6 +885,13 @@ sign_bundle() {
     if ! codesign --verify --deep --strict "$bundle" >/dev/null 2>&1; then
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
+        if [[ -n "$DEVID" ]]; then
+            sign_finder_extension "$bundle" "$DEVID" 1
+        elif legacy_identity_installed; then
+            sign_finder_extension "$bundle" "$LEGACY_IDENTITY"
+        else
+            sign_finder_extension "$bundle" -
+        fi
         [[ -f "$helper" ]] && codesign_fan_helper "$helper"
         [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
         codesign_app "$bundle"

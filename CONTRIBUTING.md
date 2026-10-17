@@ -26,7 +26,9 @@ A plain `./build.sh` builds the optimized variant used by CI; its health check i
 ### Stable signing
 
 Developer and install builds automatically try to create a stable local signing
-identity when none is available. You can also run `./Tools/setup-signing.sh`.
+identity when none is available. For a disposable build without keychain changes,
+use `./build.sh --dev --ad-hoc`. This signs the host and Finder extension ad-hoc;
+permission grants may not survive a rebuild. You can also run `./Tools/setup-signing.sh`.
 Keep that identity across rebuilds: ad-hoc signatures change with the binary and
 can invalidate macOS permission grants. Check the build output for signing
 failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).

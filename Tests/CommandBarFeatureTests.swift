@@ -2502,7 +2502,7 @@ enum CommandBarInputSourceContract {
 /// run-loop modes, with inert replies and input sources. No app quits or layout changes.
 enum CommandBarTerminationContract {
     final class Application {
-        enum TerminateReply { case terminateNow, terminateLater }
+        enum TerminateReply { case terminateNow, terminateLater, terminateCancel }
         var replies: [Bool] = []
         var sourceAtReply: [String] = []
         func reply(toApplicationShouldTerminate accepted: Bool) {
@@ -2513,13 +2513,21 @@ enum CommandBarTerminationContract {
     enum Bar {
         static var shared = CommandBarInputSourceContract.Service()
     }
+    final class FinderTools {
+        static var shared = FinderTools()
+        var readyToQuit = true
+        var preparations = 0
+        func prepareForTermination() -> Bool { preparations += 1; return readyToQuit }
+    }
     class Fixture {
         typealias NSApplication = Application
         typealias CommandBarService = Bar
+        typealias FinderToolsService = FinderTools
         var inputSourceRestorationPending = false
     }
     static func run(_ suite: TestSuite) {
         func reset(borrowed: Bool) -> (Host, Application) {
+            FinderTools.shared = FinderTools()
             Bar.shared = CommandBarInputSourceContract.Service()
             Bar.shared.suspendedInputSourceID = borrowed ? "original" : nil
             CommandBarInputSourceContract.Sources.current = borrowed ? "ascii" : "original"
@@ -2534,6 +2542,7 @@ enum CommandBarTerminationContract {
             }
         }
         defer {
+            FinderTools.shared = FinderTools()
             Bar.shared = CommandBarInputSourceContract.Service()
             CommandBarInputSourceContract.Sources.current = "original"
             CommandBarInputSourceContract.Sources.selected = []
@@ -2543,6 +2552,14 @@ enum CommandBarTerminationContract {
         suite.expect(idle.applicationShouldTerminate(idleApp) == .terminateNow
                      && idleApp.replies.isEmpty,
                      "termination without a borrowed layout does not create an asynchronous reply")
+        let (recordingHost, recordingApp) = reset(borrowed: false)
+        FinderTools.shared.readyToQuit = false
+        suite.expect(recordingHost.applicationShouldTerminate(recordingApp) == .terminateCancel
+                     && FinderTools.shared.preparations == 1 && recordingApp.replies.isEmpty,
+                     "an active recording is finalized before the app may quit")
+        FinderTools.shared.readyToQuit = true
+        suite.expect(recordingHost.applicationShouldTerminate(recordingApp) == .terminateNow,
+                     "quitting again after recording finalization succeeds")
         let (host, app) = reset(borrowed: true)
         suite.expect(host.applicationShouldTerminate(app) == .terminateLater
                      && CommandBarInputSourceContract.Sources.selected.isEmpty && app.replies.isEmpty,

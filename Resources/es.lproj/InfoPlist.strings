@@ -22,3 +22,5 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint organiza las descargas confirmadas de WhatsApp en una carpeta de destino que tú eliges expresamente. Limpieza también busca capturas olvidadas si guardas tus capturas aquí.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organiza las descargas confirmadas de WhatsApp en una carpeta de destino que tú eliges expresamente. Limpieza también busca capturas olvidadas si guardas tus capturas aquí.";
 "NSCalendarsFullAccessUsageDescription" = "Muestra tus próximas citas en la parte superior de la pantalla. Los eventos del calendario se quedan en este Mac.";
+
+"NSLocalNetworkUsageDescription" = "Vorssaint comparte los archivos que selecciones con dispositivos de tu red local cuando inicias una sesión para compartir.";

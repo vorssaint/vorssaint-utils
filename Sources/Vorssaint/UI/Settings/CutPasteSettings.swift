@@ -134,6 +134,21 @@ struct CutPasteSettings: View {
                 .settingsFormSectionAnchor(.finderRename)
             }
 
+            if AppFeature.finderTools.isAvailable {
+                let tools = FinderToolsStrings.localized(l10n.language)
+                Section {
+                    Text(tools.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button(tools.open) {
+                        FinderToolsService.shared.open()
+                    }
+                } header: {
+                    Text(tools.title)
+                }
+                .settingsFormSectionAnchor(.finderTools)
+            }
+
             if needsAccessibility, !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)

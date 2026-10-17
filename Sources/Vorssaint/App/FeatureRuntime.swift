@@ -279,11 +279,15 @@ final class FeatureRuntime: ObservableObject {
             NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }
             MediaService.shared.cancel()
+            FinderToolsService.shared.suspendMedia()
             ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
         },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
         .finderRename: { FinderRenameService.shared.syncWithPreferences() },
+        .finderTools: {
+            FinderToolsService.shared.syncWithPreferences()
+        },
         .shelf: {
             ShelfService.shared.syncWithPreferences()
             NotchFileToolsService.shared.syncWithPreferences()

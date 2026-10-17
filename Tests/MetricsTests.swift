@@ -22,6 +22,18 @@ struct MetricsTests {
                 SystemMonitorPlanTests.run(suite)
                 SystemSectionBreakdownTests.run(suite)
             }),
+            ("finder-tools", {
+                FinderFileActionsTests.run(suite)
+                FinderToolsTests.run(suite)
+                FinderPDFToolsTests.run(suite)
+                FinderImageToolsTests.run(suite)
+                FinderBatchToolsTests.run(suite)
+                FinderToolsPreferencesTests.run(suite)
+                FinderNewFileTemplatesTests.run(suite)
+                FinderLANShareTests.run(suite)
+            }),
+            ("finder-media", { FinderMediaExportTests.run(suite); FinderPresentationTests.run(suite) }),
+            ("finder-archives", { FinderArchiveToolsTests.run(suite) }),
             ("clipboard", {
                 ClipboardFeatureTests.run(suite)
                 PastePlainTests.run(suite)
