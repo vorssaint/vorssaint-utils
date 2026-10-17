@@ -211,6 +211,8 @@ enum SettingsDirectory {
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
                                                            FeatureStrings.bluetoothSleep(language).enable]),
+                                        (.displayScaling, [FeatureStrings.displayScaling(language).pageTitle,
+                                                           FeatureStrings.displayScaling(language).enable]),
                                        ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                                        keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],

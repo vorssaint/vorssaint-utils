@@ -42,6 +42,12 @@ enum Uninstaller {
                   ? "UNINSTALL: Space rearranging restored"
                   : "UNINSTALL: Space arrangement restoration could not be confirmed")
         }
+        // Removing them needs the password dialog this path cannot show, so
+        // only report what stays for the caller to remove.
+        for model in DisplayScalingService.managedOverridePaths() {
+            print("UNINSTALL: display override left at "
+                  + DisplayScalingSupport.overridePath(vendorID: model.vendorID, productID: model.productID))
+        }
         do {
             try SMAppService.mainApp.unregister()
             print("UNINSTALL: login item unregistered")
