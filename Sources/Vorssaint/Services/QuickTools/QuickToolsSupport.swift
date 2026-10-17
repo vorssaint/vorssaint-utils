@@ -4,6 +4,28 @@
 import AppKit
 import UniformTypeIdentifiers
 
+enum QRResultAction: String, CaseIterable {
+    case copy
+    case popup
+    case openLink
+
+    init(storedValue: String?) {
+        self = storedValue.flatMap(Self.init(rawValue:)) ?? .popup
+    }
+
+    func resolved(hasWebURL: Bool) -> Self {
+        self == .openLink && !hasWebURL ? .copy : self
+    }
+
+    func label(_ strings: Strings) -> String {
+        switch self {
+        case .copy: return strings.qrResultActionCopy
+        case .popup: return strings.qrResultActionPopup
+        case .openLink: return strings.qrResultActionOpenLink
+        }
+    }
+}
+
 enum QuickToolsSupport {
     static func sampledColor(in image: CGImage, x: Int, y: Int) -> NSColor? {
         guard let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
