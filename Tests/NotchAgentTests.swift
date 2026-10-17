@@ -37,6 +37,7 @@ enum NotchAgentTests {
         AgentCodexResetTests.run(suite)
         AgentClaudeServerTests.run(suite)
         CodexAccountLimitsTests.run(suite)
+        AgentClaudeResetTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)
@@ -3166,11 +3167,15 @@ enum NotchAgentTests {
                         && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
                      "only agents whose local logs report plan allowances get a limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
-        suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]
-                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [spend],
-                     "the resets card belongs to Codex and leaves with it")
+        let claudeResets = NotchAgentTile(card: .resets, provider: .claude)
+        suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot])
+                        == [claudeResets, resets, spend]
+                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [claudeResets, spend]
+                        && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.codex, .opencode]) == [resets, spend],
+                     "each of Claude and Codex gets a resets card, which leaves with its agent")
+        suite.expect(claudeResets.id != resets.id, "the two resets cards are told apart")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.copilot]) == [spend],
-                     "a Copilot-only dashboard never offers unavailable limits or Codex account resets")
+                     "a Copilot-only dashboard never offers unavailable limits or account resets")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")

@@ -231,6 +231,16 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         queue.async { [self] in
             guard readerSession >= 0, enabled.contains(reading.provider) else { return }
+            // Claude's account reading stands beside the one Claude Code
+            // gives; the newer of them and the Claude app's is shown.
+            if reading.provider == .claude {
+                guard reading.observedAt > (claudeAccountLimits?.observedAt ?? .distantPast) else { return }
+                claudeAccountLimits = reading
+                readClaudeApp(now: Date())
+                checkLimits()
+                schedulePublish()
+                return
+            }
             store.updateLimits(reading)
             checkLimits()
             schedulePublish()
