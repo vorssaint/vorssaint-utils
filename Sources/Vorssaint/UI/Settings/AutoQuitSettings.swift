@@ -39,27 +39,40 @@ struct AutoQuitSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            // The exception list has one reader, the window check, and that only
+            Section {
+                Picker(modeText.modeTitle, selection: onlyListedBinding) {
+                    Text(modeText.allExceptTitle).tag(false)
+                    Text(modeText.onlyListedTitle).tag(true)
+                }
+                .disabled(!enabled)
+            }
+
+            // The lists have one reader, the window check, and that only
             // runs while the feature does. With the switch off every edit here
-            // is a no-op, so the list follows it.
-            Section(l10n.s.autoQuitExceptionsTitle) {
-                if sortedExceptions.isEmpty {
-                    Text(l10n.s.autoQuitExceptionsEmpty)
+            // is a no-op, so the list follows it. Only the list for the chosen
+            // mode is shown; the other one keeps its apps for when it is picked.
+            Section(service.onlyListedApps ? modeText.includedTitle : l10n.s.autoQuitExceptionsTitle) {
+                if sortedApps.isEmpty {
+                    Text(service.onlyListedApps ? modeText.includedEmpty : l10n.s.autoQuitExceptionsEmpty)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(sortedExceptions, id: \.self) { bundleID in
+                    ForEach(sortedApps, id: \.self) { bundleID in
                         HStack(spacing: 9) {
                             Image(nsImage: InstalledApps.icon(for: bundleID))
                                 .resizable().frame(width: 20, height: 20)
                             Text(InstalledApps.name(for: bundleID))
                             Spacer()
-                            if service.isMandatoryException(bundleID) {
+                            if !service.onlyListedApps, service.isMandatoryException(bundleID) {
                                 Image(systemName: "lock.fill")
                                     .foregroundStyle(.tertiary)
                             } else {
                                 Button {
-                                    service.removeException(bundleID)
+                                    if service.onlyListedApps {
+                                        service.removeIncludedApp(bundleID)
+                                    } else {
+                                        service.removeException(bundleID)
+                                    }
                                 } label: {
                                     Image(systemName: "minus.circle.fill")
                                         .foregroundStyle(.secondary)
@@ -78,7 +91,7 @@ struct AutoQuitSettings: View {
                 }
                 .disabled(!enabled)
 
-                Text(l10n.s.autoQuitExceptionsCaption)
+                Text(service.onlyListedApps ? modeText.includedCaption : l10n.s.autoQuitExceptionsCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -95,24 +108,39 @@ struct AutoQuitSettings: View {
         }
     }
 
-    private var sortedExceptions: [String] {
-        AutoQuitSupport.visibleExceptions(service.exceptions) {
-            InstalledApps.url(for: $0) != nil
-        }
-        .sorted {
+    private var modeText: AutoQuitModeStrings {
+        FeatureStrings.autoQuitMode(l10n.language)
+    }
+
+    private var onlyListedBinding: Binding<Bool> {
+        Binding(get: { service.onlyListedApps },
+                set: { service.setOnlyListedApps($0) })
+    }
+
+    private var sortedApps: [String] {
+        let listed = service.onlyListedApps
+            ? service.includedApps
+            : AutoQuitSupport.visibleExceptions(service.exceptions) {
+                InstalledApps.url(for: $0) != nil
+            }
+        return listed.sorted {
             InstalledApps.name(for: $0).localizedCaseInsensitiveCompare(InstalledApps.name(for: $1))
                 == .orderedAscending
         }
     }
 
     private var appPickerSheet: some View {
-        let excluded = Set(service.exceptions)
+        let excluded = Set(service.onlyListedApps ? service.includedApps : service.exceptions)
         return AppPickerView {
             showingAppPicker = false
         } onSelect: { url in
             showingAppPicker = false
             guard let bundleID = Bundle(url: url)?.bundleIdentifier else { return }
-            service.addException(bundleID)
+            if service.onlyListedApps {
+                service.addIncludedApp(bundleID)
+            } else {
+                service.addException(bundleID)
+            }
         } loadApps: {
             InstalledApps.installedBundleApplications(excluding: excluded)
         }

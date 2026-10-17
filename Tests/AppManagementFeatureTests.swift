@@ -1186,6 +1186,46 @@ enum AppManagementFeatureTests {
         suite.expect(Defaults.sanitizedAutoQuitExceptions(["com.example.One", Defaults.finderBundleIdentifier])
                == [Defaults.finderBundleIdentifier, Defaults.phoneBundleIdentifier, "com.example.One"],
                "Finder and Phone are mandatory in the auto-quit exception list")
+        suite.expect(registeredDefaults[DefaultsKey.autoQuitOnlyListedApps] as? Bool == false,
+               "Quit on close keeps the exclude-list mode by default")
+        suite.expect((registeredDefaults[DefaultsKey.autoQuitIncludedApps] as? [String]) == [],
+               "Quit on close allowlist starts empty")
+        suite.expect(AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: "com.example.kept",
+                                                         bundleURL: nil,
+                                                         onlyListedApps: false,
+                                                         exceptions: ["com.example.kept"],
+                                                         includedApps: []),
+               "exclude mode protects an excepted app")
+        suite.expect(!AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: "com.example.other",
+                                                          bundleURL: nil,
+                                                          onlyListedApps: false,
+                                                          exceptions: ["com.example.kept"],
+                                                          includedApps: ["com.example.other"]),
+               "exclude mode ignores the allowlist and quits an app that is not excepted")
+        suite.expect(!AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: "com.example.listed",
+                                                          bundleURL: nil,
+                                                          onlyListedApps: true,
+                                                          exceptions: [],
+                                                          includedApps: ["com.example.listed"]),
+               "allowlist mode quits a listed app")
+        suite.expect(AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: "com.example.unlisted",
+                                                         bundleURL: nil,
+                                                         onlyListedApps: true,
+                                                         exceptions: [],
+                                                         includedApps: ["com.example.listed"]),
+               "allowlist mode keeps an unlisted app running")
+        suite.expect(AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: nil,
+                                                         bundleURL: nil,
+                                                         onlyListedApps: true,
+                                                         exceptions: [],
+                                                         includedApps: ["com.example.listed"]),
+               "allowlist mode keeps an app with no bundle identifier running")
+        suite.expect(AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: Defaults.finderBundleIdentifier,
+                                                         bundleURL: nil,
+                                                         onlyListedApps: true,
+                                                         exceptions: [],
+                                                         includedApps: [Defaults.finderBundleIdentifier]),
+               "allowlist mode never quits Finder even when it is listed")
         suite.expect(AutoQuitSupport.isExcepted(bundleIdentifier: "com.example.direct",
                                           bundleURL: nil,
                                           exceptions: ["com.example.direct"]),

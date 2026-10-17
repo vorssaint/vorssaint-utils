@@ -19,6 +19,8 @@ final class AutoQuitService: ObservableObject {
 
     /// Bundle ids never auto-quit; mirrors the persisted list for the UI.
     @Published private(set) var exceptions: [String] = []
+    @Published private(set) var onlyListedApps = false
+    @Published private(set) var includedApps: [String] = []
 
     private static let appNotifications = [
         kAXWindowCreatedNotification,
@@ -74,6 +76,7 @@ final class AutoQuitService: ObservableObject {
 
     private init() {
         reloadExceptions()
+        reloadAllowlist()
     }
 
     var isRunning: Bool { running }
@@ -345,9 +348,11 @@ final class AutoQuitService: ObservableObject {
     private func checkWindows(pid: pid_t, confirm: Bool = true) {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-        let appIsExcepted = AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
-                                                       bundleURL: app.bundleURL,
-                                                       exceptions: exceptions)
+        let appIsExcepted = AutoQuitSupport.isProtectedFromQuit(bundleIdentifier: app.bundleIdentifier,
+                                                                bundleURL: app.bundleURL,
+                                                                onlyListedApps: onlyListedApps,
+                                                                exceptions: exceptions,
+                                                                includedApps: includedApps)
             || AutoQuitSupport.isBackgroundApp(bundleURL: app.bundleURL)
         let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
@@ -969,6 +974,36 @@ final class AutoQuitService: ObservableObject {
 
     func isMandatoryException(_ bundleID: String) -> Bool {
         Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(bundleID)
+    }
+
+    // MARK: - Allowlist mode (issue #2943)
+
+    func reloadAllowlist() {
+        onlyListedApps = UserDefaults.standard.bool(forKey: DefaultsKey.autoQuitOnlyListedApps)
+        let raw = UserDefaults.standard.stringArray(forKey: DefaultsKey.autoQuitIncludedApps) ?? []
+        let sanitized = Defaults.sanitizedBundleIdentifierList(raw)
+        if raw != sanitized {
+            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.autoQuitIncludedApps)
+        }
+        includedApps = sanitized
+    }
+
+    func setOnlyListedApps(_ value: Bool) {
+        UserDefaults.standard.set(value, forKey: DefaultsKey.autoQuitOnlyListedApps)
+        reloadAllowlist()
+    }
+
+    func addIncludedApp(_ bundleID: String) {
+        let bundleID = bundleID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !bundleID.isEmpty, !includedApps.contains(bundleID) else { return }
+        UserDefaults.standard.set(includedApps + [bundleID], forKey: DefaultsKey.autoQuitIncludedApps)
+        reloadAllowlist()
+    }
+
+    func removeIncludedApp(_ bundleID: String) {
+        UserDefaults.standard.set(includedApps.filter { $0 != bundleID },
+                                  forKey: DefaultsKey.autoQuitIncludedApps)
+        reloadAllowlist()
     }
 }
 

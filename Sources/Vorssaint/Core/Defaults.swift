@@ -179,6 +179,9 @@ enum DefaultsKey {
     static let diskImageInstallerUseUserApplications = "diskImageInstallerUseUserApplications"
     static let autoQuitEnabled = "autoQuitEnabled"
     static let autoQuitExceptions = "autoQuitExceptions"  // [bundle id] kept running
+    /// Allowlist mode (issue #2943): only the apps in `autoQuitIncludedApps` quit.
+    static let autoQuitOnlyListedApps = "autoQuitOnlyListedApps"
+    static let autoQuitIncludedApps = "autoQuitIncludedApps"  // [bundle id] quit on close
     // Quit/close protection: each shortcut owns its full configuration and app list.
     static let quitProtectionQuitEnabled = "quitProtectionQuitEnabled"
     static let quitProtectionQuitMode = "quitProtectionQuitMode"
@@ -1310,6 +1313,8 @@ enum Defaults {
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,
+        DefaultsKey.autoQuitOnlyListedApps: false,
+        DefaultsKey.autoQuitIncludedApps: [String](),
         DefaultsKey.quitProtectionQuitEnabled: false,
         DefaultsKey.quitProtectionQuitMode: QuitProtectionMode.hold.rawValue,
         DefaultsKey.quitProtectionQuitHoldDurationMs: QuitProtectionSupport.defaultHoldDurationMilliseconds,
