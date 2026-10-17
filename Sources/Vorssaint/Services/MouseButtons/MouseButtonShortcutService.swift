@@ -44,7 +44,8 @@ final class MouseButtonShortcutService: ObservableObject {
     private var mappings: [Int64: GlobalShortcut] = [:]
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
-    private var tapIncludesSideWheel = false
+    /// What the tap was built for; a wish for a different mask rebuilds it.
+    private var tapEventMask: CGEventMask = 0
     /// Set only while the Settings capture row is on screen. The tap stays up
     /// during capture even with no mappings yet, so the row can see the press.
     private var isCapturing = false
@@ -63,6 +64,10 @@ final class MouseButtonShortcutService: ObservableObject {
     /// side-wheel capture from claiming a trackpad's phaseless tail.
     private var lastGesturePhaseTimestamp: UInt64?
     private var wantsSideWheelEvents = false
+    private var wantsGestureKeyEvents = false
+    /// True between a consumed gesture-button press and its release, so the
+    /// release never reaches the app as half a key.
+    private var gestureKeyHeld = false
     private var sideWheelGesture = MouseButtonShortcutSupport.SideWheelGestureGate()
     /// Smooth Scroll checks the exception before passing this exact event to
     /// the session tap. Matching its timestamp avoids doing that lookup twice.
@@ -108,6 +113,8 @@ final class MouseButtonShortcutService: ObservableObject {
         wantsSideWheelEvents = enabled && (isCapturing
             || mappings[MouseButtonShortcutSupport.sideWheelLeftInput] != nil
             || mappings[MouseButtonShortcutSupport.sideWheelRightInput] != nil)
+        wantsGestureKeyEvents = enabled && (isCapturing
+            || mappings[MouseButtonShortcutSupport.gestureButtonInput] != nil)
         spacesButton = MouseButtonShortcutSupport.spacesGestureButton()
         let canOwnTap = SessionActivitySupport.tapShouldRun(
             featureWanted: true,
@@ -190,7 +197,7 @@ final class MouseButtonShortcutService: ObservableObject {
     }
 
     private func start() {
-        if tap != nil, tapIncludesSideWheel != wantsSideWheelEvents {
+        if tap != nil, tapEventMask != wantedEventMask {
             if !consumedButtons.isEmpty {
                 Self.hasActiveSideWheelInterest = false
                 MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
@@ -215,12 +222,7 @@ final class MouseButtonShortcutService: ObservableObject {
         }
         // The session tap runs after the HID-level navigation tap, which
         // already lets a button this feature claims pass through whole.
-        var mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
-            | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
-            | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
-        if wantsSideWheelEvents {
-            mask |= CGEventMask(1) << CGEventType.scrollWheel.rawValue
-        }
+        let mask = wantedEventMask
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
@@ -233,14 +235,14 @@ final class MouseButtonShortcutService: ObservableObject {
             },
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            tapIncludesSideWheel = false
+            tapEventMask = 0
             Self.hasActiveSideWheelInterest = false
             MouseAppExceptions.shared.setSourceTracking(false, for: .buttonShortcuts)
             isRunning = false
             return
         }
         self.tap = tap
-        tapIncludesSideWheel = wantsSideWheelEvents
+        tapEventMask = mask
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -248,6 +250,20 @@ final class MouseButtonShortcutService: ObservableObject {
         Self.hasActiveSideWheelInterest = wantsSideWheelEvents
         MouseAppExceptions.shared.setSourceTracking(wantsSideWheelEvents, for: .buttonShortcuts)
         isRunning = true
+    }
+
+    private var wantedEventMask: CGEventMask {
+        var mask = (CGEventMask(1) << CGEventType.otherMouseDown.rawValue)
+            | (CGEventMask(1) << CGEventType.otherMouseUp.rawValue)
+            | (CGEventMask(1) << CGEventType.otherMouseDragged.rawValue)
+        if wantsSideWheelEvents {
+            mask |= CGEventMask(1) << CGEventType.scrollWheel.rawValue
+        }
+        if wantsGestureKeyEvents {
+            mask |= (CGEventMask(1) << CGEventType.keyDown.rawValue)
+                | (CGEventMask(1) << CGEventType.keyUp.rawValue)
+        }
+        return mask
     }
 
     private func stop() {
@@ -287,8 +303,9 @@ final class MouseButtonShortcutService: ObservableObject {
         }
         tap = nil
         runLoopSource = nil
-        tapIncludesSideWheel = false
+        tapEventMask = 0
         consumedButtons.removeAll()
+        gestureKeyHeld = false
         lastGesturePhaseTimestamp = nil
         sideWheelGesture.reset()
         preflightedSideWheelTimestamp = nil
@@ -303,6 +320,7 @@ final class MouseButtonShortcutService: ObservableObject {
             sideWheelGesture.reset()
             preflightedSideWheelTimestamp = nil
             preflightedSideWheelInput = nil
+            gestureKeyHeld = false
             // While the tap was off the rest of that press went straight to
             // the app. Keep custody only for buttons that are still physically
             // held; a released button's Up has already bypassed this tap.
@@ -339,6 +357,9 @@ final class MouseButtonShortcutService: ObservableObject {
         }
         if type == .scrollWheel {
             return handleSideWheel(event)
+        }
+        if type == .keyDown || type == .keyUp {
+            return handleGestureKey(type, event)
         }
         // The press this service gave back to the system. Looking at it again
         // would take it right back and never let go.
@@ -509,6 +530,55 @@ final class MouseButtonShortcutService: ObservableObject {
         } else {
             down.post(tap: .cgSessionEventTap)
         }
+    }
+
+    /// The gesture button arrives as a key chord, so it follows the button
+    /// path in key clothing: the press is the shortcut's alone, and the
+    /// release that closes it stays with it. Autorepeat from a held button
+    /// fires nothing more. The release is not part of the drain: a tap torn
+    /// down mid-press leaks one Tab key-up, which no app reads as anything.
+    private func handleGestureKey(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+        let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        if type == .keyUp {
+            guard gestureKeyHeld, keyCode == MouseButtonShortcutSupport.gestureButtonKeyCode else {
+                return Unmanaged.passUnretained(event)
+            }
+            gestureKeyHeld = false
+            return nil
+        }
+        guard !isDraining,
+              let input = MouseButtonShortcutSupport.gestureButtonInput(keyCode: keyCode, flags: event.flags)
+        else { return Unmanaged.passUnretained(event) }
+        if event.getIntegerValueField(.keyboardEventAutorepeat) != 0 {
+            return gestureKeyHeld ? nil : Unmanaged.passUnretained(event)
+        }
+        if isCapturing {
+            gestureKeyHeld = true
+            // Report after the tap callback returns: unlike a button, no
+            // consumed press keeps the tap draining, so Settings ending the
+            // capture would otherwise tear it down on its own stack.
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isCapturing else { return }
+                self.lastInputSeen = input
+            }
+            return nil
+        }
+        // A key event carries no pointer; the exception list is asked about
+        // the app under the pointer right now, as a press of a button would.
+        let location = CGEvent(source: nil)?.location ?? event.location
+        guard !MouseAppExceptions.shared.excludesActionTarget(.buttonShortcuts, at: location) else {
+            return Unmanaged.passUnretained(event)
+        }
+        guard let shortcut = MouseButtonShortcutSupport.firesShortcut(
+            for: input,
+            isAvailable: AppFeature.mouseButtonShortcuts.isAvailable,
+            isEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.mouseButtonShortcutsEnabled),
+            mappings: mappings,
+            claimedByWheel: RadialMenuSupport.claimsMouseButton)
+        else { return Unmanaged.passUnretained(event) }
+        gestureKeyHeld = true
+        post(shortcut)
+        return nil
     }
 
     private func handleSideWheel(_ event: CGEvent) -> Unmanaged<CGEvent>? {
