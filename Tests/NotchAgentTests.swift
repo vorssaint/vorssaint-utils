@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
@@ -2630,9 +2631,9 @@ enum NotchAgentTests {
         suite.expect(lines == ["{\"c\":3}"], "a rewritten file is read from its start")
         suite.expect(!AgentLogCursor(path: "/x/s1/subagents/agent-1.jsonl", provider: .claude).tracksTurns
                         && AgentLogCursor(path: "/x/s1.jsonl", provider: .claude).tracksTurns
-                        && !AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
+                        && AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
                         && AgentLogCursor(path: "/x/session-state/id/events.jsonl", provider: .copilot).tracksTurns,
-                     "subagents and side threads never own a turn")
+                     "Claude subagents are excluded while Codex filename suffixes do not determine thread identity")
         suite.expect(AgentLogRoot.all(home: folder).contains {
             $0.provider == .copilot && $0.url.path == folder.appending(path: ".copilot/session-state").path
         }, "GitHub Copilot session event logs are a discovered local root")
