@@ -71,6 +71,11 @@ final class NotchVolumeBannerGuard {
         pid = nextPID
         observer = created
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(created), .commonModes)
+        // A banner raised just before the guard started leaves as well.
+        queue.async { [weak self] in
+            let windows = Self.windows(app)
+            DispatchQueue.main.async { windows.forEach { self?.noticed($0) } }
+        }
     }
 
     private func detach() {
@@ -82,10 +87,12 @@ final class NotchVolumeBannerGuard {
     }
 
     /// Decides without asking the menu bar anything, so a hidden island costs
-    /// no call at all. The banner is created already in place and draws a few
-    /// hundredths of a second later, so the move lands before it shows.
+    /// no call at all. Like the keys, an output without a level to read keeps
+    /// its banner, since the island has nothing to show for it. The banner is
+    /// created already in place, so at most the start of its fade-in shows.
     private func noticed(_ element: AXUIElement) {
-        guard running, NotchSupport.routes(.volume), NotchService.shared.showsSystemFeedback else { return }
+        guard running, NotchSupport.routes(.volume), NotchService.shared.showsSystemFeedback,
+              AppVolumeMixer.shared.systemOutputVolume != nil else { return }
         let requested = generation
         queue.async { [weak self] in
             guard let origin = Self.hide(element) else { return }
@@ -105,6 +112,7 @@ final class NotchVolumeBannerGuard {
     private static func hide(_ element: AXUIElement) -> CGPoint? {
         AXUIElementSetMessagingTimeout(element, 0.1)
         guard NotchVolumeBannerSupport.isBanner(string(element, kAXIdentifierAttribute)),
+              string(element, kAXRoleAttribute) == kAXWindowRole,
               let frame = frame(element),
               let away = NotchVolumeBannerSupport.hiddenOrigin(for: frame, screens: screens()),
               move(element, to: away) else { return nil }
@@ -125,6 +133,12 @@ final class NotchVolumeBannerGuard {
         var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return [] }
         return displays.prefix(Int(count)).map(CGDisplayBounds)
+    }
+
+    private static func windows(_ app: AXUIElement) -> [AXUIElement] {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success else { return [] }
+        return value as? [AXUIElement] ?? []
     }
 
     private static func string(_ element: AXUIElement, _ attribute: String) -> String? {

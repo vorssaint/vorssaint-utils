@@ -48,9 +48,9 @@ enum NotchFullscreenTests {
             func start() { running = true }
             func stop() { running = false }
         }
+        var tapFailed = false
         func start() { running = true }
-        // Production stops the banner guard as it removes the tap.
-        func stop() { running = false; bannerGuard.stop() }
+        func removeTap() { running = false }
     }
     enum NSScreen { static var screensHaveSeparateSpaces = true }
     enum SpaceWindowBridge {

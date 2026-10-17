@@ -51,12 +51,12 @@ final class PreciseVolumeRollerService: ObservableObject {
     }
 
     func stop() {
+        bannerGuard.stop()
         removeTap()
         tapFailed = false
     }
 
     private func removeTap() {
-        bannerGuard.stop()
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }
         if let source {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
