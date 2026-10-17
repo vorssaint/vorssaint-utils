@@ -549,6 +549,7 @@ enum DefaultsKey {
     static let mediaImageSelectedProfileID = "mediaImageSelectedProfileID"
     static let mediaTextAccurate = "mediaTextAccurate"
     static let mediaTextLanguageCorrection = "mediaTextLanguageCorrection"
+    static let mediaAudioBitRate = "mediaAudioBitRate"
 
     // Clipboard history — text only, opt-in and local.
     static let clipboardHistoryEnabled = "clipboardHistoryEnabled"
@@ -1752,6 +1753,7 @@ enum Defaults {
         DefaultsKey.mediaImageSelectedProfileID: "",
         DefaultsKey.mediaTextAccurate: true,
         DefaultsKey.mediaTextLanguageCorrection: true,
+        DefaultsKey.mediaAudioBitRate: MediaSupport.defaultMP3BitRate,
         DefaultsKey.clipboardHistoryEnabled: false,
         DefaultsKey.clipboardHistoryLimit: 50,
         DefaultsKey.clipboardHistoryFilterSensitiveText: false,
