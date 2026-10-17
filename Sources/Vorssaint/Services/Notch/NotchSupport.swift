@@ -95,11 +95,13 @@ struct NotchClipboardPastePress: Equatable {
     let serial: Int
     let index: Int
 
-    /// The digit row by physical key, so every layout keeps the shortcut.
+    /// The digit row by physical key, so every layout keeps the shortcut,
+    /// and the numeric keypad's digits.
     static func index(keyCode: UInt16, commandOnly: Bool) -> Int? {
         guard commandOnly else { return nil }
         let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
-        return digitKeys.firstIndex(of: keyCode)
+        let keypadKeys: [UInt16] = [83, 84, 85, 86, 87, 88, 89, 91, 92]
+        return digitKeys.firstIndex(of: keyCode) ?? keypadKeys.firstIndex(of: keyCode)
     }
 }
 

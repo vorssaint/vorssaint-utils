@@ -1059,10 +1059,15 @@ enum SwitcherSupport {
     }
 
     /// When Accessibility does not match a hidden app's WindowServer surface,
-    /// its Space assignment distinguishes a real window from a leftover.
+    /// its Space assignment distinguishes a real window from a leftover. A
+    /// window the app had already closed keeps its Space too, and used to
+    /// come back with the app's hidden badge (issues #512 and #2628), so a
+    /// surface the window server did not hide along with the app is not
+    /// confirmed. `isHiddenWithApp` is nil when the window server cannot say.
     static func isConfirmedHiddenAppWindow(appIsHidden: Bool,
-                                           windowSpaces: [UInt64]) -> Bool {
-        appIsHidden && !windowSpaces.isEmpty
+                                           windowSpaces: [UInt64],
+                                           isHiddenWithApp: Bool?) -> Bool {
+        appIsHidden && !windowSpaces.isEmpty && isHiddenWithApp != false
     }
 
     /// A partial Accessibility list cannot veto windows on another desktop.
@@ -1531,14 +1536,16 @@ enum SwitcherSupport {
     }
 
     /// ↑/↓ on a wrapped icon row steps a row of icons, not of windows: an app
-    /// row lands on the target app's first window. Nil keeps the selection.
+    /// row lands on the target app's entry, its window here in current-desktop
+    /// mode. Nil keeps the selection.
     static func iconRowSelectionIndex(after selectedIndex: Int,
                                       items: [SwitcherItem],
                                       windowRow: Bool,
                                       columns: Int,
-                                      movingDown: Bool) -> Int? {
+                                      movingDown: Bool,
+                                      currentSpaceOnly: Bool = false) -> Int? {
         guard items.indices.contains(selectedIndex) else { return nil }
-        let groups = windowRow ? [] : appGroups(items: items)
+        let groups = windowRow ? [] : appGroups(items: items, currentSpaceOnly: currentSpaceOnly)
         let selectedPID = items[selectedIndex].pid
         guard let iconIndex = windowRow ? selectedIndex : groups.firstIndex(where: { $0.pid == selectedPID })
         else { return nil }

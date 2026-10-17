@@ -70,6 +70,10 @@ def main():
                         "    private static func appendWindowlessApps(",
                         "    private static func switchableFrame(", "    private static func frameIsSwitchable(",
                         "    private static func frameLooksFullscreen("])
+          + "}\nextension SwitcherFullscreenScopeTests.Bridge {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    private static func windowTags(of", "    static func isExcludedFromWindowCycle("])
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
@@ -96,6 +100,11 @@ def main():
           + "extension TransientPasteTests {\n"
           + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "final class TransientPaste {")
               .replace("NSPasteboard.general", "TransientPasteTests.pasteboard")
+          + "}\n")
+    write("TextSnippetExpansion.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\n"
+          + "extension TextSnippetExpansionTests {\n"
+          + declaration("Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
+                        "    static func postExpansion(")
           + "}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
@@ -1583,7 +1592,8 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
           + "}\nextension PointerOnDisplayContract.Hop {\n"
           + "".join(declaration(hop, prefix).replace("private ", "", 1)
-                    for prefix in ["    private enum TravelOutcome {", "    private func stepWithSpaceShortcut()"])
+                    for prefix in ["    private enum TravelOutcome {", "    private func start() {",
+                                   "    private func stepWithSpaceShortcut()"])
           + "}\nextension PointerOnDisplayContract.Overlay {\n"
           + declaration(selection, "    func refreshGuideVisibility()")
           + "}\nextension PointerOnDisplayContract.Dock {\n"

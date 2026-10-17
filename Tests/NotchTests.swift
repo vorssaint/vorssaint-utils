@@ -2695,6 +2695,8 @@ enum NotchTests {
                "fine volume preserves the system quarter-step")
         suite.expect((0..<9).map { NotchClipboardPastePress.index(
                     keyCode: [18, 19, 20, 21, 23, 22, 26, 28, 25][$0], commandOnly: true) } == (0..<9).map { $0 }
+               && (0..<9).map { NotchClipboardPastePress.index(
+                    keyCode: [83, 84, 85, 86, 87, 88, 89, 91, 92][$0], commandOnly: true) } == (0..<9).map { $0 }
                && NotchClipboardPastePress.index(keyCode: 18, commandOnly: false) == nil
                && NotchClipboardPastePress.index(keyCode: 29, commandOnly: true) == nil,
                "⌘1 to ⌘9 on the clipboard page name the first nine entries, and nothing else does")

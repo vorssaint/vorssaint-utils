@@ -215,9 +215,68 @@ enum SpaceWindowBridge {
                                                      visibleSpaces: visible)
     }
 
-    /// False when the private query is unavailable, preserving the existing
+    // MARK: - Window tags
+
+    // The last argument is a set of options, not a window count. Bit 0 asks
+    // for titles, which nothing here reads.
+    private typealias WindowQueryFunction =
+        @convention(c) (ConnectionID, CFArray, UInt64) -> Unmanaged<CFTypeRef>?
+    private typealias WindowQueryResultFunction = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
+    private typealias IteratorAdvanceFunction = @convention(c) (CFTypeRef) -> Bool
+    private typealias IteratorWindowIDFunction = @convention(c) (CFTypeRef) -> UInt32
+    private typealias IteratorTagsFunction = @convention(c) (CFTypeRef) -> UInt64
+
+    private struct WindowQuery {
+        let query: WindowQueryFunction
+        let windows: WindowQueryResultFunction
+        let advance: IteratorAdvanceFunction
+        let windowID: IteratorWindowIDFunction
+        let tags: IteratorTagsFunction
+    }
+
+    private static let windowQuery: WindowQuery? = {
+        guard let query = symbol("SLSWindowQueryWindows"),
+              let windows = symbol("SLSWindowQueryResultCopyWindows"),
+              let advance = symbol("SLSWindowIteratorAdvance"),
+              let windowID = symbol("SLSWindowIteratorGetWindowID"),
+              let tags = symbol("SLSWindowIteratorGetTags")
+        else { return nil }
+        return WindowQuery(query: unsafeBitCast(query, to: WindowQueryFunction.self),
+                           windows: unsafeBitCast(windows, to: WindowQueryResultFunction.self),
+                           advance: unsafeBitCast(advance, to: IteratorAdvanceFunction.self),
+                           windowID: unsafeBitCast(windowID, to: IteratorWindowIDFunction.self),
+                           tags: unsafeBitCast(tags, to: IteratorTagsFunction.self))
+    }()
+
+    /// The window server's tags for each window among `windowIDs` that still
+    /// exists. On macOS 27 `CGSGetWindowTags` reads zeros for any window of
+    /// another app, so the tags come from one batched window query, which
+    /// still answers for every app. Nil when that query is missing.
+    private static func windowTags(of windowIDs: [CGWindowID]) -> [CGWindowID: UInt64]? {
+        guard connection != 0, let windowQuery else { return nil }
+        // An empty list would answer with unrelated windows.
+        guard !windowIDs.isEmpty else { return [:] }
+        guard let query = windowQuery.query(connection, windowIDs.map { NSNumber(value: $0) } as CFArray,
+                                            0)?.takeRetainedValue(),
+              let iterator = windowQuery.windows(query)?.takeRetainedValue()
+        else { return nil }
+        var tags: [CGWindowID: UInt64] = [:]
+        while windowQuery.advance(iterator) {
+            tags[windowQuery.windowID(iterator)] = windowQuery.tags(iterator)
+        }
+        return tags
+    }
+
+    /// False when the window server cannot answer, preserving the existing
     /// cross-Space behavior instead of hiding a legitimate window on a guess.
     static func isExcludedFromWindowCycle(_ windowID: CGWindowID) -> Bool {
+        if let tags = windowTags(of: [windowID])?[windowID], tags != 0 {
+            return SpaceHopSupport.isExcludedFromWindowCycle(windowTags: tags)
+        }
+        // The batched query was measured on macOS 27 only. Without its
+        // answer, or with one of zeros, the per-window read keeps the flag
+        // where it answered before; on macOS 27 it reads zeros for other
+        // apps, so nothing hides.
         guard connection != 0, let getWindowTags else { return false }
         var tags = [UInt32](repeating: 0, count: 2)
         return tags.withUnsafeMutableBufferPointer { buffer in
@@ -225,8 +284,18 @@ enum SpaceWindowBridge {
                   getWindowTags(connection, windowID, base,
                                 MemoryLayout<UnsafeRawPointer>.size * 8) == .success
             else { return false }
-            return SpaceHopSupport.isExcludedFromWindowCycle(windowTagsLow: buffer[0])
+            return SpaceHopSupport.isExcludedFromWindowCycle(
+                windowTags: UInt64(buffer[0]) | UInt64(buffer[1]) << 32)
         }
+    }
+
+    /// The windows among `windowIDs` that the window server hid along with
+    /// their app. Nil when the window query is missing or answers without any
+    /// tag, and before macOS 26, where the tag has not been observed, so
+    /// callers keep their earlier behavior.
+    static func windowsHiddenWithApp(among windowIDs: [CGWindowID]) -> Set<CGWindowID>? {
+        guard #available(macOS 26.0, *), let tags = windowTags(of: windowIDs) else { return nil }
+        return SpaceHopSupport.windowsHiddenWithApp(windowTags: tags)
     }
 
     // MARK: - Fronting a specific window

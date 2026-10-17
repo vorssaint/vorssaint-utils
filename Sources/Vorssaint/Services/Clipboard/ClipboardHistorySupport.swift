@@ -1053,9 +1053,14 @@ enum ClipboardHistorySensitiveText {
     // explicit command-line options such as --password VALUE.
     // Horizontal whitespace keeps an empty assignment from consuming the
     // next line of terminal output. Compile once for repeated clipboard reads.
-    private static let credentialName = #"(?:password|passwd|secret|token|api[_-]?key|authorization)"#
+    private static let credentialName = #"(?:password|passwd|secret|token|api[_-]?key|private[_-]?key|authorization)"#
+    // Key names often go on past the credential word, as in SECRET_KEY,
+    // aws_secret_access_key, secretKey, SECRET_KEY_BASE, password_confirmation
+    // or PASSWORD_2. Only these endings count, so max_tokens or token_count
+    // stay ordinary text.
+    private static let credentialEnding = #"(?:[_-]?(?:access[_-]?)?key(?:[_-]?base)?|[_-]?confirmation|[_-]?\d{1,3})?"#
     private static let credentialAssignment = try? NSRegularExpression(
-        pattern: #"(?<![\w-])(?:[\w-]*\#(credentialName)["']?[ \t]*[:=][ \t]*|--[\w-]*\#(credentialName)[ \t]+)["']?[^\s"'`,;{}\[\]]"#,
+        pattern: #"(?<![\w-])(?:[\w-]*\#(credentialName)\#(credentialEnding)["']?[ \t]*[:=][ \t]*|--[\w-]*\#(credentialName)\#(credentialEnding)[ \t]+)["']?[^\s"'`,;{}\[\]]"#,
         options: [.caseInsensitive]
     )
 

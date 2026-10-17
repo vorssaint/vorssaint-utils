@@ -501,6 +501,26 @@ enum NotchMusicExtrasTests {
                     inSearch: appleReply, title: "My favorite browser is (kind of) dead", artist: "Theo - t3.gg") == nil
                 && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: Data("{}".utf8), title: "a", artist: "b") == nil,
                "a piano version, a cover by someone else or a YouTube video never borrows an album's art")
+        let namesake = Data("""
+            {"results":[
+              {"trackName":"Hello","artistName":"Jeremias",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/jeremias.jpg/100x100bb.jpg"},
+              {"trackName":"Hello","artistName":"Adele",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/adele.jpg/100x100bb.jpg"},
+              {"trackName":"Hello","artistName":"Mia & Jay",
+               "artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/mia.jpg/100x100bb.jpg"}
+            ]}
+            """.utf8)
+        suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: namesake, title: "Hello", artist: "Mia")?
+                    .lastPathComponent == "600x600bb.jpg"
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: namesake, title: "Hello", artist: "Mia")?
+                    .absoluteString.contains("/mia.jpg/") == true
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: namesake, title: "Hello", artist: "A") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: namesake, title: "Hello", artist: "Jay & Mia & Zoe") == nil
+                && NotchBrowserArtworkSupport.appleMusicArtworkURL(
+                    inSearch: Data(#"{"results":[{"trackName":"Hello","artistName":"रामा","artworkUrl100":"https://is1-ssl.mzstatic.com/image/thumb/a/r.jpg/100x100bb.jpg"}]}"#.utf8),
+                    title: "Hello", artist: "राम") == nil,
+               "an artist matches whole names in the credit, never letters inside another artist's name")
         let elsewhere = Data(#"{"results":[{"trackName":"Less Of You","artistName":"keshi","artworkUrl100":"https://images.example/thumb/a.jpg/100x100bb.jpg"}]}"#.utf8)
         suite.expect(NotchBrowserArtworkSupport.appleMusicArtworkURL(inSearch: elsewhere, title: "less of you", artist: "keshi") == nil,
                "album art loads only from Apple's image servers, whatever the reply names")

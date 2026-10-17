@@ -285,6 +285,11 @@ struct NotchView: View {
             // With no title on screen, VoiceOver still names the page.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(pageName)
+            // The island's own actions sit in its secondary-click menu, with
+            // no button of their own in the row; VoiceOver lists them here.
+            .accessibilityAction(named: service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+            .accessibilityAction(named: l10n.s.menuSettings) { service.openSettings() }
+            .accessibilityAction(named: text.collapse) { service.collapse() }
             .padding(.top, geometry.pageTopInset - geometry.headerTopInset)
             .overlayPreferenceValue(NotchBandKey.self, alignment: .top) { items in
                 if geometry.headerRowHeight > 0 {
