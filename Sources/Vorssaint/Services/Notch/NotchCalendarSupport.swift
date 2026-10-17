@@ -36,11 +36,52 @@ struct NotchCalendarCountdown: Equatable, Sendable {
 
     var target: Date { ongoing ? event.end : event.start }
 
-    /// Each moment shows during the hour before it; an end, only once its event has begun.
-    func isShown(at now: Date) -> Bool {
-        target > now && target.timeIntervalSince(now) <= NotchCalendarSupport.countdownLeadTime
+    /// A start shows within `leadTime` before it; an end, during the hour
+    /// before it and only once its event has begun.
+    func isShown(at now: Date, leadTime: TimeInterval) -> Bool {
+        target > now && target.timeIntervalSince(now) <= (ongoing ? NotchCalendarSupport.timeLeftLeadTime : leadTime)
             && (!ongoing || event.start <= now)
     }
+}
+
+/// Every countdown the closed island shows at once, nearest first. Events
+/// that share the nearest moment take turns on the strip; a later one is
+/// named by its time beside the clock.
+struct NotchCalendarStack: Equatable, Sendable {
+    let countdowns: [NotchCalendarCountdown]
+    /// Seconds each event sharing the nearest moment stays on the strip.
+    static let turn: TimeInterval = 5
+
+    /// Nil for no countdowns, so a stack always has a first one.
+    init?(_ countdowns: [NotchCalendarCountdown]) {
+        guard !countdowns.isEmpty else { return nil }
+        self.countdowns = countdowns
+    }
+
+    var first: NotchCalendarCountdown { countdowns[0] }
+    /// The countdowns besides the one on the strip, for its "+1".
+    var others: Int { countdowns.count - 1 }
+    /// The countdowns that reach the nearest moment together.
+    var together: [NotchCalendarCountdown] { countdowns.filter { $0.target == first.target } }
+    /// Whether more than one event starts at the nearest moment. Ends that
+    /// share it, with each other or with a start, do not count.
+    var startsTogether: Bool { together.filter { !$0.ongoing }.count > 1 }
+    /// The next later moment, when nothing shares the nearest one.
+    var then: NotchCalendarCountdown? { together.count > 1 ? nil : countdowns.first { $0.target > first.target } }
+
+    /// The countdown on the strip at `now`, turning every `turn` seconds.
+    func shown(at now: Date) -> NotchCalendarCountdown {
+        let together = together
+        let turn = Int((now.timeIntervalSinceReferenceDate / Self.turn).rounded(.down))
+        return together[((turn % together.count) + together.count) % together.count]
+    }
+}
+
+/// Measures of the Up next list on the Calendar page.
+enum NotchCalendarUpNextLayout {
+    static let rowHeight: CGFloat = 44
+    static let labelHeight: CGFloat = 14
+    static let spacing: CGFloat = 6
 }
 
 /// One calendar offered in Settings, grouped under its account like Calendar.app.
@@ -53,7 +94,23 @@ struct NotchCalendarChoice: Equatable, Identifiable, Sendable {
 }
 
 enum NotchCalendarSupport {
-    static let countdownLeadTime: TimeInterval = 60 * 60
+    /// How long before its end the event under way counts down.
+    static let timeLeftLeadTime: TimeInterval = 60 * 60
+
+    /// Minutes before a start the countdown appears; the settings menu
+    /// offers the presets, and any stored value is held to the range.
+    static let defaultCountdownLeadMinutes = 60
+    static let countdownLeadPresets = [15, 30, 60, 120]
+    static let countdownLeadRange = 5...240
+
+    static func countdownLeadMinutes(_ minutes: Int) -> Int {
+        min(countdownLeadRange.upperBound, max(countdownLeadRange.lowerBound, minutes))
+    }
+
+    static func countdownLeadTime(in defaults: UserDefaults = .standard) -> TimeInterval {
+        let stored = defaults.object(forKey: DefaultsKey.notchCalendarCountdownLead) as? Int
+        return TimeInterval(countdownLeadMinutes(stored ?? defaultCountdownLeadMinutes) * 60)
+    }
 
     static func monthDays(containing date: Date, calendar: Calendar = .current) -> [Date] {
         guard let month = calendar.dateInterval(of: .month, for: date) else { return [] }
@@ -239,16 +296,31 @@ enum NotchCalendarSupport {
     /// The compact island counts down to the nearer of the moments it follows:
     /// a timed event's start, with the countdown on or for an event chosen
     /// from its menu, and, with time left on, the end of one in progress. A
-    /// start that coincides with an end leaves the event under way.
+    /// start that coincides with an end leaves the event under way. Starts
+    /// show within `leadTime`; see `NotchCalendarCountdown.isShown`.
     static func countdown(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                          chosen: Set<String> = []) -> NotchCalendarCountdown? {
+                          chosen: Set<String> = [], leadTime: TimeInterval) -> NotchCalendarCountdown? {
+        countdowns(events, now: now, starts: starts, ends: ends, chosen: chosen, leadTime: leadTime).first
+    }
+
+    /// Every countdown shown at `now`, in the order `countdown` picks from:
+    /// two meetings at one time both count down, so neither goes unseen.
+    static func countdowns(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
+                           chosen: Set<String> = [], leadTime: TimeInterval) -> [NotchCalendarCountdown] {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
                 followedMoments(event, starts: starts, ends: ends, chosen: chosen)
                     .map { NotchCalendarCountdown(event: event, ongoing: $0) }
             }
-            .filter { $0.isShown(at: now) }
-            .min { $0.target != $1.target ? $0.target < $1.target : $0.ongoing && !$1.ongoing }
+            .filter { $0.isShown(at: now, leadTime: leadTime) }
+            .enumerated()
+            .sorted { lhs, rhs in
+                let (a, b) = (lhs.element, rhs.element)
+                if a.target != b.target { return a.target < b.target }
+                if a.ongoing != b.ongoing { return a.ongoing }
+                return lhs.offset < rhs.offset
+            }
+            .map(\.element)
     }
 
     /// Whether the island follows the event's start (false) and its end (true).
@@ -258,7 +330,7 @@ enum NotchCalendarSupport {
     }
 
     /// The Controls tile names the next start at any distance within the
-    /// week read, not only in the countdown's hour. An appointment already
+    /// week read, not only in the countdown's lead time. An appointment already
     /// in progress is known; the one after it is what comes next. The month
     /// grid can load weeks further ahead, where a weekday alone would read as
     /// this week's, so the tile stops at the week.
@@ -279,15 +351,16 @@ enum NotchCalendarSupport {
         return start.formatted(style)
     }
 
-    /// The hour before each moment followed opens and closes; an end's hour
-    /// opens no earlier than its event's start.
+    /// When the window before each moment followed opens and closes: the lead
+    /// time before a start, the hour before an end, which opens no earlier
+    /// than its event's start.
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                                    chosen: Set<String> = []) -> Date? {
+                                    chosen: Set<String> = [], leadTime: TimeInterval) -> Date? {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
                 followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
-                    ongoing ? [max(event.start, event.end.addingTimeInterval(-countdownLeadTime)), event.end]
-                        : [event.start.addingTimeInterval(-countdownLeadTime), event.start]
+                    ongoing ? [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
+                        : [event.start.addingTimeInterval(-leadTime), event.start]
                 }
             }
             .filter { $0 > now }.min()
@@ -302,6 +375,31 @@ enum NotchCalendarSupport {
     static func timeText(_ countdown: NotchCalendarCountdown, locale: Locale) -> String {
         (countdown.ongoing ? "→\u{2009}" : "·\u{2009}")
             + countdown.target.formatted(.dateTime.hour().minute().locale(locale))
+    }
+
+    /// Beside the clock when a later event follows the one counting down:
+    /// "· then 2:15".
+    static func thenText(_ countdown: NotchCalendarCountdown, then: String, locale: Locale) -> String {
+        "·\u{2009}" + then + " " + countdown.target.formatted(.dateTime.hour().minute().locale(locale))
+    }
+
+    /// The time beside the strip's clock: the shown event's own time, or
+    /// what follows it when nothing shares its moment.
+    static func stackTimeText(_ stack: NotchCalendarStack, shown: NotchCalendarCountdown, then: String,
+                              locale: Locale) -> String {
+        stack.then.map { thenText($0, then: then, locale: locale) } ?? timeText(shown, locale: locale)
+    }
+
+    /// What leads the title: one event's dot and the gap after it. Several
+    /// countdowns lead with the title alone; the "+1" after it counts them.
+    static func titleMarkWidth(_ count: Int, dot: CGFloat = stripDotWidth, spacing: CGFloat) -> CGFloat {
+        count > 1 ? 0 : dot + spacing
+    }
+
+    /// Beside another activity, where no title shows: one event's dot, or
+    /// the "+1" for several.
+    static func clockMarkWidth(_ count: Int, dot: CGFloat = stripDotWidth) -> CGFloat {
+        count > 1 ? NotchCapsuleLayout.calendarBadgeWidth(count - 1) : dot
     }
 
     static func countdownText(until start: Date, now: Date) -> String {
