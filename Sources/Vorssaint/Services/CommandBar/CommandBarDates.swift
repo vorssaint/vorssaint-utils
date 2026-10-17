@@ -24,44 +24,53 @@ enum CommandBarDates {
     // MARK: - Parser vocabulary
     //
     // Not visible text: people type in their own words whatever the interface
-    // language is, so each set carries the languages the app speaks, already
-    // folded (no accents, lower case).
+    // language is, so each set carries the languages the app speaks. The words
+    // are folded the same way as the question, so one the fold changes still
+    // matches: the й in "дней" becomes и.
 
-    private static let todayWords: Set<String> = [
+    private static let todayWords = folded([
         "today", "hoje", "heute", "hoy", "oggi", "aujourdhui", "aujourd'hui",
         "segodnya", "сегодня", "bugun", "今日", "오늘", "今天",
-    ]
-    private static let futureWords: Set<String> = [
-        "in", "em", "daqui", "dentro", "nach", "tra", "fra", "dans", "через",
-        "sonra", "後", "후", "后", "from",
-    ]
-    private static let pastWords: Set<String> = [
+    ])
+    private static let futureWords = folded([
+        "in", "em", "en", "daqui", "dentro", "nach", "tra", "fra", "dans", "через",
+        "sonra", "後", "후", "뒤", "后", "from",
+    ])
+    private static let pastWords = folded([
         "ago", "atras", "ha", "hace", "vor", "fa", "назад", "once", "前", "전",
-    ]
-    private static let untilWords: Set<String> = [
+    ])
+    private static let untilWords = folded([
         "until", "till", "ate", "hasta", "bis", "fino", "jusqu", "до", "kadar",
         "까지", "까지는",
-    ]
-    private static let timeWords: Set<String> = [
+    ])
+    private static let timeWords = folded([
         "time", "hora", "horas", "hour", "uhrzeit", "uhr", "ora", "heure",
         "время", "saat", "時刻", "時間", "시간", "时间", "现在",
-    ]
+    ])
+
+    private static func folded(_ words: [String]) -> Set<String> {
+        Set(words.map(CommandBarSearch.normalized))
+    }
 
     private static let units: [String: Calendar.Component] = {
         var map: [String: Calendar.Component] = [:]
         func add(_ names: [String], _ component: Calendar.Component) {
-            for name in names { map[name] = component }
+            for name in names { map[CommandBarSearch.normalized(name)] = component }
         }
-        add(["day", "days", "dia", "dias", "tag", "tage", "giorno", "giorni",
+        add(["day", "days", "dia", "dias", "tag", "tage", "tagen", "giorno", "giorni",
              "jour", "jours", "den", "dnya", "dney", "дня", "дней", "день",
              "gun", "gunler", "日", "일", "天"], .day)
         add(["week", "weeks", "semana", "semanas", "woche", "wochen", "settimana",
              "settimane", "semaine", "semaines", "nedelya", "недели", "недель",
-             "неделя", "hafta", "週", "주", "周", "星期"], .weekOfYear)
-        add(["month", "months", "mes", "meses", "monat", "monate", "mese", "mesi",
-             "mois", "месяц", "месяца", "месяцев", "ay", "月", "월", "个月"], .month)
-        add(["year", "years", "ano", "anos", "jahr", "jahre", "anno", "anni",
-             "an", "ans", "annee", "annees", "god", "года", "лет", "год", "yil",
+             "неделя", "неделю", "hafta", "週", "週間", "주", "周", "星期",
+             "个星期", "個星期"], .weekOfYear)
+        // A number of months takes a counter, as in 3か月, 3个月 and 3개월:
+        // 3月 and 3월 on their own name March.
+        add(["month", "months", "mes", "meses", "monat", "monate", "monaten", "mese", "mesi",
+             "mois", "месяц", "месяца", "месяцев", "ay", "か月", "ヶ月", "カ月", "ヵ月",
+             "ケ月", "개월", "个月", "個月"], .month)
+        add(["year", "years", "ano", "anos", "jahr", "jahre", "jahren", "anno", "anni",
+             "an", "ans", "annee", "annees", "god", "года", "лет", "год", "yil", "yıl",
              "年", "년"], .year)
         return map
     }()
@@ -109,7 +118,7 @@ enum CommandBarDates {
                          locale: Locale = .current) -> Result? {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard trimmed.count <= 80 else { return nil }
-        let tokens = CommandBarSearch.normalized(trimmed).split(separator: " ").map(String.init)
+        let tokens = words(in: trimmed)
         guard tokens.count >= 2 else { return nil }
 
         if let result = relativeDate(tokens, now: now, calendar: calendar, locale: locale) {
@@ -121,6 +130,58 @@ enum CommandBarDates {
         return timeSomewhereElse(tokens, now: now, locale: locale)
     }
 
+    /// The words of a question. Chinese and Japanese put no space between a
+    /// number, its unit and the direction ("3日後", "3天后"), and Korean none
+    /// between the number and its unit ("3일 후"), so a word in those scripts
+    /// is split again, into the words above and the numbers between them.
+    private static func words(in text: String) -> [String] {
+        CommandBarSearch.normalized(text).split(separator: " ").flatMap { word -> [String] in
+            word.unicodeScalars.contains(where: isCJK) ? segmented(Array(word)) : [String(word)]
+        }
+    }
+
+    private static let cjkWords: Set<String> = todayWords.union(futureWords).union(pastWords)
+        .union(untilWords).union(timeWords).union(units.keys)
+        .filter { $0.unicodeScalars.contains(where: isCJK) }
+    private static let longestCJKWord = cjkWords.map(\.count).max() ?? 1
+
+    /// The longest known word wins, so "3週間後" reads as 3 / 週間 / 後 with
+    /// nothing left over. A word is only split when it holds nothing but
+    /// numbers and known words. Anything else is another word that happens to
+    /// contain them, like "오후", the afternoon, or "以前", "before", and stays
+    /// whole.
+    private static func segmented(_ characters: [Character]) -> [String] {
+        var words: [String] = []
+        var index = 0
+        while index < characters.count {
+            if characters[index].isASCII, characters[index].isNumber {
+                var end = index
+                while end < characters.count, characters[end].isASCII, characters[end].isNumber { end += 1 }
+                words.append(String(characters[index..<end]))
+                index = end
+                continue
+            }
+            let longest = min(longestCJKWord, characters.count - index)
+            guard let length = stride(from: longest, through: 1, by: -1).first(where: {
+                cjkWords.contains(String(characters[index..<index + $0]))
+            }) else { return [String(characters)] }
+            words.append(String(characters[index..<index + length]))
+            index += length
+        }
+        return words
+    }
+
+    /// Han, kana and Hangul.
+    private static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x1100...0x11FF, 0x3040...0x30FF, 0x3130...0x318F, 0x3400...0x4DBF,
+             0x4E00...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF:
+            return true
+        default:
+            return false
+        }
+    }
+
     /// "in 3 weeks", "daqui 3 semanas", "3 days ago", "hoje + 10 dias".
     private static func relativeDate(_ tokens: [String],
                                      now: Date,
@@ -130,18 +191,39 @@ enum CommandBarDates {
         // phrase only decides which way to count.
         var amount: Int?
         var component: Calendar.Component?
+        var numberIndex = 0
         for index in tokens.indices.dropLast() {
             guard let value = Int(tokens[index]), abs(value) <= 10_000,
                   let unit = units[tokens[index + 1]] else { continue }
             amount = value
             component = unit
+            numberIndex = index
             break
         }
         guard let amount, let component else { return nil }
 
+        // In Chinese, Japanese and Korean the same words turn up in so many
+        // other searches, "2박 3일 후기" or "12월 25일 후" among them, that only
+        // the bare question answers: the number, its unit and a direction
+        // ("3日後", "3일 후"), or today and a sign ("今天 + 3天"). A number of
+        // 1000 or more before 年 or 년 is a year on the calendar: "1949年后" is
+        // after 1949.
+        if tokens[numberIndex + 1].unicodeScalars.contains(where: isCJK) {
+            let bare = tokens.count == 3 && numberIndex == 0
+                && (futureWords.contains(tokens[2]) || pastWords.contains(tokens[2]))
+            let fromToday = tokens.count == 4 && numberIndex == 2
+                && todayWords.contains(tokens[0]) && (tokens[1] == "+" || tokens[1] == "-")
+            guard bare || fromToday, component != .year || abs(amount) < 1000 else { return nil }
+        }
+
         let hasToday = tokens.contains(where: todayWords.contains)
-        let hasPast = tokens.contains(where: pastWords.contains)
-        let hasFuture = tokens.contains(where: futureWords.contains)
+        // Two directions only count right before the number. French writes its
+        // "ago" there as three words, "il y a 3 jours", that anywhere else mean
+        // "there is". Spanish writes "en 3 días", and "en" is also Turkish for
+        // "most": "en az 3 gün" is "at least 3 days".
+        let before = tokens[..<numberIndex]
+        let hasPast = tokens.contains(where: pastWords.contains) || before.suffix(3) == ["il", "y", "a"]
+        let hasFuture = tokens.contains { $0 != "en" && futureWords.contains($0) } || before.last == "en"
         let hasMinus = tokens.contains("-")
         // Without a direction "3 days" is not a question, and answering it
         // would push aside whatever the person was really looking for.

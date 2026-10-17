@@ -1795,6 +1795,50 @@ enum CommandBarFeatureTests {
                                             locale: english) == nil,
                    "\"\(innocent)\" is a search, not a date")
         }
+        // Each language the way it is written, with the cases German and
+        // Russian use after "in", "через" and a number, and Chinese, Japanese
+        // and Korean with no space after the number or counted from today with
+        // a sign: the same date the English asks for.
+        for (input, question, locale) in [
+            ("in 3 Tagen", "in 3 days", "de_DE"), ("vor 2 Jahren", "2 years ago", "de_DE"),
+            ("nach 2 Monaten", "in 2 months", "de_DE"), ("через 1 неделю", "in 1 week", "ru_RU"),
+            ("через 5 дней", "in 5 days", "ru_RU"), ("5 дней назад", "5 days ago", "ru_RU"),
+            ("3 yıl önce", "3 years ago", "tr_TR"), ("en 3 días", "in 3 days", "es_ES"),
+            ("il y a 3 jours", "3 days ago", "fr_FR"), ("3日後", "in 3 days", "ja_JP"),
+            ("3か月前", "3 months ago", "ja_JP"), ("3ヶ月後", "in 3 months", "ja_JP"),
+            ("3カ月後", "in 3 months", "ja_JP"), ("3ヵ月後", "in 3 months", "ja_JP"),
+            ("3ケ月後", "in 3 months", "ja_JP"), ("3週間後", "in 3 weeks", "ja_JP"),
+            ("3일 후", "in 3 days", "ko_KR"), ("3일 뒤", "in 3 days", "ko_KR"),
+            ("3개월 전", "3 months ago", "ko_KR"), ("오늘 + 3일", "today + 3 days", "ko_KR"),
+            ("3天后", "in 3 days", "zh_CN"), ("3个月前", "3 months ago", "zh_CN"),
+            ("3个星期后", "in 3 weeks", "zh_CN"), ("今天 + 3 天", "today + 3 days", "zh_CN"),
+            ("3個月後", "in 3 months", "zh_TW"), ("3個星期後", "in 3 weeks", "zh_TW"),
+        ] {
+            let written = Locale(identifier: locale)
+            suite.expect(dated(input, written) != nil && dated(input, written) == dated(question, written),
+                   "\"\(input)\" asks what \"\(question)\" does")
+        }
+        // Away from the number, "il y a" is "there is", not "ago".
+        suite.expect(dated("combien de jours il y a dans 2 mois", Locale(identifier: "fr_FR"))
+                == dated("in 2 months", Locale(identifier: "fr_FR")),
+               "\"il y a\" away from the number does not turn \"dans 2 mois\" around")
+        // In Chinese, Japanese and Korean only the bare question answers, and a
+        // year or a month name is not an amount, so these stay searches: 오후 is
+        // the afternoon, 3월 March, 12월 25일 a date, 1949年后 "after 1949" and
+        // 오늘 25일 "today, the 25th". So does "en" away from the number, which
+        // is Turkish for "most".
+        for innocent in ["日本", "3日", "今日の天気", "3時間後", "2026年", "1週間", "3일차", "il y a",
+                         "en route", "3일 오후", "10월 3일 오후 2시", "2박 3일 후기", "대전 3일 여행",
+                         "전주 3일 여행", "3日前後", "2024年後半", "2020年以前", "12月3日午後",
+                         "2020年以后", "然后3天", "今日から12月25日まで", "3월 전", "5月后",
+                         "en az 3 gün", "pasaport en az 6 ay", "오늘 12월 25일", "12월 25일 후",
+                         "12월 25일 전", "크리스마스 12월 25일 전", "2026년 12월 25일 후",
+                         "12月 25日 後", "12月 25日后", "1949年后", "2020年前", "2020年後",
+                         "2026년 후", "今日3日", "오늘 25일", "오늘 3일 개봉", "1年6ヶ月後",
+                         "1년 6개월 후", "2주 3일 후"] {
+            suite.expect(dated(innocent, Locale(identifier: "ja_JP")) == nil,
+                   "\"\(innocent)\" is a search, not a date")
+        }
 
         // The places the person saves themselves.
         suite.expect(CommandBarLinks.expand("https://x.com/search?q={query}", kind: .link,
