@@ -574,3 +574,38 @@ enum AirPlayBacklogContract {
                      "a normal amount of buffered audio is played in full")
     }
 }
+
+/// The AirPlay stream pauses once nothing routed has played for a while, like
+/// a paused player, and never before the mixer has reported anything.
+enum AirPlayIdleContract {
+    static func run(_ suite: TestSuite) {
+        var timer = AirPlayIdleTimer()
+        suite.expect(timer.secondsUntilStop(now: 0) == nil, "nothing reported yet counts as playing")
+
+        timer.update(active: false, now: 100)
+        suite.expect(timer.secondsUntilStop(now: 103) == AirPlayIdleTimer.delay - 3,
+                     "silence counts down from when it started")
+        timer.update(active: false, now: 105)
+        suite.expect(timer.secondsUntilStop(now: 105) == AirPlayIdleTimer.delay - 5,
+                     "repeated silent reports do not restart the countdown")
+        suite.expect(timer.secondsUntilStop(now: 100 + AirPlayIdleTimer.delay + 1) == 0,
+                     "after the delay the stream may stop")
+
+        timer.update(active: true, now: 106)
+        suite.expect(timer.secondsUntilStop(now: 200) == nil, "sound cancels the countdown")
+        timer.update(active: false, now: 300)
+        suite.expect(timer.secondsUntilStop(now: 302) == AirPlayIdleTimer.delay - 2,
+                     "a gap between tracks starts a fresh countdown")
+
+        // Resuming: a real pause gets a fresh stream, a gap between tracks does not.
+        var resume = AirPlayIdleTimer()
+        suite.expect(!resume.update(active: true, now: 0), "the first report of playback restarts nothing")
+        resume.update(active: false, now: 10)
+        suite.expect(resume.update(active: true, now: 10 + AirPlayIdleTimer.freshStreamAfter + 2),
+                     "playback after a pause of a few seconds asks for a fresh renderer")
+        suite.expect(!resume.update(active: true, now: 20), "a repeated playing report does not ask again")
+        resume.update(active: false, now: 30)
+        suite.expect(!resume.update(active: true, now: 30 + AirPlayIdleTimer.freshStreamAfter / 2),
+                     "a gap shorter than the threshold keeps the stream running")
+    }
+}
