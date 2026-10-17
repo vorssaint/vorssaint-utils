@@ -100,6 +100,7 @@ enum SettingsBackupSupport {
     /// out by construction (they are not preference keys), listed here only
     /// when they would otherwise slip in through the registered set.
     static let machineStateKeys: Set<String> = [
+        DefaultsKey.keyboardRemapOwnedMappings,
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
         // Codex homes are folders on this Mac whose sign-in the cards use,
