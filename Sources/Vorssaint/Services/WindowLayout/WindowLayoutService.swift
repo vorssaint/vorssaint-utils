@@ -1566,9 +1566,12 @@ final class WindowLayoutService: ObservableObject {
                                                            executablePath: app.executableURL?.path)
             else { return }
             edgeSnapPressOrigin = pressOrigin
-            edgeSnapPressCandidate = WindowServerWindowCandidate(pid: processID,
-                                                                 windowID: windowID,
-                                                                 frame: initialFrame)
+            edgeSnapPressCandidate = WindowServerWindowCandidate(
+                pid: processID,
+                windowID: windowID,
+                frame: unparkMoveGestureWindow(windowID: windowID, app: app, pressOrigin: pressOrigin)
+                    ?? initialFrame
+            )
             edgeSnapResolveAttempts = 0
             edgeSnapLastResolveAt = 0
             edgeSnapFollowsMoveGesture = true
@@ -1599,6 +1602,7 @@ final class WindowLayoutService: ObservableObject {
                 }
             }
             updateEdgeSnapDrag(at: location, forceSample: false, now: time)
+            unparkTitleBarDraggedWindow()
             scheduleEdgeSnapStillCheck()
 
         case .up(let location, let time):
@@ -1707,6 +1711,182 @@ final class WindowLayoutService: ObservableObject {
                                               currentFrame: current,
                                               pointerStart: pointerStart,
                                               pointerNow: pointer) == .moving
+    }
+
+    /// A modifier move that carries off a window still parked where its last
+    /// placement left it gives back the frame it had before, the way Restore
+    /// does, under the pointer at the same relative spot. Returns the frame
+    /// the move now starts from, which a snap at the end of this drag keeps
+    /// for Restore.
+    private func unparkMoveGestureWindow(windowID: CGWindowID,
+                                         app: NSRunningApplication,
+                                         pressOrigin: CGPoint) -> CGRect? {
+        guard var gesture = activeGesture, case .move = gesture.kind,
+              gesture.pointerStart == pressOrigin else { return nil }
+        let key = WindowLayoutWindowKey(processID: app.processIdentifier,
+                                        processLaunchTime: app.launchDate?.timeIntervalSinceReferenceDate ?? 0,
+                                        windowID: windowID)
+        let parked = WindowLayoutFrame(origin: gesture.originalFrame.origin, size: gesture.originalFrame.size)
+        guard let earlier = parkedRestore(for: key, parked: parked) else { return nil }
+        // The gesture's end gives the flag back after its last write.
+        if let suspension = earlier.assistiveMode {
+            if gestureAssistiveMode == nil {
+                gestureAssistiveMode = suspension
+            } else {
+                suspension.resume()
+            }
+        }
+        // Placed where the pointer is now, where it is written, and carried
+        // back to the press the move measures from.
+        let carried = CGPoint(x: gesture.lastPointer.x - pressOrigin.x, y: gesture.lastPointer.y - pressOrigin.y)
+        let start = WindowGestureSupport.unparkedFrame(
+            from: gesture.originalFrame.offsetBy(dx: carried.x, dy: carried.y),
+            size: earlier.size,
+            pointer: gesture.lastPointer,
+            display: quartzVisibleFrame(at: gesture.lastPointer)
+        ).offsetBy(dx: -carried.x, dy: -carried.y)
+        gesture.originalFrame = start
+        // Written at once, where the pointer is now, rather than with its next
+        // step, which a resting pointer would not send.
+        gesture.restore = WindowParkedRestore(size: start.size, key: key, parked: parked)
+        enqueueGestureApply(gesture, pointer: gesture.lastPointer)
+        gesture.restore = nil
+        activeGesture = gesture
+        return start
+    }
+
+    /// A title bar drag that carries off a window still parked where its last
+    /// placement left it gives back the same frame a modifier move would.
+    /// Here the window server or the app moves the window, not this service,
+    /// so the frame is written once the window server shows the window
+    /// following the pointer at its parked size: a click, a double click or a
+    /// press that resizes never gets that far. It goes out once, on the lookup
+    /// queue, since asking the app from the run loop the taps share would hold
+    /// the drag until that app answers.
+    private func unparkTitleBarDraggedWindow() {
+        guard !edgeSnapFollowsMoveGesture,
+              var drag = edgeSnapDrag, drag.isMoving, !drag.parkingChecked else { return }
+        drag.parkingChecked = true
+        edgeSnapDrag = drag
+        let parked = WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size)
+        guard let current = WindowServerSupport.frame(ofWindowID: drag.key.windowID),
+              let earlier = parkedRestore(for: drag.key, parked: parked)
+        else { return }
+        // The window trails the pointer, so the spot it was grabbed at is
+        // carried onto where the window is rather than read from the pointer.
+        let grabOffset = CGSize(width: drag.pointerStart.x - drag.initialFrame.minX,
+                                height: drag.pointerStart.y - drag.initialFrame.minY)
+        let parkedSize = drag.initialFrame.size
+        // NSScreen is main-thread only, so every display is read here and the
+        // one under the grabbed spot is picked wherever the window is then.
+        let displays = quartzDisplays()
+        let unparked: (CGPoint) -> CGRect = { origin in
+            let grab = CGPoint(x: origin.x + grabOffset.width, y: origin.y + grabOffset.height)
+            return WindowGestureSupport.unparkedFrame(from: CGRect(origin: origin, size: parkedSize),
+                                                      size: earlier.size,
+                                                      pointer: grab,
+                                                      display: Self.visibleFrame(at: grab, among: displays))
+        }
+        let sampled = unparked(current.origin)
+        drag.initialFrame = sampled
+        drag.unparkWritePending = true
+        let outcome = WindowUnparkWrite()
+        drag.unparkWrite = outcome
+        edgeSnapDrag = drag
+        let window = drag.window
+        let windowID = drag.key.windowID
+        let restore = WindowParkedRestore(size: sampled.size, key: drag.key, parked: parked)
+        edgeSnapResolveQueue.async { [weak self] in
+            guard let self else { return }
+            // Held off around the writes, as a modifier move holds it, since
+            // apps in that mode animate or drop frame changes.
+            let assistiveMode = earlier.assistiveMode ?? EnhancedUserInterfaceSuspension.suspend(forAppOf: window)
+            // The drag keeps moving the window, so the frame is placed from
+            // where the window server shows it, read as late as each write.
+            let carried = { WindowServerSupport.frame(ofWindowID: windowID)?.origin ?? current.origin }
+            let tookSize = self.writeRestoredFrame(size: unparked(carried()).size, on: window) {
+                unparked(carried()).origin
+            }
+            if AXIsProcessTrusted() { assistiveMode?.resume() }
+            outcome.landed = tookSize
+            if tookSize {
+                DispatchQueue.main.async { [weak self] in self?.commitParkedRestore(restore) }
+            }
+        }
+    }
+
+    /// What a window still parked where its last tiling placement left it had
+    /// before that placement, read the way Restore reads it but not spent:
+    /// `commitParkedRestore` spends it once the window is read back at the
+    /// size. A placement still settling would put the parked frame back, so it
+    /// is cancelled, and the assistive flag it held off, which it now never
+    /// gives back, goes to the caller to give back after its last write.
+    private func parkedRestore(for key: WindowLayoutWindowKey, parked: WindowLayoutFrame)
+        -> (size: CGSize, assistiveMode: EnhancedUserInterfaceSuspension?)? {
+        // Read from a copy: Restore keeps its entry until the size has landed.
+        var history = frameHistory
+        // Only a tiling placement parks a window; Center, the display moves
+        // and full screen keep its size.
+        guard let action = lastActions[key], action.targetCapability == .frame,
+              action != .previousDisplay, action != .nextDisplay,
+              let screen = bestScreen(for: parked),
+              accepted(actual: parked,
+                       targetRect: placement(for: action, current: parked, visibleFrame: screen.visibleFrame).rect,
+                       action: action),
+              let previous = history.popPrevious(for: key, current: parked)
+        else { return nil }
+        cancelSettle(for: key.windowID)
+        return (previous.size, assistiveModeSuspensions.removeValue(forKey: key.windowID))
+    }
+
+    /// Writes the frame a parked window is given back: size, position, then
+    /// size again. The first size shrinks the window before it moves, so the
+    /// parked frame is never shown moved at full size. macOS fits a size to
+    /// the display at the position the window sits at, so a window parked
+    /// against the right edge cannot grow there; the second size lands where
+    /// the frame fits. `origin` is asked only once the first size is in, which
+    /// keeps the window's top left. macOS reports success for a size it cut,
+    /// so whether the window took the size is read back. Off the main thread
+    /// only.
+    private func writeRestoredFrame(size: CGSize, on window: AXUIElement, origin: () -> CGPoint) -> Bool {
+        _ = setSize(size, on: window)
+        _ = setPosition(origin(), on: window)
+        _ = setSize(size, on: window)
+        guard let landed = frame(of: window) else { return false }
+        return abs(landed.size.width - size.width) <= frameTolerance
+            && abs(landed.size.height - size.height) <= frameTolerance
+    }
+
+    /// The visible frame of the display under a Quartz point, in Quartz
+    /// coordinates, edges included.
+    private func quartzVisibleFrame(at point: CGPoint) -> CGRect? {
+        Self.visibleFrame(at: point, among: quartzDisplays())
+    }
+
+    /// Every display's frame and visible frame in Quartz coordinates, read on
+    /// the main thread for use off it.
+    private func quartzDisplays() -> [(frame: CGRect, visible: CGRect)] {
+        NSScreen.screens.map { screen in
+            let frame = axFrame(fromAppKit: screen.frame)
+            let visible = axFrame(fromAppKit: screen.visibleFrame)
+            return (CGRect(origin: frame.origin, size: frame.size), CGRect(origin: visible.origin, size: visible.size))
+        }
+    }
+
+    private static func visibleFrame(at point: CGPoint,
+                                     among displays: [(frame: CGRect, visible: CGRect)]) -> CGRect? {
+        displays.first {
+            point.x >= $0.frame.minX && point.x <= $0.frame.maxX
+                && point.y >= $0.frame.minY && point.y <= $0.frame.maxY
+        }?.visible
+    }
+
+    /// The given-back size reached the window, so its placement is spent the
+    /// way Restore spends it.
+    private func commitParkedRestore(_ restore: WindowParkedRestore) {
+        _ = frameHistory.popPrevious(for: restore.key, current: restore.parked)
+        lastActions.removeValue(forKey: restore.key)
+        settledFrames.removeValue(forKey: restore.key)
     }
 
     private func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool {
@@ -1933,6 +2113,21 @@ final class WindowLayoutService: ObservableObject {
 
     private func applyEdgeSnap(_ drag: WindowEdgeSnapDrag,
                                target: WindowEdgeSnapTarget) {
+        // A frame given back during the drag lands, and its Restore entry is
+        // spent, before the placement records its own. The snap goes in line
+        // behind the write rather than waiting for it on the taps' run loop.
+        if drag.unparkWritePending {
+            var written = drag
+            written.unparkWritePending = false
+            let generation = edgeSnapSequenceGeneration
+            edgeSnapResolveQueue.async { [weak self] in
+                DispatchQueue.main.async {
+                    guard let self, generation == self.edgeSnapSequenceGeneration else { return }
+                    self.applyEdgeSnap(written, target: target)
+                }
+            }
+            return
+        }
         guard AppFeature.windowLayout.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled),
               enabledEdgeSnapZones.contains(target.zone),
@@ -1950,8 +2145,11 @@ final class WindowLayoutService: ObservableObject {
                                               key: drag.key,
                                               frame: currentFrame)
         pruneWindowState(keeping: drag.key)
-        let history = WindowLayoutFrame(origin: drag.initialFrame.origin,
-                                        size: drag.initialFrame.size)
+        // A frame the drag gave back but macOS cut never landed, so Restore
+        // keeps the frame the window has rather than one it never had.
+        let history = drag.unparkWrite?.landed == false
+            ? currentFrame
+            : WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size)
         _ = applyPlacement(target.action,
                            to: layoutTarget,
                            visibleFrame: target.visibleFrame,
@@ -2236,8 +2434,9 @@ final class WindowLayoutService: ObservableObject {
             if now - gesture.lastAppliedAt >= updateInterval {
                 enqueueGestureApply(gesture, pointer: event.location)
                 gesture.lastAppliedAt = now
-                activeGesture = gesture
             }
+            gesture.lastPointer = event.location
+            activeGesture = gesture
             return nil
 
         case .applyFinish:
@@ -2389,7 +2588,8 @@ final class WindowLayoutService: ObservableObject {
                                            originalFrame: pending.originalFrame,
                                            pointerStart: pending.origin,
                                            lastAppliedAt: ProcessInfo.processInfo.systemUptime,
-                                           snapsAtEdges: snapWindowID != nil)
+                                           snapsAtEdges: snapWindowID != nil,
+                                           lastPointer: pointer)
         if let windowID = snapWindowID {
             forwardToEdgeSnap(gesture, .moveGestureBegan(pressOrigin: pending.origin,
                                                          initialFrame: pending.originalFrame,
@@ -2440,7 +2640,13 @@ final class WindowLayoutService: ObservableObject {
     private var gestureApplyDraining = false
 
     private func enqueueGestureApply(_ gesture: WindowPointerGesture, pointer: CGPoint) {
+        var gesture = gesture
         gestureApplyLock.lock()
+        // A size given back is written once, so a newer position replacing
+        // the write that carries it takes the size along.
+        if gesture.restore == nil {
+            gesture.restore = pendingGestureApply?.gesture.restore
+        }
         pendingGestureApply = (gesture, pointer)
         let alreadyDraining = gestureApplyDraining
         gestureApplyDraining = true
@@ -2467,7 +2673,13 @@ final class WindowLayoutService: ObservableObject {
             let origin = WindowGestureSupport.movedOrigin(from: gesture.originalFrame.origin,
                                                           pointerStart: gesture.pointerStart,
                                                           pointerNow: pointer)
-            _ = setPosition(origin, on: gesture.window)
+            if let restore = gesture.restore {
+                if writeRestoredFrame(size: restore.size, on: gesture.window, origin: { origin }) {
+                    DispatchQueue.main.async { [weak self] in self?.commitParkedRestore(restore) }
+                }
+            } else {
+                _ = setPosition(origin, on: gesture.window)
+            }
         case .resize(let edges):
             let frame = WindowGestureSupport.resizedFrame(from: gesture.originalFrame,
                                                           pointerStart: gesture.pointerStart,
@@ -3081,7 +3293,8 @@ private enum WindowEdgeSnapPointerInput {
 private struct WindowEdgeSnapDrag {
     let window: AXUIElement
     let key: WindowLayoutWindowKey
-    let initialFrame: CGRect
+    /// Becomes the earlier frame when the drag carries off a parked window.
+    var initialFrame: CGRect
     let pointerStart: CGPoint
     let protectsSystemTopEdge: Bool
     let quartzScreenFrames: [CGRect]
@@ -3090,6 +3303,18 @@ private struct WindowEdgeSnapDrag {
     var mismatchCount: Int
     var isMoving: Bool
     var target: WindowEdgeSnapTarget?
+    /// Whether a parked window was looked for, once the drag moved it.
+    var parkingChecked = false
+    /// A size given back to a parked window went to the lookup queue.
+    var unparkWritePending = false
+    /// How that write went, once it has run.
+    var unparkWrite: WindowUnparkWrite?
+}
+
+/// Whether the frame a title bar drag gave back landed. Filled in on the
+/// lookup queue, and read on main only after a hop through that queue.
+private final class WindowUnparkWrite {
+    var landed: Bool?
 }
 
 /// A press the tap is holding while it is still undecided. It keeps the
@@ -3119,11 +3344,24 @@ private struct WindowPointerGesture {
     let window: AXUIElement
     let kind: Kind
     let button: Button
-    let originalFrame: CGRect
+    /// Becomes the earlier frame when a move carries off a parked window.
+    var originalFrame: CGRect
     let pointerStart: CGPoint
     var lastAppliedAt: TimeInterval
     /// Edge snapping was running when the gesture began.
     var snapsAtEdges = false
+    /// The newest pointer, throttled writes or not.
+    var lastPointer = CGPoint.zero
+    /// A size given back to a parked window, still to be written once.
+    var restore: WindowParkedRestore?
+}
+
+/// The size a drag gives back to a parked window, and the placement that is
+/// spent once it lands.
+private struct WindowParkedRestore {
+    let size: CGSize
+    let key: WindowLayoutWindowKey
+    let parked: WindowLayoutFrame
 }
 
 private final class WindowEdgeSnapPreviewView: NSView {

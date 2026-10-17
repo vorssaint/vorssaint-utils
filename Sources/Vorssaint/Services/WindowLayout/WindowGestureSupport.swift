@@ -275,6 +275,36 @@ enum WindowGestureSupport {
                               acceptedSize: acceptedSize,
                               edges: edges)
     }
+
+    /// Where a window given back its earlier size sits under the pointer that
+    /// carries it: at the same fraction of its width, and as far below its top
+    /// as before while that still fits, so a title bar grab stays on the title
+    /// bar. Quartz coordinates, top down.
+    ///
+    /// macOS fits a size to the display at the position the window sits at.
+    /// With `display`, the visible frame under the pointer, the size is capped
+    /// to it, and a frame reaching past its left or right side slides back
+    /// onto it, so the pointer stays on the window.
+    static func unparkedFrame(from parked: CGRect, size: CGSize, pointer: CGPoint,
+                              display: CGRect? = nil) -> CGRect {
+        var size = size
+        if let display {
+            size = CGSize(width: min(size.width, display.width), height: min(size.height, display.height))
+        }
+        let fractionX = parked.width > 0 ? (pointer.x - parked.minX) / parked.width : 0.5
+        let offsetY = pointer.y - parked.minY
+        let restoredOffsetY = offsetY < size.height || parked.height <= 0
+            ? offsetY
+            : offsetY / parked.height * size.height
+        var x = pointer.x - fractionX * size.width
+        if let display {
+            x = min(max(x, display.minX), display.maxX - size.width)
+        }
+        return CGRect(x: x,
+                      y: pointer.y - restoredOffsetY,
+                      width: size.width,
+                      height: size.height)
+    }
 }
 
 /// Actions triggered by the hold-shortcut pointer wheel.

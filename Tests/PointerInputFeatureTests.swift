@@ -1435,6 +1435,44 @@ enum PointerInputFeatureTests {
                                                            edges: [.left, .top])
                == CGPoint(x: 440, y: 320),
                "left and top resizing reanchors only after the accepted size is known")
+        let parkedFrame = CGRect(x: 0, y: 25, width: 1440, height: 875)
+        suite.expect(WindowGestureSupport.unparkedFrame(from: parkedFrame,
+                                                        size: CGSize(width: 800, height: 500),
+                                                        pointer: CGPoint(x: 360, y: 40))
+               == CGRect(x: 160, y: 25, width: 800, height: 500),
+               "a parked window given back its size keeps the pointer at the same fraction of its width and on its title bar")
+        suite.expect(WindowGestureSupport.unparkedFrame(from: parkedFrame,
+                                                        size: CGSize(width: 800, height: 500),
+                                                        pointer: CGPoint(x: 720, y: 725))
+               == CGRect(x: 320, y: 325, width: 800, height: 500),
+               "a parked window grabbed below where its earlier height reaches keeps the pointer at the same fraction of its height")
+        let visibleDisplay = CGRect(x: 0, y: 25, width: 1440, height: 875)
+        let rightHalf = CGRect(x: 720, y: 25, width: 720, height: 875)
+        suite.expect(WindowGestureSupport.unparkedFrame(from: rightHalf,
+                                                        size: CGSize(width: 1000, height: 600),
+                                                        pointer: CGPoint(x: 1260, y: 40),
+                                                        display: visibleDisplay)
+               == CGRect(x: 440, y: 25, width: 1000, height: 600),
+               "a window given back a width that would reach past the display's right edge slides back onto it, under the pointer")
+        let leftHalf = CGRect(x: 0, y: 25, width: 720, height: 875)
+        suite.expect(WindowGestureSupport.unparkedFrame(from: leftHalf,
+                                                        size: CGSize(width: 1000, height: 600),
+                                                        pointer: CGPoint(x: 180, y: 40),
+                                                        display: visibleDisplay)
+               == CGRect(x: 0, y: 25, width: 1000, height: 600),
+               "a window given back a width that would reach past the display's left edge slides back onto it")
+        suite.expect(WindowGestureSupport.unparkedFrame(from: rightHalf,
+                                                        size: CGSize(width: 1600, height: 600),
+                                                        pointer: CGPoint(x: 1080, y: 40),
+                                                        display: visibleDisplay)
+               == CGRect(x: 0, y: 25, width: 1440, height: 600),
+               "a window given back a width larger than the display is capped to it")
+        suite.expect(WindowGestureSupport.unparkedFrame(from: rightHalf,
+                                                        size: CGSize(width: 800, height: 1000),
+                                                        pointer: CGPoint(x: 1080, y: 40),
+                                                        display: visibleDisplay)
+               == CGRect(x: 640, y: 25, width: 800, height: 875),
+               "a window given back a height larger than the display is capped to it, its title bar still under the pointer")
 
         // MARK: Click versus drag custody (issue #321)
 
