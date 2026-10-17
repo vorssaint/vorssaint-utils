@@ -54,10 +54,13 @@ enum CommandBarUnits {
         add(["f", "fahrenheit", "°f"], .temperature, UnitTemperature.fahrenheit)
         add(["k", "kelvin"], .temperature, UnitTemperature.kelvin)
         // Length
-        add(["mm", "millimeter", "millimeters", "milimetro", "milimetros"], .length, UnitLength.millimeters)
-        add(["cm", "centimeter", "centimeters", "centimetro", "centimetros"], .length, UnitLength.centimeters)
+        add(["mm", "millimeter", "millimeters", "millimetre", "millimetres", "milimetro", "milimetros"],
+            .length, UnitLength.millimeters)
+        add(["cm", "centimeter", "centimeters", "centimetre", "centimetres", "centimetro", "centimetros"],
+            .length, UnitLength.centimeters)
         add(["m", "meter", "meters", "metro", "metros", "metre", "metres"], .length, UnitLength.meters)
-        add(["km", "kilometer", "kilometers", "quilometro", "quilometros"], .length, UnitLength.kilometers)
+        add(["km", "kilometer", "kilometers", "kilometre", "kilometres", "quilometro", "quilometros"],
+            .length, UnitLength.kilometers)
         add(["in", "inch", "inches", "polegada", "polegadas", "\""], .length, UnitLength.inches)
         add(["ft", "foot", "feet", "pe", "pes"], .length, UnitLength.feet)
         add(["yd", "yard", "yards", "jarda", "jardas"], .length, UnitLength.yards)
@@ -87,7 +90,8 @@ enum CommandBarUnits {
         add(["min", "mins", "minute", "minutes", "minuto", "minutos"], .duration, UnitDuration.minutes)
         add(["h", "hr", "hrs", "hour", "hours", "hora", "horas"], .duration, UnitDuration.hours)
         // Volume
-        add(["ml", "milliliter", "milliliters", "mililitro", "mililitros"], .volume, UnitVolume.milliliters)
+        add(["ml", "milliliter", "milliliters", "millilitre", "millilitres", "mililitro", "mililitros"],
+            .volume, UnitVolume.milliliters)
         add(["l", "liter", "liters", "litre", "litres", "litro", "litros"], .volume, UnitVolume.liters)
         add(["gal", "gallon", "gallons", "galao", "galoes"], .volume, UnitVolume.gallons)
         add(["qt", "quart", "quarts"], .volume, UnitVolume.quarts)
@@ -141,8 +145,22 @@ enum CommandBarUnits {
             tokens.append(String(digits))
             if !rest.isEmpty { tokens.append(String(rest)) }
         }
-        return tokens
+        // The unit printed on a bottle is two words, "fl oz", and so is its
+        // name; each reads as the single word the lexicon knows.
+        var joined: [String] = []
+        for token in tokens {
+            if let last = joined.last, let unit = twoWordUnits[last + " " + token] {
+                joined[joined.count - 1] = unit
+            } else {
+                joined.append(token)
+            }
+        }
+        return joined
     }
+
+    private static let twoWordUnits = [
+        "fl oz": "floz", "fluid ounce": "fluidounce", "fluid ounces": "fluidounces",
+    ]
 
     private static func parseValue(_ tokens: [String],
                                    decimalSeparator: String,

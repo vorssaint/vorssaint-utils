@@ -1008,6 +1008,22 @@ enum CommandBarFeatureTests {
         suite.expect(unitValue("1.5 l to ml").map { abs($0 - 1500) < 0.001 } == true,
                "a decimal amount converts")
         suite.expect(units("100 km to kg") == nil, "two different families never meet")
+        suite.expect(units("100 kilometres to miles") != nil
+                && units("100 kilometres to miles") == units("100 kilometers to miles")
+                && units("5 centimetres to inches") == units("5 cm to in")
+                && units("3 millimetres to inches") == units("3 mm to in")
+                && units("500 millilitres to cups") == units("500 ml to cups")
+                && units("1 kilometre to miles") == units("1 kilometer to miles")
+                && units("1 centimetre to inches") == units("1 cm to in")
+                && units("1 millimetre to inches") == units("1 mm to in")
+                && units("1 millilitre to cups") == units("1 ml to cups"),
+               "British spellings convert like the American ones, as metres and litres already do")
+        suite.expect(units("8 fl oz to ml") != nil
+                && units("8 fl oz to ml") == units("8 floz to ml")
+                && units("8 fluid ounces to ml") == units("8 floz to ml")
+                && units("1 fluid ounce to ml") == units("1 floz to ml")
+                && units("236 ml to fl oz") == units("236 ml to floz"),
+               "fluid ounces written as two words, the way a bottle prints them, convert")
         suite.expect(units("100 km") == nil, "without the word there is no conversion")
         suite.expect(units("to") == nil && units("in") == nil,
                "the little words alone convert nothing")
