@@ -730,6 +730,41 @@ enum UtilitiesFeatureTests {
                     RadialMenuItem(kind: .submenu, children: [radialLayout]),
                 ]),
                "window-layout slices keep a valid placement and its automatic icon")
+        let radialAppleShortcut = RadialMenuItem(kind: .appleShortcut,
+                                                 payload: "56D2BEE7-9B6F-4AD4-8226-CE7F125A6473")
+        let radialScript = RadialMenuItem(kind: .script, payload: "~/bin/stamp-date")
+        suite.expect(RadialMenuSupport.decode(RadialMenuSupport.encode([radialAppleShortcut, radialScript]))
+                    == [radialAppleShortcut, radialScript]
+                && radialAppleShortcut.effectiveSymbolName != radialScript.effectiveSymbolName
+                && radialAppleShortcut.effectiveSymbolName != RadialMenuItem(kind: .shortcut).effectiveSymbolName,
+               "Shortcuts and script slices round-trip with icons of their own")
+        suite.expect(RadialMenuSupport.sanitized([
+            RadialMenuItem(kind: .appleShortcut, payload: ""),
+            RadialMenuItem(kind: .appleShortcut, payload: "Paste Date"),
+            RadialMenuItem(kind: .script, payload: "   "),
+        ]).isEmpty,
+               "a Shortcuts slice needs an identifier and a script slice needs a path")
+        suite.expect(!RadialMenuSupport.needsAccessibility([radialAppleShortcut, radialScript])
+                && RadialMenuSupport.containsAppleShortcut([
+                    RadialMenuItem(kind: .submenu, children: [radialAppleShortcut]),
+                ])
+                && !RadialMenuSupport.containsAppleShortcut([radialScript]),
+               "Shortcuts slices are found inside submenus and run without Accessibility")
+        let listedShortcuts = RadialMenuSupport.appleShortcuts(fromList: """
+        Paste Date (56D2BEE7-9B6F-4AD4-8226-CE7F125A6473)
+        Notes (Work) (E7A3B8DF-CE96-42DB-9CA3-F0687CC061A3)
+        Error: not a shortcut
+        (75EB7506-7DA9-4F8E-9F84-B999E25C2B06)
+        Half (not-an-identifier)
+
+        """)
+        suite.expect(listedShortcuts == [
+            RadialAppleShortcut(id: "56D2BEE7-9B6F-4AD4-8226-CE7F125A6473", name: "Paste Date"),
+            RadialAppleShortcut(id: "E7A3B8DF-CE96-42DB-9CA3-F0687CC061A3", name: "Notes (Work)"),
+        ],
+               "the Shortcuts list keeps names with parentheses and skips lines without an identifier")
+        suite.expect(RadialMenuSupport.appleShortcuts(fromList: "").isEmpty,
+               "an empty Shortcuts library lists nothing")
         suite.expect(RadialMenuMediaKey.playPause.auxKeyType == 16
                 && RadialMenuMediaKey.previousTrack.auxKeyType == 20
                 && RadialMenuMediaKey.nextTrack.auxKeyType == 19

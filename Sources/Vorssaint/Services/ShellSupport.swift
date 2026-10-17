@@ -22,6 +22,19 @@ enum Shell {
                                               maxOutputBytes: maxOutputBytes)
         return (result.status, String(decoding: result.output, as: UTF8.self))
     }
+
+    /// Runs a command for its effect alone, off the main thread: what it
+    /// prints is dropped, and a failure beeps, the way an app that would not
+    /// open does. For actions fired with nothing on screen waiting for an
+    /// answer, such as a script run from its global shortcut or a radial slice.
+    static func runInBackground(_ path: String,
+                                _ args: [String],
+                                timeout: TimeInterval = defaultTimeout) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let (status, _) = run(path, args, timeout: timeout, maxOutputBytes: 64 * 1024)
+            if status != 0 { DispatchQueue.main.async { NSSound.beep() } }
+        }
+    }
 }
 
 /// Runs a command with administrator privileges (system password prompt).
