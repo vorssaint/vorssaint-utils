@@ -9,7 +9,7 @@ enum QuickToggleAction: String, PanelOrderItem, Identifiable {
     // Case order is the default panel order: the appearance switch leads
     // because it is the tab's headline action (issue request).
     case darkMode, keyboardLight, micMute, emptyTrash, ejectDisks, hiddenFiles, desktopIcons,
-         lockScreen, displayOff, screenSaver
+         lockScreen, displayOff, screenSaver, hidePointerIdle, dockRevealDelay, hotCorners
 
     var id: String { rawValue }
 
@@ -148,6 +148,92 @@ final class QuickTogglesService: ObservableObject {
                 }
             }
             self.finishRun(.ejectDisks, state: failures == 0 ? nil : .failed)
+        }
+    }
+
+    // MARK: - Pointer
+
+    /// Hiding the pointer is a switch rather than a one-shot: it is the only
+    /// quick toggle whose effect outlives the panel, so it reports state and
+    /// keeps running with the panel closed.
+    func setPointerHideIdle(_ enabled: Bool) {
+        guard available else { return }
+        PointerHideService.shared.setEnabled(enabled)
+        states[.hidePointerIdle] = nil
+    }
+
+    // MARK: - Dock
+
+    /// Cached rather than read while a row renders: naming what the next click
+    /// will do needs the current value, and a row must not be doing preference
+    /// I/O in `body`. Refreshed when the panel appears and after every write.
+    @Published private(set) var dockRevealDelayInstant = false
+
+    func refreshDockPreferenceStates() {
+        workQueue.async {
+            let delay = QuickTogglesSupport.dockNumber(
+                DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
+            let instant = QuickTogglesSupport.revealDelayIsInstant(delay)
+            let corners = Self.currentHotCornerState()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.dockRevealDelayInstant = instant
+                self.hotCornerState = corners
+            }
+        }
+    }
+
+    /// Which of the two bottom corners currently carry the action, cached for
+    /// the same reason as the reveal delay: the row names the next stop, and a
+    /// row must not read preferences while it renders.
+    @Published private(set) var hotCornerState: QuickTogglesSupport.DockHotCorner = .none
+
+    /// Advances the bottom hot corners one stop and reports the state the Dock
+    /// actually ended up in. Both keys are written as one batch so the Dock
+    /// restarts once, and a configuration profile that owns either key refuses
+    /// both rather than leaving the two corners disagreeing.
+    func cycleHotCorners() {
+        guard available, beginRun(.hotCorners) else { return }
+        workQueue.async {
+            let codes = QuickTogglesSupport.hotCornerCodes(
+                for: QuickTogglesSupport.nextHotCornerState(Self.currentHotCornerState()))
+            let wrote = DockPreferenceWriter.write([
+                QuickTogglesSupport.bottomLeftCornerKey: codes.bottomLeft,
+                QuickTogglesSupport.bottomRightCornerKey: codes.bottomRight,
+            ])
+            let settled = Self.currentHotCornerState()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.hotCornerState = settled
+                self.finishRun(.hotCorners, state: wrote ? nil : .failed)
+            }
+        }
+    }
+
+    private static func currentHotCornerState() -> QuickTogglesSupport.DockHotCorner {
+        QuickTogglesSupport.hotCornerState(
+            bottomLeft: DockPreferenceWriter.read(QuickTogglesSupport.bottomLeftCornerKey),
+            bottomRight: DockPreferenceWriter.read(QuickTogglesSupport.bottomRightCornerKey))
+    }
+
+    /// Zeroes the Dock's reveal delay, or puts back the one macOS ships with.
+    /// The Dock reads these at launch, so the write ends in a restart, and it
+    /// reports failure rather than claiming a change the Dock never took.
+    func toggleDockRevealDelay() {
+        guard available, beginRun(.dockRevealDelay) else { return }
+        workQueue.async {
+            let current = QuickTogglesSupport.dockNumber(
+                DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
+            let wrote = DockPreferenceWriter.write(QuickTogglesSupport.dockRevealDelayKey,
+                                                   seconds: QuickTogglesSupport.toggledRevealDelay(current))
+            let instant = QuickTogglesSupport.revealDelayIsInstant(
+                QuickTogglesSupport.dockNumber(
+                    DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey)))
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.dockRevealDelayInstant = instant
+                self.finishRun(.dockRevealDelay, state: wrote ? nil : .failed)
+            }
         }
     }
 
