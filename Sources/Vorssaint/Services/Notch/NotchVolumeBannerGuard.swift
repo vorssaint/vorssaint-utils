@@ -21,7 +21,10 @@ final class NotchVolumeBannerGuard {
     /// Banners this guard moved, and where macOS had placed each. A banner
     /// per display at most, so only the latest few are kept.
     private var hidden: [(window: AXUIElement, origin: CGPoint)] = []
-    private let notifications = [kAXCreatedNotification, kAXWindowCreatedNotification, kAXWindowMovedNotification]
+    /// The menu bar announces a new window as it shows it, already named.
+    /// Its earlier creation notice comes before the name is set, so it would
+    /// only cost a read. A banner the menu bar places again is moved again.
+    private let notifications = [kAXWindowCreatedNotification, kAXWindowMovedNotification]
 
     func start() {
         guard AXIsProcessTrusted() else { stop(); return }
@@ -109,8 +112,8 @@ final class NotchVolumeBannerGuard {
 
     /// Decides without asking the menu bar anything, so an island that shows
     /// no volume costs no call at all. The menu bar places the banner as it
-    /// first draws it and takes a move only after that frame, so about a
-    /// fiftieth of a second of its fade-in still shows.
+    /// first draws it and takes a move only after that frame, so the first
+    /// couple of hundredths of a second of its fade-in still show.
     private func noticed(_ element: AXUIElement) {
         guard running, NotchService.shared.showsVolumeNotice else { return }
         let queue = self.queue
@@ -125,13 +128,12 @@ final class NotchVolumeBannerGuard {
                 }
                 self.hidden.removeAll { CFEqual($0.window, element) }
                 self.hidden.append((element, origin))
-                self.hidden = Array(self.hidden.suffix(4))
+                self.hidden = Array(self.hidden.suffix(8))
             }
         }
     }
 
-    /// Where macOS had placed the banner, once it is out of sight. A banner
-    /// the menu bar places again is moved again.
+    /// Where macOS had placed the banner, once it is out of sight.
     private static func hide(_ element: AXUIElement) -> CGPoint? {
         AXUIElementSetMessagingTimeout(element, 0.1)
         let window = read(element)
@@ -159,6 +161,7 @@ final class NotchVolumeBannerGuard {
     }
 
     private static func windows(_ app: AXUIElement) -> [AXUIElement] {
+        AXUIElementSetMessagingTimeout(app, 0.1)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success else { return [] }
         return value as? [AXUIElement] ?? []

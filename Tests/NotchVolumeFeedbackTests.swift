@@ -40,6 +40,8 @@ enum NotchVolumeFeedbackTests {
         var lastVolumeRide: TimeInterval = -.infinity
         var expanded = false
         var showsSystemFeedback = true
+        var captureControls: Bool?
+        var dragPlaceholder = false
         var notice: NotchNotice?
         var presented: [NotchNotice] = []
         @discardableResult
@@ -313,6 +315,12 @@ enum NotchVolumeFeedbackTests {
         service.showsSystemFeedback = false
         suite.expect(!service.showsVolumeNotice, "an island hidden mid-notice gives the banner back")
         service.showsSystemFeedback = true
+        service.captureControls = true
+        suite.expect(!service.showsVolumeNotice, "capture controls drawn over the notice keep macOS' banner")
+        service.captureControls = nil
+        service.dragPlaceholder = true
+        suite.expect(!service.showsVolumeNotice, "a file drop hint drawn over the notice keeps macOS' banner")
+        service.dragPlaceholder = false
         service.notice = nil
         mixer.systemOutputVolume = (mixer.systemOutputVolume ?? 0) + 0.01
         drain()
@@ -328,6 +336,16 @@ enum NotchVolumeFeedbackTests {
         drain()
         suite.expect(service.notice == nil && !service.showsVolumeNotice,
                      "an output without a readable level or mute keeps macOS' banner")
+        mixer.publish(device: "speakers", volume: 0.95, muted: false)
+        drain()
+        mixer.systemOutputVolume = 1
+        drain()
+        mixer.systemOutputVolume = 1
+        drain()
+        // A swipe past the top changes nothing. The island is still showing
+        // that level, so the banner for it may leave until the notice does.
+        suite.expect(service.showsVolumeNotice && service.notice?.level == 1,
+                     "a swipe past the top leaves the banner only while the island shows the top level")
         service.subscriptions.removeAll()
     }
 }

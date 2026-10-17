@@ -1041,9 +1041,10 @@ final class NotchService: ObservableObject {
     }
     /// The island shows a volume level right now, so macOS' own banner for
     /// the same change would only repeat it. A change the island leaves
-    /// quiet, or cannot read, keeps that banner.
+    /// quiet, or cannot read, keeps that banner, and so does a notice that
+    /// capture controls or a file drop hint draw over.
     var showsVolumeNotice: Bool {
-        showsSystemFeedback && notice?.event == .volume
+        showsSystemFeedback && notice?.event == .volume && captureControls == nil && !dragPlaceholder
     }
 
     var protectedWindowIDs: Set<CGWindowID> {
