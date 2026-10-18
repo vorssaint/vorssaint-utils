@@ -113,6 +113,25 @@ enum AutoQuitSupport {
         return false
     }
 
+    /// Whether closing the last window must leave the app running. The default
+    /// mode quits everything except the exception list. Allowlist mode (issue
+    /// #2943) quits only the listed apps, and the mandatory exceptions (Finder,
+    /// Phone) still win there so listing one can never terminate it.
+    static func isProtectedFromQuit(bundleIdentifier: String?,
+                                    bundleURL: URL?,
+                                    onlyListedApps: Bool,
+                                    exceptions: [String],
+                                    includedApps: [String]) -> Bool {
+        guard onlyListedApps else {
+            return isExcepted(bundleIdentifier: bundleIdentifier, bundleURL: bundleURL,
+                              exceptions: exceptions)
+        }
+        return isExcepted(bundleIdentifier: bundleIdentifier, bundleURL: bundleURL,
+                          exceptions: Defaults.mandatoryAutoQuitExceptionBundleIDs)
+            || !isExcepted(bundleIdentifier: bundleIdentifier, bundleURL: bundleURL,
+                           exceptions: includedApps)
+    }
+
     /// Some standalone apps depend on a separate host process and declare that
     /// relationship in their bundle metadata. Quitting the host while one of
     /// those apps is running would close both from a single window close.
