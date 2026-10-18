@@ -1070,7 +1070,7 @@ private final class ScreenshotOverlayView: NSView {
         self.strings = strings
         self.purpose = purpose
         self.screenCaptureOptions = screenCaptureOptions
-        let host = PassThroughHostingView(rootView: CaptureGuideView(
+        let host = PassThroughHostingView(fixedFrameRootView: CaptureGuideView(
             strings: strings,
             purpose: purpose,
             offersScrollingCapture: controller.offersScrollingCapture,
@@ -1751,21 +1751,17 @@ private final class FullScreenControlHoverRelay {
 private final class PassThroughHostingView<Content: View>: NSHostingView<Content> {
     var passesThrough = true
     var acceptsFirstClick = false
-    /// Capture actions remain clickable while the Dynamic Island panel owns
-    /// key focus. Keep that policy attached to the interactive host itself so
-    /// a caller cannot accidentally forget one half of the setup.
-    required init(rootView: Content) {
-        super.init(rootView: rootView)
-        // Default sizing tracks the SwiftUI ideal size with constraints. On
-        // this full-screen window those constraints are the guide's, so
-        // choosing screenshot, recording or the eyedropper shrinks the dim
-        // inside the display. Frames assigned in layout() have to stick.
+    /// The guide gets its frame from the overlay's layout. Its changing
+    /// ideal size must not resize the shielding window. Other hosts keep
+    /// intrinsic sizing, including the full-screen button measured by layout.
+    convenience init(fixedFrameRootView rootView: Content) {
+        self.init(rootView: rootView)
         sizingOptions = []
         safeAreaRegions = []
         translatesAutoresizingMaskIntoConstraints = true
     }
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { nil }
+    /// Capture actions remain clickable while the Dynamic Island panel owns
+    /// key focus. Keep both parts of that policy on the interactive host.
     convenience init(interactiveRootView rootView: Content) {
         self.init(rootView: rootView)
         passesThrough = false
