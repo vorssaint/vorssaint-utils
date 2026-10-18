@@ -102,6 +102,9 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
+        // Codex homes are folders on this Mac whose sign-in the cards use,
+        // never settings to bring to another one.
+        DefaultsKey.notchAgentsCodexProfiles,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.

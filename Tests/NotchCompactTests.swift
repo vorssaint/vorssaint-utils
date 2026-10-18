@@ -183,6 +183,8 @@ enum NotchCompactTests {
         @Published var selected: Int?
         @Published var rows = 2
         @Published var count = 1000
+        @Published var width: CGFloat = 424
+        @Published var leastSpacing: CGFloat?
         var realized = Set<Int>()
     }
     struct Marker: NSViewRepresentable {
@@ -198,9 +200,9 @@ enum NotchCompactTests {
         @ObservedObject var state: RailState
         var body: some View {
             let entries = (0..<state.count).map { NotchCompactTests.Entry(id: $0) }
-            return NotchRail(items: entries, rows: state.rows, itemWidth: 76, width: 424,
-                             scrollTarget: state.selected, content: marker)
-                .frame(width: 424, height: 152)
+            return NotchRail(items: entries, rows: state.rows, itemWidth: 76, width: state.width,
+                             leastSpacing: state.leastSpacing, scrollTarget: state.selected, content: marker)
+                .frame(width: state.width, height: 152)
         }
         private func marker(_ item: NotchCompactTests.Entry) -> some View {
             state.realized.insert(item.id)
@@ -353,6 +355,26 @@ enum NotchCompactTests {
                && abs(frames[3].midX - (frames[0].midX + frames[1].midX) / 2) < 0.5
                && abs((frames[3].minX + frames[4].maxX) / 2 - host.bounds.midX) < 0.5,
                "a short last row keeps the cell width and sits centered under the row above")
+        // Four tiles in one row just miss the narrowest page with their gaps.
+        // A rail that may close them keeps every tile whole, side by side;
+        // any other still scrolls its last column past the edge.
+        state.count = 4
+        state.rows = 1
+        state.width = 304
+        host.frame = NSRect(x: 0, y: 0, width: 304, height: 152)
+        for least in [NotchLayout.shortcutLeastSpacing, nil] {
+            state.leastSpacing = least
+            settle(host)
+            let tiles = (0..<4).compactMap { id in
+                descendants(host).first { $0.identifier?.rawValue == "rail-\(id)" }.map { $0.convert($0.bounds, to: host) }
+            }
+            let whole = tiles.count == 4 && tiles.allSatisfy { (tile: CGRect) -> Bool in
+                tile.minX >= -0.5 && tile.maxX <= 304.5 && abs(tile.width - 76) < 0.5
+            }
+            suite.expect(whole == (least != nil), least != nil
+                         ? "a rail that closes its gaps keeps four tiles whole across the narrowest page"
+                         : "a rail with no least gap still scrolls the column that misses its width")
+        }
     }
     private static func scratchpad(_ suite: TestSuite) {
         let pad = ScratchpadService.shared

@@ -35,7 +35,8 @@ struct NotchControlsView: View {
                 }
                 if layout.shortcutRows > 0 {
                     NotchRail(items: shortcuts, rows: layout.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
-                              width: size.width, spacing: NotchLayout.shortcutSpacing, rowSpacing: NotchLayout.shortcutSpacing) { item in
+                              width: size.width, spacing: NotchLayout.shortcutSpacing,
+                              leastSpacing: NotchLayout.shortcutLeastSpacing, rowSpacing: layout.shortcutRowSpacing) { item in
                         shortcut(item)
                     }
                 }
@@ -235,9 +236,10 @@ private struct NotchLevelChooser: View {
 /// The home page's levels in the island's top row, laid out the same on the
 /// island and in its Settings preview. Across a full row they share the
 /// leading side evenly, after what the island adds there, and leave the
-/// trailing side to the island's marks. Beside a camera the first takes the
-/// leading side and the second the trailing one at its full width, so the
-/// marks there give way first.
+/// trailing side to the island's marks, which give way before a level
+/// narrows past its narrowest. Beside a camera the first takes the leading
+/// side and the second the trailing one at its full width, so the marks
+/// there give way first.
 struct NotchBandLevels<Level: View>: View {
     let band: NotchBand
     /// The levels the row holds, in order.
@@ -251,7 +253,7 @@ struct NotchBandLevels<Level: View>: View {
                 if let first = levels.first { level(first).frame(maxWidth: .infinity) }
             } else {
                 HStack(spacing: NotchLayout.bandLevelSpacing) {
-                    ForEach(levels) { level($0).frame(maxWidth: .infinity) }
+                    ForEach(levels) { level($0).frame(minWidth: NotchLayout.bandLevelMinimumWidth, maxWidth: .infinity) }
                 }
             }
         } else if band.besideCamera, levels.count > 1 {

@@ -48,6 +48,8 @@ struct NotchMusicExtrasStrings {
     let preferredPlayerHint: String
     /// "Open Spotify", with the app's name in place of %@.
     let openNamedPlayer: String
+    let browserCovers: String
+    let browserCoversHint: String
 }
 
 extension FeatureStrings {
@@ -95,7 +97,9 @@ extension FeatureStrings {
             shuffle: "Shuffle",
             preferredPlayer: "Open when nothing is playing",
             preferredPlayerHint: "The cover and the playback buttons open this app. Automatic opens the music app that played last, then Spotify or Apple Music.",
-            openNamedPlayer: "Open %@")
+            openNamedPlayer: "Open %@",
+            browserCovers: "Find covers for Firefox and Zen",
+            browserCoversHint: "When Firefox, Zen or another Firefox-based browser plays without a sharp cover, read its saved session on this Mac to find the song’s YouTube tab and load its thumbnail from i.ytimg.com. If no tab shows the song but a YouTube Music tab is open, send the song title, artist and region to itunes.apple.com and load the album art from mzstatic.com.")
         case .ptBR: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Acompanhe a letra da música atual no Dynamic Island.",
@@ -138,7 +142,9 @@ extension FeatureStrings {
             shuffle: "Aleatório",
             preferredPlayer: "Abrir quando nada estiver tocando",
             preferredPlayerHint: "A capa e os botões de reprodução abrem este app. Automático abre o app de música que tocou por último, depois o Spotify ou o Apple Music.",
-            openNamedPlayer: "Abrir %@")
+            openNamedPlayer: "Abrir %@",
+            browserCovers: "Buscar capas para Firefox e Zen",
+            browserCoversHint: "Quando o Firefox, o Zen ou outro navegador baseado no Firefox tocar sem uma capa nítida, leia a sessão salva do navegador neste Mac para achar a aba do YouTube com a música e carregar a miniatura de i.ytimg.com. Se nenhuma aba mostrar a música, mas houver uma aba do YouTube Music aberta, envie título, artista e região para itunes.apple.com e carregue a capa do álbum de mzstatic.com.")
         case .es: return NotchMusicExtrasStrings(
             lyrics: "Letra",
             lyricsDescription: "Sigue la letra de la canción actual en el Dynamic Island.",
@@ -181,7 +187,9 @@ extension FeatureStrings {
             shuffle: "Aleatorio",
             preferredPlayer: "Abrir cuando no suena nada",
             preferredPlayerHint: "La carátula y los botones de reproducción abren esta app. Automática abre la app de música que sonó por última vez, y luego Spotify o Apple Music.",
-            openNamedPlayer: "Abrir %@")
+            openNamedPlayer: "Abrir %@",
+            browserCovers: "Buscar portadas para Firefox y Zen",
+            browserCoversHint: "Cuando Firefox, Zen u otro navegador basado en Firefox reproduce sin una portada nítida, lee la sesión guardada del navegador en este Mac para encontrar la pestaña de YouTube de la canción y cargar su miniatura desde i.ytimg.com. Si ninguna pestaña muestra la canción pero hay una pestaña de YouTube Music abierta, envía el título, el artista y la región a itunes.apple.com y carga la portada del álbum desde mzstatic.com.")
         case .sk: return NotchMusicExtrasStrings(
             lyrics: "Text piesne",
             lyricsDescription: "Sledujte text aktuálnej skladby v Dynamic Island.",
@@ -224,7 +232,9 @@ extension FeatureStrings {
             shuffle: "Náhodné poradie",
             preferredPlayer: "Otvoriť, keď nič nehrá",
             preferredPlayerHint: "Obal a tlačidlá prehrávania otvoria túto aplikáciu. Automaticky otvorí hudobnú aplikáciu, ktorá hrala naposledy, potom Spotify alebo Apple Music.",
-            openNamedPlayer: "Otvoriť %@")
+            openNamedPlayer: "Otvoriť %@",
+            browserCovers: "Hľadať obaly pre Firefox a Zen",
+            browserCoversHint: "Keď Firefox, Zen alebo iný prehliadač založený na Firefoxe prehráva bez ostrého obalu, prečíta sa jeho uložená relácia v tomto Macu, aby sa našla karta YouTube so skladbou a jej miniatúra sa načítala z i.ytimg.com. Ak skladbu neukazuje žiadna karta, ale je otvorená karta YouTube Music, názov skladby, interpret a región sa odošlú na itunes.apple.com a obal albumu sa načíta z mzstatic.com.")
         case .de: return NotchMusicExtrasStrings(
             lyrics: "Liedtext",
             lyricsDescription: "Verfolge den Text des aktuellen Songs im Dynamic Island.",
@@ -267,7 +277,9 @@ extension FeatureStrings {
             shuffle: "Zufallswiedergabe",
             preferredPlayer: "Öffnen, wenn nichts läuft",
             preferredPlayerHint: "Cover und Wiedergabetasten öffnen diese App. Automatisch öffnet die Musik-App, die zuletzt lief, danach Spotify oder Apple Music.",
-            openNamedPlayer: "%@ öffnen")
+            openNamedPlayer: "%@ öffnen",
+            browserCovers: "Cover für Firefox und Zen suchen",
+            browserCoversHint: "Spielt Firefox, Zen oder ein anderer Firefox-basierter Browser ohne scharfes Cover, wird seine gespeicherte Sitzung auf diesem Mac gelesen, um den YouTube-Tab des Songs zu finden und sein Vorschaubild von i.ytimg.com zu laden. Zeigt kein Tab den Song, ist aber ein YouTube-Music-Tab geöffnet, werden Titel, Interpret und Region an itunes.apple.com gesendet und das Albumcover von mzstatic.com geladen.")
         case .fr: return NotchMusicExtrasStrings(
             lyrics: "Paroles",
             lyricsDescription: "Suivez les paroles du morceau en cours dans le Dynamic Island.",
@@ -310,7 +322,9 @@ extension FeatureStrings {
             shuffle: "Lecture aléatoire",
             preferredPlayer: "Ouvrir quand rien ne joue",
             preferredPlayerHint: "La pochette et les boutons de lecture ouvrent cette app. Automatique ouvre la dernière app de musique utilisée, puis Spotify ou Apple Music.",
-            openNamedPlayer: "Ouvrir %@")
+            openNamedPlayer: "Ouvrir %@",
+            browserCovers: "Chercher les pochettes pour Firefox et Zen",
+            browserCoversHint: "Quand Firefox, Zen ou un autre navigateur basé sur Firefox lit un morceau sans pochette nette, sa session enregistrée est lue sur ce Mac pour trouver l’onglet YouTube du morceau et charger sa miniature depuis i.ytimg.com. Si aucun onglet n’affiche le morceau mais qu’un onglet YouTube Music est ouvert, le titre, l’artiste et la région sont envoyés à itunes.apple.com et la pochette de l’album est chargée depuis mzstatic.com.")
         case .it: return NotchMusicExtrasStrings(
             lyrics: "Testo",
             lyricsDescription: "Segui il testo del brano attuale nel Dynamic Island.",
@@ -353,7 +367,9 @@ extension FeatureStrings {
             shuffle: "Riproduzione casuale",
             preferredPlayer: "Apri quando non c’è nulla in riproduzione",
             preferredPlayerHint: "La copertina e i pulsanti di riproduzione aprono questa app. Automatico apre l’app musicale usata per ultima, poi Spotify o Apple Music.",
-            openNamedPlayer: "Apri %@")
+            openNamedPlayer: "Apri %@",
+            browserCovers: "Cerca copertine per Firefox e Zen",
+            browserCoversHint: "Quando Firefox, Zen o un altro browser basato su Firefox riproduce senza una copertina nitida, la sua sessione salvata su questo Mac viene letta per trovare la scheda YouTube del brano e caricarne la miniatura da i.ytimg.com. Se nessuna scheda mostra il brano ma è aperta una scheda di YouTube Music, titolo, artista e regione vengono inviati a itunes.apple.com e la copertina dell’album viene caricata da mzstatic.com.")
         case .ru: return NotchMusicExtrasStrings(
             lyrics: "Текст песни",
             lyricsDescription: "Следите за текстом текущей песни в вырезе.",
@@ -396,7 +412,9 @@ extension FeatureStrings {
             shuffle: "Перемешать",
             preferredPlayer: "Открывать, когда ничего не играет",
             preferredPlayerHint: "Обложка и кнопки воспроизведения открывают это приложение. «Автоматически» открывает музыкальное приложение, игравшее последним, затем Spotify или Apple Music.",
-            openNamedPlayer: "Открыть %@")
+            openNamedPlayer: "Открыть %@",
+            browserCovers: "Искать обложки для Firefox и Zen",
+            browserCoversHint: "Когда Firefox, Zen или другой браузер на основе Firefox воспроизводит музыку без чёткой обложки, его сохранённый на этом Mac сеанс читается для поиска вкладки YouTube с песней, а её миниатюра загружается с i.ytimg.com. Если ни одна вкладка не показывает песню, но открыта вкладка YouTube Music, название песни, исполнитель и регион отправляются на itunes.apple.com, а обложка альбома загружается с mzstatic.com.")
         case .tr: return NotchMusicExtrasStrings(
             lyrics: "Şarkı sözleri",
             lyricsDescription: "Çalan şarkının sözlerini çentikte takip edin.",
@@ -439,7 +457,9 @@ extension FeatureStrings {
             shuffle: "Karıştır",
             preferredPlayer: "Hiçbir şey çalmıyorken aç",
             preferredPlayerHint: "Kapak ve oynatma düğmeleri bu uygulamayı açar. Otomatik, en son çalan müzik uygulamasını, ardından Spotify veya Apple Music’i açar.",
-            openNamedPlayer: "%@ uygulamasını aç")
+            openNamedPlayer: "%@ uygulamasını aç",
+            browserCovers: "Firefox ve Zen için kapak bul",
+            browserCoversHint: "Firefox, Zen veya Firefox tabanlı başka bir tarayıcı net bir kapak olmadan çaldığında, şarkının YouTube sekmesini bulmak ve küçük resmini i.ytimg.com adresinden yüklemek için tarayıcının bu Mac’teki kayıtlı oturumu okunur. Hiçbir sekme şarkıyı göstermiyor ancak bir YouTube Music sekmesi açıksa şarkı adı, sanatçı ve bölge itunes.apple.com adresine gönderilir ve albüm kapağı mzstatic.com adresinden yüklenir.")
         case .ja: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "再生中の曲の歌詞をDynamic Islandに表示します。",
@@ -482,7 +502,9 @@ extension FeatureStrings {
             shuffle: "シャッフル",
             preferredPlayer: "再生中でないときに開く",
             preferredPlayerHint: "ジャケットと再生ボタンでこのアプリを開きます。「自動」では、最後に再生した音楽アプリ、次にSpotifyまたはApple Musicを開きます。",
-            openNamedPlayer: "%@を開く")
+            openNamedPlayer: "%@を開く",
+            browserCovers: "FirefoxとZenのジャケットを探す",
+            browserCoversHint: "Firefox、Zen、またはFirefoxベースのほかのブラウザが鮮明なジャケットなしで再生しているとき、このMacに保存されたブラウザのセッションを読み取り、曲のYouTubeタブを見つけて i.ytimg.com からサムネイルを読み込みます。曲を表示しているタブがなく、YouTube Musicのタブが開いている場合は、曲名、アーティスト、地域を itunes.apple.com に送信し、アルバムのジャケットを mzstatic.com から読み込みます。")
         case .ko: return NotchMusicExtrasStrings(
             lyrics: "가사",
             lyricsDescription: "현재 곡의 가사를 Dynamic Island에서 확인합니다.",
@@ -525,7 +547,9 @@ extension FeatureStrings {
             shuffle: "셔플",
             preferredPlayer: "재생 중인 항목이 없을 때 열기",
             preferredPlayerHint: "커버와 재생 버튼을 누르면 이 앱이 열립니다. 자동은 마지막으로 재생한 음악 앱을, 그다음 Spotify 또는 Apple Music을 엽니다.",
-            openNamedPlayer: "%@ 열기")
+            openNamedPlayer: "%@ 열기",
+            browserCovers: "Firefox 및 Zen 커버 찾기",
+            browserCoversHint: "Firefox, Zen 또는 다른 Firefox 기반 브라우저가 선명한 커버 없이 재생하면 이 Mac에 저장된 브라우저 세션을 읽어 곡의 YouTube 탭을 찾고 i.ytimg.com에서 썸네일을 불러옵니다. 곡을 보여 주는 탭이 없지만 YouTube Music 탭이 열려 있으면 곡 제목, 아티스트 및 지역을 itunes.apple.com으로 보내고 mzstatic.com에서 앨범 커버를 불러옵니다.")
         case .zhHans: return NotchMusicExtrasStrings(
             lyrics: "歌词",
             lyricsDescription: "在Dynamic Island中跟随当前歌曲的歌词。",
@@ -568,7 +592,9 @@ extension FeatureStrings {
             shuffle: "随机播放",
             preferredPlayer: "没有播放内容时打开",
             preferredPlayerHint: "点按封面或播放按钮会打开此 App。“自动”会打开最近播放过的音乐 App，其次是 Spotify 或 Apple Music。",
-            openNamedPlayer: "打开 %@")
+            openNamedPlayer: "打开 %@",
+            browserCovers: "为 Firefox 和 Zen 查找封面",
+            browserCoversHint: "当 Firefox、Zen 或其他基于 Firefox 的浏览器播放时没有清晰的封面，会读取浏览器保存在此 Mac 上的会话，找到这首歌的 YouTube 标签页，并从 i.ytimg.com 载入其缩略图。如果没有标签页显示这首歌，但打开了 YouTube Music 标签页，会将歌曲标题、艺人和地区发送至 itunes.apple.com，并从 mzstatic.com 载入专辑封面。")
         case .zhTW: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
@@ -611,7 +637,9 @@ extension FeatureStrings {
             shuffle: "隨機播放",
             preferredPlayer: "沒有播放內容時開啟",
             preferredPlayerHint: "點按封面或播放按鈕會開啟此 App。「自動」會開啟最近播放過的音樂 App，其次是 Spotify 或 Apple Music。",
-            openNamedPlayer: "開啟 %@")
+            openNamedPlayer: "開啟 %@",
+            browserCovers: "為 Firefox 和 Zen 尋找封面",
+            browserCoversHint: "當 Firefox、Zen 或其他以 Firefox 為基礎的瀏覽器播放時沒有清晰的封面，會讀取瀏覽器儲存在此 Mac 上的工作階段，找到這首歌的 YouTube 分頁，並從 i.ytimg.com 載入其縮圖。如果沒有分頁顯示這首歌，但開啟了 YouTube Music 分頁，會將歌曲名稱、演出者和地區傳送至 itunes.apple.com，並從 mzstatic.com 載入專輯封面。")
         case .zhHK: return NotchMusicExtrasStrings(
             lyrics: "歌詞",
             lyricsDescription: "在Dynamic Island中跟隨目前歌曲的歌詞。",
@@ -654,7 +682,9 @@ extension FeatureStrings {
             shuffle: "隨機播放",
             preferredPlayer: "沒有播放內容時開啟",
             preferredPlayerHint: "點按封面或播放按鈕會開啟此 App。「自動」會開啟最近播放過的音樂 App，其次是 Spotify 或 Apple Music。",
-            openNamedPlayer: "開啟 %@")
+            openNamedPlayer: "開啟 %@",
+            browserCovers: "為 Firefox 和 Zen 尋找封面",
+            browserCoversHint: "當 Firefox、Zen 或其他以 Firefox 為基礎的瀏覽器播放時沒有清晰的封面，會讀取瀏覽器儲存在此 Mac 上的工作階段，找到這首歌的 YouTube 分頁，並從 i.ytimg.com 載入其縮圖。如果沒有分頁顯示這首歌，但開啟了 YouTube Music 分頁，會將歌曲名稱、演出者和地區傳送至 itunes.apple.com，並從 mzstatic.com 載入專輯封面。")
         case .uk: return NotchMusicExtrasStrings(
             lyrics: "Текст пісні",
             lyricsDescription: "Слідкуйте за текстом поточної пісні у Dynamic Island.",
@@ -697,7 +727,9 @@ extension FeatureStrings {
             shuffle: "Перемішати",
             preferredPlayer: "Відкривати, коли нічого не грає",
             preferredPlayerHint: "Обкладинка й кнопки відтворення відкривають цей застосунок. «Автоматично» відкриває музичний застосунок, що грав останнім, потім Spotify або Apple Music.",
-            openNamedPlayer: "Відкрити %@")
+            openNamedPlayer: "Відкрити %@",
+            browserCovers: "Шукати обкладинки для Firefox і Zen",
+            browserCoversHint: "Коли Firefox, Zen або інший браузер на основі Firefox відтворює без чіткої обкладинки, програма читає його збережений сеанс на цьому Mac, щоб знайти вкладку YouTube з піснею й завантажити її мініатюру з i.ytimg.com. Якщо жодна вкладка не показує пісню, але відкрито вкладку YouTube Music, програма надсилає назву пісні, виконавця та регіон на itunes.apple.com і завантажує обкладинку альбому з mzstatic.com.")
         }
     }
 }

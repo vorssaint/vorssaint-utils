@@ -455,30 +455,163 @@ enum AppManagementFeatureTests {
         try? FileManager.default.createDirectory(at: bareApp, withIntermediateDirectories: true)
         suite.expect(UninstallerSupport.selection(for: bareApp) == nil,
                "a bundle without Info.plist is refused before a scan starts")
-        // An iPhone or iPad app on a Mac carries its Info.plist at the top of
-        // the bundle and has no Contents folder for the uninstaller to remove.
-        let wrappedApp = selectionFixture.appendingPathComponent("Wrapped.app", isDirectory: true)
-        try? FileManager.default.createDirectory(at: wrappedApp, withIntermediateDirectories: true)
-        if let data = try? PropertyListSerialization.data(
-            fromPropertyList: ["CFBundleIdentifier": "com.vendor.wrapped"], format: .xml, options: 0) {
-            try? data.write(to: wrappedApp.appendingPathComponent("Info.plist"))
+        func writeInfo(_ bundleID: String, to info: URL) {
+            try? FileManager.default.createDirectory(at: info.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            if let data = try? PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": bundleID], format: .xml, options: 0) {
+                try? data.write(to: info)
+            }
         }
-        suite.expect(Bundle(url: wrappedApp)?.bundleIdentifier == "com.vendor.wrapped"
-               && UninstallerSupport.selection(for: wrappedApp) == nil,
-               "a bundle with a valid identifier but no Contents/Info.plist is refused")
+        // A bundle with its Info.plist at the top and nothing else is an
+        // iPhone app's own bundle out of its wrapper, not a Mac app.
+        let flatApp = selectionFixture.appendingPathComponent("Flat.app", isDirectory: true)
+        writeInfo("com.vendor.flat", to: flatApp.appendingPathComponent("Info.plist"))
+        suite.expect(Bundle(url: flatApp)?.bundleIdentifier == "com.vendor.flat"
+               && UninstallerSupport.selection(for: flatApp) == nil,
+               "a bare iPhone-style bundle with no Contents/Info.plist is refused")
+        // An iPhone or iPad app installed on a Mac with Apple silicon (#1582):
+        // the App Store keeps the real bundle in Wrapper with its Info.plist at
+        // the top, and Bundle reads it through the WrappedBundle link.
+        func wrapper(_ name: String, link: String, bundleID: String, bundle: String? = nil) -> URL {
+            let app = selectionFixture.appendingPathComponent(name + ".app", isDirectory: true)
+            writeInfo(bundleID, to: app.appendingPathComponent((bundle ?? "Wrapper/\(name).app") + "/Info.plist"))
+            try? FileManager.default.createSymbolicLink(
+                atPath: app.appendingPathComponent("WrappedBundle").path, withDestinationPath: link)
+            return app
+        }
+        let mimoApp = wrapper("Mimo", link: "Wrapper/Mimo.app", bundleID: "com.vendor.mimo")
+        let mimoInfo = mimoApp.appendingPathComponent("Wrapper/Mimo.app/Info.plist")
+        let mimoSelection = UninstallerSupport.selection(for: mimoApp)
+        suite.expect(Bundle(url: mimoApp)?.bundleIdentifier == "com.vendor.mimo"
+               && mimoSelection?.bundleID == "com.vendor.mimo"
+               && mimoSelection?.url == mimoApp.standardizedFileURL
+               && mimoSelection?.infoIdentity == UninstallerSupport.fileIdentity(at: mimoInfo),
+               "an iPhone or iPad app's wrapper is accepted and keeps its inner Info.plist as proof")
+        // The scan and the removal trust a selection again only while the
+        // wrapper and its inner Info.plist are the files it verified.
+        func stillSelected(_ app: URL, _ selection: UninstallerSupport.Selection?) -> Bool {
+            UninstallerSupport.applicationIdentityMatches(app, appIdentity: selection?.identity,
+                                                          infoIdentity: selection?.infoIdentity)
+        }
+        suite.expect(stillSelected(mimoApp, mimoSelection),
+               "a selected iPhone or iPad app still matches its selection when the scan ends")
+        let swappedApp = wrapper("Swapped", link: "Wrapper/Swapped.app", bundleID: "com.vendor.swapped")
+        let swappedInfo = swappedApp.appendingPathComponent("Wrapper/Swapped.app/Info.plist")
+        let swappedSelection = UninstallerSupport.selection(for: swappedApp)
+        // An atomic write puts the same contents in a new file.
+        try? Data(contentsOf: swappedInfo).write(to: swappedInfo, options: .atomic)
+        suite.expect(swappedSelection != nil && !stillSelected(swappedApp, swappedSelection),
+               "a wrapper whose inner Info.plist was replaced no longer matches its selection")
+        let resealedSelection = UninstallerSupport.selection(for: swappedApp)
+        // A new wrapper folder takes over the same inner bundle, so only the
+        // wrapper itself changes. The old folder stays aside so the new one
+        // cannot reuse its inode.
+        let oldSwappedApp = selectionFixture.appendingPathComponent("Swapped Old.app", isDirectory: true)
+        try? FileManager.default.moveItem(at: swappedApp, to: oldSwappedApp)
+        try? FileManager.default.createDirectory(at: swappedApp, withIntermediateDirectories: true)
+        for item in ["Wrapper", "WrappedBundle"] {
+            try? FileManager.default.moveItem(at: oldSwappedApp.appendingPathComponent(item),
+                                              to: swappedApp.appendingPathComponent(item))
+        }
+        suite.expect(resealedSelection != nil
+               && UninstallerSupport.selection(for: swappedApp)?.infoIdentity == resealedSelection?.infoIdentity
+               && !stillSelected(swappedApp, resealedSelection),
+               "a wrapper replaced by another copy no longer matches its selection")
+        // Bundle prefers the wrapped bundle over a Contents folder, so the
+        // proof has to be the Info.plist the verified identifier came from.
+        let mixedApp = wrapper("Mixed", link: "Wrapper/Mixed.app", bundleID: "com.vendor.mixed")
+        writeInfo("com.vendor.contents", to: mixedApp.appendingPathComponent("Contents/Info.plist"))
+        suite.expect(Bundle(url: mixedApp)?.bundleIdentifier == "com.vendor.mixed"
+               && UninstallerSupport.infoPlistURL(in: mixedApp).path
+                   == mixedApp.appendingPathComponent("Wrapper/Mixed.app/Info.plist").path,
+               "a wrapper with a Contents folder too is proved by the bundle Bundle reads")
+        // Bundle follows only a relative link, with no trailing slash, to a
+        // lowercase .app inside Wrapper. Each other link must read as no
+        // wrapper too.
+        // Appended to the wrapper, "/Wrapper/Rooted.app" lands inside Wrapper,
+        // so only the leading slash turns that one down.
+        let refusedLinks = [
+            ("leaves the Wrapper folder",
+             wrapper("Escaping", link: "../Editor.app", bundleID: "com.vendor.escaping")),
+            ("is absolute",
+             wrapper("Absolute", link: selectionFixture
+                 .appendingPathComponent("Absolute.app/Wrapper/Absolute.app").path,
+                 bundleID: "com.vendor.absolute")),
+            ("starts with a slash",
+             wrapper("Rooted", link: "/Wrapper/Rooted.app", bundleID: "com.vendor.rooted")),
+            ("ends in a slash",
+             wrapper("Slashed", link: "Wrapper/Slashed.app/", bundleID: "com.vendor.slashed")),
+            ("names no .app",
+             wrapper("Plain", link: "Wrapper/Plain", bundleID: "com.vendor.plain", bundle: "Wrapper/Plain")),
+            ("names an uppercase .APP",
+             wrapper("Upper", link: "Wrapper/Upper.APP", bundleID: "com.vendor.upper", bundle: "Wrapper/Upper.APP")),
+            ("points to another folder",
+             wrapper("Elsewhere", link: "Other/Elsewhere.app", bundleID: "com.vendor.elsewhere",
+                     bundle: "Other/Elsewhere.app")),
+        ]
+        for (rule, app) in refusedLinks {
+            suite.expect(Bundle(url: app)?.bundleIdentifier == nil
+                   && UninstallerSupport.wrappedBundleURL(in: app) == nil
+                   && UninstallerSupport.selection(for: app) == nil,
+                   "a WrappedBundle link that \(rule) is no wrapper, as Bundle reads it")
+        }
         // A tool or helper inside another app's bundle belongs to that app:
         // removing it alone would break the app it ships in.
         let hostedApp = selectionBundle("Host.app/Contents/Applications/Tool.app", bundleID: "com.vendor.host.tool")
         suite.expect(Bundle(url: hostedApp)?.bundleIdentifier == "com.vendor.host.tool"
                && UninstallerSupport.selection(for: hostedApp) == nil,
                "an app inside another app's bundle is refused")
-        let listedApps = [editorApp, appleEditorApp, bareApp, wrappedApp].map {
+        // Every refusal names its rule, so the drop zone can say it (#1582).
+        func refusal(_ url: URL) -> UninstallerSupport.Refusal? {
+            if case let .failure(reason) = UninstallerSupport.evaluate(url) { return reason }
+            return nil
+        }
+        let ownApp = selectionBundle("Copy.app", bundleID: "com.vorssaint.utils.dev")
+        let plainFolder = selectionFixture.appendingPathComponent("Folder", isDirectory: true)
+        try? FileManager.default.createDirectory(at: plainFolder, withIntermediateDirectories: true)
+        let document = selectionFixture.appendingPathComponent("Notes.txt")
+        try? Data("notes".utf8).write(to: document)
+        suite.expect(refusal(URL(string: "https://example.com/App.app")!) == .notAnApp
+               && refusal(document) == .notAnApp
+               && refusal(plainFolder) == .notAnApp
+               && refusal(appleEditorApp) == .sharedIdentifier
+               && refusal(ownApp) == .thisApp
+               && refusal(aliasApp) == .link
+               && refusal(bareApp) == .unidentified
+               && refusal(flatApp) == .unidentified
+               && refusal(hostedApp) == .insideAnotherApp
+               && refusal(editorApp) == nil && refusal(mimoApp) == nil,
+               "each refused selection reports the rule that refused it")
+        let systemApp = URL(fileURLWithPath: "/System/Applications/Calculator.app")
+        suite.expect(!FileManager.default.fileExists(atPath: systemApp.path) || refusal(systemApp) == .systemApp,
+               "an app that is part of macOS is refused as a system app")
+        for language in AppLanguage.allCases {
+            let strings = Strings.localized(language)
+            let named: [UninstallerSupport.Refusal] = [.systemApp, .sharedIdentifier, .insideAnotherApp,
+                                                       .link, .unidentified]
+            suite.expect(named.allSatisfy {
+                       UninstallerSupport.RefusedApp(name: "Editor 7", refusal: $0)
+                           .message(strings).contains("Editor 7")
+                   }
+                   && UninstallerSupport.RefusedApp(name: "Editor 7", refusal: .thisApp)
+                       .message(strings).contains(strings.tabAdvanced)
+                   && !UninstallerSupport.RefusedApp(name: "Editor 7", refusal: .notAnApp)
+                       .message(strings).isEmpty,
+                   "every refusal reads as a sentence that names the app in \(language.rawValue)")
+        }
+        let listedApps = [editorApp, appleEditorApp, bareApp, flatApp, mimoApp].map {
             InstalledApps.InstalledApp(id: $0.standardizedFileURL.path, name: $0.lastPathComponent,
                                       bundleID: nil, url: $0, isSystem: false)
         }
         suite.expect(UninstallerSupport.acceptedApplicationIDs(listedApps)
-                == [editorApp.standardizedFileURL.path],
+                == [editorApp.standardizedFileURL.path, mimoApp.standardizedFileURL.path],
                "the command bar's uninstall list keeps only the apps the uninstaller accepts")
+        let listedRoot = selectionFixture.appendingPathComponent("Listed", isDirectory: true)
+        try? FileManager.default.createDirectory(at: listedRoot, withIntermediateDirectories: true)
+        try? FileManager.default.moveItem(at: mimoApp, to: listedRoot.appendingPathComponent("Mimo.app"))
+        suite.expect(InstalledApps.installedApplications(roots: [listedRoot]).map(\.name) == ["Mimo"],
+               "the application walk lists a wrapper once, not the bundle inside it")
         try? FileManager.default.removeItem(at: selectionFixture)
         for path in ["Sources/Vorssaint/UI/Uninstall/UninstallerView.swift",
                      "Sources/Vorssaint/UI/MenuPanel/PanelUninstallerView.swift"] {
@@ -487,6 +620,11 @@ enum AppManagementFeatureTests {
                    "\(path) offers only the apps the shared selection checks accept")
             suite.expect(pickerSource.contains("return uninstaller.select(appURL: app)"),
                    "\(path) springs a refused drop back instead of accepting it")
+            suite.expect(pickerSource.contains("UninstallRefusalNote(refusal: refusal")
+                   && pickerSource.contains("emptyNote: l10n.s.uninstallerPickerHiddenNote"),
+                   "\(path) says why a drop was refused and why an app is not listed")
+            suite.expect(pickerSource.components(separatedBy: "uninstaller.clearRefusal()").count == 3,
+                   "\(path) drops an old refusal note when it opens and when it closes")
         }
         let uninstallAppURL = URL(fileURLWithPath: "/Applications/Editor.app")
         suite.expect(UninstallerSupport.isNestedBundle(
@@ -1342,6 +1480,139 @@ enum AppManagementFeatureTests {
                                                             hasTitle: true),
                "without Spaces to compare, the old cautious rule stands")
 
+        func windowRole(layer: Int = 0,
+                        alpha: Double = 1,
+                        width: Double = 600,
+                        height: Double = 400,
+                        isOnScreen: Bool = true,
+                        isAppsOwnWindow: Bool = true,
+                        beforeQuit: Bool) -> AutoQuitSupport.WindowServerWindowRole {
+            AutoQuitSupport.windowServerWindowRole(layer: layer,
+                                                   alpha: alpha,
+                                                   width: width,
+                                                   height: height,
+                                                   isOnScreen: isOnScreen,
+                                                   isAppsOwnWindow: isAppsOwnWindow,
+                                                   countsEverythingShown: beforeQuit)
+        }
+        let floatingLayer = Int(CGWindowLevelForKey(.floatingWindow))
+        let modalPanelLayer = Int(CGWindowLevelForKey(.modalPanelWindow))
+        let statusLayer = Int(CGWindowLevelForKey(.statusWindow))
+        let screenSaverLayer = Int(CGWindowLevelForKey(.screenSaverWindow))
+        let shieldingLayer = Int(CGShieldingWindowLevel())
+        suite.expect(windowRole(beforeQuit: false) == .shownOnScreen
+                && windowRole(beforeQuit: true) == .shownOnScreen,
+               "a normal window on screen keeps its app running")
+        suite.expect(windowRole(isOnScreen: false, beforeQuit: false) == .normalWindowOffScreen
+                && windowRole(isOnScreen: false, beforeQuit: true) == .normalWindowOffScreen,
+               "a normal window off screen is still judged by its Space")
+        suite.expect(windowRole(layer: floatingLayer, width: 913, height: 696, beforeQuit: true) == .shownOnScreen,
+               "a screen recorder's floating control bar keeps the app running (#2941)")
+        suite.expect(windowRole(layer: modalPanelLayer, beforeQuit: true) == .shownOnScreen,
+               "a modal panel on screen keeps the app running")
+        suite.expect(windowRole(layer: screenSaverLayer, width: 1470, height: 956, beforeQuit: true) == .shownOnScreen
+                && windowRole(layer: shieldingLayer, width: 1470, height: 956, beforeQuit: true) == .shownOnScreen,
+               "a slideshow covering the screen above the menu bar keeps the app running (#1721, #2013)")
+        suite.expect(windowRole(width: 880, height: 448, isAppsOwnWindow: false, beforeQuit: true) == .shownOnScreen,
+               "an Open panel drawn by a helper for the app keeps it running (#1869)")
+        suite.expect(windowRole(layer: floatingLayer, beforeQuit: false) == .unrelated
+                && windowRole(isAppsOwnWindow: false, beforeQuit: false) == .unrelated,
+               "deciding whether an app had a window still reads only its normal windows")
+        suite.expect(windowRole(layer: floatingLayer, isOnScreen: false, beforeQuit: true) == .unrelated
+                && windowRole(isOnScreen: false, isAppsOwnWindow: false, beforeQuit: true) == .unrelated,
+               "a palette the app hid, or a helper window off screen, does not keep the app running")
+        suite.expect(windowRole(layer: statusLayer, width: 30, height: 24, beforeQuit: true) == .unrelated,
+               "a menu bar item does not keep its app running")
+        suite.expect(windowRole(layer: floatingLayer, alpha: 0, beforeQuit: true) == .unrelated
+                && windowRole(alpha: 0, beforeQuit: true) == .unrelated,
+               "a fully transparent window does not keep its app running")
+        suite.expect(windowRole(layer: Int(CGWindowLevelForKey(.desktopWindow)), beforeQuit: true) == .unrelated,
+               "a window at the desktop's level does not keep its app running")
+
+        // The whole check over a window list, as the service runs it, with the
+        // responsibility and Space lookups faked and counted.
+        let appPID: pid_t = 100
+        let helperPID: pid_t = 200
+        let otherAppPID: pid_t = 300
+        func listedWindow(owner: pid_t = appPID,
+                          id: CGWindowID = 1,
+                          layer: Int = 0,
+                          width: Double = 600,
+                          height: Double = 400,
+                          isOnScreen: Bool = true,
+                          title: String = "Document") -> [String: Any] {
+            var window: [String: Any] = [
+                kCGWindowOwnerPID as String: NSNumber(value: owner),
+                kCGWindowNumber as String: NSNumber(value: id),
+                kCGWindowLayer as String: NSNumber(value: layer),
+                kCGWindowAlpha as String: NSNumber(value: 1.0),
+                kCGWindowBounds as String: ["X": NSNumber(value: 0.0), "Y": NSNumber(value: 0.0),
+                                            "Width": NSNumber(value: width), "Height": NSNumber(value: height)],
+                kCGWindowName as String: title,
+            ]
+            // The window server leaves the key out for a window off screen.
+            if isOnScreen { window[kCGWindowIsOnscreen as String] = NSNumber(value: true) }
+            return window
+        }
+        func windowListCheck(_ windows: [[String: Any]],
+                             beforeQuit: Bool = true,
+                             drawingForApp: Set<pid_t> = [],
+                             windowSpaces: [CGWindowID: [UInt64]] = [:],
+                             visibleSpaces: Set<UInt64>? = [3])
+            -> (keepsApp: Bool, drawLookups: [pid_t], spaceLookups: Int) {
+            var drawLookups: [pid_t] = []
+            var spaceLookups = 0
+            let keepsApp = AutoQuitSupport.windowListHasUserWindow(
+                windows,
+                pid: appPID,
+                countsEverythingShown: beforeQuit,
+                processDrawsForApp: { drawLookups.append($0); return drawingForApp.contains($0) },
+                visibleSpaces: { spaceLookups += 1; return visibleSpaces },
+                windowSpaces: { windowSpaces[$0] ?? [] })
+            return (keepsApp, drawLookups, spaceLookups)
+        }
+        let ownWindowCheck = windowListCheck([listedWindow()])
+        suite.expect(ownWindowCheck.keepsApp && ownWindowCheck.drawLookups.isEmpty
+                && ownWindowCheck.spaceLookups == 0,
+               "the app's own window on screen keeps it running without asking about helpers or Spaces")
+        let openPanelCheck = windowListCheck([listedWindow(owner: helperPID, width: 880, height: 448)],
+                                             drawingForApp: [helperPID])
+        suite.expect(openPanelCheck.keepsApp && openPanelCheck.drawLookups == [helperPID],
+               "a helper's window on screen keeps the app running when the helper draws for it (#1869)")
+        suite.expect(!windowListCheck([listedWindow(owner: helperPID, width: 880, height: 448)]).keepsApp,
+               "another process's window on screen does not keep the app running when it does not draw for it")
+        let helperBeforeEligibility = windowListCheck([listedWindow(owner: helperPID)],
+                                                      beforeQuit: false,
+                                                      drawingForApp: [helperPID])
+        suite.expect(!helperBeforeEligibility.keepsApp && helperBeforeEligibility.drawLookups.isEmpty,
+               "deciding whether an app had a window never reads another process's windows")
+        let repeatedHelperCheck = windowListCheck([
+            listedWindow(owner: helperPID, id: 1),
+            listedWindow(owner: otherAppPID, id: 2),
+            listedWindow(owner: helperPID, id: 3),
+        ])
+        suite.expect(!repeatedHelperCheck.keepsApp && repeatedHelperCheck.drawLookups == [helperPID, otherAppPID],
+               "each other process is asked once per check whether it draws for the app")
+        let otherAppOffScreen = windowListCheck([listedWindow(owner: otherAppPID, id: 7, isOnScreen: false)],
+                                                windowSpaces: [7: [4]])
+        suite.expect(!otherAppOffScreen.keepsApp && otherAppOffScreen.spaceLookups == 0,
+               "another app's normal window on another Space never keeps this app running")
+        suite.expect(windowListCheck([listedWindow(id: 7, isOnScreen: false)], windowSpaces: [7: [4]]).keepsApp,
+               "the app's own window on another Space keeps it running")
+        let hiddenWindowsCheck = windowListCheck([
+            listedWindow(id: 7, isOnScreen: false),
+            listedWindow(id: 8, isOnScreen: false),
+        ], windowSpaces: [7: [3], 8: [3]])
+        suite.expect(!hiddenWindowsCheck.keepsApp && hiddenWindowsCheck.spaceLookups == 1,
+               "windows the app hid on the Space in front let it quit, and the Spaces showing are asked once")
+        suite.expect(!windowListCheck([listedWindow(layer: statusLayer, width: 220, height: 24)]).keepsApp
+                && !windowListCheck([listedWindow(owner: helperPID, layer: statusLayer, width: 220, height: 24)],
+                                    drawingForApp: [helperPID]).keepsApp,
+               "a wide menu bar item does not keep its app running")
+        suite.expect(!windowListCheck([listedWindow(layer: floatingLayer)], beforeQuit: false).keepsApp
+                && windowListCheck([listedWindow(layer: floatingLayer)]).keepsApp,
+               "a floating panel on screen counts only in the check before a quit")
+
         suite.expect(AutoQuitSupport.needsWindowWatchRetry(registeredWindows: 0,
                                                      listedWindows: 0,
                                                      foundUserWindow: true,
@@ -1445,6 +1716,29 @@ enum AppManagementFeatureTests {
         }
         suite.expect(missingCloseCheckOffsetCode.isEmpty,
                "AutoQuit close checks remain offsets from one origin: missing \(missingCloseCheckOffsetCode)")
+        // The check before a quit counts everything the app and the helpers
+        // drawing for it show on screen, while the refresh that makes an app
+        // eligible keeps reading normal windows only (pinned above). The
+        // decision runs in `windowListHasUserWindow` (tested above); these are
+        // the system lookups the service hands it.
+        let shownWindowCode = [
+            "if let hasWindowServerWindow = hasWindowServerUserWindow(pid: pid, countsEverythingShown: true) {",
+            // The refresh's call pinned above relies on this default.
+            "private func hasWindowServerUserWindow(pid: pid_t, countsEverythingShown: Bool = false) -> Bool? {",
+            "guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],",
+            "kCGNullWindowID) as? [[String: Any]] else { return nil }",
+            "countsEverythingShown: countsEverythingShown,",
+            "processDrawsForApp: { Self.process($0, drawsFor: pid) },",
+            "visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },",
+            "windowSpaces: { SpaceWindowBridge.spaces(of: $0) })",
+            "guard ResponsibleProcess.owner(of: processID) == appPID else { return false }",
+            "return NSRunningApplication(processIdentifier: processID)?.activationPolicy != .regular",
+        ]
+        let missingShownWindowCode = shownWindowCode.filter {
+            autoQuitServiceCodeLines(containing: $0).isEmpty
+        }
+        suite.expect(missingShownWindowCode.isEmpty,
+               "AutoQuit's quit check counts what the app and its helpers show on screen: missing \(missingShownWindowCode)")
 
         // Attaching to a watched app must never ask its application element for
         // a role. A Chromium app (Electron, and the browsers) answers that by

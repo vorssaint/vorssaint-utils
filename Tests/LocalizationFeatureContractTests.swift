@@ -82,6 +82,13 @@ enum LocalizationFeatureContractTests {
             expectFormat(strings.cutMovedPluralFormat, ["d"], "\(prefix) cut plural format")
             expectFormat(strings.uninstallerSelectedFormat, ["d", "d"], "\(prefix) uninstaller selected format")
             expectFormat(strings.uninstallerFreedFormat, ["@"], "\(prefix) uninstaller freed format")
+            for format in [strings.uninstallerRefusedSystemFormat, strings.uninstallerRefusedSharedFormat,
+                           strings.uninstallerRefusedNestedFormat, strings.uninstallerRefusedSelfFormat,
+                           strings.uninstallerRefusedLinkFormat, strings.uninstallerRefusedUnidentifiedFormat] {
+                expectFormat(format, ["@"], "\(prefix) uninstaller refusal format")
+            }
+            expectFormat(strings.uninstallerRefusedNotApp, [], "\(prefix) uninstaller not-an-app note")
+            expectFormat(strings.uninstallerPickerHiddenNote, [], "\(prefix) uninstaller unlisted apps note")
             expectFormat(strings.shelfSelectedFormat, ["d"], "\(prefix) shelf selection format")
             suite.expect(!strings.shelfClearOnClose.isEmpty
                    && !strings.shelfClearOnCloseCaption.isEmpty

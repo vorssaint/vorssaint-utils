@@ -45,6 +45,7 @@ enum DisplayRestorationTests {
         static var online: Set<UInt32> = [1, 2]
         static var active: Set<UInt32> = [1, 2]
         static var virtual: Set<UInt32> = []
+        static var mirrorSources: [UInt32: UInt32] = [:]
     }
     enum DefaultsKey {
         static let displaysSwitchedOff = "off"
@@ -137,6 +138,8 @@ enum DisplayRestorationTests {
         var pendingLevels: [UInt32: Double] = [:]
         var knownTopology = Set<UInt32>()
         var knownActiveTopology = Set<UInt32>()
+        var knownMirrorSources: [UInt32: UInt32] = [:]
+        var rebuildDebounce: DispatchWorkItem?
         var knownDisplayFingerprints: [UInt32: String] = [:]
         var displayControlFailure: BrightnessService.DisplayControlFailure?
         var pendingDisplayIDs = Set<UInt32>()
@@ -148,7 +151,8 @@ enum DisplayRestorationTests {
         static let wakeSettleDelay: TimeInterval = 3
         static func lidClosed() -> Bool? { Hardware.lidRead?() ?? Hardware.lid }
         static func currentTopology() -> BrightnessSupport.DisplayTopology {
-            BrightnessSupport.DisplayTopology(online: Hardware.online, active: Hardware.active)
+            BrightnessSupport.DisplayTopology(online: Hardware.online, active: Hardware.active,
+                                              mirrorSources: Hardware.mirrorSources)
         }
         static func drawableDisplayIDs(online: Set<UInt32>, active: Set<UInt32>) -> Set<UInt32> {
             BrightnessSupport.drawableDisplayIDs(onlineDisplayIDs: online, activeDisplayIDs: active,
@@ -188,6 +192,7 @@ enum DisplayRestorationTests {
             Hardware.online = [1, 2]
             Hardware.active = [1, 2]
             Hardware.virtual = []
+            Hardware.mirrorSources = [:]
             return BrightnessService()
         }
         var service = make()
@@ -516,11 +521,11 @@ enum DisplayRestorationTests {
         Hardware.callback = nil
         suite.expect(service.managedDisabledDisplays[2]?.restorationFingerprint == "2:2:2",
                      "the disabled monitor's identity is captured before its connection disappears")
-        service.recordDiscoveredTopology(online: [1], active: [1, 2])
+        service.recordDiscoveredTopology(online: [1], active: [1, 2], mirrorSources: [:])
         Hardware.fingerprints[2] = "2:2:2"
-        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2],
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:],
                                         fingerprints: [2: "2:2:2"])
-        service.recordDiscoveredTopology(online: [1], active: [1])
+        service.recordDiscoveredTopology(online: [1], active: [1], mirrorSources: [:])
         service.displaysWokeUp()
         DispatchQueue.main.drain()
         suite.expect(service.managedDisabledIDs == [2]
@@ -605,7 +610,7 @@ enum DisplayRestorationTests {
         service.displays = [BrightnessDisplay(id: 2, isActive: true)]
         service.commitDisplayToggle(service.displays[0], enabled: false)
         Hardware.fingerprints[2] = "3:3:3"
-        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2],
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:],
                                         fingerprints: [2: "3:3:3"])
         // The replacement is turned off elsewhere before queued cleanup runs,
         // so live identity reads no longer identify it.
@@ -621,7 +626,7 @@ enum DisplayRestorationTests {
         Hardware.lid = false
         service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
         Hardware.fingerprints[2] = "3:3:3"
-        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2],
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:],
                                         fingerprints: [2: "3:3:3"])
         service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
         DispatchQueue.main.drain()
@@ -769,5 +774,28 @@ enum DisplayRestorationTests {
         suite.expect(Hardware.transactions == 2 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty && UserDefaults.standard.fingerprints.isEmpty,
                      "the built-in display comes back even when it reads as another monitor while off")
+
+        // Measured with a MacBook panel (1) mirroring a monitor (2): the
+        // participating set is the same extended or mirrored, and only the
+        // mirror map tells the two apart. Each switch resets gamma, so a
+        // software dim is lost unless the switch triggers a rebuild.
+        service = make()
+        service.running = true
+        service.recordDiscoveredTopology(online: [1, 2, 3], active: [1, 2, 3], mirrorSources: [:])
+        Hardware.online = [1, 2, 3]
+        Hardware.active = [1, 2, 3]
+        Hardware.mirrorSources = [1: 2]
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(service.refreshes == 1, "starting to mirror a display rebuilds its routes")
+        service.recordDiscoveredTopology(online: [1, 2, 3], active: [1, 2, 3], mirrorSources: [1: 2])
+        Hardware.mirrorSources = [:]
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(service.refreshes == 2, "stopping a mirror rebuilds its routes")
+        service.recordDiscoveredTopology(online: [1, 2, 3], active: [1, 2, 3], mirrorSources: [:])
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(service.refreshes == 2, "a notification with an unchanged layout does not rebuild")
     }
 }

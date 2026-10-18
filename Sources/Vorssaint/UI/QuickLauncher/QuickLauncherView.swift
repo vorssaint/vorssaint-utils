@@ -213,12 +213,14 @@ struct QuickLauncherView: View {
                                             perRow: NotchLayout.railCapacity(width: notchSize.width, itemWidth: NotchLayout.toolWidth,
                                                                              spacing: NotchLayout.toolSpacing),
                                             rowHeight: NotchLayout.toolHeight, spacing: NotchLayout.toolSpacing, height: notchSize.height)
+            let titleInset = NotchLayout.toolTitleInset(count: launcher.visibleItems.count, rows: rows, width: notchSize.width)
             NotchRail(items: launcher.visibleItems, rows: rows, itemWidth: NotchLayout.toolWidth, width: notchSize.width,
-                      spacing: NotchLayout.toolSpacing, rowSpacing: NotchLayout.toolSpacing,
+                      spacing: NotchLayout.toolSpacing, leastSpacing: NotchLayout.toolLeastSpacing,
+                      rowSpacing: NotchLayout.toolSpacing,
                       scrollTarget: launcher.keyboardIndex.flatMap { index in
                           launcher.visibleItems.indices.contains(index) ? launcher.visibleItems[index].id : nil
                       }) { item in
-                cell(item).frame(height: NotchLayout.toolHeight)
+                cell(item, titleInset: titleInset).frame(height: NotchLayout.toolHeight)
             }
         } else {
             LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
@@ -234,8 +236,10 @@ struct QuickLauncherView: View {
         }
     }
 
+    /// `titleInset` keeps the title clear of its neighbours' where the
+    /// island's rail closes its gaps.
     @ViewBuilder
-    private func cell(_ item: QuickLauncherItem) -> some View {
+    private func cell(_ item: QuickLauncherItem, titleInset: CGFloat = 0) -> some View {
         let index = launcher.visibleItems.firstIndex(of: item)
         let isSelected = !launcher.isEditing && index != nil && index == launcher.selectedIndex
         let isHovered = hoveredItem == item
@@ -314,6 +318,7 @@ struct QuickLauncherView: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2, reservesSpace: true)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, titleInset)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, notchSize == nil ? 9 : 4)

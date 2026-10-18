@@ -338,10 +338,22 @@ enum ScratchpadMarkTests {
                "box offsets count the text as the editor does, past accents and emoji")
         expect(clickingTask(1, in: "- [ ] a\r\n- [ ] b") == "- [ ] a\r\n- [x] b",
                "a box after a Windows line ending is found where it is")
-        // A NUL makes Foundation place the next task on the line after it.
+        // Foundation's own conversion of the parser's positions slips a line
+        // after a lazy continuation line or a NUL, onto a task that may read
+        // the same. Lines are counted here instead.
         let nul = "- [ ] one\nx\u{0}\n- [ ] two\n- [ ] three"
-        expect(shownTasks(nul).map(\.box) == [2, 25] && clickingTask(1, in: nul) == "- [ ] one\nx\u{0}\n- [ ] two\n- [x] three",
-               "a task placed on another task's line is left plain, so a click never edits the wrong box")
+        let twins = "pasted\u{0}bytes\n- [ ] buy milk\n- [ ] buy milk\n- [x] call mom"
+        let lazy = "- [ ] buy milk\nnote\n- [ ] buy milk\n- [ ] buy milk"
+        expect(shownTasks(nul).map(\.box) == [2, 15, 25] && shownTasks(twins).map(\.box) == [15, 30, 45]
+               && shownTasks(lazy).map(\.box) == [2, 22, 37]
+               && clickingTask(1, in: twins) == "pasted\u{0}bytes\n- [ ] buy milk\n- [x] buy milk\n- [x] call mom"
+               && clickingTask(1, in: lazy) == "- [ ] buy milk\nnote\n- [x] buy milk\n- [ ] buy milk",
+               "a box after a NUL or a lazy continuation line is found on its own line, so a click edits that task")
+        expect(shownTasks("- [ ] a\nlazy\n- [ ] b\n- [ ] c\n- [ ] d\n- [ ] e").map(\.box) == [2, 15, 23, 31, 39]
+               && shownTasks("- [ ] groceries\n milk and eggs\n- [ ] gym\n- [ ] call mom").map(\.box) == [2, 33, 43]
+               && shownTasks("> - [ ] a\nlazy\n> - [ ] b\n> - [ ] b").map(\.box) == [4, 19, 29]
+               && shownTasks("- [ ] a\rb\r- [ ] c").map(\.box) == [2, 12],
+               "every task after a continuation line keeps its box, in a quote too and after a lone carriage return")
         expect(shownTasks("- [ ] a  \n  b\n- [ ] c &amp; d \\* e\n- [ ] f https://example.com").map(\.box) == [2, 16, 37],
                "a task with a line break, an entity, an escape or a bare link keeps its box")
         expect(shownTasks("- \\[ ] escaped\n- &#91; ] encoded\n- `[ ]` code\n- *[ ]* emphasis").isEmpty,
@@ -384,6 +396,8 @@ enum ScratchpadMarkTests {
                "Shift-Return after a bullet opens the same bullet")
         expect(lineBreak("1. one") == "1. one\n2. " && lineBreak("9) nine") == "9) nine\n10) ",
                "Shift-Return after a numbered item opens the next number")
+        expect(lineBreak("9223372036854775807. x") == "9223372036854775807. x\n9223372036854775807. ",
+               "Shift-Return after the largest number repeats it instead of overflowing")
         expect(lineBreak("- [ ] ") == "" && lineBreak("a\n- \nb", caretAt: 4) == "a\n\nb"
                && lineBreak("1. ") == "",
                "Shift-Return on an empty item ends the list and takes the marker away")

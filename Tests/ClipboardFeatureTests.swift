@@ -1321,7 +1321,13 @@ enum ClipboardFeatureTests {
             "{\"password\": \"\"}",
             "TOKEN=\nordinary output on the next line",
             "command --token",
-            "command --password ''"
+            "command --password ''",
+            "max_tokens = 4096",
+            "token_count: 5",
+            "tokens_used: 1234",
+            "password_reset_url: https://example.com",
+            "passwordless: true",
+            "command --token-count 5"
         ] {
             suite.expect(!ClipboardHistorySensitiveText.looksSensitive(text),
                          "clipboard history keeps ordinary terminal text: \(text)")
@@ -1342,7 +1348,18 @@ enum ClipboardFeatureTests {
             "curl -H 'Authorization: Bearer exampleCredential' https://example.com",
             "ordinary output\nexport ACCESS_TOKEN=exampleCredential\nmore output",
             "🔐 export ACCESS_TOKEN=exampleCredential",
-            "https://example.com/callback?access_token=exampleCredential"
+            "https://example.com/callback?access_token=exampleCredential",
+            "aws_secret_access_key = exampleCredential/Value",
+            "SECRET_KEY = 'example-credential'",
+            "{\"secretKey\": \"exampleCredential\"}",
+            "STRIPE_SECRET_KEY=exampleCredential",
+            "JWT_SECRET_KEY: exampleCredential",
+            "password_confirmation: hunter2",
+            "PASSWORD2 = hunter2",
+            "PASSWORD_2: hunter2",
+            "SECRET_KEY_BASE=exampleCredential",
+            "private_key = exampleCredential",
+            "command --secret-key exampleCredential"
         ] {
             suite.expect(ClipboardHistorySensitiveText.looksSensitive(text),
                          "clipboard history still excludes credential assignments and headers: \(text)")
