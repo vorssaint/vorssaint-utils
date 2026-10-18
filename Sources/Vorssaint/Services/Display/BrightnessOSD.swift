@@ -22,9 +22,10 @@ enum BrightnessOSD {
         if NotchSupport.routes(.brightness), NotchService.shared.showBrightness(brightness) {
             return
         }
+        let screenID = VirtualDisplayService.shared.virtualDisplayID(for: displayID) ?? displayID
         guard let screen = NSScreen.screens.first(where: {
             ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
-                .uint32Value == displayID
+                .uint32Value == screenID
         }) else { return }
 
         // One hosting controller for the panel's lifetime: a slider drag
