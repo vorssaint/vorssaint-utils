@@ -265,6 +265,17 @@ struct SwitcherSettings: View {
                               (SwitcherWindowlessApps.finder.rawValue, l10n.s.switcherWindowlessAppsFinder),
                               (SwitcherWindowlessApps.all.rawValue, l10n.s.switcherWindowlessAppsAll)])
                 .disabled(switcherTakeOverSystemShortcuts)
+            // Replacing ⌘Tab keeps every running app in the switcher, as the
+            // system one does, so the choices above hold on All apps. Say why
+            // rather than leave them looking broken.
+            if switcherTakeOverSystemShortcuts {
+                Text(String(format: l10n.s.switcherWindowlessAppsLockedFormat,
+                            l10n.s.switcherTakeOverSystemShortcuts))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+            }
             // Per-app rules can be prepared while the switcher is off, as
             // before the redesign; the card's disabled state stops here.
             SwitcherAppRulesList()

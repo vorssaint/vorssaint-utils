@@ -109,6 +109,7 @@ enum NotchMusicVisibilityTests {
         var notchNeedsMonitor = false
         var heldDrag = false
         var pinned = false
+        var clipboardPinnedOnly = false
         var openedByHover = false
         var sectionQuery = ""
         var highlightedSection: NotchModule?
@@ -132,8 +133,6 @@ enum NotchMusicVisibilityTests {
         func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
         func removeEventMonitors() {}
-        func mascotBridgeStart(opening: Bool) -> CGFloat? { nil }
-        func bridgeMascot(from: CGFloat, opening: Bool) {}
         func clearCapture() {
             captureClose = nil
             captureClosesOnCollapse = false
@@ -201,6 +200,15 @@ enum NotchMusicVisibilityTests {
         timedCapture.collapse()
         suite.expect(timedCloseCount == 0 && timedCapture.captureClose != nil,
                      "collapsing a timed capture leaves its timer-owned close path intact")
+
+        // The clipboard's pinned filter sits in the header now, which shows
+        // it only under the pointer; like the page that kept it, it lasts one opening.
+        let clipboard = Service()
+        clipboard.expanded = true
+        clipboard.selected = .clipboard
+        clipboard.clipboardPinnedOnly = true
+        clipboard.collapse()
+        suite.expect(!clipboard.clipboardPinnedOnly, "closing the island turns the clipboard's pinned filter off")
 
         for physical in [true, false] {
             service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956),

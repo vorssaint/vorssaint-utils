@@ -24,6 +24,7 @@ enum PeripheralBatteryLifecycleTests {
     static func run(_ suite: TestSuite) {
         freshness(suite)
         cachedSources(suite)
+        refreshHandoff(suite)
         cancellation(suite)
         cancelledProfiler(suite)
         cancelledFastRead(suite)
@@ -105,6 +106,50 @@ enum PeripheralBatteryLifecycleTests {
         clock = 303
         suite.expect(sampler.sample(now: clock).observedAt == actual.observedAt,
                "the fast cache preserves source timestamps exactly")
+    }
+
+    /// A finished Bluetooth refresh tells the monitor to read at once, and
+    /// devices left from a pause longer than the refresh interval are dropped.
+    private static func refreshHandoff(_ suite: TestSuite) {
+        let queue = DispatchQueue(label: "com.vorssaint.tests.battery-handoff")
+        var clock: TimeInterval = 1
+        var readers: [Reader] = [] // Access only while the serial queue is drained or inside it.
+        var refreshes = 0
+        let sampler = PeripheralBatterySampler(bluetoothQueue: queue, readFast: { [] },
+            readProfiler: { _ in Data() }, makeBluetoothRead: { _, cancellation, completion in
+                let reader = Reader(cancellation: cancellation, completion: completion)
+                readers.append(reader)
+                return reader
+            }, currentTime: { clock })
+        sampler.onBluetoothRefresh = { refreshes += 1 }
+        defer { sampler.setEnabled(false); queue.sync {} }
+        sampler.setEnabled(true)
+        _ = sampler.sample(now: clock)
+        queue.sync {}
+        suite.expect(refreshes == 0, "starting a Bluetooth refresh does not ask for a read before it lands")
+        queue.sync { readers[0].emit(35) }
+        suite.expect(refreshes == 1, "a finished Bluetooth refresh asks for one read")
+        suite.expect(sampler.sample(now: clock).devices.first?.percent == 35,
+               "the read it asks for sees the new Bluetooth devices")
+        sampler.setEnabled(false)
+        clock = 100
+        sampler.setEnabled(true)
+        suite.expect(sampler.sample(now: clock).devices.first?.percent == 35 && readers.count == 1,
+               "a short pause keeps Bluetooth devices within their refresh interval")
+        sampler.setEnabled(false)
+        clock = 400
+        sampler.setEnabled(true)
+        suite.expect(sampler.sample(now: clock).devices.isEmpty,
+               "a Bluetooth cache older than its refresh interval is not shown after a pause")
+        queue.sync { readers[1].emit(19) }
+        suite.expect(refreshes == 2 && sampler.sample(now: clock).devices.first?.percent == 19,
+               "the refresh started after the pause brings the devices back")
+        clock = 800
+        _ = sampler.sample(now: clock)
+        queue.sync {}
+        sampler.setEnabled(false)
+        queue.sync { readers[2].emit(50) }
+        suite.expect(refreshes == 2, "a Bluetooth refresh cancelled by a disable does not ask for a read")
     }
 
     private static func cancellation(_ suite: TestSuite) {

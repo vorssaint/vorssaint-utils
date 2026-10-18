@@ -12,8 +12,8 @@ enum NotchCompactTests {
         static let shared = CameraPreviewService()
         @Published var isEmbeddedPresented = false
         var stops = 0
-        /// What the preview's stop button calls, as the island handed it over.
-        var previewStop: (() -> Void)?
+        /// Whether the island's preview offers its own camera picker over the image.
+        var previewMenu: Bool?
         func showEmbedded() { isEmbeddedPresented = true }
         func hideEmbedded() {
             guard isEmbeddedPresented else { return }
@@ -24,10 +24,9 @@ enum NotchCompactTests {
     struct CameraPreviewView: View {
         let size: CGSize
         let showsCameraMenu: Bool
-        var onStop: (() -> Void)? = nil
         var body: some View {
             Color.black.frame(width: size.width, height: size.height)
-                .onAppear { CameraPreviewService.shared.previewStop = onStop }
+                .onAppear { CameraPreviewService.shared.previewMenu = showsCameraMenu }
         }
     }
     final class NotchService: ObservableObject {
@@ -37,9 +36,17 @@ enum NotchCompactTests {
         var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
+        var notice: NotchNotice?
+        var showingSections = false
+        var modules: [NotchModule] = [.controls, .music]
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 0, cameraWidth: 0, layout: .custom,
                                      menuBarHeight: 64, customWidth: 360, customHeight: 260)
+        var expandedGeometry: NotchGeometry {
+            var result = geometry
+            result.pageTop = selected.pageTop
+            return result
+        }
         func perform(_ action: () -> Void) { action() }
     }
     final class NotchTimerService {
@@ -91,22 +98,46 @@ enum NotchCompactTests {
         var lifts = true
         func makeBody(configuration: Configuration) -> some View { configuration.label }
     }
+    /// What each button the pages draw would do, by its title, so a test can press it.
+    static var buttonActions: [String: () -> Void] = [:]
     struct NotchIconButton: View {
         let symbol: String
         let title: String
         var selected = false
         let action: () -> Void
-        var body: some View { Button(title, action: action) }
+        var body: some View {
+            let _ = (NotchCompactTests.buttonActions[title] = action)
+            Button(title, action: action)
+        }
+    }
+    struct NotchPillButton: View {
+        let title: String
+        var prominent = false
+        let action: () -> Void
+        var body: some View {
+            let _ = (NotchCompactTests.buttonActions[title] = action)
+            Button(title, action: action)
+        }
+    }
+    struct NotchMenuItem {
+        let title: String
+        var checked = false
+        var symbol: String? = nil
+        var enabled = true
+        var action: () -> Void = {}
+        static let separator = NotchMenuItem(title: "")
+    }
+    struct NotchMenuButton<Label: View>: View {
+        let title: String
+        let items: [NotchMenuItem]
+        var cornerRadius: CGFloat = 6
+        @ViewBuilder let label: () -> Label
+        var body: some View { label() }
     }
     struct ScratchpadFormatBar: View {
         enum Style { case pad, island }
         let style: Style
         var editor: NSTextView?
-        var body: some View { Color.clear }
-    }
-    struct MarkdownPreview: View {
-        let blocks: [ScratchpadMarkdownBlock]
-        var baseSize: CGFloat = 13
         var body: some View { Color.clear }
     }
     struct Music { var playback: Bool? = true }
@@ -115,6 +146,8 @@ enum NotchCompactTests {
         var showsDetail = false
         var service = NotchService()
         var controls: [NotchControlItem] = [.music, .volume, .brightness, .timer]
+        var timerMode = NotchTimerMode.timer
+        var brightnessSlider = true
     }
     final class Window {
         static var key: Window?
@@ -150,6 +183,8 @@ enum NotchCompactTests {
         @Published var selected: Int?
         @Published var rows = 2
         @Published var count = 1000
+        @Published var width: CGFloat = 424
+        @Published var leastSpacing: CGFloat?
         var realized = Set<Int>()
     }
     struct Marker: NSViewRepresentable {
@@ -165,9 +200,9 @@ enum NotchCompactTests {
         @ObservedObject var state: RailState
         var body: some View {
             let entries = (0..<state.count).map { NotchCompactTests.Entry(id: $0) }
-            return NotchRail(items: entries, rows: state.rows, itemWidth: 76, width: 424,
-                             scrollTarget: state.selected, content: marker)
-                .frame(width: 424, height: 152)
+            return NotchRail(items: entries, rows: state.rows, itemWidth: 76, width: state.width,
+                             leastSpacing: state.leastSpacing, scrollTarget: state.selected, content: marker)
+                .frame(width: state.width, height: 152)
         }
         private func marker(_ item: NotchCompactTests.Entry) -> some View {
             state.realized.insert(item.id)
@@ -189,11 +224,15 @@ enum NotchCompactTests {
         calendarRows(suite)
         rail(suite)
         scratchpad(suite)
+        readingLayout(suite)
+        readingLevels(suite)
         focus(suite)
         sizing(suite)
     }
     private static func calendarRows(_ suite: TestSuite) {
-        let day = Date(timeIntervalSince1970: 1_780_000_000)
+        // Local noon, so the one-hour event never crosses midnight in any time zone.
+        let day = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0,
+                                        of: Date(timeIntervalSince1970: 1_780_000_000)) ?? Date(timeIntervalSince1970: 1_780_000_000)
         for language in AppLanguage.allCases {
             for width: CGFloat in [192, 304, 424] {
                 func height(title: String, chosen: Bool? = nil) -> CGFloat {
@@ -224,7 +263,7 @@ enum NotchCompactTests {
         let service = CameraPreviewService.shared
         service.isEmbeddedPresented = false
         service.stops = 0
-        service.previewStop = nil
+        service.previewMenu = nil
         let host = NSHostingView(rootView: AnyView(VStack {
             NotchCameraView(size: CGSize(width: 424, height: 180))
         }))
@@ -239,12 +278,25 @@ enum NotchCompactTests {
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 0,
                      "starting the embedded camera does not dismiss it when the start card disappears")
-        service.previewStop?()
+        suite.expect(service.previewMenu == false,
+                     "the island's preview leaves its camera picker and stop button to the top row, clear of the image")
+        // The top row's stop button, as a pill in a full row and a glyph
+        // beside the camera.
+        var band = NotchBand()
+        let stopTitle = FeatureStrings.notchActivities(L10n.shared.language).stopCamera
+        for besideCamera in [false, true] {
+            band.besideCamera = besideCamera
+            buttonActions = [:]
+            let stop = NSHostingView(rootView: NotchCameraStopButton().environment(\.notchBand, band))
+            stop.layoutSubtreeIfNeeded()
+            suite.expect(buttonActions[stopTitle] != nil, "the top row offers Stop while the mirror runs, beside a camera: \(besideCamera)")
+        }
+        buttonActions[stopTitle]?()
         settle(host)
         service.showEmbedded()
         settle(host)
         suite.expect(service.isEmbeddedPresented && service.stops == 1,
-                     "the stop button over the preview stops the camera, and it starts again within the same page")
+                     "stopping from the top row brings back the start card, and the camera starts again within the same page")
         host.rootView = AnyView(EmptyView())
         settle(host)
         suite.expect(!service.isEmbeddedPresented && service.stops == 2,
@@ -303,6 +355,26 @@ enum NotchCompactTests {
                && abs(frames[3].midX - (frames[0].midX + frames[1].midX) / 2) < 0.5
                && abs((frames[3].minX + frames[4].maxX) / 2 - host.bounds.midX) < 0.5,
                "a short last row keeps the cell width and sits centered under the row above")
+        // Four tiles in one row just miss the narrowest page with their gaps.
+        // A rail that may close them keeps every tile whole, side by side;
+        // any other still scrolls its last column past the edge.
+        state.count = 4
+        state.rows = 1
+        state.width = 304
+        host.frame = NSRect(x: 0, y: 0, width: 304, height: 152)
+        for least in [NotchLayout.shortcutLeastSpacing, nil] {
+            state.leastSpacing = least
+            settle(host)
+            let tiles = (0..<4).compactMap { id in
+                descendants(host).first { $0.identifier?.rawValue == "rail-\(id)" }.map { $0.convert($0.bounds, to: host) }
+            }
+            let whole = tiles.count == 4 && tiles.allSatisfy { (tile: CGRect) -> Bool in
+                tile.minX >= -0.5 && tile.maxX <= 304.5 && abs(tile.width - 76) < 0.5
+            }
+            suite.expect(whole == (least != nil), least != nil
+                         ? "a rail that closes its gaps keeps four tiles whole across the narrowest page"
+                         : "a rail with no least gap still scrolls the column that misses its width")
+        }
     }
     private static func scratchpad(_ suite: TestSuite) {
         let pad = ScratchpadService.shared
@@ -378,7 +450,253 @@ enum NotchCompactTests {
         } else {
             suite.expect(false, "the scratchpad editor's coordinator is its delegate")
         }
+        readingTasks(suite, pad: pad, host: host, editor: editor, window: window)
+        pad.isPreviewing = false
+        settle(host)
         window.contentView = nil
+    }
+    /// The formatted reading draws each task with the system checklist
+    /// circle, which VoiceOver meets as a checkbox, and keeps done tasks
+    /// where they are. A click on a box is one edit of the editor's own: one
+    /// undo puts the box back, and what was typed before the click can still
+    /// be undone, on the island and in the floating pad.
+    private static func readingTasks(_ suite: TestSuite, pad: ScratchpadService, host: NSView,
+                                     editor: NSTextView, window: NSWindow) {
+        pad.isPreviewing = false
+        pad.text = "- [x] done\n- [ ] open"
+        settle(host)
+        let end = NSRange(location: (editor.string as NSString).length, length: 0)
+        if editor.shouldChangeText(in: end, replacementString: "\n- [ ] new") {
+            editor.replaceCharacters(in: end, with: "\n- [ ] new")
+            editor.didChangeText()
+        }
+        settle(host)
+        pad.isPreviewing = true
+        settle(host)
+        guard let reading = descendants(host).compactMap({ $0 as? TaskPreviewTextView }).first,
+              let storage = reading.textStorage else {
+            suite.expect(false, "the scratchpad reading shows its native text view")
+            return
+        }
+        var boxes: [URL?] = []
+        storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, _ in
+            guard let box = value as? TaskBoxAttachment, box.image != nil else { return }
+            boxes.append(storage.attribute(.link, at: range.location, effectiveRange: nil) as? URL)
+        }
+        let strings = FeatureStrings.scratchpad(L10n.shared.language)
+        let shown = storage.string as NSString
+        suite.expect(boxes.count == 3
+                     && shown.range(of: "done").location < shown.range(of: "open").location
+                     && shown.range(of: "open").location < shown.range(of: "new").location,
+                     "the reading draws each task's checklist circle, with done tasks in place")
+        // The text view alone would offer each box as a link named by the
+        // attachment's object replacement character.
+        let children = reading.accessibilityChildren() ?? []
+        let checks = children.compactMap { $0 as? NSAccessibilityElement }.filter { $0.accessibilityRole() == .checkBox }
+        suite.expect(checks.map { $0.accessibilityLabel() } == ["done", "open", "new"]
+                     && checks.map { ($0.accessibilityValue() as? NSNumber)?.boolValue } == [true, false, false]
+                     && checks.map { $0.accessibilityValueDescription() }
+                         == [strings.taskDone, strings.taskNotDone, strings.taskNotDone]
+                     && !children.contains {
+                         ($0 as? NSAccessibilityElement)?.accessibilityURL()?.scheme == ScratchpadSupport.taskScheme },
+                     "VoiceOver meets each box as a checkbox named by its task and said done or not done, not as a bare link")
+        guard boxes.count == 3, let link = boxes[1] else {
+            suite.expect(false, "each checkbox in the reading carries its task's link")
+            return
+        }
+        _ = reading.delegate?.textView?(reading, clickedOnLink: link, at: 0)
+        settle(host)
+        suite.expect(editor.string == "- [x] done\n- [x] open\n- [ ] new" && pad.text == editor.string
+                     && editor.undoManager?.canUndo == true,
+                     "a checkbox click checks its own task through the editor, as an undoable edit")
+        window.makeFirstResponder(editor)
+        editor.undoManager?.undo()
+        suite.expect(editor.string == "- [x] done\n- [ ] open\n- [ ] new",
+                     "one undo after a checkbox click puts the box back")
+        editor.undoManager?.undo()
+        suite.expect(editor.string == "- [x] done\n- [ ] open",
+                     "what was typed before a checkbox click can still be undone after it")
+        // The floating pad passes no editor: the toggle finds the text view
+        // registered in its panel and edits through it the same way.
+        let panel = NSPanel(contentRect: NSRect(x: -10000, y: -10000, width: 240, height: 120),
+                            styleMask: [.borderless], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        let floating = NSTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
+        floating.allowsUndo = true
+        panel.contentView = floating
+        floating.string = "- [ ] call ann\n- [ ] buy milk"
+        pad.panel = panel
+        pad.textView = floating
+        pad.toggleTask(box: 17)
+        settle(floating)
+        suite.expect(floating.string == "- [ ] call ann\n- [x] buy milk" && floating.undoManager?.canUndo == true,
+                     "a checkbox click in the floating pad checks its task through the pad's editor, as an undoable edit")
+        floating.undoManager?.undo()
+        suite.expect(floating.string == "- [ ] call ann\n- [ ] buy milk",
+                     "one undo after a checkbox click in the floating pad puts the box back")
+        pad.panel = nil
+        pad.textView = nil
+        panel.contentView = nil
+
+        // Every render makes new checkbox attachments, which never compare
+        // equal, so only the inputs can tell that nothing changed.
+        let coordinator = MarkdownPreview.Coordinator()
+        let view = TaskPreviewTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 120))
+        var renders = 0
+        let observer = NotificationCenter.default.addObserver(
+            forName: NSTextStorage.didProcessEditingNotification, object: view.textStorage, queue: nil) { _ in
+            renders += 1
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+        let blocks = ScratchpadSupport.markdownPreview("- [ ] call ann\n- [x] buy milk")
+        let states = (done: strings.taskDone, notDone: strings.taskNotDone)
+        coordinator.show(blocks, base: 13, taskStates: states, in: view)
+        view.setSelectedRange(NSRange(location: 2, length: 4))
+        coordinator.show(ScratchpadSupport.markdownPreview("- [ ] call ann\n- [x] buy milk"), base: 13,
+                         taskStates: states, in: view)
+        suite.expect(renders == 1 && view.selectedRange() == NSRange(location: 2, length: 4),
+                     "an update with the same note leaves the reading and its selection alone")
+        coordinator.show(ScratchpadSupport.markdownPreview("- [x] call ann\n- [x] buy milk"), base: 13,
+                         taskStates: states, in: view)
+        coordinator.show(ScratchpadSupport.markdownPreview("- [x] call ann\n- [x] buy milk"), base: 15,
+                         taskStates: states, in: view)
+        coordinator.show(ScratchpadSupport.markdownPreview("- [x] call ann\n- [x] buy milk"), base: 15,
+                         taskStates: (done: "Hecha", notDone: "Pendiente"), in: view)
+        suite.expect(renders == 4, "a changed note, size or language draws the reading again")
+        var pressed: [Int] = []
+        view.onToggleTask = { pressed.append($0) }
+        let presses = (view.accessibilityChildren() ?? []).compactMap { $0 as? NSAccessibilityElement }
+            .filter { $0.accessibilityRole() == .checkBox }
+        suite.expect(presses.count == 2 && presses[1].accessibilityPerformPress() && pressed == [17],
+                     "pressing a checkbox with VoiceOver toggles its own box")
+
+        // AppKit asks for tracking areas again on every geometry change.
+        view.updateTrackingAreas()
+        let areas = view.trackingAreas.count
+        for _ in 0..<5 { view.updateTrackingAreas() }
+        suite.expect(view.trackingAreas.count == areas,
+                     "the reading keeps one pointer tracking area however often AppKit asks for them")
+    }
+    /// The reading lays a checklist out as Notes does: the empty circle shows
+    /// in light and dark, a nested task's circle sits under its parent's
+    /// text, a task's wrapped lines hang under its own text, and a task in a
+    /// quote keeps the quote's bar and colour.
+    private static func readingLayout(_ suite: TestSuite) {
+        // The most opaque pixel of an empty circle drawn in `appearance`; a
+        // palette would lay tertiary label's alpha over the ring's, at ~7%.
+        func ink(_ appearance: NSAppearance.Name) -> CGFloat {
+            guard let image = TaskBoxAttachment(checked: false, size: 16, description: "").image,
+                  let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 32, pixelsHigh: 32,
+                                                bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+                                                colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+                  let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return 0 }
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = context
+            NSAppearance(named: appearance)?.performAsCurrentDrawingAppearance {
+                image.draw(in: NSRect(x: 0, y: 0, width: 32, height: 32))
+            }
+            NSGraphicsContext.restoreGraphicsState()
+            var most: CGFloat = 0
+            for x in 0..<32 { for y in 0..<32 { most = max(most, bitmap.colorAt(x: x, y: y)?.alphaComponent ?? 0) } }
+            return most
+        }
+        suite.expect(ink(.aqua) > 0.18 && ink(.darkAqua) > 0.18,
+                     "the empty task circle draws at tertiary label strength in light and dark, not faded twice")
+
+        let note = "- [ ] Call the bank\n  - [ ] Ask about the fee\n  - spare key\n    - [ ] copy\n"
+            + "- [ ] Book train tickets for Saturday morning and check whether the return can move to Sunday evening\n"
+            + "- bread\n  - [ ] rye\n  - crust\n\n> Reminder\n"
+            + "> - [ ] Bring the key and the parking pass for the guests who arrive near midnight\n>   - [ ] spare one"
+        let view = TaskPreviewTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 400))
+        MarkdownPreview.Coordinator().show(ScratchpadSupport.markdownPreview(note), base: 13,
+                                           taskStates: (done: "Done", notDone: "Not done"), in: view)
+        guard let layout = view.layoutManager, let container = view.textContainer, let storage = view.textStorage else {
+            suite.expect(false, "the reading lays its text out")
+            return
+        }
+        layout.ensureLayout(for: container)
+        let shown = storage.string as NSString
+        guard ["Call the bank", "Ask about", "spare key", "copy", "Book train", "evening", "bread", "rye", "Reminder",
+               "Bring the key", "midnight", "spare one"]
+            .allSatisfy({ shown.range(of: $0).location != NSNotFound }) else {
+            suite.expect(false, "the reading shows every line of the checklist")
+            return
+        }
+        func x(glyph: Int) -> CGFloat {
+            layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).minX
+        }
+        func x(_ character: Int) -> CGFloat { x(glyph: layout.glyphIndexForCharacter(at: character)) }
+        func x(of text: String) -> CGFloat { x(shown.range(of: text).location) }
+        /// Where the circle or bullet in front of `text`, and its space, starts.
+        func marker(before text: String) -> CGFloat { x(shown.range(of: text).location - 2) }
+        suite.expect(abs(marker(before: "Ask about") - x(of: "Call the bank")) < 0.5
+                     && abs(marker(before: "spare key") - x(of: "Call the bank")) < 0.5
+                     && abs(marker(before: "rye") - x(of: "bread")) < 0.5
+                     && abs(marker(before: "copy") - x(of: "spare key")) < 0.5,
+                     "a nested task or bullet starts under its parent's text, and a task under a bullet under the bullet's text")
+        suite.expect(shown.range(of: "\n  • crust").location != NSNotFound,
+                     "a bullet under a plain bullet keeps its leading spaces")
+        /// Whether the line holding `last` wraps from the line that opens
+        /// with `first` and starts where `first` does.
+        func hangs(_ last: String, under first: String) -> Bool {
+            var line = NSRange()
+            _ = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: shown.range(of: last).location),
+                                        effectiveRange: &line)
+            return line.location > layout.glyphIndexForCharacter(at: shown.range(of: first).location)
+                && abs(x(glyph: line.location) - x(of: first)) < 0.5
+        }
+        suite.expect(hangs("evening", under: "Book train") && hangs("midnight", under: "Bring the key"),
+                     "a wrapped task line hangs under the task's text, not under its circle, in a quote as well")
+        let bring = shown.range(of: "Bring the key").location
+        let quoted = shown.lineRange(for: NSRange(location: bring, length: 0)).location
+        let reminder = shown.lineRange(for: shown.range(of: "Reminder")).location
+        suite.expect(shown.substring(with: NSRange(location: quoted, length: 1)) == "▏"
+                     && abs(x(quoted) - x(reminder)) < 0.5
+                     && storage.attribute(.attachment, at: bring - 2, effectiveRange: nil) is TaskBoxAttachment
+                     && abs(marker(before: "Bring the key") - x(of: "Reminder")) < 0.5
+                     && abs(marker(before: "spare one") - x(of: "Bring the key")) < 0.5
+                     && shown.substring(with: NSRange(location: shown.lineRange(for: shown.range(of: "spare one")).location,
+                                                      length: 1)) == "▏"
+                     && storage.attribute(.foregroundColor, at: bring, effectiveRange: nil) as? NSColor == .secondaryLabelColor,
+                     "a task in a quote keeps the quote's bar and colour, with its circle where the quote's text starts and a nested one under its parent's text")
+    }
+    /// A list that opens below depth 1 lines its items up by their own
+    /// depth, whatever list came before, and a task quoted inside a bullet
+    /// starts after the quote's bar, which is wider than the bullet.
+    private static func readingLevels(_ suite: TestSuite) {
+        let note = "- [ ] Water the plants\n\nLater\n\n- - [ ] Feed the cat\n  - [ ] Lock the door\n\n"
+            + "- Garden\n  > - [ ] Prune the roses\n  >   - [ ] Buy shears"
+        let view = TaskPreviewTextView(frame: NSRect(x: 0, y: 0, width: 240, height: 300))
+        MarkdownPreview.Coordinator().show(ScratchpadSupport.markdownPreview(note), base: 13,
+                                           taskStates: (done: "Done", notDone: "Not done"), in: view)
+        guard let layout = view.layoutManager, let container = view.textContainer, let storage = view.textStorage else {
+            suite.expect(false, "the reading lays its text out")
+            return
+        }
+        layout.ensureLayout(for: container)
+        let shown = storage.string as NSString
+        /// The circle in front of `text`, as a character offset.
+        func circle(before text: String) -> Int? {
+            let location = shown.range(of: text).location
+            guard location != NSNotFound, location >= 2,
+                  storage.attribute(.attachment, at: location - 2, effectiveRange: nil) is TaskBoxAttachment else { return nil }
+            return location - 2
+        }
+        func x(_ character: Int) -> CGFloat {
+            layout.boundingRect(forGlyphRange: NSRange(location: layout.glyphIndexForCharacter(at: character), length: 1),
+                                in: container).minX
+        }
+        let circles = ["Water the plants", "Feed the cat", "Lock the door", "Prune the roses", "Buy shears"]
+            .compactMap(circle(before:))
+        guard circles.count == 5 else {
+            suite.expect(false, "the reading shows every task of the deeper lists with its circle")
+            return
+        }
+        let water = x(circles[0]), feed = x(circles[1])
+        suite.expect(abs(feed - x(circles[2])) < 0.5 && feed > water + 1 && feed < x(circles[0] + 2) - 1,
+                     "a list that opens below depth 1 keeps its tasks in line, indented, and not under an earlier list's text")
+        suite.expect(abs(x(circles[4]) - x(circles[3] + 2)) < 0.5,
+                     "a task quoted inside a bullet starts after the quote's bar, and a task under it sits under its text")
     }
     private static func focus(_ suite: TestSuite) {
         let floating = Floating()
@@ -424,24 +742,44 @@ enum NotchCompactTests {
                              && layout.height >= page.service.contentSize.height,
                              "\(module) keeps the chosen width and exposes any vertically overflowing content")
                 if module == .controls {
-                    let required = NotchLayout.controls(hasCards: true, shortcutCount: 1, width: layout.width, height: layout.height)
+                    // Playback keeps the card row; the levels sit in the top row.
+                    let required = NotchLayout.controls(hasCards: page.controls.contains(.music), shortcutCount: 1,
+                                                        width: layout.width, height: layout.height)
                     suite.expect(required.height <= layout.height, "home buttons fit their scrollable layout at menu height \(bar)")
                 } else if module == .timer {
+                    // Each mode sizes the island for itself, the Pomodoro a line taller.
                     for mode in NotchTimerMode.allCases {
-                        let required = NotchLayout.timer(mode: mode, hasSession: false, width: layout.width, height: layout.height)
-                        suite.expect(required <= layout.height, "timer controls remain reachable at menu height \(bar)")
+                        page.timerMode = mode
+                        page.service.contentSize = geometry.contentSize(for: geometry.expandedSize(module: module, timerMode: mode))
+                        let layout = page.pageSize
+                        let required = NotchLayout.timer(mode: mode, hasSession: false, height: layout.height)
+                        suite.expect(required <= layout.height && layout.height >= page.service.contentSize.height,
+                                     "timer controls remain reachable at menu height \(bar): \(mode)")
                     }
+                    // A page shorter than every mode needs scrolls to the
+                    // mode it shows, which only the page's own mode decides.
+                    let short = CGSize(width: page.service.contentSize.width, height: 60)
+                    let heights = NotchTimerMode.allCases.map { mode -> CGFloat in
+                        page.timerMode = mode
+                        page.service.contentSize = short
+                        return page.pageSize.height
+                    }
+                    suite.expect(heights == NotchTimerMode.allCases.map { NotchLayout.timer(mode: $0, hasSession: false, height: 60) }
+                                 && heights[1] > heights[0],
+                                 "a short page scrolls to its own mode's controls at menu height \(bar): \(heights)")
+                    page.timerMode = .timer
                 } else if module == .calendar {
-                    let required = NotchLayout.calendarMonthHeaderHeight + NotchLayout.calendarMonthWeekdayHeight
-                        + NotchLayout.calendarMonthSpacing * 2 + 6 * NotchLayout.calendarMonthRowHeight(height: layout.height)
+                    let required = NotchLayout.calendarMonthWeekdayHeight
+                        + 6 * NotchLayout.calendarMonthRowHeight(height: layout.height)
                     suite.expect(required <= layout.height, "all six month rows remain reachable at menu height \(bar)")
                 } else if module == .clipboard {
-                    suite.expect(layout.height >= NotchLayout.clipboardSearchHeight + NotchLayout.rowSpacing
-                                 + NotchLayout.clipboardCardHeight,
-                                 "a short clipboard page keeps the search field and a complete card reachable")
+                    suite.expect(layout.height >= NotchLayout.clipboardCardHeight,
+                                 "a short clipboard page keeps a complete card reachable")
                 } else if module == .camera || module == .mixer {
-                    suite.expect(layout.height >= 144, "camera and mixer controls keep a usable height in a short island")
-                    if page.service.contentSize.height >= 144 {
+                    // The mixer's controls sit in the top row, so its faders take the whole page.
+                    let minimum = module == .camera ? 144 : NotchLayout.mixerMinimumHeight
+                    suite.expect(layout.height >= minimum, "camera and mixer controls keep a usable height in a short island")
+                    if page.service.contentSize.height >= minimum {
                         suite.expect(layout.height == page.service.contentSize.height,
                                      "camera and mixer actions fit without outer scrolling in a short island")
                     }
@@ -454,5 +792,65 @@ enum NotchCompactTests {
         suite.expect(page.pageSize == page.service.contentSize, "a single home card does not introduce unnecessary scrolling")
         page.showsDetail = true
         suite.expect(page.pageSize == page.service.contentSize, "vertical detail pages preserve their existing layout")
+
+        func reading(_ event: NotchEvent) -> NotchNotice? {
+            page.service.notice = NotchNotice(event: event, title: "", detail: "", symbol: "", level: 0.5)
+            return page.headerFeedback
+        }
+        page.showsDetail = false
+        page.controls = [.music, .brightness, .keyboardLight, .volume, .timer]
+        let levelsQuiet = reading(.brightness) == nil && reading(.keyboardLight) == nil && reading(.volume) == nil
+        page.controls = [.music, .brightness, .keyboardLight, .timer]
+        let hiddenLevelShows = reading(.volume) != nil
+        page.service.selected = .music
+        let otherPageShows = reading(.brightness) != nil
+        page.service.selected = .controls
+        page.service.showingSections = true
+        let galleryShows = reading(.brightness) != nil
+        page.service.showingSections = false
+        page.showsDetail = true
+        let detailShows = reading(.brightness) != nil
+        page.showsDetail = false
+        suite.expect(levelsQuiet && hiddenLevelShows && otherPageShows && galleryShows && detailShows,
+                     "a level key leaves the home page's levels uncovered, since the level it moves is already on the page")
+        // The row's brightness shows the display the keys last moved, so only
+        // the way to set brightness up, with no slider, leaves the reading.
+        page.brightnessSlider = false
+        suite.expect(reading(.brightness) != nil && reading(.keyboardLight) == nil,
+                     "a brightness key keeps its reading on the home page while its row has no slider")
+        page.brightnessSlider = true
     }
+}
+
+/// The island's top row as the scratchpad page uses it. The row itself is not
+/// part of these tests, so a page's items are drawn above it, built from the
+/// page's state as the island builds them.
+private struct NotchCompactBandKey: EnvironmentKey {
+    static let defaultValue = NotchBand()
+}
+
+extension EnvironmentValues {
+    var notchBand: NotchBand {
+        get { self[NotchCompactBandKey.self] }
+        set { self[NotchCompactBandKey.self] = newValue }
+    }
+}
+
+extension View {
+    func notchBand<Leading: View, Trailing: View>(@ViewBuilder leading: () -> Leading,
+                                                  @ViewBuilder trailing: () -> Trailing) -> some View {
+        VStack(spacing: 0) {
+            HStack { leading(); trailing() }
+            self
+        }
+    }
+}
+
+/// A menu's label in the row, as the island draws it.
+struct NotchBandMenuLabel: View {
+    let title: String
+    var symbol: String? = nil
+    var truncation: Text.TruncationMode = .tail
+
+    var body: some View { Text(title).lineLimit(1).truncationMode(truncation) }
 }

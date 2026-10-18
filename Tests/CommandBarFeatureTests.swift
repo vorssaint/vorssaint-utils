@@ -713,6 +713,10 @@ enum CommandBarFeatureTests {
         suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
                 && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
                "the uninstall browse lists only the apps the background scan saw the uninstaller accept")
+        suite.expect(commandBarServiceSource.range(
+                of: #"installedApplications\(\s*includeSystemApplications: true,\s*includeBundledApplications: true,"#,
+                options: .regularExpression) != nil,
+               "the bar's app scan lists the apps other apps ship, such as Xcode's tools")
         let uninstallCatalogSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
             encoding: .utf8)) ?? ""
@@ -1567,8 +1571,9 @@ enum CommandBarFeatureTests {
             .components(separatedBy: "private var storedHiddenKeys").first ?? ""
         suite.expect(runRowCode.contains("!isVisible, let app = installedApp(for: entry)")
                 && runRowCode.contains("CommandBarRowShortcuts.hidesAppInFront(")
-                && runRowCode.contains("running.hide() {"),
-               "only a closed bar hides an app row, through the shared rule, and a refused hide opens it")
+                && runRowCode.contains("running.hide()\n            return")
+                && !runRowCode.contains("running.hide() {"),
+               "only a closed bar hides an app row, through the shared rule, whatever hide() returns")
         suite.expect(runRowCode.contains(
                     "NSWorkspace.shared.frontmostApplication?.processIdentifier == running.processIdentifier")
                 && runRowCode.contains("ownsFrontWindow: WindowServerSupport.frontWindowOwner(")

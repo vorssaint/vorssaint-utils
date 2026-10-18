@@ -49,6 +49,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            if codex { CodexAccountsSettings() }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -67,7 +68,7 @@ struct NotchAgentsSettingsControls: View {
                 }
             }
             Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
-            // The one card that makes Codex ask the account, said where it is chosen.
+            // The card that makes Codex ask the default account, said where it is chosen.
             if codex, cardBinding(.resets).wrappedValue {
                 Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -139,6 +140,7 @@ struct NotchAgentsSettingsControls: View {
                 TimelineView(.periodic(from: .now, by: 30)) { context in
                     claudeLimitsStatus(now: context.date)
                 }
+                if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
                 Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -164,22 +166,32 @@ struct NotchAgentsSettingsControls: View {
     }
 
     /// Where Claude's plan limits stand, and the one step that brings them
-    /// here when they are missing or old.
+    /// here when they are missing or old. Without a recent reading from
+    /// Claude Code, why its last check failed shows beneath.
     @ViewBuilder private func claudeLimitsStatus(now: Date) -> some View {
-        let checked = usage.claudeAppChecked ?? claudeAppFileCheck
+        let account = usage.snapshot.limits[.claude].flatMap { $0.source == .account ? $0.observedAt : nil }
+        let checked = account ?? usage.claudeAppChecked ?? claudeAppFileCheck
+        let failure = account.map { now.timeIntervalSince($0) < AgentClaudeAppUsage.freshness } == true ? nil
+            : usage.claudeAccountFailure.map { text.claudeCode($0) }
         HStack(alignment: .top, spacing: 10) {
-            if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
+            if let account {
+                Image(systemName: now.timeIntervalSince(account) < AgentClaudeAppUsage.freshness
+                      ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    .foregroundStyle(now.timeIntervalSince(account) < AgentClaudeAppUsage.freshness ? .green : .orange)
+                explained(failure) { Text("Claude Code · " + text.updated(relative(account, now: now))) }
+                Spacer(minLength: 0)
+            } else if let checked, now.timeIntervalSince(checked) < AgentClaudeAppUsage.freshness {
                 Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                Text(text.claudeLimitsCurrent(relative(checked, now: now)))
+                explained(failure) { Text(text.claudeLimitsCurrent(relative(checked, now: now))) }
                 Spacer(minLength: 0)
             } else if claudeApp == nil, checked == nil {
                 Image(systemName: "info.circle.fill").foregroundStyle(.secondary)
-                Text(text.claudeLimitsNoApp)
+                explained(failure) { Text(text.claudeLimitsNoApp) }
                 Spacer(minLength: 8)
                 Button(text.getClaude) { NSWorkspace.shared.open(AgentClaudeAppUsage.downloadURL) }
             } else {
                 Image(systemName: "exclamationmark.circle.fill").foregroundStyle(.orange)
-                VStack(alignment: .leading, spacing: 4) {
+                explained(failure) {
                     if let checked { Text(text.claudeLimitsStale(relative(checked, now: now))) }
                     Text(text.claudeLimitsMenuBar)
                 }
@@ -193,6 +205,14 @@ struct NotchAgentsSettingsControls: View {
         }
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A status's words, and why Claude Code could not check when it failed.
+    private func explained<Content: View>(_ failure: String?, @ViewBuilder _ status: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            status()
+            if let failure { Text(failure).foregroundStyle(.secondary) }
+        }
     }
 
     private func relative(_ date: Date, now: Date) -> String {

@@ -131,8 +131,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.setOutline(enabled: enabled, color: color)
     }
 
-    /// The companion stands in the window's own layer while the island opens
-    /// or closes around it, sliding from `from` to `to`, its centre's offset
+    /// The companion stands in the window's own layer while it steps into a
+    /// notice or back out, sliding from `from` to `to`, its centre's offset
     /// from the camera's, with its centre `baseline` below the top.
     /// `scale` grows or shrinks it on the way, as into or out of a notice,
     /// where it is drawn smaller. `trailsGrowth` starts it slowly, for a way
@@ -1022,9 +1022,9 @@ private final class NotchCanvas: NSView {
     private var outlineEnabled = false
     private var outlineColor = NSColor.white
     private let contentVisibility = CALayer()
-    /// The companion beside the camera while the island opens or closes
-    /// around it, kept out of the content, which fades, blurs and grows as
-    /// it arrives, so it stays sharp in its place throughout.
+    /// The companion beside the camera while it steps into a notice or back
+    /// out, kept out of the content, which fades, blurs and grows as it
+    /// arrives, so it stays sharp in its place throughout.
     private let mascotBridge = NotchMascotHostView(frame: .zero)
     /// Where it stands: its centre's offset from the display's centre, its
     /// centre's height from the top, and its size.
@@ -1634,7 +1634,7 @@ private final class NotchCanvas: NSView {
         mascotBridge.isHidden = false
         CATransaction.commit()
         guard !reduceMotion, abs(from - to) > 0.25, let layer = mascotBridge.layer else { return }
-        // The little way between where the closed and the open island keep it.
+        // The little way between where the island rests with it and the notice.
         let slide = CABasicAnimation(keyPath: "position.x")
         slide.fromValue = from - to
         slide.toValue = 0

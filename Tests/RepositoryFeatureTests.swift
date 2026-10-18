@@ -1404,6 +1404,25 @@ enum RepositoryFeatureTests {
         suite.expect(!appSources.isEmpty && applicationRoleReads.isEmpty,
                "no application element is ever asked for its role: \(applicationRoleReads)")
 
+        // The snippet probe asks whatever app is in front while typing waits,
+        // so its questions share one deadline, and a spent one stops them: a
+        // zero timeout means the system default, which is seconds.
+        let readerLines = repository.lines(at: appPrefix + "Services/SelectedTextReader.swift")
+            .filter { !isCommentLine($0) }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        let focusedTextProbe = readerLines
+            .drop(while: { !$0.hasPrefix("func text(in range: NSRange)") })
+            .prefix(while: { !$0.hasPrefix("private static func limit(") })
+        suite.expect(readerLines.contains("guard left > 0 else { return false }")
+               && focusedTextProbe.filter { $0.contains("limit(") }.count == 5
+               && focusedTextProbe.filter { $0.contains("copyElement(") || $0.contains("copyValue(")
+                   || $0.contains("copyString(") }.count == 5
+               && focusedTextProbe.contains("guard textLength <= wholeValueLimit,")
+               && !focusedTextProbe.contains(where: {
+                   $0.contains("kAXRoleAttribute") || $0.contains("AXUIElementSetMessagingTimeout")
+               }),
+               "the focused text probe asks every question within one deadline, never a role, and copies only a short value whole")
+
         // A walk up kAXParent reaches an application element without naming it,
         // so every such walk must stop before asking that parent for its role.
         var unguardedParentWalks: [String] = []

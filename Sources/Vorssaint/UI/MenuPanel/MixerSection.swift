@@ -174,13 +174,13 @@ struct MixerSection: View {
                                       maximum: 1,
                                       accessibilityLabel: l10n.s.mixerSystemOutputTitle)
 
-                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                    EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: volume),
                                           maximumPercent: 100,
                                           width: 36,
                                           editorID: "system-output",
                                           editingID: $editingVolumeID,
                                           accessibilityLabel: l10n.s.mixerSystemOutputTitle) {
-                        Text("\(Int((volume * 100).rounded()))%")
+                        Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -262,7 +262,7 @@ struct MixerSection: View {
     private func setSystemOutputVolume(_ value: Double) {
         if inNotch {
             // The slider shows the level; the island's header need not repeat it.
-            NotchService.shared.noteOwnVolumeAdjustment()
+            NotchService.shared.noteOwnLevelAdjustment(.volume)
             mixer.requestOutputAdjustment(volume: value)
         } else { mixer.setCurrentOutputVolume(value) }
     }
@@ -340,13 +340,13 @@ struct MixerSection: View {
                                       maximum: 1,
                                       accessibilityLabel: l10n.s.mixerInputTitle)
 
-                    EditableVolumePercent(currentPercent: Int((volume * 100).rounded()),
+                    EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: volume),
                                           maximumPercent: 100,
                                           width: 36,
                                           editorID: "microphone-input",
                                           editingID: $editingVolumeID,
                                           accessibilityLabel: l10n.s.mixerInputTitle) {
-                        Text("\(Int((volume * 100).rounded()))%")
+                        Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
                             .font(.system(size: 10.5, weight: .medium))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
@@ -971,7 +971,7 @@ private struct MixerRow: View {
                                           maximum: AppVolumeMixer.maxVolume,
                                           accessibilityLabel: app.name)
 
-                        EditableVolumePercent(currentPercent: Int((app.volume * 100).rounded()),
+                        EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: app.volume),
                                               maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
                                               width: 42,
                                               editorID: "app:\(app.id)",
@@ -983,7 +983,7 @@ private struct MixerRow: View {
                                         .font(.system(size: 8, weight: .bold))
                                         .foregroundStyle(boostColor)
                                 }
-                                Text("\(Int((app.volume * 100).rounded()))%")
+                                Text("\(MixerRoutingSupport.displayPercent(forVolume: app.volume))%")
                                     .font(.system(size: 10.5, weight: .medium))
                                     .monospacedDigit()
                                     .foregroundStyle(isBoosting ? boostColor : Color.secondary)
@@ -1352,7 +1352,7 @@ private struct MixerVolumeSlider: View {
     let accessibilityLabel: String
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
-    private var percentage: Int { Int((value * 100).rounded()) }
+    private var percentage: Int { MixerRoutingSupport.displayPercent(forVolume: value) }
 
     var body: some View {
         Group {
@@ -1437,7 +1437,7 @@ private struct LiquidGlassMixerSlider: View {
         }
         .frame(height: knobHeight)
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityValue("\(Int((value * 100).rounded()))%")
+        .accessibilityValue("\(MixerRoutingSupport.displayPercent(forVolume: value))%")
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment:

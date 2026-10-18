@@ -210,7 +210,32 @@ enum AppUpdatesSupport {
         // result antisymmetric and left isNewer true against itself.
         let left = lhs.lowercased(), right = rhs.lowercased()
         if left == right { return .orderedSame }
-        return left < right ? .orderedAscending : .orderedDescending
+        // A number after the letters is still a number: as text, "beta10"
+        // sorts before "beta9" and the tenth beta is never offered.
+        let leftRuns = runs(of: left), rightRuns = runs(of: right)
+        for (a, b) in zip(leftRuns, rightRuns) where a != b {
+            if a.allSatisfy(\.isNumber) && b.allSatisfy(\.isNumber) {
+                let numbers = compareDigits(a, b)
+                if numbers != .orderedSame { return numbers }
+            } else {
+                return a < b ? .orderedAscending : .orderedDescending
+            }
+        }
+        if leftRuns.count == rightRuns.count { return .orderedSame }
+        return leftRuns.count < rightRuns.count ? .orderedAscending : .orderedDescending
+    }
+
+    /// "beta10" as ["beta", "10"]: stretches of digits and of everything else.
+    private static func runs(of part: String) -> [String] {
+        var runs: [String] = []
+        for character in part {
+            if let last = runs.last?.last, last.isNumber == character.isNumber {
+                runs[runs.count - 1].append(character)
+            } else {
+                runs.append(String(character))
+            }
+        }
+        return runs
     }
 
     /// Compared as text after dropping leading zeros, so versions with more

@@ -36,7 +36,7 @@ enum NotchVolumeFeedbackTests {
         var volumeDeviceUID: String?
         var volumeBaseline: Double?
         var muteBaseline: Bool?
-        var ownVolumeAdjustmentUntil: TimeInterval = 0
+        var ownLevelAdjustmentUntil: [NotchEvent: TimeInterval] = [:]
         var lastVolumeRide: TimeInterval = -.infinity
         var expanded = false
         var showsSystemFeedback = true
@@ -162,26 +162,26 @@ enum NotchVolumeFeedbackTests {
                    "volume changes supply header feedback while the island is open on any page")
             service.presented.removeAll()
             // Each step of the island's slider or mute button marks its change.
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputVolume = 0.35
             drain()
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputMuted = true
             drain()
             suite.expect(service.presented.isEmpty,
-                   "the island's own level and mute controls leave the open header's title alone")
+                   "the island's own level and mute controls leave the open island's top row alone")
             service.showCurrentVolume()
             suite.expect(service.presented.count == 1 && service.notice?.level == 0,
                    "a volume key right after an own adjustment still shows feedback")
             service.presented.removeAll()
-            service.ownVolumeAdjustmentUntil = 0
+            service.ownLevelAdjustmentUntil = [:]
             mixer.systemOutputMuted = false
             drain()
             suite.expect(service.presented.count == 1 && service.notice?.level == 0.35,
-                   "a change after the own adjustment's moment shows in the open header again")
+                   "a change after the own adjustment's moment shows in the open island's top row again")
             service.presented.removeAll()
             service.expanded = false
-            service.noteOwnVolumeAdjustment()
+            service.noteOwnLevelAdjustment(.volume)
             mixer.systemOutputVolume = 0.5
             drain()
             suite.expect(service.presented.count == 1,
@@ -217,6 +217,27 @@ enum NotchVolumeFeedbackTests {
         suite.expect(!service.showVolume(0.9) && service.notice?.level == 0.2,
                "an island that cannot show volume leaves the confirmation to the caller")
         service.subscriptions.removeAll()
+
+        // The island's keyboard light controls mark their own changes the same
+        // way, apart from volume's, and still count as shown.
+        let lights = Service()
+        lights.expanded = true
+        lights.noteOwnLevelAdjustment(.keyboardLight)
+        let ownKeyboardQuiet = lights.showKeyboardLight(0.5) && lights.presented.isEmpty
+        let otherLevelShows = lights.showBrightness(0.4) && lights.presented.last?.event == .brightness
+        suite.expect(ownKeyboardQuiet && otherLevelShows,
+               "the island's own keyboard light slider leaves the open island's top row alone")
+        lights.presented.removeAll()
+        lights.notice = nil
+        lights.ownLevelAdjustmentUntil = [:]
+        let laterShows = lights.showKeyboardLight(0.6) && lights.presented.last?.level == 0.6
+        lights.presented.removeAll()
+        lights.notice = nil
+        lights.expanded = false
+        lights.noteOwnLevelAdjustment(.keyboardLight)
+        let closedShows = lights.showKeyboardLight(0.7) && lights.presented.last?.level == 0.7
+        suite.expect(laterShows && closedShows,
+               "a level change after the slider's moment, or on a closed island, shows its reading")
 
         // An output that adapts its own level, measured from AirPods Pro
         // reacting to the room: a hundredth at a time, a ramp up and back

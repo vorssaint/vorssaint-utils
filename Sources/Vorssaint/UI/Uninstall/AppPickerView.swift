@@ -18,6 +18,9 @@ struct AppPickerView: View {
     /// it anywhere else would take an entry that never matches anything
     /// (issue #1009).
     var acceptsExecutables = false
+    /// What a list that leaves some apps out says when nothing shows, so a
+    /// missing app reads as a rule rather than a fault.
+    var emptyNote: String? = nil
     var loadApps: () -> [InstalledApps.InstalledApp] = { InstalledApps.installedApplications() }
     var onCancel: () -> Void
     var onSelect: (URL) -> Void
@@ -26,6 +29,7 @@ struct AppPickerView: View {
     init(compact: Bool = false,
          canBrowseApplications: Bool = false,
          acceptsExecutables: Bool = false,
+         emptyNote: String? = nil,
          onCancel: @escaping () -> Void,
          onSelect: @escaping (URL) -> Void,
          onSelectApp: ((InstalledApps.InstalledApp) -> Void)? = nil,
@@ -33,6 +37,7 @@ struct AppPickerView: View {
         self.compact = compact
         self.canBrowseApplications = canBrowseApplications
         self.acceptsExecutables = acceptsExecutables
+        self.emptyNote = emptyNote
         self.onCancel = onCancel
         self.onSelect = onSelect
         self.onSelectApp = onSelectApp
@@ -108,6 +113,14 @@ struct AppPickerView: View {
                 Text(l10n.s.uninstallerPickerEmpty)
                     .font(.system(size: compact ? 11 : 13))
                     .foregroundStyle(.secondary)
+                if let emptyNote {
+                    Text(emptyNote)
+                        .font(.system(size: compact ? 10 : 11))
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, compact ? 6 : 24)
+                }
             }
             .frame(maxWidth: .infinity)
             .frame(height: compact ? 150 : 360)

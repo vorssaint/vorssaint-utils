@@ -90,6 +90,9 @@ struct SystemMonitorPanelNeeds: Equatable {
     var network = false
     var disk = false
     var power = false
+    /// The Power card itself, which lists peripheral batteries unless its
+    /// row is hidden. The Power and Battery time detail sets `power` alone.
+    var powerCard = false
     var cpu = false
     var gpu = false
     var memory = false
@@ -106,6 +109,7 @@ struct SystemMonitorPanelNeeds: Equatable {
              network: network || other.network,
              disk: disk || other.disk,
              power: power || other.power,
+             powerCard: powerCard || other.powerCard,
              cpu: cpu || other.cpu,
              gpu: gpu || other.gpu,
              memory: memory || other.memory,
@@ -121,7 +125,7 @@ struct SystemMonitorPanelNeeds: Equatable {
     static let none = SystemMonitorPanelNeeds()
 
     var any: Bool {
-        system || network || disk || power || cpu || gpu || memory || battery ||
+        system || network || disk || power || powerCard || cpu || gpu || memory || battery ||
             peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed ||
             connectedDevices
     }
@@ -200,6 +204,12 @@ final class SystemMonitor: ObservableObject {
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatterySample = PeripheralBatterySample()
+    /// Peripheral batteries sample on a 15 s stride even in the foreground.
+    /// When a surface starts them, or a Bluetooth refresh lands, the next
+    /// refresh reads them at once instead of showing devices from the last
+    /// time they were on until the stride comes round. Main thread only.
+    private var peripheralSamplingEnabled = false
+    private var peripheralSampleDue = false
     private var lastConnectedDevices: [ConnectedUSBDevice] = []
     private var lastPublishedPlan: SamplingPlan?
     private var lastPublishedForeground: Bool?
@@ -231,6 +241,13 @@ final class SystemMonitor: ObservableObject {
         batteryHistory = MetricHistory(capacity: historyCapacity)
         if PowerSampler.hasInternalBattery {
             installPowerSourceObserver()
+        }
+        peripheralBatterySampler.onBluetoothRefresh = { [weak self] in
+            DispatchQueue.main.async {
+                guard let self, self.peripheralSamplingEnabled else { return }
+                self.peripheralSampleDue = true
+                self.refresh(suppressImmediateGPU: true)
+            }
         }
     }
 
@@ -556,6 +573,7 @@ final class SystemMonitor: ObservableObject {
             || alertBattery
         plan.needPowerDraw = defaults.bool(forKey: DefaultsKey.menuBarPower)
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery || notchAccessoryMonitoring
+            || (menuPanelNeeds.powerCard && defaults.bool(forKey: DefaultsKey.monitorPwrPeripherals))
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
         plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.needCPUTemperature = panelTemps || menuPanelNeeds.cpuTemperature ||
@@ -607,7 +625,10 @@ final class SystemMonitor: ObservableObject {
     }
 
     private func syncPeripheralBatterySampling() {
-        peripheralBatterySampler.setEnabled(shouldRun && currentPlan(defaults: .standard).needPeripheralBattery)
+        let enabled = shouldRun && currentPlan(defaults: .standard).needPeripheralBattery
+        if enabled != peripheralSamplingEnabled { peripheralSampleDue = enabled }
+        peripheralSamplingEnabled = enabled
+        peripheralBatterySampler.setEnabled(enabled)
     }
 
     private func ensureTimer() {
@@ -703,6 +724,8 @@ final class SystemMonitor: ObservableObject {
         // through the captured value.
         let tick = tickCount
         tickCount &+= scheduledWakeTicks
+        let forcePeripheralSample = plan.needPeripheralBattery && peripheralSampleDue
+        if forcePeripheralSample { peripheralSampleDue = false }
         queue.async { [weak self] in
             guard let self else { return }
             self.prepareIfNeeded(needSMC: plan.needSMC,
@@ -812,7 +835,8 @@ final class SystemMonitor: ObservableObject {
             }
 
             if plan.needPeripheralBattery {
-                if take(.peripheralBattery) {
+                if take(.peripheralBattery) || forcePeripheralSample {
+                    sampledAnything = true
                     self.lastPeripheralBatterySample = self.peripheralBatterySampler.sample(now: now)
                 }
                 next.peripheralBatterySample = self.lastPeripheralBatterySample

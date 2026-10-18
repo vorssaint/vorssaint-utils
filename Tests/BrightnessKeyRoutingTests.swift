@@ -99,6 +99,8 @@ enum BrightnessKeyRoutingTests {
         var systemKeyTarget: Display? { displays.first }
         var routes: [UInt32: Route] = [1: Route(method: .system), 2: Route(method: .system)]
         var steps = 0
+        var focusedDisplayID: UInt32?
+        func focusKeyDisplay(_ id: UInt32) { focusedDisplayID = id }
         func AXIsProcessTrusted() -> Bool { true }
         func tapsAreSuspended() -> Bool { inputTapsSuspended }
         func syncKeyTap() {}
@@ -145,6 +147,8 @@ enum BrightnessKeyRoutingTests {
                          "\(kind): moving to an external display never steals a native repeat or release")
             suite.expect(press(native) && native.steps == 1,
                          "\(kind): a fresh external-display press can be handled")
+            suite.expect(!mediaKey || native.focusedDisplayID == 2,
+                         "\(kind): the island's brightness level follows the display a key moves")
             NSScreen.current = 1
             suite.expect(press(native, repeated: true) && press(native, down: false)
                          && native.steps == 1,
