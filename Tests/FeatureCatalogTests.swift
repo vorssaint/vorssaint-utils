@@ -1375,8 +1375,14 @@ enum FeatureCatalogTests {
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
         suite.expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
-                                                           DefaultsKey.scrollInverterHorizontalEnabled],
+                                                           DefaultsKey.scrollInverterHorizontalEnabled,
+                                                           DefaultsKey.scrollInverterTrackpadEnabled,
+                                                           DefaultsKey.scrollInverterTrackpadHorizontalEnabled],
                "the inversion feature tracks only its own axes")
+        for key in [DefaultsKey.scrollInverterTrackpadEnabled, DefaultsKey.scrollInverterTrackpadHorizontalEnabled] {
+            suite.expect(activeSet(.accessibility, on: [key]).contains(.scrollInverter),
+                         "trackpad-only inversion reports its accessibility use")
+        }
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.focusFollowsMouseEnabled])
                 .contains(.focusFollowsMouse),
                "focus follows mouse reports its live accessibility use")

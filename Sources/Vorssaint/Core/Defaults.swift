@@ -52,6 +52,8 @@ enum DefaultsKey {
     static let dimmedDisplaySavedBrightness = "vorssDimmedDisplaySavedBrightness" // internal guard for closed-lid screen dimming recovery
     static let scrollInverterEnabled = "scrollInverterEnabled"
     static let scrollInverterHorizontalEnabled = "scrollInverterHorizontalEnabled"
+    static let scrollInverterTrackpadEnabled = "scrollInverterTrackpadEnabled"
+    static let scrollInverterTrackpadHorizontalEnabled = "scrollInverterTrackpadHorizontalEnabled"
     static let scrollHorizontalEnabled = "scrollHorizontalEnabled"
     static let scrollHorizontalModifier = "scrollHorizontalModifier"
     static let focusFollowsMouseEnabled = "focusFollowsMouseEnabled"
@@ -1214,6 +1216,8 @@ enum Defaults {
         DefaultsKey.showCountdown: false,
         DefaultsKey.scrollInverterEnabled: false,
         DefaultsKey.scrollInverterHorizontalEnabled: false,
+        DefaultsKey.scrollInverterTrackpadEnabled: false,
+        DefaultsKey.scrollInverterTrackpadHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalEnabled: false,
         DefaultsKey.scrollHorizontalModifier: ScrollHorizontalModifier.shift.rawValue,
         DefaultsKey.focusFollowsMouseEnabled: false,

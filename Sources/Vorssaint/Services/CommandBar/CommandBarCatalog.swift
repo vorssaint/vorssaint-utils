@@ -244,16 +244,10 @@ enum CommandBarCatalog {
         return AppFeature.allCases.flatMap { feature -> [CommandBarEntry] in
             guard feature.isAvailable else { return [] }
             if feature == .scrollInverter {
-                return [
-                    entry(for: feature,
-                          key: DefaultsKey.scrollInverterEnabled,
-                          name: s.invertVerticalScroll,
-                          id: "toggle.scrollInverter.vertical"),
-                    entry(for: feature,
-                          key: DefaultsKey.scrollInverterHorizontalEnabled,
-                          name: s.invertHorizontalScroll,
-                          id: "toggle.scrollInverter.horizontal"),
-                ]
+                return ScrollDirectionSetting.allCases.map { setting in
+                    entry(for: feature, key: setting.defaultsKey,
+                          name: setting.title(s), id: setting.commandID)
+                }
             }
             if feature == .mouseButtonShortcuts {
                 let buttons = FeatureStrings.mouseButtons(language)

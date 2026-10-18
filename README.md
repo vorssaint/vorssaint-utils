@@ -110,7 +110,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Pointer acceleration.** Disable mouse acceleration and restore your previous setting when turned off.
 - **Linear scrolling.** Make every mouse wheel notch scroll the same number of lines, however fast the wheel spins.
 - **Focus follows mouse.** Bring the window under the pointer forward after an adjustable pause.
-- **Scroll direction.** Invert vertical and horizontal mouse scrolling independently of the trackpad.
+- **Scroll direction.** Reverse vertical and horizontal scrolling separately for the mouse and trackpad. Each device keeps its own settings, including trackpad momentum.
 - **Scroll sideways while holding a key.** Turn vertical wheel movement into horizontal scrolling while holding a chosen key.
 - **Side buttons.** Use mouse Back and Forward buttons in Finder, browsers and compatible apps.
 - **Mouse button shortcuts.** Assign keys to extra buttons and side wheels, or use button-drag gestures for Spaces and Mission Control.
