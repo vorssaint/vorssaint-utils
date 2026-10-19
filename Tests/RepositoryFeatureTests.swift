@@ -2041,6 +2041,15 @@ enum RepositoryFeatureTests {
                                          isProcessAlive: { _ in true })
                    == .app(name: "Vorssaint", pid: 4242),
                "another copy of the app is told apart from this one by pid, not by name")
+        // The rule above protects the row only if the monitor passes this
+        // process, and the harness does not compile `SecureInputMonitor`.
+        let secureInputMonitorCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Core/SecureInputMonitor.swift", encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        suite.expect(secureInputMonitorCode.contains("ownPid: getpid(),"),
+               "the secure input monitor passes its own pid, so the row never names Vorssaint")
 
         var secureInputUnavailableLookups = 0
         var secureInputUnavailableLivenessChecks = 0

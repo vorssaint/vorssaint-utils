@@ -17,6 +17,14 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 MUTATIONS = [
+    ("Vorssaint named as the secure input lead", "repository",
+     "Sources/Vorssaint/Core/SecureInputSupport.swift",
+     "                guard app.pid != ownPid else { return .unknown }\n", "",
+     "Vorssaint recorded as the active app is never named as holding secure input"),
+    ("the secure input monitor forgets its own pid", "repository",
+     "Sources/Vorssaint/Core/SecureInputMonitor.swift",
+     "            ownPid: getpid(),\n", "            ownPid: -1,\n",
+     "the secure input monitor passes its own pid, so the row never names Vorssaint"),
     ("screenshot OCR reuses a request generation", "screenshots",
      "Sources/Vorssaint/Services/QuickTools/ScreenTextService.swift",
      "        recognitionGeneration += 1\n        let generation",
