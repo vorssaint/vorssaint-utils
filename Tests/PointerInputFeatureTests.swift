@@ -1265,6 +1265,15 @@ enum PointerInputFeatureTests {
         suite.expect(focusFollowsMouseServiceSource.contains(
                 "WindowActivator.supersedePendingActivations(for: target.processID)"),
                "focus without raise stops the passes a switcher jump left pending, as the raising path does")
+        // Issue #3231: the hovered window and the focused one are compared by
+        // the window each hangs from, as the window server reports it.
+        suite.expect(focusFollowsMouseServiceSource.contains(
+                "focusedWindowSharesRoot: target.focusedWindowSharesRoot,")
+                && focusFollowsMouseServiceSource.contains(
+                    "$0 != windowID && Self.rootWindowID(of: $0) == Self.rootWindowID(of: windowID)")
+                && focusFollowsMouseServiceSource.contains(
+                    "parentWindowID: SpaceWindowBridge.parentWindowID(of:)"),
+               "hover asks the window server whether the hovered and focused windows hang from the same window")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
