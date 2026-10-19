@@ -240,6 +240,7 @@ enum SettingsDirectory {
                                          [FeatureStrings.mouseButtons(language).pageTitle,
                                           FeatureStrings.mouseButtons(language).sideWheelLeftName,
                                           FeatureStrings.mouseButtons(language).sideWheelRightName,
+                                          FeatureStrings.mouseButtons(language).gestureButtonName,
                                           FeatureStrings.mouseExceptions(language).listTitle]),
                                         (.mouseClickDebounce,
                                          [FeatureStrings.mouseClickDebounce(language).title,
