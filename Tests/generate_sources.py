@@ -70,10 +70,25 @@ def main():
                         "    private static func appendWindowlessApps(",
                         "    private static func switchableFrame(", "    private static func frameIsSwitchable(",
                         "    private static func frameLooksFullscreen("])
+          + "}\nextension SwitcherFullscreenScopeTests.Bridge {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)
+                    .replace("private ", "", 1) for prefix in [
+                        "    private static func windowTags(of", "    static func isExcludedFromWindowCycle("])
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
           + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    func stop() async")
+          + "}\n}\n")
+    tap = "Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift"
+    write("RecorderSystemAudioTrust.swift", "import Accelerate\nimport AVFoundation\nimport Darwin\n"
+          + "extension RecorderSystemAudioTrustTests {\n"
+          + declaration(tap, "final class RecorderAudioFlag {")
+          + declaration(tap, "final class RecorderAudioHostTime {")
+          + declaration(tap, "enum RecorderAudioProbe {")
+          + "final class Session: Fixture {\n"
+          + declaration(recorder, "    private func streamHeardSound(against").replace("private func", "func", 1)
+          # The first line alone tells it from the one-line didStopWith callback.
+          + declaration(recorder, "    func captureEngine(_ engine: RecorderCaptureEngine,\n")
           + "}\n}\n")
     watch = "Sources/Vorssaint/Services/Notch/NotchWatchService.swift"
     write("NotchWatchChoice.swift", "import AppKit\nimport Foundation\n"
@@ -96,6 +111,11 @@ def main():
           + "extension TransientPasteTests {\n"
           + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "final class TransientPaste {")
               .replace("NSPasteboard.general", "TransientPasteTests.pasteboard")
+          + "}\n")
+    write("TextSnippetExpansion.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\n"
+          + "extension TextSnippetExpansionTests {\n"
+          + declaration("Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
+                        "    static func postExpansion(")
           + "}\n")
     general = "Sources/Vorssaint/UI/Settings/GeneralSettings.swift"
     write("LaunchAtLoginSettings.swift", "import Foundation\n"
@@ -223,7 +243,7 @@ def main():
               "    private func commitDisplayToggle(", "    private func finishDisplayToggle(",
               "    private func restoreManagedDisplayIfHeadless(",
               "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
-              "    private func displaysWokeUp("])
+              "    private func displaysWokeUp(", "    private func screensChanged("])
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
@@ -599,6 +619,21 @@ def main():
     write("LinearScrollTap.swift", "import CoreGraphics\nimport Foundation\nextension LinearScrollTapTests.Inverter {\n"
           + wheel_tap.replace("private func", "func", 1)
                      .replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+          + "}\n")
+    smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
+    smooth_handler = declaration(smooth, "    private func handle(type:").replace("private func", "func", 1)
+    smooth_handler = smooth_handler.replace("AppFeature.smoothScroll.isAvailable", "AppFeature.smoothScroll.isAvailable(in: UserDefaults.standard)")
+    smooth_handler = smooth_handler.replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
+    smooth_post = declaration(smooth, "    private func post(vertical:").replace("private func", "func", 1)
+    if smooth_post.count("event.postToPid(target.processID)") != 1:
+        raise ValueError("Expected one targeted smooth-scroll post")
+    write("SmoothScrollRouting.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
+          + "extension SmoothScrollRoutingTests.Service {\n"
+          + smooth_handler
+          + declaration(smooth, "    private func stopGlide()").replace("private func", "func", 1)
+          + declaration(smooth, "    private func emitFrame(at timestamp:").replace("private func", "func", 1)
+          + declaration(smooth, "    private static func pixelField(").replace("private static", "static", 1)
+          + smooth_post.replace("event.postToPid(target.processID)", "SmoothScrollRoutingTests.record(event, to: target.processID)")
           + "}\n")
     write("KeyboardDebounceTap.swift", "import ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
           + "extension KeyboardDebounceTapTests.Service {\n"
@@ -1089,6 +1124,7 @@ def main():
           + declaration(notch, "    var usesGlassSurface:")
           + declaration(notch, "    var lingeringMusic:")
           + declaration(notch, "    var expandedGeometry:").replace("var expandedGeometry", "override var expandedGeometry", 1)
+          + declaration(notch, "    private var playerToggleCount:")
           + declaration(notch, "    private func compactMusicTransition(").replace("private func", "func", 1)
           + declaration(notch, "    private func rememberPresentedMusic(").replace("private func", "func", 1)
           + declaration(notch, "    private func switchCompactSelection(").replace("private func", "func", 1)
@@ -1583,7 +1619,8 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", "    struct Topology {")
           + "}\nextension PointerOnDisplayContract.Hop {\n"
           + "".join(declaration(hop, prefix).replace("private ", "", 1)
-                    for prefix in ["    private enum TravelOutcome {", "    private func stepWithSpaceShortcut()"])
+                    for prefix in ["    private enum TravelOutcome {", "    private func start() {",
+                                   "    private func stepWithSpaceShortcut()"])
           + "}\nextension PointerOnDisplayContract.Overlay {\n"
           + declaration(selection, "    func refreshGuideVisibility()")
           + "}\nextension PointerOnDisplayContract.Dock {\n"
@@ -2050,8 +2087,11 @@ def main():
 
     write("AgentClaudeServerService.swift", "import Foundation\n"
           + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
-          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
-                        "    private func readClaudeApp(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func readClaudeApp(", "    private func checkLimits(",
+                                   "    private func reportRenewals(", "    private func claudeLimitsDue(",
+                                   "    private func noteClaudeCheck(", "    private func networkChanged("])
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

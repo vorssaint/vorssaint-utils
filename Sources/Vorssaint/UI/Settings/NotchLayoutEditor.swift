@@ -143,13 +143,17 @@ struct NotchLayoutEditor: View {
         NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
     }
     /// The island around a camera, or as a capsule while it floats in its
-    /// display's menu bar.
+    /// display's menu bar, with the sections button in its row when nothing
+    /// floats for it.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
-        return NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
-                             cameraWidth: floats ? 0 : 210, layout: layout,
-                             menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
-                             customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                     safeAreaTop: floats ? 0 : 32,
+                                     cameraWidth: floats ? 0 : 210, layout: layout,
+                                     menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
+                                     customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        geometry.sectionsButtonInRow = !configuration.actions.contains(.explore)
+        return geometry
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }
@@ -284,7 +288,7 @@ struct NotchLayoutEditor: View {
                 // The top row, around the camera, holds the levels, after the
                 // sections button when nothing floats for that.
                 NotchBandRow(band: band) {
-                    if !configuration.actions.contains(.explore) {
+                    if band.sectionsButton {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.55))
@@ -303,7 +307,8 @@ struct NotchLayoutEditor: View {
                         if controls.shortcutRows > 0 {
                             NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
                                       width: contentWidth, spacing: NotchLayout.shortcutSpacing,
-                                      rowSpacing: NotchLayout.shortcutSpacing) { item in
+                                      leastSpacing: NotchLayout.shortcutLeastSpacing,
+                                      rowSpacing: controls.shortcutRowSpacing) { item in
                                 NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {}
                             }
                         }

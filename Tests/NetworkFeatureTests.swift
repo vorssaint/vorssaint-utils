@@ -362,6 +362,14 @@ enum NetworkFeatureTests {
                "monitor skips heavy menu-bar-only ticks before the stride")
         suite.expect(MonitorSamplingPolicy.shouldSample(.disk, tick: 5, intervalSeconds: 2, foreground: false),
                "monitor samples heavy menu-bar-only ticks at the stride")
+        suite.expect(MonitorSamplingPolicy.shouldSample(.power, tick: 3, intervalSeconds: 2, foreground: false) == false,
+               "background power waits for its stride on an ordinary tick")
+        suite.expect(MonitorSamplingPolicy.shouldSample(.power, tick: 3, intervalSeconds: 2, foreground: false,
+                                                        forced: [.power, .powerDraw]),
+               "a power-source change samples power off its stride, so plugging in shows at once")
+        suite.expect(MonitorSamplingPolicy.shouldSample(.disk, tick: 3, intervalSeconds: 2, foreground: false,
+                                                        forced: [.power, .powerDraw]) == false,
+               "forcing power leaves the other strides alone")
 
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.cpu, .disk], intervalSeconds: 2, foreground: false) == 1,
                "monitor wakes every tick while an every-tick metric is on")

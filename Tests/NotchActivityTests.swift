@@ -568,50 +568,94 @@ enum NotchActivityTests {
         }
     }
 
-    /// The modes and Start sit in the island's top row. Beside the camera of
-    /// the compact preset the modes' menu fills one side and Start shares the
-    /// other with the pin; a full row of the same width holds the three words,
-    /// the sections button and Start, in every language.
+    /// The modes and Start sit in the island's top row, on a page no wider
+    /// than its ruler and clock need. Beside the camera the modes' menu
+    /// takes one side and Start the other; the menu's name may narrow, never
+    /// lose letters, and where the sections button leaves its side too
+    /// little for a name the menu shows the mode's glyph. A full row of the
+    /// page's own width holds the sections button, the whole name and
+    /// Start, in every language.
     private static func modePickerContracts(_ suite: TestSuite) {
         let layout = NotchTimerSupport.ModePicker.self
         let font = NSFont.systemFont(ofSize: layout.labelSize, weight: .medium)
-        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32, cameraWidth: 180)
-        let band = NotchBand(geometry: geometry, contentWidth: geometry.contentWidth)
-        let button: CGFloat = 28 + 6
+        let button = NotchBand.sectionsButtonRoom
         let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
             .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 0
-        suite.expect(band.besideCamera && band.side > 0 && chevron > 0,
-               "the compact preset's top row wraps a 180-point camera")
+        let glyph = ["timer", "stopwatch"].compactMap {
+            NSImage(systemSymbolName: $0, accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: layout.labelSize, weight: .medium))?.size.width
+        }.max() ?? 0
+        let glyphMenu = glyph + layout.menuSpacing + chevron + layout.labelPadding * 2
+        // The timer's page as the island opens it, in a display's own size
+        // or a capsule without a camera.
+        func page(camera: CGFloat, _ size: NotchSize, custom: Double = NotchSize.defaultWidth,
+                  sectionsButton: Bool) -> NotchGeometry {
+            NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: camera > 0 ? 32 : 0,
+                          cameraWidth: camera, layout: size, customWidth: custom, silhouette: camera > 0 ? .notch : .capsule)
+                .page(.timer, controls: [], sectionsButton: sectionsButton)
+        }
+        func band(_ geometry: NotchGeometry) -> NotchBand { NotchBand(geometry: geometry, contentWidth: geometry.contentWidth) }
+        let compact = page(camera: 180, .compact, sectionsButton: false)
+        let wrapped: CGFloat = max(NotchLayout.timerContentWidth, 180 + compact.pageBandSide * 2)
+        suite.expect(band(compact).besideCamera && compact.pageContentWidth == NotchLayout.timerContentWidth
+               && compact.contentWidth == wrapped
+               && band(compact).side == compact.pageBandSide - NotchBand.cameraClearance
+               && chevron > 0 && glyph > 0,
+               "the timer's row wraps a 180-point camera on a page no wider than its own: \(band(compact).side)")
         suite.expect(layout.height > layout.labelSize + 2 && layout.labelPadding > 0
                && NotchLayout.timerStartHeight == 28,
                "every mode label keeps room for its underline and around its text, and Start is as tall as the row's buttons")
+        var sizes: [(NotchSize, Double)] = [(.compact, NotchSize.defaultWidth), (.spacious, NotchSize.defaultWidth)]
+        sizes += stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 20).map { (.custom, $0) }
+        let cameras: [CGFloat] = [0, 156, 170, 180, 185, 190, 200, 208, 210, 224]
         for language in AppLanguage.allCases {
             let text = FeatureStrings.notchActivities(language)
             let labels = [text.timer, text.pomodoro, text.stopwatch]
             suite.expect(Set(labels).count == 3 && labels.allSatisfy { !$0.isEmpty },
                    "each mode has its own name: \(language)")
             let widths = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
-            // Full size on macOS 26; macOS 15 draws Japanese kana wider, and
-            // the stopwatch's name narrows there by a few percent.
-            let menu = (widths.max() ?? 0) * 0.95 + layout.menuSpacing + chevron + layout.labelPadding * 2
-            suite.expect(menu <= band.side,
-                   "every mode's name names the menu beside the camera in \(language): \(Int(menu)) of \(Int(band.side))")
-            // Wider cameras still wrapped by the compact preset leave less;
-            // the name may narrow there, never lose letters.
-            let narrowest = [185.0, 208, 210, 224].map {
-                NotchBand(geometry: NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32,
-                                                  cameraWidth: $0), contentWidth: geometry.contentWidth)
-            }.filter(\.besideCamera).map(\.side).min() ?? band.side
+            let named = (widths.max() ?? 0) + layout.menuSpacing + chevron + layout.labelPadding * 2
             let narrowed = (widths.max() ?? 0) * layout.menuMinimumScale + layout.menuSpacing + chevron + layout.labelPadding * 2
-            suite.expect(narrowed <= narrowest,
-                   "every mode's name fits beside the widest camera the compact preset wraps in \(language): \(Int(narrowed)) of \(Int(narrowest))")
             let startFont = NSFont.systemFont(ofSize: NotchTimerSupport.StartButton.labelSize, weight: .semibold)
             let start = (text.start as NSString).size(withAttributes: [.font: startFont]).width + NotchTimerSupport.StartButton.padding * 2
-            suite.expect(start + button <= band.side,
-                   "Start and the pin share a side beside the camera in \(language): \(Int(start + button)) of \(Int(band.side))")
-            let picker = widths.reduce(0) { $0 + $1 + layout.labelPadding * 2 } + layout.spacing * CGFloat(labels.count - 1)
-            suite.expect(button + picker + 12 + start + button <= geometry.contentWidth,
-                   "a full top row holds the three modes and Start in \(language): \(Int(button + picker + 12 + start + button)) of \(Int(geometry.contentWidth))")
+            var floating = true, spacious = true, shown = true, starts = true, rows = true
+            var narrowest = CGFloat.infinity
+            for camera in cameras {
+                for (size, custom) in sizes {
+                    for sectionsButton in [false, true] {
+                        let geometry = page(camera: camera, size, custom: custom, sectionsButton: sectionsButton)
+                        let row = band(geometry)
+                        guard row.besideCamera else {
+                            // Across the top the marks give way before the name narrows.
+                            rows = rows && (sectionsButton ? button : 0) + named + 12 + start <= row.side
+                            continue
+                        }
+                        // What the menu's side keeps past the button, as the row draws it.
+                        let room = row.side - (sectionsButton ? button : 0)
+                        let fits = layout.menuNamesFit(labels, in: row.leadingRoom)
+                        shown = shown && (fits ? narrowed <= room : glyphMenu <= room)
+                        starts = starts && start <= row.side
+                        if !sectionsButton {
+                            // With the floating button the menu always names the mode.
+                            floating = floating && fits
+                            narrowest = min(narrowest, room)
+                        } else if size == .spacious {
+                            // The preset most islands use keeps the name's room past the button.
+                            spacious = spacious && fits
+                                && room == band(page(camera: camera, size, sectionsButton: false)).side
+                        }
+                    }
+                }
+            }
+            suite.expect(floating,
+                   "every mode's name names the menu beside the camera in \(language), down to \(Int(narrowest)) points")
+            suite.expect(spacious,
+                   "past the sections button the spacious island keeps the name's room beside every camera in \(language)")
+            suite.expect(shown,
+                   "the menu's name never narrows past its minimum, and where it would the mode's glyph fits instead, in \(language): \(Int(narrowed))")
+            suite.expect(starts, "Start fits its side beside every camera in \(language): \(Int(start))")
+            suite.expect(rows,
+                   "a full top row holds the sections button, the whole name and Start in \(language): \(Int(button + named + 12 + start))")
         }
         suite.expect(NotchPomodoroOption.focus.range == 1...180
                      && NotchPomodoroOption.shortBreak.range == 1...60

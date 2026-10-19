@@ -423,7 +423,8 @@ private struct NotchAgentLimitsCard: View {
         }
     }
 
-    /// Claude's plan limits come from the Claude app; the settings say how.
+    /// Claude's plan limits come from Claude Code or the Claude app; the
+    /// settings say how, and why Claude Code could not check.
     private var setUpLimits: some View {
         Button {
             NotchService.shared.openSettings(showing: .agents)

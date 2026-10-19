@@ -167,6 +167,17 @@ struct NotchIconButton: View {
     }
 }
 
+/// The island's way to its sections, in its top row or on a page that
+/// lays out its own top, while nothing floating beside the island offers it.
+struct NotchSectionsButton: View {
+    let action: () -> Void
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchIconButton(symbol: "square.grid.2x2", title: FeatureStrings.notch(l10n.language).sectionsTitle, action: action)
+    }
+}
+
 /// A short island puts the glyph beside its message; taller ones stack them.
 /// Actions, when a page has a next step to offer, follow the message.
 struct NotchEmptyView<Actions: View>: View {
@@ -274,13 +285,15 @@ struct NotchArtwork: View {
 /// Items fill each column top to bottom and continue sideways, so a short
 /// island scrolls to the side and never down. Whenever everything fits
 /// without scrolling, the items read left to right instead, in rows of equal
-/// cells across the full width, and a short last row sits centered.
+/// cells across the full width, and a short last row sits centered. A rail
+/// given `leastSpacing` closes its gaps toward it before it scrolls.
 struct NotchRail<Item: Identifiable, Content: View>: View {
     let items: [Item]
     let rows: Int
     let itemWidth: CGFloat
     let width: CGFloat
     var spacing: CGFloat = 8
+    var leastSpacing: CGFloat? = nil
     var rowSpacing: CGFloat = 8
     var scrollTarget: Item.ID? = nil
     @ViewBuilder let content: (Item) -> Content
@@ -289,8 +302,10 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     private var columns: Int { NotchLayout.railColumns(count: items.count, rows: rows) }
     private var starts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, rows))) }
     private var rowStarts: [Int] { Array(stride(from: 0, to: items.count, by: max(1, columns))) }
-    private var fits: Bool {
-        NotchLayout.railFits(columns: columns, itemWidth: itemWidth, spacing: spacing, width: width)
+    /// Nil while the rail scrolls.
+    private var gap: CGFloat? {
+        NotchLayout.railGap(columns: columns, itemWidth: itemWidth, spacing: spacing,
+                            least: leastSpacing ?? spacing, width: width)
     }
 
     // Scroll to the column itself: its identity is known before lazy children
@@ -301,10 +316,10 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     }
 
     var body: some View {
-        if fits {
-            let cell = (width - CGFloat(max(0, columns - 1)) * spacing) / CGFloat(max(1, columns))
+        if let gap {
+            let cell = (width - CGFloat(max(0, columns - 1)) * gap) / CGFloat(max(1, columns))
             VStack(spacing: rowSpacing) {
-                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell) }
+                ForEach(rowStarts, id: \.self) { start in row(start, cell: cell, gap: gap) }
             }
         } else {
             ScrollViewReader { proxy in
@@ -331,8 +346,8 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
         }
     }
 
-    private func row(_ start: Int, cell: CGFloat) -> some View {
-        HStack(alignment: .top, spacing: spacing) {
+    private func row(_ start: Int, cell: CGFloat, gap: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: gap) {
             ForEach(items[start..<min(items.count, start + max(1, columns))]) { item in
                 content(item).frame(width: cell)
             }

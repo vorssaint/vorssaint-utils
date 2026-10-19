@@ -193,7 +193,8 @@ enum NotchBrowserArtworkSupport {
             guard let name = result["trackName"] as? String,
                   let credit = result["artistName"] as? String else { return false }
             let artists = folded(credit)
-            return folded(name) == wantedTitle && (artists.contains(wantedArtist) || wantedArtist.contains(artists))
+            return folded(name) == wantedTitle
+                && (holdsName(wantedArtist, in: artists) || holdsName(artists, in: wantedArtist))
         }), let small = match["artworkUrl100"] as? String, small.hasSuffix("/100x100bb.jpg"),
               let cover = URL(string: String(small.dropLast("100x100bb.jpg".count)) + "600x600bb.jpg"),
               cover.scheme?.lowercased() == "https",
@@ -204,6 +205,15 @@ enum NotchBrowserArtworkSupport {
     private static func folded(_ text: String) -> String {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Whether `name` stands as whole words in `credit`, as "keshi" does in
+    /// "keshi & Jay": "Mia" is not named by "Jeremias", nor "A" by "Adele".
+    private static func holdsName(_ name: String, in credit: String) -> Bool {
+        guard !name.isEmpty else { return false }
+        let pattern = #"(?<![\p{L}\p{M}\p{N}])"# + NSRegularExpression.escapedPattern(for: name)
+            + #"(?![\p{L}\p{M}\p{N}])"#
+        return credit.range(of: pattern, options: .regularExpression) != nil
     }
 
     /// The largest square centred in an image of this size, in pixels.

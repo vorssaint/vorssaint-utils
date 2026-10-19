@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -203,6 +204,23 @@ enum NotchTimerSupport {
         /// stopwatch's name needs about 0.74 of its size beside the widest
         /// camera there.
         static let menuMinimumScale: CGFloat = 0.7
+
+        /// Whether the menu beside the camera can name the current mode in
+        /// `room`: every mode's name, so choosing another never changes how
+        /// the menu reads, at the minimum scale with macOS 15's wider kana.
+        /// Where the sections button leaves less, the menu shows the mode's
+        /// glyph instead of cutting its name.
+        static func menuNamesFit(_ names: [String], in room: CGFloat) -> Bool {
+            let font = NSFont.systemFont(ofSize: labelSize, weight: .medium)
+            let widest = names.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+            let chevron = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)?
+                .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: 9, weight: .semibold))?.size.width ?? 8
+            return widest * menuMinimumScale * 1.05 + menuSpacing + chevron + labelPadding * 2 <= room
+        }
+
+        /// The glyph a menu with no room for the name shows: the closed
+        /// island's own, a countdown's timer or the stopwatch.
+        static func symbol(for mode: NotchTimerMode) -> String { mode == .stopwatch ? "stopwatch" : "timer" }
     }
 
     /// The start capsule in the top row; the test measures it against a side

@@ -272,6 +272,98 @@ enum UtilitiesFeatureTests {
                 == "first\nsecond ",
                "multi-line snippets keep their delimiter in the same ordered paste")
 
+        // A browser's address bar completes "gitgra" to "gitgra[ph]" with the
+        // added part selected, and the first backspace only removes that
+        // selection (issue #1377). `before` stands in for the field's text
+        // right before the selection, and `asked` records each range it is
+        // asked for.
+        var asked: [NSRange] = []
+        func deletes(_ count: Int, typed: String, _ selection: (range: NSRange, textLength: Int)?,
+                     before: String? = nil) -> Int {
+            asked = []
+            return TextSnippetSupport.triggerDeleteCount(count, typed: typed, focusedSelection: selection) {
+                asked.append($0)
+                return before
+            }
+        }
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 6, length: 2), 8), before: "gitgra") == 7
+               && asked == [NSRange(location: 0, length: 6)],
+               "an inline completion after the trigger takes one more backspace")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 16, length: 2), 18), before: "gitgra") == 7
+               && asked == [NSRange(location: 10, length: 6)],
+               "the completion counts with text typed before the trigger")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 6, length: 2), 8), before: "GitGra") == 7,
+               "the text before the completion matches the typed trigger in any case")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 6, length: 2), 8), before: "search") == 6,
+               "a selection after other text than the typed trigger is not its completion")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 6, length: 2), 8)) == 6,
+               "a field that does not give the text before its selection, or not in time, keeps the count")
+        suite.expect(deletes(6, typed: "gitgra", nil) == 6 && asked.isEmpty,
+               "a field with nothing selected, or that does not say, keeps the count")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 6, length: 0), 6), before: "gitgra") == 6
+               && asked.isEmpty,
+               "a bare caret is not a selection")
+        suite.expect(deletes(4, typed: "gitg", (NSRange(location: 6, length: 4), 31), before: "gitg") == 4
+               && asked.isEmpty,
+               "a selection short of the end, like a terminal's scrollback, is not where the backspaces land")
+        suite.expect(deletes(6, typed: "gitgra", (NSRange(location: 0, length: 8), 8), before: "gitgra") == 6
+               && asked.isEmpty,
+               "a selection over the trigger itself is not a completion of it")
+        // An emoji is one character but two UTF-16 units, the units
+        // Accessibility gives the selection in.
+        suite.expect(deletes(2, typed: ";👍", (NSRange(location: 3, length: 2), 5), before: ";👍") == 3
+               && asked == [NSRange(location: 0, length: 3)],
+               "the trigger is measured in UTF-16 units before its completion")
+        suite.expect(deletes(2, typed: ";👍", (NSRange(location: 2, length: 2), 4), before: ";👍") == 2
+               && asked.isEmpty,
+               "a selection that starts inside the trigger's UTF-16 units is not a completion of it")
+        suite.expect(deletes(0, typed: "", (NSRange(location: 6, length: 2), 8), before: "") == 0
+               && asked.isEmpty,
+               "an insertion with no trigger to clear never deletes")
+        suite.expect(deletes(6, typed: "", (NSRange(location: 0, length: 8), 8), before: "") == 6
+               && asked.isEmpty,
+               "backspaces without the typed trigger never take a selection for its completion")
+        // The text that check measures, as the buffer typed it.
+        suite.expect(TextSnippetSupport.typedTrigger("gitgra", buffer: "xgitgra", swallowed: "a") == "gitgr",
+               "an immediate trigger's backspaces clear it without the key that completed it")
+        suite.expect(TextSnippetSupport.typedTrigger(";test", buffer: "x;test") == ";test",
+               "an after-delimiter trigger's backspaces clear all of it")
+        suite.expect(TextSnippetSupport.typedTrigger("GitGra", buffer: "gitgra", swallowed: "a") == "gitgr",
+               "a trigger that ignores case comes back as typed, not as stored")
+        suite.expect(Array(TextSnippetSupport.typedTrigger("cafe\u{301}", buffer: "caf\u{e9}").utf16)
+                == Array("caf\u{e9}".utf16),
+               "a trigger stored decomposed is measured in the UTF-16 units it was typed in")
+        // What each typing path hands the expansion, decided together.
+        let graph = TextSnippet(name: "Graph", trigger: "gitgrav", replacement: "git log --graph",
+                                expansion: .immediate, enabled: true)
+        let immediate = TextSnippetSupport.expansionMatch(buffer: "xgitgrav", expansion: .immediate,
+                                                          snippets: [graph], swallowed: "v")
+        suite.expect(immediate?.snippet == graph && immediate?.deleteCount == 6
+                && immediate?.typedTrigger == "gitgra",
+               "an immediate trigger clears, and is checked as, what reached the field before its last key")
+        let delimited = TextSnippetSupport.expansionMatch(buffer: "x ;email", expansion: .afterDelimiter,
+                                                          snippets: [email], swallowed: "")
+        suite.expect(delimited?.snippet == email && delimited?.deleteCount == 6
+                && delimited?.typedTrigger == ";email",
+               "an after-delimiter trigger clears, and is checked as, all of it")
+        suite.expect(TextSnippetSupport.expansionMatch(buffer: "x ;emai", expansion: .afterDelimiter,
+                                                       snippets: [email], swallowed: "") == nil,
+               "a half-typed trigger hands nothing to expand")
+        // The service hands each typing path its own swallowed key: none
+        // after a delimiter, the key that completed an immediate trigger.
+        let snippetServiceCode = ((try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
+            encoding: .utf8)) ?? "")
+            .components(separatedBy: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: " ")
+            .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
+        suite.expect(snippetServiceCode.contains(
+                "expansion: .afterDelimiter, snippets: delimiterSnippets, swallowed: \"\")")
+                && snippetServiceCode.contains(
+                "expansion: .immediate, snippets: immediateSnippets, swallowed: typed)"),
+               "each typing path hands the match that sets its backspaces the key it swallowed")
+
         // Custom date patterns after a colon (issue #348)
         let enUS = Locale(identifier: "en_US")
         suite.expect(TextSnippetSupport.expand("{{date:yyyy-MM-dd}}", date: fixedDate, clipboard: nil,

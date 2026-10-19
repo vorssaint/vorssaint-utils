@@ -285,6 +285,11 @@ struct NotchView: View {
             // With no title on screen, VoiceOver still names the page.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(pageName)
+            // The island's own actions sit in its secondary-click menu, with
+            // no button of their own in the row; VoiceOver lists them here.
+            .accessibilityAction(named: service.pinned ? text.unpin : text.pin) { service.pinned.toggle() }
+            .accessibilityAction(named: l10n.s.menuSettings) { service.openSettings() }
+            .accessibilityAction(named: text.collapse) { service.collapse() }
             .padding(.top, geometry.pageTopInset - geometry.headerTopInset)
             .overlayPreferenceValue(NotchBandKey.self, alignment: .top) { items in
                 if geometry.headerRowHeight > 0 {
@@ -346,7 +351,7 @@ struct NotchView: View {
         let homeRow = !band.besideCamera && service.selected == .controls && !showsDetail
             && !service.showingSections && !service.modules.isEmpty
         let homeReading = homeRow
-            ? NotchLayout.homeReadingWidth(levels: NotchSupport.controls().filter(\.isLevel).count, side: band.side) : nil
+            ? NotchLayout.homeReadingWidth(levels: NotchSupport.controls().filter(\.isLevel).count, side: band.leadingRoom) : nil
         let side: HorizontalEdge = wraps || homeReading != nil ? .trailing : .leading
         let readingWidth = homeReading ?? (band.besideCamera ? band.side : min(band.side, 220))
         let makesRoom = homeReading != nil && feedback != nil
@@ -354,7 +359,7 @@ struct NotchView: View {
         // controls there stay mounted, so a search keeps its focus.
         return NotchBandRow(band: band, covered: feedback == nil ? nil : side) {
             if !wraps {
-                bandLeading(besideCamera: band.besideCamera)
+                bandLeading(band)
                 items.leading
             }
         } trailing: {
@@ -365,9 +370,13 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; updateControl(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; pinMark }
-                    HStack(spacing: 6) { items.trailing }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
+                    HStack(spacing: 6) {
+                        items.trailing; trailingSections(band)
+                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
+                    }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
                 }
             }
         }
@@ -375,12 +384,19 @@ struct NotchView: View {
         .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: makesRoom)
         .overlay(alignment: side == .leading ? .leading : .trailing) {
             if let feedback {
-                NotchExpandedLevelView(notice: feedback).frame(width: readingWidth)
+                NotchExpandedLevelView(notice: feedback, showsDetail: readingWidth >= NotchLayout.levelReadingDetailWidth)
+                    .frame(width: readingWidth)
             }
         }
         // Drawn here rather than in the page, the row's controls read the
         // island's language for their dates and numbers, as the page does.
         .environment(\.locale, l10n.language.formattingLocale())
+    }
+
+    /// A page that lays out its leading side itself ends its row with the
+    /// way to the sections, after its own controls, where they fit together.
+    @ViewBuilder private func trailingSections(_ band: NotchBand) -> some View {
+        if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }
     }
 
     private func updateControl(_ band: NotchBand) -> some View {
@@ -399,17 +415,18 @@ struct NotchView: View {
         return false
     }
 
-    @ViewBuilder private func bandLeading(besideCamera: Bool) -> some View {
+    @ViewBuilder private func bandLeading(_ band: NotchBand) -> some View {
         if service.showingSections {
             NotchIconButton(symbol: "chevron.left", title: l10n.s.obBack, action: service.toggleSections)
             // Beside the camera the field takes the rest of its side.
-            NotchSectionSearch(service: service, maximumFieldWidth: besideCamera ? .infinity : 150)
+            NotchSectionSearch(service: service, maximumFieldWidth: band.besideCamera ? .infinity : 150)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else if showsDetail {
             NotchBandBackButton(title: service.detailTitle, action: service.goBack)
-        } else if !service.modules.isEmpty, !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
-            // Without the floating button, the sections stay one click away.
-            NotchIconButton(symbol: "square.grid.2x2", title: text.sectionsTitle, action: service.toggleSections)
+        } else if band.sectionsButton {
+            // Without the floating button, the sections stay one click away;
+            // the row keeps it room before the page's own controls.
+            NotchSectionsButton(action: service.toggleSections)
         }
     }
 

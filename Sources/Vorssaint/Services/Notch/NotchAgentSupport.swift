@@ -199,6 +199,16 @@ enum NotchAgentSupport {
         defaults.object(forKey: DefaultsKey.notchAgentsPriceUpdates) as? Bool ?? true
     }
 
+    /// Whether anything shows or alerts on the plan limits: their alerts, the
+    /// live reading when it shows a limit, the resting island's allowance or,
+    /// while the AI page shows, its Limits card. Nothing asks for them otherwise.
+    static func limitsInUse(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
+        limitThreshold(in: defaults) != nil
+            || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
+            || NotchSupport.idleContent(in: defaults) == .agents
+            || (pageShown && !hiddenCards(in: defaults).contains(.limits))
+    }
+
     // MARK: Strip
 
     /// A wing is never narrower than the music strip's, nor wide enough to

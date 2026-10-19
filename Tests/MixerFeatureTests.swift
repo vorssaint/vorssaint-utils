@@ -1598,5 +1598,24 @@ enum MixerFeatureTests {
         suite.expect(MixerRender.sourceChannel(for: 1, sourceChannels: 1) == 0,
                "a single channel is copied to the right as well as the left")
 
+        // The panel is not compiled into this target. Pin the three attachment
+        // sites for this regression instead of trying to parse arbitrary SwiftUI.
+        let panel = (try? String(contentsOfFile: "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift",
+                                 encoding: .utf8)) ?? ""
+        func section(from start: String, to end: String) -> String {
+            guard let lower = panel.range(of: start),
+                  let upper = panel.range(of: end, range: lower.upperBound..<panel.endIndex) else { return "" }
+            return String(panel[lower.upperBound..<upper.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let rowList = section(from: "private var rowList: some View {", to: "private func updateArrangement")
+        suite.expect(!rowList.isEmpty && !rowList.contains(".help("),
+               "the mixer row does not replace its controls' tooltips with the reorder hint")
+        let icon = section(from: "ZStack(alignment: .bottomTrailing) {", to: "VStack(alignment: .leading, spacing: 5)")
+        let name = section(from: "Text(app.name)", to: "if isPinned {")
+        let hint = ".help(arrangementStrings.arrange)"
+        suite.expect(icon.contains("ResponsibleProcess.icon(for: app.ownerPid") && icon.hasSuffix(hint)
+                && !name.isEmpty && name.hasSuffix(hint)
+                && panel.components(separatedBy: hint).count == 3,
+               "the reorder hint remains on both the app icon and name")
     }
 }

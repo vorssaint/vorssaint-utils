@@ -155,6 +155,19 @@ enum CommandBarFeatureTests {
         suite.expect(math("e-mail") == nil, "a hyphenated word is not a subtraction")
         suite.expect(math("9999999999999999*99")?.contains("e") == true,
                "a number past plain reading switches notation")
+        suite.expect(math("12345678901+1") == "12,345,678,902" && math("987654321098+1") == "987,654,321,099"
+                     && math("2^39") == "549,755,813,888" && math("10000000000+0.5") == "10,000,000,000.5"
+                     && math("1234567890.25+0") == "1,234,567,890.25",
+               "an answer short of that keeps every digit it prints")
+        suite.expect(CommandBarMath.evaluate("100000.1-100000", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "0.1",
+               "a small difference of large numbers still loses its binary noise")
+        suite.expect(CommandBarMath.evaluate("1234567890123+1", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "1234567890124",
+               "reusing an answer shown in scientific notation keeps every whole digit")
+        suite.expect(CommandBarMath.evaluate("2^56", decimalSeparator: ".", groupingSeparator: ",")
+                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "7.20575940379279e+16",
+               "reusing a huge answer keeps fifteen digits without binary noise")
 
         // The same numbers as the owner's Mac writes them.
         suite.expect(CommandBarMath.evaluate("1.234,5 + 1",

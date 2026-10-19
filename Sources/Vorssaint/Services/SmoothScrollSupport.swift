@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreGraphics
 
 /// Pure math for smooth mouse-wheel scrolling, kept free of AppKit so the
 /// unit harness can pin it.
@@ -13,6 +14,28 @@ enum SmoothScrollSupport {
     struct Axes: Equatable {
         let vertical: Double
         let horizontal: Double
+    }
+
+    struct Target: Equatable {
+        let point: CGPoint
+        let processID: Int32
+        let windowNumber: Int
+    }
+
+    /// Only accepted wheel input updates the target. Moving the pointer while
+    /// the tail runs leaves it alone; a fresh tick elsewhere starts a new glide.
+    struct TargetLatch {
+        private(set) var target: Target?
+
+        mutating func update(_ input: Target) -> Bool {
+            let changed = target != input
+            target = input
+            return changed
+        }
+
+        mutating func reset() {
+            target = nil
+        }
     }
 
     struct Frame {
@@ -184,8 +207,8 @@ enum SmoothScrollSupport {
     }
 
     /// A vertical wheel tick with Shift held scrolls sideways instead. That
-    /// redirect happens above the event tap, so once the original tick is
-    /// swallowed the glide has to perform it. Measured against a scroll view:
+    /// redirect normally happens at the receiver, so a continuous glide has
+    /// to perform it before replacing the original tick. Measured against a scroll view:
     /// a tick of one line with Shift moves the content the same way a
     /// horizontal delta of the same sign does, so the tick keeps its sign. A
     /// wheel that already reports a horizontal axis is left alone so its

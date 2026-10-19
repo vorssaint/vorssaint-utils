@@ -164,6 +164,16 @@ enum NotchKeyMonitorTests {
                                    charactersIgnoringModifiers: ",")
         suite.expect(NSEvent.handler?(commandComma) == nil && actions == ["settings"],
                      "Command-Comma opens the island's settings from inside it")
+        // Keep open, Settings and Collapse have no button in the row; besides
+        // the secondary-click menu, VoiceOver reaches them as named actions.
+        let islandSource = ((try? String(contentsOfFile: "Sources/Vorssaint/UI/Notch/NotchView.swift",
+                                         encoding: .utf8)) ?? "")
+            .filter { !$0.isWhitespace }
+        suite.expect([".accessibilityAction(named:service.pinned?text.unpin:text.pin){service.pinned.toggle()}",
+                      ".accessibilityAction(named:l10n.s.menuSettings){service.openSettings()}",
+                      ".accessibilityAction(named:text.collapse){service.collapse()}"]
+                        .allSatisfy(islandSource.contains),
+                     "the open island names Keep open, Settings and Collapse as accessibility actions")
         // A top row that cannot wrap the camera takes a row below it, so a
         // custom island leaves the Tools rail fewer rows than the island
         // without its page would. The arrows walk the rail the page draws.

@@ -6,8 +6,8 @@ import Combine
 import CoreGraphics
 
 /// Rewrites mouse wheel events only, leaving the trackpad on macOS natural
-/// scrolling: a modifying tap at the HID level (before the window server
-/// derives pixel deltas from the wheel ticks), appended at the tail. It caps
+/// scrolling: a modifying tap after the window server annotates the event,
+/// appended after the smooth-scroll tap. It rewrites all delta fields and caps
 /// every event at one notch for linear scrolling, redirects modifier-held
 /// vertical ticks when requested and flips the selected axis deltas; any of
 /// those features keeps the tap alive.
@@ -98,7 +98,7 @@ final class ScrollInverter: ObservableObject {
         }
         setSourceTracking(true)
         guard let tap = CGEvent.tapCreate(
-            tap: .cghidEventTap,
+            tap: ScrollWheelSupport.tapLocation,
             place: .tailAppendEventTap,
             options: .defaultTap,
             eventsOfInterest: CGEventMask(1 << CGEventType.scrollWheel.rawValue),

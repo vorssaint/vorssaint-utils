@@ -150,6 +150,9 @@ private struct NotchTrackArtwork: View {
 /// Level feedback occupies the header while the current page stays usable.
 struct NotchExpandedLevelView: View {
     let notice: NotchNotice
+    /// The percentage after the meter. A side too narrow for it, as across
+    /// from the player's cover, keeps the glyph and a meter long enough to read.
+    var showsDetail = true
 
     var body: some View {
         HStack(spacing: 8) {
@@ -157,9 +160,11 @@ struct NotchExpandedLevelView: View {
                 .frame(width: 18)
             NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
                 .frame(maxWidth: 96)
-            Text(notice.detail)
-                .monospacedDigit()
-                .fixedSize()
+            if showsDetail {
+                Text(notice.detail)
+                    .monospacedDigit()
+                    .fixedSize()
+            }
         }
         .font(.system(size: 11, weight: .medium))
         .frame(maxWidth: .infinity, alignment: .leading)

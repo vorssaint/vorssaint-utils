@@ -74,15 +74,18 @@ struct ScrollWheelAxisDelta: Equatable {
 /// only when they carry no gesture phase at all (how some mouse drivers
 /// report their wheels).
 enum ScrollWheelSupport {
+    /// Both wheel taps share a stage and retain their head/tail ordering.
+    /// At this stage the event has its target process and window, which a
+    /// smooth glide must retain when posting directly to the receiving app.
+    static let tapLocation: CGEventTapLocation = .cgAnnotatedSessionEventTap
+
     /// How long after a gesture-phased event a phaseless continuous event is
     /// still attributed to the same touch device.
     static let touchGestureGraceSeconds: TimeInterval = 1.0
 
-    /// Marks the smooth glide so neither feature handles it twice. Events a
-    /// process posts come back through that same process's taps (measured at
-    /// every tap location), so without the mark the inverter would turn the
-    /// glide around again and cancel the flip smooth scrolling already
-    /// applied.
+    /// Marks a smooth glide so neither feature handles it twice if another
+    /// input tool reinjects the targeted frame into the global event stream.
+    /// Its direction and linear cap have already been applied.
     static let syntheticTag: Int64 = 0x564F5253  // "VORS"
     /// A redirected vertical wheel is not a physical side wheel. The session
     /// tap uses this marker to leave it out of side-wheel shortcut matching.

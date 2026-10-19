@@ -783,12 +783,24 @@ final class NotchService: ObservableObject {
     }
 
     /// The island around a previewed section, with the top row its page has.
+    /// Settings previews the island while it is off too, when the floating
+    /// buttons are not read for it, so a preview reads them as it draws.
     func previewGeometry(for module: NotchModule) -> NotchGeometry {
-        var result = geometry
-        result.pageTop = module.pageTop
-        result.pageContentWidth = NotchLayout.naturalContentWidth(module, controls: NotchSupport.controls(),
-                                                                  within: geometry.contentWidth)
+        var result = geometry.page(module, controls: NotchSupport.controls(),
+                                   sectionsButton: !NotchQuickAccessConfiguration.current().actions.contains(.explore))
+        if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         return result
+    }
+
+    /// The lyrics and queue toggles the player hands its row while a song
+    /// plays, read as the page reads them.
+    private var playerToggleCount: Int {
+        guard NotchMusicService.shared.playback != nil else { return 0 }
+        let defaults = UserDefaults.standard
+        var count = 0
+        if defaults.bool(forKey: DefaultsKey.notchLyricsEnabled), AppFeature.notchLyrics.isAvailable { count += 1 }
+        if defaults.bool(forKey: DefaultsKey.notchQueueEnabled), AppFeature.notchQueue.isAvailable { count += 1 }
+        return count
     }
 
     /// The tallest island a preview can show: a page that fills the budget
@@ -835,11 +847,15 @@ final class NotchService: ObservableObject {
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
+        if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         // Each page takes the width it needs, up to the chosen one; the
-        // gallery, details and the empty island keep the chosen width.
+        // gallery, details and the empty island keep the chosen width, and
+        // lead their row with their own way back instead of the sections.
         if !showingSections, !showingAppPanel, selectedMetric == nil, !modules.isEmpty {
             result.pageContentWidth = NotchLayout.naturalContentWidth(selected, controls: homeControls,
                                                                       within: geometry.contentWidth)
+        } else {
+            result.sectionsButtonInRow = false
         }
         return result
     }
@@ -3314,6 +3330,9 @@ final class NotchService: ObservableObject {
         if sameMenuBar { next.compactSideRoom = geometry.compactSideRoom }
         let access = NotchQuickAccessConfiguration.current()
         next.quickAccessBottomInset = access.hasBottom ? NotchQuickAccessLayout.gutter : 0
+        // Read with the floating buttons rather than on every layout pass,
+        // which would decode them each time.
+        next.sectionsButtonInRow = !access.actions.contains(.explore)
         if next != geometry { menuSpaceGeneration += 1; geometry = next }
         // A new camera or bar, such as a notch fit being adjusted, measures the
         // menus again at once rather than leaving the wings off until the timer.

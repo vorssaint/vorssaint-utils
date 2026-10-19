@@ -30,21 +30,71 @@ enum AgentClaudeServer {
     /// The opt-outs a person may keep in Claude Code's user settings, which
     /// `--setting-sources ""` leaves out of a check.
     static let optOuts = ["DISABLE_TELEMETRY", "DISABLE_ERROR_REPORTING", "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"]
+    /// The proxy and certificates a network may need, which can be kept
+    /// there too.
+    static let networkSettings = ["HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY", "NODE_EXTRA_CA_CERTS"]
 
-    /// How long after the last check Claude Code is asked again.
-    static func interval(after failure: Failure?, pageVisible: Bool) -> TimeInterval {
+    /// How long after the last check Claude Code is asked again. Each check
+    /// in a row without an answer doubles the wait, up to the one for what
+    /// only the person can fix, so a setup that never answers, as a Claude
+    /// Code too old for the check's options, is rarely started.
+    static func interval(after failure: Failure?, repeated: Int = 1, pageVisible: Bool) -> TimeInterval {
         switch failure {
         case nil: return pageVisible ? freshness : backgroundFreshness
-        case .unreachable?: return retryAfter
+        case .unreachable?: return min(settledRetry, retryAfter * Double(1 << min(3, max(0, repeated - 1))))
         case .missing?, .needsSignIn?, .outdated?: return settledRetry
         }
     }
 
+    /// Where Claude Code can be: where its installer, Homebrew and npm put
+    /// it, along the app's PATH, then where Node version managers, Bun and
+    /// pnpm keep global tools. The Claude app's own copy is left out: it has
+    /// no sign-in of its own to check with.
     static func candidates(home: URL, searchPath: String? = nil) -> [URL] {
-        let folders = [home.appending(path: ".local/bin").path,
-                       home.appending(path: ".claude/local").path, "/opt/homebrew/bin", "/usr/local/bin"]
-            + (searchPath ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
+        // One list per line: Swift 6.0.3 cannot type-check them as one sum in time.
+        var folders: [String] = [home.appending(path: ".local/bin").path,
+                                 home.appending(path: ".claude/local").path, "/opt/homebrew/bin", "/usr/local/bin"]
+        folders += (searchPath ?? "").split(separator: ":").map(String.init).filter { $0.hasPrefix("/") }
+        folders += toolFolders(home: home)
         return folders.map { URL(fileURLWithPath: $0, isDirectory: true).appending(path: "claude") }
+    }
+
+    /// The folders that keep npm's global tools beside the Node that runs
+    /// them, each manager's newest Node first, and Volta's, Bun's and pnpm's
+    /// own. A Claude Code that needs Node finds it on this list too.
+    static func toolFolders(home: URL) -> [String] {
+        let path = { (relative: String) -> String in home.appending(path: relative).path }
+        let fnm: [String] = ["Library/Application Support/fnm", ".local/share/fnm", ".fnm"].map(path)
+        // One list per line, as above.
+        var folders: [String] = [path(".volta/bin")]
+        folders += fnm.map { $0 + "/aliases/default/bin" }
+        folders += newest(in: path(".nvm/versions/node")).map { $0 + "/bin" }
+        folders += fnm.flatMap { root in newest(in: root + "/node-versions").map { $0 + "/installation/bin" } }
+        folders += newest(in: path(".asdf/installs/nodejs")).map { $0 + "/bin" }
+        folders += newest(in: path(".local/share/mise/installs/node")).map { $0 + "/bin" }
+        folders += [path(".bun/bin"), path("Library/pnpm"), path(".local/share/pnpm"), path(".npm-global/bin")]
+        return folders
+    }
+
+    /// The folders in `folder` named for a version, as `v22.11.0` or
+    /// `22.11.0`, newest first.
+    private static func newest(in folder: String) -> [String] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
+        return names.compactMap { name -> (version: [Int], path: String)? in
+            let parts = (name.hasPrefix("v") ? String(name.dropFirst()) : name).split(separator: ".").map { Int($0) }
+            guard !parts.isEmpty, !parts.contains(nil) else { return nil }
+            return (parts.compactMap { $0 }, folder + "/" + name)
+        }
+        .sorted { $1.version.lexicographicallyPrecedes($0.version) }
+        .map(\.path)
+    }
+
+    /// The PATH a check gives Claude Code: `path`, the one the app gives
+    /// Codex, then the version managers' folders. A Claude Code that runs on
+    /// Node, as one in `~/.claude/local` does, finds one there, while the
+    /// tools the system has still come from the system.
+    static func searchPath(after path: String, home: URL) -> String {
+        ([path] + toolFolders(home: home)).joined(separator: ":")
     }
 
     static func executable(home: URL, searchPath: String? = nil) -> URL? {
@@ -73,8 +123,8 @@ enum AgentClaudeServer {
     }
 
     /// The app's environment for a check: Claude Code never updates itself
-    /// from one, and the opt-outs the person keeps in its user settings
-    /// apply as in their own sessions. Nothing else is turned off.
+    /// from one, and the opt-outs and the proxy the person keeps in its user
+    /// settings apply as in their own sessions. Nothing else is turned off.
     static func environment(_ base: [String: String], home: URL) -> [String: String] {
         var environment = base
         environment.removeValue(forKey: "CLAUDECODE")
@@ -84,7 +134,7 @@ enum AgentClaudeServer {
               let settings = json["env"] as? [String: Any] else { return environment }
         // Claude Code lets its settings override the environment, and reads
         // a number or a switch there as text.
-        for key in optOuts {
+        for key in optOuts + networkSettings {
             switch settings[key] {
             case let text as String: environment[key] = text
             case let number as NSNumber:

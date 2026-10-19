@@ -71,6 +71,11 @@ final class AgentUsageService: ObservableObject {
     private let claudeAccountQueue = DispatchQueue(label: "com.vorssaint.claude-limits", qos: .utility)
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
+    /// Checks in a row that Claude Code did not answer, counted again from
+    /// zero once the Mac is back online.
+    private var claudeAccountUnreachable = 0
+    /// Whether the Mac has a network, as the reading queue last heard.
+    private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
 
@@ -139,6 +144,9 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
+        // A page torn down with the island never reports leaving, so the
+        // minute cadence would outlive it.
+        pageVisible = false
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
@@ -168,6 +176,7 @@ final class AgentUsageService: ObservableObject {
 
     func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
         if pausingAccounts { CodexProfileLimitsService.shared.pause() }
+        pageVisible = false
         // A first read still going stops at its next chunk, so the wait
         // below is short.
         if running { cancellation.cancel() }
@@ -177,6 +186,8 @@ final class AgentUsageService: ObservableObject {
         cancelClaudeLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
+        claudeAccountUnreachable = 0
+        online = true
         paused = false
         session += 1
         timer?.invalidate()
@@ -231,7 +242,7 @@ final class AgentUsageService: ObservableObject {
     func pageDidAppear(preview: Bool = false) {
         if !preview { pageVisible = true }
         guard running else { return }
-        refreshClaudeLimits()
+        refreshClaudeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -424,16 +435,23 @@ final class AgentUsageService: ObservableObject {
     /// offline, then gives up; until it does, its turn would count on.
     /// Only notes when the network went: the poller, which reads the logs
     /// first and waits while the island is away, ends the turns once the
-    /// Mac stays offline. Runs on `queue`.
+    /// Mac stays offline. The main thread hears it too, and starts no limits
+    /// check meanwhile. Runs on `queue`.
     private func watchNetwork() {
         guard network == nil else { return }
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
             guard let self, self.readerSession >= 0 else { return }
-            if path.status == .satisfied {
+            let online = path.status == .satisfied
+            if online {
                 self.offlineSince = nil
             } else if self.offlineSince == nil {
                 self.offlineSince = (Date(), ProcessInfo.processInfo.systemUptime)
+            }
+            let session = self.readerSession
+            DispatchQueue.main.async {
+                guard self.running, self.session == session else { return }
+                self.networkChanged(online: online)
             }
         }
         monitor.start(queue: queue)
@@ -646,11 +664,12 @@ final class AgentUsageService: ObservableObject {
             }
         }
         // A banked reset renews a warned window before its time, which is
-        // news now rather than at the renewal it replaced.
+        // news now rather than at the renewal it replaced or, as a Claude
+        // week keeps its renewal, at that one.
         for (id, entry) in warned {
-            guard let window = store.limits[entry.provider]?.windows.first(where: { $0.id == id }),
-                  let was = entry.window.resetsAt, let resets = window.resetsAt,
-                  resets.timeIntervalSince(was) > 60, window.usedPercent < threshold else { continue }
+            guard let reading = store.limits[entry.provider],
+                  let window = reading.windows.first(where: { $0.id == id }), window.usedPercent < threshold,
+                  AgentLimitSupport.renewed(entry.window, to: window, observedAt: reading.observedAt) else { continue }
             warned[id] = nil
             report(.limitReset(provider: entry.provider, window: window))
         }
@@ -741,13 +760,10 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    // Main thread. Never query while the feature is off, asleep or already
-    // checking. Every minute only while the page shows; failures back off,
-    // and looking at the page does not bypass that.
-    func refreshClaudeLimits(now: Date = Date()) {
-        guard running, !paused, providers.contains(.claude), claudeAccountRequest == nil else { return }
-        let interval = AgentClaudeServer.interval(after: claudeAccountFailure, pageVisible: pageVisible)
-        guard now.timeIntervalSince(claudeAccountAttempted) >= interval else { return }
+    // Main thread. Every minute only while the page shows; failures back
+    // off, and looking at the page does not bypass that.
+    func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard claudeLimitsDue(at: now, pageShows: pageShows) else { return }
         claudeAccountAttempted = now
         claudeAccountChecking = true
         let request = AgentClaudeServer.Request()
@@ -757,8 +773,9 @@ final class AgentUsageService: ObservableObject {
         claudeAccountQueue.async { [weak self] in
             let result: Result<AgentClaudeServer.Summary, AgentClaudeServer.Failure>
             if let executable = AgentClaudeServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
-                result = request.run(executable, home: home,
-                    environment: AgentCodexServer.environment(for: executable, searchPath: nil))
+                var environment = AgentCodexServer.environment(for: executable, searchPath: nil)
+                environment["PATH"] = AgentClaudeServer.searchPath(after: environment["PATH"] ?? "", home: home)
+                result = request.run(executable, home: home, environment: environment)
             } else { result = .failure(.missing) }
             DispatchQueue.main.async {
                 guard let self, self.running, !self.paused, self.session == session,
@@ -766,9 +783,9 @@ final class AgentUsageService: ObservableObject {
                 self.claudeAccountRequest = nil
                 self.claudeAccountChecking = false
                 switch result {
-                case .failure(let failure): self.claudeAccountFailure = failure
+                case .failure(let failure): self.noteClaudeCheck(failure)
                 case .success(let summary):
-                    self.claudeAccountFailure = nil
+                    self.noteClaudeCheck(nil)
                     self.queue.async {
                         guard self.readerSession == session, self.enabled.contains(.claude) else { return }
                         self.readClaudePlan()
@@ -791,6 +808,29 @@ final class AgentUsageService: ObservableObject {
         // Resume asks again instead of waiting out a cancelled check; with
         // none in flight, the wait after a failure still holds.
         claudeAccountAttempted = .distantPast
+    }
+
+    /// Never while the feature is off, asleep, offline or already checking,
+    /// nor while nothing shows or alerts on the limits. Main thread.
+    private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+    }
+
+    /// Main thread.
+    private func noteClaudeCheck(_ failure: AgentClaudeServer.Failure?) {
+        claudeAccountFailure = failure
+        claudeAccountUnreachable = failure == .unreachable ? claudeAccountUnreachable + 1 : 0
+    }
+
+    /// Back online, the checks start over from the shortest wait: those the
+    /// network failed say nothing about how Claude Code is set up. Main thread.
+    private func networkChanged(online: Bool) {
+        guard online != self.online else { return }
+        self.online = online
+        if online { claudeAccountUnreachable = 0 }
     }
 
     // MARK: Prices

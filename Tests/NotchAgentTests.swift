@@ -38,6 +38,7 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         preferences(suite)
+        limitUse(suite)
         agentDefaults(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -2352,14 +2353,21 @@ enum NotchAgentTests {
         let reading = AgentLimits(provider: .codex, windows: [window(40, resetsIn: 100, id: "a"), window(60, resetsIn: 50, id: "b")],
                                   observedAt: now, source: .sessionLog)
         suite.expect(AgentLimitSupport.binding(reading, now: now)?.id == "b", "the most spent window binds")
-        func limits(_ used: Double, resets: TimeInterval) -> AgentLimits {
-            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now, source: .sessionLog)
+        func limits(_ used: Double, resets: TimeInterval, observed: TimeInterval = 0) -> AgentLimits {
+            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now.addingTimeInterval(observed),
+                        source: .sessionLog)
         }
         suite.expect(AgentLimitSupport.crossings(previous: limits(70, resets: 100), current: limits(85, resets: 100), threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 100), threshold: 80).isEmpty
-                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000), threshold: 80).count == 1
+                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000, observed: 200),
+                                                       threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: nil, current: limits(99, resets: 100), threshold: 80).isEmpty,
                      "a warning comes once per crossing, again after a renewal, never for the first reading")
+        suite.expect(AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 520, observed: 50),
+                                                 threshold: 80).isEmpty
+                        && AgentLimitSupport.crossings(previous: limits(95, resets: 100), current: limits(85, resets: 100, observed: 50),
+                                                       threshold: 80).count == 1,
+                     "a later renewal read before the old one goes by is the same window, and usage that fell is a new one")
     }
 
     // MARK: Reading files
@@ -3051,6 +3059,33 @@ enum NotchAgentTests {
         }
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsOptInMigrated),
                      "the local migration marker never travels in settings backups")
+    }
+
+    /// Only what the person shows or is alerted about asks for the limits.
+    private static func limitUse(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-agent-limits"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        func used(page: Bool) -> Bool { NotchAgentSupport.limitsInUse(pageShown: page, in: defaults) }
+        let alerts = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLimitAlert)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let unused = !used(page: false) && !used(page: true)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let card = !used(page: false) && used(page: true)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set(NotchAgentReadout.limit.rawValue, forKey: DefaultsKey.notchAgentsReadout)
+        let readout = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLiveActivity)
+        let liveOff = !used(page: false)
+        defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(alerts && unused && card && readout && liveOff && used(page: false),
+                     "limits are in use for their alerts, a live limit reading, the resting island or the page's Limits card, and only then")
     }
 
     private static func preferences(_ suite: TestSuite) {
