@@ -61,7 +61,7 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
 
     private var routingContext: NSObject?
     private var routingContextID: String?
-    /// The backup check, scheduled only while a stream is live.
+    /// The backup check, scheduled only while a renderer streams to the speaker.
     private var pollTimer: Timer?
     private var contextObservers: [NSObjectProtocol] = []
     /// Called on the main thread when the connection or speaker changes.
@@ -133,7 +133,9 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
         pollTimer = nil
         idleCheck?.cancel()
         idleCheck = nil
-        idleTimer = AirPlayIdleTimer()
+        streamLock.lock()
+        idleTimer.forgetSilence()
+        streamLock.unlock()
         onChange = nil
         Self.snapshotLock.lock()
         Self.snapshotIsListed = false
@@ -320,7 +322,7 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
         defer { streamLock.unlock() }
         // Paused for silence: a silent app rebuilt meanwhile joins the mix
         // without waking the speaker; the next sound starts a renderer.
-        if !idleStopped {
+        if idleTimer.startsRendererForNewStream {
             startRendererIfNeeded()
             guard airPlayRenderer != nil else { return nil }
         }
@@ -336,11 +338,10 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
 
     // MARK: Pausing for silence
 
-    /// Set under `streamLock` once the renderer was stopped because nothing
-    /// routed played; a renderer already ran, so AirPlay is known to work.
-    private var idleStopped = false
-    /// Main thread.
+    /// Under `streamLock`, which the build queue holds when it asks whether
+    /// a joining engine starts a renderer. Only the main thread reports to it.
     private var idleTimer = AirPlayIdleTimer()
+    /// Main thread.
     private var idleCheck: DispatchWorkItem?
 
     /// Main thread: whether any app routed to AirPlay is producing sound.
@@ -351,29 +352,35 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
     /// routed has played for a while, and starts again with the next sound.
     func routedAudioChanged(active: Bool) {
         dispatchPrecondition(condition: .onQueue(.main))
-        let resumesAfterPause = idleTimer.update(active: active, now: ProcessInfo.processInfo.systemUptime)
+        streamLock.lock()
+        // The time is read under the lock, where renderers start, so it and
+        // a renderer's start time compare in the order they happened.
+        let freshRenderer = idleTimer.update(active: active, now: ProcessInfo.processInfo.systemUptime,
+                                             rendererStartedAt: airPlayRenderer?.startedAt)
+        if freshRenderer {
+            // A session the speaker or macOS paused stays silent when the
+            // renderer that fed it simply carries on.
+            stopRenderer()
+            if !streams.isEmpty { startRendererIfNeeded() }
+        }
+        streamLock.unlock()
         guard active else {
             scheduleIdleCheck()
             return
         }
         idleCheck?.cancel()
         idleCheck = nil
-        streamLock.lock()
-        if idleStopped || resumesAfterPause {
-            idleStopped = false
-            // Always a fresh renderer: a session the speaker or macOS paused
-            // stays silent when the old one simply carries on.
-            stopRenderer()
-            if !streams.isEmpty { startRendererIfNeeded() }
-        }
-        streamLock.unlock()
         updateStreamCheck()
     }
 
     private func scheduleIdleCheck() {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard idleCheck == nil,
-              let remaining = idleTimer.secondsUntilStop(now: ProcessInfo.processInfo.systemUptime) else { return }
+        guard idleCheck == nil else { return }
+        streamLock.lock()
+        let remaining = idleTimer.secondsUntilStop(now: ProcessInfo.processInfo.systemUptime,
+                                                   rendererStartedAt: airPlayRenderer?.startedAt)
+        streamLock.unlock()
+        guard let remaining else { return }
         let work = DispatchWorkItem { [weak self] in
             self?.idleCheck = nil
             self?.stopIfSilent()
@@ -383,29 +390,32 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
     }
 
     private func stopIfSilent() {
-        guard let remaining = idleTimer.secondsUntilStop(now: ProcessInfo.processInfo.systemUptime) else { return }
+        streamLock.lock()
+        let now = ProcessInfo.processInfo.systemUptime
+        let rendererStartedAt = airPlayRenderer?.startedAt
+        let remaining = idleTimer.secondsUntilStop(now: now, rendererStartedAt: rendererStartedAt)
+        if idleTimer.stopsForSilence(now: now, rendererStartedAt: rendererStartedAt) {
+            stopRenderer()
+        }
+        streamLock.unlock()
+        guard let remaining else { return }
         guard remaining <= 0 else {
             scheduleIdleCheck()
             return
         }
-        streamLock.lock()
-        if airPlayRenderer != nil {
-            stopRenderer()
-            idleStopped = true
-        }
-        streamLock.unlock()
         updateStreamCheck()
     }
 
-    /// Runs the backup check exactly while the mixer is active and a stream is
-    /// live. Main thread; reads the live state when it runs, so updates that
-    /// arrive out of order still settle on the right answer.
+    /// Runs the backup check exactly while the mixer is active and a renderer
+    /// streams to the speaker. Main thread; reads the live state when it runs,
+    /// so updates that arrive out of order still settle on the right answer.
     private func updateStreamCheck() {
         dispatchPrecondition(condition: .onQueue(.main))
         streamLock.lock()
         let streaming = airPlayRenderer != nil
         streamLock.unlock()
-        let wanted = streaming && onChange != nil && isAvailable
+        let wanted = AirPlayAvailability.runsBackupCheck(rendererRunning: streaming, mixerActive: onChange != nil,
+                                                         available: isAvailable)
         if wanted, pollTimer == nil {
             pollTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
                 self?.refreshActiveDevice()
@@ -444,7 +454,7 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
         streamLock.lock()
         defer { streamLock.unlock() }
         // Paused for silence after a renderer already worked: nothing to prove.
-        if idleStopped { return true }
+        if !idleTimer.startsRendererForNewStream { return true }
         startRendererIfNeeded()
         return airPlayRenderer != nil
     }
@@ -463,7 +473,7 @@ final class AirPlayRouteManager: NSObject, ObservableObject {
         defer { streamLock.unlock() }
         if streams.remove(token) {
             stopRenderer()
-            idleStopped = false
+            idleTimer.lastStreamEnded()
             DispatchQueue.main.async { [weak self] in self?.updateStreamCheck() }
         }
     }
@@ -518,13 +528,22 @@ enum AirPlayAvailability {
                             pickerCanBind: Bool, rendererCanBind: Bool) -> Bool {
         mixerSupported && hasContext && !(contextID?.isEmpty ?? true) && pickerCanBind && rendererCanBind
     }
+
+    /// The backup check runs only while a renderer streams to the speaker.
+    /// A stream paused for silence sends it nothing, so nothing wakes up on
+    /// a schedule until the next sound starts a renderer again.
+    static func runsBackupCheck(rendererRunning: Bool, mixerActive: Bool, available: Bool) -> Bool {
+        rendererRunning && mixerActive && available
+    }
 }
 
 // MARK: - Silence
 
-/// When the AirPlay stream should pause because nothing routed is playing.
-/// Unknown counts as playing, so a stream is never stopped before the mixer
-/// has said anything; a short gap between tracks does not stop it either.
+/// When the AirPlay stream should pause because nothing routed is playing,
+/// and how it comes back. Unknown counts as playing, so a stream is never
+/// stopped before the mixer has said anything; a short gap between tracks
+/// does not stop it either. The manager tells it what the mixer and the
+/// renderer do and carries out what it answers.
 struct AirPlayIdleTimer {
     static let delay: TimeInterval = 10
     /// A pause at least this long resumes on a fresh renderer. Paused from a
@@ -533,26 +552,72 @@ struct AirPlayIdleTimer {
     /// shorter gap (between tracks) keeps the stream running.
     static let freshStreamAfter: TimeInterval = 1
     private var silentSince: TimeInterval?
+    /// The renderer was stopped because nothing routed played. One already
+    /// ran, so AirPlay is known to work.
+    private var isPaused = false
 
-    /// Answers whether this report ends a pause long enough to need a fresh
-    /// renderer; repeated reports of the same state answer false.
+    /// A report from the mixer, with when the renderer running now started
+    /// (nil while none runs). Answers whether to replace that renderer with a
+    /// fresh one; repeated reports of the same state answer false.
     @discardableResult
-    mutating func update(active: Bool, now: TimeInterval) -> Bool {
-        if active {
-            defer { silentSince = nil }
-            guard let silentSince else { return false }
-            return now - silentSince >= Self.freshStreamAfter
+    mutating func update(active: Bool, now: TimeInterval, rendererStartedAt: TimeInterval?) -> Bool {
+        guard active else {
+            if silentSince == nil {
+                silentSince = now
+            }
+            return false
         }
-        if silentSince == nil {
-            silentSince = now
+        let pauseBegan = silentSince
+        silentSince = nil
+        if isPaused {
+            isPaused = false
+            return true
         }
-        return false
+        // Only a renderer that played through the pause can feed a session
+        // the speaker paused. One started since, for an app routed meanwhile
+        // or a rebuild, is fresh already: replacing it would only open a
+        // second session on the speaker.
+        guard let pauseBegan, let rendererStartedAt, rendererStartedAt < pauseBegan else { return false }
+        return now - pauseBegan >= Self.freshStreamAfter
     }
 
     /// Seconds left before the stream may stop, or nil while something plays.
-    func secondsUntilStop(now: TimeInterval) -> TimeInterval? {
+    /// A renderer started during the silence, for an app routed meanwhile,
+    /// counts from its own start: the speaker only just saw its session
+    /// begin, and stopping it at once would leave the first play waiting for
+    /// another.
+    func secondsUntilStop(now: TimeInterval, rendererStartedAt: TimeInterval?) -> TimeInterval? {
         guard let silentSince else { return nil }
-        return max(0, silentSince + Self.delay - now)
+        let quietSince = max(silentSince, rendererStartedAt ?? silentSince)
+        return max(0, quietSince + Self.delay - now)
+    }
+
+    /// Answers whether the renderer that started at `rendererStartedAt` (nil
+    /// while none runs) stops because nothing routed has played for the whole
+    /// delay. The stream then stays paused until the next sound.
+    mutating func stopsForSilence(now: TimeInterval, rendererStartedAt: TimeInterval?) -> Bool {
+        guard rendererStartedAt != nil,
+              let remaining = secondsUntilStop(now: now, rendererStartedAt: rendererStartedAt),
+              remaining <= 0 else { return false }
+        isPaused = true
+        return true
+    }
+
+    /// Whether an engine joining the mix starts a renderer. Not while paused:
+    /// a silent app rebuilt meanwhile joins without waking the speaker, and
+    /// the next sound starts one.
+    var startsRendererForNewStream: Bool { !isPaused }
+
+    /// The last stream ended, and its renderer with it. Nothing is left to
+    /// pause, so the next engine proves AirPlay with a renderer of its own.
+    mutating func lastStreamEnded() {
+        isPaused = false
+    }
+
+    /// The mixer stopped reporting: until it says something again, nothing
+    /// counts as silent.
+    mutating func forgetSilence() {
+        silentSince = nil
     }
 }
 
@@ -1006,6 +1071,10 @@ final class AirPlayRenderer: @unchecked Sendable {
     private let feed = AirPlayFeedDriver()
     /// Set before `start()`; called on the main thread, once.
     var onFailure: (() -> Void)?
+    /// System uptime when it was made, right before it starts: tells the
+    /// renderer that played through a pause from one started during it,
+    /// which gets the whole silence delay of its own.
+    let startedAt = ProcessInfo.processInfo.systemUptime
     /// Feed queue only.
     private var watch = AirPlayRendererWatch()
 

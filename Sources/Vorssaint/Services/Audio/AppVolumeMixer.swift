@@ -1684,7 +1684,8 @@ final class AppVolumeMixer: ObservableObject {
         // Only while AirPlay is offered, so this never creates the manager.
         if AirPlayRouteManager.isListed {
             AirPlayRouteManager.shared.routedAudioChanged(active: apps.contains { app in
-                app.isPlaying && app.effectiveOutputDeviceUID.map(MixerRoutingSupport.isAirPlaySentinel) == true
+                MixerRoutingSupport.playsOnAirPlay(isPlaying: app.isPlaying,
+                                                   effectiveOutputDeviceUID: app.effectiveOutputDeviceUID)
             })
         }
         var byId: [String: MixerApp] = [:]
